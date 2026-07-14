@@ -44,10 +44,31 @@ public interface IInternalUsersAppService : IApplicationService
     Task<InternalUserCreatedDto> CreateAsync(CreateInternalUserDto input);
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B3) -- sends a password-reset email to an
+    /// existing internal user (admin-triggered). Generates an ABP Identity
+    /// reset token, builds the tenant-aware reset URL, and dispatches the
+    /// per-tenant <c>ResetPassword</c> template. Gated by
+    /// <c>CaseEvaluation.InternalUsers.Edit</c>. Throws
+    /// <c>InternalUserNotFound</c> when the id resolves to no user in the
+    /// caller's tenant scope.
+    /// </summary>
+    Task SendPasswordResetEmailAsync(Guid userId);
+
+    /// <summary>
     /// Returns the active tenants for the form's tenant-picker
     /// dropdown. Runs in host context regardless of the caller's
     /// tenant cookie (IT Admin is host-scoped). Optional case-
     /// insensitive substring filter on tenant <c>Name</c>.
     /// </summary>
     Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(string? filter = null);
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged, internal-role-scoped user list for the
+    /// Staff table. Runs in HOST context (internal operators are host logins) and
+    /// returns only members of the three internal roles (IT Admin, Staff
+    /// Supervisor, Intake Staff), with a server-side <c>Filter</c> (name / email)
+    /// plus <c>Sorting</c> and offset paging. Replaces the client-side
+    /// load-500-then-filter, which silently truncated past 500 identity users.
+    /// </summary>
+    Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(GetInternalUsersInput input);
 }

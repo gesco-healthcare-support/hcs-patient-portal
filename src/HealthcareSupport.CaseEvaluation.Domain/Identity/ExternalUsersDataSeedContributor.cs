@@ -20,14 +20,15 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 /// the four external roles defined in
 /// <see cref="ExternalUserRoleDataSeedContributor"/>:
 ///   patient@&lt;tenantSlug&gt;.test            -&gt; Patient            + Patient domain row
-///   adjuster@&lt;tenantSlug&gt;.test           -&gt; Claim Examiner     (no domain row -- per AppService)
+///   adjuster@&lt;tenantSlug&gt;.test           -&gt; Claim Examiner     + ClaimExaminer domain row
 ///   applicant.attorney@&lt;tenantSlug&gt;.test -&gt; Applicant Attorney + ApplicantAttorney domain row
-///   defense.attorney@&lt;tenantSlug&gt;.test   -&gt; Defense Attorney   (no domain row -- per AppService D-2)
+///   defense.attorney@&lt;tenantSlug&gt;.test   -&gt; Defense Attorney   + DefenseAttorney domain row
 ///
-/// The domain-entity creation mirrors <c>ExternalSignupAppService.RegisterAsync</c>:
-/// only Patient and ApplicantAttorney get a saved profile row; ClaimExaminer
-/// and DefenseAttorney are intentionally NOT created (their saved profiles
-/// are not surfaced in any lookup or pre-fill UI).
+/// The domain-entity creation mirrors <c>ExternalSignupAppService.RegisterAsync</c>,
+/// which (R2-4, 2026-06-22) creates a master for every external role. NOTE: this seed
+/// loop is currently inert (seedPlan is empty -- demo users come from the real
+/// register/invite flows), and the branches below only wire Patient + AA; extend to
+/// DA + CE if demo seeding is ever re-enabled.
 ///
 /// Default password matches the internal seeder: <c>1q2w3E*r</c>. Accounts
 /// are flagged <see cref="IdentityUser.SetEmailConfirmed"/> = true so the
@@ -130,10 +131,11 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                     continue;
                 }
 
-                // Mirror ExternalSignupAppService.RegisterAsync: only Patient
-                // and ApplicantAttorney get a saved profile. ClaimExaminer +
-                // DefenseAttorney intentionally have no domain row (D-2,
-                // 2026-04-30).
+                // Mirror ExternalSignupAppService.RegisterAsync, which (R2-4,
+                // 2026-06-22) creates a master for every external role. Only the
+                // Patient + AA branches are wired here; this loop is currently inert
+                // (empty seedPlan), so DA/CE were never reached -- extend both if
+                // demo seeding is re-enabled.
                 if (roleName == "Patient")
                 {
                     await EnsurePatientRowAsync(user, tenantId);

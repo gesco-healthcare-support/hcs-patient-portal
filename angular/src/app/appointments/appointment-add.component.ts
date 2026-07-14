@@ -321,6 +321,16 @@ export class AppointmentAddComponent {
     return this.bookingMode === 'reRequest';
   }
 
+  /**
+   * F-M05 (2026-06-25): a reval / re-request can only be submitted once a prior
+   * source appointment is loaded (its confirmation # routes the server call).
+   * Exposed so the wizard can disable Submit + flag the Schedule step, rather
+   * than the submit guard silently returning with feedback rendered off-screen.
+   */
+  get isSourceLoadRequired(): boolean {
+    return this.bookingMode !== 'new' && !this.sourceConfirmationNumber;
+  }
+
   /** Localization key for the page heading, by mode. */
   get headingKey(): string {
     if (this.bookingMode === 'reval') return '::ReEvaluationAppointment';
@@ -1654,7 +1664,7 @@ export class AppointmentAddComponent {
     this.isSaving = true;
     try {
       if (await this.uploadStagedDocuments(this.createdAppointmentIdForRetry)) {
-        this.router.navigateByUrl('/');
+        this.navigateAfterBooking();
       }
     } finally {
       this.isSaving = false;
@@ -1808,6 +1818,15 @@ export class AppointmentAddComponent {
   }
 
   async onSubmit(): Promise<void> {
+    // Re-entrancy guard: reject a second submit while one is in flight. Paired
+    // with setting isSaving synchronously before the first await below, this
+    // stops an impatient double-click from running the whole submit twice
+    // (which created a duplicate/orphan patient + a 500 on the second
+    // POST /appointments). The disabled-button binding alone was insufficient
+    // because isSaving used to be set only AFTER an await.
+    if (this.isSaving) {
+      return;
+    }
     const raw = this.form.getRawValue();
     // G-01-07: reval + re-request must be anchored to a loaded source (the
     // server endpoints take the source confirmation # in the route). Block
@@ -1889,13 +1908,16 @@ export class AppointmentAddComponent {
     }
     this.otherLabelMissing = false;
 
-    // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
-    // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
-    // any provider error so submission is never blocked.
-    await this.standardizeAddressesBeforeSubmit();
-
+    // Set the in-flight guard SYNCHRONOUSLY here -- after all the synchronous
+    // validation early-returns above, but before the first await -- so the
+    // re-entrancy check at the top of onSubmit rejects a rapid second click.
     this.isSaving = true;
     try {
+      // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
+      // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
+      // any provider error so submission is never blocked.
+      await this.standardizeAddressesBeforeSubmit();
+
       const rawSubmit = this.form.getRawValue();
 
       if (this.isExternalUserNonPatient && !rawSubmit.patientId) {
@@ -1986,7 +2008,7 @@ export class AppointmentAddComponent {
       // bookers in a single transaction whose gates run on complete data.
       await this.autoApproveIfInternalBooker(createdAppointment?.id);
 
-      this.router.navigateByUrl('/');
+      this.navigateAfterBooking();
     } catch (err: unknown) {
       // Slot rework plan 5: surface the 3 new booking error codes inline
       // and refetch the picker so subsequent attempts see current state.
@@ -2172,6 +2194,16 @@ export class AppointmentAddComponent {
     this.clearTimeSlots();
   }
 
+  /**
+   * Post-booking navigation target. Defaults to the external home (`/`); the
+   * in-shell internal wizard overrides this to land staff on the appointments
+   * list instead. Extracted so that override is additive and the external flow
+   * stays byte-identical.
+   */
+  protected navigateAfterBooking(): void {
+    this.router.navigateByUrl('/');
+  }
+
   goBack(): void {
     this.router.navigateByUrl('/');
   }
@@ -2229,6 +2261,31 @@ export class AppointmentAddComponent {
     }
 
     return this.isBeforeMinimumBookingDateKey(selectedDate);
+  }
+
+  /**
+   * 2026-06-23: explains an all-disabled calendar. Non-empty only once a type +
+   * location are chosen, the slot lookup has resolved, and it returned zero
+   * bookable dates -- i.e. no published availability sits at/after the booking
+   * lead time (the server lookup excludes within-window slots). Without this the
+   * booker sees a silently all-grey calendar with no reason. Uses the FE
+   * minimumBookingDays constant (mirrors the server AppointmentLeadTime default);
+   * sourcing the live per-tenant value is deferred -- the system-parameter read
+   * 403s for external bookers and the value is informational here.
+   */
+  get noBookableDatesMessage(): string {
+    if (!this.checkForAppointmentTypeSelected || this.isAvailableDatesLoading) {
+      return '';
+    }
+    if (this.availableDateKeys.size > 0) {
+      return '';
+    }
+    const days: number = this.minimumBookingDays;
+    return (
+      'No appointment dates are available for the selected type and location. ' +
+      `Appointments must be booked at least ${days} day${days === 1 ? '' : 's'} ahead, ` +
+      'and no availability is published in that window yet.'
+    );
   }
 
   clearDueDate(): void {

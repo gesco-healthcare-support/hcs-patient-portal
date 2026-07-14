@@ -52,6 +52,18 @@ public class InternalUsersController : AbpController
     }
 
     /// <summary>
+    /// 2026-06-16 (A-B3): sends a password-reset email to an existing internal
+    /// user. Auth enforced at the AppService (InternalUsers.Edit permission).
+    /// </summary>
+    [Authorize]
+    [HttpPost]
+    [Route("{id}/send-password-reset")]
+    public virtual Task SendPasswordResetEmailAsync(Guid id)
+    {
+        return _internalUsersAppService.SendPasswordResetEmailAsync(id);
+    }
+
+    /// <summary>
     /// Returns the active tenants for the form's tenant-picker
     /// dropdown. <c>AllowAnonymous</c> on the AppService method is
     /// intentional: the SPA route guard + the class-level
@@ -68,5 +80,18 @@ public class InternalUsersController : AbpController
         [FromQuery] string? filter = null)
     {
         return _internalUsersAppService.GetTenantOptionsAsync(filter);
+    }
+
+    /// <summary>
+    /// 2026-06-30 (QA item B): paged, internal-role-scoped Staff list for the
+    /// reusable Internal Users table. Auth (InternalUsers.Default) is enforced at
+    /// the app service. Replaces the client-side load-500-then-filter.
+    /// </summary>
+    [Authorize]
+    [HttpGet]
+    public virtual Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(
+        [FromQuery] GetInternalUsersInput input)
+    {
+        return _internalUsersAppService.GetInternalUsersAsync(input);
     }
 }

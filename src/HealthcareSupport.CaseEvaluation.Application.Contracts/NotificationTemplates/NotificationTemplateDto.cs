@@ -46,5 +46,13 @@ public class NotificationTemplateDto : FullAuditedEntityDto<Guid>, IHasConcurren
 
     public bool IsActive { get; set; }
 
+    /// <summary>
+    /// True when this tenant's content differs from the shipped seed default
+    /// (B-B2). Derived server-side via
+    /// <c>NotificationTemplateVariableCatalog.IsCustomized</c>; not persisted.
+    /// Drives the "Customized" badge in the editor.
+    /// </summary>
+    public bool IsCustomized { get; set; }
+
     public string ConcurrencyStamp { get; set; } = null!;
 }

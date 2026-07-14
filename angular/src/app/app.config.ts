@@ -26,12 +26,10 @@ import { provideFileManagementConfig } from '@volo/abp.ng.file-management/config
 import { provideSaasConfig } from '@volo/abp.ng.saas/config';
 import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-management/config';
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
-import {
-  HttpErrorComponent,
-  provideThemeLeptonX,
-  withThemeLeptonXOptions,
-} from '@volosoft/abp.ng.theme.lepton-x';
+import { provideThemeLeptonX, withThemeLeptonXOptions } from '@volosoft/abp.ng.theme.lepton-x';
 import { provideNgxMask } from 'ngx-mask';
+import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
+import { UsDateParserFormatter } from './shared/us-date-parser-formatter';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
@@ -41,6 +39,7 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { environment, addressValidation } from '../environments/environment';
 import { APP_ROUTES } from './app.routes';
+import { AppHttpErrorComponent } from './shared/ui/state-message/app-http-error.component';
 import { APP_ROUTE_PROVIDER } from './route.provider';
 import { STATES_STATE_ROUTE_PROVIDER } from './states/state/providers/state-route.provider';
 import { APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER } from './appointment-types/appointment-type/providers/appointment-type-route.provider';
@@ -60,6 +59,7 @@ import { CLAIM_EXAMINERS_CLAIM_EXAMINER_ROUTE_PROVIDER } from './claim-examiners
 import { AddressValidationProvider } from './shared/address/address-validation.provider';
 import { MockAddressProvider } from './shared/address/mock-address.provider';
 import { SmartyAddressProvider } from './shared/address/smarty-address.provider';
+import { BrandingService } from './shared/branding/branding.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -121,6 +121,13 @@ export const appConfig: ApplicationConfig = {
         window.localStorage.setItem('LPX_THEME', 'light');
       }
     }),
+    // Phase E (2026-06-25) -- fetch the current office's branding (name + logo)
+    // at boot from the AllowAnonymous endpoint (resolved by subdomain). Fired,
+    // not awaited: the shell navbars + tab title update reactively when it
+    // returns, and a failure never blocks boot.
+    provideAppInitializer(() => {
+      inject(BrandingService).load();
+    }),
     provideSideMenuLayout(),
     // Issue 2.1 + 2.8 (2026-05-12) — ngx-mask drives the on-screen SSN
     // redaction (`[hiddenInput]="true"` shows '*' while typing).
@@ -156,7 +163,10 @@ export const appConfig: ApplicationConfig = {
     provideAbpThemeShared(
       withHttpErrorConfig({
         errorScreen: {
-          component: HttpErrorComponent,
+          // Redesign (2026-06-14): branded HTTP error screen replacing ABP's
+          // LeptonX HttpErrorComponent for both surfaces. Maps 401 (session-
+          // timeout), 403, 404, and 500 to the state-message card.
+          component: AppHttpErrorComponent,
           forWhichErrors: [401, 403, 404, 500],
           hideCloseIcon: true,
         },
@@ -165,6 +175,11 @@ export const appConfig: ApplicationConfig = {
         wrongPassword: 'Password must contain uppercase, lowercase, number, and special character',
       }),
     ),
+    // QA #15 item 5 (2026-07-07): US date presentation everywhere. Must come
+    // AFTER provideAbpThemeShared so it outranks ABP's culture-driven
+    // DateParserFormatter (which rendered the API host culture's short pattern
+    // and could not parse typed US input).
+    { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
     provideLogo(withEnvironmentOptions(environment)),
     provideGdprConfig(
       withCookieConsentOptions({

@@ -10,19 +10,19 @@ using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
-using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.Locations;
 
 /// <summary>
-/// Domain service for the host-scoped Location master entity. Beyond the
+/// Domain service for the per-office Location master entity. Beyond the
 /// not-blank + length checks, IP4 (2026-06-05) adds the integrity guards a
-/// intake-staff-facing master-data screen needs: a global duplicate-name guard
-/// (Location is NOT IMultiTenant), a non-negative ParkingFee guard, a ZipCode
+/// intake-staff-facing master-data screen needs: a duplicate-name guard
+/// (unique within an office), a non-negative ParkingFee guard, a ZipCode
 /// format guard, and <see cref="EnsureCanDeleteAsync"/> which blocks a (soft)
 /// delete while an Appointment or DoctorAvailability still references the
-/// Location. The reference count disables the IMultiTenant filter so a
-/// cross-tenant reference still protects the shared host-scoped Location.
+/// Location. Database-per-office: Location and its referencing rows are
+/// IMultiTenant in the office's own database, so the guards run in the office's
+/// context where the filter already scopes them to that office.
 /// </summary>
 public class LocationManager : DomainService
 {
@@ -35,18 +35,15 @@ public class LocationManager : DomainService
     protected ILocationRepository _locationRepository;
     protected IRepository<Appointment, Guid> _appointmentRepository;
     protected IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
-    protected IDataFilter<IMultiTenant> _multiTenantFilter;
 
     public LocationManager(
         ILocationRepository locationRepository,
         IRepository<Appointment, Guid> appointmentRepository,
-        IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
-        IDataFilter<IMultiTenant> multiTenantFilter)
+        IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository)
     {
         _locationRepository = locationRepository;
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
-        _multiTenantFilter = multiTenantFilter;
     }
 
     public virtual async Task<Location> CreateAsync(Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
@@ -94,24 +91,22 @@ public class LocationManager : DomainService
     /// <summary>
     /// Guards a (soft) delete: throws <see cref="CaseEvaluationDomainErrorCodes.LocationInUse"/>
     /// when the Location is still referenced by an Appointment or DoctorAvailability. Appointments
-    /// are probed first (the more actionable blocker). The IMultiTenant filter is disabled so a
-    /// reference in any tenant blocks deletion of the shared host-scoped Location.
+    /// are probed first (the more actionable blocker). Database-per-office: the Location and its
+    /// referencing rows are IMultiTenant in the office's own database, so the probe runs in the
+    /// office's context where the filter already scopes each count to that office.
     /// </summary>
     public virtual async Task EnsureCanDeleteAsync(Guid id)
     {
-        using (_multiTenantFilter.Disable())
+        var appointmentCount = await _appointmentRepository.CountAsync(x => x.LocationId == id);
+        if (appointmentCount > 0)
         {
-            var appointmentCount = await _appointmentRepository.CountAsync(x => x.LocationId == id);
-            if (appointmentCount > 0)
-            {
-                ThrowInUse("Appointment", appointmentCount);
-            }
+            ThrowInUse("Appointment", appointmentCount);
+        }
 
-            var availabilityCount = await _doctorAvailabilityRepository.CountAsync(x => x.LocationId == id);
-            if (availabilityCount > 0)
-            {
-                ThrowInUse("DoctorAvailability", availabilityCount);
-            }
+        var availabilityCount = await _doctorAvailabilityRepository.CountAsync(x => x.LocationId == id);
+        if (availabilityCount > 0)
+        {
+            ThrowInUse("DoctorAvailability", availabilityCount);
         }
     }
 

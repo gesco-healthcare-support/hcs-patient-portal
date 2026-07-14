@@ -112,4 +112,13 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
     {
         return _doctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync(input);
     }
+
+    // #2 (2026-06-19) -- POST (not GET): a visible week can carry 100+ slot ids,
+    // too many for a query string. Body is the slot-id list.
+    [HttpPost]
+    [Route("slot-patient-names")]
+    public virtual Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync([FromBody] List<Guid> slotIds)
+    {
+        return _doctorAvailabilitiesAppService.GetSlotPatientNamesAsync(slotIds);
+    }
 }

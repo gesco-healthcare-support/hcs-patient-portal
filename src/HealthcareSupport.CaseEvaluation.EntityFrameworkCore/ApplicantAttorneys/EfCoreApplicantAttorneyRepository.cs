@@ -19,6 +19,16 @@ public class EfCoreApplicantAttorneyRepository : EfCoreRepository<CaseEvaluation
     {
     }
 
+    public virtual async Task<ApplicantAttorney?> FindByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default)
+    {
+        var loweredEmail = normalizedEmail.Trim().ToLower();
+        var dbSet = await GetDbSetAsync();
+        return await dbSet
+            .Where(a => a.Email != null && a.Email.ToLower() == loweredEmail)
+            .OrderBy(a => a.CreationTime)
+            .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
+    }
+
     public virtual async Task<ApplicantAttorneyWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();

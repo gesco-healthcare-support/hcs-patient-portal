@@ -108,6 +108,10 @@ internal static class EmailSubjects
     public const string PatientAppointmentCancelledNoBill =
         "Appointment Portal - Appointment Cancelled - ##AppointmentRequestConfirmationNumber##";
 
+    /// <summary>Prompt 17 (2026-06-17) -- send-back / request-info notice to the requester.</summary>
+    public const string PatientAppointmentInfoRequested =
+        "Appointment Portal - More information needed - ##AppointmentRequestConfirmationNumber##";
+
     // ----------------------------------------------------------------------
     // Phase 6.C (Category 6, 2026-05-08): document-flow subjects.
     // OLD wording verified at AppointmentDocumentDomain.cs:258 / :275 / :291
@@ -289,6 +293,21 @@ internal static class EmailSubjects
         "Appointment Portal - Your agreement is needed on appointment ##AppointmentRequestConfirmationNumber##";
 
     /// <summary>
+    /// QA item M (2026-06-29) -- wired accessor-invite email (a new authorized
+    /// party added to an appointment). Was a stub; the body carries the
+    /// single-use password-setup ##URL##.
+    /// </summary>
+    public const string AccessorAppointmentBooked =
+        "Appointment Portal - You have access to appointment ##AppointmentRequestConfirmationNumber##";
+
+    /// <summary>
+    /// QA item M (2026-06-29) -- JDF due-date auto-cancel notice sent to all
+    /// stakeholders. Was a stub before this.
+    /// </summary>
+    public const string AppointmentCancelledDueDate =
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment cancelled (form not received by due date)";
+
+    /// <summary>
     /// Single source of truth for the per-code subject lookup. The seed
     /// contributor and any future migration walk this map; codes without
     /// an entry fall back to a stub subject.
@@ -311,6 +330,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut] = PatientAppointmentCheckedOut,
             [NotificationTemplateConsts.Codes.PatientAppointmentNoShow] = PatientAppointmentNoShow,
             [NotificationTemplateConsts.Codes.PatientAppointmentCancelledNoBill] = PatientAppointmentCancelledNoBill,
+            [NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested] = PatientAppointmentInfoRequested,
             [NotificationTemplateConsts.Codes.PatientDocumentAccepted] = PatientDocumentAccepted,
             [NotificationTemplateConsts.Codes.PatientDocumentRejected] = PatientDocumentRejected,
             [NotificationTemplateConsts.Codes.PatientDocumentUploaded] = PatientDocumentUploaded,
@@ -350,5 +370,11 @@ internal static class EmailSubjects
             // 2026-05-15 -- IT Admin internal-user welcome email.
             [NotificationTemplateConsts.Codes.InternalUserCreated] = InternalUserCreated,
             [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
+
+            // QA item M (2026-06-29): two wired codes that were shipping stub
+            // subjects/bodies. AccessorAppointmentBooked's stub dropped the
+            // password-setup link, so an invited party could not set a password.
+            [NotificationTemplateConsts.Codes.AccessorAppointmentBooked] = AccessorAppointmentBooked,
+            [NotificationTemplateConsts.Codes.AppointmentCancelledDueDate] = AppointmentCancelledDueDate,
         };
 }

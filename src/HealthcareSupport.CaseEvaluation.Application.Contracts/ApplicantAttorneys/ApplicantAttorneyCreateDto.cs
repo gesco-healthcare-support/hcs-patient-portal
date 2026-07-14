@@ -22,6 +22,9 @@ public class ApplicantAttorneyCreateDto
     [StringLength(ApplicantAttorneyConsts.WebAddressMaxLength)]
     public string? WebAddress { get; set; }
 
+    [StringLength(ApplicantAttorneyConsts.EmailMaxLength)]
+    public string? Email { get; set; }
+
     [StringLength(ApplicantAttorneyConsts.PhoneNumberMaxLength)]
     public string? PhoneNumber { get; set; }
 

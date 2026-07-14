@@ -21,6 +21,12 @@ public class AppointmentWithNavigationPropertiesDto
     public AppointmentDto Appointment { get; set; } = null!;
     public PatientDto? Patient { get; set; }
     public IdentityUserDto? IdentityUser { get; set; }
+
+    /// <summary>QA F-011 (2026-06-23): the actual booker (Appointment.BookedByUserId,
+    /// CreatorId fallback) -- distinct from the patient/owner IdentityUser. Set on
+    /// the single-item load; null on list results.</summary>
+    public IdentityUserDto? BookedByUser { get; set; }
+
     public AppointmentTypeDto? AppointmentType { get; set; }
     public LocationDto? Location { get; set; }
     public DoctorAvailabilityDto? DoctorAvailability { get; set; }

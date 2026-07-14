@@ -112,6 +112,15 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
                 Context = $"Resolver/{kind}/{role}/{appointmentId}/{contextSuffix}",
                 IsRegistered = isRegistered,
                 TenantName = tenantName,
+                // 2026-06-29 multi-tenant fix: stamp the originating office so the
+                // Hangfire worker (SendAppointmentEmailJob) re-enters the correct
+                // tenant via ICurrentTenant.Change(args.TenantId). The resolver runs
+                // inside each office's Change(officeId) scope (the recurring reminder
+                // jobs iterate offices via ITenantWorkRunner), so _currentTenant.Id is
+                // the sending office. Without this, those jobs enqueued TenantId=null
+                // -> the worker ran at host scope. Mirrors NotificationDispatcher's
+                // enqueue pattern (the on-demand path already stamps TenantId).
+                TenantId = _currentTenant.Id,
             };
         }
 

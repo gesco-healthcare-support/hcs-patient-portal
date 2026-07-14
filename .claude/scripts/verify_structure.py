@@ -77,6 +77,8 @@ DOMAIN_EXCLUDE = {
     "CustomFields",
     "Documents",
     "Emailing",
+    # Startup/config infrastructure (HostingConfigValidator) -- no AppService or UI surface
+    "Hosting",
     "Notifications",
     "NotificationTemplates",
     "PackageDetails",

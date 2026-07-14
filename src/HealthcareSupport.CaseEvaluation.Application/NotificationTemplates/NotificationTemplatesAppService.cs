@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -46,13 +47,19 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
 {
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly INotificationTemplateTypeRepository _typeRepository;
+    private readonly INotificationDispatcher _notificationDispatcher;
+    private readonly IEmailBodySanitizer _emailBodySanitizer;
 
     public NotificationTemplatesAppService(
         INotificationTemplateRepository templateRepository,
-        INotificationTemplateTypeRepository typeRepository)
+        INotificationTemplateTypeRepository typeRepository,
+        INotificationDispatcher notificationDispatcher,
+        IEmailBodySanitizer emailBodySanitizer)
     {
         _templateRepository = templateRepository;
         _typeRepository = typeRepository;
+        _notificationDispatcher = notificationDispatcher;
+        _emailBodySanitizer = emailBodySanitizer;
     }
 
     public virtual async Task<PagedResultDto<NotificationTemplateWithNavigationPropertiesDto>> GetListAsync(
@@ -117,6 +124,12 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         ValidateBodies(input);
         ValidateSubjectLength(input);
 
+        // #6 (2026-06-19): sanitize the HTML email body before persist. The
+        // renderer returns stored bodies verbatim, so the stored value must
+        // already be XSS-safe. BodySms is left untouched -- it is sent as plain
+        // text, never HTML, so HTML sanitization does not apply.
+        input.BodyEmail = _emailBodySanitizer.Sanitize(input.BodyEmail);
+
         var entity = await _templateRepository.GetAsync(id);
 
         // Optimistic concurrency: round-trip the stamp from the read DTO.
@@ -130,6 +143,64 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
 
         await _templateRepository.UpdateAsync(entity, autoSave: true);
         return MapToDto(entity);
+    }
+
+    /// <summary>
+    /// B-B1 (2026-06-16): preview the live render by emailing this template to
+    /// the current user with synthetic sample variables. Dispatches through the
+    /// real <see cref="INotificationDispatcher"/> so the preview is exactly what
+    /// recipients receive. Email-only (phone omitted) so a test never fires an
+    /// SMS. Fails fast on an inactive template -- nothing live to test.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.NotificationTemplates.Edit)]
+    public virtual async Task SendTestAsync(Guid id)
+    {
+        var entity = await _templateRepository.GetAsync(id);
+
+        if (!entity.IsActive)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+                .WithData("templateCode", entity.TemplateCode);
+        }
+
+        var email = CurrentUser.Email;
+        Check.NotNullOrWhiteSpace(email, "CurrentUser.Email");
+
+        var recipients = new[] { new NotificationRecipient(email!, isRegistered: true) };
+        var variables = NotificationTemplateVariableCatalog.BuildSampleVariables(entity.TemplateCode);
+
+        await _notificationDispatcher.DispatchAsync(
+            entity.TemplateCode,
+            recipients,
+            variables,
+            contextTag: $"SendTest/{entity.TemplateCode}/{CurrentUser.Id}");
+    }
+
+    /// <summary>
+    /// B-B2 (2026-06-16): the <c>##Var##</c> tokens valid for
+    /// <paramref name="templateCode"/>, for the editor's variable-chip palette.
+    /// Pure lookup (no DB hit) -- validates the code against the seeded set and
+    /// returns the catalog tokens humanized for display.
+    /// </summary>
+    public virtual Task<ListResultDto<NotificationTemplateVariableDto>> GetVariablesAsync(string templateCode)
+    {
+        Check.NotNullOrWhiteSpace(templateCode, nameof(templateCode));
+
+        if (!NotificationTemplateConsts.Codes.All.Contains(templateCode))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+                .WithData("templateCode", templateCode);
+        }
+
+        var items = NotificationTemplateVariableCatalog.GetVariablesForCode(templateCode)
+            .Select(token => new NotificationTemplateVariableDto
+            {
+                Token = token,
+                Label = NotificationTemplateVariableCatalog.Humanize(token),
+            })
+            .ToList();
+
+        return Task.FromResult(new ListResultDto<NotificationTemplateVariableDto>(items));
     }
 
     /// <summary>
@@ -176,8 +247,13 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         Check.Length(input.Subject, nameof(input.Subject), NotificationTemplateConsts.SubjectMaxLength);
     }
 
-    private NotificationTemplateDto MapToDto(NotificationTemplate entity) =>
-        ObjectMapper.Map<NotificationTemplate, NotificationTemplateDto>(entity);
+    private NotificationTemplateDto MapToDto(NotificationTemplate entity)
+    {
+        var dto = ObjectMapper.Map<NotificationTemplate, NotificationTemplateDto>(entity);
+        dto.IsCustomized = NotificationTemplateVariableCatalog.IsCustomized(
+            entity.TemplateCode, entity.Subject, entity.BodyEmail, entity.BodySms);
+        return dto;
+    }
 
     private NotificationTemplateWithNavigationPropertiesDto MapToWithNavDto(
         NotificationTemplateWithNavigationProperties entity) =>

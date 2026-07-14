@@ -1,5 +1,7 @@
 // Phase 9 L7 (2026-05-04) -- shared role classifier used by the post-login
-// redirect guard and by app.component's external-user CSS toggle.
+// redirect guard and the external-user-match canMatch guard. (Formerly also
+// drove app.component's external-user CSS toggle; removed 2026-06-14 when the
+// LeptonX layout was dropped in favour of a bare router-outlet.)
 //
 // Mirrors the canonical external-role names from
 // src/.../Domain/Identity/ExternalUserRoleDataSeedContributor.cs and the
@@ -43,23 +45,4 @@ export function hasOnlyExternalRoles(
     return false;
   }
   return normalized.every((r) => (EXTERNAL_USER_ROLES as readonly string[]).includes(r));
-}
-
-/**
- * Returns true when the user has at least one external role. Used by
- * app.component to decide whether to hide the LeptonX sidebar (the OLD
- * behaviour: external users see a chrome-less layout). Distinct from
- * {@link hasOnlyExternalRoles} which is the post-login-redirect contract:
- * a user with both external + internal roles (e.g. an admin who is also
- * a registered patient) DOES see the dashboard but DOES NOT get the
- * external CSS class because their internal role takes precedence.
- */
-export function hasAnyExternalRole(
-  roles: ReadonlyArray<string | null | undefined> | null | undefined,
-): boolean {
-  if (!roles || roles.length === 0) {
-    return false;
-  }
-  const target = new Set(EXTERNAL_USER_ROLES as readonly string[]);
-  return roles.some((r) => target.has((r ?? '').toLowerCase().trim()));
 }

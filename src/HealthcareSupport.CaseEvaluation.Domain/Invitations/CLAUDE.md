@@ -50,8 +50,9 @@ page; state is derived (Active = `AcceptedAt` null AND `ExpiresAt` > now; else A
 
 ## Permissions
 
-`CaseEvaluation.Invitations.Create` gates the staff-facing invite form; granted to IT Admin /
-Staff Supervisor / Intake Staff per OLD parity. See `CaseEvaluationPermissions.cs` +
+`CaseEvaluation.UserManagement.InviteExternalUser` gates the staff-facing invite form AND the
+invite-management endpoints (list / resend / revoke, added 2026-06-16); granted to IT Admin /
+Staff Supervisor / Intake Staff. See `CaseEvaluationPermissions.cs` +
 `CaseEvaluationPermissionDefinitionProvider.cs`.
 
 ## Multi-tenancy
@@ -64,9 +65,11 @@ Staff Supervisor / Intake Staff per OLD parity. See `CaseEvaluationPermissions.c
 
 ## Gotchas
 
-- The raw token leaves the server exactly once (in the invite URL). There is no "resend" that
-  returns the same token -- resend = issue a new invitation; the old hash row stays as audit
-  history and expiry handles cleanup.
+- The raw token leaves the server exactly once (in the invite URL); it cannot be retrieved later.
+  "Resend" (2026-06-16) re-issues the SAME row in place via `InvitationManager.ResendAsync`: a fresh
+  token + hash overwrite the old ones and `ExpiresAt` resets to now + 7d, so the old URL stops
+  validating immediately and the list keeps one row per recipient. "Revoke" soft-deletes the row;
+  `GetInvitesAsync` disables the `ISoftDelete` filter so revoked rows still surface (Status = Revoked).
 - Email casing: callers must lowercase the email before `IssueAsync`. The current AppService does;
   future callers must too, or duplicate-email checks at register time will miss collisions.
 - Soft-delete is enabled (inherited), so a future "revoke invite" is a soft-delete; queries filter

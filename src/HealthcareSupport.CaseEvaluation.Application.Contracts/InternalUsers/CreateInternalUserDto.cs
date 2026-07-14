@@ -48,14 +48,13 @@ public class CreateInternalUserDto
     public string RoleName { get; set; } = null!;
 
     /// <summary>
-    /// Tenant the new user belongs to. IT Admin is host-scoped
-    /// (admin.localhost), so <c>CurrentTenant.Id</c> is null at request
-    /// time; the form's tenant picker is the only source of truth for
-    /// which tenant the user lands in. <c>Guid.Empty</c> is rejected
-    /// with <c>BusinessException(InternalUserTenantRequired)</c>.
+    /// Phase D (2026-06-25): IGNORED. Internal operators (Staff Supervisor,
+    /// Intake Staff) are now HOST logins created in host context -- they are not
+    /// placed inside a tenant. Kept (optional) for proxy/back-compat; an Intake
+    /// operator's office access is set later via the assignment screen, not at
+    /// create time. Removed from the SPA create form.
     /// </summary>
-    [Required]
-    public Guid TenantId { get; set; }
+    public Guid? TenantId { get; set; }
 
     /// <summary>
     /// Optional phone number; persisted on the

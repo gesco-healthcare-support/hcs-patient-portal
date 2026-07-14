@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 
@@ -22,4 +23,18 @@ public interface IReportsAppService : IApplicationService
     /// redaction so masking cannot diverge.
     /// </summary>
     Task<DownloadResult> GetReportPdfAsync(GetAppointmentReportInput input);
+
+    /// <summary>
+    /// Per-status counts for the report's filter set, with the status filter itself
+    /// ignored so the summary cards span every status. Raw <see cref="AppointmentStatusType"/>
+    /// counts -- the Angular report buckets them into its pills via the shared
+    /// appointmentStatusToPill, keeping cards + grid in lockstep.
+    /// </summary>
+    Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentReportInput input);
+
+    /// <summary>
+    /// The full filtered result set (no paging) rendered as a CSV, for the
+    /// "Export to CSV" action. Same filters/guards/redaction as the PDF.
+    /// </summary>
+    Task<DownloadResult> GetReportCsvAsync(GetAppointmentReportInput input);
 }

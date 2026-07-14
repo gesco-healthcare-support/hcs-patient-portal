@@ -11,6 +11,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.Appointments;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
 
@@ -20,21 +21,29 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
 {
     protected IAppointmentTypeRepository _appointmentTypeRepository;
     protected AppointmentTypeManager _appointmentTypeManager;
+    protected IRepository<Appointment, Guid> _appointmentRepository;
 
-    public AppointmentTypesAppService(IAppointmentTypeRepository appointmentTypeRepository, AppointmentTypeManager appointmentTypeManager)
+    public AppointmentTypesAppService(IAppointmentTypeRepository appointmentTypeRepository, AppointmentTypeManager appointmentTypeManager, IRepository<Appointment, Guid> appointmentRepository)
     {
         _appointmentTypeRepository = appointmentTypeRepository;
         _appointmentTypeManager = appointmentTypeManager;
+        _appointmentRepository = appointmentRepository;
     }
 
     public virtual async Task<PagedResultDto<AppointmentTypeDto>> GetListAsync(GetAppointmentTypesInput input)
     {
         var totalCount = await _appointmentTypeRepository.GetCountAsync(input.FilterText, input.Name);
         var items = await _appointmentTypeRepository.GetListAsync(input.FilterText, input.Name, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var dtoItems = ObjectMapper.Map<List<AppointmentType>, List<AppointmentTypeDto>>(items);
+        // Prompt 15 / item 32: per-row UsageCount = referencing Appointment rows.
+        foreach (var dto in dtoItems)
+        {
+            dto.UsageCount = (int)await _appointmentRepository.CountAsync(a => a.AppointmentTypeId == dto.Id);
+        }
         return new PagedResultDto<AppointmentTypeDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<AppointmentType>, List<AppointmentTypeDto>>(items)
+            Items = dtoItems
         };
     }
 
@@ -46,7 +55,8 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
     [Authorize(CaseEvaluationPermissions.AppointmentTypes.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        await _appointmentTypeRepository.DeleteAsync(id);
+        // Route through the manager so the system-row + in-use guards apply.
+        await _appointmentTypeManager.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentTypes.Create)]

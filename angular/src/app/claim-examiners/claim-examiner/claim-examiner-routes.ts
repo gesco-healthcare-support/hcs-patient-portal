@@ -5,8 +5,11 @@ export const CLAIM_EXAMINER_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/claim-examiner.component').then((c) => c.ClaimExaminerComponent);
+      return import('../../people/internal-people.component').then(
+        (c) => c.InternalPeopleComponent,
+      );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'ce', requiredPolicy: 'CaseEvaluation.ClaimExaminers' },
   },
 ];

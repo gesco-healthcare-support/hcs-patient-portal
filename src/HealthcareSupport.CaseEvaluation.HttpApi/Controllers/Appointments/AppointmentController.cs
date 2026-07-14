@@ -8,6 +8,7 @@ using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Application.Dtos;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Controllers.Appointments;
@@ -31,11 +32,30 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.GetListAsync(input);
     }
 
+    /// <summary>
+    /// Prompt 10 (2026-06-14): per-status counts for the internal list's chips.
+    /// Same filters as the list query; status filter ignored so each chip shows
+    /// its total within the other active filters.
+    /// </summary>
+    [HttpGet]
+    [Route("status-counts")]
+    public virtual Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentsInput input)
+    {
+        return _appointmentsAppService.GetStatusCountsAsync(input);
+    }
+
     [HttpGet]
     [Route("with-navigation-properties/{id}")]
     public virtual Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
         return _appointmentsAppService.GetWithNavigationPropertiesAsync(id);
+    }
+
+    [HttpGet]
+    [Route("{appointmentId}/custom-field-values")]
+    public virtual Task<List<CustomFieldValueDisplayDto>> GetAppointmentCustomFieldValuesAsync(Guid appointmentId)
+    {
+        return _appointmentsAppService.GetAppointmentCustomFieldValuesAsync(appointmentId);
     }
 
     [HttpGet]

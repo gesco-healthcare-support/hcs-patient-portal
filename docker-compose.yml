@@ -1,15 +1,17 @@
-# Single development compose file (2026-05-06).
+# Single development compose file.
 #
-# This is the only compose file we run; the previous prod/dev split
-# (docker-compose.yml + docker-compose.dev.yml overlay) has been folded
-# into one. Authserver + API run via `dotnet watch run` from
-# Dockerfile.dev with bind-mounted source so C# / Razor edits hot-reload
-# without rebuilding the image. Angular runs `ng build --watch` +
-# browser-sync from its Dockerfile.dev with bind-mounted source so SPA
-# edits live-reload through the browser.
+# One multi-stage Dockerfile per service (2026-06-12). Each app service builds
+# its `dev` target: source is bind-mounted and dependencies live in named
+# volumes (node_modules for angular; NuGet packages for the .NET services), so
+# editing code means `docker compose restart <svc>` -- no image rebuild and no
+# cold dependency reinstall. .NET build output is redirected to a container-local
+# /artifacts (ArtifactsPath, set in each dev stage) so concurrent builds never
+# collide and the host tree stays clean. There is no file watcher: Docker
+# Desktop's bind-mount/inotify bridge on Windows drops events (OBS-22), so the
+# loop is restart-based.
 #
-# When a production deployment story lands (likely Azure App Service or
-# AKS), it will be a separate stack -- not a sibling compose file.
+# CI / deploy build the default (prod) target of each Dockerfile. A production
+# deployment story (Azure App Service / AKS) will be a separate stack.
 
 services:
   sql-server:
@@ -95,6 +97,7 @@ services:
     build:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.DbMigrator/Dockerfile
+      target: dev
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
@@ -103,6 +106,13 @@ services:
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:${NG_PORT:-4200}"
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:${API_PORT:-44327}"
+      # R2 (2026-06-22): the client ids live in the migrator appsettings.json, but the
+      # dev container shadows its appsettings.Local.json with dev-empty-local.json, so
+      # the OpenIddict data seeder skipped these clients on a fresh DB (login then failed
+      # with "client_id invalid"). Supply them here so a clean clone seeds the App +
+      # Swagger clients with no local override needed.
+      OpenIddict__Applications__CaseEvaluation_App__ClientId: "CaseEvaluation_App"
+      OpenIddict__Applications__CaseEvaluation_Swagger__ClientId: "CaseEvaluation_Swagger"
       # 2026-05-13: MinIO blob storage for the seven document containers
       # (see CaseEvaluationDomainModule.ConfigureBlobStoring). Endpoint
       # uses the docker network alias; AccessKey + SecretKey come from
@@ -115,6 +125,17 @@ services:
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
+      # dev target (2026-06-12): bind-mount source for restart-to-iterate; NuGet
+      # in a named volume; build output -> container-local /artifacts (Dockerfile
+      # dev stage). Shadow the host appsettings.Local.json (points at LocalDb)
+      # with an empty {} so the compose connection-string env vars win.
+      - ./src:/app/src
+      - ./test:/app/test
+      - ./Directory.Build.props:/app/Directory.Build.props
+      - ./BannedSymbols.txt:/app/BannedSymbols.txt
+      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx
+      - nuget_packages:/root/.nuget/packages
+      - ./docker/dev-empty-local.json:/app/src/HealthcareSupport.CaseEvaluation.DbMigrator/appsettings.Local.json:ro
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     depends_on:
@@ -135,6 +156,7 @@ services:
       # source is mounted, so to apply a backend code change, rebuild:
       # `docker compose up -d --build authserver`.
       dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
+      target: dev
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
@@ -183,12 +205,24 @@ services:
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
-      # The published image is self-contained (content root /app). Only the real
-      # secrets file is mounted, overriding the {} placeholder baked at build time.
+      # dev target (2026-06-12): bind-mount source + NuGet named volume; build
+      # output -> container-local /artifacts (Dockerfile dev stage). Shadow the
+      # host appsettings.Local.json (LocalDb) with {} so the compose env
+      # connection strings win in-container.
+      - ./src:/app/src
+      - ./test:/app/test
+      - ./Directory.Build.props:/app/Directory.Build.props
+      - ./BannedSymbols.txt:/app/BannedSymbols.txt
+      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx
+      - nuget_packages:/root/.nuget/packages
+      - ./docker/dev-empty-local.json:/app/src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.Local.json:ro
+      # Anonymous volume seeded from the image's baked wwwroot/libs (build-time
+      # `abp install-libs`), so the ./src bind-mount does not hide the Razor
+      # theme libs and we skip a slow runtime install-libs on Windows.
+      - /app/src/HealthcareSupport.CaseEvaluation.AuthServer/wwwroot/libs
+      # Real per-project secrets arrive via the ./src bind-mount in dev; this /app
+      # mount is the prod content-root path (inert in dev, kept for parity).
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
-      # ABP Commercial runtime license. Same mount db-migrator (also a prod
-      # aspnet image) uses to license itself -- without it the host fails at
-      # startup with ABP-LIC-ERROR. The prod image runs as root, so /root resolves.
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
       - "127.0.0.1:${AUTH_PORT:-44368}:8080"
@@ -214,6 +248,7 @@ services:
       # Multi-stage production Dockerfile (see authserver). Rebuild to apply a
       # backend code change: `docker compose up -d --build api`.
       dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
+      target: dev
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
@@ -253,11 +288,20 @@ services:
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
-      # The published image is self-contained (content root /app). Only the real
-      # secrets file is mounted, overriding the {} placeholder baked at build time.
+      # dev target (2026-06-12): bind-mount source + NuGet named volume; build
+      # output -> container-local /artifacts (Dockerfile dev stage). Shadow the
+      # host appsettings.Local.json (LocalDb) with {} so the compose env
+      # connection strings win in-container.
+      - ./src:/app/src
+      - ./test:/app/test
+      - ./Directory.Build.props:/app/Directory.Build.props
+      - ./BannedSymbols.txt:/app/BannedSymbols.txt
+      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx
+      - nuget_packages:/root/.nuget/packages
+      - ./docker/dev-empty-local.json:/app/src/HealthcareSupport.CaseEvaluation.HttpApi.Host/appsettings.Local.json:ro
+      # Real per-project secrets arrive via the ./src bind-mount in dev; this /app
+      # mount is the prod content-root path (inert in dev, kept for parity).
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
-      # ABP Commercial runtime license (see authserver) -- without it the host
-      # fails at startup with ABP-LIC-ERROR. Prod image runs as root.
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
       - "127.0.0.1:${API_PORT:-44327}:8080"
@@ -298,12 +342,13 @@ services:
   angular:
     build:
       context: ./angular
-      # Multi-stage production Dockerfile: node build stage runs `ng build`,
-      # final stage serves the static dist from nginx:alpine (~0.15 GB vs the
-      # old browser-sync Dockerfile.dev ~5.5 GB). NG_CONFIG selects the
-      # angular.json configuration shipping http (not https) URLs in dev.
-      # Rebuild to apply an SPA change: `docker compose up -d --build angular`.
+      # Unified multi-stage Dockerfile (2026-06-12). `dev` target: yarn toolchain
+      # only; source + node_modules arrive at runtime (bind-mount + named volume),
+      # entrypoint installs + builds + serves. Edit a file ->
+      # `docker compose restart angular` to pick it up. CI/deploy build the
+      # default `prod` target (nginx static, ~0.15 GB).
       dockerfile: Dockerfile
+      target: dev
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
     environment:
@@ -320,12 +365,16 @@ services:
     ports:
       - "127.0.0.1:${NG_PORT:-4200}:80"
     volumes:
-      # The static SPA is baked into the image; no source mount. This script is
-      # sourced by nginx's /docker-entrypoint.d at startup and regenerates
-      # dynamic-env.json from this stack's NG_PORT/AUTH_PORT/API_PORT, so the
-      # same image works across worktrees (BUG-015). Mounted (not baked) so the
-      # production image that helm builds from angular/Dockerfile stays unchanged.
-      - ./angular/docker-dynamic-env.envsh:/docker-entrypoint.d/15-dynamic-env.envsh:ro
+      # dev target: bind-mount source for restart-to-iterate; node_modules in a
+      # named volume (the Linux-built tree, not the host's Windows one, and not
+      # baked into the image); .angular cache + dist kept container-local so host
+      # and container builds never cross-contaminate. dynamic-env.json is written
+      # by dev-entrypoint.sh from NG_PORT/AUTH_PORT/API_PORT (the SPA fetches it
+      # relative at bootstrap -- src/main.ts).
+      - ./angular:/app
+      - angular_node_modules:/app/node_modules
+      - /app/.angular
+      - /app/dist
     depends_on:
       api:
         condition: service_healthy
@@ -333,3 +382,5 @@ services:
 volumes:
   sqldata:
   miniodata:
+  angular_node_modules:
+  nuget_packages:

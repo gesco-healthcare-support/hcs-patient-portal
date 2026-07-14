@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -64,6 +65,7 @@ public class StatusChangeEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<AppointmentInfoRequest, Guid> _infoRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly CcRecipientAppender _ccAppender;
@@ -90,6 +92,7 @@ public class StatusChangeEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         CcRecipientAppender ccAppender,
@@ -102,6 +105,7 @@ public class StatusChangeEmailHandler :
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _appointmentRepository = appointmentRepository;
+        _infoRequestRepository = infoRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _identityUserRepository = identityUserRepository;
         _ccAppender = ccAppender;
@@ -163,13 +167,14 @@ public class StatusChangeEmailHandler :
             // track the post-condition.
             var status = eventData.ToStatus!.Value;
 
-            // NoShow goes to internal staff only (OLD :1021), so its
-            // recipient set is computed below from IdentityUserManager
-            // rather than from the resolver. The other four (Approved,
-            // Rejected, CheckedIn, CheckedOut, CancelledNoBill) all use
-            // the standard stakeholder fan-out.
+            // NoShow goes to internal staff only (OLD :1021) and InfoRequested
+            // (Prompt 17) goes to the requester only -- both compute their own
+            // recipient set inside the dispatch method rather than via the
+            // stakeholder resolver. The others (Approved, Rejected, CheckedIn,
+            // CheckedOut, CancelledNoBill) use the standard stakeholder fan-out.
             List<NotificationRecipient> stakeholders;
-            if (status == AppointmentStatusType.NoShow)
+            if (status == AppointmentStatusType.NoShow
+                || status == AppointmentStatusType.InfoRequested)
             {
                 stakeholders = new List<NotificationRecipient>();
             }
@@ -217,6 +222,11 @@ public class StatusChangeEmailHandler :
                         await DispatchCancelledNoBillAsync(
                             eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
                         break;
+
+                    case AppointmentStatusType.InfoRequested:
+                        await DispatchInfoRequestedAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+                        break;
                 }
             }
             catch (BusinessException ex)
@@ -242,7 +252,7 @@ public class StatusChangeEmailHandler :
     /// Phase 2.C (2026-05-08): the six statuses this handler covers. Any
     /// other status passes through silently.
     /// </summary>
-    private static bool IsHandledStatus(AppointmentStatusType? status) => status switch
+    internal static bool IsHandledStatus(AppointmentStatusType? status) => status switch
     {
         AppointmentStatusType.Approved => true,
         AppointmentStatusType.Rejected => true,
@@ -250,6 +260,7 @@ public class StatusChangeEmailHandler :
         AppointmentStatusType.CheckedOut => true,
         AppointmentStatusType.NoShow => true,
         AppointmentStatusType.CancelledNoBill => true,
+        AppointmentStatusType.InfoRequested => true,
         _ => false,
     };
 
@@ -564,6 +575,71 @@ public class StatusChangeEmailHandler :
             stakeholders: stakeholders,
             variables: vars,
             contextTag: $"StatusChange/CancelledNoBill/Stakeholders/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Prompt 17 (2026-06-17): InfoRequested fires
+    /// <c>PatientAppointmentInfoRequested</c> to the REQUESTER (booker) only --
+    /// a send-back asks the person who submitted the request to correct it, so
+    /// the other parties are not CC'd. The body carries the staff note + a deep
+    /// link to the external fix-it page and templates NO field values (HIPAA:
+    /// the requester sees the specific fields on the page, not in the email).
+    /// </summary>
+    private async Task DispatchInfoRequestedAsync(
+        AppointmentStatusChangedEto eventData,
+        DocumentEmailContext ctx,
+        Appointment appointment,
+        string appointmentDate,
+        string appointmentFromTime)
+    {
+        var requesterEmail = ctx.PrimaryRecipientEmail ?? ctx.BookerEmail;
+        if (string.IsNullOrWhiteSpace(requesterEmail))
+        {
+            _logger.LogWarning(
+                "StatusChangeEmailHandler: no requester email for InfoRequested appointment {AppointmentId}; skipping.",
+                eventData.AppointmentId);
+            return;
+        }
+
+        var openRequest = await _infoRequestRepository.FirstOrDefaultAsync(
+            r => r.AppointmentId == eventData.AppointmentId
+                && r.Status == InfoRequestStatus.Open);
+
+        var baseVars = BuildVariables(
+            ctx,
+            appointment,
+            appointmentDate,
+            appointmentFromTime,
+            wrapInternalComments: string.Empty,
+            rejectionNotes: null);
+
+        var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
+        {
+            ["InfoRequestNote"] = openRequest?.Note ?? string.Empty,
+            ["AppointmentViewUrl"] = BuildFixItUrl(ctx.PortalBaseUrl, eventData.AppointmentId),
+        };
+
+        var recipients = new List<NotificationRecipient>
+        {
+            new(email: requesterEmail!, isRegistered: true),
+        };
+
+        await _dispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested,
+            recipients: recipients,
+            variables: vars,
+            contextTag: $"StatusChange/InfoRequested/Requester/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Composes the absolute external fix-it URL (<c>/appointments/view/{id}</c>)
+    /// from the per-tenant portal base URL. The route is the role-split external
+    /// appointment detail, which renders the fix-it flow while InfoRequested.
+    /// </summary>
+    private static string BuildFixItUrl(string? portalBaseUrl, Guid appointmentId)
+    {
+        var baseUrl = (portalBaseUrl ?? string.Empty).TrimEnd('/');
+        return $"{baseUrl}/appointments/view/{appointmentId}";
     }
 
     /// <summary>

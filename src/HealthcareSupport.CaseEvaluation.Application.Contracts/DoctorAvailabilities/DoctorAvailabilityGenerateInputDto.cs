@@ -16,6 +16,12 @@ namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 /// <see cref="AppointmentTypeIds"/>. Empty <see cref="SelectedDays"/> means
 /// "every weekday in the range"; empty <see cref="AppointmentTypeIds"/>
 /// means "any type accepted" (loose mode).
+///
+/// <para>Prompt 14 (2026-06-15) -- a non-empty <see cref="SelectedDates"/>
+/// switches to explicit-date mode: those exact calendar dates are used
+/// (deduplicated + sorted) and <see cref="FromDate"/> / <see cref="ToDate"/>
+/// / <see cref="SelectedDays"/> are ignored. This backs the "Pick days on
+/// calendar" pattern for irregular schedules (BACKEND-CHANGES item 13).</para>
 /// </summary>
 public class DoctorAvailabilityGenerateInputDto
 {
@@ -26,9 +32,19 @@ public class DoctorAvailabilityGenerateInputDto
     /// <summary>
     /// Weekday indices to include (0=Sunday, 6=Saturday). Empty or null
     /// treated as "all weekdays". Duplicates and out-of-range entries are
-    /// rejected by the AppService.
+    /// rejected by the AppService. Ignored when <see cref="SelectedDates"/>
+    /// is supplied.
     /// </summary>
     public List<int>? SelectedDays { get; set; }
+
+    /// <summary>
+    /// Prompt 14 (2026-06-15) -- explicit calendar dates for irregular
+    /// patterns. When non-empty this wins over the
+    /// <see cref="FromDate"/> / <see cref="ToDate"/> + <see cref="SelectedDays"/>
+    /// range expansion and the slots are generated for exactly these dates.
+    /// Duplicates are rejected; past dates are rejected by the AppService.
+    /// </summary>
+    public List<DateOnly>? SelectedDates { get; set; }
 
     /// <summary>
     /// At least one time range. Ranges within the same input MUST NOT

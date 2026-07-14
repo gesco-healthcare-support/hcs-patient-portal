@@ -181,11 +181,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
         await _readAccessGuard.EnsureCanReadAsync(appointment);
 
+        var appointmentTypeId = appointment.AppointmentTypeId;
         var queryable = await _documentTypeRepository.GetQueryableAsync();
         var query = queryable
             .Where(t => t.IsActive
                         && !t.IsSystem
-                        && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointment.AppointmentTypeId))
+                        && (t.AppliesToAll || t.AppointmentTypes.Any(j => j.AppointmentTypeId == appointmentTypeId)))
             .OrderBy(t => t.Name)
             .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
         return await AsyncExecuter.ToListAsync(query);
@@ -207,7 +208,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         var query = queryable
             .Where(t => t.IsActive
                         && !t.IsSystem
-                        && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointmentTypeId))
+                        && (t.AppliesToAll || t.AppointmentTypes.Any(j => j.AppointmentTypeId == appointmentTypeId)))
             .OrderBy(t => t.Name)
             .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
         return await AsyncExecuter.ToListAsync(query);

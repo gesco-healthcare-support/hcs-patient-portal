@@ -197,7 +197,16 @@ public static class NotificationTemplateConsts
         public const string ChangeRequestConsentRequest = "ChangeRequestConsentRequest";
 
         /// <summary>
-        /// All 62 codes in seed order. Used by
+        /// Prompt 17 (2026-06-17) -- send-back / request-info notice. Emailed to
+        /// the requester (booker) when staff move an appointment to
+        /// InfoRequested; carries the staff note + a deep link to the external
+        /// fix-it page. No field VALUES are templated (HIPAA: the body lists no
+        /// SSN / DOB / address -- only the note + link).
+        /// </summary>
+        public const string PatientAppointmentInfoRequested = "PatientAppointmentInfoRequested";
+
+        /// <summary>
+        /// All 63 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
         /// tenant has a row per code at tenant-create time.
         /// </summary>
@@ -243,6 +252,9 @@ public static class NotificationTemplateConsts
 
             // Group D (2026-06-09) -- actionable opposing-side consent request.
             ChangeRequestConsentRequest,
+
+            // Prompt 17 (2026-06-17) -- send-back / request-info notice.
+            PatientAppointmentInfoRequested,
         };
     }
 }

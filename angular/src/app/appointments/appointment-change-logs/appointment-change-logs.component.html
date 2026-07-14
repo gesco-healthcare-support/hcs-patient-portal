@@ -1,45 +1,52 @@
-<div class="container-fluid py-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">{{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}</h2>
-    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="back()">
-      Back to appointment
-    </button>
+<!--
+  Internal Workflow (Prompt 13): per-appointment change log. Renders inside the
+  internal shell. #14 adds a "Resubmit / request history" section (Send Back rounds
+  from GetHistoryAsync) ABOVE the field-level audit, because the audit projection
+  scans only 5 entity types and misses booker resubmit edits. The two sources stay
+  in separate labelled sections (different shapes, no shared sort key); the audit
+  reuses the shared <app-change-log-timeline> so its grouping + PHI redaction match
+  the global list exactly.
+-->
+<div class="ia-head">
+  <div>
+    <h1>Change log</h1>
+    <p>Request history and recorded field changes for this appointment.</p>
   </div>
-
-  @if (isLoading) {
-    <p class="text-muted">Loading change log...</p>
-  } @else if (errorMessage) {
-    <div class="alert alert-warning" role="alert">{{ errorMessage }}</div>
-  } @else if (entries.length === 0) {
-    <p class="text-muted">No changes recorded for this appointment yet.</p>
-  } @else {
-    <table class="table table-sm table-striped change-log-table">
-      <thead>
-        <tr>
-          <th>When</th>
-          <th>Section</th>
-          <th>Type</th>
-          <th>Field</th>
-          <th>Old value</th>
-          <th>New value</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (entry of entries; track $index) {
-          <tr>
-            <td>{{ entry.changeTime | date: 'short' }}</td>
-            <td>{{ entry.entityType }}</td>
-            <td>{{ entry.changeType }}</td>
-            <td>{{ entry.propertyName }}</td>
-            @if (entry.valueRedacted) {
-              <td colspan="2" class="text-muted fst-italic">updated (value hidden)</td>
-            } @else {
-              <td class="text-break">{{ entry.oldValue || '-' }}</td>
-              <td class="text-break">{{ entry.newValue || '-' }}</td>
-            }
-          </tr>
-        }
-      </tbody>
-    </table>
-  }
+  <button class="af-btn af-btn--ghost" type="button" (click)="back()">
+    <app-icon name="chevLeft" [size]="15" />
+    Back to appointment
+  </button>
 </div>
+
+@if (rounds.length > 0 || roundsError) {
+  <section class="clg-section">
+    <h2 class="clg-section__title">Resubmit / request history</h2>
+    <p class="clg-section__sub">Send Back rounds and the corrections the booker resubmitted.</p>
+    @if (roundsError) {
+      <div class="clg-rounds clg-rounds--note">Unable to load request history.</div>
+    } @else {
+      <div class="clg-rounds">
+        <app-info-request-history [rounds]="rounds" [externalView]="false" />
+      </div>
+    }
+  </section>
+}
+
+<section class="clg-section">
+  <h2 class="clg-section__title">Field-level audit</h2>
+  <p class="clg-section__sub">Recorded field changes to this appointment and its claim details.</p>
+  @if (isLoading) {
+    <div class="clg" style="padding: 18px; color: var(--n-500)">Loading change log&hellip;</div>
+  } @else if (errorMessage) {
+    <div
+      class="ia-empty"
+      style="background: #fff; border: 1px solid var(--border); border-radius: var(--r-md)"
+    >
+      <app-icon name="alert" [size]="36" />
+      <b>Unable to load</b>
+      <span>{{ errorMessage }}</span>
+    </div>
+  } @else {
+    <app-change-log-timeline [rows]="entries" />
+  }
+</section>

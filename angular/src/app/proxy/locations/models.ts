@@ -22,7 +22,7 @@ export interface LocationCreateDto {
   parkingFee?: number;
   isActive?: boolean;
   stateId?: string | null;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
 }
 
 export interface LocationDto extends FullAuditedEntityDto<string> {
@@ -33,7 +33,7 @@ export interface LocationDto extends FullAuditedEntityDto<string> {
   parkingFee?: number;
   isActive?: boolean;
   stateId?: string | null;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
   concurrencyStamp?: string;
 }
 
@@ -45,12 +45,12 @@ export interface LocationUpdateDto {
   parkingFee?: number;
   isActive?: boolean;
   stateId?: string | null;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
   concurrencyStamp?: string;
 }
 
 export interface LocationWithNavigationPropertiesDto {
   location?: LocationDto;
   state?: StateDto | null;
-  appointmentType?: AppointmentTypeDto | null;
+  appointmentTypes?: AppointmentTypeDto[];
 }

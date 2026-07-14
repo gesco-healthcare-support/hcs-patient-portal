@@ -294,6 +294,14 @@ tempkey.jwk
 .env.*
 !.env.example
 
+# In-house hosting (2026-07-09): host-only secrets -- local TLS material, the generated
+# OpenIddict signing cert, and the real env file (secrets/env.prod). Never committed.
+# The committed template is env.prod.example (no leading dot).
+secrets/
+
+# Database backups (.bak) contain PHI -- host-only, never committed.
+backups/
+
 # NuGet config contains ABP API key — use NuGet.Config.template
 NuGet.Config
 

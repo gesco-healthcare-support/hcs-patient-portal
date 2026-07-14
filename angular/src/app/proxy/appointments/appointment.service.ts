@@ -1,9 +1,10 @@
-import type { ApplicantAttorneyDetailsDto, AppointmentCreateDto, AppointmentDto, AppointmentUpdateDto, AppointmentWithNavigationPropertiesDto, DefenseAttorneyDetailsDto, GetAppointmentsInput, RejectAppointmentInput } from './models';
+import type { ApplicantAttorneyDetailsDto, AppointmentCreateDto, AppointmentDto, AppointmentStatusCountDto, AppointmentUpdateDto, AppointmentWithNavigationPropertiesDto, DefenseAttorneyDetailsDto, GetAppointmentsInput, RejectAppointmentInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { EvaluationType } from '../enums/evaluation-type.enum';
 import type { LookupDto, LookupRequestDto } from '../shared/models';
+import type { CustomFieldValueDisplayDto } from '../custom-fields/models';
 
 @Injectable({
   providedIn: 'root',
@@ -70,7 +71,15 @@ export class AppointmentService {
       url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
     },
     { apiName: this.apiName,...config });
-  
+
+
+  getAppointmentCustomFieldValues = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, CustomFieldValueDisplayDto[]>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/custom-field-values`,
+    },
+    { apiName: this.apiName,...config });
+
 
   getAppointmentDefenseAttorney = (appointmentId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, DefenseAttorneyDetailsDto>({
@@ -128,7 +137,7 @@ export class AppointmentService {
     this.restService.request<any, PagedResultDto<AppointmentWithNavigationPropertiesDto>>({
       method: 'GET',
       url: '/api/app/appointments',
-      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, patientId: input.patientId, appointmentStatus: input.appointmentStatus, appointmentStatuses: input.appointmentStatuses, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   
@@ -155,6 +164,15 @@ export class AppointmentService {
     this.restService.request<any, number>({
       method: 'GET',
       url: '/api/app/appointments/pending-count',
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getStatusCounts = (input: GetAppointmentsInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentStatusCountDto[]>({
+      method: 'GET',
+      url: '/api/app/appointments/status-counts',
+      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, patientId: input.patientId, appointmentStatus: input.appointmentStatus, appointmentStatuses: input.appointmentStatuses, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

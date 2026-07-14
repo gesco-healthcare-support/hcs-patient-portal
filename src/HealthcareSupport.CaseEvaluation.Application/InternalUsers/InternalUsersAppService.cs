@@ -122,56 +122,14 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                 .WithData("AllowedRoles", string.Join(", ", CreatableRoleNames));
         }
 
-        // 2. Resolve the target tenant id. There are three legitimate
-        //    branches:
-        //      a) Host caller (IT Admin) with a non-empty input.TenantId
-        //         -- use it as-is; the tenant picker on the form is the
-        //         source of truth.
-        //      b) Tenant caller (tenant admin) with empty input.TenantId
-        //         -- default to CurrentTenant.Id. The SPA pre-fills the
-        //         disabled picker with this value already; sending empty
-        //         is the documented "let the server fill it" signal.
-        //      c) Tenant caller (tenant admin) with non-empty input.TenantId
-        //         that matches CurrentTenant.Id -- accept (form sent the
-        //         pre-fill back). Mismatched ids are rejected because a
-        //         tenant admin must not create users in another tenant.
-        //    The remaining illegitimate shape (host caller with empty
-        //    input.TenantId) is still rejected via TenantRequired.
-        var resolvedTenantId = input.TenantId;
-        if (CurrentTenant.Id.HasValue)
-        {
-            if (resolvedTenantId == Guid.Empty)
-            {
-                resolvedTenantId = CurrentTenant.Id.Value;
-            }
-            else if (resolvedTenantId != CurrentTenant.Id.Value)
-            {
-                throw new BusinessException(
-                    CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch);
-            }
-        }
-        else if (resolvedTenantId == Guid.Empty)
-        {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.InternalUserTenantRequired);
-        }
-
-        // 3. Resolve the tenant display name in host context (Tenant
-        //    rows are host-scoped per Volo SaaS).
-        var tenantName = await ResolveTenantNameAsync(resolvedTenantId);
-        if (string.IsNullOrWhiteSpace(tenantName))
-        {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.InternalUserTenantRequired);
-        }
-
-        // 4. Switch to the target tenant context for the remainder of
-        //    the flow. Role lookup, duplicate-email check, and user
-        //    create all run under this scope so the IdentityUser row
-        //    is owned by the tenant (not the host). For a tenant-admin
-        //    caller this is the same id as the surrounding CurrentTenant;
-        //    for an IT Admin caller this switches host -> target tenant.
-        using (CurrentTenant.Change(resolvedTenantId))
+        // 2. Phase D (2026-06-25): internal operators (Staff Supervisor, Intake
+        //    Staff) are HOST logins -- a single account that switches into
+        //    offices. They are created in HOST context (TenantId null), NOT inside
+        //    a tenant. input.TenantId is ignored; an Intake operator's office
+        //    access is granted later via the assignment screen. The shared
+        //    "All offices" label flows into the welcome email's TenantName token.
+        const string tenantName = "All offices";
+        using (CurrentTenant.Change(null))
         {
             // 4a. Confirm the role exists in the tenant. Seeded by
             //     InternalUserRoleDataSeedContributor; if missing, it
@@ -202,9 +160,9 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             //     without rejection sampling.
             var generatedPassword = GenerateParityPassword();
 
-            // 4d. Construct the IdentityUser. Tenant id is set
-            //     explicitly to the resolved target (CurrentTenant.Id
-            //     is now == input.TenantId because of the using block).
+            // 4d. Construct the IdentityUser in HOST scope. The enclosing
+            //     CurrentTenant.Change(null) makes CurrentTenant.Id null, so the
+            //     operator is a host login (input.TenantId is ignored -- see step 2).
             var user = new IdentityUser(
                 id: GuidGenerator.Create(),
                 userName: normalizedEmail,
@@ -258,7 +216,8 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             // 4g. Resolve the portal URL the email links to. BUG-029 v3
             //     (2026-05-21): now via IAccountUrlBuilder so the
             //     tenant subdomain is always prepended.
-            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(resolvedTenantId);
+            // Host operator -> host portal root (null tenant = no subdomain prefix).
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
 
             // 4h. Dispatch welcome email via the same path
             //     ResetPassword / InviteExternalUser use. Failure to
@@ -282,6 +241,76 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                 WelcomeEmailQueued = welcomeEmailQueued,
             };
         }
+    }
+
+    /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B3) -- admin-triggered password reset. Finds the
+    /// target user in the caller's ambient scope (since Phase D the internal-users
+    /// list is HOST-scoped, so operators resolve in host context), generates an ABP
+    /// Identity reset token, builds the reset URL (host root for host operators,
+    /// subdomain-prefixed for any tenant-scoped user), and dispatches the
+    /// ResetPassword template -- the same pipeline the self-service forgot-password
+    /// flow uses. Dispatch failures are NOT swallowed (unlike the create welcome
+    /// email): there is no committed side-effect to protect, so a queue failure
+    /// should surface to the admin rather than show a false success.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
+    public virtual async Task SendPasswordResetEmailAsync(Guid userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
+        }
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        // Phase D (2026-06-25): internal operators are HOST logins (TenantId null).
+        // The prior guard threw InternalUserTenantRequired here, breaking reset for
+        // every host operator. Host users get the host AuthServer reset URL; a
+        // tenant-scoped user (legacy/edge) still gets the subdomain-prefixed one.
+        var resetUrl = user.TenantId.HasValue
+            ? await _accountUrlBuilder.BuildPasswordResetUrlAsync(user.TenantId.Value, user.Id, token)
+            : await _accountUrlBuilder.BuildHostPasswordResetUrlAsync(user.Id, token);
+
+        await _notificationDispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.ResetPassword,
+            recipients: new[]
+            {
+                new NotificationRecipient(
+                    email: user.Email!,
+                    role: RecipientRole.Patient,
+                    isRegistered: true),
+            },
+            variables: BuildPasswordResetVariables(user, resetUrl),
+            contextTag: $"PasswordReset/AdminTriggered/{user.Id}");
+    }
+
+    /// <summary>
+    /// Variable bag for the <c>ResetPassword</c> template (admin-triggered
+    /// path). Mirrors <c>ExternalAccountAppService.BuildPasswordTokenVariables</c>
+    /// so the seeded EmailBodies/ResetPassword.html renders identically whether
+    /// the reset was self-service or admin-initiated.
+    /// </summary>
+    private static IReadOnlyDictionary<string, object?> BuildPasswordResetVariables(
+        IdentityUser user,
+        string resetUrl)
+    {
+        var fullName = JoinName(user.Name, user.Surname);
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["PatientFirstName"] = user.Name ?? string.Empty,
+            ["PatientLastName"] = user.Surname ?? string.Empty,
+            ["PatientFullName"] = fullName,
+            ["PatientEmail"] = user.Email ?? string.Empty,
+            ["URL"] = resetUrl,
+            ["CompanyLogo"] = string.Empty,
+            ["lblHeaderTitle"] = string.Empty,
+            ["lblFooterText"] = string.Empty,
+            ["Email"] = string.Empty,
+            ["Skype"] = string.Empty,
+            ["ph_US"] = string.Empty,
+            ["fax"] = string.Empty,
+            ["imageInByte"] = string.Empty,
+        };
     }
 
     [AllowAnonymous]
@@ -345,20 +374,6 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     {
         var idx = RandomNumberGenerator.GetInt32(source.Length);
         return source[idx];
-    }
-
-    /// <summary>
-    /// Returns the tenant's display name in host context. Returns null
-    /// when the tenant row is absent so the caller can throw the
-    /// appropriate error code without leaking which tenant ids exist.
-    /// </summary>
-    private async Task<string?> ResolveTenantNameAsync(Guid tenantId)
-    {
-        using (CurrentTenant.Change(null))
-        {
-            var tenant = await _tenantRepository.FindAsync(tenantId);
-            return tenant?.Name;
-        }
     }
 
     // BUG-029 v3 fix (2026-05-21): ResolvePortalBaseUrlAsync removed; the
@@ -461,4 +476,127 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         if (hasLast) return last!.Trim();
         return string.Empty;
     }
+
+    /// <summary>
+    /// Internal role names, in display precedence (IT Admin &gt; Staff Supervisor
+    /// &gt; Intake Staff). Mirrors the frontend INTERNAL_ROLE_NAMES + the Domain
+    /// seed contributor's role names; kept as literals to match this file's
+    /// existing <see cref="CreatableRoleNames"/> style (ABP layering keeps the
+    /// Domain constant out of reach without a new dependency).
+    /// </summary>
+    private static readonly string[] InternalRoleNamesByPrecedence =
+        new[] { "IT Admin", "Staff Supervisor", "Intake Staff" };
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged, internal-role-scoped Staff list. See
+    /// <see cref="IInternalUsersAppService.GetInternalUsersAsync"/>.
+    ///
+    /// <para>Queries only the three internal roles (one membership query each, in
+    /// host context) and de-duplicates with the precedence above, so a user with
+    /// two internal roles surfaces under the higher one. This is bounded by
+    /// internal-staff headcount -- not business-volume data -- so the page's
+    /// filter / sort / offset are applied in memory after the role union. Crucially
+    /// it never loads the full identity-user set, which is what made the old
+    /// load-500-then-filter truncate the Staff list past 500 total users.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.InternalUsers.Default)]
+    public virtual async Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(
+        GetInternalUsersInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        using (CurrentTenant.Change(null))
+        {
+            // Union the three internal roles, host operators only (TenantId null),
+            // keeping the first (highest-precedence) role each user is found under.
+            var byUserId = new Dictionary<Guid, (IdentityUser User, string Role)>();
+            foreach (var roleName in InternalRoleNamesByPrecedence)
+            {
+                var usersInRole = await _userManager.GetUsersInRoleAsync(roleName);
+                foreach (var user in usersInRole)
+                {
+                    if (user.TenantId != null || byUserId.ContainsKey(user.Id))
+                    {
+                        continue;
+                    }
+                    byUserId[user.Id] = (user, roleName);
+                }
+            }
+
+            var filter = input.Filter?.Trim();
+            var rows = byUserId.Values
+                .Where(x => MatchesInternalUserFilter(x.User, filter))
+                .Select(x => new InternalUserListDto
+                {
+                    Id = x.User.Id,
+                    FirstName = x.User.Name ?? string.Empty,
+                    LastName = x.User.Surname ?? string.Empty,
+                    FullName = ComposeUserFullName(x.User),
+                    Email = x.User.Email ?? string.Empty,
+                    Role = x.Role,
+                    IsActive = x.User.IsActive,
+                })
+                .ToList();
+
+            var totalCount = rows.Count;
+            var page = SortInternalUsers(rows, input.Sorting)
+                .Skip(input.SkipCount)
+                .Take(input.MaxResultCount)
+                .ToList();
+
+            return new PagedResultDto<InternalUserListDto>(totalCount, page);
+        }
+    }
+
+    private static bool MatchesInternalUserFilter(IdentityUser user, string? filter)
+    {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return true;
+        }
+        return Contains(user.Name, filter)
+            || Contains(user.Surname, filter)
+            || Contains(user.UserName, filter)
+            || Contains(user.Email, filter);
+    }
+
+    private static bool Contains(string? value, string filter) =>
+        value != null && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    private static string ComposeUserFullName(IdentityUser user)
+    {
+        var full = JoinName(user.Name, user.Surname);
+        return string.IsNullOrEmpty(full) ? user.UserName ?? string.Empty : full;
+    }
+
+    private static List<InternalUserListDto> SortInternalUsers(
+        List<InternalUserListDto> rows, string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var field = parts.Length > 0 ? parts[0].ToLowerInvariant() : "fullname";
+        var descending = parts.Length > 1
+            && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<InternalUserListDto> ordered = field switch
+        {
+            "email" => OrderInternalUsers(rows, r => r.Email, descending),
+            "role" => OrderInternalUsers(rows, r => r.Role, descending),
+            "isactive" or "status" => descending
+                ? rows.OrderByDescending(r => r.IsActive)
+                : rows.OrderBy(r => r.IsActive),
+            "firstname" or "name" => OrderInternalUsers(rows, r => r.FirstName, descending),
+            "lastname" => OrderInternalUsers(rows, r => r.LastName, descending),
+            _ => OrderInternalUsers(rows, r => r.FullName, descending),
+        };
+        return ordered.ToList();
+    }
+
+    private static IOrderedEnumerable<InternalUserListDto> OrderInternalUsers(
+        IEnumerable<InternalUserListDto> rows,
+        Func<InternalUserListDto, string> selector,
+        bool descending) =>
+        descending
+            ? rows.OrderByDescending(selector, StringComparer.OrdinalIgnoreCase)
+            : rows.OrderBy(selector, StringComparer.OrdinalIgnoreCase);
 }

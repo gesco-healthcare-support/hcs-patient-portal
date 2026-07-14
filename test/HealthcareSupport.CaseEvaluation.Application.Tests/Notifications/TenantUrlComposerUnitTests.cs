@@ -5,97 +5,95 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Notifications;
 
 /// <summary>
-/// Task A (BUG-014 fix, 2026-05-20) -- pure unit tests for
-/// <see cref="TenantUrlComposer"/>. Verifies the bare-localhost
-/// host-token regex behavior against the 8 cases enumerated in
-/// <c>docs/superpowers/specs/2026-05-20-task-a-config-driven-email-urls.md</c>
-/// section 6.
+/// Task A (BUG-014, 2026-05-20) + T10/G3 (in-house hosting, 2026-07-09) -- pure unit tests
+/// for <see cref="TenantUrlComposer"/>.
 ///
-/// <para>The regex pattern <c>(^|//)localhost(?=([:/]|$))</c> is lifted
-/// byte-for-byte from <c>angular/src/tenant-bootstrap.ts:99</c> so the
-/// frontend (subdomain bootstrap) and backend (email URL rendering)
-/// share one substitution rule. These tests pin that behavior on the
-/// backend side.</para>
+/// <para>T10 changes the composer from a bare-localhost-only swap to "prepend the office
+/// slug as the leftmost host label of any hostname", matching the frontend
+/// <c>angular/src/tenant-bootstrap.ts</c> prependSlug rule so email links work in production
+/// (base URL <c>https://portal.example.com</c> -> <c>https://falkinstein.portal.example.com</c>)
+/// as well as local dev (<c>http://localhost:4200</c> -> <c>http://falkinstein.localhost:4200</c>).
+/// It still skips IP-address hosts (can't subdomain an IP) and is idempotent for URLs that
+/// already carry the office subdomain.</para>
 /// </summary>
 public class TenantUrlComposerUnitTests
 {
     [Fact]
     public void ComposeForTenant_BareLocalhostWithTenant_PrependsSubdomain()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://localhost:4200",
-            tenantName: "Falkinstein");
+        TenantUrlComposer.ComposeForTenant("http://localhost:4200", "Falkinstein")
+            .ShouldBe("http://falkinstein.localhost:4200");
+    }
 
-        result.ShouldBe("http://falkinstein.localhost:4200");
+    [Fact]
+    public void ComposeForTenant_ProductionBaseHost_PrependsOfficeSubdomain()
+    {
+        // T10: the prod PortalBaseUrl (App:AngularUrl default) is the office-less base host;
+        // the composer prepends the office so email links land on the office SPA.
+        TenantUrlComposer.ComposeForTenant("https://portal.example.com", "Falkinstein")
+            .ShouldBe("https://falkinstein.portal.example.com");
+    }
+
+    [Fact]
+    public void ComposeForTenant_RealDomainWithPort_PrependsOfficeSubdomain()
+    {
+        TenantUrlComposer.ComposeForTenant("http://example.com:4200", "Falkinstein")
+            .ShouldBe("http://falkinstein.example.com:4200");
     }
 
     [Fact]
     public void ComposeForTenant_NullTenant_ReturnsUrlUnchanged()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://localhost:4200",
-            tenantName: null);
-
-        result.ShouldBe("http://localhost:4200");
+        TenantUrlComposer.ComposeForTenant("http://localhost:4200", null)
+            .ShouldBe("http://localhost:4200");
     }
 
     [Fact]
     public void ComposeForTenant_EmptyTenant_ReturnsUrlUnchanged()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://localhost:4200",
-            tenantName: string.Empty);
-
-        result.ShouldBe("http://localhost:4200");
+        TenantUrlComposer.ComposeForTenant("http://localhost:4200", string.Empty)
+            .ShouldBe("http://localhost:4200");
     }
 
     [Fact]
-    public void ComposeForTenant_UrlAlreadyHasSubdomain_IsIdempotent()
+    public void ComposeForTenant_UrlAlreadyHasLocalhostSubdomain_IsIdempotent()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://falkinstein.localhost:4200",
-            tenantName: "Falkinstein");
+        TenantUrlComposer.ComposeForTenant("http://falkinstein.localhost:4200", "Falkinstein")
+            .ShouldBe("http://falkinstein.localhost:4200");
+    }
 
-        result.ShouldBe("http://falkinstein.localhost:4200");
+    [Fact]
+    public void ComposeForTenant_UrlAlreadyHasProdSubdomain_IsIdempotent()
+    {
+        TenantUrlComposer.ComposeForTenant("https://falkinstein.portal.example.com", "Falkinstein")
+            .ShouldBe("https://falkinstein.portal.example.com");
     }
 
     [Fact]
     public void ComposeForTenant_IpAddressHost_ReturnsUrlUnchanged()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://127.0.0.1:4200",
-            tenantName: "Falkinstein");
-
-        result.ShouldBe("http://127.0.0.1:4200");
-    }
-
-    [Fact]
-    public void ComposeForTenant_RealDomainHost_ReturnsUrlUnchanged()
-    {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://example.com:4200",
-            tenantName: "Falkinstein");
-
-        result.ShouldBe("http://example.com:4200");
+        // Can't subdomain an IP address -- leave it alone.
+        TenantUrlComposer.ComposeForTenant("http://127.0.0.1:4200", "Falkinstein")
+            .ShouldBe("http://127.0.0.1:4200");
     }
 
     [Fact]
     public void ComposeForTenant_UrlWithPathAndQuery_PreservesPathAndQuery()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: "http://localhost:4200/some/path?q=1",
-            tenantName: "Falkinstein");
+        TenantUrlComposer.ComposeForTenant("https://portal.example.com/confirm?token=abc", "Falkinstein")
+            .ShouldBe("https://falkinstein.portal.example.com/confirm?token=abc");
+    }
 
-        result.ShouldBe("http://falkinstein.localhost:4200/some/path?q=1");
+    [Fact]
+    public void ComposeForTenant_TenantNameIsLowercased()
+    {
+        TenantUrlComposer.ComposeForTenant("https://portal.example.com", "FALKINSTEIN")
+            .ShouldBe("https://falkinstein.portal.example.com");
     }
 
     [Fact]
     public void ComposeForTenant_NullBaseUrl_ReturnsNull()
     {
-        var result = TenantUrlComposer.ComposeForTenant(
-            baseUrl: null,
-            tenantName: "Falkinstein");
-
-        result.ShouldBeNull();
+        TenantUrlComposer.ComposeForTenant(null, "Falkinstein").ShouldBeNull();
     }
 }

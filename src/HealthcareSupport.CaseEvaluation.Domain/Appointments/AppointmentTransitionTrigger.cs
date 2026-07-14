@@ -25,10 +25,4 @@ public enum AppointmentTransitionTrigger
     CheckIn = 12,
     CheckOut = 13,
     Bill = 14,
-    // G-02-05 (2026-06-01) -- one-step internal-staff cancel of an Approved
-    // appointment (OLD AppointmentDomain.Update CancelledNoBill branch).
-    // Distinct from the two-step external RequestCancellation ->
-    // ConfirmCancellation path; reachable from Approved only.
-    DirectCancel = 15,
-    DirectCancelLate = 16,
 }

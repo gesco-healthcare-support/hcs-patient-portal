@@ -112,7 +112,10 @@ public class AppointmentReadAccessGuard : ITransientDependency
             callerUserId: _currentUser.Id,
             callerEmail: _currentUser.Email,
             callerIsInternalUser: false,
-            appointmentCreatorId: appointment.CreatorId,
+            // R2-2: BookedByUserId is the reliable booker; coalesce with CreatorId so
+            // the booker can read/edit their own (possibly null-creator) booking. Same
+            // coalesce as the list query (ComputeExternalPartyVisibilityAsync).
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId,
             patientIdentityUserId: patientIdentityUserId,
             applicantAttorneyIdentityUserIds: null,
             defenseAttorneyIdentityUserIds: null,
@@ -172,8 +175,77 @@ public class AppointmentReadAccessGuard : ITransientDependency
         return AppointmentAccessRules.CanEdit(
             callerUserId: _currentUser.Id,
             callerIsInternalUser: isInternal,
-            appointmentCreatorId: appointment.CreatorId,
+            // R2-2: coalesce booker with CreatorId (see EnsureCanReadAsync).
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId,
             accessorEntries: accessorEntries);
+    }
+
+    /// <summary>
+    /// 2026-06-23 (F-013 fix) -- change-request (reschedule / cancel) access. Per the
+    /// confirmed business model, the booker AND every named party (patient, applicant
+    /// attorney, defense attorney, claim examiner) may request a change; explicit
+    /// Edit-accessors too; View-only accessors may not. Composes the 7-pathway
+    /// <see cref="AppointmentAccessRules.CanEdit"/> (internal / creator / patient-identity /
+    /// Edit-accessor) with the email+role rule (named AA/DA/CE by their party-email column +
+    /// role) -- the SAME two-part shape as <see cref="EnsureCanReadAsync(Appointment)"/>, but
+    /// with Edit-accessor strictness. The previous change-request gate used the SLIM
+    /// <see cref="CanEditAsync(Guid)"/> (creator / Edit-accessor only) and wrongly 403'd the
+    /// named attorney-of-record + patient on a paralegal-booked appointment.
+    /// </summary>
+    public async Task<bool> CanRequestChangeAsync(Guid appointmentId)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        return await CanRequestChangeAsync(appointment);
+    }
+
+    public async Task<bool> CanRequestChangeAsync(Appointment appointment)
+    {
+        var callerRoles = _currentUser.Roles ?? Array.Empty<string>();
+        if (BookingFlowRoles.IsInternalUserCaller(callerRoles))
+        {
+            return true;
+        }
+
+        var accessorQuery = await _accessorRepository.GetQueryableAsync();
+        var accessorEntries = await _asyncExecuter.ToListAsync(
+            accessorQuery
+                .Where(a => a.AppointmentId == appointment.Id)
+                .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
+
+        Guid? patientIdentityUserId = null;
+        var patient = await _patientRepository.FindAsync(appointment.PatientId);
+        if (patient != null)
+        {
+            patientIdentityUserId = patient.IdentityUserId;
+        }
+
+        // Core id-based pathways (Edit-accessor strictness): internal / creator-booker /
+        // patient-identity / Edit-accessor. AA/DA id + CE-email pathways are passed null and
+        // covered instead by the email+role rule below (mirrors EnsureCanReadAsync, avoiding
+        // surfacing a column to a user who lacks its role).
+        var byCoreEdit = AppointmentAccessRules.CanEdit(
+            callerUserId: _currentUser.Id,
+            callerEmail: _currentUser.Email,
+            callerIsInternalUser: false,
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId,
+            patientIdentityUserId: patientIdentityUserId,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: accessorEntries).allowed;
+
+        // Named-party pathway: party-email column equals the caller's email AND the caller
+        // holds that column's role (patient / AA / DA / CE). Same rule as the read gate +
+        // the list query, so a row that shows in the list can be acted on without a 403.
+        var byEmailRole = AppointmentAccessRules.IsAppointmentEmailRoleVisible(
+            callerEmail: _currentUser.Email,
+            callerRoles: callerRoles,
+            patientEmail: appointment.PatientEmail,
+            applicantAttorneyEmail: appointment.ApplicantAttorneyEmail,
+            defenseAttorneyEmail: appointment.DefenseAttorneyEmail,
+            claimExaminerEmail: appointment.ClaimExaminerEmail);
+
+        return byCoreEdit || byEmailRole;
     }
 
     /// <summary>
@@ -213,7 +285,8 @@ public class AppointmentReadAccessGuard : ITransientDependency
             callerUserId: _currentUser.Id,
             callerIsInternalUser: BookingFlowRoles.IsInternalUserCaller(callerRoles),
             callerIsAuthorizedExternalAccessorManager: BookingFlowRoles.IsExternalAccessorManager(callerRoles),
-            appointmentCreatorId: appointment.CreatorId);
+            // R2-2: coalesce booker with CreatorId (see EnsureCanReadAsync).
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId);
         return Task.FromResult(allowed);
     }
 

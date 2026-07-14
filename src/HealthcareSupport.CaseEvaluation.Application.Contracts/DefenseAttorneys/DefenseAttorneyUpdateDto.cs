@@ -23,6 +23,9 @@ public class DefenseAttorneyUpdateDto : IHasConcurrencyStamp
     [StringLength(DefenseAttorneyConsts.WebAddressMaxLength)]
     public string? WebAddress { get; set; }
 
+    [StringLength(DefenseAttorneyConsts.EmailMaxLength)]
+    public string? Email { get; set; }
+
     [StringLength(DefenseAttorneyConsts.PhoneNumberMaxLength)]
     public string? PhoneNumber { get; set; }
 

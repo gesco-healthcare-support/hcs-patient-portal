@@ -59,6 +59,14 @@ Evidence from the codebase:
   cross-tenant reporting queries more complex (must join through tenant context)
 - The `DoctorsAppService` must use `IDataFilter.Disable<IMultiTenant>()` to query
   doctors across tenants for the host admin view
+- **Re-validated 2026-06-22: STILL HOLDS, and hardened.** One-doctor-per-tenant is now
+  enforced at the DB level by a filtered unique index on `TenantId`
+  (`IX_AppEntity_Doctors_TenantId_Unique`, migration 20260527234615, in both
+  DbContexts) -- this postdates the ADR. Caveat for the upcoming multi-tenant work: the
+  real invariant is "AT MOST one" doctor per tenant (a freshly seeded demo tenant can
+  have zero -- SEED-2), so logic must not assume a doctor row exists. Any future
+  multi-doctor change must first drop or revise that index; it is the true enforcement
+  point, not the app layer.
 
 ## Alternatives Considered
 

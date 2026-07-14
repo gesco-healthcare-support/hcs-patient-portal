@@ -3,6 +3,14 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 import type { AppointmentTypeDto } from '../appointment-types/models';
 import type { LocationDto } from '../locations/models';
 
+export interface CreatePracticeInput {
+  slug: string;
+  doctorFirstName: string;
+  doctorLastName: string;
+  doctorEmail: string;
+  displayName?: string;
+}
+
 export interface DoctorCreateDto {
   firstName: string;
   lastName: string;

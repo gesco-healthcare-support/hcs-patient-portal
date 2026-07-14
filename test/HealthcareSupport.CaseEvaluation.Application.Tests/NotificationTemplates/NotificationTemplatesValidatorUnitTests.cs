@@ -194,7 +194,7 @@ public class NotificationTemplatesValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void Codes_All_Has64Codes()
+    public void Codes_All_Has63Codes()
     {
         // OLD has 16 + 43 = 59 events. 2026-05-12: Cat 2-7 expansion +
         // packet-generation / reminder / digest handlers added 3 NEW-only
@@ -209,7 +209,9 @@ public class NotificationTemplatesValidatorUnitTests
         // Group F (2026-06-09) consolidated the reminders, removing
         // UploadPendingDocuments, AppointmentDocumentIncomplete, and
         // JointDeclarationUploadReminder (-3 -> 62).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(62);
+        // Prompt 17 (2026-06-17) added PatientAppointmentInfoRequested, the
+        // send-back / request-info notice (+1 -> 63).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(63);
     }
 
     [Fact]

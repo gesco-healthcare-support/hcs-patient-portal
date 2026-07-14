@@ -33,6 +33,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     protected IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> _appointmentLanguageRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
     protected IRepository<Volo.Saas.Tenants.Tenant, Guid> _tenantRepository;
+    protected IRepository<Appointment, Guid> _appointmentRepository;
 
     // FEAT-09 (ADR-006 T4): Patient is now IMultiTenant. ABP applies a
     // WHERE TenantId = CurrentTenant.Id filter automatically. In host
@@ -49,7 +50,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // production-correctness compromise.
     private readonly IDataFilter<IMultiTenant> _dataFilter;
 
-    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IDataFilter<IMultiTenant> dataFilter)
+    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IRepository<Appointment, Guid> appointmentRepository, IDataFilter<IMultiTenant> dataFilter)
     {
         _patientRepository = patientRepository;
         _patientManager = patientManager;
@@ -57,6 +58,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         _appointmentLanguageRepository = appointmentLanguageRepository;
         _identityUserRepository = identityUserRepository;
         _tenantRepository = tenantRepository;
+        _appointmentRepository = appointmentRepository;
         _dataFilter = dataFilter;
     }
 
@@ -441,6 +443,14 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Prompt 15 / item 32: block delete while any Appointment references this
+        // patient (Appointment.PatientId). Database-per-office: Patient and Appointment
+        // are IMultiTenant in the office's own database, so the in-use probe runs in the
+        // office's context where the filter already scopes it to that office.
+        if (await _appointmentRepository.AnyAsync(a => a.PatientId == id))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientInUse);
+        }
         await _patientRepository.DeleteAsync(id);
     }
 

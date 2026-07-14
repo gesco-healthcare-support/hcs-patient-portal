@@ -1,0 +1,110 @@
+<app-external-navbar
+  [clinicName]="navClinicName"
+  [userName]="navDisplayName"
+  [roleLabel]="navRoleLabel"
+  [userEmail]="navUserEmail"
+  (documentsClick)="backHome()"
+  (logoutClick)="signOut()"
+/>
+
+<div class="mp">
+  @if (isLoading) {
+    <div class="mp-card" style="padding: 24px; color: var(--n-500)">
+      Loading your profile&hellip;
+    </div>
+  } @else if (notFound) {
+    <div class="mp-card" style="padding: 24px">
+      <b>No attorney profile found</b>
+      <p>Your account is not linked to an applicant or defense attorney record.</p>
+    </div>
+  } @else {
+    <!-- header band -->
+    <div class="mp-head">
+      <div class="mp-head__id">
+        <h1>{{ form.value.firstName }} {{ form.value.lastName }}</h1>
+        <span class="mp-head__role">{{ roleLabel }}</span>
+        @if (form.value.firmName) {
+          <span class="mp-head__org">{{ form.value.firmName }}</span>
+        }
+        @if (email) {
+          <span class="mp-head__email">{{ email }}</span>
+        }
+      </div>
+    </div>
+
+    <!-- editable profile -->
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+          <h3>Profile details</h3>
+        </div>
+        <div class="mp-card__body">
+          <p class="ra-note">
+            <span class="i"><app-icon name="info" [size]="15" /></span>
+            Editing here updates your firm-wide details for future bookings. Past appointments keep
+            the information recorded when they were booked.
+          </p>
+
+          <div class="ra-grid">
+            <div class="ra-field col-6">
+              <label>First name</label>
+              <input class="ra-input" type="text" formControlName="firstName" maxlength="50" />
+            </div>
+            <div class="ra-field col-6">
+              <label>Last name</label>
+              <input class="ra-input" type="text" formControlName="lastName" maxlength="50" />
+            </div>
+            <div class="ra-field col-6">
+              <label>Firm name</label>
+              <input class="ra-input" type="text" formControlName="firmName" maxlength="255" />
+            </div>
+            <div class="ra-field col-6">
+              <label>Website</label>
+              <input class="ra-input" type="text" formControlName="webAddress" maxlength="100" />
+            </div>
+            <div class="ra-field col-6">
+              <label>Phone</label>
+              <input class="ra-input" type="text" formControlName="phoneNumber" maxlength="20" />
+            </div>
+            <div class="ra-field col-6">
+              <label>Fax</label>
+              <input class="ra-input" type="text" formControlName="faxNumber" maxlength="20" />
+            </div>
+            <div class="ra-field col-6">
+              <label>Email</label>
+              <input class="ra-input" type="text" [value]="email" disabled />
+            </div>
+            <div class="ra-field col-6">
+              <label>Street</label>
+              <input class="ra-input" type="text" formControlName="street" maxlength="255" />
+            </div>
+            <div class="ra-field col-4">
+              <label>City</label>
+              <input class="ra-input" type="text" formControlName="city" maxlength="50" />
+            </div>
+            <div class="ra-field col-4">
+              <label>State</label>
+              <select class="ra-select" formControlName="stateId">
+                <option [ngValue]="null">-- Select --</option>
+                @for (s of states; track s.id) {
+                  <option [ngValue]="s.id">{{ s.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="ra-field col-4">
+              <label>Zip code</label>
+              <input class="ra-input" type="text" formControlName="zipCode" maxlength="15" />
+            </div>
+          </div>
+
+          <div class="mp-editfoot">
+            <button class="ap-btn ap-btn--primary" type="submit" [disabled]="isBusy">
+              {{ isBusy ? 'Saving...' : 'Save changes' }}
+            </button>
+          </div>
+        </div>
+      </section>
+    </form>
+  }
+</div>

@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,7 +12,30 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public interface IAppointmentsAppService : IApplicationService
 {
     Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input);
+
+    /// <summary>
+    /// Redesign (Prompt 10, 2026-06-14): per-status appointment counts for the
+    /// internal list's chips. Honors the SAME tenant + external-party visibility
+    /// and the SAME filters (text / panel / type / location / date range) as
+    /// <see cref="GetListAsync"/>, but ignores paging and the status filter so
+    /// every chip shows its true total within the current filter set. Returns one
+    /// row per raw status that has at least one match; the Angular list buckets
+    /// them into the six UI pills.
+    /// </summary>
+    Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentsInput input);
+
     Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id);
+
+    /// <summary>
+    /// PR2 (2026-07-10): read-only custom-field values for the appointment detail
+    /// views. Returns one row per ACTIVE custom field on the appointment's type
+    /// (ordered by DisplayOrder), each carrying the booker's saved answer or null
+    /// when unanswered -- so the detail views render every field "filled or empty"
+    /// like the booking wizard's review step. Same creator-or-accessor read gate as
+    /// <see cref="GetWithNavigationPropertiesAsync"/>.
+    /// </summary>
+    Task<List<CustomFieldValueDisplayDto>> GetAppointmentCustomFieldValuesAsync(Guid appointmentId);
+
     Task<AppointmentDto> GetAsync(Guid id);
     Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input);

@@ -4,14 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.Identity;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
@@ -45,23 +44,20 @@ public class InternalStaffQueueDigestJob : ITransientDependency
 
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IdentityUserManager _userManager;
-    private readonly IDataFilter _dataFilter;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<InternalStaffQueueDigestJob> _logger;
 
     public InternalStaffQueueDigestJob(
         IRepository<Appointment, Guid> appointmentRepository,
         IdentityUserManager userManager,
-        IDataFilter dataFilter,
-        ICurrentTenant currentTenant,
+        ITenantWorkRunner tenantWorkRunner,
         ILocalEventBus localEventBus,
         ILogger<InternalStaffQueueDigestJob> logger)
     {
         _appointmentRepository = appointmentRepository;
         _userManager = userManager;
-        _dataFilter = dataFilter;
-        _currentTenant = currentTenant;
+        _tenantWorkRunner = tenantWorkRunner;
         _localEventBus = localEventBus;
         _logger = logger;
     }
@@ -71,19 +67,9 @@ public class InternalStaffQueueDigestJob : ITransientDependency
     {
         _logger.LogInformation("InternalStaffQueueDigestJob: starting daily run.");
         var nowUtc = DateTime.UtcNow;
-        var tenantIds = await GetDistinctTenantIdsAsync();
 
-        foreach (var tenantId in tenantIds)
-        {
-            if (!tenantId.HasValue)
-            {
-                continue;
-            }
-            using (_currentTenant.Change(tenantId))
-            {
-                await ProcessTenantAsync(tenantId, nowUtc);
-            }
-        }
+        await _tenantWorkRunner.ForEachOfficeAsync(officeId =>
+            ProcessTenantAsync(officeId, nowUtc));
     }
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime nowUtc)
@@ -139,17 +125,5 @@ public class InternalStaffQueueDigestJob : ITransientDependency
             }
         }
         return byId.Values.ToList();
-    }
-
-    private async Task<Guid?[]> GetDistinctTenantIdsAsync()
-    {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var queryable = await _appointmentRepository.GetQueryableAsync();
-            return queryable
-                .Select(a => a.TenantId)
-                .Distinct()
-                .ToArray();
-        }
     }
 }

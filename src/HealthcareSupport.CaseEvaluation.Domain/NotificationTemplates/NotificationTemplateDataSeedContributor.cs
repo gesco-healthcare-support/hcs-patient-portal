@@ -46,14 +46,18 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
     {
         if (context?.TenantId == null)
         {
-            // Host pass: seed the template-type rows.
-            await SeedTypesAsync();
+            // Host scope has no notification templates or types under database-per-office;
+            // both are per-office (tenant) data now. NotificationTemplateType is IMultiTenant
+            // (B4), so it is seeded into each office database alongside the templates. (B4)
             return;
         }
 
-        // Tenant pass: stub a row per template code.
+        // Tenant pass: seed this office's template types first, then the templates that
+        // FK to them -- both land in the office database (NotificationTemplateType is now
+        // IMultiTenant, so its repository follows the office connection). (B4)
         using (_currentTenant.Change(context.TenantId))
         {
+            await SeedTypesAsync();
             await SeedTemplatesAsync(context.TenantId);
         }
     }
@@ -71,7 +75,9 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         {
             return;
         }
-        await _typeRepository.InsertAsync(new NotificationTemplateType(id, name), autoSave: true);
+        // autoSave:false so the type batches with the templates that FK to it in one
+        // FK-ordered SaveChanges (EF orders inserts within a batch). See B4.
+        await _typeRepository.InsertAsync(new NotificationTemplateType(id, name), autoSave: false);
     }
 
     private async Task SeedTemplatesAsync(Guid? tenantId)
@@ -97,8 +103,11 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
 
         foreach (var code in NotificationTemplateConsts.Codes.All)
         {
-            var (subject, body) = GetSubjectAndBody(code);
-            var hasResourceBackedBody = EmailBodyResources.TryLoadBody(code) != null;
+            // Shipped defaults are owned by NotificationTemplateSeedDefaults so
+            // the IsCustomized derivation (B-B2) compares against the exact same
+            // content this seeder writes.
+            var defaults = NotificationTemplateSeedDefaults.GetSeedDefaults(code);
+            var hasResourceBackedBody = NotificationTemplateSeedDefaults.HasResourceBackedBody(code);
 
             if (existing.TryGetValue(code, out var current))
             {
@@ -106,12 +115,12 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
                 {
                     continue;
                 }
-                if (current.Subject == subject && current.BodyEmail == body)
+                if (current.Subject == defaults.Subject && current.BodyEmail == defaults.BodyEmail)
                 {
                     continue;
                 }
-                current.Subject = subject;
-                current.BodyEmail = body;
+                current.Subject = defaults.Subject;
+                current.BodyEmail = defaults.BodyEmail;
                 await _templateRepository.UpdateAsync(current, autoSave: false);
                 continue;
             }
@@ -121,33 +130,12 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
                 tenantId: tenantId,
                 templateCode: code,
                 templateTypeId: EmailTypeId,
-                subject: subject,
-                bodyEmail: body,
-                bodySms: $"Stub SMS for {code}.",
+                subject: defaults.Subject,
+                bodyEmail: defaults.BodyEmail,
+                bodySms: defaults.BodySms,
                 description: null,
                 isActive: true);
             await _templateRepository.InsertAsync(entity, autoSave: false);
         }
-    }
-
-    /// <summary>
-    /// Returns the OLD-verbatim subject + body for <paramref name="code"/>.
-    /// Looks up the subject in <see cref="EmailSubjects.ByCode"/> and the body
-    /// in <see cref="EmailBodyResources"/> (embedded
-    /// <c>NotificationTemplates\EmailBodies\*.html</c> files). Falls back to a
-    /// stub when either is missing -- this is the demo-critical-only adoption
-    /// pattern; per-feature phases add more subject entries + .html files
-    /// over time without changing the seeder structure.
-    /// </summary>
-    private static (string Subject, string Body) GetSubjectAndBody(string code)
-    {
-        var subject = EmailSubjects.ByCode.TryGetValue(code, out var s)
-            ? s
-            : $"[{code}] -- TODO: parity-correct subject";
-
-        var body = EmailBodyResources.TryLoadBody(code)
-            ?? $"<p>Stub body for {code}. Per-feature phases will replace with parity-correct content.</p>";
-
-        return (subject, body);
     }
 }

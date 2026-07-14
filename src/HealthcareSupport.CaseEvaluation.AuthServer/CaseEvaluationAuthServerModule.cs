@@ -33,6 +33,8 @@ using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.LeptonX.Bundling;
 using Volo.Abp.LeptonX.Shared;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
+using Volo.Abp.Ui.LayoutHooks;
+using HealthcareSupport.CaseEvaluation.Pages.Shared.Components.BrandingHead;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Auditing;
 using Volo.Abp.Autofac;
@@ -50,6 +52,7 @@ using Volo.Abp.Account.Public.Web;
 using Volo.Abp.Account.Public.Web.Impersonation;
 using Volo.Saas.Host;
 using Volo.Abp.OpenIddict;
+using Volo.Abp.OpenIddict.ExtensionGrantTypes;
 using Volo.Abp.OpenIddict.WildcardDomains;
 using Volo.Abp.MultiTenancy;
 using System.Security.Cryptography.X509Certificates;
@@ -175,7 +178,15 @@ public class CaseEvaluationAuthServerModule : AbpModule
             PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
             {
                 serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", configuration["AuthServer:CertificatePassPhrase"]!);
-                serverBuilder.SetIssuer(new Uri(configuration["AuthServer:Authority"]!));
+                // In-house hosting (2026-07-09, T9/G8): do NOT pin SetIssuer(Authority). With one
+                // office per subdomain, a fixed issuer (e.g. https://auth.<domain>) mismatches the
+                // per-office endpoints (https://{office}.auth.<domain>/...) and the SPA's OIDC
+                // discovery check rejects it (ABP support #7332; confirmed at CHECKPOINT 1). Omitting
+                // SetIssuer lets OpenIddict derive the issuer per-request from the forwarded
+                // host+scheme (nginx forwards the original Host + X-Forwarded-Proto=https -- see G7),
+                // so every surface -- including the reserved `admin` host subdomain -- gets a matching
+                // issuer. Token validation on the API still pins https via ValidIssuer + the
+                // single-label-subdomain IssuerValidator, so security is unchanged.
             });
         }
     }
@@ -184,6 +195,10 @@ public class CaseEvaluationAuthServerModule : AbpModule
     {
         var hostingEnvironment = context.Services.GetHostingEnvironment();
         var configuration = context.Services.GetConfiguration();
+
+        // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
+        Hosting.HostingConfigValidator.ValidateOrThrow(
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: true);
 
         if (hostingEnvironment.IsProduction())
         {
@@ -199,20 +214,34 @@ public class CaseEvaluationAuthServerModule : AbpModule
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
         }
 
-        if (!configuration.GetValue<bool>("AuthServer:RequireHttpsMetadata"))
+        // In-house hosting (2026-07-09, G7): always honor the reverse proxy's
+        // X-Forwarded-Proto so the app sees the original https scheme behind
+        // TLS-terminating nginx. Required so OpenIddict's transport-security check
+        // passes in production and so issuer/redirect URLs render as https. .NET 8+
+        // ignores forwarded headers from proxies not in the allowlist; the LAN box's
+        // only ingress is our own nginx, so the allowlist is cleared to trust the
+        // in-network proxy (MS proxy-load-balancer guidance).
+        Configure<ForwardedHeadersOptions>(options =>
         {
-            Configure<OpenIddictServerAspNetCoreOptions>(options =>
-            {
-                options.DisableTransportSecurityRequirement = true;
-            });
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
 
-            Configure<ForwardedHeadersOptions>(options =>
-            {
-                options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
-                options.KnownIPNetworks.Clear();
-                options.KnownProxies.Clear();
-            });
-        }
+        // In-house hosting (2026-07-09, CHECKPOINT 1 / F2): OpenIddict must not reject requests
+        // that arrive at the container over plain http. Real client requests come through the
+        // TLS-terminating nginx proxy and are seen as https via the forwarded X-Forwarded-Proto
+        // above; internal service-to-service calls -- notably the API's OIDC metadata/jwks fetch
+        // to http://authserver:8080 -- are plain http on the trusted docker network. Without
+        // disabling the transport-security requirement, that internal fetch is rejected ("This
+        // server only accepts HTTPS requests") and the API then fails token signature validation
+        // with IDX10500 (no signing keys). The container ports are never host-published, so no
+        // plaintext OIDC surface is exposed to external clients. Applies in every environment
+        // (dev already disabled it); TLS for real clients is enforced by nginx + forwarded proto.
+        Configure<OpenIddictServerAspNetCoreOptions>(options =>
+        {
+            options.DisableTransportSecurityRequirement = true;
+        });
 
         context.Services.ForwardIdentityAuthenticationForBearer(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
 
@@ -264,6 +293,17 @@ public class CaseEvaluationAuthServerModule : AbpModule
                     bundle.AddFiles("/global-scripts.js");
                 }
             );
+        });
+
+        // Phase E (2026-06-25): inject the current office's logo into the auth pages'
+        // <head> as a --lpx-logo override (the LeptonX login layout sources the logo
+        // from that CSS variable). Head.Last so it cascades after global-styles.css,
+        // which stays as the host/default fallback.
+        Configure<AbpLayoutHookOptions>(options =>
+        {
+            options.Add(
+                LayoutHooks.Head.Last,
+                typeof(BrandingHeadViewComponent));
         });
 
         Configure<AbpAuditingOptions>(options =>
@@ -406,6 +446,19 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.ImpersonationUserPermission = IdentityPermissions.Users.Impersonation;
         });
 
+        // Phase D (2026-06-25) -- replace the stock "Impersonation" grant with
+        // HostIntakeImpersonationExtensionGrant so a host Intake operator can land
+        // as their LIMITED per-office shadow Intake user (gated, deny-by-default).
+        // Supervisor / IT Admin keep the stock switch-in-as-admin path (the grant
+        // delegates to base when the caller holds Saas.Tenants.Impersonation). The
+        // "Impersonation" grant_type is already registered by the stock module's
+        // PreConfigure<OpenIddictServerBuilder>, so only the handler is swapped.
+        Configure<AbpOpenIddictExtensionGrantsOptions>(options =>
+        {
+            options.Grants.Remove("Impersonation");
+            options.Grants.Add("Impersonation", new HostIntakeImpersonationExtensionGrant());
+        });
+
         // 2026-05-12 (Issue 1.5) — light is the default for first-time
         // visitors to AuthServer Razor pages (login / register / email
         // confirmation). Users who explicitly toggle to dark still keep
@@ -448,7 +501,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         context.Services.AddCaseEvaluationAuthServerHealthChecks();
 
-        ConfigureMultiTenancy();
+        ConfigureMultiTenancy(configuration);
     }
 
     /// <summary>
@@ -464,7 +517,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
     /// caller from sending ?__tenant=GUID and switching tenants from the URL
     /// bar. This is HIPAA-relevant: see ADR-006 Context section.
     /// </summary>
-    private void ConfigureMultiTenancy()
+    private void ConfigureMultiTenancy(IConfiguration configuration)
     {
         Configure<AbpTenantResolveOptions>(options =>
         {
@@ -477,8 +530,12 @@ public class CaseEvaluationAuthServerModule : AbpModule
             // the host and ABP's MultiTenancyMiddleware throws 404 when
             // the slug is not a registered tenant -- which broke the
             // intended Host surface URL admin.localhost:44368.
+            //
+            // In-house hosting (2026-07-09): the host template is config-driven
+            // (App:TenantDomainFormat) so production serves per-service subdomains
+            // (e.g. "{0}.auth.portal.example.com"); local dev falls back to "{0}.localhost".
             options.TenantResolvers.Add(
-                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
+                HostAwareDomainTenantResolveContributor.FromConfiguration(configuration));
         });
     }
 

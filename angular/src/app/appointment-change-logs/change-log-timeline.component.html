@@ -1,0 +1,46 @@
+<div class="clg">
+  @for (e of entries(); track e.key) {
+    <div class="clg-entry">
+      <div class="clg-head" [attr.data-open]="isOpen(e.key)" (click)="toggle(e.key)">
+        <span class="ic" [ngClass]="meta(e.changeType).tint">
+          <app-icon [name]="meta(e.changeType).icon" [size]="16" />
+        </span>
+        <span class="tx">
+          <span class="t1">
+            <b>{{ e.entityType }} {{ meta(e.changeType).verb }}</b>
+            @if (e.appointmentId) {
+              <a class="conf" (click)="openAppointment(e.appointmentId, $event)">
+                View appointment
+              </a>
+            }
+          </span>
+          <span class="t2">{{ e.changeTime | date: 'MMM d, y, h:mm a' }}</span>
+        </span>
+        <span class="cnt">{{ e.diffs.length }} field{{ e.diffs.length === 1 ? '' : 's' }}</span>
+        <span class="chev"><app-icon name="chevRight" [size]="16" /></span>
+      </div>
+      @if (isOpen(e.key)) {
+        <div class="clg-diffs">
+          @for (d of e.diffs; track $index) {
+            <div class="clg-diff">
+              <span class="f">{{ d.propertyName }}</span>
+              @if (d.valueRedacted) {
+                <span class="red">updated (value hidden &mdash; sensitive field)</span>
+              } @else {
+                <span class="old">{{ d.oldValue || '—' }}</span>
+                <span class="arr"><app-icon name="chevRight" [size]="13" /></span>
+                <span class="new">{{ d.newValue || '—' }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  } @empty {
+    <div class="ia-empty">
+      <app-icon name="inbox" [size]="36" />
+      <b>No changes</b>
+      <span>Nothing has been recorded for this filter.</span>
+    </div>
+  }
+</div>

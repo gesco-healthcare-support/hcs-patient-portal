@@ -46,4 +46,36 @@ public class ExternalUserController : AbpController
     {
         return _externalSignupAppService.InviteExternalUserAsync(input);
     }
+
+    /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B1): paged invite-management list for the
+    /// internal "Pending Invites" surface. Authorization is enforced at the
+    /// AppService method (InviteExternalUser permission).
+    /// </summary>
+    [Authorize]
+    [HttpGet]
+    [Route("invites")]
+    public virtual Task<Volo.Abp.Application.Dtos.PagedResultDto<InvitationDto>> GetInvitesAsync(
+        [FromQuery] GetInvitesInput input)
+    {
+        return _externalSignupAppService.GetInvitesAsync(input);
+    }
+
+    /// <summary>2026-06-16 (A-B1): resend (re-issue) a pending invitation.</summary>
+    [Authorize]
+    [HttpPost]
+    [Route("invites/{id}/resend")]
+    public virtual Task<InviteExternalUserResultDto> ResendInviteAsync(System.Guid id)
+    {
+        return _externalSignupAppService.ResendInviteAsync(id);
+    }
+
+    /// <summary>2026-06-16 (A-B1): revoke (soft-delete) a pending invitation.</summary>
+    [Authorize]
+    [HttpPost]
+    [Route("invites/{id}/revoke")]
+    public virtual Task RevokeInviteAsync(System.Guid id)
+    {
+        return _externalSignupAppService.RevokeInviteAsync(id);
+    }
 }

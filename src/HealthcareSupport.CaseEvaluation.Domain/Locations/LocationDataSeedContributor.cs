@@ -26,7 +26,9 @@ public class LocationDataSeedContributor : IDataSeedContributor, ITransientDepen
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (context?.TenantId != null)
+        // Per-office (db-per-office): seed demo clinic locations into the active office
+        // DB; skip host scope. Per-office seed execution + ordering is Phase B (B4).
+        if (context?.TenantId == null)
         {
             return;
         }

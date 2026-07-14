@@ -58,4 +58,25 @@ public interface INotificationTemplatesAppService : IApplicationService
     /// path (see <see cref="NotificationTemplateUpdateDto"/> for rationale).
     /// </summary>
     Task<NotificationTemplateDto> UpdateAsync(Guid id, NotificationTemplateUpdateDto input);
+
+    /// <summary>
+    /// B-B1 (2026-06-16): renders the template identified by
+    /// <paramref name="id"/> with synthetic sample variables and emails it to
+    /// the current user so an editor can preview the live output in a real
+    /// inbox. Gated by <c>NotificationTemplates.Edit</c>. Email-only (the SMS
+    /// leg is skipped to avoid surprise texts). Throws
+    /// <c>BusinessException(NotificationTemplateNotFound)</c> when the template
+    /// is inactive -- an inactive template has no live output to test.
+    /// </summary>
+    Task SendTestAsync(Guid id);
+
+    /// <summary>
+    /// B-B2 (2026-06-16): the valid <c>##Var##</c> tokens for
+    /// <paramref name="templateCode"/>, derived from its shipped default
+    /// content, for the editor's variable-chip palette. Gated by
+    /// <c>NotificationTemplates.Default</c> (read). Throws
+    /// <c>BusinessException(NotificationTemplateNotFound)</c> for an unknown
+    /// code.
+    /// </summary>
+    Task<ListResultDto<NotificationTemplateVariableDto>> GetVariablesAsync(string templateCode);
 }

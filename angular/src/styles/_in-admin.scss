@@ -1,0 +1,411 @@
+/* ============================================================
+   Admin hub (Prompt 16, Part B): Notification Templates - System
+   Parameters - Users & Roles - Audit Logs. Ported from the design handoff
+   (design_handoff_part_B/styles/in-admin.css). Reuses cf-rail, ia-*, ra-*,
+   af-btn, ic tint-*, opt, ia-empty from the shared systems.
+   ============================================================ */
+
+/* ---- notification templates split view ---- */
+.nt {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.nt-list {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+.nt-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--n-100);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.nt-item:last-child {
+  border-bottom: 0;
+}
+.nt-item:hover {
+  background: var(--n-25);
+}
+.nt-item[data-on='true'] {
+  background: var(--blue-50);
+  box-shadow: inset 3px 0 0 var(--blue-700);
+}
+.nt-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex: none;
+}
+.nt-item .dot.on {
+  background: var(--green-500);
+}
+.nt-item .dot.off {
+  background: var(--n-300);
+}
+.nt-item .tx {
+  min-width: 0;
+  flex: 1;
+}
+.nt-item .tx b {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--n-900);
+}
+.nt-item .tx span {
+  font-size: 11.5px;
+  color: var(--n-500);
+}
+.nt-ovr {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--st-purple-bg);
+  color: var(--st-purple-fg);
+  white-space: nowrap;
+}
+
+.ra-switch.right {
+  margin-left: auto;
+}
+
+.nt-vars {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.nt-var {
+  border: 1px dashed var(--blue-300);
+  background: var(--blue-50);
+  color: var(--blue-700);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: var(--font-num);
+  padding: 4px 10px;
+  border-radius: 99px;
+  cursor: pointer;
+}
+.nt-var:hover {
+  background: var(--blue-100);
+}
+.nt-preview {
+  background: var(--n-25);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+}
+.nt-preview .sub {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--n-900);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.nt-preview .bd {
+  font-size: 13px;
+  color: var(--n-700);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.nt-preview .bd b,
+.nt-preview .sub b {
+  color: var(--blue-700);
+}
+
+/* #6 (2026-06-19): list pager + WYSIWYG email-body editor (ngx-quill snow). */
+.nt-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--n-100);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n-600);
+}
+.nt-pager button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  color: var(--n-600);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nt-pager button:hover:not(:disabled) {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+}
+.nt-pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* ngx-quill's component :host sets display:block and a height that clips to the
+   container alone, so the toolbar's ~42px overflowed down into the next field
+   (the "SMS body" label landed in the email-body box). :host wins at equal
+   specificity (it loads after global CSS), so override with !important: a flex
+   column with auto height sizes the host to toolbar + container. */
+.nt-editor {
+  display: flex !important;
+  flex-direction: column;
+  height: auto !important;
+}
+.nt-editor .ql-toolbar {
+  border-top-left-radius: var(--r-md);
+  border-top-right-radius: var(--r-md);
+  border-color: var(--border-strong);
+  flex: 0 0 auto;
+}
+.nt-editor .ql-container {
+  border-bottom-left-radius: var(--r-md);
+  border-bottom-right-radius: var(--r-md);
+  border-color: var(--border-strong);
+  font-family: inherit;
+  font-size: 13.5px;
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+.nt-editor .ql-editor {
+  min-height: 200px;
+}
+
+/* ---- system parameters ---- */
+.sp-group {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  margin-bottom: 16px;
+}
+.sp-group__head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-group__head .ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.sp-group__head h3 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--n-900);
+  margin: 0;
+}
+.sp-group__body {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px 22px;
+}
+.sp-field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--n-700);
+  margin-bottom: 5px;
+}
+.sp-field .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sp-field input[type='number'],
+.sp-field input[type='text'] {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  font-family: var(--font-num);
+  color: var(--n-800);
+}
+.sp-field input:disabled {
+  background: var(--n-25);
+  color: var(--n-500);
+}
+.sp-field .unit {
+  font-size: 12px;
+  color: var(--n-500);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sp-field .hint {
+  font-size: 11.5px;
+  color: var(--n-400);
+  margin-top: 4px;
+}
+.sp-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ---- permission matrix ---- */
+.pm {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.pm .cf-rail {
+  position: static;
+}
+.pm-kind {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--n-400);
+  font-weight: 700;
+  padding: 10px 12px 4px;
+}
+.pm-head {
+  margin-bottom: 12px;
+}
+.pm-head h1 {
+  font-size: 18px;
+}
+.pm-matrix {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+}
+.pm-group {
+  border-bottom: 1px solid var(--n-100);
+  padding: 12px 20px;
+}
+.pm-group:last-child {
+  border-bottom: 0;
+}
+.pm-group h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--n-500);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.pm-perms {
+  display: flex;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+}
+.pm-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--n-700);
+  cursor: pointer;
+  padding: 4px 0;
+}
+.pm-perm input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue-700);
+}
+.pm-perm input:disabled + span {
+  color: var(--n-400);
+}
+
+/* ---- audit logs ---- */
+.au-row {
+  cursor: pointer;
+}
+.au-caret {
+  color: var(--n-400);
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+.au-caret.open {
+  transform: rotate(90deg);
+}
+.au-num {
+  font-family: var(--font-num);
+}
+.au-chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-family: var(--font-num);
+}
+.au-chip.get {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.au-chip.post {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.au-chip.put {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.au-chip.del {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.au-chip.s2 {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.au-chip.s4 {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.au-chip.s5 {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.au-detail {
+  background: var(--n-25);
+  padding: 12px 18px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 20px;
+  font-size: 12.5px;
+}
+.au-detail .k {
+  color: var(--n-500);
+  font-weight: 600;
+  font-size: 11px;
+}
+.au-detail .v {
+  color: var(--n-800);
+  font-weight: 600;
+  font-family: var(--font-num);
+}
+
+@media (max-width: 900px) {
+  .nt,
+  .pm {
+    grid-template-columns: 1fr;
+  }
+}

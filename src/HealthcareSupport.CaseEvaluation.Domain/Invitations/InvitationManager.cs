@@ -61,6 +61,7 @@ public class InvitationManager : DomainService
     /// <param name="invitedByUserId">Internal staff user issuing the invite.</param>
     /// <param name="firstName">Optional recipient first name (greeting + register prefill).</param>
     /// <param name="lastName">Optional recipient last name.</param>
+    /// <param name="firmName">Optional firm name (attorney invites only) for register prefill.</param>
     /// <returns>Tuple of (the persisted Invitation, the raw token).</returns>
     public virtual async Task<(Invitation Invitation, string RawToken)> IssueAsync(
         Guid tenantId,
@@ -68,7 +69,8 @@ public class InvitationManager : DomainService
         ExternalUserType userType,
         Guid invitedByUserId,
         string? firstName = null,
-        string? lastName = null)
+        string? lastName = null,
+        string? firmName = null)
     {
         Check.NotNullOrWhiteSpace(email, nameof(email));
 
@@ -86,7 +88,8 @@ public class InvitationManager : DomainService
             expiresAt: expiresAt,
             invitedByUserId: invitedByUserId,
             firstName: firstName,
-            lastName: lastName);
+            lastName: lastName,
+            firmName: firmName);
 
         await _invitationRepository.InsertAsync(invitation, autoSave: true);
         return (invitation, rawToken);
@@ -134,6 +137,28 @@ public class InvitationManager : DomainService
         invitation.MarkAccepted(acceptedByUserId, _clock.Now.ToUniversalTime());
         await _invitationRepository.UpdateAsync(invitation, autoSave: true);
         return invitation;
+    }
+
+    /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B1) -- re-issues an existing invitation in
+    /// place: generates a fresh token, overwrites the stored hash, resets
+    /// <c>ExpiresAt</c> to now + the default TTL, persists, and returns the new
+    /// raw token (one-time, as with <see cref="IssueAsync"/>). The previous
+    /// token stops validating the moment its hash is overwritten. The caller
+    /// must ensure the invitation is still pending (not accepted); the
+    /// AppService gates that.
+    /// </summary>
+    public virtual async Task<string> ResendAsync(Invitation invitation)
+    {
+        Check.NotNull(invitation, nameof(invitation));
+
+        var rawToken = GenerateRawToken();
+        var tokenHash = ComputeTokenHash(rawToken);
+        var expiresAt = _clock.Now.ToUniversalTime().AddDays(InvitationConsts.DefaultTtlDays);
+
+        invitation.Reissue(tokenHash, expiresAt);
+        await _invitationRepository.UpdateAsync(invitation, autoSave: true);
+        return rawToken;
     }
 
     /// <summary>

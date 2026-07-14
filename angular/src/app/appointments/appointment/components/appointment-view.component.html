@@ -66,16 +66,17 @@
                 >
                   {{ '::Appointment:Action:Reject' | abpLocalization }}
                 </button>
-              } @else if (action === 'cancel') {
-                <button
-                  type="button"
-                  class="btn btn-warning btn-sm"
-                  (click)="dispatchAction('cancel')"
-                >
-                  {{ '::Appointment:Action:CancelAppointment' | abpLocalization }}
-                </button>
               }
             }
+          }
+          @if (canRequestInfo) {
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              (click)="openRequestInfo()"
+            >
+              Request info
+            </button>
           }
           @if (canReRequest) {
             <button type="button" class="btn btn-primary btn-sm" (click)="reRequest()">
@@ -146,25 +147,27 @@
         (succeeded)="onActionSucceeded($event)"
       ></app-reject-appointment-modal>
 
-      <app-cancel-appointment-modal
-        [appointmentId]="appointment.appointment?.id ?? null"
-        [(visible)]="cancelModalVisible"
-        (succeeded)="onActionSucceeded($event)"
-      ></app-cancel-appointment-modal>
-
       <app-reschedule-request-modal
         [appointmentId]="appointment.appointment?.id ?? null"
         [locationId]="appointment.appointment?.locationId ?? null"
         [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+        [requesterIsStaff]="isInternalUser"
         [(visible)]="rescheduleRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-reschedule-request-modal>
 
       <app-cancellation-request-modal
         [appointmentId]="appointment.appointment?.id ?? null"
+        [requesterIsStaff]="isInternalUser"
         [(visible)]="cancelRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-cancellation-request-modal>
+
+      <app-request-info-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="requestInfoModalVisible"
+        (succeeded)="onInfoRequestSucceeded()"
+      ></app-request-info-modal>
 
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -309,21 +312,32 @@
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }}</label>
               <div class="input-group" validationTarget>
+                <!-- QA #15 item 5 (2026-07-07): typeable MM/DD/YYYY entry; calendar
+                     moved to a toggle button (matches the booking-form pattern). -->
                 <input
-                  readonly
                   id="appointment-patient-date-of-birth"
                   formControlName="patientDateOfBirth"
                   [class.is-invalid]="isFieldInvalid('patientDateOfBirth')"
                   class="form-control"
+                  placeholder="MM/DD/YYYY"
+                  appUsDateAutoSlash
                   ngbDatepicker
                   #dateOfBirthInput
                   #dateOfBirthDatepicker="ngbDatepicker"
                   [minDate]="dobMinDate"
                   [maxDate]="dobMaxDate"
                   navigation="select"
-                  (click)="dateOfBirthDatepicker.open()"
-                  (keyup.space)="dateOfBirthDatepicker.open()"
                 />
+                <div class="input-group-append">
+                  <button
+                    class="btn btn-link px-2"
+                    type="button"
+                    title="Open calendar"
+                    (click)="dateOfBirthDatepicker.toggle()"
+                  >
+                    <i class="fa fa-calendar" aria-hidden="true"></i>
+                  </button>
+                </div>
                 @if (dateOfBirthInput.value) {
                   <div class="input-group-append">
                     <button
@@ -576,13 +590,18 @@
           <div class="card-body">
             @if (!isApplicantAttorney && !form.get('applicantAttorneyIdentityUserId')?.value) {
               <div class="row mb-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold">Applicant Attorney Email</label>
+                <div class="col-md-8">
+                  <label class="form-label fw-semibold">Applicant Attorney</label>
                   <input
-                    type="email"
+                    type="text"
                     class="form-control"
-                    placeholder="Enter email to load"
+                    placeholder="Search by name or email"
                     formControlName="applicantAttorneyEmailSearch"
+                    [ngbTypeahead]="searchApplicantAttorney"
+                    [resultFormatter]="formatAttorneyResult"
+                    [inputFormatter]="formatAttorneyInput"
+                    [editable]="true"
+                    (selectItem)="onApplicantAttorneyTypeaheadSelect($event)"
                   />
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
@@ -596,25 +615,6 @@
                   >
                     Load Applicant Attorney
                   </button>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">Or select</label>
-                  <select
-                    class="form-select"
-                    formControlName="applicantAttorneyIdentityUserId"
-                    (change)="
-                      onApplicantAttorneySelected(
-                        form.get('applicantAttorneyIdentityUserId')?.value
-                      )
-                    "
-                  >
-                    <option [ngValue]="null">Select Applicant Attorney</option>
-                    @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                      <option [ngValue]="opt.identityUserId">
-                        {{ applicantAttorneyOptionLabel(opt) }}
-                      </option>
-                    }
-                  </select>
                 </div>
               </div>
             }
@@ -738,13 +738,18 @@
           <div class="card-body">
             @if (!isDefenseAttorney && !form.get('defenseAttorneyIdentityUserId')?.value) {
               <div class="row mb-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold">Defense Attorney Email</label>
+                <div class="col-md-8">
+                  <label class="form-label fw-semibold">Defense Attorney</label>
                   <input
-                    type="email"
+                    type="text"
                     class="form-control"
-                    placeholder="Enter email to load"
+                    placeholder="Search by name or email"
                     formControlName="defenseAttorneyEmailSearch"
+                    [ngbTypeahead]="searchDefenseAttorney"
+                    [resultFormatter]="formatAttorneyResult"
+                    [inputFormatter]="formatAttorneyInput"
+                    [editable]="true"
+                    (selectItem)="onDefenseAttorneyTypeaheadSelect($event)"
                   />
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
@@ -758,21 +763,6 @@
                   >
                     Load Defense Attorney
                   </button>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">Or select</label>
-                  <select
-                    class="form-select"
-                    formControlName="defenseAttorneyIdentityUserId"
-                    (change)="
-                      onDefenseAttorneySelected(form.get('defenseAttorneyIdentityUserId')?.value)
-                    "
-                  >
-                    <option [ngValue]="null">Select Defense Attorney</option>
-                    @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
-                      <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
-                    }
-                  </select>
                 </div>
               </div>
             }

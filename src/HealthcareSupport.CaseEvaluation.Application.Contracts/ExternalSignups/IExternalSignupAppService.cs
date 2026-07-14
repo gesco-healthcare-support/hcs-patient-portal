@@ -37,6 +37,29 @@ public interface IExternalSignupAppService : IApplicationService
     Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input);
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B1) -- paged list of every invitation in the
+    /// caller's tenant (Pending / Accepted / Expired / Revoked) for the
+    /// internal "Pending Invites" management surface. Includes soft-deleted
+    /// (revoked) rows. Gated by <c>InviteExternalUser</c>.
+    /// </summary>
+    Task<PagedResultDto<InvitationDto>> GetInvitesAsync(GetInvitesInput input);
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- re-issues the invitation in place (fresh token +
+    /// reset 7-day expiry) and re-dispatches the invite email. Returns the new
+    /// invite URL so the admin can copy it. Rejects an already-accepted
+    /// invitation. Gated by <c>InviteExternalUser</c>.
+    /// </summary>
+    Task<InviteExternalUserResultDto> ResendInviteAsync(Guid id);
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- revokes (soft-deletes) a pending invitation so its
+    /// token stops validating. Rejects an already-accepted invitation. Gated by
+    /// <c>InviteExternalUser</c>.
+    /// </summary>
+    Task RevokeInviteAsync(Guid id);
+
+    /// <summary>
     /// 2026-05-15 -- anonymous endpoint that validates a raw invite
     /// token against the persisted <c>Invitation</c> row and returns the
     /// resolved email + role for the JS overlay on
@@ -46,6 +69,19 @@ public interface IExternalSignupAppService : IApplicationService
     /// can render the appropriate friendly banner.
     /// </summary>
     Task<InvitationValidationDto> ValidateInviteAsync(string token);
+
+    /// <summary>
+    /// 2026-06-15 (B3) -- returns the subset of <paramref name="emails"/>
+    /// that currently have an ACTIVE invitation (issued, not yet accepted,
+    /// not expired, not soft-deleted) in the caller's tenant. The internal
+    /// People hub uses this to render the "Invited" portal-status chip for
+    /// record-only people (no login yet) who were sent an invite. Matched
+    /// case-insensitively; returned lowercased. Gated by the same permission
+    /// as issuing an invite (<c>InviteExternalUser</c>) so the chip and the
+    /// invite action share one trust boundary -- a viewer who cannot invite
+    /// simply does not call this and the chip degrades to Linked / None.
+    /// </summary>
+    Task<List<string>> GetActiveInvitedEmailsAsync(List<string> emails);
 
     /// <summary>
     /// Dev-only test helper: flip <c>EmailConfirmed=true</c> on the user

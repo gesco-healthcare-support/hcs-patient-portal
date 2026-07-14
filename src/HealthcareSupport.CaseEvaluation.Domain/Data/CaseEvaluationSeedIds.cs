@@ -37,6 +37,20 @@ public static class CaseEvaluationSeedIds
         public static readonly Guid English = new("a0a00003-0000-4000-9000-000000000001");
     }
 
+    public static class AppointmentStatuses
+    {
+        // Prompt 15 (2026-06-15): the AppointmentStatus LOOKUP table is otherwise
+        // empty -- runtime status uses the AppointmentStatusType enum. These rows
+        // populate the Configuration > Statuses section with the redesign's six
+        // canonical status pills, all system-locked (rename only; never deleted).
+        public static readonly Guid Pending = new("a0a00006-0000-4000-9000-000000000001");
+        public static readonly Guid InfoRequested = new("a0a00006-0000-4000-9000-000000000002");
+        public static readonly Guid Approved = new("a0a00006-0000-4000-9000-000000000003");
+        public static readonly Guid Rejected = new("a0a00006-0000-4000-9000-000000000004");
+        public static readonly Guid Cancelled = new("a0a00006-0000-4000-9000-000000000005");
+        public static readonly Guid Rescheduled = new("a0a00006-0000-4000-9000-000000000006");
+    }
+
     public static class WcabOffices
     {
         public static readonly Guid Anaheim = new("a0a00004-0000-4000-9000-000000000001");

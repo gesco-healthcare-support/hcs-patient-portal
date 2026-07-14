@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.MultiTenancy;
 
@@ -29,6 +30,16 @@ public class HostAwareDomainTenantResolveContributor : TenantResolveContributorB
     /// <summary>The single reserved subdomain that maps to Host context.</summary>
     public const string ReservedHostSlug = "admin";
 
+    /// <summary>
+    /// Configuration key holding the host template ("{0}.suffix"). Set per service in
+    /// production (e.g. "{0}.auth.portal.example.com" on the AuthServer,
+    /// "{0}.api.portal.example.com" on the API). Unset in local dev.
+    /// </summary>
+    public const string DomainFormatConfigKey = "App:TenantDomainFormat";
+
+    /// <summary>Template used when <see cref="DomainFormatConfigKey"/> is unset (local dev).</summary>
+    public const string DefaultDomainFormat = "{0}.localhost";
+
     public override string Name => ContributorName;
 
     public string DomainFormat { get; }
@@ -36,6 +47,19 @@ public class HostAwareDomainTenantResolveContributor : TenantResolveContributorB
     public HostAwareDomainTenantResolveContributor(string domainFormat)
     {
         DomainFormat = domainFormat;
+    }
+
+    /// <summary>
+    /// Builds the contributor from configuration: reads <see cref="DomainFormatConfigKey"/> and
+    /// falls back to <see cref="DefaultDomainFormat"/> when it is missing or blank, so local dev
+    /// (and any environment without the key) keeps "{0}.localhost" while production supplies its
+    /// own per-service host template. ADR-007 flagged this config seam for the production hosts.
+    /// </summary>
+    public static HostAwareDomainTenantResolveContributor FromConfiguration(IConfiguration configuration)
+    {
+        var format = configuration[DomainFormatConfigKey];
+        return new HostAwareDomainTenantResolveContributor(
+            string.IsNullOrWhiteSpace(format) ? DefaultDomainFormat : format);
     }
 
     public override Task ResolveAsync(ITenantResolveContext context)

@@ -9,6 +9,13 @@ flow: dev-stack
 component: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile.dev | src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile.dev | angular/Dockerfile.dev | angular/dev-entrypoint.sh | docker-compose.yml
 ---
 
+> **Superseded 2026-06-12.** The `.dev` Dockerfiles referenced in the frontmatter
+> were deleted in the docker-dev-workflow unification: each service now has a
+> single multi-stage Dockerfile with a `dev` target (bind-mounted source +
+> named-volume dependencies + `ArtifactsPath` build-output isolation). The
+> restart-on-edit loop this finding describes is now the standard dev workflow.
+> See `docs/plans/2026-06-12-docker-dev-workflow-yarn4.md`.
+>
 > **Resolution 2026-05-22.** Watchers removed entirely. The actual iteration workflow had already collapsed to "edit on host -> `docker compose restart <service>`" because the bind-mount / inotify drift was so unreliable. Removing the watchers matches the real workflow with no UX loss and eliminates an entire class of "did my edit take effect?" debugging time.
 >
 > **Changes shipped:**

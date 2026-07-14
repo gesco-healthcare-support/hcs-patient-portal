@@ -1,0 +1,231 @@
+<div class="ia-head">
+  <h1>File management</h1>
+  <p class="ia-sub">Browse and manage files in tenant blob storage.</p>
+</div>
+
+<div class="fm-crumbs">
+  @for (c of path(); track $index; let i = $index) {
+    @if (i > 0) {
+      <span class="sep"><app-icon name="chevRight" [size]="13" /></span>
+    }
+    @if (i === path().length - 1) {
+      <span class="cur">{{ c.name }}</span>
+    } @else {
+      <button type="button" (click)="goTo(i)">{{ c.name }}</button>
+    }
+  }
+</div>
+
+<div class="fm-tools">
+  <div class="ia-search">
+    <app-icon name="search" [size]="16" />
+    <input
+      placeholder="Search this folder..."
+      [ngModel]="query()"
+      (ngModelChange)="query.set($event)"
+    />
+  </div>
+  @if (canManage()) {
+    <button class="ia-fbtn" type="button" (click)="openNewFolder()">
+      <app-icon name="folder" [size]="15" />
+      New folder
+    </button>
+    <label class="af-btn af-btn--primary fm-uplabel">
+      <app-icon name="upload" [size]="15" />
+      Upload
+      <input type="file" multiple hidden (change)="onUpload($event)" />
+    </label>
+  }
+</div>
+
+<div class="ia-wrap">
+  <div class="ia-scroll">
+    <table class="ia-table" style="min-width: 640px">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Size</th>
+          <th>Type</th>
+          <th>Modified</th>
+          <th style="text-align: right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of shown(); track row.id) {
+          <tr [class.fm-folderrow]="row.isDirectory" (click)="open(row)">
+            <td>
+              <span class="fm-fname">
+                <span class="fi" [class.folder]="row.isDirectory" [class.file]="!row.isDirectory">
+                  <app-icon [name]="row.isDirectory ? 'folder' : 'file'" [size]="16" />
+                </span>
+                {{ row.name }}
+              </span>
+            </td>
+            <td class="ia-sub fm-num">{{ row.isDirectory ? '--' : sizeLabel(row.size) }}</td>
+            <td>
+              <span class="fm-type">{{ typeLabel(row) }}</span>
+            </td>
+            <td class="ia-sub fm-num">
+              {{ row.lastModificationTime ? (row.lastModificationTime | date: 'medium') : '--' }}
+            </td>
+            <td style="text-align: right" (click)="$event.stopPropagation()">
+              @if (row.isDirectory) {
+                <span class="ia-sub fm-open">
+                  Open
+                  <app-icon name="chevRight" [size]="12" />
+                </span>
+              } @else {
+                <span class="fm-rowacts">
+                  <button class="ra-rowbtn" type="button" title="Download" (click)="download(row)">
+                    <app-icon name="download" [size]="14" />
+                  </button>
+                  @if (canManage()) {
+                    <button
+                      class="ra-rowbtn"
+                      type="button"
+                      title="Rename"
+                      (click)="openRename(row)"
+                    >
+                      <app-icon name="edit" [size]="14" />
+                    </button>
+                    <button
+                      class="ra-rowbtn danger"
+                      type="button"
+                      title="Delete"
+                      (click)="openDelete(row)"
+                    >
+                      <app-icon name="trash" [size]="14" />
+                    </button>
+                  }
+                </span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (isEmpty()) {
+    <div class="ia-empty">
+      <app-icon name="folderOpen" [size]="30" />
+      <b>This folder is empty</b>
+      @if (query()) {
+        No files match your search.
+      } @else {
+        Upload files or create a subfolder to get started.
+      }
+    </div>
+  } @else if (loading()) {
+    <div class="ia-empty">Loading...</div>
+  }
+</div>
+
+<!-- New folder -->
+@if (modal() === 'newfolder') {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>New folder in {{ current().name }}</h3>
+        <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <div class="ra-field col-12">
+          <label>
+            Folder name
+            <span class="req">*</span>
+          </label>
+          <input
+            class="ra-input"
+            placeholder="e.g. 2026-07"
+            [ngModel]="folderName()"
+            (ngModelChange)="folderName.set($event)"
+          />
+        </div>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          [disabled]="isBusy()"
+          (click)="createFolder()"
+        >
+          <app-icon name="check" [size]="15" />
+          Create
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Rename -->
+@if (modal() === 'rename') {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>Rename file</h3>
+        <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <div class="ra-field col-12">
+          <label>
+            File name
+            <span class="req">*</span>
+          </label>
+          <input
+            class="ra-input fm-num"
+            [ngModel]="folderName()"
+            (ngModelChange)="folderName.set($event)"
+          />
+        </div>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          [disabled]="isBusy()"
+          (click)="doRename()"
+        >
+          <app-icon name="check" [size]="15" />
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete -->
+@if (modal() === 'delete') {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>Delete "{{ target()?.name }}"?</h3>
+        <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <p class="fm-warn">
+          This permanently removes the file from blob storage. This cannot be undone.
+        </p>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+        <button
+          class="af-btn af-btn--primary fm-danger"
+          type="button"
+          [disabled]="isBusy()"
+          (click)="doDelete()"
+        >
+          <app-icon name="trash" [size]="15" />
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

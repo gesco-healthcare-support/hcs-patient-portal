@@ -26,30 +26,64 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> _appointmentRepository;
     protected AppointmentReadAccessGuard _readAccessGuard;
+    protected IdentityUserManager _identityUserManager;
 
     public AppointmentAccessorsAppService(
         IAppointmentAccessorRepository appointmentAccessorRepository,
         AppointmentAccessorManager appointmentAccessorManager,
         IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository,
         IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository,
-        AppointmentReadAccessGuard readAccessGuard)
+        AppointmentReadAccessGuard readAccessGuard,
+        IdentityUserManager identityUserManager)
     {
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _appointmentAccessorManager = appointmentAccessorManager;
         _identityUserRepository = identityUserRepository;
         _appointmentRepository = appointmentRepository;
         _readAccessGuard = readAccessGuard;
+        _identityUserManager = identityUserManager;
     }
 
     public virtual async Task<PagedResultDto<AppointmentAccessorWithNavigationPropertiesDto>> GetListAsync(GetAppointmentAccessorsInput input)
     {
         var totalCount = await _appointmentAccessorRepository.GetCountAsync(input.FilterText, input.AccessTypeId, input.IdentityUserId, input.AppointmentId);
         var items = await _appointmentAccessorRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AccessTypeId, input.IdentityUserId, input.AppointmentId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var dtos = ObjectMapper.Map<List<AppointmentAccessorWithNavigationProperties>, List<AppointmentAccessorWithNavigationPropertiesDto>>(items);
+        await PopulateUserRoleNamesAsync(dtos);
         return new PagedResultDto<AppointmentAccessorWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<AppointmentAccessorWithNavigationProperties>, List<AppointmentAccessorWithNavigationPropertiesDto>>(items)
+            Items = dtos
         };
+    }
+
+    /// <summary>
+    /// QA item 14: stamp each row's external role (Patient / Applicant Attorney /
+    /// Defense Attorney / Claim Examiner) from the user's assigned roles so the
+    /// view-time authorized-users list shows the Role. The list is small (a handful
+    /// of accessors per appointment), so a per-user role lookup is cheap.
+    /// </summary>
+    protected virtual async Task PopulateUserRoleNamesAsync(List<AppointmentAccessorWithNavigationPropertiesDto> dtos)
+    {
+        foreach (var dto in dtos)
+        {
+            var userId = dto.IdentityUser?.Id ?? dto.AppointmentAccessor?.IdentityUserId ?? Guid.Empty;
+            if (userId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var user = await _identityUserManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                continue;
+            }
+
+            var roles = await _identityUserManager.GetRolesAsync(user);
+            dto.UserRoleName = roles.FirstOrDefault(r =>
+                AppointmentAccessorRules.RecognizedExternalRoles.Any(er =>
+                    string.Equals(er, r, StringComparison.OrdinalIgnoreCase)));
+        }
     }
 
     public virtual async Task<AppointmentAccessorWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)

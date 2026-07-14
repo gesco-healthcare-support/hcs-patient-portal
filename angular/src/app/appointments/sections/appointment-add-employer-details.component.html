@@ -15,7 +15,13 @@
           formControlName="employerName"
           maxlength="255"
           placeholder="EMPLOYER NAME"
+          [class.is-invalid]="
+            form.get('employerName')?.invalid && form.get('employerName')?.touched
+          "
         />
+        @if (form.get('employerName')?.invalid && form.get('employerName')?.touched) {
+          <div class="invalid-feedback d-block">Required.</div>
+        }
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label fw-semibold">Occupation *</label>
@@ -24,7 +30,13 @@
           formControlName="employerOccupation"
           maxlength="255"
           placeholder="OCCUPATION"
+          [class.is-invalid]="
+            form.get('employerOccupation')?.invalid && form.get('employerOccupation')?.touched
+          "
         />
+        @if (form.get('employerOccupation')?.invalid && form.get('employerOccupation')?.touched) {
+          <div class="invalid-feedback d-block">Required.</div>
+        }
       </div>
       <div class="col-md-4 mb-3">
         <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>

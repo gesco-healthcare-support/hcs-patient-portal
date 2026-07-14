@@ -21,6 +21,17 @@ public class AppointmentWithNavigationProperties
     public Appointment Appointment { get; set; } = null!;
     public Patient? Patient { get; set; }
     public IdentityUser? IdentityUser { get; set; }
+
+    /// <summary>
+    /// QA F-011 (2026-06-23): the actual booker's identity, resolved from
+    /// <see cref="Appointment.BookedByUserId"/> (the explicit booker stamped at
+    /// create time) with the audit <c>CreatorId</c> as fallback. Distinct from
+    /// <see cref="IdentityUser"/>, which is the patient/owner identity and is
+    /// NOT a reliable booker (the detail view previously showed it mislabeled as
+    /// the booker). Populated only on the single-item load.
+    /// </summary>
+    public IdentityUser? BookedByUser { get; set; }
+
     public AppointmentType? AppointmentType { get; set; }
     public Location? Location { get; set; }
     public DoctorAvailability? DoctorAvailability { get; set; }

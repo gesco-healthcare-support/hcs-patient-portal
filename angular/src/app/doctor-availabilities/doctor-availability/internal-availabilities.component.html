@@ -1,0 +1,272 @@
+<div class="ia-head">
+  <div>
+    <h1>Doctor availabilities</h1>
+    <p>Slot schedule for this practice, by location.</p>
+  </div>
+  <a class="af-btn af-btn--primary" (click)="goGenerate()">
+    <app-icon name="plus" [size]="16" />
+    Generate slots
+  </a>
+</div>
+
+<div class="ia-toolbar">
+  <select
+    class="ia-input"
+    style="width: 230px"
+    [ngModel]="locationId()"
+    [ngModelOptions]="{ standalone: true }"
+    (ngModelChange)="onLocationChange($event)"
+  >
+    @for (loc of locations(); track loc.id) {
+      <option [value]="loc.id">{{ loc.name }}</option>
+    }
+  </select>
+
+  <select
+    class="ia-input"
+    style="width: 150px"
+    [ngModel]="statusFilter()"
+    [ngModelOptions]="{ standalone: true }"
+    (ngModelChange)="statusFilter.set($event)"
+  >
+    <option value="all">All statuses</option>
+    <option value="busy">Booked &amp; reserved</option>
+    <option value="available">Available</option>
+    <option value="booked">Booked</option>
+    <option value="reserved">Reserved</option>
+  </select>
+
+  <div class="av-week">
+    <button type="button" (click)="changeWeek(-1)" aria-label="Previous week">
+      <app-icon name="chevLeft" [size]="15" />
+    </button>
+    <b>{{ weekRange() }}</b>
+    <button type="button" (click)="changeWeek(1)" aria-label="Next week">
+      <app-icon name="chevRight" [size]="15" />
+    </button>
+  </div>
+
+  <div class="ia-toolbar" style="margin: 0; margin-left: auto">
+    <div class="av-toggle">
+      <button type="button" [attr.data-on]="view() === 'grid'" (click)="setView('grid')">
+        <app-icon name="grid" [size]="14" />
+        Week
+      </button>
+      <button type="button" [attr.data-on]="view() === 'table'" (click)="setView('table')">
+        <app-icon name="list" [size]="14" />
+        Table
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="av-legend" style="margin-bottom: 14px">
+  <span class="it">
+    <span class="sw" style="background: var(--green-500)"></span>
+    Available
+  </span>
+  <span class="it">
+    <span class="sw" style="background: var(--st-rejected-dot)"></span>
+    Booked
+  </span>
+  <span class="it">
+    <span class="sw" style="background: var(--st-pending-dot)"></span>
+    Reserved
+  </span>
+</div>
+
+@if (loading()) {
+  <div class="ia-empty">Loading availabilities...</div>
+} @else if (locations().length === 0) {
+  <div class="ia-empty">No locations yet. Add a location before scheduling availability.</div>
+} @else if (view() === 'grid') {
+  <div class="av-grid">
+    @for (col of displayColumns(); track col.iso) {
+      <div class="av-day">
+        <div class="av-day__head">
+          <div class="d1">
+            <span>
+              <span class="dow">{{ col.dow }}</span>
+              <span class="num">{{ col.dayNum }}</span>
+            </span>
+            @if (col.total > 0) {
+              <button
+                class="del"
+                type="button"
+                title="Delete all slots this day"
+                (click)="askDeleteDay(col)"
+              >
+                <app-icon name="x" [size]="13" />
+              </button>
+            }
+          </div>
+          @if (col.total > 0) {
+            <div class="av-util"><span [style.width.%]="utilPct(col)"></span></div>
+            <div class="ut">{{ col.busy }}/{{ col.total }} booked</div>
+          }
+        </div>
+        <div class="av-day__body">
+          @if (col.slots.length === 0) {
+            <div class="av-day__empty">No slots</div>
+          } @else {
+            @for (slot of previewSlots(col); track slot.id) {
+              <div
+                class="av-slot"
+                [class.available]="slot.statusKey === 'available'"
+                [class.booked]="slot.statusKey === 'booked'"
+                [class.reserved]="slot.statusKey === 'reserved'"
+              >
+                <span class="t">{{ slot.timeLabel }}</span>
+                <span class="c">Capacity {{ slot.capacity }}</span>
+                @if (slot.patientNames.length > 0) {
+                  <div class="av-slot__names">
+                    @for (name of slot.patientNames; track $index) {
+                      <span class="av-slot__name" [title]="name">{{ name }}</span>
+                    }
+                  </div>
+                }
+                <button class="x" type="button" title="Delete slot" (click)="deleteSlot(slot.id)">
+                  <app-icon name="x" [size]="12" />
+                </button>
+              </div>
+            }
+            @if (col.slots.length > slotPreview) {
+              <button
+                type="button"
+                style="
+                  width: 100%;
+                  margin-top: 4px;
+                  font-size: 12px;
+                  padding: 4px;
+                  border: 1px dashed var(--n-300, #cbd5e1);
+                  border-radius: 6px;
+                  background: transparent;
+                  color: var(--n-600, #475569);
+                  cursor: pointer;
+                "
+                (click)="toggleExpand(col.iso)"
+              >
+                {{
+                  isExpanded(col.iso)
+                    ? 'Show less'
+                    : '+ ' + (col.slots.length - slotPreview) + ' more'
+                }}
+              </button>
+            }
+          }
+        </div>
+      </div>
+    }
+  </div>
+} @else {
+  <div class="ia-wrap">
+    <table class="ia-table">
+      <thead>
+        <tr>
+          <th style="width: 38px"></th>
+          <th>Date</th>
+          <th>Available</th>
+          <th>Booked</th>
+          <th>Reserved</th>
+          <th>Total slots</th>
+          <th style="text-align: right">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (tableColumns().length === 0) {
+          <tr>
+            <td colspan="7" class="ia-sub" style="text-align: center; padding: 22px">
+              No slots this week.
+            </td>
+          </tr>
+        }
+        @for (col of tableColumns(); track col.iso) {
+          <tr (click)="toggleExpand(col.iso)" style="cursor: pointer">
+            <td>
+              <span
+                style="color: var(--n-400); display: inline-flex; transition: transform 0.15s"
+                [style.transform]="isExpanded(col.iso) ? 'rotate(90deg)' : 'none'"
+              >
+                <app-icon name="chevRight" [size]="15" />
+              </span>
+            </td>
+            <td class="ia-sub" style="color: var(--n-800)">{{ col.dow }} {{ col.dayNum }}</td>
+            <td>{{ count(col, 'available') }}</td>
+            <td>{{ count(col, 'booked') }}</td>
+            <td>{{ count(col, 'reserved') }}</td>
+            <td>{{ col.total }}</td>
+            <td style="text-align: right" (click)="$event.stopPropagation()">
+              <button
+                class="ra-rowbtn danger"
+                type="button"
+                title="Delete day"
+                (click)="askDeleteDay(col)"
+              >
+                <app-icon name="x" [size]="14" />
+              </button>
+            </td>
+          </tr>
+          @if (isExpanded(col.iso)) {
+            @for (slot of col.slots; track slot.id) {
+              <tr style="background: var(--n-25)">
+                <td></td>
+                <td colspan="2" class="ia-sub">{{ slot.timeLabel }}</td>
+                <td colspan="3">
+                  <span
+                    class="av-slot"
+                    [class.available]="slot.statusKey === 'available'"
+                    [class.booked]="slot.statusKey === 'booked'"
+                    [class.reserved]="slot.statusKey === 'reserved'"
+                    style="padding: 3px 10px; display: inline-block; cursor: default"
+                  >
+                    {{ slot.statusKey }}
+                  </span>
+                </td>
+                <td style="text-align: right">
+                  <button class="ra-rowbtn danger" type="button" (click)="deleteSlot(slot.id)">
+                    <app-icon name="x" [size]="14" />
+                  </button>
+                </td>
+              </tr>
+            }
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@if (confirmDay(); as day) {
+  <div class="ra-scrim" (click)="cancelDeleteDay()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>Delete all slots on {{ day.dow }} {{ day.dayNum }}?</h3>
+        <button class="ext-iconbtn x" type="button" (click)="cancelDeleteDay()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <p style="margin: 0; font-size: 14px; color: var(--n-600); line-height: 1.5">
+          This removes the available slots at {{ selectedLocationName() }} on {{ day.dow }}
+          {{ day.dayNum }} ({{ day.total }} slot(s) that day). Booked or reserved slots keep their
+          appointments and must be rescheduled separately.
+        </p>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="cancelDeleteDay()">
+          Cancel
+        </button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          style="background: var(--st-rejected-fg)"
+          [disabled]="isBusy()"
+          (click)="confirmDeleteDay()"
+        >
+          <app-icon name="x" [size]="15" />
+          Delete all
+        </button>
+      </div>
+    </div>
+  </div>
+}

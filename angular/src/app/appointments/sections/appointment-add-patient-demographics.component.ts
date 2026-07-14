@@ -10,6 +10,7 @@ import {
   NgbTypeaheadSelectItemEvent,
 } from '@ng-bootstrap/ng-bootstrap';
 import { SsnInputComponent } from '../../shared/components/ssn-input.component';
+import { UsDateAutoSlashDirective } from '../../shared/us-date-auto-slash.directive';
 import {
   AddressAutocompleteComponent,
   AddressFieldMap,
@@ -66,6 +67,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
     AppLookupSelectComponent,
     NgbDatepickerModule,
     NgbTypeaheadModule,
+    UsDateAutoSlashDirective,
     SsnInputComponent,
     AddressAutocompleteComponent,
   ],

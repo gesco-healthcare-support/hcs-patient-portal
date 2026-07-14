@@ -160,13 +160,15 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         var locationId = Guid.Empty;
         await WithUnitOfWorkAsync(async () =>
         {
-            var location = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeIds: new List<Guid>(),
-                name: UniqueName("RefByDa"), parkingFee: 1.00m, isActive: true);
-            locationId = location.Id;
-
+            // Database-per-office: a Location and its referencing rows live in the same
+            // office database, so seed both inside one office context.
             using (_currentTenant.Change(TenantsTestData.TenantARef))
             {
+                var location = await _locationManager.CreateAsync(
+                    stateId: null, appointmentTypeIds: new List<Guid>(),
+                    name: UniqueName("RefByDa"), parkingFee: 1.00m, isActive: true);
+                locationId = location.Id;
+
                 await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                     id: Guid.NewGuid(),
                     locationId: location.Id,
@@ -177,8 +179,13 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
             }
         });
 
-        var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
-            _locationManager.EnsureCanDeleteAsync(locationId)));
+        var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _locationManager.EnsureCanDeleteAsync(locationId);
+            }
+        }));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
     }
 
@@ -188,14 +195,16 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         var locationId = Guid.Empty;
         await WithUnitOfWorkAsync(async () =>
         {
-            var location = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeIds: new List<Guid>(),
-                name: UniqueName("RefByAppt"), parkingFee: 1.00m, isActive: true);
-            locationId = location.Id;
-
+            // Database-per-office: a Location and its referencing rows live in the same
+            // office database, so seed both inside one office context.
             var availabilityId = Guid.NewGuid();
             using (_currentTenant.Change(TenantsTestData.TenantARef))
             {
+                var location = await _locationManager.CreateAsync(
+                    stateId: null, appointmentTypeIds: new List<Guid>(),
+                    name: UniqueName("RefByAppt"), parkingFee: 1.00m, isActive: true);
+                locationId = location.Id;
+
                 var slot = new DoctorAvailability(
                     id: availabilityId,
                     locationId: location.Id,
@@ -219,8 +228,13 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
             }
         });
 
-        var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
-            _locationManager.EnsureCanDeleteAsync(locationId)));
+        var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _locationManager.EnsureCanDeleteAsync(locationId);
+            }
+        }));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
     }
 

@@ -5,8 +5,11 @@ export const PATIENT_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/patient.component').then((c) => c.PatientComponent);
+      return import('../../people/internal-people.component').then(
+        (c) => c.InternalPeopleComponent,
+      );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'patients', requiredPolicy: 'CaseEvaluation.Patients' },
   },
 ];

@@ -127,20 +127,17 @@
                 </button>
 
                 <div ngbDropdownMenu>
+                  <!-- Edit-only: the office has exactly ONE doctor (tenant === doctor),
+                       enforced by the filtered unique index IX_AppEntity_Doctors_TenantId_Unique.
+                       Add was never surfaced here; Delete is removed so the office doctor
+                       cannot be removed via the UI. The Delete app-service stays for future
+                       (multi-doctor) use. -->
                   <button
                     ngbDropdownItem
                     *abpPermission="'CaseEvaluation.Doctors.Edit'"
                     (click)="update(row)"
                   >
                     {{ 'AbpUi::Edit' | abpLocalization }}
-                  </button>
-
-                  <button
-                    ngbDropdownItem
-                    *abpPermission="'CaseEvaluation.Doctors.Delete'"
-                    (click)="delete(row)"
-                  >
-                    {{ 'AbpUi::Delete' | abpLocalization }}
                   </button>
                 </div>
               </div>

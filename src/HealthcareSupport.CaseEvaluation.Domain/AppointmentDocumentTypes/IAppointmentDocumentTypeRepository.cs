@@ -20,8 +20,13 @@ public interface IAppointmentDocumentTypeRepository : IRepository<AppointmentDoc
 
     Task<long> GetCountAsync(string? filterText = null, Guid? appointmentTypeId = null, CancellationToken cancellationToken = default);
 
-    /// <summary>True when another active row already uses <paramref name="name"/>
-    /// for the same appointment type (case-insensitive), excluding
-    /// <paramref name="excludeId"/>. Enforces name uniqueness per type.</summary>
-    Task<bool> NameExistsAsync(string name, Guid? appointmentTypeId, Guid? excludeId = null, CancellationToken cancellationToken = default);
+    /// <summary>Loads a single category WITH its appointment-type join set so a
+    /// reconcile (#4) compares against the current set.</summary>
+    Task<AppointmentDocumentType> GetWithAppointmentTypesAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>True when another ACTIVE row already uses <paramref name="name"/>
+    /// in the current tenant (case-insensitive), excluding
+    /// <paramref name="excludeId"/>. Uniqueness is now per-tenant (#4): a name
+    /// is curated once and offered to many appointment types.</summary>
+    Task<bool> NameExistsAsync(string name, Guid? excludeId = null, CancellationToken cancellationToken = default);
 }

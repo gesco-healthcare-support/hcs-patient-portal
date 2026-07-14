@@ -11,3 +11,9 @@ e2e
 .vscode
 .idea
 *.log
+
+# Yarn Berry: cache + machine-state never belong in the build context
+# (.yarn/releases IS required by the Dockerfile and stays).
+.yarn/cache
+.yarn/install-state.gz
+.yarn/unplugged

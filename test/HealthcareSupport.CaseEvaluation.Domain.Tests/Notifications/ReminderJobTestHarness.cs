@@ -1,11 +1,10 @@
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Settings;
 using NSubstitute;
-using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
@@ -13,10 +12,10 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
 /// <summary>
 /// Shared NSubstitute fixtures for the Group L reminder-job tests. Builds the
 /// collaborators each date-driven job needs: an in-memory appointment
-/// repository, no-op data filter + current tenant, and a setting provider
-/// stubbed with the <c>RemindersEnabled</c> gate plus one anchor list. The
-/// <c>GetAsync&lt;bool&gt;</c> extension the jobs call resolves through
-/// <c>GetOrNullAsync</c>, so stubbing the raw string is enough.
+/// repository, a tenant work runner that invokes the per-office delegate once,
+/// and a setting provider stubbed with the <c>RemindersEnabled</c> gate plus one
+/// anchor list. The <c>GetAsync&lt;bool&gt;</c> extension the jobs call resolves
+/// through <c>GetOrNullAsync</c>, so stubbing the raw string is enough.
 /// </summary>
 internal static class ReminderJobTestHarness
 {
@@ -36,19 +35,17 @@ internal static class ReminderJobTestHarness
         return repo;
     }
 
-    public static IDataFilter NoopDataFilter()
+    /// <summary>
+    /// A tenant work runner that invokes the per-office delegate once, for the
+    /// single synthetic office the in-memory appointment repo is scoped to. The
+    /// fake repo ignores tenant filtering, so one pass exercises the per-office body.
+    /// </summary>
+    public static ITenantWorkRunner TenantWorkRunner()
     {
-        var filter = Substitute.For<IDataFilter>();
-        filter.Disable<IMultiTenant>().Returns(Substitute.For<IDisposable>());
-        return filter;
-    }
-
-    public static ICurrentTenant NoopCurrentTenant()
-    {
-        var currentTenant = Substitute.For<ICurrentTenant>();
-        currentTenant.Change(Arg.Any<Guid?>(), Arg.Any<string?>())
-            .Returns(Substitute.For<IDisposable>());
-        return currentTenant;
+        var runner = Substitute.For<ITenantWorkRunner>();
+        runner.ForEachOfficeAsync(Arg.Any<Func<Guid, Task>>())
+            .Returns(call => call.Arg<Func<Guid, Task>>().Invoke(TenantId));
+        return runner;
     }
 
     public static ISettingProvider Settings(bool enabled, string anchorName, string anchorValue)

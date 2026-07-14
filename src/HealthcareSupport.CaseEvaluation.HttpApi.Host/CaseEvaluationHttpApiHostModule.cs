@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.Twitter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Volo.Abp.PermissionManagement;
@@ -78,6 +79,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         var configuration = context.Services.GetConfiguration();
         var hostingEnvironment = context.Services.GetHostingEnvironment();
 
+        // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
+        Hosting.HostingConfigValidator.ValidateOrThrow(
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+
         if (!configuration.GetValue<bool>("App:DisablePII"))
         {
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
@@ -99,7 +104,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
         ConfigureUploadLimits(context);
-        ConfigureMultiTenancy();
+        ConfigureForwardedHeaders(context);
+        ConfigureMultiTenancy(configuration);
 
         // OLD-parity label overrides: inject extra JSON into AbpUi +
         // AbpAccount resources so the SPA's /api/abp/application-localization
@@ -212,6 +218,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList,
                 System.Net.HttpStatusCode.Conflict);
+            // 2026-06-29 -- opposing-consent approval gate (OpposingConsentValidator).
+            // Same class as the gates above: it was missing from this map, so a
+            // consent block surfaced as the default 403 + the generic "internal
+            // error" dialog (a dead-end). 409 Conflict so the SPA shows the
+            // localized "consent still pending -- reject instead" message.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.ChangeRequestConsentNotGranted,
+                System.Net.HttpStatusCode.Conflict);
 
             // 2026-05-15 -- one-doctor-per-tenant invariant guards in
             // DoctorsAppService. Both are client-input / precondition
@@ -291,6 +305,41 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse,
                 System.Net.HttpStatusCode.Conflict);
+
+            // Prompt 15 (2026-06-15) -- config-lookup + people delete guards.
+            // System rows are read-only (400, like AppointmentDocumentType
+            // above); in-use rows conflict with current state (409). Without
+            // these the SPA gets ABP's default 403 and shows no message.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentTypeSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentTypeInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentStatusSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentLanguageSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentLanguageInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.StateSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.StateInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.PatientInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.ApplicantAttorneyInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.DefenseAttorneyInUse,
+                System.Net.HttpStatusCode.Conflict);
         });
     }
 
@@ -334,14 +383,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// QueryString, Cookie, Route, and Header resolvers are dropped so
     /// ?__tenant=GUID cannot override the URL.
     /// </summary>
-    private void ConfigureMultiTenancy()
+    private void ConfigureMultiTenancy(IConfiguration configuration)
     {
         Configure<AbpTenantResolveOptions>(options =>
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
+            // In-house hosting (2026-07-09): host template is config-driven
+            // (App:TenantDomainFormat) -- production serves "{0}.api.portal.example.com";
+            // local dev falls back to "{0}.localhost". Mirrors the AuthServer resolver.
             options.TenantResolvers.Add(
-                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
+                HostAwareDomainTenantResolveContributor.FromConfiguration(configuration));
         });
     }
 
@@ -391,6 +443,25 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         context.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
         {
             options.MultipartBodyLengthLimit = FrameworkCapBytes;
+        });
+    }
+
+    /// <summary>
+    /// In-house hosting (2026-07-09, G7): honor nginx's X-Forwarded-Proto so the API
+    /// sees the original https scheme behind TLS termination (correct absolute URLs +
+    /// secure cookies). .NET 8+ ignores forwarded headers from proxies not in the
+    /// allowlist; the LAN box's only ingress is our own nginx, so both allowlists are
+    /// cleared to trust the in-network proxy. Applied unconditionally (unlike the
+    /// AuthServer's old dev-only gate) so production works. Internal + static so it is
+    /// unit-testable via the module's InternalsVisibleTo.
+    /// </summary>
+    internal static void ConfigureForwardedHeaders(ServiceConfigurationContext context)
+    {
+        context.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
         });
     }
 
@@ -594,7 +665,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                             partitionKey: $"signup:{key}",
                             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                             {
-                                PermitLimit = 5,
+                                // 2026-07-10 QA: raised 5 -> 15 per-IP/hour so a clinic
+                                // behind one NAT'd IP can register several patients in a
+                                // session without tripping the anti-enumeration limit.
+                                PermitLimit = 15,
                                 Window = TimeSpan.FromHours(1),
                                 QueueLimit = 0,
                                 QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
@@ -828,6 +902,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 {
                     options.MetadataAddress = $"{metaAddress.TrimEnd('/')}/.well-known/openid-configuration";
                     options.TokenValidationParameters.ValidIssuer = configuration["AuthServer:Authority"]!.TrimEnd('/') + "/";
+                    // In-house hosting (2026-07-09, CHECKPOINT 1): the discovery fetch uses the
+                    // INTERNAL http MetaAddress (e.g. http://authserver:8080), which JwtBearer
+                    // rejects when RequireHttpsMetadata=true. The metadata hop stays on the trusted
+                    // docker network (never host-published) and token security is unchanged -- the
+                    // issuer is still validated as https via ValidIssuer + the IssuerValidator below.
+                    // So disable require-https-metadata for THIS handler when an internal
+                    // MetaAddress is configured (it stays true when MetaAddress == Authority).
+                    options.RequireHttpsMetadata = false;
                 }
 
                 // ADR-006 (2026-05-05) -- subdomain tenant routing.
@@ -1024,6 +1106,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                             .ToArray() ?? Array.Empty<string>()
                     )
                     .WithAbpExposedHeaders()
+                    // F-M02 (2026-06-25): expose Retry-After so the cross-origin
+                    // AuthServer register page can show how long the rate-limit
+                    // throttle (429) lasts instead of a generic failure.
+                    .WithExposedHeaders("Retry-After")
                     .SetIsOriginAllowedToAllowWildcardSubdomains()
                     .AllowAnyHeader()
                     .AllowAnyMethod()
@@ -1066,6 +1152,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     {
         var app = context.GetApplicationBuilder();
         var env = context.GetEnvironment();
+
+        // In-house hosting (2026-07-09, G7): forwarded headers first so every
+        // downstream middleware sees the original https scheme + client IP from
+        // TLS-terminating nginx. Options via ConfigureForwardedHeaders.
+        app.UseForwardedHeaders();
 
         if (env.IsDevelopment())
         {
@@ -1204,6 +1295,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.RecurringJobId,
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.CronExpression,
+            options);
+
+        // #15 (2026-06-22) -- daily 03:00 PT TTL purge of stale booking drafts
+        // (transient PHI). Physical delete; minimizes data at rest.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob>(
+            HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.CronExpression,
             options);
     }
 

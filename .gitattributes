@@ -25,6 +25,10 @@ Dockerfile.* text eol=lf
 docker-compose*.yml text eol=lf
 docker-compose*.yaml text eol=lf
 
+# Yarn Berry release binary: generated + large; mark binary + vendored so it is
+# not diffed, not counted as code, and not EOL-normalized across hosts.
+angular/.yarn/releases/** binary linguist-vendored
+
 # --- Generated code: keep out of diffs/line-counts; collapse on GitHub ---
 # `-diff` makes git render these as "binary" so they don't count toward +/- line
 # totals (locally or on GitHub). `linguist-generated=true` collapses them in PR

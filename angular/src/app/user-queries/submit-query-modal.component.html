@@ -1,53 +1,81 @@
-<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)">
-  <ng-template #abpHeader>
-    <h3>{{ '::UserQuery:Modal:Title' | abpLocalization }}</h3>
-  </ng-template>
-
-  <ng-template #abpBody>
-    <p>{{ '::UserQuery:Modal:Intro' | abpLocalization }}</p>
-
-    <div class="mb-3">
-      <label class="form-label" for="user-query-message">
-        {{ '::UserQuery:Modal:MessageLabel' | abpLocalization }} *
-      </label>
-      <textarea
-        id="user-query-message"
-        class="form-control"
-        rows="4"
-        [maxlength]="maxMessageLength"
-        [(ngModel)]="message"
-        [placeholder]="'::UserQuery:Modal:MessagePlaceholder' | abpLocalization"
-        required
-      ></textarea>
-      <small class="text-muted">{{ message.length }} / {{ maxMessageLength }}</small>
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label" for="user-query-confirmation">
-        {{ '::UserQuery:Modal:ConfirmationNumberLabel' | abpLocalization }}
-      </label>
-      <input
-        id="user-query-confirmation"
-        type="text"
-        class="form-control"
-        [maxlength]="maxConfirmationNumberLength"
-        [(ngModel)]="requestConfirmationNumber"
-      />
-    </div>
-  </ng-template>
-
-  <ng-template #abpFooter>
-    <button type="button" class="btn btn-secondary" abpClose>
-      {{ '::UserQuery:Action:Close' | abpLocalization }}
-    </button>
-
-    <abp-button
-      iconClass="fa fa-paper-plane"
-      buttonType="button"
-      [disabled]="!canSubmit"
-      (click)="submit()"
+@if (visible) {
+  <div class="ext-modal-scrim" (click)="setVisible(false)">
+    <div
+      class="ext-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sq-title"
+      (click)="$event.stopPropagation()"
     >
-      {{ '::UserQuery:Action:Send' | abpLocalization }}
-    </abp-button>
-  </ng-template>
-</abp-modal>
+      <div class="ext-modal__head">
+        <span class="ic tint-blue"><app-icon name="help" [size]="22" /></span>
+        <div>
+          <h3 id="sq-title">Submit a query</h3>
+          <p>Send a question to the clinic team. We'll reply by email.</p>
+        </div>
+        <button class="x" type="button" aria-label="Close" (click)="setVisible(false)">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+
+      <div class="ext-modal__body">
+        <div class="ap-field sq-mb">
+          <label for="sq-message">
+            Message
+            <span class="req">*</span>
+          </label>
+          <textarea
+            id="sq-message"
+            class="ext-textarea"
+            [maxlength]="maxMessageLength"
+            [(ngModel)]="message"
+            placeholder="Describe your question or request..."
+          ></textarea>
+          <div class="ext-count">{{ message.length }} / {{ maxMessageLength }}</div>
+        </div>
+
+        <div class="ap-field">
+          <label for="sq-conf">
+            Confirmation number
+            <span class="opt">(optional)</span>
+          </label>
+          <input
+            id="sq-conf"
+            class="ap-input"
+            type="text"
+            [maxlength]="maxConfirmationNumberLength"
+            [(ngModel)]="requestConfirmationNumber"
+            placeholder="e.g. A00001"
+          />
+        </div>
+
+        <div class="ext-help-note">
+          <span class="i"><app-icon name="alert" [size]="15" /></span>
+          <span>
+            Do not include Social Security numbers, dates of birth, or other protected health
+            information in your message.
+          </span>
+        </div>
+      </div>
+
+      <div class="ext-modal__foot">
+        <button
+          type="button"
+          class="ap-btn ap-btn--ghost"
+          [disabled]="isBusy"
+          (click)="setVisible(false)"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          class="ap-btn ap-btn--primary"
+          [disabled]="!canSubmit"
+          (click)="submit()"
+        >
+          Send query
+        </button>
+      </div>
+    </div>
+  </div>
+}

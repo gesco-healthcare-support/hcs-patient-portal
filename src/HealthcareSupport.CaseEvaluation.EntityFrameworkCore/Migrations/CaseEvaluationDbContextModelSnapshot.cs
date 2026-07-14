@@ -144,6 +144,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("StateId");
 
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
+
                     b.ToTable("AppApplicantAttorneys", (string)null);
                 });
 
@@ -373,28 +377,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("ConcurrencyStamp");
 
-                    b.Property<DateTime?>("ConsentExpiresAt")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("ConsentExpiresAt");
-
-                    b.Property<DateTime?>("ConsentRespondedAt")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("ConsentRespondedAt");
-
-                    b.Property<string>("ConsentRespondedByEmail")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
-                        .HasColumnName("ConsentRespondedByEmail");
-
-                    b.Property<int>("ConsentStatus")
-                        .HasColumnType("int")
-                        .HasColumnName("ConsentStatus");
-
-                    b.Property<string>("ConsentTokenHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
-                        .HasColumnName("ConsentTokenHash");
-
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreationTime");
@@ -460,6 +442,50 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("int")
                         .HasColumnName("RequestingSide");
 
+                    b.Property<DateTime?>("SideAConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideAConsentExpiresAt");
+
+                    b.Property<DateTime?>("SideAConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideAConsentRespondedAt");
+
+                    b.Property<string>("SideAConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("SideAConsentRespondedByEmail");
+
+                    b.Property<int>("SideAConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("SideAConsentStatus");
+
+                    b.Property<string>("SideAConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SideAConsentTokenHash");
+
+                    b.Property<DateTime?>("SideBConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideBConsentExpiresAt");
+
+                    b.Property<DateTime?>("SideBConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideBConsentRespondedAt");
+
+                    b.Property<string>("SideBConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("SideBConsentRespondedByEmail");
+
+                    b.Property<int>("SideBConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("SideBConsentStatus");
+
+                    b.Property<string>("SideBConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SideBConsentTokenHash");
+
                     b.Property<Guid?>("SubmittedByUserId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("SubmittedByUserId");
@@ -472,7 +498,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("AppointmentId");
 
-                    b.HasIndex("ConsentTokenHash");
+                    b.HasIndex("SideAConsentTokenHash");
+
+                    b.HasIndex("SideBConsentTokenHash");
 
                     b.HasIndex("AppointmentId", "RequestStatus");
 
@@ -757,9 +785,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("AppointmentTypeId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("AppointmentTypeId");
+                    b.Property<bool>("AppliesToAll")
+                        .HasColumnType("bit")
+                        .HasColumnName("AppliesToAll");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -823,9 +851,24 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "AppointmentTypeId");
+                    b.HasIndex("TenantId", "Name");
 
                     b.ToTable("AppAppointmentDocumentTypes", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeAppointmentType", b =>
+                {
+                    b.Property<Guid>("AppointmentDocumentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("AppointmentDocumentTypeId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.ToTable("AppAppointmentDocumentTypeAppointmentType", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument", b =>
@@ -1064,6 +1107,62 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.ToTable("AppAppointmentPackets", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<int>("CurrentStep")
+                        .HasColumnType("int")
+                        .HasColumnName("CurrentStep");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Label");
+
+                    b.Property<DateTime>("LastSavedTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastSavedTime");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("PayloadJson");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastSavedTime");
+
+                    b.HasIndex("TenantId", "CreatorId");
+
+                    b.ToTable("AppAppointmentDrafts", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails.AppointmentEmployerDetail", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1160,6 +1259,102 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasIndex("StateId");
 
                     b.ToTable("AppAppointmentEmployerDetails", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInfoRequests.AppointmentInfoRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AfterValues")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("AfterValues");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<string>("BeforeValues")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BeforeValues");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("Note");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RequestedByUserId");
+
+                    b.Property<string>("RequestedFields")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("RequestedFields");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ResolvedAt");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("AppointmentId", "Status");
+
+                    b.ToTable("AppAppointmentInfoRequests", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetail", b =>
@@ -1282,6 +1477,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -1295,6 +1493,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("Name");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
 
                     b.HasKey("Id");
 
@@ -1432,6 +1634,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -1445,6 +1650,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("Name");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
 
                     b.HasKey("Id");
 
@@ -1521,6 +1730,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("bit")
                         .HasColumnName("ReadOnly");
 
+                    b.Property<bool>("Required")
+                        .HasColumnType("bit");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
@@ -1572,6 +1784,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -1590,6 +1805,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("Name");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
                     b.HasKey("Id");
 
                     b.ToTable("AppAppointmentTypes", (string)null);
@@ -1600,10 +1819,59 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ApplicantAttorneyCity")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyCity");
+
                     b.Property<string>("ApplicantAttorneyEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("ApplicantAttorneyEmail");
+
+                    b.Property<string>("ApplicantAttorneyFaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("ApplicantAttorneyFaxNumber");
+
+                    b.Property<string>("ApplicantAttorneyFirmName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyFirmName");
+
+                    b.Property<string>("ApplicantAttorneyFirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyFirstName");
+
+                    b.Property<string>("ApplicantAttorneyLastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyLastName");
+
+                    b.Property<string>("ApplicantAttorneyPhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("ApplicantAttorneyPhoneNumber");
+
+                    b.Property<Guid?>("ApplicantAttorneyStateId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ApplicantAttorneyStateId");
+
+                    b.Property<string>("ApplicantAttorneyStreet")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("ApplicantAttorneyStreet");
+
+                    b.Property<string>("ApplicantAttorneyWebAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ApplicantAttorneyWebAddress");
+
+                    b.Property<string>("ApplicantAttorneyZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("ApplicantAttorneyZipCode");
 
                     b.Property<DateTime?>("AppointmentApproveDate")
                         .HasColumnType("datetime2")
@@ -1618,6 +1886,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnName("AppointmentStatus");
 
                     b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BookedByUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CancellationReason")
@@ -1649,10 +1920,59 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CreatorId");
 
+                    b.Property<string>("DefenseAttorneyCity")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyCity");
+
                     b.Property<string>("DefenseAttorneyEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("DefenseAttorneyEmail");
+
+                    b.Property<string>("DefenseAttorneyFaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("DefenseAttorneyFaxNumber");
+
+                    b.Property<string>("DefenseAttorneyFirmName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyFirmName");
+
+                    b.Property<string>("DefenseAttorneyFirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyFirstName");
+
+                    b.Property<string>("DefenseAttorneyLastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyLastName");
+
+                    b.Property<string>("DefenseAttorneyPhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("DefenseAttorneyPhoneNumber");
+
+                    b.Property<Guid?>("DefenseAttorneyStateId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DefenseAttorneyStateId");
+
+                    b.Property<string>("DefenseAttorneyStreet")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("DefenseAttorneyStreet");
+
+                    b.Property<string>("DefenseAttorneyWebAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("DefenseAttorneyWebAddress");
+
+                    b.Property<string>("DefenseAttorneyZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("DefenseAttorneyZipCode");
 
                     b.Property<Guid?>("DeleterId")
                         .HasColumnType("uniqueidentifier")
@@ -1781,7 +2101,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.ToTable("AppAppointments", (string)null);
                 });
 
-            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Books.Book", b =>
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Branding.OfficeBranding", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -1801,10 +2121,29 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CreatorId");
 
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("DisplayName");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
 
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
@@ -1814,23 +2153,27 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                    b.Property<string>("LogoBlobName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("LogoBlobName");
 
-                    b.Property<float>("Price")
-                        .HasColumnType("real");
+                    b.Property<string>("LogoContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("LogoContentType");
 
-                    b.Property<DateTime>("PublishDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
+                    b.Property<Guid>("OfficeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OfficeId");
 
                     b.HasKey("Id");
 
-                    b.ToTable("AppBooks", (string)null);
+                    b.HasIndex("OfficeId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office");
+
+                    b.ToTable("AppOfficeBrandings", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.ClaimExaminers.ClaimExaminer", b =>
@@ -1935,6 +2278,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasIndex("IdentityUserId");
 
                     b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
 
                     b.ToTable("AppClaimExaminers", (string)null);
                 });
@@ -2216,6 +2563,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasIndex("IdentityUserId");
 
                     b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
 
                     b.ToTable("AppDefenseAttorneys", (string)null);
                 });
@@ -2575,6 +2926,70 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.ToTable("AppDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.HostOperators.IntakeOfficeAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid>("OfficeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OfficeId");
+
+                    b.Property<Guid>("OperatorUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OperatorUserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperatorUserId", "OfficeId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office");
+
+                    b.ToTable("AppIntakeOfficeAssignments", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Invitations.Invitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2621,6 +3036,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FirmName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("FirstName")
                         .HasMaxLength(128)
@@ -2741,6 +3160,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.Property<Guid?>("StateId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
 
                     b.Property<string>("ZipCode")
                         .HasMaxLength(15)
@@ -2910,9 +3333,104 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("Name");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
                     b.HasKey("Id");
 
                     b.ToTable("AppNotificationTemplateTypes", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Notifications.AppNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Body");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsRead");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<int>("NotificationType")
+                        .HasColumnType("int")
+                        .HasColumnName("NotificationType");
+
+                    b.Property<DateTime?>("ReadTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ReadTime");
+
+                    b.Property<Guid>("RecipientUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RecipientUserId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Title");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("Url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "RecipientUserId", "IsRead");
+
+                    b.ToTable("AppAppNotifications", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PackageDetails.DocumentPackage", b =>
@@ -3203,6 +3721,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -3215,6 +3736,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("Name");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
 
                     b.HasKey("Id");
 
@@ -3474,6 +3999,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.Property<Guid?>("StateId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
 
                     b.Property<string>("ZipCode")
                         .HasMaxLength(15)
@@ -6091,6 +6620,17 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentType", "AppointmentDocumentType")
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("AppointmentDocumentTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentDocumentType");
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument", b =>
                 {
                     b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
@@ -6121,6 +6661,15 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .WithMany()
                         .HasForeignKey("StateId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInfoRequests.AppointmentInfoRequest", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetail", b =>
@@ -6583,6 +7132,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentType", b =>
+                {
+                    b.Navigation("AppointmentTypes");
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", b =>

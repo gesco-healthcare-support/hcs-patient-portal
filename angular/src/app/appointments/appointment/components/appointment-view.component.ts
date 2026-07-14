@@ -14,7 +14,7 @@ import {
   PermissionDirective,
   RestService,
 } from '@abp/ng.core';
-import { ToasterService } from '@abp/ng.theme.shared';
+import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 import type {
   AppointmentDto,
   AppointmentUpdateDto,
@@ -26,22 +26,34 @@ import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.e
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
+import type { CustomFieldValueDisplayDto } from '../../../proxy/custom-fields/models';
+import { formatCustomFieldValue } from '../custom-field-display.util';
 import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
-import { firstValueFrom } from 'rxjs';
-import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
+import { UsDateAutoSlashDirective } from '../../../shared/us-date-auto-slash.directive';
+import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs/operators';
+import { firstValueFrom, Observable, of } from 'rxjs';
+import {
+  NgbDatepickerModule,
+  NgbDateStruct,
+  NgbTypeaheadModule,
+  NgbTypeaheadSelectItemEvent,
+} from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
-import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
+import { RequestInfoModalComponent } from './request-info-modal.component';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
+import { RequestStatusType } from '../../../proxy/enums/request-status-type.enum';
+import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
+import { changeRequestConsentView, type CrConsentView } from '../../change-requests/cr-inbox.util';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 
-type TransitionAction = 'approve' | 'reject' | 'cancel';
+type TransitionAction = 'approve' | 'reject';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -132,11 +144,13 @@ type ApplicantAttorneyLookupResult = {
     PermissionDirective,
     AppLookupSelectComponent,
     NgbDatepickerModule,
+    NgbTypeaheadModule,
+    UsDateAutoSlashDirective,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
-    CancelAppointmentModalComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
+    RequestInfoModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     SsnInputComponent,
@@ -154,16 +168,24 @@ export class AppointmentViewComponent implements OnInit {
   private readonly environmentService = inject(EnvironmentService);
   private readonly toaster = inject(ToasterService);
   private readonly localization = inject(LocalizationService);
+  private readonly confirmation = inject(ConfirmationService);
+  private readonly changeRequestService = inject(AppointmentChangeRequestService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
   approveModalVisible = false;
   rejectModalVisible = false;
-  cancelModalVisible = false;
   // AP1 (decision 4): external-initiated change-request entry on the read-only
   // Review page (Approved appointments only).
   rescheduleRequestVisible = false;
   cancelRequestVisible = false;
+  // Send Back (2026-06-14): staff "Request info" modal visibility (Pending only).
+  requestInfoModalVisible = false;
+  // C2/C4 (2026-07-01): the appointment's active (Pending) change request, if
+  // any. Drives the two-sided consent indicator and hides the external request
+  // buttons while a cancel is pending (a pending cancel leaves the parent
+  // Approved, so status alone cannot reveal it). Null when none is open.
+  activeChangeRequest: AppointmentChangeRequestDto | null = null;
 
   // B8 (2026-05-06): widen the DOB datepicker year range. Default
   // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
@@ -176,6 +198,9 @@ export class AppointmentViewComponent implements OnInit {
   })();
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
+  // PR2 (2026-07-10): read-only custom-field values for the "Additional details"
+  // card on both detail views (one row per active field on the type, filled or empty).
+  customFieldDisplayValues: CustomFieldValueDisplayDto[] = [];
   isLoading = true;
   isSaving = false;
   errorMessage = '';
@@ -247,6 +272,26 @@ export class AppointmentViewComponent implements OnInit {
         });
       },
     });
+  }
+
+  /**
+   * PR2 (2026-07-10): load the appointment's custom-field values for the read-only
+   * "Additional details" card (shared by the internal + external detail subclasses).
+   * Best-effort -- a failure just leaves the card hidden, exactly as when no custom
+   * fields are defined for the appointment type.
+   */
+  private loadCustomFieldValues(appointmentId: string): void {
+    this.appointmentService.getAppointmentCustomFieldValues(appointmentId).subscribe({
+      next: (rows) => (this.customFieldDisplayValues = rows ?? []),
+      error: () => {
+        this.customFieldDisplayValues = [];
+      },
+    });
+  }
+
+  /** Display text for a custom-field row ('' when unanswered; the caller adds the placeholder). */
+  customFieldText(row: CustomFieldValueDisplayDto): string {
+    return formatCustomFieldValue(row.fieldType, row.value);
   }
 
   // #122 (2026-05-14): flat + prefixed FormGroup mirrors booker (#121) shape
@@ -436,6 +481,8 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
+    this.loadCustomFieldValues(id);
+
     this.appointmentService.getWithNavigationProperties(id).subscribe({
       next: (data) => {
         this.appointment = data;
@@ -459,6 +506,7 @@ export class AppointmentViewComponent implements OnInit {
         this.bindDefenseAttorneyForAppointment(data.appointment?.id);
         this.loadInjuryDetails(data.appointment?.id);
         this.loadAppointmentAccessors(data.appointment?.id);
+        this.loadActiveChangeRequest(data.appointment?.id);
         const patient = data.patient;
         this.form.patchValue(
           {
@@ -677,7 +725,8 @@ export class AppointmentViewComponent implements OnInit {
     const status = this.currentStatus;
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      // Pending shows Approve/Reject; Approved shows the G-02-05 direct Cancel.
+      // Pending shows Approve/Reject; staff cancel/reschedule of an Approved
+      // appointment route through the change-request flow (B4, no direct cancel).
       // Server [Authorize(Appointments.*)] gates remain authoritative.
       !this.isPatientUser &&
       (status === AppointmentStatusType.Pending || status === AppointmentStatusType.Approved)
@@ -686,16 +735,15 @@ export class AppointmentViewComponent implements OnInit {
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending:  approve | reject  (OLD parity -- no send-back path)
-   *  Approved: cancel            (G-02-05 one-step staff cancel)
+   *  Pending: approve | reject (OLD parity -- no send-back path)
+   * An Approved appointment has no direct toolbar action: staff cancel and
+   * reschedule now route through the change-request + consent flow (B4,
+   * 2026-07-01), so the one-step direct cancel was removed.
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
       return ['approve', 'reject'];
-    }
-    if (status === AppointmentStatusType.Approved) {
-      return ['cancel'];
     }
     return [];
   }
@@ -774,9 +822,6 @@ export class AppointmentViewComponent implements OnInit {
       case 'reject':
         this.rejectModalVisible = true;
         break;
-      case 'cancel':
-        this.cancelModalVisible = true;
-        break;
     }
   }
 
@@ -813,6 +858,9 @@ export class AppointmentViewComponent implements OnInit {
     return (
       this.isPatientUser &&
       this.currentStatus === AppointmentStatusType.Approved &&
+      // C4 (2026-07-01): hide the buttons once a cancel request is pending -- the
+      // parent stays Approved during that window, so status alone cannot gate it.
+      !this.hasPendingCancelRequest &&
       !!this.appointment?.appointment?.id
     );
   }
@@ -825,6 +873,67 @@ export class AppointmentViewComponent implements OnInit {
   openCancelRequest(): void {
     this.rescheduleRequestVisible = false;
     this.cancelRequestVisible = true;
+  }
+
+  /** C4 (2026-07-01): true when a cancel change request is already Pending. */
+  get hasPendingCancelRequest(): boolean {
+    return (
+      this.activeChangeRequest?.changeRequestType === ChangeRequestType.Cancel &&
+      this.activeChangeRequest?.requestStatus === RequestStatusType.Pending
+    );
+  }
+
+  /**
+   * C2 (2026-07-01): aggregate two-sided consent chip for the active change
+   * request (null when none is open or consent is not in play). Reuses the
+   * supervisor-inbox helper so the appointment view + inbox stay consistent.
+   */
+  get consentIndicator(): CrConsentView | null {
+    if (!this.activeChangeRequest) {
+      return null;
+    }
+    const view = changeRequestConsentView(
+      this.activeChangeRequest.sideAConsentStatus,
+      this.activeChangeRequest.sideBConsentStatus,
+    );
+    return view.show ? view : null;
+  }
+
+  private loadActiveChangeRequest(appointmentId?: string): void {
+    if (!appointmentId) {
+      this.activeChangeRequest = null;
+      return;
+    }
+    this.changeRequestService.getActiveForAppointment(appointmentId).subscribe({
+      next: (dto) => {
+        this.activeChangeRequest = dto ?? null;
+      },
+      error: () => {
+        this.activeChangeRequest = null;
+      },
+    });
+  }
+
+  /** Send Back (2026-06-14): staff opens the "Request info" modal (Pending only). */
+  openRequestInfo(): void {
+    this.requestInfoModalVisible = true;
+  }
+
+  /** Reload after a successful send-back so the status flips to Info Requested. */
+  onInfoRequestSucceeded(): void {
+    const id = this.appointment?.appointment?.id;
+    if (id) {
+      this.appointmentService.getWithNavigationProperties(id).subscribe({
+        next: (data) => {
+          this.appointment = data;
+        },
+      });
+    }
+  }
+
+  /** True when staff may send this appointment back for more information (Pending only). */
+  get canRequestInfo(): boolean {
+    return this.isInternalUser && this.currentStatus === AppointmentStatusType.Pending;
   }
 
   /**
@@ -847,11 +956,21 @@ export class AppointmentViewComponent implements OnInit {
           this.appointment = data;
         },
       });
+      // Refresh the consent indicator + button gating for the just-filed request.
+      this.loadActiveChangeRequest(id);
     }
   }
 
   save(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // Re-entrancy guard (mirrors AppointmentAddComponent.onSubmit): a fast second
+      // click must not re-fire the patient + appointment + party-upsert chain while
+      // the first round-trip is in flight (the [disabled]="isSaving" binding only
+      // applies after change detection, leaving a click window). Resolve as a no-op.
+      if (this.isSaving) {
+        resolve();
+        return;
+      }
       const selected = this.appointment?.appointment;
       if (
         !selected?.id ||
@@ -1127,6 +1246,19 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
+    // QA item 14: removing an authorized user is destructive (they lose access),
+    // so confirm first -- previously it deleted on a single click.
+    const who = [item.firstName, item.lastName].filter(Boolean).join(' ').trim() || item.email;
+    const status = await firstValueFrom(
+      this.confirmation.warn(
+        `Remove ${who || 'this user'} as an authorized user? They will lose access to this appointment.`,
+        'Remove authorized user',
+      ),
+    );
+    if (status !== Confirmation.Status.confirm) {
+      return;
+    }
+
     await firstValueFrom(
       this.restService.request<any, any>(
         {
@@ -1158,6 +1290,75 @@ export class AppointmentViewComponent implements OnInit {
       opt.email,
     );
     return display && opt.email && display !== opt.email ? `${display} (${opt.email})` : display;
+  }
+
+  // 2026-06-22 (HIPAA-scoped lookup): type-to-search the external-user lookup
+  // for an Applicant / Defense Attorney, mirroring the patient lookup typeahead.
+  // The server scopes results -- internal staff search the tenant, an external
+  // caller sees only co-parties on shared appointments -- so no list of every
+  // attorney is ever exposed. Selecting a result loads the full record via the
+  // existing on*AttorneySelected by-id path.
+  readonly searchApplicantAttorney = (
+    text$: Observable<string>,
+  ): Observable<ExternalAuthorizedUserOption[]> =>
+    this.searchExternalAttorney(text$, 'applicant attorney');
+
+  readonly searchDefenseAttorney = (
+    text$: Observable<string>,
+  ): Observable<ExternalAuthorizedUserOption[]> =>
+    this.searchExternalAttorney(text$, 'defense attorney');
+
+  private searchExternalAttorney(
+    text$: Observable<string>,
+    role: string,
+  ): Observable<ExternalAuthorizedUserOption[]> {
+    return text$.pipe(
+      debounceTime(250),
+      distinctUntilChanged(),
+      switchMap((term) => {
+        const trimmed = (term ?? '').trim();
+        if (trimmed.length < 2) {
+          return of<ExternalAuthorizedUserOption[]>([]);
+        }
+        return this.restService
+          .request<any, ListResultDto<ExternalAuthorizedUserOption>>(
+            {
+              method: 'GET',
+              url: '/api/public/external-signup/external-user-lookup',
+              params: { filter: trimmed },
+            },
+            { apiName: 'Default' },
+          )
+          .pipe(
+            map((res) => (res?.items ?? []).filter((x) => x.userRole?.toLowerCase() === role)),
+            catchError(() => of<ExternalAuthorizedUserOption[]>([])),
+          );
+      }),
+    );
+  }
+
+  // Dropdown display label ("Name (email)" / firm fallback). Reuses the shared
+  // option label so the typeahead reads the same as the prior select did.
+  readonly formatAttorneyResult = (opt: ExternalAuthorizedUserOption): string =>
+    this.applicantAttorneyOptionLabel(opt);
+
+  // Keep the typed email in the search box after a pick (the input is bound to
+  // the *EmailSearch control); the full record loads via on*AttorneySelected.
+  readonly formatAttorneyInput = (opt: ExternalAuthorizedUserOption | string): string =>
+    typeof opt === 'string' ? opt : (opt?.email ?? '');
+
+  onApplicantAttorneyTypeaheadSelect(event: NgbTypeaheadSelectItemEvent): void {
+    event.preventDefault();
+    const opt = event.item as ExternalAuthorizedUserOption;
+    this.form.get('applicantAttorneyEmailSearch')?.setValue(opt.email ?? '');
+    this.onApplicantAttorneySelected(opt.identityUserId);
+  }
+
+  onDefenseAttorneyTypeaheadSelect(event: NgbTypeaheadSelectItemEvent): void {
+    event.preventDefault();
+    const opt = event.item as ExternalAuthorizedUserOption;
+    this.form.get('defenseAttorneyEmailSearch')?.setValue(opt.email ?? '');
+    this.onDefenseAttorneySelected(opt.identityUserId);
   }
 
   private loadExternalAuthorizedUsers(): void {
@@ -1374,7 +1575,9 @@ export class AppointmentViewComponent implements OnInit {
               firstName: identityUser?.name ?? option?.firstName ?? '',
               lastName: identityUser?.surname ?? option?.lastName ?? '',
               email: identityUser?.email ?? option?.email ?? '',
-              userRole: option?.userRole ?? '',
+              // QA item 14: prefer the server-resolved role (always populated);
+              // fall back to the client lookup only if the backend didn't return one.
+              userRole: item?.userRoleName ?? option?.userRole ?? '',
               accessTypeId: Number(accessor?.accessTypeId ?? 23),
             } as AppointmentAuthorizedUserRow;
           });
@@ -1451,6 +1654,7 @@ export class AppointmentViewComponent implements OnInit {
         next: (data) => {
           if (data) {
             this.applyApplicantAttorneyLookup(data);
+            this.overlayApplicantAttorneySnapshot();
           } else {
             onEmpty?.();
           }
@@ -1482,8 +1686,70 @@ export class AppointmentViewComponent implements OnInit {
           if (data) {
             this.applyDefenseAttorneyLookup(data);
           }
+          this.overlayDefenseAttorneySnapshot();
         },
       });
+  }
+
+  /**
+   * #9 (2026-06-19): display-only override. After the live attorney master loads,
+   * overlay the appointment's booking-time snapshot (when present) so the detail shows
+   * what was recorded at booking, not a later master self-edit. A null snapshot
+   * (pre-migration appointments) leaves the master values in place (fallback). Only the
+   * initial display load calls these -- the edit-lookup paths do not -- so picking a
+   * different attorney while editing is unaffected. Staff appointment-edit saves still
+   * re-capture the snapshot from the master (see AppointmentApplicantAttorneyManager).
+   */
+  private overlayApplicantAttorneySnapshot(): void {
+    const a = this.appointment?.appointment;
+    if (!a) {
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    const set = (ctrl: string, val: unknown) => {
+      if (val !== null && val !== undefined) {
+        patch[ctrl] = val;
+      }
+    };
+    set('applicantAttorneyFirstName', a.applicantAttorneyFirstName);
+    set('applicantAttorneyLastName', a.applicantAttorneyLastName);
+    set('applicantAttorneyFirmName', a.applicantAttorneyFirmName);
+    set('applicantAttorneyWebAddress', a.applicantAttorneyWebAddress);
+    set('applicantAttorneyPhoneNumber', a.applicantAttorneyPhoneNumber);
+    set('applicantAttorneyFaxNumber', a.applicantAttorneyFaxNumber);
+    set('applicantAttorneyStreet', a.applicantAttorneyStreet);
+    set('applicantAttorneyCity', a.applicantAttorneyCity);
+    set('applicantAttorneyStateId', a.applicantAttorneyStateId);
+    set('applicantAttorneyZipCode', a.applicantAttorneyZipCode);
+    if (Object.keys(patch).length > 0) {
+      this.form.patchValue(patch, { emitEvent: false });
+    }
+  }
+
+  private overlayDefenseAttorneySnapshot(): void {
+    const a = this.appointment?.appointment;
+    if (!a) {
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    const set = (ctrl: string, val: unknown) => {
+      if (val !== null && val !== undefined) {
+        patch[ctrl] = val;
+      }
+    };
+    set('defenseAttorneyFirstName', a.defenseAttorneyFirstName);
+    set('defenseAttorneyLastName', a.defenseAttorneyLastName);
+    set('defenseAttorneyFirmName', a.defenseAttorneyFirmName);
+    set('defenseAttorneyWebAddress', a.defenseAttorneyWebAddress);
+    set('defenseAttorneyPhoneNumber', a.defenseAttorneyPhoneNumber);
+    set('defenseAttorneyFaxNumber', a.defenseAttorneyFaxNumber);
+    set('defenseAttorneyStreet', a.defenseAttorneyStreet);
+    set('defenseAttorneyCity', a.defenseAttorneyCity);
+    set('defenseAttorneyStateId', a.defenseAttorneyStateId);
+    set('defenseAttorneyZipCode', a.defenseAttorneyZipCode);
+    if (Object.keys(patch).length > 0) {
+      this.form.patchValue(patch, { emitEvent: false });
+    }
   }
 
   // S-5.4: load injury details (Claim Information rows) for the appointment.

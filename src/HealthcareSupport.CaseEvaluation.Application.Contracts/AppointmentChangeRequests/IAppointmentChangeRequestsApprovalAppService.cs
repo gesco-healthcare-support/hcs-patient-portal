@@ -49,11 +49,12 @@ public interface IAppointmentChangeRequestsApprovalAppService : IApplicationServ
     /// <summary>
     /// Supervisor approves a Reschedule change request. Optionally
     /// overrides the user-picked slot with their own + reason. On
-    /// approve: cascade-clones the source appointment via
-    /// <c>AppointmentRescheduleCloner</c> (Session A's Phase 11j
-    /// helper), the new appointment lands as Approved at the new
-    /// slot, the source appointment moves to the chosen
-    /// rescheduled-* outcome, slots transition appropriately.
+    /// approve (B2 2026-07-01): the SAME appointment moves IN PLACE to
+    /// the new slot -- keeping its confirmation number, child rows and
+    /// audit trail. An Approved source returns to Approved and a Pending
+    /// source stays Pending; the transient Reserved hold on the
+    /// user-picked slot is released; the RescheduledNoBill/Late outcome
+    /// is recorded on the change-request row (no appointment clone).
     /// </summary>
     Task<AppointmentChangeRequestDto> ApproveRescheduleAsync(
         Guid changeRequestId,

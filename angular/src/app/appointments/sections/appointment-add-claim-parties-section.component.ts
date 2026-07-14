@@ -40,6 +40,10 @@ export class AppointmentAddClaimPartiesSectionComponent {
     input: LookupRequestDto,
   ) => Observable<PagedResultDto<LookupDto<string>>>;
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
+  // Wizard split (2026-06-14): render only the Insurance card, only the Claim
+  // Examiner card, or both (default -- the legacy form). Lets the wizard show
+  // insurance and examiner as two separate steps without a new component.
+  @Input() only: 'both' | 'insurance' | 'examiner' = 'both';
 
   readonly insuranceAddressFields: AddressFieldMap = {
     street: 'appointmentInsuranceStreet',

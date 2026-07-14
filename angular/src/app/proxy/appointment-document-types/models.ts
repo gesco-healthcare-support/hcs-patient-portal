@@ -2,20 +2,24 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 
 export interface AppointmentDocumentTypeCreateDto {
   name: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  appliesToAll?: boolean;
   isActive?: boolean;
 }
 
 export interface AppointmentDocumentTypeDto extends FullAuditedEntityDto<string> {
   name?: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  appliesToAll?: boolean;
   isSystem?: boolean;
   isActive?: boolean;
+  usageCount?: number | null;
 }
 
 export interface AppointmentDocumentTypeUpdateDto {
   name: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  appliesToAll?: boolean;
   isActive?: boolean;
 }
 

@@ -1,0 +1,200 @@
+<div class="ia-head">
+  <h1>Language management</h1>
+  <p class="ia-sub">Configure the languages available across the portal for this tenant.</p>
+</div>
+
+@if (canManage()) {
+  <div class="lg-actbar">
+    <button class="af-btn af-btn--primary" type="button" (click)="openNew()">
+      <app-icon name="plus" [size]="15" />
+      New language
+    </button>
+  </div>
+}
+
+<div class="ia-wrap">
+  <table class="ia-table">
+    <thead>
+      <tr>
+        <th>Language</th>
+        <th>Culture code</th>
+        <th>UI culture</th>
+        <th>Default</th>
+        <th>Status</th>
+        @if (canManage()) {
+          <th style="text-align: right">Actions</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (r of rows(); track r.id) {
+        <tr>
+          <td>
+            <span class="lg-name">
+              <span class="lg-flag">{{ flagLabel(r.cultureName) }}</span>
+              {{ r.displayName }}
+            </span>
+          </td>
+          <td>
+            <span class="lg-culture">{{ r.cultureName }}</span>
+          </td>
+          <td>
+            <span class="lg-culture">{{ r.uiCultureName }}</span>
+          </td>
+          <td>
+            @if (r.isDefaultLanguage) {
+              <span class="lg-default">
+                <app-icon name="check" [size]="12" />
+                Default
+              </span>
+            } @else {
+              <span class="ia-sub">--</span>
+            }
+          </td>
+          <td>
+            <span class="lw-active" [class.on]="r.isEnabled" [class.off]="!r.isEnabled">
+              {{ r.isEnabled ? 'Enabled' : 'Disabled' }}
+            </span>
+          </td>
+          @if (canManage()) {
+            <td style="text-align: right">
+              <span class="lg-rowacts">
+                @if (!r.isDefaultLanguage) {
+                  <button
+                    class="lg-setdef"
+                    type="button"
+                    [disabled]="isBusy()"
+                    (click)="setDefault(r)"
+                  >
+                    Set default
+                  </button>
+                }
+                <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(r)">
+                  <app-icon name="edit" [size]="14" />
+                </button>
+                @if (!r.isDefaultLanguage) {
+                  <button
+                    class="ra-rowbtn danger"
+                    type="button"
+                    title="Delete"
+                    [disabled]="isBusy()"
+                    (click)="remove(r)"
+                  >
+                    <app-icon name="trash" [size]="14" />
+                  </button>
+                }
+              </span>
+            </td>
+          }
+        </tr>
+      } @empty {
+        <tr>
+          <td [attr.colspan]="canManage() ? 6 : 5" class="ia-empty">
+            @if (loading()) {
+              Loading languages...
+            } @else {
+              No languages configured.
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+
+@if (editing(); as mode) {
+  @if (draft(); as d) {
+    <div class="ra-scrim" (click)="close()">
+      <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+        <div class="ra-modal__head">
+          <span class="ic tint-blue lg-modal-ic"><app-icon name="globe" [size]="18" /></span>
+          <h3>{{ mode === 'new' ? 'New language' : 'Edit language' }}</h3>
+          <button class="ext-iconbtn x" type="button" (click)="close()">
+            <app-icon name="x" [size]="17" />
+          </button>
+        </div>
+        <div class="ra-modal__body">
+          <div class="ra-grid">
+            <div class="ra-field col-8">
+              <label>
+                Display name
+                <span class="req">*</span>
+              </label>
+              <input
+                class="ra-input"
+                maxlength="64"
+                placeholder="e.g. Spanish"
+                [ngModel]="d.displayName"
+                (ngModelChange)="patchDraft({ displayName: $event })"
+              />
+            </div>
+            <div class="ra-field col-4">
+              <label>
+                Flag code
+                <span class="opt">(optional)</span>
+              </label>
+              <input
+                class="ra-input lg-mono"
+                maxlength="16"
+                placeholder="ES"
+                [ngModel]="d.flagIcon"
+                (ngModelChange)="patchDraft({ flagIcon: $event })"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label>
+                Culture
+                <span class="req">*</span>
+              </label>
+              <input
+                class="ra-input lg-mono"
+                maxlength="20"
+                placeholder="es / zh-Hans"
+                [disabled]="mode !== 'new'"
+                [ngModel]="d.cultureName"
+                (ngModelChange)="patchDraft({ cultureName: $event })"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label>
+                UI culture
+                <span class="opt">(defaults to culture)</span>
+              </label>
+              <input
+                class="ra-input lg-mono"
+                maxlength="20"
+                placeholder="es"
+                [disabled]="mode !== 'new'"
+                [ngModel]="d.uiCultureName"
+                (ngModelChange)="patchDraft({ uiCultureName: $event })"
+              />
+            </div>
+            <div class="ra-field col-12">
+              <label class="ra-switch">
+                Enabled - selectable by users
+                <input
+                  type="checkbox"
+                  [ngModel]="d.isEnabled"
+                  (ngModelChange)="patchDraft({ isEnabled: $event })"
+                />
+                <span class="track"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="ra-modal__foot">
+          <button class="af-btn af-btn--ghost" type="button" (click)="close()">Cancel</button>
+          <button
+            class="af-btn af-btn--primary"
+            type="button"
+            [disabled]="isBusy()"
+            (click)="save()"
+          >
+            <app-icon name="check" [size]="15" />
+            Save language
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}

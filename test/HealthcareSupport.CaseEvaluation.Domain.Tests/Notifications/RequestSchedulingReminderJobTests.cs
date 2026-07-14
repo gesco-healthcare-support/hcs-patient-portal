@@ -30,8 +30,7 @@ public class RequestSchedulingReminderJobTests
 
         var job = new RequestSchedulingReminderJob(
             ReminderJobTestHarness.AppointmentRepo(appointments),
-            ReminderJobTestHarness.NoopDataFilter(),
-            ReminderJobTestHarness.NoopCurrentTenant(),
+            ReminderJobTestHarness.TenantWorkRunner(),
             resolver,
             Substitute.For<IBackgroundJobManager>(),
             ReminderJobTestHarness.Settings(

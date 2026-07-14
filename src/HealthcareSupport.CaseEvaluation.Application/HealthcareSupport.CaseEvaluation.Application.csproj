@@ -34,6 +34,9 @@
          Volo.Abp.FluentValidation auto-discovers AbstractValidator<T>
          instances and invokes them at the AppService boundary. -->
     <PackageReference Include="Volo.Abp.FluentValidation" Version="10.0.2" />
+    <!-- #6 (2026-06-19): server-side HTML sanitization of IT-Admin-authored
+         email-template bodies. Ganss.Xss / AngleSharp-based, MIT. -->
+    <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
   </ItemGroup>
 
 </Project>

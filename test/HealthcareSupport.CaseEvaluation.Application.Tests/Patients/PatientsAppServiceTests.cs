@@ -33,6 +33,24 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
+    // F3 defense in depth: Patient is NOT IMultiTenant, so the by-id read applies an
+    // explicit tenant guard. In the shared-DB harness both offices' patients coexist, so
+    // this proves the guard (not just physical db-per-office separation): a TenantA-scoped
+    // caller must not fetch TenantB's patient by id.
+    [Fact]
+    public async Task GetWithNavigationPropertiesAsync_DoesNotReturnAnotherOfficesPatient()
+    {
+        var repository = GetRequiredService<IPatientRepository>();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                (await repository.GetWithNavigationPropertiesAsync(PatientsTestData.Patient2Id))
+                    .ShouldBeNull();
+            }
+        });
+    }
+
     // ------------------------------------------------------------------------
     // CRUD happy path
     // ------------------------------------------------------------------------

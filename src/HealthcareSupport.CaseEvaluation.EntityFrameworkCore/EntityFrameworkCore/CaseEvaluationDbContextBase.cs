@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
-using HealthcareSupport.CaseEvaluation.Books;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -21,8 +20,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDbContext>
     where TDbContext : DbContext
 {
-    public DbSet<Book> Books { get; set; }
-
     public CaseEvaluationDbContextBase(DbContextOptions<TDbContext> options)
         : base(options)
     {
@@ -48,13 +45,5 @@ public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDb
         builder.ConfigureTextTemplateManagement();
         builder.ConfigureBlobStoring();
         builder.ConfigureGdpr();
-
-        builder.Entity<Book>(b =>
-        {
-            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Books",
-                CaseEvaluationConsts.DbSchema);
-            b.ConfigureByConvention(); //auto configure for the base class props
-            b.Property(x => x.Name).IsRequired().HasMaxLength(128);
-        });
     }
 }

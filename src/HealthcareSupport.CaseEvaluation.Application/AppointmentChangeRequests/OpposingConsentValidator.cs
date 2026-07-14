@@ -26,16 +26,18 @@ public static class OpposingConsentValidator
         {
             return;
         }
-        if (request.ConsentStatus == ChangeRequestConsentStatus.NotRequired)
-        {
-            return;
-        }
-        if (request.IsConsentGranted())
+
+        // Two-sided (2026-07-01): pass only when every side whose consent was required
+        // (status != NotRequired) is Approved. Both-NotRequired (gating off / no reps /
+        // side unresolved) also passes. A No/Expired on any required side blocks finalize
+        // and surfaces in the supervisor's mediation bucket.
+        if (request.AreAllRequiredSidesGranted())
         {
             return;
         }
 
         throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentNotGranted)
-            .WithData("consentStatus", request.ConsentStatus);
+            .WithData("sideAConsent", request.SideConsentStatus(ChangeRequestSide.SideA))
+            .WithData("sideBConsent", request.SideConsentStatus(ChangeRequestSide.SideB));
     }
 }
