@@ -86,15 +86,20 @@ public class CaseEvaluationDomainModule : AbpModule
         // HTML -> fillable PDF conversion (WeasyPrint). URL from configuration
         // (env var `PacketRenderer__Url` in docker-compose); the fallback
         // hostname matches the packet-renderer compose service so dev stacks
-        // work without explicit env-var setup. 60s timeout matches the
-        // worst-case 15-page patient-packet render. This is the sole packet
+        // work without explicit env-var setup. This is the sole packet
         // renderer -- the DOCX -> Gotenberg path was removed 2026-06-10.
+        //
+        // T6: the client timeout is aligned with the sidecar's gunicorn
+        // --timeout (120s, see docker/packet-renderer/Dockerfile). Keeping the
+        // client >= the server timeout stops the client aborting at 60s while
+        // gunicorn keeps rendering to 120s -- which orphaned the request and
+        // wasted one of only two worker slots under concurrent load.
         var pdfConfiguration = context.Services.GetConfiguration();
         var packetRendererUrl = pdfConfiguration["PacketRenderer:Url"] ?? "http://packet-renderer:3001";
         context.Services.AddHttpClient<IHtmlPacketRenderer, WeasyPrintPacketRenderer>(client =>
         {
             client.BaseAddress = new Uri(packetRendererUrl);
-            client.Timeout = TimeSpan.FromSeconds(60);
+            client.Timeout = TimeSpan.FromSeconds(120);
         });
 
 

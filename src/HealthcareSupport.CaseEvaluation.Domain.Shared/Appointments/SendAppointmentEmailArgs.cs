@@ -1,4 +1,6 @@
 using System;
+using System.Security.Cryptography;
+using System.Text;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 
@@ -91,6 +93,32 @@ public class SendAppointmentEmailArgs
     /// <c>AppointmentPacketsContainer</c> blob storage.</para>
     /// </summary>
     public PacketAttachmentRef? PacketRef { get; set; }
+
+    /// <summary>
+    /// T3: deterministic key identifying this logical email (tenant + recipient +
+    /// context + packet kind). Same logical send -> same key, so the Phase 2
+    /// notification outbox can guarantee effectively-once delivery under Hangfire's
+    /// at-least-once redelivery. Populated by NotificationDispatcher via
+    /// <see cref="BuildIdempotencyKey"/>; enforcement lands with the Phase 2 outbox.
+    /// </summary>
+    public string IdempotencyKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Pure, deterministic derivation of <see cref="IdempotencyKey"/> as a bounded
+    /// SHA-256 hex digest. Recipient is normalized (trim + lowercase -- email is
+    /// case-insensitive); Context encodes the appointment + event by convention.
+    /// </summary>
+    public static string BuildIdempotencyKey(Guid? tenantId, string to, string context, PacketKind? kind)
+    {
+        var raw = string.Join(
+            "|",
+            tenantId?.ToString("N") ?? "host",
+            (to ?? string.Empty).Trim().ToLowerInvariant(),
+            (context ?? string.Empty).Trim(),
+            kind?.ToString() ?? "-");
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(digest).ToLowerInvariant();
+    }
 }
 
 /// <summary>
