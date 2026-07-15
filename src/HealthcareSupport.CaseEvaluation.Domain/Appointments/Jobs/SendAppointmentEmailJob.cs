@@ -130,11 +130,10 @@ public class SendAppointmentEmailJob :
 
     private async Task SendPlainAsync(SendAppointmentEmailArgs args)
     {
-        // Merge (2026-06-07): took main's E1 (2026-06-03) -- CC support + a
-        // logged catch that does NOT retry while ACS creds are unconfigured.
-        // This supersedes the parity G-04-10 (2026-06-02) no-swallow/propagate
-        // choice (E1 is the newer decision and avoids retry storms during the
-        // live bring-up); the failure is logged, not silently dropped.
+        // CC support (E1, 2026-06-03): a single addressed notice with the other
+        // parties CC'd -- never separate per-party emails for the same notice.
+        // T4 (2026-07-14): failures propagate (see catch) so Hangfire retries +
+        // dead-letters, matching SendWithAttachmentAsync -- no more silent drop.
         try
         {
             if (args.Cc != null && args.Cc.Count > 0)
@@ -170,11 +169,15 @@ public class SendAppointmentEmailJob :
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(
+            // T4: do NOT swallow. Log + rethrow so Hangfire's AutomaticRetry engages
+            // and an exhausted send lands in the Failed dead-letter (retriable from
+            // /hangfire) -- the same guarantee the attachment path already has.
+            Logger.LogError(
                 ex,
-                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To}. Configure ACS credentials to deliver. Job will not retry until Attempts policy is raised.",
+                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To}; rethrowing for Hangfire retry/dead-letter.",
                 args.Context,
                 args.To);
+            throw;
         }
     }
 
