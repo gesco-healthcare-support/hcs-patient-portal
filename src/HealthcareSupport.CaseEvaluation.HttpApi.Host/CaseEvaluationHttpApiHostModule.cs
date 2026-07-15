@@ -1319,6 +1319,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.CronExpression,
             options);
+
+        // Phase 2 T11 (2026-07-15) -- approval reconciliation sweep (every 15 min).
+        // Per office: re-enqueue incomplete / stale packet kinds and drain the
+        // notification outbox. The crash backstop for the atomic-outbox design --
+        // recovers a packet job lost in the approval->enqueue window and any outbox
+        // row whose prompt drain enqueue was lost to a shutdown.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob.CronExpression,
+            options);
     }
 
     private static TimeZoneInfo TryGetPacificTimeZone()

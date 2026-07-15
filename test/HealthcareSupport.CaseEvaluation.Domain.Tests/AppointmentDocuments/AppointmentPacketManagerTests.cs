@@ -46,4 +46,44 @@ public class AppointmentPacketManagerTests
         await repo.DidNotReceive().UpdateAsync(
             Arg.Any<AppointmentPacket>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public void Constructor_StampsLastAttemptAt_AtGeneratedAt()
+    {
+        // T11: LastAttemptAt drives the reconciliation staleness check; a new
+        // (Generating) row's first attempt is its creation time.
+        var packet = new AppointmentPacket(
+            Guid.NewGuid(), TenantId, AppointmentId, PacketKind.Patient, "blob/x.pdf");
+
+        packet.LastAttemptAt.ShouldBe(packet.GeneratedAt);
+    }
+
+    [Fact]
+    public async Task EnsureGeneratingAsync_ResetPath_RefreshesLastAttemptAt()
+    {
+        // T11: a re-attempt (Failed -> Generating) must re-stamp LastAttemptAt so
+        // a recently-retried row is not mistaken for stale by the sweep.
+        var existing = new AppointmentPacket(
+            Guid.NewGuid(), TenantId, AppointmentId, PacketKind.Patient,
+            "blob/old.pdf", PacketGenerationStatus.Failed)
+        {
+            LastAttemptAt = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+        };
+
+        var repo = Substitute.For<IRepository<AppointmentPacket, Guid>>();
+        repo.GetQueryableAsync()
+            .Returns(new List<AppointmentPacket> { existing }.AsQueryable());
+        repo.UpdateAsync(Arg.Any<AppointmentPacket>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(ci.Arg<AppointmentPacket>()));
+
+        var manager = new AppointmentPacketManager(repo);
+        var before = DateTime.UtcNow;
+
+        var result = await manager.EnsureGeneratingAsync(
+            TenantId, AppointmentId, PacketKind.Patient, "blob/new.pdf");
+
+        result.Status.ShouldBe(PacketGenerationStatus.Generating);
+        result.LastAttemptAt.ShouldNotBeNull();
+        result.LastAttemptAt!.Value.ShouldBeGreaterThanOrEqualTo(before);
+    }
 }
