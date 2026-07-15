@@ -63,7 +63,10 @@ public class GenerateAppointmentPacketJobTests
             .Returns(_ => throw new AbpDbConcurrencyException("simulated concurrency"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        ex.ShouldBeNull("AbpDbConcurrencyException must be caught by the widened filter, not propagated to Hangfire.");
+        // Per-kind AbpDbConcurrencyException is still CAUGHT + marked Failed (not
+        // propagated raw); T5 then surfaces a controlled PacketGenerationIncompleteException
+        // so Hangfire retries + dead-letters instead of reporting Succeeded.
+        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
 
         await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
@@ -79,7 +82,8 @@ public class GenerateAppointmentPacketJobTests
             .ThrowsAsync(new InvalidOperationException("template render failure"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        ex.ShouldBeNull();
+        // Each kind is marked Failed (caught), and the job surfaces the partial failure.
+        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
 
         await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
@@ -167,6 +171,27 @@ public class GenerateAppointmentPacketJobTests
             Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.Doctor, Arg.Any<string>());
         await fixture.PacketManager.Received(1).MarkGeneratedAsync(
             Arg.Any<Guid>(), Arg.Any<string?>());
+    }
+
+    [Fact]
+    public async Task GenerateInsideTenantAsync_WhenOneKindFails_GeneratesOthersAndSurfaces()
+    {
+        var fixture = new JobFixture();
+        // Only the attorney render fails; Patient + Doctor succeed.
+        fixture.PacketRenderer
+            .RenderAsync(PacketTemplateNames.AttorneyAme, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("attorney render failure"));
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+
+        // T5: the two good kinds still generate; the failed kind is marked Failed;
+        // the job SURFACES the partial failure so it is visible + retriable rather
+        // than silently reported Succeeded.
+        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
+        await fixture.PacketManager.Received(2).MarkGeneratedAsync(
+            Arg.Any<Guid>(), Arg.Any<string?>());
+        await fixture.PacketManager.Received(1).MarkFailedAsync(
+            Arg.Any<Guid>(), Arg.Is<string>(msg => msg.Contains("attorney render failure")));
     }
 
     [Fact]
