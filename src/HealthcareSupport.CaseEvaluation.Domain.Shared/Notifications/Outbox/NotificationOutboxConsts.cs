@@ -17,4 +17,17 @@ public static class NotificationOutboxConsts
 
     /// <summary>Default retry budget (Hangfire-parity) before a row dead-letters.</summary>
     public const int DefaultMaxAttempts = 5;
+
+    /// <summary>
+    /// Visibility timeout for a claimed row. Must comfortably exceed one send
+    /// attempt (including a packet-attachment blob fetch) so a crashed drain's
+    /// row becomes reclaimable, but not so long that recovery stalls.
+    /// </summary>
+    public const int LeaseDurationSeconds = 120;
+
+    /// <summary>Backoff before a failed row is retried by the next drain.</summary>
+    public const int RetryBackoffSeconds = 300;
+
+    /// <summary>Max rows a single drain claims per office per pass.</summary>
+    public const int DrainBatchSize = 50;
 }

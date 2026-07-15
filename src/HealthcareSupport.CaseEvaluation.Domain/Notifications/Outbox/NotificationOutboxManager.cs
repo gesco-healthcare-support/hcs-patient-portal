@@ -101,4 +101,8 @@ public class NotificationOutboxManager : DomainService
         }
         return claimed;
     }
+
+    /// <summary>Persists a post-send state transition (MarkSent / MarkFailed).</summary>
+    public virtual Task SaveAsync(NotificationOutboxItem item) =>
+        _outboxRepository.UpdateAsync(item, autoSave: true);
 }
