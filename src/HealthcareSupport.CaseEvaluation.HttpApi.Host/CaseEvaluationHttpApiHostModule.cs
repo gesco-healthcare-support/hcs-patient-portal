@@ -29,6 +29,7 @@ using Hangfire;
 using Hangfire.SqlServer;
 using HealthcareSupport.CaseEvaluation.BackgroundJobs;
 using Volo.Abp.BackgroundJobs.Hangfire;
+using Volo.Abp.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
 using Volo.Abp.TextTemplateManagement;
@@ -1066,6 +1067,20 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     UseRecommendedIsolationLevel = true,
                     DisableGlobalLocks = true,
                 });
+        });
+
+        // T7: pin the Hangfire worker pool. The default is ProcessorCount*5 (20 on
+        // the 4 vCPU box) -- far more than the 2-worker packet-renderer + the SMTP
+        // relay can absorb, so a burst oversubscribes them into timeouts + retries.
+        // ABP's AbpBackgroundJobsHangfireModule applies these ServerOptions to the
+        // processing server it starts (only HttpApi.Host runs it; AuthServer sets
+        // IsJobExecutionEnabled=false).
+        context.Services.Configure<AbpHangfireOptions>(options =>
+        {
+            options.ServerOptions = new BackgroundJobServerOptions
+            {
+                WorkerCount = 6,
+            };
         });
 
         // G-04-10 (2026-06-02): replace Hangfire's default 10-attempt retry
