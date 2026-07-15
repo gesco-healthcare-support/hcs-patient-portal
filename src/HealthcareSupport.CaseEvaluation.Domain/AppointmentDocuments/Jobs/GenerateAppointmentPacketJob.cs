@@ -130,7 +130,34 @@ public class GenerateAppointmentPacketJob :
         // .pdf and PacketAttachmentProvider.PdfContentType matches.
         var blobName = $"{tenantSegment}/{appointmentId}/packet/{kind.ToString().ToLowerInvariant()}/{Guid.NewGuid():N}.pdf";
 
-        var packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, appointmentId, kind, blobName);
+        AppointmentPacket packet;
+        try
+        {
+            packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, appointmentId, kind, blobName);
+        }
+        catch (AbpDbConcurrencyException ex)
+        {
+            // A concurrent worker (sweep vs live job, two sweeps, or Regenerate +
+            // sweep) claimed this kind first; the filtered unique index rejects our
+            // duplicate insert. Skip -- the winner finishes it. Do NOT mark Failed
+            // (would clobber the winner's row) and do NOT propagate (whole-job retry
+            // storm, the BUG-033/036 mechanic).
+            _logger.LogInformation(ex,
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} claimed by a concurrent worker; skipping.",
+                appointmentId, kind);
+            return;
+        }
+
+        if (packet.Status == PacketGenerationStatus.Generated)
+        {
+            // Idempotency (T1): a prior attempt already generated this kind. Skip
+            // render + PacketGeneratedEto so a Hangfire retry / crash re-fetch cannot
+            // re-send the packet email (duplicate PHI).
+            _logger.LogInformation(
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} already Generated; skipping.",
+                appointmentId, kind);
+            return;
+        }
 
         try
         {
