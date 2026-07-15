@@ -86,6 +86,7 @@ public class AppointmentPacket : FullAuditedAggregateRoot<Guid>, IMultiTenant
         BlobName = blobName;
         Status = status;
         GeneratedAt = DateTime.UtcNow;
+        LastAttemptAt = GeneratedAt; // first generation attempt is this insert
 
         Check.NotNullOrWhiteSpace(BlobName, nameof(blobName));
         Check.Length(BlobName, nameof(blobName), AppointmentPacketConsts.BlobNameMaxLength);

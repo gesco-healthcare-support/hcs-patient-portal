@@ -57,10 +57,13 @@ public class AppointmentPacketManager : DomainService
             return existing;
         }
 
-        // Failed or still Generating -> reset for the re-attempt.
+        // Failed or still Generating -> reset for the re-attempt. Re-stamp
+        // LastAttemptAt (T11) so a freshly-retried row is not read as stale by
+        // the reconciliation sweep.
         existing.Status = PacketGenerationStatus.Generating;
         existing.ErrorMessage = null;
         existing.BlobName = blobName;
+        existing.LastAttemptAt = DateTime.UtcNow;
         return await _packetRepository.UpdateAsync(existing, autoSave: true);
     }
 
