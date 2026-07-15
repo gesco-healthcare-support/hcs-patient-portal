@@ -1076,6 +1076,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("int")
                         .HasColumnName("Kind");
 
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastAttemptAt");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -3290,6 +3294,146 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.HasIndex("TenantId", "RecipientUserId", "IsRead");
 
                     b.ToTable("AppAppNotifications", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Notifications.Outbox.NotificationOutboxItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int")
+                        .HasColumnName("AttemptCount");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Body");
+
+                    b.Property<string>("Cc")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Cc");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("Context");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("IdempotencyKey");
+
+                    b.Property<bool>("IsBodyHtml")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsBodyHtml");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("LastError");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LockedUntil");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("int")
+                        .HasColumnName("MaxAttempts");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("NextAttemptAt");
+
+                    b.Property<Guid?>("PacketAppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PacketAppointmentId");
+
+                    b.Property<Guid?>("PacketId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PacketId");
+
+                    b.Property<int?>("PacketKind")
+                        .HasColumnType("int")
+                        .HasColumnName("PacketKind");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SentAt");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("Subject");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("To")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("To");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Status", "NextAttemptAt");
+
+                    b.ToTable("AppNotificationOutboxItems", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PackageDetails.DocumentPackage", b =>
