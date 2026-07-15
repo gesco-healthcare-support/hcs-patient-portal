@@ -44,7 +44,7 @@ describe('cf-config.util', () => {
       ]);
     });
 
-    it('places all seventy fields across the groups exactly once', () => {
+    it('places all seventy-one fields across the groups exactly once', () => {
       const catalog = buildFieldCatalog();
       const keys: string[] = [];
       for (const group of catalog) {
@@ -52,21 +52,21 @@ describe('cf-config.util', () => {
           keys.push(field.key);
         }
       }
-      expect(keys.length).toBe(70);
-      expect(new Set(keys).size).toBe(70);
+      expect(keys.length).toBe(71);
+      expect(new Set(keys).size).toBe(71);
     });
 
     it('keeps the Patient Demographics group together', () => {
       const patient = buildFieldCatalog().find((g) => g.group === 'Patient Demographics')!;
       expect(patient.fields.map((f) => f.key)).toContain('socialSecurityNumber');
-      expect(patient.fields.length).toBe(17);
+      expect(patient.fields.length).toBe(18);
     });
   });
 
   describe('emptyFieldState', () => {
     it('returns a default state for every catalog key', () => {
       const state = emptyFieldState();
-      expect(Object.keys(state).length).toBe(70);
+      expect(Object.keys(state).length).toBe(71);
       expect(state['panelNumber']).toEqual({
         hidden: false,
         readOnly: false,
@@ -118,7 +118,7 @@ describe('cf-config.util', () => {
       ];
       const state = fieldStateFromConfigs(configs);
       expect(state['someRetiredField']).toBeUndefined();
-      expect(Object.keys(state).length).toBe(70);
+      expect(Object.keys(state).length).toBe(71);
     });
   });
 

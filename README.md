@@ -10,11 +10,12 @@ platform, maintained by Gesco.
 [![ABP](https://img.shields.io/badge/ABP%20Commercial-10.0.2-3e6bf3)](https://abp.io/)
 [![Node](https://img.shields.io/badge/Node-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
-[![SonarCloud](https://img.shields.io/badge/SonarCloud-pending-lightgrey)](#known-issues-and-roadmap)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=alert_status)](https://sonarcloud.io/dashboard?id=gesco-healthcare-support_hcs-patient-portal)
 [![Codecov](https://img.shields.io/badge/coverage-pending-lightgrey)](#known-issues-and-roadmap)
 
-> The SonarCloud and Codecov badges are placeholders. They will activate once
-> the services are wired up -- see [Known Issues and Roadmap](#known-issues-and-roadmap).
+> The Codecov badge is a placeholder until that service is wired up; SonarCloud
+> is live and gates new-code coverage on PRs. See
+> [Known Issues and Roadmap](#known-issues-and-roadmap).
 
 Healthcare support staff use this portal to book patients with IME doctors at
 specific locations and time slots, then track each appointment through a
@@ -49,16 +50,17 @@ states, WCAB offices) is managed centrally by the host organisation.
 
 ## Project Status
 
-This repository is in the **pre-production, foundation-complete** phase.
-Documentation, CI/CD, hooks, and Docker scaffolding are in place; feature work
-and external deployment are not yet underway.
+This repository is in **active feature development**. The foundation
+(documentation, CI/CD, hooks, Docker), database-per-office multi-tenancy, and
+in-house LAN hosting support are all in place; the remaining gate is the first
+external server rollout (see [Docker and Deployment](#docker-and-deployment)).
 
 | Aspect                  | Status                                                                                                                                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Stage                   | Pre-production, localhost / Docker only                                                                                               |
 | Deployed environments   | None                                                                                                                                  |
 | Tracked issues          | 29 across security, data integrity, bugs, incomplete features, architecture -- see [docs/issues/OVERVIEW.md](docs/issues/OVERVIEW.md) |
-| Automated test coverage | 2 of 15 domain entities covered (Doctors, Books) -- see [docs/devops/TEST-CATALOG.md](docs/devops/TEST-CATALOG.md)                    |
+| Automated test coverage | 1,109 backend test methods (230 files) + 46 Angular specs -- see [docs/devops/TEST-CATALOG.md](docs/devops/TEST-CATALOG.md)           |
 | HIPAA readiness         | Safeguards in place, gaps documented -- see [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md)                    |
 | Maintainer              | Gesco (single developer at this time)                                                                                                 |
 | Repository visibility   | Proprietary -- see [LICENSE](LICENSE)                                                                                                 |
@@ -83,7 +85,7 @@ For the full narrative read [docs/executive-summary.md](docs/executive-summary.m
 | Test framework         | xUnit + [Shouldly](https://docs.shouldly.org/)      | --                                |                                                     |
 | Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
 | Package manager (Node) | Yarn                                                | 1.x                               | `yarn.lock` committed                               |
-| CI / CD                | GitHub Actions                                      | 10 workflows                      | See [CI / CD](#ci--cd)                              |
+| CI / CD                | GitHub Actions                                      | 17 workflows                      | See [CI / CD](#ci--cd)                              |
 | Containerisation       | Docker Compose                                      | --                                | 6-service stack                                     |
 
 ---
@@ -183,7 +185,7 @@ hcs-case-evaluation-portal/
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
 ├── test/                                      4 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
-├── docs/                                      75+ markdown docs
+├── docs/                                      350+ markdown docs
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
@@ -386,8 +388,9 @@ cd angular && yarn test
 cd angular && yarn lint
 ```
 
-Current coverage: 13 backend test methods across the Doctors feature and the
-ABP scaffold `Books` sample. All other domain features are untested -- see
+Current coverage: ~1,100 backend test methods across 230 files, plus 46 Angular
+specs, spanning appointments, multi-tenancy, notifications, patients, and the
+supporting domains -- see
 [docs/devops/TEST-CATALOG.md](docs/devops/TEST-CATALOG.md) for the full
 catalogue and [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md)
 for test patterns and the `CaseEvaluationTestBase<TModule>` chain.
@@ -399,21 +402,22 @@ require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
 
 ## CI / CD
 
-Ten GitHub Actions workflows cover PR validation, security scanning, and
-branch promotion.
+Seventeen GitHub Actions workflows cover PR validation, quality and security
+scanning, and branch promotion.
 
 ```mermaid
 flowchart LR
     subgraph PR["On PR"]
-        CI["ci.yml<br/>backend build/test<br/>frontend build/lint/test<br/>docs structure"]
-        DEP["dependency-review.yml"]
-        LBL["labeler.yml"]
-        SIZE["pr-size.yml"]
+        CI["ci.yml<br/>backend build/format/test<br/>frontend build/format/lint/test<br/>docs structure"]
+        QUAL["sonarcloud.yml + codeql-pr.yml<br/>coverage + code scan"]
+        DEP["dependency-review.yml<br/>+ trufflehog-pr.yml"]
+        META["commitlint + pr-title<br/>lint-meta + labeler + pr-size"]
         DOC["doc-check.yml<br/>(placeholder)"]
     end
 
     subgraph Cron["Weekly cron"]
         SEC["security.yml<br/>CodeQL + TruffleHog<br/>+ .NET + npm audit"]
+        SCORE["scorecard.yml<br/>OpenSSF Scorecard"]
         DB["Dependabot<br/>NuGet + npm + Actions"]
     end
 
@@ -425,12 +429,16 @@ flowchart LR
     end
 ```
 
-- **PR validation** (`ci.yml`) -- six jobs: backend build, backend test,
-  frontend build, frontend lint, frontend test, docs structure. Jobs run in
-  parallel with a shared concurrency group that cancels superseded runs.
+- **PR validation** (`ci.yml`) -- eight jobs: backend build/format/test,
+  frontend build/format/lint/test, and docs structure. Jobs run in parallel
+  with a shared concurrency group that cancels superseded runs.
 - **Security** (`security.yml`) -- weekly Monday 06:00 UTC cron + manual
   dispatch. .NET vulnerability audit, npm audit, TruffleHog secret scan,
   CodeQL for C# and JavaScript/TypeScript.
+- **Quality and PR gates** -- `sonarcloud.yml` (coverage + quality gate),
+  `codeql-pr.yml` and `trufflehog-pr.yml` (code + secret scan on every PR),
+  `commitlint.yml`, `pr-title.yml`, and `lint-meta.yml` (Markdown + YAML), plus
+  `scorecard.yml` (OpenSSF Scorecard).
 - **Dependabot** scans NuGet, npm, and GitHub Actions ecosystems weekly.
 - **Promotion** -- pushes to `development` run `deploy-dev.yml` and open an
   auto-PR to `staging`; pushes to `staging` run `promote-staging.yml`; pushes
@@ -564,8 +572,8 @@ severity.
 
 Pre-deployment TODOs still open (summary):
 
-- SonarCloud and Codecov wiring (the badges above are placeholders until
-  these services are configured).
+- Codecov wiring (the coverage badge above is a placeholder until it is
+  configured; SonarCloud is live and gates new-code coverage on PRs).
 - Seven Angular XSS advisories blocked on ABP Commercial 10.3+ releases
   becoming available.
 - Polish of the auto-PR workflow and expansion of the disabled

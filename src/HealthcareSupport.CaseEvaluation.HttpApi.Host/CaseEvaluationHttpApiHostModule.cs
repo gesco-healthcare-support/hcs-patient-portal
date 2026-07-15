@@ -666,7 +666,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                             partitionKey: $"signup:{key}",
                             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                             {
-                                PermitLimit = 5,
+                                // 2026-07-10 QA: raised 5 -> 15 per-IP/hour so a clinic
+                                // behind one NAT'd IP can register several patients in a
+                                // session without tripping the anti-enumeration limit.
+                                PermitLimit = 15,
                                 Window = TimeSpan.FromHours(1),
                                 QueueLimit = 0,
                                 QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,

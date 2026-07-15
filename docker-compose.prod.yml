@@ -197,6 +197,18 @@ services:
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
+      # SMTP / email (in-house relay). Production overrides the appsettings.json
+      # REPLACE_ME_LOCALLY placeholders (values from secrets/env.prod); the host reads
+      # these as ABP settings Settings:Abp.Mailing.*. Without them Production would try to
+      # deliver with placeholder credentials. Port 587 + STARTTLS is the tested path.
+      Settings__Abp.Mailing.DefaultFromAddress: "${SMTP_FROM_ADDRESS}"
+      Settings__Abp.Mailing.DefaultFromDisplayName: "${SMTP_FROM_NAME:-Gesco Appointment Portal}"
+      Settings__Abp.Mailing.Smtp.Host: "${SMTP_HOST}"
+      Settings__Abp.Mailing.Smtp.Port: "${SMTP_PORT:-587}"
+      Settings__Abp.Mailing.Smtp.EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      Settings__Abp.Mailing.Smtp.UseDefaultCredentials: "false"
+      Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
+      Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
     volumes:
       # G6: OpenIddict token-signing cert mounted read-only at the content root. NEVER
       # baked into the image. Generate with scripts/hosting/gen-openiddict-cert.sh.
@@ -250,6 +262,18 @@ services:
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
+      # SMTP / email (in-house relay). Production overrides the appsettings.json
+      # REPLACE_ME_LOCALLY placeholders (values from secrets/env.prod); the host reads
+      # these as ABP settings Settings:Abp.Mailing.*. Without them Production would try to
+      # deliver with placeholder credentials. Port 587 + STARTTLS is the tested path.
+      Settings__Abp.Mailing.DefaultFromAddress: "${SMTP_FROM_ADDRESS}"
+      Settings__Abp.Mailing.DefaultFromDisplayName: "${SMTP_FROM_NAME:-Gesco Appointment Portal}"
+      Settings__Abp.Mailing.Smtp.Host: "${SMTP_HOST}"
+      Settings__Abp.Mailing.Smtp.Port: "${SMTP_PORT:-587}"
+      Settings__Abp.Mailing.Smtp.EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      Settings__Abp.Mailing.Smtp.UseDefaultCredentials: "false"
+      Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
+      Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
