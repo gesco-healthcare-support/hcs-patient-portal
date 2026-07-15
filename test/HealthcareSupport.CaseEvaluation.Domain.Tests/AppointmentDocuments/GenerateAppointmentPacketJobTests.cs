@@ -148,6 +148,28 @@ public class GenerateAppointmentPacketJobTests
     }
 
     [Fact]
+    public async Task GenerateInsideTenantAsync_WhenKindSpecified_GeneratesOnlyThatKind()
+    {
+        var fixture = new JobFixture();
+        // T2: a targeted re-drive (sweep / Regenerate for one missing or Failed
+        // kind) must claim + generate ONLY that kind -- not re-render + re-email
+        // the other two.
+        fixture.Args.Kind = PacketKind.AttorneyClaimExaminer;
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        await fixture.PacketManager.Received(1).EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.AttorneyClaimExaminer, Arg.Any<string>());
+        await fixture.PacketManager.DidNotReceive().EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.Patient, Arg.Any<string>());
+        await fixture.PacketManager.DidNotReceive().EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.Doctor, Arg.Any<string>());
+        await fixture.PacketManager.Received(1).MarkGeneratedAsync(
+            Arg.Any<Guid>(), Arg.Any<string?>());
+    }
+
+    [Fact]
     public async Task AttorneyPacket_PanelQmeType_RequestsPqmeTemplate()
     {
         var fixture = new JobFixture(appointmentType: "PANEL QME");

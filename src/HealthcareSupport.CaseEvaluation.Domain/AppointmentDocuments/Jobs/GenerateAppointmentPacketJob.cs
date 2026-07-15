@@ -24,6 +24,13 @@ public class GenerateAppointmentPacketArgs
 {
     public Guid AppointmentId { get; set; }
     public Guid? TenantId { get; set; }
+
+    /// <summary>
+    /// T2: when set, generate ONLY this kind. Lets the reconciliation sweep /
+    /// Regenerate fix a single missing or Failed kind WITHOUT re-rendering and
+    /// re-emailing the others. Null = generate all three (the on-approval default).
+    /// </summary>
+    public PacketKind? Kind { get; set; }
 }
 
 /// <summary>
@@ -110,12 +117,17 @@ public class GenerateAppointmentPacketJob :
         // The AttorneyClaimExaminer packet was previously gated to PQME/AME via
         // a substring match that silently missed "Panel QME" (the space breaks
         // Contains("PQME")); the gate is removed so all types get it.
-        var kindsToGenerate = new List<PacketKind>
-        {
-            PacketKind.Patient,
-            PacketKind.Doctor,
-            PacketKind.AttorneyClaimExaminer,
-        };
+        //
+        // T2: a specific args.Kind targets ONE kind (surgical sweep / Regenerate
+        // re-drive); null generates all three (the on-approval default).
+        var kindsToGenerate = args.Kind.HasValue
+            ? new List<PacketKind> { args.Kind.Value }
+            : new List<PacketKind>
+            {
+                PacketKind.Patient,
+                PacketKind.Doctor,
+                PacketKind.AttorneyClaimExaminer,
+            };
 
         foreach (var kind in kindsToGenerate)
         {

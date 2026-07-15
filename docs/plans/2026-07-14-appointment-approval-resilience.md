@@ -81,7 +81,8 @@ its "sent" means "handed to the bus", never "SMTP delivered". Hand-roll is corre
 
 - T2: Per-kind targeting in `GenerateAppointmentPacketArgs`
   - approach: tdd
-  - files-touched: [src/HealthcareSupport.CaseEvaluation.Domain.Shared/AppointmentDocuments/GenerateAppointmentPacketArgs.cs, src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Jobs/GenerateAppointmentPacketJob.cs]
+  - files-touched: [src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Jobs/GenerateAppointmentPacketJob.cs]
+  - note: GenerateAppointmentPacketArgs is declared in GenerateAppointmentPacketJob.cs (not a separate Domain.Shared file).
   - acceptance: enqueuing args with `Kind = AttorneyClaimExaminer` renders only that kind and publishes
     only its Eto; `Kind = null` preserves the all-three behavior. Lets Regenerate + the Phase 2 sweep be
     surgical (fix one kind without re-emailing the other two).
