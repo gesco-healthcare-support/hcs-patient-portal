@@ -59,6 +59,14 @@ public class AppointmentPacket : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? ErrorMessage { get; set; }
 
+    /// <summary>
+    /// T9: UTC timestamp of the most recent generation attempt (initial insert or
+    /// a re-attempt via <c>EnsureGeneratingAsync</c>). The Phase 2 reconciliation
+    /// sweep (T11) uses it to detect a row stuck Generating past a threshold well
+    /// beyond render time and re-enqueue only that kind. Null until first stamped.
+    /// </summary>
+    public virtual DateTime? LastAttemptAt { get; set; }
+
     protected AppointmentPacket()
     {
     }

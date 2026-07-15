@@ -37,6 +37,7 @@ using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
@@ -89,6 +90,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
     // QA item 7: in-app notifications (IMultiTenant; mirrored here per the dual-DbContext convention).
     public DbSet<AppNotification> AppNotifications { get; set; } = null!;
+    // Phase 2 (T9): durable per-recipient email outbox (delivery ledger).
+    public DbSet<NotificationOutboxItem> NotificationOutboxItems { get; set; } = null!;
     // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
     public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
     // Phase E (2026-06-25): host/management per-office branding (name + logo).
@@ -266,6 +269,36 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.IsRead).HasColumnName(nameof(AppNotification.IsRead));
             b.Property(x => x.ReadTime).HasColumnName(nameof(AppNotification.ReadTime));
             b.HasIndex(x => new { x.TenantId, x.RecipientUserId, x.IsRead });
+        });
+
+        // Phase 2 (T9): durable per-recipient email outbox (delivery ledger).
+        // Mirrors the tenant-context block verbatim per the dual-DbContext
+        // convention so the shared AppNotificationOutboxItems table is
+        // column-identical across host + office DBs.
+        builder.Entity<NotificationOutboxItem>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationOutboxItems", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.To).HasColumnName(nameof(NotificationOutboxItem.To)).IsRequired().HasMaxLength(NotificationOutboxConsts.ToMaxLength);
+            b.Property(x => x.Cc).HasColumnName(nameof(NotificationOutboxItem.Cc));
+            b.Property(x => x.Subject).HasColumnName(nameof(NotificationOutboxItem.Subject)).IsRequired().HasMaxLength(NotificationOutboxConsts.SubjectMaxLength);
+            b.Property(x => x.Body).HasColumnName(nameof(NotificationOutboxItem.Body)).IsRequired();
+            b.Property(x => x.IsBodyHtml).HasColumnName(nameof(NotificationOutboxItem.IsBodyHtml));
+            b.Property(x => x.Context).HasColumnName(nameof(NotificationOutboxItem.Context)).IsRequired().HasMaxLength(NotificationOutboxConsts.ContextMaxLength);
+            b.Property(x => x.IdempotencyKey).HasColumnName(nameof(NotificationOutboxItem.IdempotencyKey)).IsRequired().HasMaxLength(NotificationOutboxConsts.IdempotencyKeyMaxLength);
+            b.Property(x => x.PacketAppointmentId).HasColumnName(nameof(NotificationOutboxItem.PacketAppointmentId));
+            b.Property(x => x.PacketId).HasColumnName(nameof(NotificationOutboxItem.PacketId));
+            b.Property(x => x.PacketKind).HasColumnName(nameof(NotificationOutboxItem.PacketKind));
+            b.Property(x => x.Status).HasColumnName(nameof(NotificationOutboxItem.Status));
+            b.Property(x => x.AttemptCount).HasColumnName(nameof(NotificationOutboxItem.AttemptCount));
+            b.Property(x => x.MaxAttempts).HasColumnName(nameof(NotificationOutboxItem.MaxAttempts));
+            b.Property(x => x.NextAttemptAt).HasColumnName(nameof(NotificationOutboxItem.NextAttemptAt));
+            b.Property(x => x.LockedUntil).HasColumnName(nameof(NotificationOutboxItem.LockedUntil));
+            b.Property(x => x.SentAt).HasColumnName(nameof(NotificationOutboxItem.SentAt));
+            b.Property(x => x.LastError).HasColumnName(nameof(NotificationOutboxItem.LastError)).HasMaxLength(NotificationOutboxConsts.LastErrorMaxLength);
+            b.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique().HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
         });
 
         // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the
@@ -754,6 +787,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Status).HasColumnName("Status");
             b.Property(x => x.GeneratedAt).HasColumnName("GeneratedAt");
             b.Property(x => x.RegeneratedAt).HasColumnName("RegeneratedAt");
+            b.Property(x => x.LastAttemptAt).HasColumnName("LastAttemptAt");
             b.Property(x => x.ErrorMessage).HasColumnName("ErrorMessage").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.ErrorMessageMaxLength);
             b.HasIndex(x => x.AppointmentId);
             // BUG-036: filter on IsDeleted = 0 so soft-deleted AttyCE rows do not block regenerate INSERTs.
