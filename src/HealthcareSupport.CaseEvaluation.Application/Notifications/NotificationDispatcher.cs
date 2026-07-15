@@ -136,6 +136,8 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
             TenantName = _currentTenant.Name,
             TenantId = _currentTenant.Id,
             PacketRef = packetRef,
+            IdempotencyKey = SendAppointmentEmailArgs.BuildIdempotencyKey(
+                _currentTenant.Id, to.Email, contextTag, packetRef?.Kind),
         };
         await _backgroundJobManager.EnqueueAsync(args);
     }
@@ -173,6 +175,8 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
             // silently skips with "is not Generated").
             TenantId = _currentTenant.Id,
             PacketRef = packetRef,
+            IdempotencyKey = SendAppointmentEmailArgs.BuildIdempotencyKey(
+                _currentTenant.Id, recipient.Email, contextTag, packetRef?.Kind),
         };
         await _backgroundJobManager.EnqueueAsync(args);
     }
