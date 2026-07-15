@@ -29,6 +29,7 @@ using Hangfire;
 using Hangfire.SqlServer;
 using HealthcareSupport.CaseEvaluation.BackgroundJobs;
 using Volo.Abp.BackgroundJobs.Hangfire;
+using Volo.Abp.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
 using Volo.Abp.TextTemplateManagement;
@@ -1071,6 +1072,20 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 });
         });
 
+        // T7: pin the Hangfire worker pool. The default is ProcessorCount*5 (20 on
+        // the 4 vCPU box) -- far more than the 2-worker packet-renderer + the SMTP
+        // relay can absorb, so a burst oversubscribes them into timeouts + retries.
+        // ABP's AbpBackgroundJobsHangfireModule applies these ServerOptions to the
+        // processing server it starts (only HttpApi.Host runs it; AuthServer sets
+        // IsJobExecutionEnabled=false).
+        context.Services.Configure<AbpHangfireOptions>(options =>
+        {
+            options.ServerOptions = new BackgroundJobServerOptions
+            {
+                WorkerCount = 6,
+            };
+        });
+
         // G-04-10 (2026-06-02): replace Hangfire's default 10-attempt retry
         // with an explicit 5-attempt policy that KEEPS an exhausted job in the
         // Failed state (a dead-letter) for manual retry from /hangfire, instead
@@ -1303,6 +1318,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.RecurringJobId,
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.CronExpression,
+            options);
+
+        // Phase 2 T11 (2026-07-15) -- approval reconciliation sweep (every 15 min).
+        // Per office: re-enqueue incomplete / stale packet kinds and drain the
+        // notification outbox. The crash backstop for the atomic-outbox design --
+        // recovers a packet job lost in the approval->enqueue window and any outbox
+        // row whose prompt drain enqueue was lost to a shutdown.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob.CronExpression,
             options);
     }
 

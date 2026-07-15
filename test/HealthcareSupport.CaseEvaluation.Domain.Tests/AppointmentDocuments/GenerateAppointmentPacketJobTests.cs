@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -62,7 +63,10 @@ public class GenerateAppointmentPacketJobTests
             .Returns(_ => throw new AbpDbConcurrencyException("simulated concurrency"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        ex.ShouldBeNull("AbpDbConcurrencyException must be caught by the widened filter, not propagated to Hangfire.");
+        // Per-kind AbpDbConcurrencyException is still CAUGHT + marked Failed (not
+        // propagated raw); T5 then surfaces a controlled PacketGenerationIncompleteException
+        // so Hangfire retries + dead-letters instead of reporting Succeeded.
+        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
 
         await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
@@ -78,7 +82,8 @@ public class GenerateAppointmentPacketJobTests
             .ThrowsAsync(new InvalidOperationException("template render failure"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        ex.ShouldBeNull();
+        // Each kind is marked Failed (caught), and the job surfaces the partial failure.
+        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
 
         await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
@@ -97,6 +102,96 @@ public class GenerateAppointmentPacketJobTests
             Arg.Any<Guid>(), Arg.Any<string?>());
         await fixture.PacketManager.DidNotReceive().MarkFailedAsync(
             Arg.Any<Guid>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task GenerateKindAsync_WhenKindAlreadyGenerated_SkipsRenderAndPublish()
+    {
+        var fixture = new JobFixture();
+        // Idempotency (T1): EnsureGeneratingAsync returns an already-Generated row
+        // for every kind (a prior attempt succeeded). A Hangfire retry / crash
+        // re-fetch must NOT re-render, re-mark, or re-publish -- else recipients
+        // get duplicate packet emails (PHI) on every re-run.
+        fixture.PacketManager
+            .EnsureGeneratingAsync(Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<PacketKind>(), Arg.Any<string>())
+            .Returns(callInfo => new AppointmentPacket(
+                Guid.NewGuid(), TenantId, AppointmentId,
+                callInfo.ArgAt<PacketKind>(2), callInfo.ArgAt<string>(3),
+                PacketGenerationStatus.Generated));
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        await fixture.PacketRenderer.DidNotReceive().RenderAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+        await fixture.PacketManager.DidNotReceive().MarkGeneratedAsync(
+            Arg.Any<Guid>(), Arg.Any<string?>());
+        await fixture.EventBus.DidNotReceive().PublishAsync(Arg.Any<PacketGeneratedEto>());
+    }
+
+    [Fact]
+    public async Task GenerateKindAsync_WhenClaimRaisesConcurrency_SkipsKindWithoutFailingJob()
+    {
+        var fixture = new JobFixture();
+        // A concurrent worker (sweep vs live job / two sweeps / Regenerate + sweep)
+        // claimed the same kind first; the filtered unique index rejects our
+        // duplicate insert with AbpDbConcurrencyException. It must be caught and
+        // the kind skipped (the winner finishes it) -- NOT propagated to Hangfire
+        // (whole-job retry storm) and NOT marked Failed (would clobber the winner).
+        fixture.PacketManager
+            .EnsureGeneratingAsync(Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<PacketKind>(), Arg.Any<string>())
+            .ThrowsAsync(new AbpDbConcurrencyException("claim race"));
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull("EnsureGenerating concurrency must be caught, not propagated to Hangfire.");
+
+        await fixture.PacketRenderer.DidNotReceive().RenderAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+        await fixture.PacketManager.DidNotReceive().MarkFailedAsync(
+            Arg.Any<Guid>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task GenerateInsideTenantAsync_WhenKindSpecified_GeneratesOnlyThatKind()
+    {
+        var fixture = new JobFixture();
+        // T2: a targeted re-drive (sweep / Regenerate for one missing or Failed
+        // kind) must claim + generate ONLY that kind -- not re-render + re-email
+        // the other two.
+        fixture.Args.Kind = PacketKind.AttorneyClaimExaminer;
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        await fixture.PacketManager.Received(1).EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.AttorneyClaimExaminer, Arg.Any<string>());
+        await fixture.PacketManager.DidNotReceive().EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.Patient, Arg.Any<string>());
+        await fixture.PacketManager.DidNotReceive().EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.Doctor, Arg.Any<string>());
+        await fixture.PacketManager.Received(1).MarkGeneratedAsync(
+            Arg.Any<Guid>(), Arg.Any<string?>());
+    }
+
+    [Fact]
+    public async Task GenerateInsideTenantAsync_WhenOneKindFails_GeneratesOthersAndSurfaces()
+    {
+        var fixture = new JobFixture();
+        // Only the attorney render fails; Patient + Doctor succeed.
+        fixture.PacketRenderer
+            .RenderAsync(PacketTemplateNames.AttorneyAme, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("attorney render failure"));
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+
+        // T5: the two good kinds still generate; the failed kind is marked Failed;
+        // the job SURFACES the partial failure so it is visible + retriable rather
+        // than silently reported Succeeded.
+        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
+        await fixture.PacketManager.Received(2).MarkGeneratedAsync(
+            Arg.Any<Guid>(), Arg.Any<string?>());
+        await fixture.PacketManager.Received(1).MarkFailedAsync(
+            Arg.Any<Guid>(), Arg.Is<string>(msg => msg.Contains("attorney render failure")));
     }
 
     [Fact]

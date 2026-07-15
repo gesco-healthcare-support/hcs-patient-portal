@@ -24,6 +24,13 @@ public class GenerateAppointmentPacketArgs
 {
     public Guid AppointmentId { get; set; }
     public Guid? TenantId { get; set; }
+
+    /// <summary>
+    /// T2: when set, generate ONLY this kind. Lets the reconciliation sweep /
+    /// Regenerate fix a single missing or Failed kind WITHOUT re-rendering and
+    /// re-emailing the others. Null = generate all three (the on-approval default).
+    /// </summary>
+    public PacketKind? Kind { get; set; }
 }
 
 /// <summary>
@@ -110,27 +117,73 @@ public class GenerateAppointmentPacketJob :
         // The AttorneyClaimExaminer packet was previously gated to PQME/AME via
         // a substring match that silently missed "Panel QME" (the space breaks
         // Contains("PQME")); the gate is removed so all types get it.
-        var kindsToGenerate = new List<PacketKind>
-        {
-            PacketKind.Patient,
-            PacketKind.Doctor,
-            PacketKind.AttorneyClaimExaminer,
-        };
+        //
+        // T2: a specific args.Kind targets ONE kind (surgical sweep / Regenerate
+        // re-drive); null generates all three (the on-approval default).
+        var kindsToGenerate = args.Kind.HasValue
+            ? new List<PacketKind> { args.Kind.Value }
+            : new List<PacketKind>
+            {
+                PacketKind.Patient,
+                PacketKind.Doctor,
+                PacketKind.AttorneyClaimExaminer,
+            };
 
+        var anyFailed = false;
         foreach (var kind in kindsToGenerate)
         {
-            await GenerateKindAsync(args.AppointmentId, kind, context);
+            var ok = await GenerateKindAsync(args.AppointmentId, kind, context);
+            if (!ok)
+            {
+                anyFailed = true;
+            }
+        }
+
+        if (anyFailed)
+        {
+            // T5: a kind ended Failed. Surface it so Hangfire retries (T1 makes the
+            // retry skip already-Generated kinds and re-render only the Failed one)
+            // and, once the 5-attempt policy exhausts, dead-letters visibly on
+            // /hangfire -- instead of silently reporting the whole job Succeeded.
+            throw new PacketGenerationIncompleteException(args.AppointmentId);
         }
     }
 
-    private async Task GenerateKindAsync(Guid appointmentId, PacketKind kind, PacketTokenContext context)
+    private async Task<bool> GenerateKindAsync(Guid appointmentId, PacketKind kind, PacketTokenContext context)
     {
         var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
         // The WeasyPrint sidecar returns a final PDF; the blob extension is
         // .pdf and PacketAttachmentProvider.PdfContentType matches.
         var blobName = $"{tenantSegment}/{appointmentId}/packet/{kind.ToString().ToLowerInvariant()}/{Guid.NewGuid():N}.pdf";
 
-        var packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, appointmentId, kind, blobName);
+        AppointmentPacket packet;
+        try
+        {
+            packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, appointmentId, kind, blobName);
+        }
+        catch (AbpDbConcurrencyException ex)
+        {
+            // A concurrent worker (sweep vs live job, two sweeps, or Regenerate +
+            // sweep) claimed this kind first; the filtered unique index rejects our
+            // duplicate insert. Skip -- the winner finishes it. Do NOT mark Failed
+            // (would clobber the winner's row) and do NOT propagate (whole-job retry
+            // storm, the BUG-033/036 mechanic).
+            _logger.LogInformation(ex,
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} claimed by a concurrent worker; skipping.",
+                appointmentId, kind);
+            return true; // not a failure -- the winner finishes this kind.
+        }
+
+        if (packet.Status == PacketGenerationStatus.Generated)
+        {
+            // Idempotency (T1): a prior attempt already generated this kind. Skip
+            // render + PacketGeneratedEto so a Hangfire retry / crash re-fetch cannot
+            // re-send the packet email (duplicate PHI).
+            _logger.LogInformation(
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} already Generated; skipping.",
+                appointmentId, kind);
+            return true; // already done -- not a failure.
+        }
 
         try
         {
@@ -186,6 +239,7 @@ public class GenerateAppointmentPacketJob :
             _logger.LogInformation(
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({PdfBytes} bytes PDF); PacketGeneratedEto published.",
                 appointmentId, kind, pdfBytes.Length);
+            return true;
         }
         // BUG-036 sub-bug 3 (defense-in-depth): include AbpDbConcurrencyException.
         // EF Core 8+ misclassifies SqlException 2601 on batched INSERT as
@@ -206,8 +260,11 @@ public class GenerateAppointmentPacketJob :
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} failed; marking Failed (no retry).",
                 appointmentId, kind);
             await _packetManager.MarkFailedAsync(packet.Id, ex.Message);
-            // Do not rethrow -- avoid Hangfire retry storm. Other kinds
-            // for this appointment continue generating.
+            // T5: return false so GenerateInsideTenantAsync surfaces the partial
+            // failure at the end (Hangfire retry -> T1 re-renders only this kind ->
+            // dead-letter if it stays broken). Do NOT rethrow the raw render
+            // exception here -- that would abort the sibling kinds mid-loop.
+            return false;
         }
     }
 

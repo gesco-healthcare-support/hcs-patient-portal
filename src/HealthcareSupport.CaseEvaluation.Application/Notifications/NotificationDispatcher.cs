@@ -4,11 +4,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications;
 
@@ -46,17 +48,23 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
     private readonly INotificationTemplateRenderer _renderer;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ICurrentTenant _currentTenant;
+    private readonly NotificationOutboxManager _outboxManager;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<NotificationDispatcher> _logger;
 
     public NotificationDispatcher(
         INotificationTemplateRenderer renderer,
         IBackgroundJobManager backgroundJobManager,
         ICurrentTenant currentTenant,
+        NotificationOutboxManager outboxManager,
+        IUnitOfWorkManager unitOfWorkManager,
         ILogger<NotificationDispatcher> logger)
     {
         _renderer = renderer;
         _backgroundJobManager = backgroundJobManager;
         _currentTenant = currentTenant;
+        _outboxManager = outboxManager;
+        _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
     }
 
@@ -83,10 +91,14 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
 
         var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
 
-        var tenantName = _currentTenant.Name;
+        var wroteAny = false;
         foreach (var recipient in recipients)
         {
-            await EnqueueEmailAsync(recipient, rendered, contextTag, templateCode, tenantName, packetRef);
+            wroteAny |= await WriteRecipientRowAsync(recipient, rendered, contextTag, templateCode, packetRef);
+        }
+        if (wroteAny)
+        {
+            await ScheduleDrainAsync(_currentTenant.Id);
         }
     }
 
@@ -123,29 +135,32 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var args = new SendAppointmentEmailArgs
-        {
-            To = to.Email,
-            Cc = ccEmails,
-            Subject = rendered.Subject,
-            Body = rendered.BodyEmail,
-            IsBodyHtml = true,
-            Context = contextTag,
-            Role = to.Role,
-            IsRegistered = to.IsRegistered,
-            TenantName = _currentTenant.Name,
-            TenantId = _currentTenant.Id,
-            PacketRef = packetRef,
-        };
-        await _backgroundJobManager.EnqueueAsync(args);
+        var tenantId = _currentTenant.Id;
+        await _outboxManager.EnqueueAsync(
+            tenantId,
+            to.Email,
+            ccEmails,
+            rendered.Subject,
+            rendered.BodyEmail,
+            isBodyHtml: true,
+            contextTag,
+            SendAppointmentEmailArgs.BuildIdempotencyKey(tenantId, to.Email, contextTag, packetRef?.Kind),
+            packetRef?.AppointmentId,
+            packetRef?.PacketId,
+            packetRef?.Kind);
+        await ScheduleDrainAsync(tenantId);
     }
 
-    private async Task EnqueueEmailAsync(
+    // T10: writes one Pending outbox row (idempotent by key) in the current UoW
+    // instead of enqueueing SendAppointmentEmailJob directly. Returns false when
+    // the recipient has no email (nothing written). The originating tenant is
+    // stamped on the row so the drain re-enters it before a packet-attachment
+    // fetch (the 2026-05-11 Bug A fix, now carried by the row's TenantId).
+    private async Task<bool> WriteRecipientRowAsync(
         NotificationRecipient recipient,
         RenderedNotification rendered,
         string contextTag,
         string templateCode,
-        string? tenantName,
         PacketAttachmentRef? packetRef)
     {
         if (string.IsNullOrWhiteSpace(recipient.Email))
@@ -154,26 +169,53 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
                 "NotificationDispatcher: skipping recipient with empty email for template {TemplateCode} ({Context}).",
                 templateCode,
                 contextTag);
+            return false;
+        }
+        var tenantId = _currentTenant.Id;
+        await _outboxManager.EnqueueAsync(
+            tenantId,
+            recipient.Email,
+            cc: null,
+            rendered.Subject,
+            rendered.BodyEmail,
+            isBodyHtml: true,
+            contextTag,
+            SendAppointmentEmailArgs.BuildIdempotencyKey(tenantId, recipient.Email, contextTag, packetRef?.Kind),
+            packetRef?.AppointmentId,
+            packetRef?.PacketId,
+            packetRef?.Kind);
+        return true;
+    }
+
+    // Kicks a drain of this office's outbox on UoW commit so the rows just
+    // written go out promptly. Deferred via OnCompleted because ABP's
+    // Hangfire-backed IBackgroundJobManager enqueues immediately (not UoW-aware)
+    // -- the same pattern PacketGenerationOnApprovedHandler uses. If the enqueue
+    // is lost to a shutdown race, the rows are already committed and the T11
+    // reconciliation sweep re-drives them, so nothing is lost.
+    private async Task ScheduleDrainAsync(Guid? tenantId)
+    {
+        var drainArgs = new OutboxDrainArgs { TenantId = tenantId };
+        var uow = _unitOfWorkManager.Current;
+        if (uow == null)
+        {
+            // No ambient UoW: the row already auto-saved, so enqueue the drain now.
+            await _backgroundJobManager.EnqueueAsync(drainArgs);
             return;
         }
-        var args = new SendAppointmentEmailArgs
+        uow.OnCompleted(async () =>
         {
-            To = recipient.Email,
-            Subject = rendered.Subject,
-            Body = rendered.BodyEmail,
-            IsBodyHtml = true,
-            Context = contextTag,
-            Role = recipient.Role,
-            IsRegistered = recipient.IsRegistered,
-            TenantName = tenantName,
-            // 2026-05-11 (Bug A fix): capture the originating tenant so the
-            // Hangfire worker can re-enter the right tenant before querying
-            // AppointmentPackets (otherwise the IMultiTenant filter at the
-            // host level excludes the row and the packet-attachment path
-            // silently skips with "is not Generated").
-            TenantId = _currentTenant.Id,
-            PacketRef = packetRef,
-        };
-        await _backgroundJobManager.EnqueueAsync(args);
+            try
+            {
+                await _backgroundJobManager.EnqueueAsync(drainArgs);
+            }
+            catch (ObjectDisposedException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "NotificationDispatcher: outbox drain enqueue skipped for tenant {TenantId} -- DI scope disposed before OnCompleted (test/shutdown). The reconciliation sweep will drain it.",
+                    tenantId);
+            }
+        });
     }
 }

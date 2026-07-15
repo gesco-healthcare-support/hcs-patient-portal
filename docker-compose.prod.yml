@@ -28,12 +28,17 @@ services:
   sql-server:
     image: mcr.microsoft.com/mssql/server:2022-latest
     restart: unless-stopped
+    # T6: cap the container so SQL cannot starve the app tier on the 16 GB box.
+    mem_limit: ${SQL_MEM_LIMIT:-10g}
     environment:
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
       ACCEPT_EULA: "Y"
       # Developer edition is licensed for dev/test (this LAN box is UAT). Switch to a
       # licensed edition (Express/Standard) before any real-patient production use.
       MSSQL_PID: "Developer"
+      # T6: hard-cap SQL's total process memory (honored by the mssql image). Unset,
+      # SQL grabs ~80% of host RAM (~12.8 GB of 16) and starves the app tier.
+      MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-7168}"
     volumes:
       - sqldata:/var/opt/mssql
       # T13: BACKUP DATABASE writes .bak here; bind-mounted to the configurable host destination
@@ -50,6 +55,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    mem_limit: 512m
     # AOF persistence: the DataProtection keyring (login + email-confirmation tokens,
     # shared across the authserver + api containers) MUST survive restarts, else every
     # deploy/reboot logs everyone out and breaks pending confirmation links (G5).
@@ -66,6 +72,7 @@ services:
   minio:
     image: minio/minio:latest
     restart: unless-stopped
+    mem_limit: 1g
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
@@ -108,6 +115,7 @@ services:
       context: .
       dockerfile: docker/packet-renderer/Dockerfile
     restart: unless-stopped
+    mem_limit: ${PACKET_RENDERER_MEM_LIMIT:-1500m}
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
@@ -160,6 +168,7 @@ services:
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     restart: unless-stopped
+    mem_limit: ${AUTHSERVER_MEM_LIMIT:-1500m}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"
@@ -227,6 +236,7 @@ services:
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     restart: unless-stopped
+    mem_limit: ${API_MEM_LIMIT:-2g}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"
@@ -291,6 +301,7 @@ services:
         # prod-dynamic-env.envsh overwrites dynamic-env.json from the env vars below.
         NG_CONFIG: production
     restart: unless-stopped
+    mem_limit: 256m
     environment:
       APP_BASE_HOST: "${BASE_DOMAIN}"
       APP_SPA_BASE_URL: "https://${BASE_DOMAIN}"
@@ -312,6 +323,7 @@ services:
   reverse-proxy:
     image: nginx:alpine
     restart: unless-stopped
+    mem_limit: 256m
     environment:
       # Substituted into default.conf.template by the nginx image's envsubst (only
       # defined env vars are substituted, so nginx's $host/$scheme are preserved).

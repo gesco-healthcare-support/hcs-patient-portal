@@ -25,9 +25,17 @@ public class AppointmentPacketManager : DomainService
     }
 
     /// <summary>
-    /// Ensures a Generating row exists for the (appointment, kind) tuple.
-    /// If a Generated or Failed row already exists for that tuple, flips
-    /// it back to Generating (the caller is about to re-run the merge).
+    /// Idempotency guard (T1): claims the (appointment, kind) row for generation.
+    /// <list type="bullet">
+    ///   <item>No row yet -> insert a Generating row.</item>
+    ///   <item>Already <see cref="PacketGenerationStatus.Generated"/> -> return it
+    ///     UNTOUCHED so the caller skips re-render + re-publish. Flipping it back to
+    ///     Generating here is what re-fired duplicate PHI-bearing packet emails on
+    ///     every Hangfire retry / crash re-fetch.</item>
+    ///   <item>Failed or still Generating -> reset to Generating for the re-attempt.</item>
+    /// </list>
+    /// A concurrent claim races the filtered unique index and surfaces as
+    /// <c>AbpDbConcurrencyException</c>; the caller catches it and skips the kind.
     /// </summary>
     public virtual async Task<AppointmentPacket> EnsureGeneratingAsync(Guid? tenantId, Guid appointmentId, PacketKind kind, string blobName)
     {
@@ -42,9 +50,20 @@ public class AppointmentPacketManager : DomainService
             return await _packetRepository.InsertAsync(existing, autoSave: true);
         }
 
+        // Already generated -> return as-is; the caller (GenerateAppointmentPacketJob)
+        // skips render + PacketGeneratedEto so a retry cannot duplicate the email.
+        if (existing.Status == PacketGenerationStatus.Generated)
+        {
+            return existing;
+        }
+
+        // Failed or still Generating -> reset for the re-attempt. Re-stamp
+        // LastAttemptAt (T11) so a freshly-retried row is not read as stale by
+        // the reconciliation sweep.
         existing.Status = PacketGenerationStatus.Generating;
         existing.ErrorMessage = null;
         existing.BlobName = blobName;
+        existing.LastAttemptAt = DateTime.UtcNow;
         return await _packetRepository.UpdateAsync(existing, autoSave: true);
     }
 
