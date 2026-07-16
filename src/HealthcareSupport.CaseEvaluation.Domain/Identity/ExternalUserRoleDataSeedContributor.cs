@@ -92,7 +92,7 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         }
     }
 
-    private static IEnumerable<string> BookingBaselineGrants()
+    internal static IEnumerable<string> BookingBaselineGrants()
     {
         // Read available slots for the booking form's date+time selector.
         yield return $"{Group}.DoctorAvailabilities";
@@ -150,6 +150,12 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.AppointmentPrimaryInsurances.Create";
         yield return $"{Group}.AppointmentPrimaryInsurances.Edit";
         yield return $"{Group}.AppointmentEmployerDetails";
+        // Parity fix (2026-07-16): Employer previously granted Default only, while
+        // every sibling child above grants Create + Edit. The Employer AppService now
+        // gates CreateAsync/UpdateAsync on these (was bare [Authorize]); without the
+        // grant the booking submit's employer POST 403s for external booking roles.
+        yield return $"{Group}.AppointmentEmployerDetails.Create";
+        yield return $"{Group}.AppointmentEmployerDetails.Edit";
         yield return $"{Group}.ApplicantAttorneys";
         yield return $"{Group}.ApplicantAttorneys.Create";
         yield return $"{Group}.ApplicantAttorneys.Edit";

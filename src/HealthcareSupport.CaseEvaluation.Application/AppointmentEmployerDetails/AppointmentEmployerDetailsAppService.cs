@@ -86,7 +86,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         await _appointmentEmployerDetailRepository.DeleteAsync(id);
     }
 
-    [Authorize]
+    [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Create)]
     public virtual async Task<AppointmentEmployerDetailDto> CreateAsync(AppointmentEmployerDetailCreateDto input)
     {
         if (input.AppointmentId == Guid.Empty)
@@ -106,7 +106,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         return ObjectMapper.Map<AppointmentEmployerDetail, AppointmentEmployerDetailDto>(appointmentEmployerDetail);
     }
 
-    [Authorize]
+    [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Edit)]
     public virtual async Task<AppointmentEmployerDetailDto> UpdateAsync(Guid id, AppointmentEmployerDetailUpdateDto input)
     {
         if (input.AppointmentId == Guid.Empty)

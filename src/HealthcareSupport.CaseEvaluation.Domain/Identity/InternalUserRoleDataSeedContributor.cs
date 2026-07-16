@@ -514,6 +514,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // auto-approve, leaving a half-built Pending appointment.
         yield return Create("AppointmentBodyParts");
         yield return Create("AppointmentAccessors");
+        // Parity fix (2026-07-16): the booking submit also POSTs employer details to
+        // the standalone Employer AppService, which now gates CreateAsync on
+        // AppointmentEmployerDetails.Create (was bare [Authorize]). The
+        // OperationalEntities loop above grants only Default (read); without this
+        // Create, Intake Staff's booking submit 403s on the employer POST -- the same
+        // per-child-POST 403 class as the injury / CE / insurance / body-part grants
+        // above. Create only (no Edit), matching the sibling child grants at this tier.
+        yield return Create("AppointmentEmployerDetails");
 
         foreach (var entity in LookupReadEntities)
         {
