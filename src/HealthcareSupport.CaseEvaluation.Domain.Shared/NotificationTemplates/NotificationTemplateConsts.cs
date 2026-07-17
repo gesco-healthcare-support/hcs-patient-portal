@@ -113,6 +113,15 @@ public static class NotificationTemplateConsts
         public const string PatientAppointmentCancelledNoBill = "PatientAppointmentCancelledNoBill";
         public const string ClinicalStaffCancellation = "ClinicalStaffCancellation";
         public const string AccessorAppointmentBooked = "AccessorAppointmentBooked";
+
+        /// <summary>
+        /// Issue #3 (2026-07-16) -- an accessor who ALREADY has a tenant account was added
+        /// to an appointment (existing-account NOTIFY path). Distinct from
+        /// <see cref="AccessorAppointmentBooked"/> (new-account invite with a password-setup
+        /// link); this body just says "you were added, log in to view". Fires for all
+        /// appointment types, including re-evaluation.
+        /// </summary>
+        public const string AccessorAppointmentAdded = "AccessorAppointmentAdded";
         public const string PatientDocumentAccepted = "PatientDocumentAccepted";
         public const string PatientDocumentRejected = "PatientDocumentRejected";
         public const string PatientDocumentUploaded = "PatientDocumentUploaded";
@@ -255,6 +264,9 @@ public static class NotificationTemplateConsts
 
             // Prompt 17 (2026-06-17) -- send-back / request-info notice.
             PatientAppointmentInfoRequested,
+
+            // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
+            AccessorAppointmentAdded,
         };
     }
 }

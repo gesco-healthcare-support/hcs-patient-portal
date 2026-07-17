@@ -28,6 +28,7 @@ export interface AppointmentAccessorWithNavigationPropertiesDto {
   appointmentAccessor?: AppointmentAccessorDto;
   identityUser?: IdentityUserDto | null;
   appointment?: AppointmentDto | null;
+  userRoleName?: string | null;
 }
 
 export interface GetAppointmentAccessorsInput extends PagedAndSortedResultRequestDto {
