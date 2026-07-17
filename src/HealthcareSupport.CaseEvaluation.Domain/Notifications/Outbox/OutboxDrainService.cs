@@ -3,8 +3,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Settings;
 using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Outbox;
@@ -22,17 +24,20 @@ public class OutboxDrainService : ITransientDependency
     private readonly NotificationOutboxManager _outboxManager;
     private readonly IOutboxEmailSender _sender;
     private readonly IClock _clock;
+    private readonly ISettingProvider _settingProvider;
     private readonly ILogger<OutboxDrainService> _logger;
 
     public OutboxDrainService(
         NotificationOutboxManager outboxManager,
         IOutboxEmailSender sender,
         IClock clock,
+        ISettingProvider settingProvider,
         ILogger<OutboxDrainService> logger)
     {
         _outboxManager = outboxManager;
         _sender = sender;
         _clock = clock;
+        _settingProvider = settingProvider;
         _logger = logger;
     }
 
@@ -42,6 +47,18 @@ public class OutboxDrainService : ITransientDependency
     /// </summary>
     public virtual async Task<OutboxDrainResult> DrainDueAsync(int? batchSize = null)
     {
+        // #4a master email switch: read per drain in the current (office) tenant scope --
+        // OutboxDrainJob enters args.TenantId before calling this -- so a toggle takes
+        // effect on the next sweep and a per-tenant override beats the host default. When
+        // disabled, claim nothing: due rows stay Pending and resume automatically once
+        // re-enabled, with no failed-attempt cost (MarkFailed never runs).
+        if (!await _settingProvider.IsTrueAsync(CaseEvaluationSettings.NotificationsPolicy.EmailEnabled))
+        {
+            _logger.LogInformation(
+                "OutboxDrainService: email is disabled (EmailEnabled=false); holding due rows Pending.");
+            return new OutboxDrainResult(0, 0);
+        }
+
         var lease = TimeSpan.FromSeconds(NotificationOutboxConsts.LeaseDurationSeconds);
         var backoff = TimeSpan.FromSeconds(NotificationOutboxConsts.RetryBackoffSeconds);
         var size = batchSize ?? NotificationOutboxConsts.DrainBatchSize;
