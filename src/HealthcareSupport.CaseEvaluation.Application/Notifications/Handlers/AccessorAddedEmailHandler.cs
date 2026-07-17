@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
@@ -83,11 +84,26 @@ public class AccessorAddedEmailHandler :
 
             var variables = BuildAddedEmailVariables(ctx, practiceName, eventData.Email);
 
-            await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.AccessorAppointmentAdded,
-                recipients: recipients,
-                variables: variables,
-                contextTag: $"AccessorAdded/{eventData.AccessorUserId}");
+            // Best-effort: this runs on UoW-complete AFTER the accessor link is committed,
+            // so a notification failure (e.g. a missing/misconfigured template) must NOT
+            // fail or roll back the accessor-add. Log loudly and move on rather than
+            // masking -- the added-accessor email is non-critical to the link operation.
+            try
+            {
+                await _dispatcher.DispatchAsync(
+                    templateCode: NotificationTemplateConsts.Codes.AccessorAppointmentAdded,
+                    recipients: recipients,
+                    variables: variables,
+                    contextTag: $"AccessorAdded/{eventData.AccessorUserId}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "AccessorAddedEmailHandler: failed to dispatch the added-accessor email for appointment {AppointmentId} to {Email}; the accessor link is unaffected.",
+                    eventData.AppointmentId,
+                    eventData.Email);
+            }
         }
     }
 

@@ -7,6 +7,8 @@ using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Shouldly;
 using Volo.Abp.MultiTenancy;
 using Xunit;
 
@@ -92,5 +94,35 @@ public class AccessorAddedEmailHandlerTests
             Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
             Arg.Any<IReadOnlyDictionary<string, object?>>(),
             Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_DispatchThrows_DoesNotPropagate()
+    {
+        // The link is already committed when this UoW-complete handler runs, so a
+        // dispatch failure (e.g. a missing template) must not bubble out and fail the
+        // accessor-add. The handler logs and swallows.
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        dispatcher
+            .DispatchAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<string>())
+            .ThrowsAsync(new Volo.Abp.BusinessException("NotificationTemplateNotFound"));
+
+        var handler = BuildHandler(dispatcher, SampleContext());
+
+        var thrown = await Record.ExceptionAsync(() => handler.HandleEventAsync(new AppointmentAccessorAddedEto
+        {
+            AppointmentId = Guid.NewGuid(),
+            AccessorUserId = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            Email = "accessor@example.test",
+            RoleName = "Applicant Attorney",
+            AccessTypeId = 23,
+        }));
+
+        thrown.ShouldBeNull();
     }
 }
