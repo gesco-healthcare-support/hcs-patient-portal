@@ -12,18 +12,21 @@ export type DetailAction = 'approve' | 'reject' | 'reschedule' | 'cancel' | 'req
 /**
  * Which office actions the detail offers at a given pill. Approved +
  * Rescheduled = reschedule/cancel; Rejected/Cancelled = none. Pending offers
- * approve/reject/reschedule/cancel + request-info (the staff side of the
- * send-back flow). Server permissions remain authoritative.
+ * approve/reject/reschedule + request-info (the staff side of the send-back
+ * flow). Server permissions remain authoritative.
  *
- * B1/C3 (2026-07-01): Cancel IS now offered on Pending. B1 relaxed the domain
- * precondition so internal staff may cancel a not-yet-approved appointment; the
- * cancel routes through the change-request + consent flow (no more 403). This
- * supersedes the F-M04 (2026-06-25) note that hid Cancel on Pending.
+ * 2026-07-16 triage (issue #2): Cancel is NOT offered on Pending -- it duplicated
+ * Reject (both send a not-yet-approved appointment back), so it was dropped for
+ * internal staff. This supersedes B1/C3 (2026-07-01), which had added Cancel on
+ * Pending. Cancel stays on Approved/Rescheduled so the office can still cancel an
+ * approved appointment via the change-request + consent flow. The backend
+ * precondition relaxation + consent pipeline are unchanged; only the Pending
+ * button is removed (F-M04 (2026-06-25) had also hidden Cancel on Pending).
  */
 export function detailActions(pill: AppointmentPillStatus): DetailAction[] {
   switch (pill) {
     case 'Pending':
-      return ['approve', 'reject', 'reschedule', 'cancel', 'requestInfo'];
+      return ['approve', 'reject', 'reschedule', 'requestInfo'];
     case 'Approved':
     case 'Rescheduled':
       return ['reschedule', 'cancel'];
