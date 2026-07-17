@@ -507,6 +507,7 @@ export class InternalAdminHubComponent {
         isCustomField: p.isCustomField,
         ccEmailIds: p.ccEmailIds,
         officeEmail: p.officeEmail,
+        emailEnabled: p.emailEnabled,
         concurrencyStamp: p.concurrencyStamp,
       })
       .pipe(finalize(() => this.isBusy.set(false)))

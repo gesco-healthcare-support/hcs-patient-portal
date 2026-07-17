@@ -45,5 +45,12 @@ public class SystemParameterDto : FullAuditedEntityDto<Guid>, IHasConcurrencySta
     /// </summary>
     public string? OfficeEmail { get; set; }
 
+    /// <summary>
+    /// Issue #4a (2026-07-16): master email on/off switch. Backed by the ABP setting
+    /// <c>NotificationsPolicy.EmailEnabled</c> (not a column). When false, the outbox
+    /// drain holds all email Pending until re-enabled. Default true.
+    /// </summary>
+    public bool EmailEnabled { get; set; }
+
     public string ConcurrencyStamp { get; set; } = null!;
 }

@@ -72,5 +72,8 @@ public class SystemParameterUpdateDto : IHasConcurrencyStamp
     [StringLength(256)]
     public string? OfficeEmail { get; set; }
 
+    /// <summary>Issue #4a: master email on/off switch (ABP setting, not a column).</summary>
+    public bool EmailEnabled { get; set; }
+
     public string ConcurrencyStamp { get; set; } = null!;
 }
