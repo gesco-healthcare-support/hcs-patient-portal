@@ -33,7 +33,9 @@ describe('performFullLogout', () => {
 
   it('falls back to logOut() when revocation fails so the user still reaches login', async () => {
     const oauth = {
-      revokeTokenAndLogout: jasmine.createSpy('revokeTokenAndLogout').and.rejectWith(new Error('boom')),
+      revokeTokenAndLogout: jasmine
+        .createSpy('revokeTokenAndLogout')
+        .and.rejectWith(new Error('boom')),
       logOut: jasmine.createSpy('logOut'),
     } as unknown as OAuthService;
 
@@ -44,7 +46,9 @@ describe('performFullLogout', () => {
 
   it('never rejects even if both revocation and the fallback throw', async () => {
     const oauth = {
-      revokeTokenAndLogout: jasmine.createSpy('revokeTokenAndLogout').and.rejectWith(new Error('boom')),
+      revokeTokenAndLogout: jasmine
+        .createSpy('revokeTokenAndLogout')
+        .and.rejectWith(new Error('boom')),
       logOut: jasmine.createSpy('logOut').and.throwError('gone'),
     } as unknown as OAuthService;
 
