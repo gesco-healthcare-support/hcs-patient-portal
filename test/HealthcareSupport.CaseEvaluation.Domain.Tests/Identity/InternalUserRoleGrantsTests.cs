@@ -144,4 +144,19 @@ public class InternalUserRoleGrantsTests
         IntakeShadow.ShouldContain("CaseEvaluation.AppointmentChangeRequests.Approve");
         IntakeShadow.ShouldContain("CaseEvaluation.AppointmentChangeRequests.Reject");
     }
+
+    // Parity fix (2026-07-16): the phone-in booker POSTs every booking child
+    // resource on submit; each standalone AppService gates CreateAsync on its own
+    // .Create. Employer was the one child missing the grant, so tightening the
+    // Employer gate ([Authorize(...Create)], was bare [Authorize]) would 403 the
+    // employer POST mid-booking. Pin the full child-create set so the parity holds.
+    [Theory]
+    [InlineData("CaseEvaluation.AppointmentInjuryDetails.Create")]
+    [InlineData("CaseEvaluation.AppointmentBodyParts.Create")]
+    [InlineData("CaseEvaluation.AppointmentClaimExaminers.Create")]
+    [InlineData("CaseEvaluation.AppointmentPrimaryInsurances.Create")]
+    [InlineData("CaseEvaluation.AppointmentAccessors.Create")]
+    [InlineData("CaseEvaluation.AppointmentEmployerDetails.Create")]
+    public void IntakeShadow_can_create_every_booking_child(string permission) =>
+        IntakeShadow.ShouldContain(permission);
 }

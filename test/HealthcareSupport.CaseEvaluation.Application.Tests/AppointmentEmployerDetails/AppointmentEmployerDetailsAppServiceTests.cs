@@ -209,23 +209,12 @@ public abstract class AppointmentEmployerDetailsAppServiceTests<TStartupModule> 
     // MultiOffice.MultiOfficeCatalogResolutionTests.
 
     // ------------------------------------------------------------------------
-    // Permission-gap encoding (GAP: AppointmentEmployerDetailsAppService
-    // CreateAsync and UpdateAsync use generic [Authorize] instead of the
-    // feature-specific Create/Edit permissions. Only DeleteAsync is enforced).
+    // Permission gate (was: GAP encoding). CreateAsync/UpdateAsync now carry the
+    // feature-specific [Authorize(...Create)] / [Authorize(...Edit)] policies at
+    // parity with the sibling child services. The gate is pinned by a
+    // harness-independent reflection guard in
+    // AppointmentEmployerDetailsAppServiceAuthorizationTests (behavioral denial
+    // is not testable here -- the SQLite harness does not seed role->permission
+    // grants; see AppointmentsAppServiceAuthorizationTests).
     // ------------------------------------------------------------------------
-
-    [Fact(Skip = "GAP: AppointmentEmployerDetailsAppService Create/Update use generic "
-              + "[Authorize]; feature-specific Create/Edit permissions exist in "
-              + "CaseEvaluationPermissions.AppointmentEmployerDetails but are NOT "
-              + "enforced. Only DeleteAsync uses the specific permission. When the "
-              + "AppService gets [Authorize(...Create)] / [Authorize(...Edit)] this "
-              + "test flips live. Tracked: src/.../Domain/AppointmentEmployerDetails/CLAUDE.md "
-              + "Known Gotchas #2.")]
-    public Task CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow()
-    {
-        // Target behaviour: caller without CaseEvaluation.AppointmentEmployerDetails.Create
-        // should get AbpAuthorizationException when calling CreateAsync. Today the
-        // method only requires generic [Authorize] so any authenticated user creates.
-        return Task.CompletedTask;
-    }
 }
