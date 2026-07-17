@@ -1,48 +1,36 @@
-using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
 
 namespace HealthcareSupport.CaseEvaluation.Pages.Account;
 
 /// <summary>
-/// B5 (2026-05-07) -- AuthServer's <c>/Account/Logout</c> override.
+/// AuthServer's <c>/Account/Logout</c> override, for a direct hit on this URL
+/// (a bookmark or a typed address). The SPA's user-menu Logout uses the
+/// standard OIDC end-session flow (<c>OAuthService.revokeTokenAndLogout()</c>
+/// -> <c>/connect/endsession</c>), which clears the SSO cookie and returns to
+/// <see cref="HealthcareSupport.CaseEvaluation.Pages.Account.LoggedOutModel"/>
+/// -> <c>/Account/Login</c>, so this page is no longer part of the SPA logout
+/// path.
 ///
-/// <para>The framework default signs out the cookie and redirects to
-/// <c>~/</c>, which our <see cref="HealthcareSupport.CaseEvaluation.Pages.IndexModel"/>
-/// then sends to <c>/Account/Login</c>. That is fine for the AuthServer
-/// itself but leaves the Angular SPA on the original tenant subdomain
-/// holding stale OAuth tokens in localStorage. Until those tokens
-/// expire (~1 hour for access_token + 14 days for refresh_token) the
-/// SPA continues to make API calls as the previous user, which is the
-/// behavior Adrian flagged as "stale OAuth tokens after logout".</para>
-///
-/// <para>The fix: sign out every authentication scheme on the
-/// AuthServer side, then redirect back to the SPA with
-/// <c>?logout=true</c> appended. <c>app.component.ts</c> detects that
-/// query param at bootstrap, calls
-/// <c>AuthService.logout()</c> (clears localStorage tokens via the
-/// underlying angular-oauth2-oidc client), and then redirects to
-/// <c>/login</c>. End result: regardless of whether the user clicked
-/// the SPA's user-menu Logout link or typed
-/// <c>/Account/Logout</c> directly, both ends are clean.</para>
-///
-/// <para>The route preserves any incoming <c>?ReturnUrl</c> -- it
-/// becomes the base for the SPA redirect when present, so logging out
-/// from inside an OIDC flow still completes the flow correctly.</para>
+/// <para>2026-07-17 -- removed the old <c>?logout=true</c> handshake and the
+/// hand-built SPA redirect (<c>BuildSpaLogoutUrl</c>). That URL was computed by
+/// reusing the AuthServer's own request host + a port swap, which is only valid
+/// in dev; on the production subdomain layout ({office}.&lt;base&gt; SPA vs
+/// {office}.auth.&lt;base&gt; AuthServer) it resolved to the AuthServer host
+/// itself and produced ERR_TOO_MANY_REDIRECTS. We now sign out every scheme,
+/// expire the non-auth cookies, and redirect to <c>/Account/Login</c> with a
+/// relative link (no host guessing).</para>
 /// </summary>
 public class LogoutModel : AbpPageModel
 {
-    private readonly IConfiguration _configuration;
     private readonly ILogger<LogoutModel> _logger;
 
-    public LogoutModel(IConfiguration configuration, ILogger<LogoutModel> logger)
+    public LogoutModel(ILogger<LogoutModel> logger)
     {
-        _configuration = configuration;
         _logger = logger;
     }
 
@@ -81,38 +69,6 @@ public class LogoutModel : AbpPageModel
         Response.Cookies.Delete("__tenant", new Microsoft.AspNetCore.Http.CookieOptions { Path = "/" });
         Response.Cookies.Delete("XSRF-TOKEN", new Microsoft.AspNetCore.Http.CookieOptions { Path = "/" });
 
-        return Redirect(BuildSpaLogoutUrl());
-    }
-
-    /// <summary>
-    /// Build the SPA URL on the same tenant subdomain as the incoming
-    /// request, append <c>?logout=true</c> so
-    /// <c>app.component.ts</c> can run its localStorage cleanup. The
-    /// host (e.g. <c>falkinstein.localhost</c>) is preserved verbatim;
-    /// only the port is swapped to the SPA's. Falls back to the
-    /// configured <c>App:AngularUrl</c> when the request host is
-    /// unavailable (rare; non-HTTP test contexts).
-    /// </summary>
-    private string BuildSpaLogoutUrl()
-    {
-        var configured = _configuration["App:AngularUrl"];
-        var requestHost = Request.Host.Host;
-        if (string.IsNullOrWhiteSpace(requestHost))
-        {
-            return string.IsNullOrWhiteSpace(configured)
-                ? "/?logout=true"
-                : configured.TrimEnd('/') + "/?logout=true";
-        }
-
-        var angularPort = "4200";
-        if (!string.IsNullOrWhiteSpace(configured)
-            && Uri.TryCreate(configured, UriKind.Absolute, out var configuredUri))
-        {
-            angularPort = configuredUri.IsDefaultPort ? string.Empty : configuredUri.Port.ToString();
-        }
-
-        var portSegment = string.IsNullOrEmpty(angularPort) ? string.Empty : ":" + angularPort;
-        var scheme = Request.Scheme;
-        return $"{scheme}://{requestHost}{portSegment}/?logout=true";
+        return RedirectToPage("./Login");
     }
 }

@@ -96,4 +96,47 @@ public class TenantUrlComposerUnitTests
     {
         TenantUrlComposer.ComposeForTenant(null, "Falkinstein").ShouldBeNull();
     }
+
+    // ComposeForRequestHost (2026-07-17) -- AuthServer root/logout redirect: derive the office
+    // slug from the leftmost label of the request host and prepend it to the office-less
+    // App:AngularUrl. Fixes the ERR_TOO_MANY_REDIRECTS loop where the AuthServer reused its own
+    // host as the SPA host (dev-only port-swap assumption; false on the prod subdomain layout).
+
+    [Fact]
+    public void ComposeForRequestHost_ProdTenant_ReturnsOfficeSpaHost()
+    {
+        TenantUrlComposer.ComposeForRequestHost(
+            "https://appointment-portal.pfd.tbc.local",
+            "falkinstein.auth.appointment-portal.pfd.tbc.local")
+            .ShouldBe("https://falkinstein.appointment-portal.pfd.tbc.local");
+    }
+
+    [Fact]
+    public void ComposeForRequestHost_ProdHostAdmin_ReturnsAdminSpaHost()
+    {
+        TenantUrlComposer.ComposeForRequestHost(
+            "https://appointment-portal.pfd.tbc.local",
+            "admin.auth.appointment-portal.pfd.tbc.local")
+            .ShouldBe("https://admin.appointment-portal.pfd.tbc.local");
+    }
+
+    [Fact]
+    public void ComposeForRequestHost_DevHostPort_PrependsSlugKeepsPort()
+    {
+        TenantUrlComposer.ComposeForRequestHost("http://localhost:4200", "falkinstein.localhost")
+            .ShouldBe("http://falkinstein.localhost:4200");
+    }
+
+    [Fact]
+    public void ComposeForRequestHost_BlankRequestHost_ReturnsBaseUnchanged()
+    {
+        TenantUrlComposer.ComposeForRequestHost("https://appointment-portal.pfd.tbc.local", "  ")
+            .ShouldBe("https://appointment-portal.pfd.tbc.local");
+    }
+
+    [Fact]
+    public void ComposeForRequestHost_NullBaseUrl_ReturnsNull()
+    {
+        TenantUrlComposer.ComposeForRequestHost(null, "falkinstein.auth.example.com").ShouldBeNull();
+    }
 }
