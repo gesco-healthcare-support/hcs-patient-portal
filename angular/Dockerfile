@@ -36,7 +36,9 @@ COPY dynamic-env.json /usr/share/nginx/html
 # container start (nginx sources *.envsh in /docker-entrypoint.d/ before starting),
 # so the SAME built image is re-pointable per environment -- prod subdomain-per-
 # service base URLs + baseHost. Overwrites the baked dynamic-env.json above.
-COPY prod-dynamic-env.envsh /docker-entrypoint.d/40-dynamic-env.envsh
+# --chmod=0755 is required: the nginx entrypoint IGNORES non-executable *.envsh
+# files, and Windows git checkouts do not carry the +x bit, so bake it in here.
+COPY --chmod=0755 prod-dynamic-env.envsh /docker-entrypoint.d/40-dynamic-env.envsh
 COPY --from=build /app/dist/CaseEvaluation/browser /usr/share/nginx/html
 
 # ---- dev: build + serve at runtime via dev-entrypoint.sh ----
