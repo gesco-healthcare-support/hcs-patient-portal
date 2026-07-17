@@ -10,31 +10,40 @@
 </div>
 
 <div class="ia-toolbar">
-  <select
-    class="ia-input"
-    style="width: 230px"
-    [ngModel]="locationId()"
-    [ngModelOptions]="{ standalone: true }"
-    (ngModelChange)="onLocationChange($event)"
-  >
-    @for (loc of locations(); track loc.id) {
-      <option [value]="loc.id">{{ loc.name }}</option>
-    }
-  </select>
+  <div style="display: flex; flex-direction: column; gap: 3px">
+    <label for="ia-location" style="font-size: 12px; color: var(--n-600)">Location</label>
+    <select
+      id="ia-location"
+      class="ia-input"
+      style="width: 230px"
+      [ngModel]="locationId()"
+      [ngModelOptions]="{ standalone: true }"
+      (ngModelChange)="onLocationChange($event)"
+    >
+      <option [value]="''">All locations</option>
+      @for (loc of locations(); track loc.id) {
+        <option [value]="loc.id">{{ loc.name }}</option>
+      }
+    </select>
+  </div>
 
-  <select
-    class="ia-input"
-    style="width: 150px"
-    [ngModel]="statusFilter()"
-    [ngModelOptions]="{ standalone: true }"
-    (ngModelChange)="statusFilter.set($event)"
-  >
-    <option value="all">All statuses</option>
-    <option value="busy">Booked &amp; reserved</option>
-    <option value="available">Available</option>
-    <option value="booked">Booked</option>
-    <option value="reserved">Reserved</option>
-  </select>
+  <div style="display: flex; flex-direction: column; gap: 3px">
+    <label for="ia-status" style="font-size: 12px; color: var(--n-600)">Status</label>
+    <select
+      id="ia-status"
+      class="ia-input"
+      style="width: 150px"
+      [ngModel]="statusFilter()"
+      [ngModelOptions]="{ standalone: true }"
+      (ngModelChange)="statusFilter.set($event)"
+    >
+      <option value="all">All statuses</option>
+      <option value="busy">Booked &amp; reserved</option>
+      <option value="available">Available</option>
+      <option value="booked">Booked</option>
+      <option value="reserved">Reserved</option>
+    </select>
+  </div>
 
   <div class="av-week">
     <button type="button" (click)="changeWeek(-1)" aria-label="Previous week">
@@ -89,7 +98,7 @@
               <span class="dow">{{ col.dow }}</span>
               <span class="num">{{ col.dayNum }}</span>
             </span>
-            @if (col.total > 0) {
+            @if (col.total > 0 && locationId()) {
               <button
                 class="del"
                 type="button"
@@ -196,14 +205,16 @@
             <td>{{ count(col, 'reserved') }}</td>
             <td>{{ col.total }}</td>
             <td style="text-align: right" (click)="$event.stopPropagation()">
-              <button
-                class="ra-rowbtn danger"
-                type="button"
-                title="Delete day"
-                (click)="askDeleteDay(col)"
-              >
-                <app-icon name="x" [size]="14" />
-              </button>
+              @if (locationId()) {
+                <button
+                  class="ra-rowbtn danger"
+                  type="button"
+                  title="Delete day"
+                  (click)="askDeleteDay(col)"
+                >
+                  <app-icon name="x" [size]="14" />
+                </button>
+              }
             </td>
           </tr>
           @if (isExpanded(col.iso)) {

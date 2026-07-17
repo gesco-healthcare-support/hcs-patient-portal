@@ -101,8 +101,10 @@ export class InternalAvailabilitiesComponent implements OnInit {
       next: (res) => {
         const opts = (res.items ?? []).map((l) => ({ id: l.id ?? '', name: l.displayName ?? '' }));
         this.locations.set(opts);
+        // Default to "All locations" (empty sentinel, already the initial value) so
+        // staff see the doctor's whole schedule at once instead of one location.
+        this.locationId.set('');
         if (opts.length > 0) {
-          this.locationId.set(opts[0].id);
           this.loadWeek();
         } else {
           this.loading.set(false);
@@ -113,17 +115,16 @@ export class InternalAvailabilitiesComponent implements OnInit {
   }
 
   private loadWeek(): void {
+    // Empty locationId means "All locations": omit it so the backend (which
+    // WhereIfs on a non-empty locationId) returns every location's slots.
     const locationId = this.locationId();
-    if (!locationId) {
-      return;
-    }
     this.loading.set(true);
     const week = this.weekDates();
     const min = `${this.toIso(week[0])}T00:00:00`;
     const max = `${this.toIso(week[week.length - 1])}T23:59:59`;
     this.service
       .getList({
-        locationId,
+        locationId: locationId || undefined,
         availableDateMin: min,
         availableDateMax: max,
         maxResultCount: 500,
@@ -230,7 +231,9 @@ export class InternalAvailabilitiesComponent implements OnInit {
   }
   protected confirmDeleteDay(): void {
     const col = this.confirmDay();
-    if (!col || this.isBusy()) {
+    // Per-day delete targets ONE location's slots; the button is hidden in the
+    // "All locations" view (empty locationId), so guard the handler too.
+    if (!col || this.isBusy() || !this.locationId()) {
       return;
     }
     this.isBusy.set(true);
