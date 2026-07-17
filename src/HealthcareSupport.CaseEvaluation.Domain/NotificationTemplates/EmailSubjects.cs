@@ -301,6 +301,13 @@ internal static class EmailSubjects
         "Appointment Portal - You have access to appointment ##AppointmentRequestConfirmationNumber##";
 
     /// <summary>
+    /// Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice
+    /// (no password-setup link; the recipient already has an account).
+    /// </summary>
+    public const string AccessorAppointmentAdded =
+        "Appointment Portal - You have been added to appointment ##AppointmentRequestConfirmationNumber##";
+
+    /// <summary>
     /// QA item M (2026-06-29) -- JDF due-date auto-cancel notice sent to all
     /// stakeholders. Was a stub before this.
     /// </summary>
@@ -331,6 +338,8 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PatientAppointmentNoShow] = PatientAppointmentNoShow,
             [NotificationTemplateConsts.Codes.PatientAppointmentCancelledNoBill] = PatientAppointmentCancelledNoBill,
             [NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested] = PatientAppointmentInfoRequested,
+            // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
+            [NotificationTemplateConsts.Codes.AccessorAppointmentAdded] = AccessorAppointmentAdded,
             [NotificationTemplateConsts.Codes.PatientDocumentAccepted] = PatientDocumentAccepted,
             [NotificationTemplateConsts.Codes.PatientDocumentRejected] = PatientDocumentRejected,
             [NotificationTemplateConsts.Codes.PatientDocumentUploaded] = PatientDocumentUploaded,

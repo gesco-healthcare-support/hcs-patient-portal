@@ -194,7 +194,7 @@ public class NotificationTemplatesValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void Codes_All_Has63Codes()
+    public void Codes_All_Has64Codes()
     {
         // OLD has 16 + 43 = 59 events. 2026-05-12: Cat 2-7 expansion +
         // packet-generation / reminder / digest handlers added 3 NEW-only
@@ -211,7 +211,9 @@ public class NotificationTemplatesValidatorUnitTests
         // JointDeclarationUploadReminder (-3 -> 62).
         // Prompt 17 (2026-06-17) added PatientAppointmentInfoRequested, the
         // send-back / request-info notice (+1 -> 63).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(63);
+        // Issue #3 (2026-07-16) added AccessorAppointmentAdded, the existing-account
+        // accessor "you were added" notice (+1 -> 64).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(64);
     }
 
     [Fact]

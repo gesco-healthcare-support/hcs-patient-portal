@@ -109,6 +109,11 @@ public class AppointmentAccessorManager : DomainService
             requestedRole: requestedRoleName);
 
         Guid identityUserId;
+        // #3 (2026-07-16): an accessor who already has a tenant account (LinkExisting /
+        // GrantRoleAndLink) publishes AppointmentAccessorAddedEto below so they are notified
+        // they were added; a brand-new account (CreateUserAndLink) keeps its own
+        // AppointmentAccessorInvitedEto (which carries the password-setup link).
+        var linkedExistingAccount = false;
         switch (outcome)
         {
             case AccessorLinkOutcome.RoleMismatch:
@@ -119,12 +124,14 @@ public class AppointmentAccessorManager : DomainService
 
             case AccessorLinkOutcome.LinkExisting:
                 identityUserId = existingUser!.Id;
+                linkedExistingAccount = true;
                 break;
 
             case AccessorLinkOutcome.GrantRoleAndLink:
                 identityUserId = existingUser!.Id;
                 await EnsureRoleExistsAsync(requestedRoleName, tenantId);
                 await _userManager.AddToRoleAsync(existingUser, requestedRoleName);
+                linkedExistingAccount = true;
                 break;
 
             case AccessorLinkOutcome.CreateUserAndLink:
@@ -161,6 +168,20 @@ public class AppointmentAccessorManager : DomainService
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unknown AccessorLinkOutcome.");
+        }
+
+        if (linkedExistingAccount)
+        {
+            await _localEventBus.PublishAsync(new AppointmentAccessorAddedEto
+            {
+                AppointmentId = appointmentId,
+                AccessorUserId = identityUserId,
+                TenantId = tenantId,
+                Email = normalizedEmail,
+                RoleName = requestedRoleName,
+                AccessTypeId = (int)accessTypeId,
+                OccurredAt = DateTime.UtcNow,
+            });
         }
 
         return await CreateAsync(identityUserId, appointmentId, accessTypeId);

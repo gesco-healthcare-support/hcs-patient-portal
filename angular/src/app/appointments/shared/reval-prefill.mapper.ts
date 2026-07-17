@@ -178,7 +178,10 @@ function mapAccessorToDraft(
     firstName: user?.name ?? opt?.firstName ?? '',
     lastName: user?.surname ?? opt?.lastName ?? '',
     email: user?.email ?? opt?.email ?? '',
-    userRole: opt?.userRole ?? '',
+    // #3 fix: fall back to the server-resolved role (UserRoleName) when the accessor
+    // is not in the tenant's authorized-user options, so a carried-forward accessor
+    // keeps a valid role for the reval re-POST (was '' -> role-validation failure).
+    userRole: opt?.userRole ?? item.userRoleName ?? '',
     accessTypeId: Number(accessor?.accessTypeId ?? 23),
   };
 }
