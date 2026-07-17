@@ -209,6 +209,14 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   });
 
   protected readonly userName = computed<string>(() => {
+    // While impersonating, prefer the operator's OWN name (resolved from the
+    // impersonation claim, issue #5) so the chip shows who you really are, not the
+    // impersonated office account. Falls back to the session user until it resolves
+    // or when not impersonating; initials()/avatar() derive from this.
+    const opName = this.operatorName();
+    if (this.impersonating() && opName) {
+      return opName;
+    }
     const u = this.user();
     const full = [u?.name, u?.surname].filter(Boolean).join(' ').trim();
     return full || u?.userName || '';
@@ -221,6 +229,15 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
    * supervisor reads "Staff Supervisor" while impersonating, not the office's "Administrator".
    */
   private readonly operatorRoleKey = signal<InternalRoleKey | null>(null);
+
+  /**
+   * 2026-07-16 (issue #5): the impersonating operator's OWN display name, resolved
+   * server-side from the impersonation claim (getImpersonatorInfo). Null when not
+   * impersonating or not yet resolved. userName() prefers this over the session user
+   * so the chip shows the operator (e.g. the supervisor), not the impersonated office
+   * account ("admin"); initials() and avatar() follow, deriving from userName().
+   */
+  private readonly operatorName = signal<string | null>(null);
 
   protected readonly roleLabel = computed<string>(() => {
     // While impersonating, the session's roles are the impersonated OFFICE account's, so a
@@ -486,15 +503,24 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     if (this.impersonating()) {
       if (this.operatorRoleKey() === null) {
         this.intakeAssignments.getImpersonatorInfo().subscribe({
-          next: (info) =>
-            this.operatorRoleKey.set(
-              info?.isImpersonating ? resolveInternalRoleKey(info.roles ?? null) : null,
-            ),
-          error: () => this.operatorRoleKey.set(null),
+          next: (info) => {
+            if (info?.isImpersonating) {
+              this.operatorRoleKey.set(resolveInternalRoleKey(info.roles ?? null));
+              this.operatorName.set(info.name?.trim() || null);
+            } else {
+              this.operatorRoleKey.set(null);
+              this.operatorName.set(null);
+            }
+          },
+          error: () => {
+            this.operatorRoleKey.set(null);
+            this.operatorName.set(null);
+          },
         });
       }
     } else {
       this.operatorRoleKey.set(null);
+      this.operatorName.set(null);
     }
     // Brand text is constant "Appointment Portal" everywhere (F3 follow-up); set the
     // host tab title to match. Offices keep their per-office tab title (set by
