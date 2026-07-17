@@ -14,5 +14,12 @@ public class ImpersonatorInfoDto
 {
     public bool IsImpersonating { get; set; }
 
+    /// <summary>
+    /// Display name of the host operator behind the impersonation ("Name Surname",
+    /// or user name), so the internal shell chip shows the operator's own identity
+    /// instead of the impersonated office account. Empty when not impersonating.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
     public List<string> Roles { get; set; } = new();
 }

@@ -346,7 +346,12 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
                 return new ImpersonatorInfoDto();
             }
             var roles = await _userManager.GetRolesAsync(op);
-            return new ImpersonatorInfoDto { IsImpersonating = true, Roles = roles.ToList() };
+            return new ImpersonatorInfoDto
+            {
+                IsImpersonating = true,
+                Name = ResolveOperatorDisplayName(op),
+                Roles = roles.ToList(),
+            };
         }
     }
 
@@ -359,6 +364,17 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         Guid.TryParse(CurrentUser.FindClaim(AbpClaimTypes.ImpersonatorUserId)?.Value, out var id)
             ? id
             : null;
+
+    /// <summary>
+    /// Display name for the host operator behind an impersonation: "Name Surname"
+    /// when set, else the user name. Feeds the internal shell chip so it shows who
+    /// the operator really is, not the impersonated office account.
+    /// </summary>
+    private static string ResolveOperatorDisplayName(IdentityUser op)
+    {
+        var full = $"{op.Name} {op.Surname}".Trim();
+        return string.IsNullOrWhiteSpace(full) ? (op.UserName ?? string.Empty) : full;
+    }
 
     private async Task<ListResultDto<LookupDto<Guid>>> GetAssignedOfficesAsync(Guid? operatorId)
     {

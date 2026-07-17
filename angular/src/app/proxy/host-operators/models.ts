@@ -28,5 +28,6 @@ export interface IntakeOfficeMetricsDto {
 
 export interface ImpersonatorInfoDto {
   isImpersonating?: boolean;
+  name?: string;
   roles?: string[];
 }
