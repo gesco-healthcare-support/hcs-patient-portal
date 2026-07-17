@@ -7,7 +7,7 @@ import {
 
 describe('internal-detail.util', () => {
   describe('detailActions', () => {
-    it('offers approve/reject/reschedule/cancel/request-info on Pending', () => {
+    it('offers approve/reject/reschedule/request-info on Pending', () => {
       const a = detailActions('Pending');
       expect(a).toContain('approve');
       expect(a).toContain('reject');
@@ -15,11 +15,15 @@ describe('internal-detail.util', () => {
       expect(a).toContain('requestInfo');
     });
 
-    // B1/C3 (2026-07-01): Cancel IS now offered on Pending. B1 lets internal
-    // staff cancel a not-yet-approved appointment via the change-request +
-    // consent flow, superseding the old F-M04 hide (which avoided a 403).
-    it('offers cancel on Pending (routes through the consent flow)', () => {
-      expect(detailActions('Pending')).toContain('cancel');
+    // 2026-07-16 triage (issue #2): Cancel is NO LONGER offered on Pending -- it
+    // duplicated Reject (both send a not-yet-approved appointment back), so it was
+    // dropped for internal staff. Supersedes B1/C3 (2026-07-01), which had added
+    // Cancel on Pending. The backend precondition + consent flow are unchanged;
+    // only the Pending button is removed. Cancel stays on Approved/Rescheduled.
+    it('does NOT offer cancel on Pending (Reject already covers it)', () => {
+      const a = detailActions('Pending');
+      expect(a).not.toContain('cancel');
+      expect(a).toContain('reject');
     });
 
     it('offers only reschedule + cancel on Approved and Rescheduled', () => {
