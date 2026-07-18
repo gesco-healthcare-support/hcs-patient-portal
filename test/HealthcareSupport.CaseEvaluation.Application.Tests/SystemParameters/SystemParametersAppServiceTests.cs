@@ -74,6 +74,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
             dto.PendingAppointmentOverDueNotificationDays.ShouldBe(SystemParameterConsts.DefaultPendingAppointmentOverDueNotificationDays);
             dto.ReminderCutoffTime.ShouldBe(SystemParameterConsts.DefaultReminderCutoffTime);
             dto.IsCustomField.ShouldBe(SystemParameterConsts.DefaultIsCustomField);
+            dto.EmailEnabled.ShouldBeTrue(); // #4a: master email switch defaults ON.
             dto.CcEmailIds.ShouldBeNull();
             dto.ConcurrencyStamp.ShouldNotBeNullOrEmpty();
         }
@@ -176,6 +177,28 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
             var result = await _appService.UpdateAsync(input);
 
             result.IsCustomField.ShouldBe(!current.IsCustomField);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ToggleEmailEnabled_Persists()
+    {
+        await EnsureTenantSeededAsync(TenantsTestData.TenantARef);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var current = await _appService.GetAsync();
+            current.EmailEnabled.ShouldBeTrue(); // #4a: defaults ON (host default).
+
+            var input = BuildValidUpdateDto(current.ConcurrencyStamp);
+            input.EmailEnabled = false;
+
+            var result = await _appService.UpdateAsync(input);
+            result.EmailEnabled.ShouldBeFalse();
+
+            // Round-trips: the outbox drain reads this per send.
+            var reread = await _appService.GetAsync();
+            reread.EmailEnabled.ShouldBeFalse();
         }
     }
 
@@ -290,6 +313,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
         ReminderCutoffTime = SystemParameterConsts.DefaultReminderCutoffTime,
         IsCustomField = SystemParameterConsts.DefaultIsCustomField,
         CcEmailIds = null,
+        EmailEnabled = true,
         ConcurrencyStamp = concurrencyStamp,
     };
 

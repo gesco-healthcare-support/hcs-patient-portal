@@ -93,6 +93,12 @@ public static class CaseEvaluationSettings
         // the Docker-exposed AuthServer plain-HTTP port + tenant subdomain);
         // admins override per-tenant once HTTPS dev wiring ships.
         public const string AuthServerBaseUrl = Notifications + ".AuthServerBaseUrl";
+
+        // Issue #4a (2026-07-16): master email on/off switch. When false, the outbox
+        // drain holds all due rows Pending (no send) until re-enabled -- covers every
+        // email type because all email flows through the outbox. Default true; a per-tenant
+        // override beats the host default.
+        public const string EmailEnabled = Notifications + ".EmailEnabled";
     }
 
     /// <summary>

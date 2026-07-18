@@ -17,6 +17,7 @@ export interface SystemParameterDto extends FullAuditedEntityDto<string> {
   isCustomField?: boolean;
   ccEmailIds?: string | null;
   officeEmail?: string | null;
+  emailEnabled?: boolean;
   concurrencyStamp?: string;
 }
 
@@ -36,5 +37,6 @@ export interface SystemParameterUpdateDto {
   isCustomField?: boolean;
   ccEmailIds?: string | null;
   officeEmail?: string | null;
+  emailEnabled?: boolean;
   concurrencyStamp?: string;
 }

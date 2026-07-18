@@ -289,6 +289,16 @@
               />
               <span class="track"></span>
             </label>
+            <label class="ra-switch" style="align-self: flex-start">
+              Send outgoing emails (master switch -- turn off to pause all email)
+              <input
+                type="checkbox"
+                [disabled]="!canEditParams()"
+                [ngModel]="p.emailEnabled"
+                (ngModelChange)="patchParam('emailEnabled', $event)"
+              />
+              <span class="track"></span>
+            </label>
           </div>
         </div>
         @if (canEditParams()) {

@@ -58,6 +58,11 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
         // surface the tenant's value so the settings page can show/edit it.
         dto.OfficeEmail = await _settingManager.GetOrNullForCurrentTenantAsync(
             CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
+        // #4a: master email switch (ABP setting, not a column). Default true; fall back to
+        // the host default when the tenant has no override.
+        var emailEnabledRaw = await _settingManager.GetOrNullForCurrentTenantAsync(
+            CaseEvaluationSettings.NotificationsPolicy.EmailEnabled);
+        dto.EmailEnabled = !bool.TryParse(emailEnabledRaw, out var enabled) || enabled;
         return dto;
     }
 
@@ -95,8 +100,15 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
         await _settingManager.SetForCurrentTenantAsync(
             CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, officeEmail);
 
+        // #4a: persist the master email switch as the per-tenant setting the outbox drain
+        // reads at send time.
+        await _settingManager.SetForCurrentTenantAsync(
+            CaseEvaluationSettings.NotificationsPolicy.EmailEnabled,
+            input.EmailEnabled ? "true" : "false");
+
         var dto = ObjectMapper.Map<SystemParameter, SystemParameterDto>(entity);
         dto.OfficeEmail = officeEmail;
+        dto.EmailEnabled = input.EmailEnabled;
         return dto;
     }
 

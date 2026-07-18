@@ -4,12 +4,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
+using Volo.Abp.Settings;
 using Volo.Abp.Timing;
 using Xunit;
 
@@ -35,7 +37,7 @@ public class OutboxDrainServiceTests
         public required OutboxDrainService Service { get; init; }
     }
 
-    private static Harness Build()
+    private static Harness Build(bool emailEnabled = true)
     {
         var rows = new List<NotificationOutboxItem>();
         var repo = Substitute.For<IRepository<NotificationOutboxItem, Guid>>();
@@ -54,7 +56,10 @@ public class OutboxDrainServiceTests
         var sender = Substitute.For<IOutboxEmailSender>();
         var clock = Substitute.For<IClock>();
         clock.Now.Returns(Now);
-        var service = new OutboxDrainService(manager, sender, clock, NullLogger<OutboxDrainService>.Instance);
+        var settingProvider = Substitute.For<ISettingProvider>();
+        settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.EmailEnabled)
+            .Returns(emailEnabled ? "true" : "false");
+        var service = new OutboxDrainService(manager, sender, clock, settingProvider, NullLogger<OutboxDrainService>.Instance);
 
         return new Harness { Rows = rows, Manager = manager, Sender = sender, Service = service };
     }
@@ -94,6 +99,25 @@ public class OutboxDrainServiceTests
         row.Status.ShouldBe(NotificationOutboxStatus.Pending);
         row.AttemptCount.ShouldBe(1);
         row.NextAttemptAt.ShouldNotBeNull();
+        row.SentAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_WhenEmailDisabled_HoldsRowsPending_AndSendsNothing()
+    {
+        // #4a master switch OFF: no send, and the row stays Pending with no attempt
+        // increment so it resumes cleanly (not dead-lettered) once re-enabled.
+        var h = Build(emailEnabled: false);
+        await SeedPendingAsync(h);
+
+        var result = await h.Service.DrainDueAsync();
+
+        result.Sent.ShouldBe(0);
+        result.Failed.ShouldBe(0);
+        await h.Sender.DidNotReceive().SendAsync(Arg.Any<SendAppointmentEmailArgs>());
+        var row = h.Rows.Single();
+        row.Status.ShouldBe(NotificationOutboxStatus.Pending);
+        row.AttemptCount.ShouldBe(0);
         row.SentAt.ShouldBeNull();
     }
 

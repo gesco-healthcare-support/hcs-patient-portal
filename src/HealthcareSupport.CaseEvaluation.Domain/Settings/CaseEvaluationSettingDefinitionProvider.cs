@@ -71,6 +71,10 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         var authServerDefault = _configuration["AuthServer:Authority"]?.TrimEnd('/');
         Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: authServerDefault);
 
+        // Issue #4a (2026-07-16): master email switch, default ON. Enforced at the outbox
+        // drain (the single send boundary); per-tenant overridable over the host default.
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.EmailEnabled, defaultValue: "true");
+
         // W2-10 + Group L: reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e)
         // + appointment-day + the two document-reminder jobs). The *Anchors
         // values are comma-separated day lists parsed by ReminderCadence at run
