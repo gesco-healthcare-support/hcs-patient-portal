@@ -1,5 +1,4 @@
-using System;
-using System.IO;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
@@ -53,31 +52,19 @@ public class IndexModel : AbpPageModel
     }
 
     /// <summary>
-    /// Builds the Angular SPA URL for the current tenant subdomain.
-    /// The host (e.g. <c>falkinstein.localhost</c>) is preserved from
-    /// the incoming request; only the port is swapped for the SPA's
-    /// (4200 by default, or whatever port <c>App:AngularUrl</c>
-    /// configures). Falls back to the configured value when the
-    /// request host is unavailable (rare; non-HTTP test contexts).
+    /// Builds the Angular SPA root URL for the current office subdomain. The office slug is the
+    /// leftmost label of the request host ("falkinstein.auth.&lt;base&gt;" -> "falkinstein",
+    /// "admin.auth.&lt;base&gt;" -> "admin"); <see cref="TenantUrlComposer.ComposeForRequestHost"/>
+    /// prepends it to the office-less <c>App:AngularUrl</c>, matching the email URL builder and
+    /// angular/src/tenant-bootstrap.ts. This must NOT reuse the request host as the SPA host: on the
+    /// production subdomain layout the SPA ({office}.&lt;base&gt;) and AuthServer
+    /// ({office}.auth.&lt;base&gt;) are different hosts, so reusing the request host redirected the
+    /// AuthServer root to itself -> ERR_TOO_MANY_REDIRECTS.
     /// </summary>
     private string ResolveAngularUrl()
     {
         var configured = _configuration["App:AngularUrl"];
-        var requestHost = Request.Host.Host;
-        if (string.IsNullOrWhiteSpace(requestHost))
-        {
-            return string.IsNullOrWhiteSpace(configured) ? "/" : configured;
-        }
-
-        var angularPort = "4200";
-        if (!string.IsNullOrWhiteSpace(configured)
-            && Uri.TryCreate(configured, UriKind.Absolute, out var configuredUri))
-        {
-            angularPort = configuredUri.IsDefaultPort ? string.Empty : configuredUri.Port.ToString();
-        }
-
-        var portSegment = string.IsNullOrEmpty(angularPort) ? string.Empty : ":" + angularPort;
-        var scheme = Request.Scheme;
-        return $"{scheme}://{requestHost}{portSegment}/";
+        var spaBase = TenantUrlComposer.ComposeForRequestHost(configured, Request.Host.Host);
+        return string.IsNullOrWhiteSpace(spaBase) ? "/" : spaBase!.TrimEnd('/') + "/";
     }
 }

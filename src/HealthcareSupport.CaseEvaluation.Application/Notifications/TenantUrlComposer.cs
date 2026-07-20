@@ -20,7 +20,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// already starts with the office slug (a tenant admin may have set an already-prefixed URL via
 /// <c>/setting-management</c>).</para>
 /// </summary>
-internal static class TenantUrlComposer
+public static class TenantUrlComposer
 {
     // Captures the scheme and the host[:port] -- everything up to the first '/', '?' or '#'.
     // The match timeout is a defensive ReDoS guard (Sonar S6444); the pattern is linear so it
@@ -56,5 +56,32 @@ internal static class TenantUrlComposer
 
             return $"{match.Groups["scheme"].Value}{slug}.{host}";
         });
+    }
+
+    /// <summary>
+    /// Resolves the office SPA base URL for an AuthServer request whose host carries the office
+    /// slug as its leftmost label (e.g. request host "falkinstein.auth.portal.example.com" with
+    /// configured base "https://portal.example.com" -> "https://falkinstein.portal.example.com";
+    /// the reserved host slug "admin" -> "https://admin.portal.example.com"). Delegates to
+    /// <see cref="ComposeForTenant"/> so the substitution matches the email URL builder and the
+    /// frontend angular/src/tenant-bootstrap.ts rule. Returns <paramref name="configuredBaseUrl"/>
+    /// unchanged when the base or request host is missing. NOTE: assumes the office slug is the
+    /// leftmost host label, which holds for the AuthServer ({office}.auth.&lt;base&gt; in prod,
+    /// {office}.localhost in dev) -- do NOT call it with a bare, office-less host.
+    /// </summary>
+    public static string? ComposeForRequestHost(string? configuredBaseUrl, string? requestHost)
+    {
+        if (string.IsNullOrEmpty(configuredBaseUrl))
+        {
+            return configuredBaseUrl;
+        }
+
+        if (string.IsNullOrWhiteSpace(requestHost))
+        {
+            return configuredBaseUrl;
+        }
+
+        var slug = requestHost.Split('.')[0];
+        return ComposeForTenant(configuredBaseUrl, slug);
     }
 }
