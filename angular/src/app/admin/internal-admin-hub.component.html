@@ -52,44 +52,35 @@
       </div>
       <div class="nt">
         <div class="nt-list">
-          @for (r of ntPaged(); track r.id) {
-            <button
-              class="nt-item"
-              [attr.data-on]="r.id === ntSelectedId()"
-              (click)="selectTemplate(r)"
-            >
-              <span class="dot" [class.on]="r.active" [class.off]="!r.active"></span>
-              <span class="tx">
-                <b>{{ r.code }}</b>
-                <span>{{ r.typeName }}</span>
-              </span>
-              @if (r.isCustomized) {
-                <span class="nt-ovr">Customized</span>
+          @for (g of ntGroups(); track g.key) {
+            <div class="nt-group">
+              <div class="nt-group__head">
+                {{ g.title }}
+                <span class="nt-group__n">{{ g.items.length }}</span>
+              </div>
+              @for (it of g.items; track it.row.id) {
+                <button
+                  class="nt-item"
+                  [attr.data-on]="it.row.id === ntSelectedId()"
+                  [title]="it.entry.whenItFires"
+                  (click)="selectTemplate(it.row)"
+                >
+                  <span class="dot" [class.on]="it.row.active" [class.off]="!it.row.active"></span>
+                  <span class="tx">
+                    <b>{{ it.entry.name }}</b>
+                    @if (it.entry.whenItFires) {
+                      <span class="nt-when">{{ it.entry.whenItFires }}</span>
+                    }
+                    <span class="nt-code">{{ it.row.code }}</span>
+                  </span>
+                  @if (it.row.isCustomized) {
+                    <span class="nt-ovr">Customized</span>
+                  }
+                </button>
               }
-            </button>
+            </div>
           } @empty {
             <div class="ia-empty">No templates match.</div>
-          }
-          @if (ntTotalPages() > 1) {
-            <div class="nt-pager">
-              <button
-                type="button"
-                [disabled]="ntPage() === 0"
-                (click)="goNtPage(-1)"
-                aria-label="Previous page"
-              >
-                <app-icon name="chevLeft" [size]="15" />
-              </button>
-              <span>Page {{ ntPage() + 1 }} of {{ ntTotalPages() }}</span>
-              <button
-                type="button"
-                [disabled]="ntPage() + 1 >= ntTotalPages()"
-                (click)="goNtPage(1)"
-                aria-label="Next page"
-              >
-                <app-icon name="chevRight" [size]="15" />
-              </button>
-            </div>
           }
         </div>
 
@@ -98,11 +89,15 @@
             <div class="ra-card__head">
               <span class="ic tint-blue"><app-icon name="doc" [size]="18" /></span>
               <div>
-                <h3>{{ t.code }}</h3>
+                <h3>{{ ntSelectedMeta()?.name || t.code }}</h3>
                 <p>
                   {{ t.typeName }}
                   {{ t.isCustomized ? '- customized for this tenant' : '- host default' }}
+                  <span class="nt-code">{{ t.code }}</span>
                 </p>
+                @if (ntSelectedMeta()?.whenItFires) {
+                  <p class="nt-when nt-when--head">{{ ntSelectedMeta()?.whenItFires }}</p>
+                }
               </div>
               @if (ntDraft(); as d) {
                 <label class="ra-switch right">

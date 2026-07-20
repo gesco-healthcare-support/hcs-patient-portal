@@ -34,6 +34,13 @@ import {
   SP_GROUPS,
 } from './admin-hub.util';
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
+import {
+  catalogEntryFor,
+  groupTemplatesByLifecycle,
+  matchesTemplateQuery,
+  type TemplateCatalogEntry,
+  type TemplateGroupView,
+} from './email-template-catalog';
 
 /** A single permission node in the role matrix (item 10 Part B nesting). */
 interface PermNode {
@@ -173,15 +180,25 @@ export class InternalAdminHubComponent {
   };
 
   protected readonly ntShown = computed(() => {
-    const q = this.ntQuery().trim().toLowerCase();
+    const q = this.ntQuery();
     const type = this.ntTypeFilter();
     return this.ntRows().filter(
-      (r) => (!type || r.typeName === type) && (!q || r.code.toLowerCase().includes(q)),
+      (r) =>
+        (!type || r.typeName === type) && matchesTemplateQuery(catalogEntryFor(r.code), r.code, q),
     );
   });
+  /** Filtered templates bucketed by lifecycle group for the grouped list. */
+  protected readonly ntGroups = computed<TemplateGroupView<NtRow>[]>(() =>
+    groupTemplatesByLifecycle(this.ntShown()),
+  );
   protected readonly ntSelected = computed(
     () => this.ntRows().find((r) => r.id === this.ntSelectedId()) ?? null,
   );
+  /** Friendly name + "when it fires" for the selected template's editor header. */
+  protected readonly ntSelectedMeta = computed<TemplateCatalogEntry | null>(() => {
+    const row = this.ntSelected();
+    return row ? catalogEntryFor(row.code) : null;
+  });
   private readonly ntLabelByToken = computed<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const v of this.ntVariables()) {
@@ -192,16 +209,6 @@ export class InternalAdminHubComponent {
   protected readonly ntPreviewSubject = computed(() =>
     previewSegments(this.ntDraft()?.subject, this.ntLabelByToken()),
   );
-  // ---- #6: client-side pager over the filtered list (~62 fixed codes) ----
-  protected readonly ntPageSize = 10;
-  protected readonly ntPage = signal(0);
-  protected readonly ntTotalPages = computed(() =>
-    Math.max(1, Math.ceil(this.ntShown().length / this.ntPageSize)),
-  );
-  protected readonly ntPaged = computed(() => {
-    const start = this.ntPage() * this.ntPageSize;
-    return this.ntShown().slice(start, start + this.ntPageSize);
-  });
 
   // ---- System Parameters ----
   protected readonly params = signal<SystemParameterDto | null>(null);
@@ -384,17 +391,9 @@ export class InternalAdminHubComponent {
   }
   protected setNtQuery(value: string): void {
     this.ntQuery.set(value);
-    this.ntPage.set(0);
   }
   protected setNtTypeFilter(value: string): void {
     this.ntTypeFilter.set(value);
-    this.ntPage.set(0);
-  }
-  protected goNtPage(delta: number): void {
-    const next = this.ntPage() + delta;
-    if (next >= 0 && next < this.ntTotalPages()) {
-      this.ntPage.set(next);
-    }
   }
   /** Capture the Quill instance so variable inserts land at the cursor. */
   protected onEditorCreated(editor: Quill): void {
