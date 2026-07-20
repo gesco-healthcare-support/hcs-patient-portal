@@ -104,6 +104,41 @@
     <PackageReference Include="MessagePack" Version="3.1.7" />
   </ItemGroup>
 
+  <!-- AngleSharp GHSA-pgww-w46g-26qg / CVE-2026-54570 (2026-07-20): NuGetAudit
+       NU1902 (Moderate, CVSS 6.9) raised against AngleSharp < 1.5.0, an mXSS
+       sanitizer-bypass via MathML <annotation-xml> integration points. Under
+       TreatWarningsAsErrors it fails `dotnet restore` on every backend project
+       (api / authserver / db-migrator + test projects) and blocks the
+       SonarCloud + CodeQL(csharp) checks on main and every PR.
+
+       Why suppressed instead of pinned (unlike the Scriban / MessagePack
+       same-line pins above): the only fix is AngleSharp 1.5.0, a major-version
+       jump. AngleSharp arrives transitively through HtmlSanitizer (Ganss.Xss),
+       whose latest stable (9.0.892) AND newest prerelease (9.1.966-beta,
+       2026-07-20) BOTH hard-require `AngleSharp = 0.17.1` exactly (plus
+       AngleSharp.Css 0.17.0, which itself constrains AngleSharp to
+       [0.17.0, 0.18.0)). Forcing AngleSharp 1.5.0 trips NU1608 and breaks the
+       0.17-API sanitizer at runtime, and there is no HtmlSanitizer release yet
+       that consumes AngleSharp >= 1.5.0. So the advisory cannot be pinned or
+       upgraded away today.
+
+       Exposure assessment (why the risk is accepted): the single consumer is
+       Application/NotificationTemplates/EmailBodySanitizer.cs, which sanitizes
+       ADMIN-AUTHORED notification-template bodies (edited by IT Admin / Staff
+       Supervisor at /admin/templates) whose output is delivered as EMAIL, not
+       rendered into the app DOM. The mXSS bypass therefore requires an already-
+       trusted template-editing operator, and the payload lands in email clients
+       that do not execute injected script; no untrusted-input path reaches
+       the sanitizer, and no browser DOM renders its output.
+
+       REMOVE this suppression when HtmlSanitizer/Ganss.Xss ships a release
+       depending on AngleSharp >= 1.5.0 (then bump HtmlSanitizer and drop this).
+       Scoped to the single advisory URL so all other NuGetAudit alerts still
+       fail the build. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+  </ItemGroup>
+
   <!-- OBS-14 guard (2026-05-22): bans direct Scriban references at compile
        time. The BannedSymbols.txt file at the repo root lists the specific
        types and namespaces that throw System.TypeLoadException at runtime
