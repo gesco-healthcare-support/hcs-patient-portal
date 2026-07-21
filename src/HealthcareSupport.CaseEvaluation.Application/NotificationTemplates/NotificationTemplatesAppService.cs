@@ -164,7 +164,15 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         }
 
         var email = CurrentUser.Email;
-        Check.NotNullOrWhiteSpace(email, "CurrentUser.Email");
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            // task_12e094b2 (2026-07-21): Send Test delivers to the signed-in user's own address.
+            // A friendly message beats the raw Check.NotNullOrWhiteSpace throw when the account has
+            // no email on file (e.g. an operator whose profile lacks one).
+            throw new UserFriendlyException(
+                "Your account has no email address on file, so a test email cannot be sent. "
+                + "Add an email to your profile and try again.");
+        }
 
         var recipients = new[] { new NotificationRecipient(email!, isRegistered: true) };
         var variables = NotificationTemplateVariableCatalog.BuildSampleVariables(entity.TemplateCode);

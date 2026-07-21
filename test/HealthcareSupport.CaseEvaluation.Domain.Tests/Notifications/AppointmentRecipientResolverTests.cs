@@ -102,4 +102,73 @@ public class AppointmentRecipientResolverTests
         Assert.All(recipients, r => Assert.Equal(OfficeTenantId, r.TenantId));
         Assert.All(recipients, r => Assert.Equal(OfficeTenantName, r.TenantName));
     }
+
+    [Fact]
+    public async Task ResolveAsync_WhenOfficeEmailUnset_AddsNoOfficeRecipient()
+    {
+        // task_12e094b2 (2026-07-21): an unset OfficeEmail adds no OfficeAdmin recipient (the
+        // office's own copy is dropped, and the resolver logs a Warning). Party recipients are
+        // unaffected -- here only the booker remains.
+        var appointmentId = Guid.NewGuid();
+        var bookerId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+
+        var appointment = new Appointment(
+            id: appointmentId,
+            patientId: patientId,
+            identityUserId: bookerId,
+            appointmentTypeId: Guid.NewGuid(),
+            locationId: Guid.NewGuid(),
+            doctorAvailabilityId: Guid.NewGuid(),
+            appointmentDate: DateTime.UtcNow.Date.AddDays(7),
+            requestConfirmationNumber: "TEST-RESOLVER-NOOFFICE",
+            appointmentStatus: AppointmentStatusType.Approved)
+        {
+            TenantId = OfficeTenantId,
+        };
+
+        var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
+        appointmentRepo.FindAsync(appointmentId).Returns(appointment);
+
+        var patientRepo = Substitute.For<IRepository<Patient, Guid>>();
+
+        var identityUserRepo = Substitute.For<IRepository<IdentityUser, Guid>>();
+        identityUserRepo.FindAsync(bookerId)
+            .Returns(new IdentityUser(bookerId, "booker", "booker@falkinstein.test", OfficeTenantId));
+
+        var applicantLinkRepo = Substitute.For<IAppointmentApplicantAttorneyRepository>();
+        applicantLinkRepo.GetQueryableAsync()
+            .Returns(new List<AppointmentApplicantAttorney>().AsQueryable());
+        var defenseLinkRepo = Substitute.For<IAppointmentDefenseAttorneyRepository>();
+        defenseLinkRepo.GetQueryableAsync()
+            .Returns(new List<AppointmentDefenseAttorney>().AsQueryable());
+
+        // Office inbox unset -> the office recipient must be skipped.
+        var settingProvider = Substitute.For<ISettingProvider>();
+        settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail)
+            .Returns((string?)null);
+
+        var currentTenant = Substitute.For<ICurrentTenant>();
+        currentTenant.Id.Returns(OfficeTenantId);
+        currentTenant.Name.Returns(OfficeTenantName);
+
+        var resolver = new AppointmentRecipientResolver(
+            appointmentRepo,
+            patientRepo,
+            identityUserRepo,
+            applicantLinkRepo,
+            Substitute.For<IRepository<ApplicantAttorney, Guid>>(),
+            defenseLinkRepo,
+            Substitute.For<IRepository<DefenseAttorney, Guid>>(),
+            Substitute.For<IRepository<AppointmentEmployerDetail, Guid>>(),
+            settingProvider,
+            currentTenant,
+            Substitute.For<IRecipientRoleResolver>(),
+            NullLogger<AppointmentRecipientResolver>.Instance);
+
+        var recipients = await resolver.ResolveAsync(appointmentId, NotificationKind.AppointmentDayReminder);
+
+        Assert.Single(recipients);
+        Assert.DoesNotContain(recipients, r => r.Role == RecipientRole.OfficeAdmin);
+    }
 }

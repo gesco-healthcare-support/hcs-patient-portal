@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
@@ -9,6 +10,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Volo.Abp.Uow;
 using Xunit;
 
@@ -46,6 +48,7 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     private readonly ICurrentTenant _currentTenant;
     private readonly IGuidGenerator _guidGenerator;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected NotificationTemplatesAppServiceTests()
     {
@@ -55,6 +58,7 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _guidGenerator = GetRequiredService<IGuidGenerator>();
         _unitOfWorkManager = GetRequiredService<IUnitOfWorkManager>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // ------------------------------------------------------------------
@@ -124,6 +128,30 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
             var ex = await Should.ThrowAsync<BusinessException>(
                 () => _appService.GetAsync(Guid.NewGuid()));
             ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // SendTestAsync
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendTestAsync_WhenCurrentUserHasNoEmail_ThrowsUserFriendly()
+    {
+        // task_12e094b2 (2026-07-21): Send Test delivers to the signed-in user's own email.
+        // WithCurrentUser.Run pushes a principal with no email claim, so CurrentUser.Email is
+        // null and the service must surface a UserFriendlyException (not a raw argument throw).
+        await EnsureSeededAsync(TenantsTestData.TenantARef);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var template = await _appService.GetByCodeAsync(NotificationTemplateConsts.Codes.AppointmentApproved);
+
+            using (WithCurrentUser.Run(_currentPrincipalAccessor, Guid.NewGuid()))
+            {
+                await Should.ThrowAsync<UserFriendlyException>(
+                    () => _appService.SendTestAsync(template.NotificationTemplate.Id));
+            }
         }
     }
 
