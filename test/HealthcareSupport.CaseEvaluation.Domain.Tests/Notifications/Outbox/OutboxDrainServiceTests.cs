@@ -40,7 +40,7 @@ public class OutboxDrainServiceTests
     private static Harness Build(bool emailEnabled = true)
     {
         var rows = new List<NotificationOutboxItem>();
-        var repo = Substitute.For<IRepository<NotificationOutboxItem, Guid>>();
+        var repo = Substitute.For<INotificationOutboxRepository>();
         repo.GetQueryableAsync().Returns(_ => rows.AsQueryable());
         repo.InsertAsync(Arg.Any<NotificationOutboxItem>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
@@ -51,6 +51,18 @@ public class OutboxDrainServiceTests
             });
         repo.UpdateAsync(Arg.Any<NotificationOutboxItem>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(ci.Arg<NotificationOutboxItem>()));
+        // Emulate the DB-atomic lease over the in-memory rows so a second drain observes the
+        // real post-send state; TryClaim enforces the same gate the SQL UPDATE would.
+        repo.TryLeaseAsync(Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var row = rows.FirstOrDefault(r => r.Id == ci.ArgAt<Guid>(0));
+                var now = ci.ArgAt<DateTime>(1);
+                var leaseUntil = ci.ArgAt<DateTime>(2);
+                return Task.FromResult(row != null && row.TryClaim(now, leaseUntil - now));
+            });
+        repo.GetAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(rows.First(r => r.Id == ci.ArgAt<Guid>(0))));
 
         var manager = new NotificationOutboxManager(repo, SimpleGuidGenerator.Instance);
         var sender = Substitute.For<IOutboxEmailSender>();
