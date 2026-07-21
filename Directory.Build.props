@@ -88,8 +88,17 @@
   <ItemGroup>
     <PackageReference Include="Scriban" Version="7.2.5" />
     <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x
-         matches our net10.0 TFM and resolves GHSA-37gx / GHSA-w3x6 CVEs. -->
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
+         matches our net10.0 TFM. Originally pinned to 10.0.6 to resolve the
+         GHSA-37gx / GHSA-w3x6 CVEs.
+         2026-07-21: the .NET July 2026 Patch Tuesday (2026-07-14) published
+         CVE-2026-50651 (GHSA-23rf-6693-g89p) plus 3 siblings
+         (GHSA-8q5v-6pqq-x66h, GHSA-cvvh-rhrc-wg4q, GHSA-g8r8-53c2-pm3f) against
+         System.Security.Cryptography.Xml through 10.0.6, so the prior 10.0.6 pin
+         now trips NU1903 (High) on a fresh restore under TreatWarningsAsErrors
+         and fails db-migrator / api / authserver restore and CI. 10.0.7 is the
+         first patched release; 10.0.10 is the latest on the same line. Same
+         pin-the-patched-version approach as the Scriban and MessagePack entries. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
     <!-- MessagePack 3.1.7 (2026-06-11): override the transitive 3.1.1 pulled by
          MagicOnion 7.0.6 (Cysharp, via ABP's distributed/SignalR stack) into
          HttpApi.Host + AuthServer (and their test projects). 3.1.1 is flagged by

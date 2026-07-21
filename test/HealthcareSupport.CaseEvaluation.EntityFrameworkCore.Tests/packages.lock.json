@@ -37,11 +37,11 @@
       },
       "System.Security.Cryptography.Xml": {
         "type": "Direct",
-        "requested": "[10.0.6, )",
-        "resolved": "10.0.6",
-        "contentHash": "71yFkEElPZKZ9jbZQTe1CWeHYXEtnCXwZnHnfeA8pP47tCXBUoWk+6zSIZ7RXO90nZjXgPNil6BFGWb1OBqA5w==",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "Mz6Y+s+uMQKj1H2BUF0OhlmaOQkLgSG34/IrUaBDirYBQ6bgwcFvO/XtXWcoDlBLFoFB0uKqDNhybHOd+fQK1A==",
         "dependencies": {
-          "System.Security.Cryptography.Pkcs": "10.0.6"
+          "System.Security.Cryptography.Pkcs": "10.0.10"
         }
       },
       "Volo.Abp.EntityFrameworkCore.Sqlite": {
@@ -1669,8 +1669,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "10.0.6",
-        "contentHash": "88tquaGJ1htm4DHWS6x9jwER7sFET2SVRN7HqO1FYZwE0diDcUmz0ajhVa8ZD2HGhDJBueSPjP/gqyP3gXtT2A=="
+        "resolved": "10.0.10",
+        "contentHash": "KG8t5RHczdgB3IWvRndpI0nE1DSo7ikDYSDbITxfgRFyIvnYiKzuPjaZOsPnwFQ1aOGUl9sEulJul9wlHLEUoA=="
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
@@ -3698,7 +3698,7 @@
           "MiniExcel": "[1.41.4, )",
           "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.Account.Pro.Admin.Application": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application": "[10.0.2, )",
           "Volo.Abp.AuditLogging.Application": "[10.0.2, )",
@@ -3721,7 +3721,7 @@
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.Account.Pro.Admin.Application.Contracts": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application.Contracts": "[10.0.2, )",
           "Volo.Abp.AuditLogging.Application.Contracts": "[10.0.2, )",
@@ -3747,7 +3747,7 @@
           "MessagePack": "[3.1.7, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )"
+          "System.Security.Cryptography.Xml": "[10.0.10, )"
         }
       },
       "healthcaresupport.caseevaluation.domain": {
@@ -3760,7 +3760,7 @@
           "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.5, )",
           "Stateless": "[5.20.1, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",
@@ -3788,7 +3788,7 @@
           "MessagePack": "[3.1.7, )",
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain.Shared": "[10.0.2, )",
@@ -3814,7 +3814,7 @@
           "MessagePack": "[3.1.7, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )"
+          "System.Security.Cryptography.Xml": "[10.0.10, )"
         }
       },
       "healthcaresupport.caseevaluation.entityframeworkcore": {
@@ -3824,7 +3824,7 @@
           "MessagePack": "[3.1.7, )",
           "Microsoft.EntityFrameworkCore.Tools": "[10.0.0, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.AuditLogging.EntityFrameworkCore": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.EntityFrameworkCore": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.EntityFrameworkCore": "[10.0.2, )",
@@ -3847,7 +3847,7 @@
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.Account.Pro.Admin.HttpApi": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.HttpApi": "[10.0.2, )",
           "Volo.Abp.AuditLogging.HttpApi": "[10.0.2, )",
@@ -3909,7 +3909,7 @@
           "NSubstitute": "[5.3.0, )",
           "Scriban": "[7.2.5, )",
           "Shouldly": "[4.3.0, )",
-          "System.Security.Cryptography.Xml": "[10.0.6, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.Authorization": "[10.0.2, )",
           "Volo.Abp.Autofac": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Abstractions": "[10.0.2, )",
