@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.Identity;
 using Microsoft.AspNetCore.Identity;
 using Volo.Abp;
 using Volo.Abp.Domain.Services;
@@ -27,8 +26,9 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
         _userManager = userManager;
     }
 
-    public async Task<Guid> EnsureShadowUserAsync(Guid officeId, Guid operatorUserId)
+    public async Task<Guid> EnsureShadowUserAsync(Guid officeId, Guid operatorUserId, string roleName)
     {
+        Check.NotNullOrWhiteSpace(roleName, nameof(roleName));
         var (email, name, surname) = await ResolveOperatorAsync(operatorUserId);
 
         using (CurrentTenant.Change(officeId))
@@ -37,16 +37,16 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
             if (existing != null)
             {
                 // Idempotent: re-activate (a prior unassign may have disabled it)
-                // and guarantee the Intake Staff role, then return.
+                // and guarantee the requested per-office role, then return.
                 var changed = false;
                 if (!existing.IsActive)
                 {
                     existing.SetIsActive(true);
                     changed = true;
                 }
-                if (!await _userManager.IsInRoleAsync(existing, InternalUserRoleDataSeedContributor.IntakeStaffRoleName))
+                if (!await _userManager.IsInRoleAsync(existing, roleName))
                 {
-                    (await _userManager.AddToRoleAsync(existing, InternalUserRoleDataSeedContributor.IntakeStaffRoleName)).CheckErrors();
+                    (await _userManager.AddToRoleAsync(existing, roleName)).CheckErrors();
                     changed = true;
                 }
                 if (changed)
@@ -69,7 +69,7 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
             (await _userManager.CreateAsync(shadow, GenerateUndisclosedPassword())).CheckErrors();
             shadow.SetEmailConfirmed(true);
             (await _userManager.UpdateAsync(shadow)).CheckErrors();
-            (await _userManager.AddToRoleAsync(shadow, InternalUserRoleDataSeedContributor.IntakeStaffRoleName)).CheckErrors();
+            (await _userManager.AddToRoleAsync(shadow, roleName)).CheckErrors();
 
             return shadow.Id;
         }

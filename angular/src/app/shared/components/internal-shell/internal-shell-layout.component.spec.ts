@@ -82,7 +82,9 @@ describe('InternalShellLayoutComponent office-to-office switch', () => {
 
     c.switchInto('office-b');
 
-    expect(impersonation.impersonateTenant).toHaveBeenCalledWith('office-b', 'admin');
+    // task_2e8e4dc2: every tier now sends an empty username -> the grant lands the operator as
+    // their own per-office shadow (Supervisor role here), never the shared office admin account.
+    expect(impersonation.impersonateTenant).toHaveBeenCalledWith('office-b', '');
     expect(impersonation.impersonate).not.toHaveBeenCalled();
     expect(readPendingOfficeSwitch()).toBeNull();
   });
@@ -98,7 +100,8 @@ describe('InternalShellLayoutComponent office-to-office switch', () => {
 
     expect(impersonation.impersonate).toHaveBeenCalledWith({});
     expect(impersonation.impersonateTenant).not.toHaveBeenCalled();
-    expect(readPendingOfficeSwitch()).toEqual({ officeId: 'office-b', userName: 'admin' });
+    // task_2e8e4dc2: the stashed username is empty for every tier (own-shadow target).
+    expect(readPendingOfficeSwitch()).toEqual({ officeId: 'office-b', userName: '' });
   });
 
   it('in-office intake switchInto stashes an empty username (shadow-user target)', () => {
