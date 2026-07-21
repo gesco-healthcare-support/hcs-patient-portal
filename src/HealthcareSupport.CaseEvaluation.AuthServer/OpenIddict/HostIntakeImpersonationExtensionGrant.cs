@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.HostOperators;
+using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -19,48 +20,51 @@ using Volo.Saas.Host;
 namespace HealthcareSupport.CaseEvaluation.OpenIddict;
 
 /// <summary>
-/// Phase D (2026-06-25) -- extends the stock <see cref="ImpersonationExtensionGrant"/>
-/// so a HOST Intake operator can land as their LIMITED per-office shadow Intake
-/// user. Replaces the stock "Impersonation" grant (registered in
-/// <c>CaseEvaluationAuthServerModule</c>).
+/// Extends the stock <see cref="ImpersonationExtensionGrant"/> so EVERY host operator who
+/// switches into an office lands as their OWN per-office shadow user (username == operator
+/// email) -- never the single shared office <c>admin</c> account. Replaces the stock
+/// "Impersonation" grant (registered in <c>CaseEvaluationAuthServerModule</c>).
 ///
-/// <para>Only <see cref="ImpersonateTenantAsync"/> is overridden -- the
-/// host-context branch the SPA already drives (TenantId + TenantUserName, no
-/// UserId). Routing of host/tenant/back-to is unchanged.</para>
+/// <para>Only <see cref="ImpersonateTenantAsync"/> is overridden. The requested
+/// <c>TenantUserName</c> is ignored for every tier -- the grant is the sole authority on the
+/// identity + role the operator lands as.</para>
 ///
 /// <list type="bullet">
-///   <item><b>Supervisor / IT Admin</b> (hold <c>Saas.Tenants.Impersonation</c>):
-///         stock behavior -- switch into the office as its <c>admin</c>.</item>
+///   <item><b>Supervisor / IT Admin</b> (hold <c>Saas.Tenants.Impersonation</c>,
+///         task_2e8e4dc2 2026-07-21): land as their own shadow holding the tenant role for
+///         their host tier -- IT Admin -> the tenant <c>admin</c> role (full office powers),
+///         Staff Supervisor -> the per-office Staff Supervisor role. The shadow is provisioned
+///         LAZILY here (no assignment step -- <c>Saas.Tenants</c> authorizes every office), so
+///         N operators get N distinct shadows (per-person audit, no shared-account collision).</item>
 ///   <item><b>Host Intake operator</b> (hold <c>CaseEvaluation.IntakeImpersonation</c>,
-///         NOT the broad SaaS permission): server-side, deny-by-default gate. The
-///         operator may enter ONLY offices in their assignment set
-///         (<see cref="IIntakeAssignmentChecker"/>), and the target is FORCED to
-///         the operator's OWN shadow user (username == operator email) -- the
-///         requested <c>TenantUserName</c> is ignored so they cannot request
-///         <c>admin</c> or another user. The sign-in body mirrors stock
-///         <c>ImpersonateTenantAsync</c> minus its broad-permission check, which
-///         the intake operator deliberately does not satisfy.</item>
+///         NOT the broad SaaS permission): server-side, deny-by-default assignment gate
+///         (<see cref="IIntakeAssignmentChecker"/>); lands as their own Intake Staff shadow
+///         (provisioned eagerly on assignment).</item>
 ///   <item>Anything else: forbidden.</item>
 /// </list>
 ///
-/// The mechanism (host -> named limited user in a separate office DB, with the
-/// office's tenant claim) was proven live before this was written: stock
-/// <c>currentTenant.Change(tenantId)</c> + <c>FindByNameAsync</c> resolves the
-/// user in the office's physical database.
+/// The mechanism (host -> named per-office user in a separate office DB, with the office's
+/// tenant claim) is proven: <c>currentTenant.Change(officeId)</c> + <c>FindByNameAsync</c>
+/// resolves the shadow in the office's physical database.
 /// </summary>
 public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
 {
+    // The Volo SaaS / ABP static per-tenant administrator role name. An IT-Admin's per-office
+    // shadow holds this ROLE (full office powers) -- the point of task_2e8e4dc2 is that the
+    // tenant admin is a role, not one shared account everyone impersonates into.
+    private const string TenantAdminRoleName = "admin";
+
     protected override async Task<IActionResult> ImpersonateTenantAsync(
         ExtensionGrantContext context,
         ClaimsPrincipal principal,
         Guid tenantId,
         string tenantUserName)
     {
-        // Supervisor / IT Admin keep the stock switch-in-as-admin path (the stock
-        // method enforces Saas.Tenants.Impersonation, which they hold).
+        // Supervisor / IT Admin: land as their OWN per-office shadow (task_2e8e4dc2), holding
+        // the tenant role for their host tier -- NOT the shared office admin account.
         if (await permissionChecker.IsGrantedAsync(SaasHostPermissions.Tenants.Impersonation))
         {
-            return await base.ImpersonateTenantAsync(context, principal, tenantId, tenantUserName);
+            return await ImpersonateAsOwnShadowAsync(context, principal, tenantId);
         }
 
         // Host Intake operator: gated, lands ONLY as their own limited shadow user.
@@ -70,6 +74,45 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
         }
 
         return Forbid(context, "You are not permitted to switch into offices.");
+    }
+
+    /// <summary>
+    /// task_2e8e4dc2 -- Supervisor / IT-Admin switch-in. Each operator lands as their OWN
+    /// per-office shadow user holding the tenant role for their host tier: IT Admin -> the
+    /// tenant <c>admin</c> role (full office powers), Staff Supervisor -> the per-office Staff
+    /// Supervisor role. The shadow is provisioned LAZILY here -- these tiers reach every office
+    /// via <c>Saas.Tenants</c>, so there is no assignment step and new offices work automatically.
+    /// No assignment gate (the broad SaaS permission is the authorization).
+    /// </summary>
+    private async Task<IActionResult> ImpersonateAsOwnShadowAsync(
+        ExtensionGrantContext context,
+        ClaimsPrincipal principal,
+        Guid officeId)
+    {
+        var operatorId = currentUser.Id;
+        var operatorEmail = currentUser.Email;
+        if (operatorId == null || string.IsNullOrWhiteSpace(operatorEmail))
+        {
+            return Forbid(context, "Operator identity could not be resolved.");
+        }
+
+        // Map host tier -> per-office role (resolved at host scope, before entering the office).
+        // IT-Admin (technical platform admin) lands with the tenant admin role; any other holder
+        // of Saas.Tenants.Impersonation is a Staff Supervisor.
+        var operatorUser = await userManager.GetByIdAsync(operatorId.Value);
+        var tenantRole = await userManager.IsInRoleAsync(operatorUser, InternalUserRoleDataSeedContributor.ItAdminRoleName)
+            ? TenantAdminRoleName
+            : InternalUserRoleDataSeedContributor.StaffSupervisorRoleName;
+
+        // Lazily provision-or-find the operator's own shadow in the office DB.
+        var shadowProvisioner = context.HttpContext.RequestServices
+            .GetRequiredService<IIntakeShadowUserProvisioner>();
+        await shadowProvisioner.EnsureShadowUserAsync(officeId, operatorId.Value, tenantRole);
+
+        return await SignInAsShadowUserAsync(
+            context, principal, officeId, operatorId.Value, operatorEmail,
+            currentUser.UserName ?? operatorEmail,
+            missingShadowError: "Could not provision office access. Please try again.");
     }
 
     private async Task<IActionResult> ImpersonateAssignedShadowUserAsync(
@@ -84,7 +127,7 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
             return Forbid(context, "Operator identity could not be resolved.");
         }
 
-        // Deny-by-default office gate (server-side, the security boundary).
+        // Deny-by-default office gate (server-side, the security boundary for Intake).
         var assignmentChecker = context.HttpContext.RequestServices
             .GetRequiredService<IIntakeAssignmentChecker>();
         if (!await assignmentChecker.IsAssignedAsync(operatorId.Value, officeId))
@@ -92,24 +135,41 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
             return Forbid(context, "You are not assigned to this office.");
         }
 
-        // Land as the operator's OWN shadow user only -- the requested
-        // TenantUserName is ignored. Sign-in body mirrors stock
-        // ImpersonateTenantAsync (minus the broad-permission check above).
+        return await SignInAsShadowUserAsync(
+            context, principal, officeId, operatorId.Value, operatorEmail,
+            currentUser.UserName ?? operatorEmail,
+            missingShadowError: "No active intake access for this office.");
+    }
+
+    /// <summary>
+    /// Signs the operator in AS their per-office shadow user (username == operator email),
+    /// carrying the ImpersonatorUserId/UserName claims so the shell shows who they really are.
+    /// The shadow must already exist in the office DB (Intake provisions on assignment;
+    /// Supervisor/IT-Admin provision just before calling this). The requested TenantUserName is
+    /// ignored. Body mirrors stock ImpersonateTenantAsync minus the broad-permission check.
+    /// </summary>
+    private async Task<IActionResult> SignInAsShadowUserAsync(
+        ExtensionGrantContext context,
+        ClaimsPrincipal principal,
+        Guid officeId,
+        Guid operatorId,
+        string operatorEmail,
+        string operatorUserName,
+        string missingShadowError)
+    {
         using (currentTenant.Change(officeId))
         {
             var shadowUser = await userManager.FindByNameAsync(operatorEmail);
             if (shadowUser == null)
             {
-                // Eager provisioning (on assignment) should have created it; a
-                // missing shadow user means the assignment is stale.
-                return Forbid(context, "No active intake access for this office.");
+                return Forbid(context, missingShadowError);
             }
 
             var claimsPrincipal = await userClaimsPrincipalFactory.CreateAsync(shadowUser);
             var extraClaims = new List<Claim>
             {
-                new Claim(AbpClaimTypes.ImpersonatorUserId, operatorId.Value.ToString()),
-                new Claim(AbpClaimTypes.ImpersonatorUserName, currentUser.UserName ?? operatorEmail),
+                new Claim(AbpClaimTypes.ImpersonatorUserId, operatorId.ToString()),
+                new Claim(AbpClaimTypes.ImpersonatorUserName, operatorUserName),
             };
             var rememberMe = principal.Claims.FirstOrDefault(x => x.Type == AbpClaimTypes.RememberMe);
             if (rememberMe != null)

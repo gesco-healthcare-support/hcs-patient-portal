@@ -200,8 +200,10 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
             }
         }
 
-        // Eager (O-D3): ensure the limited shadow Intake user exists in the office DB.
-        await _shadowProvisioner.EnsureShadowUserAsync(input.OfficeId, input.OperatorUserId);
+        // Eager (O-D3): ensure the limited shadow Intake user exists in the office DB,
+        // holding the per-office Intake Staff role.
+        await _shadowProvisioner.EnsureShadowUserAsync(
+            input.OfficeId, input.OperatorUserId, InternalUserRoleDataSeedContributor.IntakeStaffRoleName);
     }
 
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]

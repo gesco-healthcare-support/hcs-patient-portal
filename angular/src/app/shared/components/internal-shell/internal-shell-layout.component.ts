@@ -401,10 +401,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Switch into an office. A supervisor / IT Admin enters as the office `admin`
-   * (same path as the Offices list's "Switch into tenant" button) and gets the
-   * admin's full powers; an Intake operator sends an empty username so the custom
-   * grant forces their own limited shadow user.
+   * Switch into an office. Every tier sends an EMPTY username so the custom grant
+   * (HostIntakeImpersonationExtensionGrant) is the sole authority on identity + role:
+   * each operator lands as their OWN per-office shadow user (task_2e8e4dc2) -- Supervisor
+   * with the Staff Supervisor role, IT-Admin with the tenant admin role, Intake with the
+   * Intake Staff role -- never the shared office `admin` account.
    *
    * From host scope this is a single direct impersonation. From INSIDE an office
    * (F Half 2 office -> office), ABP forbids nested impersonation, so we instead
@@ -415,7 +416,8 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     if (this.switching() || !officeId) {
       return;
     }
-    const userName = this.roleKey() === 'intake' ? '' : 'admin';
+    // Empty username -> the grant forces the operator's own shadow user + tier role.
+    const userName = '';
     this.switching.set(true);
     this.closeSwitcher();
 
