@@ -21,10 +21,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 ///
 /// <para>Lives in the per-office (tenant) DB so the Pending write commits in the
 /// same transaction as the approval; <see cref="IMultiTenant"/> for that reason.
-/// Cross-worker claim races are arbitrated by the inherited
-/// <c>ConcurrencyStamp</c> at save time -- two drains may both pass
-/// <see cref="TryClaim"/> in memory, but only the first UpdateAsync commits; the
-/// second throws AbpDbConcurrencyException and skips the row.</para>
+/// Cross-worker claim races are arbitrated in the database by an atomic status-gated
+/// lease (INotificationOutboxRepository.TryLeaseAsync): one UPDATE flips
+/// <see cref="LockedUntil"/> only while the row is still due, so exactly one drain
+/// wins it and the losers update zero rows and skip -- no AbpDbConcurrencyException.
+/// <see cref="TryClaim"/> encodes the same gate in the domain (and drives the
+/// unit-test lease emulation).</para>
 ///
 /// <para>HIPAA: <see cref="Body"/> is the already-rendered email (may contain the
 /// same PHI-adjacent content the recipient is authorized to see); it is never

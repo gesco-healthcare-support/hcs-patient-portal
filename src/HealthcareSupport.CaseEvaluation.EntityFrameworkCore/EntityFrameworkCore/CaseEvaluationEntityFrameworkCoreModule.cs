@@ -68,6 +68,8 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<ApplicantAttorney, ApplicantAttorneys.EfCoreApplicantAttorneyRepository>();
             options.AddRepository<ClaimExaminer, ClaimExaminers.EfCoreClaimExaminerRepository>();
             options.AddRepository<AppointmentApplicantAttorney, AppointmentApplicantAttorneys.EfCoreAppointmentApplicantAttorneyRepository>();
+            // task_349a723c (2026-07-21): custom outbox repo adds the atomic status-gated lease.
+            options.AddRepository<Notifications.Outbox.NotificationOutboxItem, Notifications.Outbox.EfCoreNotificationOutboxRepository>();
         });
         context.Services.AddAbpDbContext<CaseEvaluationTenantDbContext>(options =>
         {

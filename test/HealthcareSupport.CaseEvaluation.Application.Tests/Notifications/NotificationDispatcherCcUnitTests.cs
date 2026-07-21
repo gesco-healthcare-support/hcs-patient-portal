@@ -47,7 +47,7 @@ public class NotificationDispatcherCcUnitTests
         tenant.Id.Returns((Guid?)null);
 
         var rows = new List<NotificationOutboxItem>();
-        var repo = Substitute.For<IRepository<NotificationOutboxItem, Guid>>();
+        var repo = Substitute.For<INotificationOutboxRepository>();
         repo.GetQueryableAsync().Returns(_ => rows.AsQueryable());
         repo.InsertAsync(Arg.Any<NotificationOutboxItem>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci =>

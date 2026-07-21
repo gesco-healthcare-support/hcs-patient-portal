@@ -22,11 +22,11 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 /// </summary>
 public class NotificationOutboxManager : DomainService
 {
-    protected IRepository<NotificationOutboxItem, Guid> _outboxRepository;
+    protected INotificationOutboxRepository _outboxRepository;
     private readonly IGuidGenerator _guidGenerator;
 
     public NotificationOutboxManager(
-        IRepository<NotificationOutboxItem, Guid> outboxRepository,
+        INotificationOutboxRepository outboxRepository,
         IGuidGenerator guidGenerator)
     {
         _outboxRepository = outboxRepository;
@@ -70,33 +70,42 @@ public class NotificationOutboxManager : DomainService
     }
 
     /// <summary>
-    /// Claims up to <paramref name="batchSize"/> due Pending rows (oldest first),
-    /// leasing each via <see cref="NotificationOutboxItem.TryClaim"/>. A row whose
-    /// concurrency stamp changed under a racing drain surfaces as
-    /// <c>AbpDbConcurrencyException</c> on save; the caller decides whether to
-    /// swallow per-row. Returns the rows this call successfully leased.
+    /// Claims up to <paramref name="batchSize"/> due Pending rows (oldest first) via an ATOMIC
+    /// status-gated lease (<see cref="INotificationOutboxRepository.TryLeaseAsync"/>). Overlapping
+    /// drains no longer collide on save: a row already leased by another drain updates 0 rows and
+    /// is skipped, with no <c>AbpDbConcurrencyException</c>. Returns the rows this call leased.
     /// </summary>
     public virtual async Task<List<NotificationOutboxItem>> ClaimDueBatchAsync(
         DateTime nowUtc,
         TimeSpan leaseDuration,
         int batchSize)
     {
+        // task_349a723c (2026-07-21): read the due candidate IDs, then lease each ATOMICALLY. This
+        // replaces the prior read-then-optimistic-UpdateAsync, where two overlapping drains both
+        // passed TryClaim in memory and one then threw AbpDbConcurrencyException on save (noisy;
+        // aborted the whole drain -> Hangfire retry). Now the loser's lease updates 0 rows and is
+        // skipped. A freshly-leased row is reloaded so the send + MarkSent run against its current
+        // state (the lease UPDATE bypasses the change-tracker).
+        var leaseUntil = nowUtc.Add(leaseDuration);
         var queryable = await _outboxRepository.GetQueryableAsync();
-        var candidates = queryable
+        // Synchronous LINQ (as EnqueueAsync does) rather than AsyncExecuter: the candidate
+        // read is a tiny indexed query (<= batchSize Ids) on a background thread, and keeping
+        // it sync lets the manager be unit-tested without the DI-injected AsyncExecuter.
+        var candidateIds = queryable
             .Where(x => x.Status == NotificationOutboxStatus.Pending
                 && (x.LockedUntil == null || x.LockedUntil <= nowUtc)
                 && (x.NextAttemptAt == null || x.NextAttemptAt <= nowUtc))
             .OrderBy(x => x.CreationTime)
             .Take(batchSize)
+            .Select(x => x.Id)
             .ToList();
 
         var claimed = new List<NotificationOutboxItem>();
-        foreach (var item in candidates)
+        foreach (var id in candidateIds)
         {
-            if (item.TryClaim(nowUtc, leaseDuration))
+            if (await _outboxRepository.TryLeaseAsync(id, nowUtc, leaseUntil))
             {
-                await _outboxRepository.UpdateAsync(item, autoSave: true);
-                claimed.Add(item);
+                claimed.Add(await _outboxRepository.GetAsync(id));
             }
         }
         return claimed;

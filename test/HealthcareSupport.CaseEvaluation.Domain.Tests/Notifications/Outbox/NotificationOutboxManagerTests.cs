@@ -42,15 +42,28 @@ public class NotificationOutboxManagerTests
         return item;
     }
 
-    private static (NotificationOutboxManager manager, IRepository<NotificationOutboxItem, Guid> repo)
+    private static (NotificationOutboxManager manager, INotificationOutboxRepository repo)
         Build(List<NotificationOutboxItem> seed)
     {
-        var repo = Substitute.For<IRepository<NotificationOutboxItem, Guid>>();
+        var repo = Substitute.For<INotificationOutboxRepository>();
         repo.GetQueryableAsync().Returns(seed.AsQueryable());
         repo.InsertAsync(Arg.Any<NotificationOutboxItem>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(ci.Arg<NotificationOutboxItem>()));
         repo.UpdateAsync(Arg.Any<NotificationOutboxItem>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(ci.Arg<NotificationOutboxItem>()));
+        // Emulate the DB-atomic lease over the in-memory seed: the entity's own TryClaim
+        // enforces the same gate the SQL UPDATE would, so ClaimDueBatchAsync exercises its
+        // real candidate query + reload while only the atomic write is faked.
+        repo.TryLeaseAsync(Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var row = seed.FirstOrDefault(r => r.Id == ci.ArgAt<Guid>(0));
+                var now = ci.ArgAt<DateTime>(1);
+                var leaseUntil = ci.ArgAt<DateTime>(2);
+                return Task.FromResult(row != null && row.TryClaim(now, leaseUntil - now));
+            });
+        repo.GetAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(seed.First(r => r.Id == ci.ArgAt<Guid>(0))));
         return (new NotificationOutboxManager(repo, SimpleGuidGenerator.Instance), repo);
     }
 
