@@ -477,6 +477,30 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
     }
 
+    // task_d5407b22 (2026-07-21): patient email is OPTIONAL (injured workers often lack one).
+    // A null email (the wizard sends null for an empty field; "" is rejected by the DTO's
+    // [EmailAddress]) + a name/DOB that matches no existing patient must create a new record-only
+    // patient with an empty stored email instead of throwing "Email is required".
+    [Fact]
+    public async Task GetOrCreatePatient_WhenEmailBlank_CreatesRecordOnlyPatientWithNoEmail()
+    {
+        var input = new CreatePatientForAppointmentBookingInput
+        {
+            FirstName = "NoEmail",
+            LastName = "InjuredWorker",
+            Email = null!,
+            GenderId = (Gender)PatientsTestData.PatientGenderIdValue,
+            DateOfBirth = new DateTime(1979, 6, 15),
+            PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
+        };
+
+        var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+
+        result.ShouldNotBeNull();
+        result.Patient.FirstName.ShouldBe("NoEmail");
+        result.Patient.Email.ShouldBe(string.Empty);
+    }
+
     // R2 (Phase 9, 2026-05-04): IsExisting=true on the email-fast-path branch.
     // Mirrors OLD AppointmentDomain.cs:210 -- when booking resolves to an
     // already-existing Patient, the Appointment must record IsPatientAlreadyExist=true.

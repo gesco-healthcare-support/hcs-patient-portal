@@ -549,7 +549,9 @@ export class AppointmentAddComponent {
     // parity to gate editing -- readonly preserves submit + validation.
     email: [
       null as string | null,
-      [Validators.required, Validators.maxLength(50), Validators.email],
+      // task_d5407b22 (2026-07-21): patient email is optional (injured workers often lack
+      // one); applyConditionalPatientEmailValidator keeps it non-required. Format + length only.
+      [Validators.maxLength(50), Validators.email],
     ],
     genderId: [null as number | null],
     // OLD parity (live audit 2026-05-07): DOB is required for every
@@ -853,28 +855,18 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * 2026-06-11 -- patient email is mandatory ONLY when the patient is the one
-   * requesting (the booker IS the patient) OR the applicant is self-represented
-   * (no applicant attorney). For an on-behalf booker (AA / DA / CE / staff) with
-   * an applicant attorney present, patient email is optional: if left blank, the
-   * server routes patient-targeted mail to the applicant attorney
-   * (PatientPacketEmailHandler AA fallback; the other handlers already CC the
-   * AA as a party). Re-evaluated at construction and whenever the AA toggle
-   * flips. Mirrors applyConditionalEmailValidator's emitEvent: false discipline
-   * so it never re-enters a valueChanges subscriber.
+   * task_d5407b22 (2026-07-21): patient email is now OPTIONAL for every booking -- injured
+   * workers often have no email. When blank, the server creates the patient record with no
+   * email (stored as ""), and patient-targeted mail routes to the applicant attorney / booker
+   * (the notification pipeline skips a blank patient recipient). The label asterisk is dropped
+   * and the control keeps only format + length checks. Still re-run at construction + on the AA
+   * toggle with emitEvent:false so it never re-enters a valueChanges subscriber.
    */
   private applyConditionalPatientEmailValidator(): void {
     const control = this.form.get('email');
     if (!control) return;
-    const required =
-      !this.isExternalUserNonPatient || !this.form.get('applicantAttorneyEnabled')?.value;
-    // Drives the label asterisk in the demographics section (passed down as an
-    // Input) so the "*" mirrors the actual requirement instead of always showing.
-    this.patientEmailRequired = required;
-    const validators = required
-      ? [Validators.required, Validators.maxLength(50), Validators.email]
-      : [Validators.maxLength(50), Validators.email];
-    control.setValidators(validators);
+    this.patientEmailRequired = false;
+    control.setValidators([Validators.maxLength(50), Validators.email]);
     control.updateValueAndValidity({ emitEvent: false });
   }
 
@@ -2543,7 +2535,9 @@ export class AppointmentAddComponent {
       firstName: raw.firstName || '',
       lastName: raw.lastName || '',
       middleName: raw.middleName ?? undefined,
-      email: raw.email || '',
+      // task_d5407b22 (2026-07-21): patient email is optional. Send null (not "") when blank --
+      // the DTO's [EmailAddress] rejects an empty string but allows null; the server stores "".
+      email: raw.email?.trim() || null,
       genderId: Number(raw.genderId ?? 0),
       dateOfBirth,
       phoneNumberTypeId: Number(raw.phoneNumberTypeId ?? 1),

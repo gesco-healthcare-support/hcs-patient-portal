@@ -133,10 +133,13 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize]
     public virtual async Task<PatientWithNavigationPropertiesDto> GetOrCreatePatientForAppointmentBookingAsync(CreatePatientForAppointmentBookingInput input)
     {
-        if (string.IsNullOrWhiteSpace(input.Email))
-        {
-            throw new UserFriendlyException(L["Email is required."]);
-        }
+        // task_d5407b22 (2026-07-21): patient email is OPTIONAL (injured workers often lack
+        // one). Normalize blank -> null so we skip the email fast-path + email-based dedup
+        // pull; the 3-of-6 name/DOB/SSN/phone/ZIP match still catches duplicates, and the
+        // stored value falls back to "" (Patient.Email is NOT NULL but has no unique index).
+        // The notification pipeline drops blank recipients, so a no-email patient simply gets
+        // no patient-targeted mail (booker / applicant attorney still do).
+        var email = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
 
         var isHost = CurrentTenant.Id == null;
         // The using block wraps every Patient read in this method (email
@@ -148,18 +151,21 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         // naturally.
         using (isHost ? _dataFilter.Disable() : null)
         {
-            var existingPatients = await _patientRepository.GetListWithNavigationPropertiesAsync(
-                email: input.Email.Trim(),
-                maxResultCount: 1,
-                skipCount: 0);
-            var existing = existingPatients.FirstOrDefault();
-            if (existing?.Patient != null)
+            if (email != null)
             {
-                // R2 (2026-05-04): email-fast-path resolved an existing patient.
-                var dtoExisting = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
-                dtoExisting.IsExisting = true;
-                ApplySsnVisibility(dtoExisting);
-                return dtoExisting;
+                var existingPatients = await _patientRepository.GetListWithNavigationPropertiesAsync(
+                    email: email,
+                    maxResultCount: 1,
+                    skipCount: 0);
+                var existing = existingPatients.FirstOrDefault();
+                if (existing?.Patient != null)
+                {
+                    // R2 (2026-05-04): email-fast-path resolved an existing patient.
+                    var dtoExisting = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
+                    dtoExisting.IsExisting = true;
+                    ApplySsnVisibility(dtoExisting);
+                    return dtoExisting;
+                }
             }
             // Audit closeout 2026-05-04 -- OLD-parity 3-of-6 dedup
             // (Phase 11k repo method `GetDeduplicationCandidatesAsync`
@@ -177,7 +183,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 lastName: input.LastName,
                 dateOfBirth: input.DateOfBirth,
                 phone: input.PhoneNumber,
-                email: input.Email,
+                email: email,
                 ssn: input.SocialSecurityNumber,
                 // Patient does not carry ClaimNumber in NEW (per Phase 11k
                 // audit doc) -- the column lives on AppointmentInjuryDetail
@@ -192,7 +198,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                     LastName = input.LastName,
                     DateOfBirth = input.DateOfBirth,
                     PhoneNumber = input.PhoneNumber,
-                    Email = input.Email,
+                    Email = email ?? string.Empty,
                     SocialSecurityNumber = input.SocialSecurityNumber,
                     ClaimNumber = null,
                 };
@@ -247,7 +253,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 identityUserId: null,
                 firstName: input.FirstName,
                 lastName: input.LastName,
-                email: input.Email.Trim(),
+                email: email ?? string.Empty,
                 genderId: input.GenderId,
                 dateOfBirth: input.DateOfBirth,
                 phoneNumberTypeId: input.PhoneNumberTypeId,
