@@ -134,6 +134,36 @@ public class AccountUrlBuilderTests
     }
 
     // ------------------------------------------------------------------
+    // Host-scoped URLs (internal operators -- Phase D host logins, task_4c0f6fe9)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public async Task BuildHostPasswordResetUrlAsync_NullTenant_UsesHostRootWithNoSubdomain()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var url = await sut.BuildHostPasswordResetUrlAsync(userId, "token /+=");
+
+        url.ShouldBe(
+            $"http://localhost:44398/Account/ResetPassword" +
+            $"?userId={userId}&resetToken=token+%2F%2B%3D");
+    }
+
+    [Fact]
+    public async Task BuildHostEmailConfirmationUrlAsync_NullTenant_UsesHostRootWithNoSubdomain()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var url = await sut.BuildHostEmailConfirmationUrlAsync(userId, "raw token /+=");
+
+        url.ShouldBe(
+            $"http://localhost:44398/Account/EmailConfirmation" +
+            $"?userId={userId}&confirmationToken=raw+token+%2F%2B%3D");
+    }
+
+    // ------------------------------------------------------------------
     // Hard-fail paths
     // ------------------------------------------------------------------
 

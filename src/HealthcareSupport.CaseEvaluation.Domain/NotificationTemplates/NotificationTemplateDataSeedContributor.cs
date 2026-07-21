@@ -9,16 +9,23 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 
 /// <summary>
-/// Seeds 2 host-scoped <c>NotificationTemplateType</c> rows (Email + SMS),
-/// then per-tenant inserts a placeholder <c>NotificationTemplate</c> row for
-/// every TemplateCode listed in <see cref="NotificationTemplateConsts.Codes"/>.
+/// Seeds the Email + SMS <c>NotificationTemplateType</c> rows and the
+/// <c>NotificationTemplate</c> rows into each database:
+/// <list type="bullet">
+///   <item>Per office (tenant scope): all codes in
+///         <see cref="NotificationTemplateConsts.Codes.All"/>.</item>
+///   <item>Host (null tenant): only
+///         <see cref="NotificationTemplateConsts.Codes.HostScoped"/> -- the
+///         account-lifecycle codes that can be dispatched from host scope
+///         (task_4c0f6fe9). Their office copies still exist per-tenant.</item>
+/// </list>
 ///
-/// Bodies are stub strings -- parity-correct subject + body content lands in
-/// per-feature phases (registration, login, approval, document review,
-/// change-request approval, reminders). Phase 1.3 just guarantees row
-/// existence so notification handlers can resolve templates by code.
+/// Subject + body content comes from <see cref="NotificationTemplateSeedDefaults"/>
+/// (curated bodies for wired codes, stubs otherwise), so handlers can resolve
+/// every template by code.
 ///
-/// Idempotent: skips rows that already exist.
+/// Idempotent: skips rows that already exist; overwrites resource-backed rows
+/// when their shipped content changes.
 /// </summary>
 public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
@@ -46,9 +53,17 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
     {
         if (context?.TenantId == null)
         {
-            // Host scope has no notification templates or types under database-per-office;
-            // both are per-office (tenant) data now. NotificationTemplateType is IMultiTenant
-            // (B4), so it is seeded into each office database alongside the templates. (B4)
+            // Host scope holds ONLY the account-lifecycle templates that can be dispatched
+            // while CurrentTenant.Id == null (NotificationTemplateConsts.Codes.HostScoped,
+            // scope-traced under task_4c0f6fe9). Appointment-lifecycle templates stay
+            // per-office (B4). The two template types are seeded here too, since the
+            // templates FK to them. The host tables already exist (created in the host
+            // Phase 1 migration); only the seed data was previously absent.
+            using (_currentTenant.Change(null))
+            {
+                await SeedTypesAsync();
+                await SeedTemplatesAsync(tenantId: null, codes: NotificationTemplateConsts.Codes.HostScoped);
+            }
             return;
         }
 
@@ -58,7 +73,7 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         using (_currentTenant.Change(context.TenantId))
         {
             await SeedTypesAsync();
-            await SeedTemplatesAsync(context.TenantId);
+            await SeedTemplatesAsync(context.TenantId, NotificationTemplateConsts.Codes.All);
         }
     }
 
@@ -80,7 +95,7 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         await _typeRepository.InsertAsync(new NotificationTemplateType(id, name), autoSave: false);
     }
 
-    private async Task SeedTemplatesAsync(Guid? tenantId)
+    private async Task SeedTemplatesAsync(Guid? tenantId, string[] codes)
     {
         // All 59 codes verified against OLD source 2026-05-03 (Phase 4):
         //   - 16 from OLD's `TemplateCode` int enum (DB-managed in OLD)
@@ -101,7 +116,7 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         var queryable = await _templateRepository.GetQueryableAsync();
         var existing = queryable.ToDictionary(x => x.TemplateCode, x => x);
 
-        foreach (var code in NotificationTemplateConsts.Codes.All)
+        foreach (var code in codes)
         {
             // Shipped defaults are owned by NotificationTemplateSeedDefaults so
             // the IsCustomized derivation (B-B2) compares against the exact same

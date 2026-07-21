@@ -40,10 +40,22 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
     public async Task<string> BuildEmailConfirmationUrlAsync(Guid tenantId, Guid userId, string token)
     {
         var baseUrl = await ResolveAuthServerBaseUrlInternalAsync(tenantId);
-        return AppendPath(baseUrl, "/Account/EmailConfirmation",
+        return ComposeEmailConfirmationUrl(baseUrl, userId, token);
+    }
+
+    public async Task<string> BuildHostEmailConfirmationUrlAsync(Guid userId, string token)
+    {
+        // Host-scoped email confirmation (internal operators -- Phase D host logins):
+        // compose against the host AuthServer root (null tenant -> bare-localhost, no
+        // subdomain prefix). Same confirmation path as the tenant-scoped overload.
+        var baseUrl = await BuildAuthServerRootUrlAsync(null);
+        return ComposeEmailConfirmationUrl(baseUrl, userId, token);
+    }
+
+    private static string ComposeEmailConfirmationUrl(string baseUrl, Guid userId, string token) =>
+        AppendPath(baseUrl, "/Account/EmailConfirmation",
             ("userId", userId.ToString()),
             ("confirmationToken", WebUtility.UrlEncode(token)));
-    }
 
     public async Task<string> BuildPasswordResetUrlAsync(Guid tenantId, Guid userId, string token)
     {

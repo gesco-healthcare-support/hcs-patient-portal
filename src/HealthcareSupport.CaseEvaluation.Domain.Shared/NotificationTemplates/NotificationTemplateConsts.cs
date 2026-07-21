@@ -268,5 +268,33 @@ public static class NotificationTemplateConsts
             // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
             AccessorAppointmentAdded,
         };
+
+        /// <summary>
+        /// Subset of codes that can be dispatched from HOST scope
+        /// (<c>CurrentTenant.Id == null</c>, no impersonation) and so must ALSO be
+        /// seeded into the host database, in addition to the per-office copies.
+        /// Scope-traced 2026-07-21 (task_4c0f6fe9) from every dispatch call site:
+        /// <list type="bullet">
+        ///   <item><c>InternalUserCreated</c> -- IT Admin creates a host operator
+        ///         (<c>InternalUsersAppService.CreateAsync</c> runs in
+        ///         <c>CurrentTenant.Change(null)</c>).</item>
+        ///   <item><c>ResetPassword</c> -- admin-triggered reset for a host operator +
+        ///         host-operator self-service forgot-password.</item>
+        ///   <item><c>PasswordChange</c> -- any authenticated user's in-app change
+        ///         dispatches in their ambient scope, which is host for operators.</item>
+        ///   <item><c>UserRegistered</c> -- account-emailer email-confirmation link /
+        ///         2FA / confirmation code for a host user.</item>
+        /// </list>
+        /// Every entry is also in <see cref="All"/>: host copies are additive; the
+        /// per-office copies stay. Appointment-lifecycle codes are deliberately absent
+        /// (they only fire inside an office scope).
+        /// </summary>
+        public static readonly string[] HostScoped =
+        {
+            InternalUserCreated,
+            ResetPassword,
+            PasswordChange,
+            UserRegistered,
+        };
     }
 }

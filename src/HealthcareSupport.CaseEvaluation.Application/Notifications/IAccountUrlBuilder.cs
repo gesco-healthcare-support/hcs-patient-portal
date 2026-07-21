@@ -68,6 +68,17 @@ public interface IAccountUrlBuilder
     Task<string> BuildHostPasswordResetUrlAsync(Guid userId, string token);
 
     /// <summary>
+    /// Builds the AuthServer-hosted email-confirmation URL for a HOST-scoped user.
+    /// Counterpart to <see cref="BuildHostPasswordResetUrlAsync"/>: internal
+    /// operators (Staff Supervisor / Intake Staff) are host logins with a null
+    /// <c>TenantId</c>, so their confirmation link cannot go through the
+    /// tenant-scoped <see cref="BuildEmailConfirmationUrlAsync"/>. Same
+    /// <c>/Account/EmailConfirmation</c> path, composed against the host AuthServer
+    /// root (bare-localhost, no subdomain prefix).
+    /// </summary>
+    Task<string> BuildHostEmailConfirmationUrlAsync(Guid userId, string token);
+
+    /// <summary>
     /// Builds the AuthServer-hosted invite-acceptance URL the
     /// IT-Admin invite flow emails to the prospective external user.
     /// Format:

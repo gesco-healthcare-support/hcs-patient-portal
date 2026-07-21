@@ -107,9 +107,10 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         // user-being-emailed is the source of truth for which tenant)
         // rather than _currentTenant.Name (which is null inside the
         // CurrentTenant.Change(tenantId) scope opened by RegisterAsync).
-        EnsureUserHasTenant(user);
-        var url = await _accountUrlBuilder.BuildEmailConfirmationUrlAsync(
-            user.TenantId!.Value, user.Id, confirmationToken);
+        // task_4c0f6fe9 (2026-07-21): a null TenantId is now a valid HOST
+        // operator (Phase D internal login), not a bug -- build the host
+        // confirmation URL instead of throwing.
+        var url = await BuildConfirmationUrlAsync(user, confirmationToken);
 
         await DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.UserRegistered,
@@ -127,9 +128,9 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     {
         if (user == null) throw new ArgumentNullException(nameof(user));
 
-        EnsureUserHasTenant(user);
-        var url = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
-            user.TenantId!.Value, user.Id, resetToken);
+        // task_4c0f6fe9 (2026-07-21): host operators (null TenantId) get the host
+        // reset URL; tenant-scoped external users keep the subdomain-prefixed one.
+        var url = await BuildResetUrlAsync(user, resetToken);
 
         await DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.ResetPassword,
@@ -138,20 +139,21 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
             contextTag: $"AccountEmailer/PasswordResetLink/{user.Id}");
     }
 
-    private static void EnsureUserHasTenant(IdentityUser user)
-    {
-        if (!user.TenantId.HasValue)
-        {
-            // External user without a tenant is a code bug: every
-            // external account is tenant-scoped in this codebase.
-            // Hard-fail rather than emitting a host-scope URL the
-            // AuthServer Razor pages can't resolve a user against.
-            throw new InvalidOperationException(
-                $"CaseEvaluationAccountEmailer: cannot build a tenant-aware " +
-                $"URL for user {user.Id} because user.TenantId is null. " +
-                "External users must always belong to a tenant.");
-        }
-    }
+    // task_4c0f6fe9 (2026-07-21): scope-aware URL composition. Phase D made
+    // internal operators (Staff Supervisor / Intake Staff) HOST logins with a
+    // null TenantId, and they reach this emailer via self-service forgot-password
+    // / email-confirmation on the admin subdomain. A null tenant is therefore a
+    // valid host user -- build against the host AuthServer root -- not the
+    // "external user missing its tenant" bug the prior hard-throw guarded.
+    private async Task<string> BuildConfirmationUrlAsync(IdentityUser user, string token) =>
+        user.TenantId.HasValue
+            ? await _accountUrlBuilder.BuildEmailConfirmationUrlAsync(user.TenantId.Value, user.Id, token)
+            : await _accountUrlBuilder.BuildHostEmailConfirmationUrlAsync(user.Id, token);
+
+    private async Task<string> BuildResetUrlAsync(IdentityUser user, string token) =>
+        user.TenantId.HasValue
+            ? await _accountUrlBuilder.BuildPasswordResetUrlAsync(user.TenantId.Value, user.Id, token)
+            : await _accountUrlBuilder.BuildHostPasswordResetUrlAsync(user.Id, token);
 
     public virtual async Task SendEmailSecurityCodeAsync(IdentityUser user, string code)
     {
