@@ -34,7 +34,9 @@ public class PatientManager : DomainService
         lastName ??= string.Empty;
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
-        Check.NotNullOrWhiteSpace(email, nameof(email));
+        // task_d5407b22 (2026-07-21): patient email is optional (injured workers often
+        // lack one); accept empty at create time like firstName / lastName above.
+        email ??= string.Empty;
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
         Check.NotNull(genderId, nameof(genderId));
         Check.NotNull(dateOfBirth, nameof(dateOfBirth));
@@ -60,7 +62,8 @@ public class PatientManager : DomainService
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.NotNullOrWhiteSpace(lastName, nameof(lastName));
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
-        Check.NotNullOrWhiteSpace(email, nameof(email));
+        // task_d5407b22 (2026-07-21): patient email is optional; accept empty on update too.
+        email ??= string.Empty;
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
         Check.NotNull(genderId, nameof(genderId));
         Check.NotNull(dateOfBirth, nameof(dateOfBirth));
