@@ -224,7 +224,23 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         // shares that email keeps its party role. Office only lands when
         // the email is truly office-only.
         var officeEmail = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
-        AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
+        if (string.IsNullOrWhiteSpace(officeEmail))
+        {
+            // task_12e094b2 (2026-07-21): an unset office inbox silently drops the office's own
+            // copy of every notice (party recipients are unaffected). Not fatal, but surfaced
+            // loudly here -- the prior Debug line in AddIfPresent was invisible in monitoring.
+            // No PHI: only tenant + appointment identifiers are logged. Admins set the inbox in
+            // Settings > Notifications (the settings page also shows an empty-state hint).
+            _logger.LogWarning(
+                "AppointmentRecipientResolver: office notification inbox is unset for tenant "
+                + "{TenantName} ({TenantId}); the office copy of {Kind} notices for appointment "
+                + "{AppointmentId} will not be sent.",
+                tenantName, _currentTenant.Id, kind, appointmentId);
+        }
+        else
+        {
+            AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
+        }
 
         return byEmail.Values.ToList();
     }
