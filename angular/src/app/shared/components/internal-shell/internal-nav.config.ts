@@ -287,7 +287,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
  */
 export const IN_NAV_HOST: readonly InternalNavGroup[] = [
   {
-    sect: 'Platform',
+    sect: 'Overview',
     items: [
       // Phase D: the host Staff Supervisor shares the host overview (cross-office
       // aggregation). The Intake operator has no dashboard -- it lands on its

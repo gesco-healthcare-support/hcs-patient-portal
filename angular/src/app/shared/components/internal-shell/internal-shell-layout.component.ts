@@ -299,7 +299,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   );
 
   protected readonly brandSubtitle = computed<string>(() =>
-    this.hostScope() ? 'Platform administration' : this.tenantName(),
+    this.hostScope() ? 'Management' : this.tenantName(),
   );
 
   ngOnInit(): void {

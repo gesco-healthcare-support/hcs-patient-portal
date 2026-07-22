@@ -127,8 +127,9 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         //    offices. They are created in HOST context (TenantId null), NOT inside
         //    a tenant. input.TenantId is ignored; an Intake operator's office
         //    access is granted later via the assignment screen. The shared
-        //    "All offices" label flows into the welcome email's TenantName token.
-        const string tenantName = "All offices";
+        //    "Management" label flows into the create-result DTO's TenantName (shown in
+        //    the create-result UI) and, defensively, the welcome email's TenantName token.
+        const string tenantName = "Management";
         using (CurrentTenant.Change(null))
         {
             // 4a. Confirm the role exists in the tenant. Seeded by
