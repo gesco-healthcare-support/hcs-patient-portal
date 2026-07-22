@@ -102,13 +102,15 @@ public class AccountUrlBuilderTests
     }
 
     [Fact]
-    public async Task BuildPortalRootUrlAsync_NullTenant_ReturnsHostScopeUrlUnchanged()
+    public async Task BuildPortalRootUrlAsync_NullTenant_PrependsAdminSubdomain()
     {
+        // Host scope: the portal surface is admin.<base>, not the bare base domain -- a
+        // bare-domain host link 404s (nothing served there). task: host-email-admin-subdomain.
         var sut = NewBuilder(portalUrl: ConfiguredPortalUrl, tenantName: TenantName);
 
         var url = await sut.BuildPortalRootUrlAsync(tenantId: null);
 
-        url.ShouldBe("http://localhost:4200");
+        url.ShouldBe("http://admin.localhost:4200");
     }
 
     [Fact]
@@ -138,28 +140,31 @@ public class AccountUrlBuilderTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task BuildHostPasswordResetUrlAsync_NullTenant_UsesHostRootWithNoSubdomain()
+    public async Task BuildHostPasswordResetUrlAsync_NullTenant_UsesAdminSubdomain()
     {
+        // Host operators reset against the reserved "admin" host surface (admin.<base>);
+        // the prior bare-localhost link 404d. task: host-email-admin-subdomain.
         var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
         var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
 
         var url = await sut.BuildHostPasswordResetUrlAsync(userId, "token /+=");
 
         url.ShouldBe(
-            $"http://localhost:44398/Account/ResetPassword" +
+            $"http://admin.localhost:44398/Account/ResetPassword" +
             $"?userId={userId}&resetToken=token+%2F%2B%3D");
     }
 
     [Fact]
-    public async Task BuildHostEmailConfirmationUrlAsync_NullTenant_UsesHostRootWithNoSubdomain()
+    public async Task BuildHostEmailConfirmationUrlAsync_NullTenant_UsesAdminSubdomain()
     {
+        // Host-scope confirmation links target admin.<base>; the prior bare-localhost link 404d.
         var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
         var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
 
         var url = await sut.BuildHostEmailConfirmationUrlAsync(userId, "raw token /+=");
 
         url.ShouldBe(
-            $"http://localhost:44398/Account/EmailConfirmation" +
+            $"http://admin.localhost:44398/Account/EmailConfirmation" +
             $"?userId={userId}&confirmationToken=raw+token+%2F%2B%3D");
     }
 

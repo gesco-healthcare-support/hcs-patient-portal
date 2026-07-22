@@ -63,7 +63,8 @@ public interface IAccountUrlBuilder
     /// Staff) host logins with a null <c>TenantId</c>, so their reset link cannot
     /// go through the tenant-scoped <see cref="BuildPasswordResetUrlAsync"/> (which
     /// requires a real tenant). Same <c>/Account/ResetPassword</c> path, composed
-    /// against the host AuthServer root (bare-localhost, no subdomain prefix).
+    /// against the reserved host "admin" subdomain (admin.&lt;base&gt;) -- a bare
+    /// base-domain link 404s because nothing is served there.
     /// </summary>
     Task<string> BuildHostPasswordResetUrlAsync(Guid userId, string token);
 
@@ -73,8 +74,8 @@ public interface IAccountUrlBuilder
     /// operators (Staff Supervisor / Intake Staff) are host logins with a null
     /// <c>TenantId</c>, so their confirmation link cannot go through the
     /// tenant-scoped <see cref="BuildEmailConfirmationUrlAsync"/>. Same
-    /// <c>/Account/EmailConfirmation</c> path, composed against the host AuthServer
-    /// root (bare-localhost, no subdomain prefix).
+    /// <c>/Account/EmailConfirmation</c> path, composed against the reserved host
+    /// "admin" subdomain (admin.&lt;base&gt;) -- a bare base-domain link 404s.
     /// </summary>
     Task<string> BuildHostEmailConfirmationUrlAsync(Guid userId, string token);
 
@@ -108,8 +109,8 @@ public interface IAccountUrlBuilder
     /// Returns the SPA root URL for the given tenant (e.g.
     /// <c>http://falkinstein.localhost:4200</c>). Used by callers
     /// that build SPA deep-links (appointment view, dashboard).
-    /// Pass <c>null</c> for host-scoped contexts (returns the
-    /// bare-localhost form).
+    /// Pass <c>null</c> for host-scoped contexts (returns the reserved
+    /// "admin" subdomain form, e.g. <c>http://admin.localhost:4200</c>).
     /// </summary>
     Task<string> BuildPortalRootUrlAsync(Guid? tenantId);
 
@@ -117,7 +118,8 @@ public interface IAccountUrlBuilder
     /// Returns the AuthServer root URL for the given tenant (e.g.
     /// <c>http://falkinstein.localhost:44368</c>). Used by callers
     /// that build account-area paths beyond the three named verbs.
-    /// Pass <c>null</c> for host-scoped contexts.
+    /// Pass <c>null</c> for host-scoped contexts (returns the reserved
+    /// "admin" subdomain form, e.g. <c>http://admin.localhost:44368</c>).
     /// </summary>
     Task<string> BuildAuthServerRootUrlAsync(Guid? tenantId);
 }
