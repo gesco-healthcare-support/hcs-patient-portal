@@ -29,6 +29,10 @@
   <div class="card-body">
     @if (isLoading && packets.length === 0) {
       <div class="text-muted small">Loading packet status...</div>
+    } @else if (isAwaitingGeneration) {
+      <div class="text-muted small">
+        Generating packets... this can take a few seconds. The list updates automatically.
+      </div>
     } @else if (packets.length === 0) {
       <div class="text-muted small">
         No packets have been generated yet. Packets are generated automatically when the appointment

@@ -73,6 +73,14 @@ import { firstValueFrom } from 'rxjs';
 })
 export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   @Input() appointmentId: string | null = null;
+  // task_25068393 (2026-07-21): true once the appointment is Approved -> packets are expected.
+  // Bridges the async gap between approval and the backend creating the (Generating) rows: keep
+  // polling through the zero-rows window (bounded) so the panel auto-populates without a reload.
+  @Input() expectPackets = false;
+
+  // Bounded wait for the first packet rows to appear post-approval (maxZeroRowPolls x 5s).
+  private zeroRowPolls = 0;
+  private readonly maxZeroRowPolls = 12;
 
   private packetService = inject(AppointmentPacketService);
   private documentService = inject(AppointmentDocumentService);
@@ -107,8 +115,19 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
     return this.packets.some((p) => p.status === PacketGenerationStatus.Generating);
   }
 
+  // task_25068393: Approved but no rows yet -> generation is pending; show a "generating"
+  // message rather than the "nothing here" copy so the panel does not look broken mid-wait.
+  get isAwaitingGeneration(): boolean {
+    return this.expectPackets && this.packets.length === 0;
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['appointmentId']) {
+      this.zeroRowPolls = 0; // fresh appointment -> reset the post-approval wait budget
+      this.refresh();
+    } else if (changes['expectPackets'] && this.expectPackets) {
+      // Status just flipped to Approved (e.g. staff hit Approve) -> start looking for packets.
+      this.zeroRowPolls = 0;
       this.refresh();
     }
   }
@@ -132,7 +151,20 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
         // which has no ORDER BY clause guarantee.
         this.packets = (rows ?? []).slice().sort((a, b) => (a.kind ?? 0) - (b.kind ?? 0));
         this.isLoading = false;
-        if (this.hasGenerating) {
+        // task_25068393: keep polling while any packet is still generating, OR while the
+        // appointment is Approved but no rows have appeared yet (the backend creates them a
+        // moment after approval). The zero-rows wait is bounded so a genuinely empty result
+        // stops polling instead of spinning forever.
+        const awaitingFirstRows =
+          this.expectPackets &&
+          this.packets.length === 0 &&
+          this.zeroRowPolls < this.maxZeroRowPolls;
+        if (this.packets.length === 0) {
+          this.zeroRowPolls++;
+        } else {
+          this.zeroRowPolls = 0;
+        }
+        if (this.hasGenerating || awaitingFirstRows) {
           this.startPolling();
         } else {
           this.stopPolling();

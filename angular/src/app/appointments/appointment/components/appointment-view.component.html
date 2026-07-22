@@ -1181,6 +1181,7 @@
       <app-appointment-packet
         #packetPanel
         [appointmentId]="appointment.appointment?.id ?? null"
+        [expectPackets]="currentStatus === AppointmentStatusType.Approved"
       ></app-appointment-packet>
     </form>
   }
