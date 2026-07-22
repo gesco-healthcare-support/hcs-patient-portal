@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
@@ -45,9 +46,9 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
 
     public async Task<string> BuildHostEmailConfirmationUrlAsync(Guid userId, string token)
     {
-        // Host-scoped email confirmation (internal operators -- Phase D host logins):
-        // compose against the host AuthServer root (null tenant -> bare-localhost, no
-        // subdomain prefix). Same confirmation path as the tenant-scoped overload.
+        // Host-scoped email confirmation (internal operators -- Phase D host logins): compose
+        // against the host AuthServer surface (null tenant -> the reserved "admin" subdomain,
+        // admin.<base>). Same confirmation path as the tenant-scoped overload.
         var baseUrl = await BuildAuthServerRootUrlAsync(null);
         return ComposeEmailConfirmationUrl(baseUrl, userId, token);
     }
@@ -65,9 +66,9 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
 
     public async Task<string> BuildHostPasswordResetUrlAsync(Guid userId, string token)
     {
-        // Host-scoped reset (internal operators -- Phase D host logins): compose
-        // against the host AuthServer root (null tenant -> bare-localhost, no
-        // subdomain prefix). Same reset path as the tenant-scoped overload.
+        // Host-scoped reset (internal operators -- Phase D host logins): compose against the
+        // host AuthServer surface (null tenant -> the reserved "admin" subdomain, admin.<base>).
+        // Same reset path as the tenant-scoped overload.
         var baseUrl = await BuildAuthServerRootUrlAsync(null);
         return ComposeResetUrl(baseUrl, userId, token);
     }
@@ -186,7 +187,12 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
 
         var tenantName = tenantId.HasValue
             ? await ResolveTenantNameAsync(tenantId.Value)
-            : null;
+            // Host scope (null tenant): the host-context surface lives at the reserved "admin"
+            // subdomain (admin.<base>), NOT the bare base domain -- a bare-domain host link 404s
+            // because nothing is served there. Mirrors HostAwareDomainTenantResolveContributor's
+            // reserved slug. Only the Guid?-taking root methods reach this branch; the tenant-scoped
+            // auth methods always pass a real tenantId.
+            : TenantNaming.ReservedSlug;
 
         var composed = TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), tenantName)!;
         // Diagnostic for tenant-URL composition issues. Debug-level so

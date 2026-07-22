@@ -216,7 +216,8 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             // 4g. Resolve the portal URL the email links to. BUG-029 v3
             //     (2026-05-21): now via IAccountUrlBuilder so the
             //     tenant subdomain is always prepended.
-            // Host operator -> host portal root (null tenant = no subdomain prefix).
+            // Host operator -> host portal root (null tenant -> the reserved "admin" subdomain,
+            // admin.<base>; a bare base-domain link 404s).
             var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
 
             // 4h. Dispatch welcome email via the same path
