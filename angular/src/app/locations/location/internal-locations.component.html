@@ -19,6 +19,7 @@
       <thead>
         <tr>
           <th appSortHeader="name" [model]="sort()" (sortChange)="onSort($event)">Name</th>
+          <th>Facility ID</th>
           <th appSortHeader="address" [model]="sort()" (sortChange)="onSort($event)">Address</th>
           <th appSortHeader="state" [model]="sort()" (sortChange)="onSort($event)">State</th>
           <th appSortHeader="parkingFee" [model]="sort()" (sortChange)="onSort($event)">
@@ -35,6 +36,7 @@
             <td>
               <b style="color: var(--n-900)">{{ row.location?.name }}</b>
             </td>
+            <td class="ia-sub">{{ row.location?.facilityId }}</td>
             <td class="ia-sub">
               {{ row.location?.address }}
               @if (row.location?.city) {
@@ -104,6 +106,19 @@
               [ngModel]="f.name"
               [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="patch({ name: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
+            <label>
+              Facility ID
+              <span class="req">*</span>
+            </label>
+            <input
+              class="ra-input"
+              maxlength="50"
+              [ngModel]="f.facilityId"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ facilityId: $event })"
             />
           </div>
           <div class="ra-field col-6">

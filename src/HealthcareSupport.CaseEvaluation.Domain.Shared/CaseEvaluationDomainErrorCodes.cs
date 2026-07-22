@@ -857,6 +857,15 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Location.DuplicateName";
 
     /// <summary>
+    /// #11 (task_59b8c23a) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when
+    /// another Location in the office already carries the same (non-empty) Facility ID -- the
+    /// clinic's external unique identifier (CalMed / Case Tracker). Mapped to HTTP 400. Carries
+    /// <c>WithData("facilityId", facilityId)</c>. Localization key <c>Location:DuplicateFacilityId</c>.
+    /// </summary>
+    public const string LocationDuplicateFacilityId =
+        "CaseEvaluation:Location.DuplicateFacilityId";
+
+    /// <summary>
     /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when the
     /// supplied ParkingFee is negative. Defense-in-depth behind the DTO <c>[Range]</c> + the
     /// Angular <c>Validators.min(0)</c> mirror. Mapped to HTTP 400. Localization key

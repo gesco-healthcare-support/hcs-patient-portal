@@ -121,6 +121,11 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ZipCode).HasColumnName(nameof(Location.ZipCode)).HasMaxLength(LocationConsts.ZipCodeMaxLength);
             b.Property(x => x.ParkingFee).HasColumnName(nameof(Location.ParkingFee)).HasPrecision(18, 2);
             b.Property(x => x.IsActive).HasColumnName(nameof(Location.IsActive));
+            // #11 (task_59b8c23a): Facility ID -- required external identifier, unique per office.
+            // Default '' keeps existing rows + non-app construction valid; the filtered unique
+            // index enforces uniqueness only over real (non-empty) values.
+            b.Property(x => x.FacilityId).HasColumnName(nameof(Location.FacilityId)).IsRequired().HasMaxLength(LocationConsts.FacilityIdMaxLength).HasDefaultValue(string.Empty);
+            b.HasIndex(x => x.FacilityId).IsUnique().HasFilter("[FacilityId] <> ''");
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
 

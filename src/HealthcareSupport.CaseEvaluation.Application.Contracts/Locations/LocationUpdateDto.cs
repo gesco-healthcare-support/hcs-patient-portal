@@ -10,6 +10,12 @@ public class LocationUpdateDto : IHasConcurrencyStamp
     [Required]
     [StringLength(LocationConsts.NameMaxLength)]
     public string Name { get; set; } = null!;
+
+    // #11 (task_59b8c23a): external integration ID (CalMed / Case Tracker), required + unique.
+    [Required]
+    [StringLength(LocationConsts.FacilityIdMaxLength)]
+    public string FacilityId { get; set; } = null!;
+
     [StringLength(LocationConsts.AddressMaxLength)]
     public string? Address { get; set; }
 

@@ -247,6 +247,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.LocationDuplicateName,
                 System.Net.HttpStatusCode.BadRequest);
+            // #11 (task_59b8c23a): duplicate Facility ID is a client-input violation too.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationDuplicateFacilityId,
+                System.Net.HttpStatusCode.BadRequest);
             options.Map(
                 CaseEvaluationDomainErrorCodes.LocationParkingFeeNegative,
                 System.Net.HttpStatusCode.BadRequest);

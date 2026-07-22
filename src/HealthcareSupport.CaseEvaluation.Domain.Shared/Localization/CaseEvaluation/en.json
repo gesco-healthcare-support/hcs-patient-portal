@@ -274,6 +274,7 @@
     "Doctor:OnePerTenantViolated": "This clinic already has a doctor profile. The system supports one doctor per clinic. Edit the existing profile instead, or contact the IT administrator if the clinic needs a different doctor.",
     "Doctor:CannotDeleteWithDependents": "This doctor cannot be removed because the clinic still has {count} {entity} record(s). Cancel or reassign the dependent records, then try again.",
     "Location:DuplicateName": "A location named '{name}' already exists. Choose a different name.",
+    "Location:DuplicateFacilityId": "A clinic with Facility ID '{facilityId}' already exists. Each clinic needs a unique Facility ID.",
     "Location:ParkingFeeNegative": "Parking fee cannot be negative.",
     "Location:ZipCodeInvalid": "Enter a valid ZIP code: 5 digits (e.g. 90001) or ZIP+4 (e.g. 90001-1234).",
     "Location:InUse": "This location cannot be deleted because it is referenced by {count} {entity} record(s). Reassign or remove them first.",

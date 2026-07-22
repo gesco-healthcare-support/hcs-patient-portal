@@ -3133,6 +3133,14 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
 
+                    b.Property<string>("FacilityId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("")
+                        .HasColumnName("FacilityId");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit")
                         .HasColumnName("IsActive");
@@ -3175,6 +3183,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnName("ZipCode");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId")
+                        .IsUnique()
+                        .HasFilter("[FacilityId] <> ''");
 
                     b.HasIndex("StateId");
 

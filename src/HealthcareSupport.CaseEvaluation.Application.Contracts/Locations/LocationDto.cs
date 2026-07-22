@@ -8,6 +8,11 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 public class LocationDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 {
     public string Name { get; set; } = null!;
+
+    // #11 (task_59b8c23a): external integration ID (CalMed / Case Tracker), the clinic's
+    // unique business identifier -- flows wherever the location DTO is used.
+    public string FacilityId { get; set; } = null!;
+
     public string? Address { get; set; }
 
     public string? City { get; set; }
