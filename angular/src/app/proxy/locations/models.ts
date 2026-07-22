@@ -16,6 +16,7 @@ export interface GetLocationsInput extends PagedAndSortedResultRequestDto {
 
 export interface LocationCreateDto {
   name: string;
+  facilityId: string;
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
@@ -27,6 +28,7 @@ export interface LocationCreateDto {
 
 export interface LocationDto extends FullAuditedEntityDto<string> {
   name?: string;
+  facilityId?: string;
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
@@ -39,6 +41,7 @@ export interface LocationDto extends FullAuditedEntityDto<string> {
 
 export interface LocationUpdateDto {
   name: string;
+  facilityId: string;
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;

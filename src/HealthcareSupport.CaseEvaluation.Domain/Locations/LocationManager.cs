@@ -46,31 +46,37 @@ public class LocationManager : DomainService
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
     }
 
-    public virtual async Task<Location> CreateAsync(Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
+    public virtual async Task<Location> CreateAsync(Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, string facilityId = "")
     {
         Check.NotNullOrWhiteSpace(name, nameof(name));
         Check.Length(name, nameof(name), LocationConsts.NameMaxLength);
         Check.Length(address, nameof(address), LocationConsts.AddressMaxLength);
         Check.Length(city, nameof(city), LocationConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), LocationConsts.ZipCodeMaxLength);
+        Check.Length(facilityId, nameof(facilityId), LocationConsts.FacilityIdMaxLength);
         EnsureParkingFeeNonNegative(parkingFee);
         EnsureZipCodeFormat(zipCode);
         await EnsureNameIsUniqueAsync(name, Guid.Empty);
-        var location = new Location(GuidGenerator.Create(), stateId, name, parkingFee, isActive, address, city, zipCode);
+        // #11: Facility ID is unique per office when set (the DTO makes it required for the
+        // app path; the manager stays tolerant of "" for seeds/tests).
+        await EnsureFacilityIdIsUniqueAsync(facilityId, Guid.Empty);
+        var location = new Location(GuidGenerator.Create(), stateId, name, parkingFee, isActive, address, city, zipCode, facilityId ?? string.Empty);
         location.SetAppointmentTypes(appointmentTypeIds ?? new List<Guid>());
         return await _locationRepository.InsertAsync(location);
     }
 
-    public virtual async Task<Location> UpdateAsync(Guid id, Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Location> UpdateAsync(Guid id, Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, [CanBeNull] string? concurrencyStamp = null, string facilityId = "")
     {
         Check.NotNullOrWhiteSpace(name, nameof(name));
         Check.Length(name, nameof(name), LocationConsts.NameMaxLength);
         Check.Length(address, nameof(address), LocationConsts.AddressMaxLength);
         Check.Length(city, nameof(city), LocationConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), LocationConsts.ZipCodeMaxLength);
+        Check.Length(facilityId, nameof(facilityId), LocationConsts.FacilityIdMaxLength);
         EnsureParkingFeeNonNegative(parkingFee);
         EnsureZipCodeFormat(zipCode);
         await EnsureNameIsUniqueAsync(name, id);
+        await EnsureFacilityIdIsUniqueAsync(facilityId, id);
         // I3: load the AppointmentTypes M2M so SetAppointmentTypes diffs correctly
         // (mirrors DoctorManager.UpdateAsync).
         var queryable = await _locationRepository.WithDetailsAsync(x => x.AppointmentTypes);
@@ -83,6 +89,7 @@ public class LocationManager : DomainService
         location.Address = address;
         location.City = city;
         location.ZipCode = zipCode;
+        location.FacilityId = facilityId ?? string.Empty;
         location.SetAppointmentTypes(appointmentTypeIds ?? new List<Guid>());
         location.SetConcurrencyStampIfNotNull(concurrencyStamp);
         return await _locationRepository.UpdateAsync(location);
@@ -119,6 +126,25 @@ public class LocationManager : DomainService
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.LocationDuplicateName)
                 .WithData("name", name);
+        }
+    }
+
+    // #11 (task_59b8c23a): Facility ID is the clinic's external unique identifier. Enforce
+    // uniqueness within the office for real (non-empty) values; "" is the pre-fill state for
+    // existing rows and non-app construction, which the filtered DB index also skips.
+    private async Task EnsureFacilityIdIsUniqueAsync(string? facilityId, Guid excludeId)
+    {
+        if (string.IsNullOrWhiteSpace(facilityId))
+        {
+            return;
+        }
+        var normalized = facilityId.Trim();
+        var duplicateCount = await _locationRepository.CountAsync(
+            x => x.FacilityId == normalized && x.Id != excludeId);
+        if (duplicateCount > 0)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.LocationDuplicateFacilityId)
+                .WithData("facilityId", facilityId);
         }
     }
 

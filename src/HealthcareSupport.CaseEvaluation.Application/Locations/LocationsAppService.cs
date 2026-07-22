@@ -107,14 +107,14 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
     [Authorize(CaseEvaluationPermissions.Locations.Create)]
     public virtual async Task<LocationDto> CreateAsync(LocationCreateDto input)
     {
-        var location = await _locationManager.CreateAsync(input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode);
+        var location = await _locationManager.CreateAsync(input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.FacilityId);
         return ToLocationDto(location);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Edit)]
     public virtual async Task<LocationDto> UpdateAsync(Guid id, LocationUpdateDto input)
     {
-        var location = await _locationManager.UpdateAsync(id, input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.ConcurrencyStamp);
+        var location = await _locationManager.UpdateAsync(id, input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.ConcurrencyStamp, input.FacilityId);
         return ToLocationDto(location);
     }
 

@@ -68,6 +68,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         var input = new LocationCreateDto
         {
             Name = $"TEST-CreateTarget-{Guid.NewGuid():N}",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 7.50m,
             IsActive = true,
             Address = "TEST-123 Synthetic St",
@@ -94,6 +95,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         var update = new LocationUpdateDto
         {
             Name = "TEST-Location2-Updated",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 99.00m,
             IsActive = existing.IsActive,
             Address = existing.Address,
@@ -122,6 +124,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         var created = await _locationsAppService.CreateAsync(new LocationCreateDto
         {
             Name = $"TEST-DeleteTarget-{Guid.NewGuid():N}",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 1.00m,
             IsActive = true
         });
@@ -207,12 +210,14 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         var a = await _locationsAppService.CreateAsync(new LocationCreateDto
         {
             Name = $"TEST-BulkDel-A-{Guid.NewGuid():N}",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 1.00m,
             IsActive = true
         });
         var b = await _locationsAppService.CreateAsync(new LocationCreateDto
         {
             Name = $"TEST-BulkDel-B-{Guid.NewGuid():N}",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 2.00m,
             IsActive = true
         });
@@ -232,12 +237,14 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         var v1 = await _locationsAppService.CreateAsync(new LocationCreateDto
         {
             Name = $"{tag}-1",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 1.00m,
             IsActive = true
         });
         var v2 = await _locationsAppService.CreateAsync(new LocationCreateDto
         {
             Name = $"{tag}-2",
+            FacilityId = $"FAC-{Guid.NewGuid():N}",
             ParkingFee = 1.00m,
             IsActive = true
         });
@@ -272,6 +279,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
             {
                 Name = $"TEST-FkBlocked-Da-{Guid.NewGuid():N}",
+                FacilityId = $"FAC-{Guid.NewGuid():N}",
                 ParkingFee = 1.00m,
                 IsActive = true
             });
@@ -303,6 +311,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
             {
                 Name = $"FK-Appt-{Guid.NewGuid():N}",
+                FacilityId = $"FAC-{Guid.NewGuid():N}",
                 ParkingFee = 1.00m,
                 IsActive = true
             });

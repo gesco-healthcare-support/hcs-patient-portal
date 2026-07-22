@@ -39,6 +39,7 @@ interface LookupOption {
 interface LocFormState {
   id: string | null;
   name: string;
+  facilityId: string;
   address: string;
   city: string;
   zipCode: string;
@@ -149,6 +150,7 @@ export class InternalLocationsComponent implements OnInit {
     this.form.set({
       id: null,
       name: '',
+      facilityId: '',
       address: '',
       city: '',
       zipCode: '',
@@ -163,6 +165,7 @@ export class InternalLocationsComponent implements OnInit {
     this.form.set({
       id: loc?.id ?? null,
       name: loc?.name ?? '',
+      facilityId: loc?.facilityId ?? '',
       address: loc?.address ?? '',
       city: loc?.city ?? '',
       zipCode: loc?.zipCode ?? '',
@@ -205,10 +208,15 @@ export class InternalLocationsComponent implements OnInit {
       this.toaster.warn('Name is required.');
       return;
     }
+    if (!f.facilityId.trim()) {
+      this.toaster.warn('Facility ID is required.');
+      return;
+    }
     // The proxy create/update types still carry the stale singular
     // appointmentTypeId; send the real appointmentTypeIds[] and cast.
     const body = {
       name: f.name.trim(),
+      facilityId: f.facilityId.trim(),
       address: f.address || null,
       city: f.city || null,
       zipCode: f.zipCode || null,

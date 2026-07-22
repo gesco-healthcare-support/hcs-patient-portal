@@ -31,6 +31,13 @@ public class Location : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? ZipCode { get; set; }
 
+    // #11 (task_59b8c23a): external integration identifier (CalMed / Case Tracker), required +
+    // unique per office. Defaults to "" so existing rows and non-app construction (tests / seeds)
+    // stay valid; the app path (LocationManager + [Required] DTOs) enforces a non-empty, unique
+    // value, and the DB carries a filtered unique index over non-empty values.
+    [NotNull]
+    public virtual string FacilityId { get; set; } = string.Empty;
+
     public virtual decimal ParkingFee { get; set; }
 
     public virtual bool IsActive { get; set; }
@@ -46,7 +53,7 @@ public class Location : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
     }
 
-    public Location(Guid id, Guid? stateId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
+    public Location(Guid id, Guid? stateId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, string facilityId = "")
     {
         Id = id;
         Check.NotNull(name, nameof(name));
@@ -54,12 +61,14 @@ public class Location : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Check.Length(address, nameof(address), LocationConsts.AddressMaxLength, 0);
         Check.Length(city, nameof(city), LocationConsts.CityMaxLength, 0);
         Check.Length(zipCode, nameof(zipCode), LocationConsts.ZipCodeMaxLength, 0);
+        Check.Length(facilityId, nameof(facilityId), LocationConsts.FacilityIdMaxLength, 0);
         Name = name;
         ParkingFee = parkingFee;
         IsActive = isActive;
         Address = address;
         City = city;
         ZipCode = zipCode;
+        FacilityId = facilityId ?? string.Empty;
         StateId = stateId;
         AppointmentTypes = new Collection<LocationAppointmentType>();
     }
