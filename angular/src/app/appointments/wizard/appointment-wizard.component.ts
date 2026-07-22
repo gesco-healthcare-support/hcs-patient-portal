@@ -22,6 +22,7 @@ import { Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 
 import { AppointmentAddComponent } from '../appointment-add.component';
+import { MyAttorneyProfileService } from '../../proxy/my-attorney-profiles/my-attorney-profile.service';
 import { AppointmentViewService } from '../appointment/services/appointment.service';
 import { AppointmentAddScheduleComponent } from '../sections/appointment-add-schedule.component';
 import { AppointmentAddPatientDemographicsComponent } from '../sections/appointment-add-patient-demographics.component';
@@ -127,6 +128,9 @@ export class AppointmentWizardComponent
   private readonly shellRest = inject(RestService);
   private readonly draftService = inject(AppointmentDraftService);
   private readonly confirmation = inject(ConfirmationService);
+  // #9 (task_2303a00a): self-scoped current-attorney profile, used to pre-fill the booker's
+  // own attorney step when they are themselves an applicant/defense attorney.
+  private readonly myAttorneyProfile = inject(MyAttorneyProfileService);
 
   protected readonly steps = STEPS;
   protected current = 0;
@@ -183,6 +187,9 @@ export class AppointmentWizardComponent
         this.form.valueChanges.pipe(debounceTime(600)).subscribe(() => this.saveDraft()),
       );
     }
+    // #9: pre-fill the booker's own attorney step from their profile (fills only a blank
+    // section, so the draft/reval prefill above always wins).
+    this.prefillBookingAttorney();
     // Cache type + location names so the review step can show them by id.
     this.getAppointmentTypeLookup({ maxResultCount: 200 }).subscribe((r) =>
       (r.items ?? []).forEach((i) => this.typeNames.set(i.id ?? '', i.displayName ?? '')),
@@ -399,6 +406,59 @@ export class AppointmentWizardComponent
           /* firm name optional */
         },
       });
+  }
+
+  // #9 (task_2303a00a): a booker who is themselves an attorney had to retype their own
+  // details on the attorney step. Pre-fill that step (applicant OR defense, per their
+  // MyAttorneyProfile.kind) from their saved profile. Only fills a BLANK section, so a
+  // resumed draft or a reval/re-request prefill (which load their own values first) always
+  // wins; a 404 (booker is not an attorney) is a silent no-op.
+  private prefillBookingAttorney(): void {
+    // Only attorney bookers have a profile to pull from; gating on role here avoids a spurious
+    // 404 (and its console error) for patient / claim-examiner bookers.
+    const currentUser = this.shellConfig.getOne('currentUser') as { roles?: string[] } | null;
+    const roles = currentUser?.roles ?? [];
+    if (!roles.some((r) => r === 'Applicant Attorney' || r === 'Defense Attorney')) {
+      return;
+    }
+    this.myAttorneyProfile.get().subscribe({
+      next: (p) => {
+        const prefix =
+          p?.kind === 'defense'
+            ? 'defenseAttorney'
+            : p?.kind === 'applicant'
+              ? 'applicantAttorney'
+              : null;
+        if (!prefix) {
+          return;
+        }
+        // Do not clobber an already-populated section.
+        const firstName = this.form.get(prefix + 'FirstName');
+        if (!firstName || (firstName.value ?? '') !== '') {
+          return;
+        }
+        const values: Record<string, unknown> = {
+          Enabled: true,
+          FirstName: p.firstName ?? null,
+          LastName: p.lastName ?? null,
+          Email: p.email ?? null,
+          FirmName: p.firmName ?? null,
+          WebAddress: p.webAddress ?? null,
+          PhoneNumber: p.phoneNumber ?? null,
+          FaxNumber: p.faxNumber ?? null,
+          Street: p.street ?? null,
+          City: p.city ?? null,
+          StateId: p.stateId ?? null,
+          ZipCode: p.zipCode ?? null,
+        };
+        Object.entries(values).forEach(([suffix, val]) =>
+          this.form.get(prefix + suffix)?.setValue(val),
+        );
+      },
+      error: () => {
+        /* booker is not an attorney (404) or lookup failed -- no prefill */
+      },
+    });
   }
 
   // ---- draft save / resume (#15) ------------------------------------------
