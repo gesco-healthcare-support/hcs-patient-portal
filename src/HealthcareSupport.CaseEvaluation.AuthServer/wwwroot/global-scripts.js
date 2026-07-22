@@ -597,6 +597,25 @@
   // sees the tenant in the rendered page but the submit JS rejects with
   // "Tenant required" because it only inspects ?__tenant= and the cookie.
   // Returns the slug or null for bare `localhost`, IPs, and reserved labels.
+  // task_f0064a4f (2026-07-22): the reserved host subdomain (admin.<base>) is the host-context
+  // surface, never a tenant -- mirrors TenantNaming.ReservedSlug + HostAwareDomainTenantResolveContributor.
+  const reservedHostSlug = 'admin';
+
+  // True when the current host is the reserved admin.<base> surface. Registration is host-context
+  // there (no tenant), so the register page shows a clean notice instead of a dead disabled form
+  // plus failing resolve-tenant calls.
+  function isReservedHostSubdomain() {
+    try {
+      var host = window.location.hostname;
+      if (!host) return false;
+      var parts = host.split('.');
+      if (parts.length < 2) return false;
+      return parts[0].trim().toLowerCase() === reservedHostSlug;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function readTenantFromSubdomain() {
     try {
       var host = window.location.hostname;
@@ -608,7 +627,7 @@
       if (parts.length < 2) return null; // e.g. bare `localhost`
       var slug = parts[0].trim();
       if (!slug) return null;
-      var reserved = ['www', 'localhost'];
+      var reserved = ['www', 'localhost', reservedHostSlug];
       if (reserved.indexOf(slug.toLowerCase()) !== -1) return null;
       return slug;
     } catch (_e) {
@@ -1546,6 +1565,20 @@
   }
 
   async function applyTenantBanner(form) {
+    // task_f0064a4f: on the reserved admin host, registration is intentionally unavailable
+    // (host context, no tenant). Show a clean notice instead of a dead disabled form, and skip
+    // resolveTenantContext -- resolving "admin" 404s and logs console errors.
+    if (isReservedHostSubdomain()) {
+      form.innerHTML =
+        '<div class="alert alert-info" role="note" style="margin-bottom:1rem;">' +
+          '<strong>Registration isn&#39;t available here.</strong>' +
+          '<div style="margin-top:0.25rem;">' +
+            'Please use the registration link from the email your practice sent you.' +
+          '</div>' +
+        '</div>' +
+        '<a href="/Account/Login" class="btn btn-primary" style="width:100%;">Sign in</a>';
+      return;
+    }
     var ctx = await resolveTenantContext();
     if (!ctx) {
       ensureExternalRegisterBanner(
