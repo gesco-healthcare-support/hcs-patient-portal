@@ -1,14 +1,14 @@
-<div class="mp">
-  <app-external-navbar
-    [clinicName]="displayTenantName"
-    [userName]="navDisplayName"
-    [roleLabel]="roleLabel"
-    [userEmail]="userEmail"
-    [orgName]="firmName || null"
-    (documentsClick)="onDocuments()"
-    (logoutClick)="onLogout()"
-  ></app-external-navbar>
+<app-external-navbar
+  [clinicName]="displayTenantName"
+  [userName]="navDisplayName"
+  [roleLabel]="roleLabel"
+  [userEmail]="userEmail"
+  [orgName]="firmName || null"
+  (documentsClick)="onDocuments()"
+  (logoutClick)="onLogout()"
+></app-external-navbar>
 
+<div class="mp" role="main">
   <header class="mp-head">
     <div class="mp-head__in">
       <span class="mp-head__ava" [style.background]="avatarColor">{{ initials }}</span>
