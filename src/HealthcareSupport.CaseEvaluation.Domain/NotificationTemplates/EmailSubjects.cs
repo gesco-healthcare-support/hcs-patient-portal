@@ -286,7 +286,7 @@ internal static class EmailSubjects
     /// resolved by the dispatcher at render time.
     /// </summary>
     public const string InternalUserCreated =
-        "Welcome to ##TenantName##";
+        "Welcome to the Appointment Portal";
 
     /// <summary>Group D (2026-06-09) -- opposing-side consent request subject.</summary>
     public const string ChangeRequestConsentRequest =

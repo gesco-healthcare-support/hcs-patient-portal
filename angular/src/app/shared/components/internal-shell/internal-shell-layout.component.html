@@ -69,7 +69,7 @@
       </button>
 
       <div class="in-crumb">
-        {{ platform() ? 'Platform' : 'Home' }}
+        {{ hostScope() ? 'Management' : 'Home' }}
         <app-icon name="chevRight" [size]="13" />
         <b>{{ crumb() }}</b>
       </div>
@@ -86,8 +86,8 @@
           [style.cursor]="canSwitch() ? 'pointer' : 'default'"
           (click)="toggleSwitcher()"
         >
-          <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
-          {{ platform() ? 'All tenants' : (tenantName() | officeName) }}
+          <span class="mk">{{ hostScope() ? 'M' : tenantInitial() }}</span>
+          {{ hostScope() ? 'Management' : (tenantName() | officeName) }}
           @if (canSwitch()) {
             <app-icon name="chevDown" [size]="14" />
           }
