@@ -29,12 +29,16 @@ docker-compose*.yaml text eol=lf
 # not diffed, not counted as code, and not EOL-normalized across hosts.
 angular/.yarn/releases/** binary linguist-vendored
 
-# --- Generated code: keep out of diffs/line-counts; collapse on GitHub ---
+# --- Generated code: keep out of LOCAL diffs/line-counts; collapse on GitHub ---
 # `-diff` makes git render these as "binary" so they don't count toward +/- line
-# totals (locally or on GitHub). `linguist-generated=true` collapses them in PR
-# diffs and removes them from the language-stats bar. The files stay fully tracked
-# and committed and remain openable in an editor -- ONLY the diff rendering changes;
-# nothing functional is affected.
+# totals LOCALLY. `linguist-generated=true` collapses them in GitHub PR diffs and
+# removes them from the language-stats bar. CAVEAT: GitHub still tallies these
+# lines in a PR's header "+N/-M" badge -- it honors -diff for the collapsed VIEW,
+# not for the count. A single new EF migration Designer.cs embeds the full model
+# snapshot (thousands of lines x2 for the dual host/tenant contexts), so the badge
+# can read +13k on a PR whose real hand-written diff is ~100 lines. The files stay
+# fully tracked and committed and remain openable in an editor -- ONLY the diff
+# rendering changes; nothing functional is affected.
 **/Migrations/**          linguist-generated=true -diff
 **/TenantMigrations/**    linguist-generated=true -diff
 angular/src/app/proxy/**  linguist-generated=true -diff
