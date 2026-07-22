@@ -51,7 +51,7 @@ describe('filterNavGroups', () => {
 describe('resolveNavGroups', () => {
   it('gives an IT Admin at host scope the platform nav', () => {
     const sects = resolveNavGroups('itadmin', true).map((g) => g.sect);
-    expect(sects).toContain('Platform');
+    expect(sects).toContain('Overview');
     // Item 1 (2026-06-30): the 'SaaS' group merged into 'Practice Management'.
     expect(sects).toContain('Practice Management');
   });
@@ -66,7 +66,7 @@ describe('resolveNavGroups', () => {
     expect(hostSects).not.toContain('Workspace');
     const tenantSects = resolveNavGroups('supervisor', false).map((g) => g.sect);
     expect(tenantSects).toContain('Workspace');
-    expect(tenantSects).not.toContain('Platform');
+    expect(tenantSects).not.toContain('Overview');
   });
 
   it('gives a host Intake operator the office switcher, and the tenant nav once switched in', () => {
@@ -78,7 +78,7 @@ describe('resolveNavGroups', () => {
     expect(hostSects).not.toContain('Workspace');
     const tenantSects = resolveNavGroups('intake', false).map((g) => g.sect);
     expect(tenantSects).toContain('Workspace');
-    expect(tenantSects).not.toContain('Platform');
+    expect(tenantSects).not.toContain('Overview');
   });
 
   it('gives the superuser the full platform nav at host scope', () => {
