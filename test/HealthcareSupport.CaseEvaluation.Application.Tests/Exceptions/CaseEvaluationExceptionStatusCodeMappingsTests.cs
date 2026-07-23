@@ -9,7 +9,7 @@ namespace HealthcareSupport.CaseEvaluation.Exceptions;
 /// <summary>
 /// BUG-012 Sub-bug 1 (2026-05-22) -- unit tests for
 /// <see cref="CaseEvaluationExceptionStatusCodeMappings.MapSharedRegistrationAndInternalUserCodes"/>.
-/// The helper centralizes 10 BadRequest mappings that BOTH the
+/// The helper centralizes 11 BadRequest mappings that BOTH the
 /// AuthServer host and the HttpApi.Host need (per the BUG-003 mirror
 /// convention). Each mapping is asserted individually so a future
 /// removal / status-code change surfaces as a deliberate test edit
@@ -23,7 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.Exceptions;
 public class CaseEvaluationExceptionStatusCodeMappingsTests
 {
     [Fact]
-    public void MapSharedRegistrationAndInternalUserCodes_RegistersAllTenCodesAsBadRequest()
+    public void MapSharedRegistrationAndInternalUserCodes_RegistersAllSharedCodesAsBadRequest()
     {
         var options = new AbpExceptionHttpStatusCodeOptions();
 
@@ -39,6 +39,9 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         ].ShouldBe(HttpStatusCode.BadRequest);
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered
         ].ShouldBe(HttpStatusCode.BadRequest);
 
         // Appointment-flow attorney FirmName guard (1 code).
@@ -81,7 +84,7 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 10 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(10);
+        // Still exactly 11 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(11);
     }
 }

@@ -40,6 +40,12 @@ public static class CaseEvaluationExceptionStatusCodeMappings
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired,
             HttpStatusCode.BadRequest);
 
+        // Invite guard (external-signup -- present in both hosts). Issuing an
+        // invite to an already-registered email is rejected up front (2026-07-23).
+        options.Map(
+            CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered,
+            HttpStatusCode.BadRequest);
+
         // Appointment-flow attorney FirmName guard. Appointment routes
         // are HttpApi.Host-only TODAY, but the AuthServer mirror is the
         // documented convention for any controller that ever moves.

@@ -787,7 +787,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 // remap to HTTP 400 via AbpExceptionHttpStatusCodeOptions
                 // (BUG-003 -- prior 403 was semantically wrong).
                 throw new UserFriendlyException(
-                    message: L["Registration:DuplicateEmail"],
+                    message: acceptedInvitation != null
+                        ? L["Registration:DuplicateEmailInvited"]
+                        : L["Registration:DuplicateEmail"],
                     code: CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail);
             }
 
@@ -1379,6 +1381,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         // to the same tenant (a harmless no-op).
         using (CurrentTenant.Change(tenantId.Value, tenantName))
         {
+            // 2026-07-23 -- refuse a dead-end invite: if the email already has an
+            // account in this office the invitee can never complete registration
+            // (RegisterAsync rejects the duplicate at the same FindByEmailAsync gate),
+            // and the pending row lingers misleadingly on the pending-invites surface.
+            // The inviter is authenticated and chose the email, so the message is
+            // explicit -- no account-enumeration concern (unlike anonymous self-signup).
+            var existingUser = await _userManager.FindByEmailAsync(normalizedEmail);
+            if (existingUser != null)
+            {
+                throw new UserFriendlyException(
+                    message: L["Invite:EmailAlreadyRegistered"],
+                    code: CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
+            }
+
             var (invitation, rawToken) = await _invitationManager.IssueAsync(
                 tenantId: tenantId.Value,
                 email: normalizedEmail,

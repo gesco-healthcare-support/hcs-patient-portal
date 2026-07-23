@@ -663,6 +663,21 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Registration.DuplicateEmail";
 
     /// <summary>
+    /// 2026-07-23 -- raised by <c>ExternalSignupAppService.InviteExternalUserAsync</c>
+    /// when the invited email already maps to an existing <c>IdentityUser</c> in the
+    /// target office. Blocks issuing a dead-end invitation: the invitee could never
+    /// complete registration (<c>RegisterAsync</c> rejects the duplicate at the same
+    /// <c>FindByEmailAsync</c> gate), and a pending row would linger misleadingly on
+    /// the People / pending-invites surface. Unlike the anonymous self-signup path,
+    /// the inviter is an authenticated staff member who chose the email, so the
+    /// message is explicit (no account-enumeration concern). Mapped to HTTP 400 via
+    /// <c>CaseEvaluationExceptionStatusCodeMappings</c>. Localization key
+    /// <c>Invite:EmailAlreadyRegistered</c>.
+    /// </summary>
+    public const string InviteEmailAlreadyRegistered =
+        "CaseEvaluation:Invite.EmailAlreadyRegistered";
+
+    /// <summary>
     /// BUG-025 (2026-05-21) -- raised by
     /// <c>AppointmentDocumentsAppService.EnsureFileSizeWithinLimit</c>
     /// when an upload exceeds <c>MaxFileSizeBytes</c> (10 MB). Carries
