@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
@@ -37,6 +39,7 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
     private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
     private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
     private readonly ICurrentTenant _currentTenant;
+    private readonly InvitationManager _invitationManager;
 
     protected ExternalSignupAppServiceTests()
     {
@@ -44,6 +47,7 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
         _applicantAttorneyRepository = GetRequiredService<IRepository<ApplicantAttorney, Guid>>();
         _defenseAttorneyRepository = GetRequiredService<IRepository<DefenseAttorney, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
+        _invitationManager = GetRequiredService<InvitationManager>();
     }
 
     [Fact]
@@ -184,5 +188,135 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
             masters[0].IdentityUserId.ShouldNotBeNull();
             masters[0].FirmName.ShouldBe(firmName);
         }
+    }
+
+    // =====================================================================
+    // 2026-07-23: invite duplicate-email guard + clear invite-path message.
+    // Inviting an email that already has an account is a dead-end (the invitee
+    // can never complete registration), so it is refused at invite time; and the
+    // register duplicate message on the invite path is explicit (not the
+    // anonymised self-signup wording).
+    // =====================================================================
+
+    [Fact]
+    public async Task InviteExternalUserAsync_EmailAlreadyRegistered_ThrowsAndIssuesNoInvitation()
+    {
+        const string email = "invite-guard.existing@test.example";
+
+        // An account already exists in the office (created the normal way).
+        await _appService.RegisterAsync(new ExternalUserSignUpDto
+        {
+            UserType = ExternalUserType.Patient,
+            Email = email,
+            Password = "Test1234!",
+            ConfirmPassword = "Test1234!",
+            FirstName = "Existing",
+            LastName = "Account",
+            TenantId = TenantsTestData.TenantARef,
+        });
+
+        // Inviting the same email is refused up front (before IssueAsync).
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            () => _appService.InviteExternalUserAsync(new InviteExternalUserDto
+            {
+                Email = email,
+                UserType = ExternalUserType.ApplicantAttorney,
+                TenantId = TenantsTestData.TenantARef,
+            }));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
+        ex.Message.ShouldBe(
+            "This email already has an account in this office. Ask them to sign in or reset their password.");
+
+        // No dead-end invitation row was created.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var active = await _appService.GetActiveInvitedEmailsAsync(new List<string> { email });
+            active.ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task RegisterAsync_InvitePathDuplicate_ReturnsClearInvitedMessage()
+    {
+        const string email = "invite-dup.clear@test.example";
+
+        // Issue a pending invite BEFORE any account exists (raw token returned once).
+        string rawToken;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            (_, rawToken) = await _invitationManager.IssueAsync(
+                tenantId: TenantsTestData.TenantARef,
+                email: email,
+                userType: ExternalUserType.ApplicantAttorney,
+                invitedByUserId: Guid.Empty);
+        }
+
+        // The email then registers a normal account (no token).
+        await _appService.RegisterAsync(new ExternalUserSignUpDto
+        {
+            UserType = ExternalUserType.ApplicantAttorney,
+            Email = email,
+            Password = "Test1234!",
+            ConfirmPassword = "Test1234!",
+            FirmName = "Clear-Msg-Firm",
+            TenantId = TenantsTestData.TenantARef,
+        });
+
+        // Completing the still-pending invite now hits the duplicate gate on the INVITE
+        // path. ValidateAsync runs under the ambient tenant (before RegisterAsync's own
+        // CurrentTenant.Change), so scope to the office to mirror the subdomain-scoped
+        // request the register page actually makes.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<UserFriendlyException>(
+                () => _appService.RegisterAsync(new ExternalUserSignUpDto
+                {
+                    UserType = ExternalUserType.ApplicantAttorney,
+                    Email = email,
+                    Password = "Test1234!",
+                    ConfirmPassword = "Test1234!",
+                    FirmName = "Clear-Msg-Firm",
+                    TenantId = TenantsTestData.TenantARef,
+                    InviteToken = rawToken,
+                }));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail);
+            ex.Message.ShouldBe("This email already has an account. Please sign in or reset your password.");
+        }
+    }
+
+    [Fact]
+    public async Task RegisterAsync_AnonymousDuplicate_KeepsAnonymisedMessage()
+    {
+        const string email = "anon-dup@test.example";
+
+        await _appService.RegisterAsync(new ExternalUserSignUpDto
+        {
+            UserType = ExternalUserType.Patient,
+            Email = email,
+            Password = "Test1234!",
+            ConfirmPassword = "Test1234!",
+            FirstName = "Anon",
+            LastName = "Dup",
+            TenantId = TenantsTestData.TenantARef,
+        });
+
+        // A second anonymous registration (no InviteToken) keeps the enumeration-safe wording.
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            () => _appService.RegisterAsync(new ExternalUserSignUpDto
+            {
+                UserType = ExternalUserType.Patient,
+                Email = email,
+                Password = "Test1234!",
+                ConfirmPassword = "Test1234!",
+                FirstName = "Anon",
+                LastName = "Dup",
+                TenantId = TenantsTestData.TenantARef,
+            }));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail);
+        ex.Message.ShouldBe(
+            "If this email is new, you will receive a verification message shortly. If it is already registered, sign in instead or reset your password.");
     }
 }
