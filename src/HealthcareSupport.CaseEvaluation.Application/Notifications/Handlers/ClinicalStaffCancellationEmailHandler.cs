@@ -41,6 +41,9 @@ public class ClinicalStaffCancellationEmailHandler :
     private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ClinicalStaffCancellationEmailHandler> _logger;
+    // 2026-07-23: staff-only notice -> host portal link (admin.<base>), not the
+    // shared ctx.PortalBaseUrl ({tenant}.<base>, which external handlers rely on).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public ClinicalStaffCancellationEmailHandler(
         INotificationDispatcher dispatcher,
@@ -48,7 +51,8 @@ public class ClinicalStaffCancellationEmailHandler :
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<ClinicalStaffCancellationEmailHandler> logger)
+        ILogger<ClinicalStaffCancellationEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
@@ -56,6 +60,7 @@ public class ClinicalStaffCancellationEmailHandler :
         _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -110,7 +115,7 @@ public class ClinicalStaffCancellationEmailHandler :
                 documentName: null,
                 rejectionNotes: null,
                 clinicName: _currentTenant.Name,
-                portalUrl: ctx.PortalBaseUrl);
+                portalUrl: await _accountUrlBuilder.BuildPortalRootUrlAsync(null));
 
             var withReason = new Dictionary<string, object?>(variables, StringComparer.Ordinal)
             {

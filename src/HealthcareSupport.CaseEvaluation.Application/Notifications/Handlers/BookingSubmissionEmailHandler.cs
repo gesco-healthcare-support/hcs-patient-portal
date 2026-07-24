@@ -232,7 +232,10 @@ public class BookingSubmissionEmailHandler :
         // builder pulls tenant Name from the explicit eventData.TenantId
         // rather than the unreliable _currentTenant.Name (null inside the
         // Change(tenantId) scope opened by the calling handler).
-        var portalBaseUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
+        // 2026-07-23: the office "new request" notice below is staff-only, so its portal
+        // link goes to the HOST portal (admin.<base>) where staff work. The external-party
+        // notice uses authServerBaseUrl (tenant login) and stays {tenant}.<base>.
+        var officePortalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
         var authServerBaseUrl = await _accountUrlBuilder.BuildAuthServerRootUrlAsync(eventData.TenantId);
 
         // Build the booker name + patient name once -- both are stable
@@ -319,7 +322,7 @@ public class BookingSubmissionEmailHandler :
         {
             var officeVariables = BuildAppointmentRequestedVariables(
                 eventData, ctx, office, bookerName, patientName, dateLine,
-                portalBaseUrl, authServerBaseUrl);
+                officePortalUrl, authServerBaseUrl);
             var officeRecipient = new[]
             {
                 new NotificationRecipient(
