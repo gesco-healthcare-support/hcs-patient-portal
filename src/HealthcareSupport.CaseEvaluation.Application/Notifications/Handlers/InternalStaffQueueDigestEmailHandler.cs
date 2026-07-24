@@ -55,8 +55,9 @@ public class InternalStaffQueueDigestEmailHandler :
 
         using (_currentTenant.Change(eventData.TenantId))
         {
-            // BUG-029 v3 fix (2026-05-21).
-            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
+            // 2026-07-23: staff-only digest -> link to the HOST portal (admin.<base>)
+            // where internal staff work, not the office's {tenant}.<base> surface.
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
 
             var recipients = new List<NotificationRecipient>
             {

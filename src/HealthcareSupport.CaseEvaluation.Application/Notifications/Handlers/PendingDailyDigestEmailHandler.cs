@@ -80,8 +80,9 @@ public class PendingDailyDigestEmailHandler :
                 return;
             }
 
-            // BUG-029 v3 fix (2026-05-21).
-            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
+            // 2026-07-23: staff-only office digest -> link to the HOST portal
+            // (admin.<base>) where staff work, not the office's {tenant}.<base> surface.
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
 
             // 2026-06-11: the decision window is the per-tenant
             // PendingAppointmentOverDueNotificationDays (default 3 -- below the
