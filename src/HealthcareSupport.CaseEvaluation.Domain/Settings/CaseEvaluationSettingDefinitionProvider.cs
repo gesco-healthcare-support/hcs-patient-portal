@@ -75,6 +75,11 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // drain (the single send boundary); per-tenant overridable over the host default.
         Define(context, CaseEvaluationSettings.NotificationsPolicy.EmailEnabled, defaultValue: "true");
 
+        // Case Tracker integration (2026-07-27), default OFF. The receiving endpoints are not
+        // deployed yet and the payload is ePHI, so the push must be switched on deliberately per
+        // office rather than starting live on merge.
+        Define(context, CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled, defaultValue: "false");
+
         // W2-10 + Group L: reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e)
         // + appointment-day + the two document-reminder jobs). The *Anchors
         // values are comma-separated day lists parsed by ReminderCadence at run

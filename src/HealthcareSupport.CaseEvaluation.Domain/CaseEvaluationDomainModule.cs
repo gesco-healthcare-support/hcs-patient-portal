@@ -13,6 +13,7 @@ using Volo.Abp.BlobStoring;
 using Volo.Abp.BlobStoring.Database;
 using Volo.Abp.BlobStoring.Minio;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using Volo.Abp.Caching;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.PermissionManagement.OpenIddict;
@@ -102,6 +103,8 @@ public class CaseEvaluationDomainModule : AbpModule
             client.Timeout = TimeSpan.FromSeconds(120);
         });
 
+        ConfigureCaseTrackerClient(context);
+
 
 
         // Adrian (2026-04-30 / W-A-10): the previous `#if DEBUG` guard never fired in the
@@ -189,6 +192,36 @@ public class CaseEvaluationDomainModule : AbpModule
             UseMinio<AppointmentPacketsContainer>();
             UseMinio<UserSignaturesContainer>();
             UseMinio<OfficeLogosContainer>();
+        });
+    }
+
+    /// <summary>
+    /// 2026-07-27 -- typed HttpClient for the Case Tracker intake API (integration Part 1).
+    ///
+    /// <para>The base address is set ONLY when <c>CaseTracker:BaseUrl</c> is configured. Leaving it
+    /// unset is deliberate rather than defaulting to a guessed host: the push is gated off by
+    /// default (<c>CaseTrackerPushEnabled</c>), and if it were ever enabled without a URL the
+    /// resulting request fails as a transport error, which the outbox records and surfaces --
+    /// whereas a wrong-but-plausible default could POST PHI at the wrong host.</para>
+    ///
+    /// <para>The token is NOT captured here; the client reads it per request so rotating the secret
+    /// does not need a restart.</para>
+    /// </summary>
+    private static void ConfigureCaseTrackerClient(ServiceConfigurationContext context)
+    {
+        var configuration = context.Services.GetConfiguration();
+        var baseUrl = configuration["CaseTracker:BaseUrl"];
+        var timeoutSeconds = int.TryParse(configuration["CaseTracker:TimeoutSeconds"], out var parsed) && parsed > 0
+            ? parsed
+            : 30;
+
+        context.Services.AddHttpClient<ICaseTrackerClient, CaseTrackerClient>(client =>
+        {
+            if (!string.IsNullOrWhiteSpace(baseUrl))
+            {
+                client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+            }
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
         });
     }
 

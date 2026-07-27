@@ -18,6 +18,24 @@ public static class CaseEvaluationSettings
     private const string Scheduling = Prefix + ".Scheduling";
     private const string Documents = Prefix + ".Documents";
     private const string Notifications = Prefix + ".Notifications";
+    private const string Integration = Prefix + ".Integration";
+
+    /// <summary>
+    /// Outbound-integration switches (2026-07-27, Case Tracker Part 1). A setting rather than
+    /// config so it is per-office overridable and can be flipped without a redeploy; the URL and
+    /// token stay in config/secrets because a token must never live in the settings table.
+    /// </summary>
+    public static class IntegrationPolicy
+    {
+        /// <summary>
+        /// Master switch for pushing approved appointments to the Case Tracker. Defaults to FALSE:
+        /// their endpoints are not deployed yet, and the payload is ePHI, so nothing may leave the
+        /// portal until an office is deliberately switched on. Enforced at the outbox drain (the
+        /// single send boundary) -- when off, due rows stay Pending with no failed-attempt cost and
+        /// resume automatically once enabled.
+        /// </summary>
+        public const string CaseTrackerPushEnabled = Integration + ".CaseTrackerPushEnabled";
+    }
 
     public static class BookingPolicy
     {
