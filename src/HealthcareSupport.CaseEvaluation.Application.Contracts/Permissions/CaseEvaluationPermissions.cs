@@ -118,6 +118,14 @@ public static class CaseEvaluationPermissions
         public const string Reject = Default + ".Reject";
         public const string RequestCancellation = Default + ".RequestCancellation";
         public const string RequestReschedule = Default + ".RequestReschedule";
+
+        /// <summary>
+        /// 2026-07-27 -- manually (re-)push an approved appointment to the Case Tracker. A dedicated
+        /// gate rather than reusing Approve: re-sending PHI to an external system is a distinct
+        /// capability, and the action doubles as the recovery tool for a dead-lettered push, so it
+        /// belongs with IT Admin / Staff Supervisor rather than every approver.
+        /// </summary>
+        public const string PushToCaseTracker = Default + ".PushToCaseTracker";
     }
 
     public static class AppointmentDocuments

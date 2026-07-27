@@ -1334,6 +1334,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.ApprovalReconciliationJob.CronExpression,
             options);
+
+        // Case Tracker integration Part 1 (2026-07-27) -- per-office outbox drain sweep (every
+        // 15 min). Backstop for a drain enqueue lost between the approval commit and Hangfire
+        // accepting the job, and the mechanism that flushes rows accumulated while an office had
+        // the push switched off.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerReconciliationJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerReconciliationJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerReconciliationJob.CronExpression,
+            options);
     }
 
     private static TimeZoneInfo TryGetPacificTimeZone()

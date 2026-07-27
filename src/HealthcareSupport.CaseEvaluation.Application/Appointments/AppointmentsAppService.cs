@@ -884,6 +884,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             appointment.OriginalAppointmentId = originalAppointmentId.Value;
         }
 
+        // Case Tracker integration (2026-07-27): stamp the evaluation kind from the lifecycle flow
+        // rather than leaving it to be inferred later. Reval is the only follow-up flow; Create and
+        // ReSubmit are both FIRST evaluations (a re-submit is the same evaluation re-entered after a
+        // send-back, not a new one). The Case Tracker labels its case folder from this value, so
+        // deriving it downstream from OriginalAppointmentId -- which also carried reschedule-chain
+        // links historically -- would mislabel.
+        appointment.EvaluationKind = EvaluationKindPolicy.FromLifecycleFlow(lifecycleFlow);
+
         // R2 (Phase 9, 2026-05-04): persist OLD-parity dedup outcome on the
         // appointment row. Mirrors OLD AppointmentDomain.cs:210, 217 where
         // IsPatientAlreadyExist tracks whether the booking resolved to an
