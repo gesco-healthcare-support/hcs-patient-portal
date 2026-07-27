@@ -13,7 +13,6 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 /// <c>api/app/case-tracker</c> so the integration's own endpoints stay grouped and separate from the
 /// appointment CRUD controllers.
 /// </summary>
-[IgnoreAntiforgeryToken]
 [Area("app")]
 [ControllerName("CaseTrackerPush")]
 [Route("api/app/case-tracker")]
