@@ -245,6 +245,11 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.LockedUntil).HasColumnName(nameof(IntegrationOutboxItem.LockedUntil));
             b.Property(x => x.SentAt).HasColumnName(nameof(IntegrationOutboxItem.SentAt));
             b.Property(x => x.LastError).HasColumnName(nameof(IntegrationOutboxItem.LastError)).HasMaxLength(IntegrationOutboxConsts.LastErrorMaxLength);
+            // Part 5: alert throttle + human-resolution audit. MUST mirror the host context -- an
+            // IMultiTenant entity mapped in both contexts needs the column in BOTH migration sets, or
+            // office databases lack it and fail at runtime.
+            b.Property(x => x.AlertedAt).HasColumnName(nameof(IntegrationOutboxItem.AlertedAt));
+            b.Property(x => x.ResolvedAt).HasColumnName(nameof(IntegrationOutboxItem.ResolvedAt));
             b.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique().HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
             b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
             b.HasIndex(x => new { x.TenantId, x.AppointmentId });

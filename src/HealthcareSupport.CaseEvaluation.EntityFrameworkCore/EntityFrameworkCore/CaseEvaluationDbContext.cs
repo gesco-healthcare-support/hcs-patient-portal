@@ -330,6 +330,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.LockedUntil).HasColumnName(nameof(IntegrationOutboxItem.LockedUntil));
             b.Property(x => x.SentAt).HasColumnName(nameof(IntegrationOutboxItem.SentAt));
             b.Property(x => x.LastError).HasColumnName(nameof(IntegrationOutboxItem.LastError)).HasMaxLength(IntegrationOutboxConsts.LastErrorMaxLength);
+            // Part 5: alert throttle + human-resolution audit. Nullable, so no default is needed.
+            b.Property(x => x.AlertedAt).HasColumnName(nameof(IntegrationOutboxItem.AlertedAt));
+            b.Property(x => x.ResolvedAt).HasColumnName(nameof(IntegrationOutboxItem.ResolvedAt));
             b.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique().HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
             b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
             // Staff search the dead-letter view by appointment.

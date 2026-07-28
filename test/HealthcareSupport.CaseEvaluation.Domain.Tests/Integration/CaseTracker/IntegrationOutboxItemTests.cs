@@ -191,4 +191,83 @@ public class IntegrationOutboxItemTests
 
         item.LastError!.Length.ShouldBe(IntegrationOutboxConsts.LastErrorMaxLength);
     }
+
+    // -- Part 5: alerting and resolution -----------------------------------
+
+    [Fact]
+    public void MarkAlerted_StampsTheRow()
+    {
+        var item = NewPending();
+        item.MarkFatal(Now, "401 invalid token");
+
+        item.MarkAlerted(Now);
+
+        item.AlertedAt.ShouldBe(Now);
+    }
+
+    [Fact]
+    public void MarkAlerted_IsIdempotent_SoStaffAreNotMailedTwice()
+    {
+        // The whole throttle rests on this: once a row is stamped, a later run must not re-alert it.
+        var item = NewPending();
+        item.MarkFatal(Now, "401 invalid token");
+        item.MarkAlerted(Now);
+
+        item.MarkAlerted(Now.AddHours(1));
+
+        item.AlertedAt.ShouldBe(Now);
+    }
+
+    [Fact]
+    public void MarkResolved_MovesAFailedRowOutOfTheDeadLetterList()
+    {
+        var item = NewPending();
+        item.MarkFatal(Now, "401 invalid token");
+
+        item.MarkResolved(Now.AddMinutes(5));
+
+        item.Status.ShouldBe(IntegrationOutboxStatus.Resolved);
+    }
+
+    [Theory]
+    [InlineData(IntegrationOutboxStatus.Pending)]
+    [InlineData(IntegrationOutboxStatus.Sent)]
+    public void MarkResolved_OnlyActsOnAFailedRow(IntegrationOutboxStatus startingStatus)
+    {
+        // Resolving a Pending row would silently cancel a push that is still due; resolving a Sent row
+        // would rewrite delivery history.
+        var item = NewPending();
+        if (startingStatus == IntegrationOutboxStatus.Sent)
+        {
+            item.MarkSent(Now);
+        }
+
+        item.MarkResolved(Now);
+
+        item.Status.ShouldBe(startingStatus);
+    }
+
+    [Fact]
+    public void MarkResolved_IsIdempotent()
+    {
+        var item = NewPending();
+        item.MarkFatal(Now, "401 invalid token");
+        item.MarkResolved(Now);
+
+        item.MarkResolved(Now.AddHours(1));
+
+        item.Status.ShouldBe(IntegrationOutboxStatus.Resolved);
+    }
+
+    [Fact]
+    public void AResolvedRow_IsNeverLeasableByADrain()
+    {
+        // Guards the reason Resolved is safe to introduce: TryClaim admits only Pending, so a resolved
+        // row can never be picked up and re-sent.
+        var item = NewPending();
+        item.MarkFatal(Now, "401 invalid token");
+        item.MarkResolved(Now);
+
+        item.TryClaim(Now.AddDays(1), Lease).ShouldBeFalse();
+    }
 }
