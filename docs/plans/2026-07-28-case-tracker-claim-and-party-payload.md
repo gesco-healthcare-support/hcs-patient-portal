@@ -1,7 +1,7 @@
 ---
 feature: Case Tracker claim and party payload (integration Part 6)
 date: 2026-07-28
-status: draft
+status: complete
 base-branch: main
 related-issues: []
 ---
