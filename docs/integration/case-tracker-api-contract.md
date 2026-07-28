@@ -315,7 +315,7 @@ references - `AppointmentDocumentsContainer` and `AppointmentPacketsContainer`. 
 no value. Packets are included because a regenerated packet gets a NEW `objectKey`, so an old Case
 Tracker reference would break if the previous object were removed.
 
-Delete propagation (still needed; TO BE BUILT):
+Delete propagation (BUILT, PR #395):
 - When a document is deleted on the portal, the document-update feed (§E) carries a removal entry
   `{ "id": "<guid>", "deleted": true, "updatedAt": "<iso-utc>" }` so Case Tracker drops it from the
   active view. The blob is retained on the portal side regardless.
@@ -544,9 +544,21 @@ packets.
 
 A permanently failed push means a case silently never reaches Case Tracker - the worst failure mode of
 this integration, because nothing in either UI would show it. Combined with the fail-fast retry policy
-(§I), a failure surfaces to a human within minutes. Phase 1 includes ALL of:
+(§I), a failure surfaces to a human within minutes. STATUS: BUILT (Part 5). Phase 1 includes ALL of:
 - Email alert to internal staff when an outbox row reaches terminal `Failed` (reuses the portal's
   existing email infrastructure; note `OutboxDrainJob` today only logs counts, so this is new).
+  **REVISED 2026-07-28 -- BATCHED, not one email per failure.** The most likely cause of a dead letter
+  is systemic (a wrong token, or the receiver being down), which fails every queued row at once, so a
+  strict per-failure alert would send dozens of emails and get itself muted or filtered. Built as at
+  most one email per office per 15-minute run, listing the affected appointments and reporting the true
+  total even when the list is truncated. An `AlertedAt` stamp on each row makes a batch send exactly
+  once, and survives restarts.
+- **ADDED 2026-07-28: a completeness sweep** (hourly) for published appointments with NO outbox row at
+  all. Every other safety net here assumes a row exists; the approval handler deliberately swallows its
+  own errors so an integration fault can never fail a staff member's approval, which means a throw
+  during enqueue leaves nothing to retry, dead-letter or alert on. That case was invisible in both
+  systems. The sweep enqueues the missing intake; a duplicate is harmless because the idempotency key
+  collapses it.
 - An admin dead-letter SCREEN (net-new Angular; no outbox UI exists today) listing failed pushes with
   the appointment, message type, target, attempt count, and last error, plus a MANUAL RETRY action.
 - A manual "Push to Case Tracker" action on an appointment, reusing the same code path - covers
@@ -592,17 +604,24 @@ Portal side - BUILT and merged (as of `8a1568eb`, 2026-07-28). All of it ships D
   `X-Integration-Token` check that fails closed when unconfigured. Part 4. NOTE the URL gained an
   `/offices/{tenantId}/` segment -- see §F for why database-per-office forces it.
 
+- Failure visibility (§I2): batched terminal-failure alert to internal staff, the hourly completeness
+  sweep, and the host-scoped admin dead-letter screen whose Retry re-sends from CURRENT data and marks
+  the old row resolved. Part 5.
+
 Portal side - still NOT built:
-- Failure visibility (§I2): terminal-failure email alert and the admin dead-letter screen with retry.
-  The fail-fast retry policy and the manual push action they complement are already built. Today a
-  dead-lettered push is visible only in the logs.
-- TLS/mTLS on the transport (coordinate with Case Tracker).
+- TLS/mTLS on the transport (coordinate with Case Tracker). Note: if their service requires CLIENT
+  certificates this becomes a small code change to the push client's handler; if it only needs us to
+  trust their internal CA it is box configuration. They have not said which.
 - Infra: expose MinIO to the CT VM over TLS; mint a scoped key (read-only on
   `case-evaluation-documents`, read/write + delete on a new `case-tracker-documents`); create that
-  bucket. (Capacity fine: MinIO ~3.3 MB; disk 28% after build-cache reclaim.) NOTE: TLS needs an
-  internal DNS hostname + a certificate - a cert cannot be issued for a bare IP, so
-  `https://192.168.101.37:9000` is not viable. Same constraint Case Tracker hit for their own HTTPS
-  base; coordinate one internal DNS naming approach with IT for both endpoints.
+  bucket. (Capacity fine: MinIO ~3.3 MB; disk 28% after build-cache reclaim.)
+  **CORRECTED 2026-07-28: this needs NO IT involvement, contrary to what was said earlier.** There is
+  already a WILDCARD DNS record for `*.appointment-portal.pfd.tbc.local` pointing at the portal server
+  (verified by resolving an invented hostname), and the existing `*.appointment-portal.pfd.tbc.local`
+  TLS wildcard covers `minio.appointment-portal...` because a wildcard matches exactly one label. So the
+  hostname already resolves and is already certified. The only outstanding work is a reverse-proxy rule:
+  `minio.` currently falls through the `*.${BASE_DOMAIN}` catch-all to the Angular app, and the MinIO
+  container publishes 9000 on the docker network with no host port mapping.
 - Data prerequisite: `Location.FacilityId` is still EMPTY on both production clinics.
 
 Known gap in what IS built: the blob-retention change has no automated test. The tombstone half is
