@@ -20,6 +20,8 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
     private readonly PartyResolver _partyResolver;
     private readonly TenantLocationResolver _tenantLocationResolver;
     private readonly DocumentListResolver _documentListResolver;
+    private readonly InjuryResolver _injuryResolver;
+    private readonly PartyDetailResolver _partyDetailResolver;
     private readonly IGuidGenerator _guidGenerator;
 
     public IntakePayloadBuilder(
@@ -28,6 +30,8 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
         PartyResolver partyResolver,
         TenantLocationResolver tenantLocationResolver,
         DocumentListResolver documentListResolver,
+        InjuryResolver injuryResolver,
+        PartyDetailResolver partyDetailResolver,
         IGuidGenerator guidGenerator)
     {
         _appointmentRepository = appointmentRepository;
@@ -35,9 +39,17 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
         _partyResolver = partyResolver;
         _tenantLocationResolver = tenantLocationResolver;
         _documentListResolver = documentListResolver;
+        _injuryResolver = injuryResolver;
+        _partyDetailResolver = partyDetailResolver;
         _guidGenerator = guidGenerator;
     }
 
+    /// <summary>
+    /// Resolves everything the payload needs, then hands off to <see cref="ComposePayload"/>.
+    ///
+    /// <para>Split in two because the repo caps a method at 50 lines and the assignment block alone is
+    /// most of that. Orchestration here, assignment there.</para>
+    /// </summary>
     public virtual async Task<IntakeEnvelope> BuildAsync(
         Guid appointmentId,
         CancellationToken cancellationToken = default)
@@ -46,8 +58,34 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
 
         var core = await _coreResolver.ResolveAsync(appointment, cancellationToken);
         var tenantLocation = await _tenantLocationResolver.ResolveAsync(appointment, cancellationToken);
+        var parties = await _partyDetailResolver.ResolveAsync(appointment, cancellationToken);
 
-        var payload = new IntakePayload
+        var payload = ComposePayload(appointment, core, tenantLocation, parties);
+
+        payload.Patient = await _partyResolver.ResolvePatientAsync(appointment, cancellationToken);
+        payload.Doctor = await _partyResolver.ResolveDoctorAsync(cancellationToken);
+        payload.Documents = await _documentListResolver.ResolveAsync(appointment, cancellationToken);
+        payload.Injuries = await _injuryResolver.ResolveAsync(appointment.Id, cancellationToken);
+
+        return new IntakeEnvelope
+        {
+            Data = payload,
+            Meta = new IntakeMeta
+            {
+                RequestId = _guidGenerator.Create(),
+                Timestamp = IntegrationTimestamp.ToIsoUtc(DateTime.UtcNow),
+            },
+        };
+    }
+
+    /// <summary>The plain assignment step: scalars off the appointment plus the already-resolved sections.</summary>
+    private IntakePayload ComposePayload(
+        Appointment appointment,
+        AppointmentCoreSection core,
+        TenantLocationSection tenantLocation,
+        PartyDetailSection parties)
+    {
+        return new IntakePayload
         {
             AppointmentId = appointment.Id,
             ConfirmationNumber = appointment.RequestConfirmationNumber,
@@ -71,23 +109,14 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
                 Id = core.AppointmentTypeId,
                 Name = core.AppointmentTypeName,
             },
-            Patient = await _partyResolver.ResolvePatientAsync(appointment, cancellationToken),
-            Doctor = await _partyResolver.ResolveDoctorAsync(cancellationToken),
             Storage = new IntakeStorageSection
             {
                 Bucket = _tenantLocationResolver.ResolveBucketName(),
             },
-            Documents = await _documentListResolver.ResolveAsync(appointment, cancellationToken),
-        };
-
-        return new IntakeEnvelope
-        {
-            Data = payload,
-            Meta = new IntakeMeta
-            {
-                RequestId = _guidGenerator.Create(),
-                Timestamp = IntegrationTimestamp.ToIsoUtc(DateTime.UtcNow),
-            },
+            ApplicantAttorney = parties.ApplicantAttorney,
+            DefenseAttorney = parties.DefenseAttorney,
+            PrimaryInsurances = parties.PrimaryInsurances,
+            ClaimExaminers = parties.ClaimExaminers,
         };
     }
 }
