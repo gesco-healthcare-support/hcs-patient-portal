@@ -276,7 +276,10 @@ PKCE token (a client must be registered). Budget for this if you pull.
    (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`). They are intentionally not in this document. If the
    shared-bucket route is chosen, create a dedicated MinIO service account / access key scoped to
    read-only on `case-evaluation-documents` rather than handing over root.
-3. The push itself. Trigger, outbox, and POST client are not built yet on the portal side.
+3. The push itself. RESOLVED 2026-07-28: trigger, outbox, POST client, the document-update feed and
+   the change re-push are all BUILT and merged (PRs #393 + #395 -> main `8a1568eb`), shipping disabled
+   behind `CaseTrackerPushEnabled`. Only the reconcile GET and failure visibility remain -- see
+   `case-tracker-api-contract.md` §J for the current split.
 4. No `DurationMinutes` field - compute from the slot.
 5. Timezone: slot date/time is clinic-local with no offset; audit/approve times are UTC. Agree on a
    convention (proposal in section 6).
