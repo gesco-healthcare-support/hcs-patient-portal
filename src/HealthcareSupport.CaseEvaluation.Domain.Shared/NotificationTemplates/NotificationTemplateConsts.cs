@@ -215,7 +215,15 @@ public static class NotificationTemplateConsts
         public const string PatientAppointmentInfoRequested = "PatientAppointmentInfoRequested";
 
         /// <summary>
-        /// All 63 codes in seed order. Used by
+        /// Part 5 (2026-07-28) -- alerts internal staff that Case Tracker pushes have dead-lettered in
+        /// their office and will not retry on their own. Batched: one email per office per run listing
+        /// the affected appointments, because the usual cause (a bad token, their service down) fails
+        /// every queued row at once. Carries no PHI -- confirmation number and error text only.
+        /// </summary>
+        public const string CaseTrackerPushFailed = "CaseTrackerPushFailed";
+
+        /// <summary>
+        /// All 64 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
         /// tenant has a row per code at tenant-create time.
         /// </summary>
@@ -264,6 +272,7 @@ public static class NotificationTemplateConsts
 
             // Prompt 17 (2026-06-17) -- send-back / request-info notice.
             PatientAppointmentInfoRequested,
+            CaseTrackerPushFailed,
 
             // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
             AccessorAppointmentAdded,

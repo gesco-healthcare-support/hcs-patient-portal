@@ -1344,6 +1344,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerReconciliationJob.CronExpression,
             options);
+
+        // Case Tracker integration Part 5 (2026-07-28) -- alerts internal staff about dead-lettered
+        // pushes (every 15 min). A permanently failed push means a case silently never reached the
+        // Case Tracker; without this it is visible only in the server logs. Batched per office, so a
+        // systemic failure sends one email rather than one per row.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFailureAlertJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFailureAlertJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFailureAlertJob.CronExpression,
+            options);
     }
 
     private static TimeZoneInfo TryGetPacificTimeZone()

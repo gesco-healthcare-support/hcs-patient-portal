@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 20px; color: #000;">
+    <p>Hello ##StaffFirstName##,</p>
+    <p>
+        <strong>##FailureCount##</strong> appointment push(es) to the Case Tracker have failed permanently
+        for <strong>##OfficeName##</strong> and will not retry on their own. Each one means a case has NOT
+        reached the Case Tracker.
+    </p>
+    <!--
+      Plain text inside <pre> rather than markup in the variable: whether the dispatcher HTML-escapes
+      substituted values is not something this template should depend on, and <pre> reads correctly
+      either way.
+    -->
+    <pre style="font-family: Consolas, Menlo, monospace; font-size: 13px; background: #f6f8fa; padding: 12px; border-radius: 4px; white-space: pre-wrap;">##FailureList##</pre>
+    <p>
+        Open the portal and use the Case Tracker failures screen to retry them. Retrying sends the
+        appointment's current details, so any corrections made since the failure are included.
+    </p>
+    <p style="margin-top: 20px;">
+        <a href="##PortalUrl##" style="background:#0d6efd;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;">
+            Open appointment portal
+        </a>
+    </p>
+    <p style="margin-top: 20px; color: #555; font-size: 12px;">
+        Appointments are identified by confirmation number only. No patient details are included in this
+        message.
+    </p>
+</body>
+</html>
