@@ -1354,6 +1354,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFailureAlertJob.CronExpression,
             options);
+
+        // Case Tracker integration Part 5 (2026-07-28) -- hourly completeness sweep. Catches the one
+        // gap the retry, dead-letter and alert paths all miss: an approval whose enqueue itself threw,
+        // leaving NO outbox row, so there is nothing to retry or alert on. Hourly because it reads every
+        // published appointment per office and detects a rare bug, not a routine transient.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerCompletenessSweepJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerCompletenessSweepJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerCompletenessSweepJob.CronExpression,
+            options);
     }
 
     private static TimeZoneInfo TryGetPacificTimeZone()
