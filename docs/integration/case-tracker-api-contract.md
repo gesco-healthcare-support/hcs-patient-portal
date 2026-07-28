@@ -330,8 +330,16 @@ BACKSTOP: it recovers a push that dead-lettered, and it is the clean way to refr
 full-payload shape is kept regardless, because the portal reuses one payload builder for both and a
 documents-only variant would cost the same to build while giving you less.
 
-- URL: `GET {portalBase}/api/integration/appointments/{appointmentId}` ->
+- URL (**CHANGED 2026-07-28 -- note the office segment**):
+  `GET {portalBase}/api/integration/offices/{tenantId}/appointments/{appointmentId}` ->
   `{ "data": { <the complete §A intake payload, including the documents[] array> }, "meta": {...}, "errors": [] }`.
+  `{tenantId}` is exactly the `data.tenant.tenantId` you already receive in every push, so no new
+  lookup is needed on your side. It is REQUIRED, and here is why: the portal is database-per-office,
+  and this call carries no other signal of which office to read. There is no signed-in user, and the
+  portal resolves offices from the request host name -- so without the id in the path the request
+  resolves to the shared host context, where the appointment does not exist. Supplying it as a path
+  segment is also deliberately narrower than a tenant header, which the portal blocks globally so that
+  no URL can be overridden by a header.
   Byte-identical in shape to what the push sends, so Case Tracker can reuse the SAME deserializer and
   upsert path for both push and pull. (The portal reuses the same payload builder, so exposing the
   full payload costs essentially nothing over a documents-only version.)
@@ -369,7 +377,18 @@ Answers to the receiver's reconcile questions (2026-07-28):
   of their `X-Intake-Token`. Chosen over OpenIddict client-credentials (which the portal already
   supports) because it is symmetric with their inbound design and needs no token-fetch/refresh cycle
   on their side. Portal issues the token out of band.
-- STATUS: not built (the internal `GetCombinedForAppointmentAsync` is not reusable as-is).
+- Response codes (FINAL): `200` with the payload; `401` when `X-Integration-Token` is missing, empty or
+  wrong -- rejected before any office database is opened; `404` for an unknown appointment. `404` ALSO
+  covers an office whose integration is switched off, and the two are deliberately indistinguishable so
+  the endpoint cannot be used to discover which appointments or offices exist. Treat `404` as terminal
+  and stop sweeping that id, exactly as previously agreed.
+- The token is compared in constant time and is never logged. If the portal has no token configured the
+  endpoint rejects EVERY request rather than allowing them through, so a misconfigured deploy fails
+  closed rather than serving PHI.
+- Rate limiting: none, as agreed. Be aware this makes the shared token the only barrier, so treat it as
+  a secret of the same weight as your `X-Intake-Token`.
+- STATUS: BUILT (Part 4). Portal config key `CaseTracker:IntegrationToken`, supplied per environment as
+  a secret and never committed; Adrian issues the value out of band.
 - Distinct from Case Tracker's own `GET /api/intake/health` (§I), which we call to check
   connectivity to THEM.
 
@@ -480,10 +499,11 @@ Portal side - BUILT and merged (as of `8a1568eb`, 2026-07-28). All of it ships D
 - Packet-mislabeled-as-DOCX fix (§B): filename and content type are both derived from the stored
   blob. PR #395.
 
+- Reconcile GET returning the FULL appointment payload (§F), gated by a constant-time
+  `X-Integration-Token` check that fails closed when unconfigured. Part 4. NOTE the URL gained an
+  `/offices/{tenantId}/` segment -- see §F for why database-per-office forces it.
+
 Portal side - still NOT built:
-- Reconcile GET returning the FULL appointment payload (§F), gated by a static `X-Integration-Token`
-  header check. This is the only remaining protocol surface, and the payload builder it needs already
-  exists; the new work is the token auth mechanism, since the portal has no API-key pattern today.
 - Failure visibility (§I2): terminal-failure email alert and the admin dead-letter screen with retry.
   The fail-fast retry policy and the manual push action they complement are already built. Today a
   dead-lettered push is visible only in the logs.
