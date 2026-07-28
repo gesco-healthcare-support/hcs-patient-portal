@@ -14,7 +14,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// drain. Extracted so the approval handler and the manual "Push to Case Tracker" action cannot
 /// drift apart -- the manual action exists precisely to re-drive what the automatic one does.
 /// </summary>
-public class CaseTrackerIntakeQueue : ITransientDependency
+public class CaseTrackerIntakeQueue : ICaseTrackerIntakeQueue, ITransientDependency
 {
     private readonly IIntakePayloadBuilder _payloadBuilder;
     private readonly IntegrationOutboxManager _outboxManager;

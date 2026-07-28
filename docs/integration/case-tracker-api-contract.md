@@ -16,6 +16,22 @@ Decisions folded in (2026-07-23, all FINAL):
 - Re-eval linking: persisted `EvaluationKind` + `previousAppointmentId` + `previousConfirmationNumber`.
   We do NOT send a patient identifier at all - see the note under §A.
 - Ordering via `updatedAt` (§G); TLS required (§A, §I).
+
+REVISION 2026-07-28 (supersedes where it conflicts with the text below):
+- **Part 1 is MERGED** (PR #393 -> main `6208a0cd`): the outbound push, outbox, intake trigger and
+  manual push all exist. Still DISABLED by default; never tested live.
+- **The portal now pushes on ANY change to an approved appointment**, not just cancel/reschedule.
+  Field edits (patient / attorney / injury) are PUSHED, reversing the earlier
+  "field edits are pull-only" decision. Consequence: Case Tracker does NOT need a periodic sweep
+  for freshness; the reconcile GET is a BACKSTOP for a dead-lettered push, not the delivery path.
+- **Uploaded documents publish only when staff ACCEPT them.** Upload no longer triggers a push, so
+  Case Tracker never receives `Pending` or `Uploaded` rows -- only staff-vetted documents.
+- **Reject-after-Accept is sent as `{ id, deleted: true }`**, not as a status change.
+- **Packets publish as one batch once all three kinds are `Generated`** (with a timeout path if one
+  kind stays `Failed`), rather than one message per packet.
+- **Retention narrowed**: only the IT-Admin DELETE path retains its blob. A re-upload deletes the
+  superseded blob and publishes the new `objectKey` (there is always a replacement, so nothing we
+  published can be left pointing at nothing).
 - Delivery: FAIL-FAST retry (few attempts, then dead-letter) + email alert + an admin dead-letter
   screen with retry, plus a manual "Push to Case Tracker" action (§I, §I2).
 
@@ -272,11 +288,12 @@ change-request row, not the appointment). So the signal that an appointment MOVE
 `appointmentDateLocal` / `appointmentTimeLocal` + `updatedAt`, NOT a status change. A receiver that
 keys "case moved" off a status transition will miss every reschedule.
 
-NOT pushed - field edits (patient / attorney / injury details). These are high-volume and low-urgency;
-they reach Case Tracker by PULL via the full reconcile endpoint (§F) on case-open or a periodic sweep.
-Residual accepted: a field edit is not visible in Case Tracker until it next pulls. If a specific
-field ever needs to be real-time (e.g. patient phone), it can be added to the push triggers later -
-cheap once the channel exists.
+SUPERSEDED 2026-07-28 -- field edits ARE now pushed. The trigger is ANY change to an approved
+appointment, including patient / attorney / injury field edits. Re-pushing costs almost nothing
+because it reuses the single idempotent `EnqueueIntakeAsync` path: the idempotency key is versioned by
+the appointment's `updatedAt`, so a save that changed nothing collapses onto the existing outbox row
+instead of sending a duplicate. Consequence for the receiver: no periodic sweep is needed to stay
+fresh, and the reconcile GET (§F) is a backstop rather than the delivery path for edits.
 
 Receiver requirement: Case Tracker must let a re-push CHANGE a case's `status` (e.g. to a cancelled /
 rescheduled state), not only accept the first `Approved`. `updatedAt` guards ordering as for documents.
@@ -298,8 +315,33 @@ pull is how they reach Case Tracker.
   full payload costs essentially nothing over a documents-only version.)
 - Returns CURRENT truth: latest appointment/patient/attorney/location fields + the fetchable document
   list (all packet kinds when generated; excludes soft-deleted and non-fetchable entries).
-- Recommended Case Tracker usage: call on case-open (so staff always see fresh details) and on a
-  periodic sweep of open cases (so drift self-heals without relying on perfect event delivery).
+- Recommended Case Tracker usage (REVISED 2026-07-28): call it on case-open, and otherwise only as a
+  BACKSTOP. A periodic sweep is no longer needed for freshness now that every appointment change is
+  pushed; its remaining value is recovering a push that dead-lettered. An hourly sweep is harmless if
+  you want one (each call is ~8-10 indexed reads on one office database, and there is no rate limit),
+  but it is no longer load-bearing.
+
+Answers to the receiver's reconcile questions (2026-07-28):
+- **Same clock as the push?** Yes, and stronger than that: reconcile runs the SAME
+  `IIntakePayloadBuilder` over the same columns, so `updatedAt` is the same value from the same source
+  (`LastModificationTime ?? CreationTime`, formatted by one helper). Reconcile can therefore never
+  return an OLDER stamp than a push for the same data -- it can only be equal or newer, because a push
+  carries a snapshot rendered at enqueue time while reconcile always reads live. A skip-if-older guard
+  is safe. Do NOT compare `meta.timestamp`: that is when the response was generated, not a data
+  version.
+- **Cancelled appointment?** `200` with the current data, carrying the cancelled status
+  (`CancelledNoBill` / `CancelledLate`). Cancellations are exactly what reconcile should be able to
+  recover, so they are never hidden behind a 404. `404` means only "no such appointment here" -- treat
+  that as terminal and stop sweeping it. (Rejected never occurs: rejection is only reachable
+  pre-approval, so it can never apply to an appointment you hold.)
+- **Are deleted documents listed?** No -- and the array is GUARANTEED to be the complete, current,
+  never-paginated set for that appointment. So absence is authoritative: anything you hold that is
+  absent should be dropped. That is semantically right, because absence covers deleted,
+  rejected-after-accept and never-accepted alike, and all three mean "do not show this".
+- **Can `objectKey` change for a stable `id`?** YES, for both kinds. A packet regeneration reuses its
+  row (composite unique on tenant + appointment + kind) and writes a new blob; a document re-upload
+  mutates the same row (`document.BlobName = newBlobName`). Treat `id` as stable and `objectKey` as
+  MUTABLE -- always overwrite the stored key on upsert, never key off it.
 - Auth (DECIDED 2026-07-23): a portal-issued STATIC integration token in a header
   (`X-Integration-Token`), constant-time compared, stored as a secret on both sides - the mirror image
   of their `X-Intake-Token`. Chosen over OpenIddict client-credentials (which the portal already
@@ -315,8 +357,12 @@ pull is how they reach Case Tracker.
 
 - Case dedup key: `appointmentId` = `Appointment.Id` (stable, globally unique GUID). Upsert on it.
 - Per-file dedup key: `id` = `AppointmentDocument.Id` / `AppointmentPacket.Id`.
-- Packet regeneration reuses the same row (composite unique `(TenantId, AppointmentId, Kind)`): `id`
-  stable, `objectKey` changes on regenerate - upsert by `id`, overwrite `objectKey`.
+- `objectKey` is MUTABLE for a stable `id`, in BOTH directions (confirmed 2026-07-28):
+  - a packet regeneration reuses its row (composite unique `(TenantId, AppointmentId, Kind)`) and
+    writes a new blob;
+  - a document re-upload mutates the same row (`AppointmentDocumentsAppService.cs:617`,
+    `document.BlobName = newBlobName`) and the superseded blob is deleted.
+  Always upsert by `id` and OVERWRITE the stored `objectKey`. Never treat the key as an identity.
 - Ordering guard (AGREED): the portal sends `updatedAt` per appointment and per document (incl.
   deletions); Case Tracker skips stale writes. Correctness is independent of delivery order.
 

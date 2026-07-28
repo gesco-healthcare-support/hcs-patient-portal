@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -22,5 +23,22 @@ public static class IntakePayloadSerializer
     public static string Serialize(IntakeEnvelope envelope)
     {
         return JsonSerializer.Serialize(envelope, Options);
+    }
+
+    /// <summary>
+    /// Serializes a document-update body: a BARE JSON ARRAY, not the <c>{data,meta,errors}</c>
+    /// envelope intake uses (contract section G). The asymmetry is the receiver's, not ours -- their
+    /// document endpoint binds a list directly -- so it is enforced here rather than left to each
+    /// caller to remember.
+    /// </summary>
+    public static string SerializeDocumentEntries(IReadOnlyList<IntakeDocumentEntry> entries)
+    {
+        return JsonSerializer.Serialize(entries, Options);
+    }
+
+    /// <summary>Serializes removals into the same bare array. See <see cref="DocumentDeletionEntry"/>.</summary>
+    public static string SerializeDeletionEntries(IReadOnlyList<DocumentDeletionEntry> entries)
+    {
+        return JsonSerializer.Serialize(entries, Options);
     }
 }

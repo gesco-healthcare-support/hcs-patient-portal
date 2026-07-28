@@ -20,7 +20,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// still rendering -- publishing either would hand the receiver an object key that 404s. They
 /// reappear through the document-update feed (Part 2) once they become fetchable.</para>
 /// </summary>
-public class DocumentListResolver : ITransientDependency
+public class DocumentListResolver : IDocumentListResolver, ITransientDependency
 {
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
@@ -72,10 +72,38 @@ public class DocumentListResolver : ITransientDependency
             .ToList();
     }
 
-    private async Task<List<IntakeDocumentEntry>> ResolvePacketsAsync(
-        Appointment appointment,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// One uploaded document, mapped exactly as the full list would map it -- including its resolved
+    /// category label -- so a document published by the accept trigger is byte-identical to the same
+    /// document published by an intake push.
+    /// </summary>
+    public virtual async Task<IntakeDocumentEntry?> ResolveDocumentAsync(
+        Guid documentId,
+        Guid? tenantId,
+        CancellationToken cancellationToken = default)
     {
+        var document = await _documentRepository.FindAsync(documentId, cancellationToken: cancellationToken);
+        if (document == null || !DocumentEntryMapper.IsFetchable(document))
+        {
+            return null;
+        }
+
+        var typeNames = await ResolveTypeNamesAsync(
+            new List<AppointmentDocument> { document }, cancellationToken);
+
+        return DocumentEntryMapper.FromDocument(
+            document, ResolveTypeLabel(document, typeNames), tenantId);
+    }
+
+    public virtual async Task<List<IntakeDocumentEntry>> ResolvePacketsAsync(
+        Appointment appointment,
+        CancellationToken cancellationToken = default)
+    {
+        if (appointment is null)
+        {
+            throw new ArgumentNullException(nameof(appointment));
+        }
+
         var packets = await _packetRepository.GetListAsync(
             p => p.AppointmentId == appointment.Id, cancellationToken: cancellationToken);
 
