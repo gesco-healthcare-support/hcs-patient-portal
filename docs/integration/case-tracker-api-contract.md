@@ -2,17 +2,21 @@
 
 Definitive, buildable contract for the portal -> Case Tracker document integration.
 
-STATUS 2026-07-23: Case Tracker's receiving endpoints (intake, document-update, health) are BUILT +
+STATUS 2026-07-28: Case Tracker's receiving endpoints (intake, document-update, health) are BUILT +
 verified locally to this contract but NOT yet deployed to `192.168.101.35` - their team is holding
 deploys so in-progress staff testing is not interrupted (the server itself is up and reachable). So
-LIVE TESTING IS HELD until they deploy. The portal OUTBOUND side is not built yet (section J).
+LIVE TESTING IS HELD until they deploy. The portal OUTBOUND side is now BUILT and merged for
+everything except the reconcile GET (§F) and failure visibility (§I2) - see section J for the current
+built/remaining split. It ships DISABLED behind the `CaseTrackerPushEnabled` setting.
 
 Decisions folded in (2026-07-23, all FINAL):
 - Intake pushes IMMEDIATELY on approval; packets/docs stream in afterwards (§H). No all-3 aggregator.
 - Retention + soft-delete guarantee, scoped to appointment documents + packets (§C).
 - Appointment-lifecycle re-push on cancel / reschedule / rejection+info-requested, NOT field edits (§E2).
-- Reconcile GET returns the FULL appointment payload + documents, so field edits reach CT by pull (§F),
-  authenticated by a portal-issued static integration token (§F).
+  (SUPERSEDED 2026-07-28 -- field edits ARE pushed; see the revision block below.)
+- Reconcile GET returns the FULL appointment payload + documents, authenticated by a portal-issued
+  static integration token (§F). (Its original purpose -- carrying field edits by pull -- was
+  SUPERSEDED 2026-07-28; it is now a backstop.)
 - Re-eval linking: persisted `EvaluationKind` + `previousAppointmentId` + `previousConfirmationNumber`.
   We do NOT send a patient identifier at all - see the note under §A.
 - Ordering via `updatedAt` (§G); TLS required (§A, §I).
@@ -20,6 +24,10 @@ Decisions folded in (2026-07-23, all FINAL):
 REVISION 2026-07-28 (supersedes where it conflicts with the text below):
 - **Part 1 is MERGED** (PR #393 -> main `6208a0cd`): the outbound push, outbox, intake trigger and
   manual push all exist. Still DISABLED by default; never tested live.
+- **Parts 2 + 3 are MERGED** (PR #395 -> main `8a1568eb`): the document-update feed (accept /
+  reject / delete / packet batch), the blob-retention change, the stalled-packet release, and the
+  re-push-on-any-change trigger. Everything below marked "SUPERSEDED 2026-07-28" is now the BUILT
+  behaviour, not a plan. Still disabled by default; still never tested live.
 - **The portal now pushes on ANY change to an approved appointment**, not just cancel/reschedule.
   Field edits (patient / attorney / injury) are PUSHED, reversing the earlier
   "field edits are pull-only" decision. Consequence: Case Tracker does NOT need a periodic sweep
@@ -36,8 +44,9 @@ REVISION 2026-07-28 (supersedes where it conflicts with the text below):
   screen with retry, plus a manual "Push to Case Tracker" action (§I, §I2).
 
 Grounding: every field value maps to real portal source (branch `main` @ `100a617c`), cited inline;
-MinIO facts verified live. The portal emits none of this yet, so the JSON key NAMES/envelope are the
-contract we lock here and the portal emitter will be built to match.
+MinIO facts verified live. The JSON key NAMES/envelope were locked here first and the portal emitter
+was then built to match; as of `8a1568eb` the emitter exists and this document describes what it
+actually sends.
 
 Serialization conventions:
 - GUIDs: canonical dashed strings ("D" format).
@@ -227,7 +236,11 @@ Delete propagation (still needed; TO BE BUILT):
   is reference-only.
 - Backstop: the reconcile list (§F) omits soft-deleted docs.
 
-STATUS: the soft-delete change + delete event + propagation are not built yet (§J).
+STATUS: BUILT (PR #395 -> main `8a1568eb`). `DeleteAsync` soft-deletes the row and retains the blob,
+publishes `AppointmentDocumentDeletedEto`, and the handler propagates `{id, deleted:true}`. NOTE the
+narrowing: retention applies to the IT-Admin DELETE path. A re-upload still deletes the superseded
+blob, because it always writes a replacement key onto the SAME row, so nothing published is left
+pointing at nothing.
 
 ---
 
@@ -298,15 +311,24 @@ fresh, and the reconcile GET (§F) is a backstop rather than the delivery path f
 Receiver requirement: Case Tracker must let a re-push CHANGE a case's `status` (e.g. to a cancelled /
 rescheduled state), not only accept the first `Approved`. `updatedAt` guards ordering as for documents.
 
-STATUS: not built (portal side).
+STATUS: BUILT (PR #395 -> main `8a1568eb`). `AppointmentChangedHandler` watches `Appointment` and
+`Patient` updates. NOT watched, deliberately: `Location`, `Doctor` and `AppointmentType` edits. They
+appear in the payload but are rare admin actions that would fan out to every appointment at a
+location, so they reach you via reconcile-on-open instead. Practical consequence: renaming a clinic
+will not immediately refresh cases you already hold.
 
 ---
 
 ## F. Reconcile GET (portal-exposed backstop)
 
 SCOPE CHANGE (DECIDED 2026-07-23): the reconcile endpoint returns the FULL appointment payload, not
-just documents. This is what closes the field-edit gap - since field edits are not pushed (§E2), the
-pull is how they reach Case Tracker.
+just documents.
+
+Its ORIGINAL rationale -- that field edits were not pushed, so the pull was how they reached Case
+Tracker -- was SUPERSEDED 2026-07-28. Field edits are now pushed (§E2), so this endpoint is a
+BACKSTOP: it recovers a push that dead-lettered, and it is the clean way to refresh on case-open. The
+full-payload shape is kept regardless, because the portal reuses one payload builder for both and a
+documents-only variant would cost the same to build while giving you less.
 
 - URL: `GET {portalBase}/api/integration/appointments/{appointmentId}` ->
   `{ "data": { <the complete §A intake payload, including the documents[] array> }, "meta": {...}, "errors": [] }`.
@@ -432,35 +454,50 @@ Case Tracker side: intake + document-update + health BUILT + verified locally; N
 `192.168.101.35` yet. Live testing held until their deploy. Network path portal -> `.35` is open
 (`:7272`, `:80` reachable).
 
-Portal side - NOT built:
-- Retention/soft-delete change: stop physically deleting blobs in `DeleteAsync` (`:689`) for the
-  appointment-documents + packets containers; soft-delete the row only (§C).
-- Outbound push client + a NEW transactional outbox entity. NOTE (verified): `NotificationOutboxItem`
-  cannot be reused - its fields are email-shaped (`To`/`Cc`/`Subject`/`Body`/`IsBodyHtml`) - but its
-  MECHANICS are exactly right and should be mirrored: per-tenant, written in the same transaction as
-  the state change, lease/visibility-timeout claim (`TryClaim`), idempotent `MarkSent`, `MarkFailed`
-  with backoff + terminal dead-letter, `IdempotencyKey`, `MaxAttempts`. Include the §I status matrix
-  and intake-before-doc-updates ordering.
-- Event -> push wiring for documents (upload / accept / reject / packet-generated).
-- DELETE domain event + `{id, deleted:true}` propagation (§C).
-- Appointment-lifecycle re-push (§E2) on cancel / reschedule / rejection+info-requested.
-- Intake trigger: fire on approval (§H) - no aggregator needed.
-- Persisted `Appointment.EvaluationKind` column, in the SAME dual-context EF migration (host + Tenant
-  sets) as the outbox table; backfill all existing rows to `EVAL` (§A).
+Portal side - BUILT and merged (as of `8a1568eb`, 2026-07-28). All of it ships DISABLED behind the
+`CaseTrackerPushEnabled` setting, and NONE of it has been exercised against a live Case Tracker:
+- Outbound push client + a NEW transactional outbox entity (`IntegrationOutboxItem`). PR #393.
+  `NotificationOutboxItem` could not be reused - its fields are email-shaped - but its mechanics were
+  mirrored: per-tenant, written in the same transaction as the state change, lease/visibility-timeout
+  claim (`TryClaim`), idempotent `MarkSent`, `MarkFailed` with backoff, terminal dead-letter via
+  `MarkFatal`, `IdempotencyKey`, `MaxAttempts`, and the §I status matrix.
+- Intake trigger firing on approval, no aggregator (§H). PR #393.
+- Persisted `Appointment.EvaluationKind`, in a dual-context EF migration (host + Tenant sets), all
+  existing rows defaulting to `EVAL` (§A). PR #393.
 - Payload builder for `evaluationKind`, `previousAppointmentId`, `previousConfirmationNumber`,
-  `updatedAt`, and the fully-qualified `objectKey`s. (No patient identifier - §A.)
-- Reconcile GET returning the FULL appointment payload (§F), gated by the static `X-Integration-Token`
-  header check (a small new auth mechanism - the portal has no API-key pattern today).
-- Failure handling: fail-fast retry policy (§I), terminal-failure email alert, admin dead-letter screen
-  with retry, and the manual "Push to Case Tracker" action (§I2).
-- Fix the packet-mislabeled-as-DOCX bug so packets always serialize as `application/pdf` (§B).
+  `updatedAt`, and the fully-qualified `objectKey`s, with NO patient identifier (§A). PR #393.
+- Manual "Push to Case Tracker" action (§I2). PR #393.
+- Document-update feed (§E): `IntegrationMessageType.DocumentUpdate`, the bare-array body, and one
+  enqueue path shared by every trigger. PR #395.
+- Event -> push wiring for documents. Accept publishes the document; reject and delete publish
+  `{id, deleted:true}` tombstones (§C); packets publish as ONE batch once all kinds are `Generated`,
+  with a 30-minute release for a set stalled by a permanently failed kind. PR #395.
+  NOTE the narrowing versus the original plan: UPLOAD does not trigger a push -- only staff ACCEPT.
+- DELETE domain event (`AppointmentDocumentDeletedEto`) + retention change: `DeleteAsync` no longer
+  removes the blob, so a key you hold stays fetchable (§C). PR #395.
+- Re-push on ANY change to a published appointment (§E2), superseding the narrower
+  cancel/reschedule-only trigger. PR #395.
+- Packet-mislabeled-as-DOCX fix (§B): filename and content type are both derived from the stored
+  blob. PR #395.
+
+Portal side - still NOT built:
+- Reconcile GET returning the FULL appointment payload (§F), gated by a static `X-Integration-Token`
+  header check. This is the only remaining protocol surface, and the payload builder it needs already
+  exists; the new work is the token auth mechanism, since the portal has no API-key pattern today.
+- Failure visibility (§I2): terminal-failure email alert and the admin dead-letter screen with retry.
+  The fail-fast retry policy and the manual push action they complement are already built. Today a
+  dead-lettered push is visible only in the logs.
 - TLS/mTLS on the transport (coordinate with Case Tracker).
-- Infra: expose MinIO to the CT VM over TLS; mint scoped key (read-only on `case-evaluation-documents`,
-  read/write + delete on a new `case-tracker-documents`); create that bucket. (Capacity fine: MinIO
-  ~3.3 MB; disk 28% after build-cache reclaim.) NOTE: TLS needs an internal DNS hostname + a
-  certificate - a cert cannot be issued for a bare IP, so `https://192.168.101.37:9000` is not
-  viable. Same constraint Case Tracker hit for their own HTTPS base; coordinate one internal DNS
-  naming approach with IT for both endpoints.
+- Infra: expose MinIO to the CT VM over TLS; mint a scoped key (read-only on
+  `case-evaluation-documents`, read/write + delete on a new `case-tracker-documents`); create that
+  bucket. (Capacity fine: MinIO ~3.3 MB; disk 28% after build-cache reclaim.) NOTE: TLS needs an
+  internal DNS hostname + a certificate - a cert cannot be issued for a bare IP, so
+  `https://192.168.101.37:9000` is not viable. Same constraint Case Tracker hit for their own HTTPS
+  base; coordinate one internal DNS naming approach with IT for both endpoints.
+- Data prerequisite: `Location.FacilityId` is still EMPTY on both production clinics.
+
+Known gap in what IS built: the blob-retention change has no automated test. The tombstone half is
+covered; that `DeleteAsync` leaves the object in place is verified by code review only.
 
 Already EXISTS (reused): all field VALUES incl. `LastModificationTime`; upload/accept/reject/
 packet-generated events; byte retrieval by key; the MinIO store + ability to mint scoped users.
@@ -485,9 +522,12 @@ Agreed decisions (2026-07-23), all FINAL:
    18-month re-eval window.
 3. Intake pushes immediately on approval (0 packets expected initially); packets/docs follow via the
    update feed.
-4. Appointment lifecycle re-pushes on cancel / reschedule / rejection+info-requested. Field edits are
-   NOT pushed - Case Tracker pulls them via the full reconcile GET.
-5. Reconcile GET returns the full appointment payload + documents (same shape as the push).
+4. REVISED 2026-07-28: the portal re-pushes on ANY change to a published appointment, field edits
+   included, so no periodic pull is needed for freshness. (Was: lifecycle-only, with field edits
+   pulled. "Rejection+info-requested" was also dropped as impossible - both are reachable only
+   pre-approval.) Excluded from the trigger: `Location`, `Doctor` and `AppointmentType` edits.
+5. Reconcile GET returns the full appointment payload + documents (same shape as the push), now as a
+   BACKSTOP for a dead-lettered push and for refreshing on case-open.
 6. Ordering: `updatedAt` per appointment + per document; Case Tracker skips stale writes.
 7. Re-eval linking: persisted `EvaluationKind` + `previousAppointmentId` (machine link) +
    `previousConfirmationNumber` (human aid). NO patient identifier is sent - patient identity and

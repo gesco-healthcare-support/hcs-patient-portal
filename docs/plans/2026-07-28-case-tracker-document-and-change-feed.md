@@ -1,7 +1,7 @@
 ---
 feature: Case Tracker document + change feed (integration Parts 2 and 3, merged)
 date: 2026-07-28
-status: in-progress
+status: complete
 base-branch: main
 related-issues: []
 ---
