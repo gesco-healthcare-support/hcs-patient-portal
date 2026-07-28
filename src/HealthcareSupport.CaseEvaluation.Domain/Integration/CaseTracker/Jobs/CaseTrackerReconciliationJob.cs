@@ -136,9 +136,10 @@ public class CaseTrackerReconciliationJob : ITransientDependency
         if (truncated)
         {
             candidateIds = candidateIds.Take(PacketReleaseBatchSize).ToList();
+            // One placeholder per name: a repeated name misbinds the structured properties (S6677).
             _logger.LogWarning(
-                "CaseTrackerReconciliationJob: office {OfficeId} has more than {BatchSize} stalled packet sets; releasing the first {BatchSize} and deferring the rest to the next sweep.",
-                officeId, PacketReleaseBatchSize, PacketReleaseBatchSize);
+                "CaseTrackerReconciliationJob: office {OfficeId} has more than {BatchSize} stalled packet sets; releasing that many now and deferring the rest to the next sweep.",
+                officeId, PacketReleaseBatchSize);
         }
 
         var released = 0;
