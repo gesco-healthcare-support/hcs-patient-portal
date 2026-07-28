@@ -56,6 +56,8 @@ public class PartyResolver : ITransientDependency
             PhoneNumber = patient.PhoneNumber,
             PhoneNumberType = patient.PhoneNumberTypeId.ToString(),
             CellPhoneNumber = patient.CellPhoneNumber,
+            // Hashed and office-salted, never the raw Patient.Id -- see SamePersonGroupKey for why.
+            SamePersonGroupKey = SamePersonGroupKey.Compute(appointment.TenantId, patient.Id),
         };
     }
 

@@ -1,7 +1,7 @@
 ---
 feature: Case Tracker intake push (integration Part 1 of 5)
 date: 2026-07-27
-status: in-progress
+status: complete
 base-branch: main
 related-issues: []
 ---

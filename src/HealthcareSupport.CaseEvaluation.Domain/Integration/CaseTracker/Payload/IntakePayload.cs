@@ -81,6 +81,31 @@ public class IntakePayload
 
     /// <summary>Only FETCHABLE files. Empty at intake because packets render asynchronously.</summary>
     public List<IntakeDocumentEntry> Documents { get; set; } = new();
+
+    /// <summary>
+    /// Every injury recorded on the appointment. Added 2026-07-28 so the receiver's staff can tell which
+    /// of a patient's claims a case belongs to -- previously they saw only name and date of birth and
+    /// were filing records against the wrong claim.
+    ///
+    /// <para>Expected non-empty in practice (booking blocks submit without at least one entry) but the
+    /// guard is client-side only, so treat an empty array as possible rather than impossible.</para>
+    /// </summary>
+    public List<IntakeInjuryEntry> Injuries { get; set; } = new();
+
+    /// <summary>The applicant (patient-side) attorney; null when none was recorded.</summary>
+    public IntakeAttorneySection? ApplicantAttorney { get; set; }
+
+    /// <summary>The defense attorney; null when none was recorded.</summary>
+    public IntakeAttorneySection? DefenseAttorney { get; set; }
+
+    /// <summary>
+    /// Active insurance carriers. TOP-LEVEL, not nested per injury, because the portal stores no link
+    /// between a carrier and a specific injury -- see <see cref="IntakeInsuranceSection"/>.
+    /// </summary>
+    public List<IntakeInsuranceSection> PrimaryInsurances { get; set; } = new();
+
+    /// <summary>Active claim examiners. Same appointment-level caveat as the insurances.</summary>
+    public List<IntakeClaimExaminerSection> ClaimExaminers { get; set; } = new();
 }
 
 /// <summary>Owning office. <see cref="FacilityId"/> is the clinic's external key.</summary>
@@ -138,6 +163,18 @@ public class IntakePatientSection
     public string PhoneNumberType { get; set; } = string.Empty;
 
     public string? CellPhoneNumber { get; set; }
+
+    /// <summary>
+    /// Opaque, office-scoped token that is EQUAL for two appointments belonging to the same patient, so
+    /// the receiver's staff can be shown "these two claims are the same person".
+    ///
+    /// <para>A hash, not our <c>Patient.Id</c>. Equality is the receiver's only use, and our patient row
+    /// key means nothing in CalMed's world where patient identity is actually minted -- publishing it raw
+    /// would invite something downstream to store it as a patient identifier. Deliberately NOT named
+    /// <c>portalPatientId</c> for the same reason. Salted with the office so a cross-office false match
+    /// is impossible by construction. See <see cref="SamePersonGroupKey"/>.</para>
+    /// </summary>
+    public string SamePersonGroupKey { get; set; } = string.Empty;
 }
 
 /// <summary>The office's single doctor (tenant == doctor). FirstName can legitimately be empty.</summary>

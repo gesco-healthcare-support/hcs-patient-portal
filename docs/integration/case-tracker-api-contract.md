@@ -43,6 +43,18 @@ REVISION 2026-07-28 (supersedes where it conflicts with the text below):
 - Delivery: FAIL-FAST retry (few attempts, then dead-letter) + email alert + an admin dead-letter
   screen with retry, plus a manual "Push to Case Tracker" action (§I, §I2).
 
+REVISION 2026-07-28 (Part 6 -- claim and party data):
+- **`data.injuries[]` added**, carrying date of injury, claim number, WCAB ADJ, cumulative flag, body
+  parts and WCAB office per injury, PLUS normalised claim/ADJ variants for grouping. Added because the
+  receiver's staff had only name and date of birth to choose between a patient's claims and were filing
+  records against the wrong one.
+- **`data.patient.samePersonGroupKey` added** -- an office-salted hash, equality-only, never a patient
+  identifier. See the note under `data.patient`.
+- **`data.applicantAttorney` / `data.defenseAttorney` added** with the full address block.
+- **`data.primaryInsurances[]` / `data.claimExaminers[]` added as TOP-LEVEL arrays.** They are
+  appointment-level and carry NO link to a specific injury -- see their section.
+- Every one of these appears in the reconcile GET (§F) too, since both share one payload builder.
+
 Grounding: every field value maps to real portal source (branch `main` @ `100a617c`), cited inline;
 MinIO facts verified live. The JSON key NAMES/envelope were locked here first and the portal emitter
 was then built to match; as of `8a1568eb` the emitter exists and this document describes what it
@@ -165,6 +177,24 @@ only the Cal-Med ID they enter can do that.
 | `phoneNumberType` | string | No | enum name `Home` or `Work` (`Patient.cs:62`; `Work=28`, `Home=29`) |
 | `cellPhoneNumber` | string | Yes | `Patient.CellPhoneNumber` (`Patient.cs:60`) |
 | `dateOfBirth` | string | `yyyy-MM-dd` (date only) | No | `Patient.DateOfBirth` (`Patient.cs:42`, `DateTime`, not null). ADDED 2026-07-27 at Case Tracker's request - for STAFF EYEBALL CROSS-CHECK only (name + DOB, to catch a mistyped Cal-Med ID before it creates an orphan folder). Explicitly NOT a key and not for automated matching. |
+| `samePersonGroupKey` | string | No | 64-char lowercase hex. ADDED 2026-07-28 (Part 6). See below - read it before using this field. |
+
+**`samePersonGroupKey` - what it is and is not.** Two appointments carrying the SAME value belong to the
+same person as far as the portal's booking deduplication is concerned, so your staff can be shown "these
+two claims are the same person". That is its only purpose: EQUALITY.
+
+- It is NOT a patient identifier. Yours comes from CalMed. This is a salted hash of the portal's own
+  `Patient` table row key, which means nothing outside the portal's database. Deliberately not named
+  `portalPatientId` so it cannot be mistaken for CalMed's id, and deliberately opaque so nothing
+  downstream can store or display it as one.
+- It is OFFICE-SCOPED BY CONSTRUCTION. The office is mixed into the digest, so the same human at two
+  different offices produces two different values. A cross-office false match is therefore impossible
+  rather than merely discouraged. Never compare values across offices.
+- It is deterministic and stable, so equality holds across pushes indefinitely.
+- The portal's patient deduplication is a 3-of-6 match on last name, date of birth, phone, email, SSN and
+  claim number. If a key ever disagrees with what your staff can plainly see -- same key, obviously
+  different people, or the reverse -- trust the humans and tell us, because that means the match was
+  wrong.
 
 ### `data.doctor`
 
@@ -183,6 +213,65 @@ appointment field.
 | `bucket` | `"case-evaluation-documents"` | verified live on the portal MinIO |
 
 Only `bucket` is sent. Case Tracker takes endpoint, region, credentials from ITS OWN config.
+
+---
+
+### `data.injuries[]` (ADDED 2026-07-28, Part 6)
+
+The claim data your staff use to decide which of a patient's records a case files under. An ARRAY
+because an appointment genuinely supports several injuries -- a specific plus a cumulative-trauma
+injury -- and there is no primary flag, so flattening would make the portal choose a primary claim with
+less information than your staff have.
+
+| Key | Nullable | Notes |
+|---|---|---|
+| `id` | No | The injury row's own stable id. Line entries up across pushes with it; NOT a claim key |
+| `dateOfInjury` | No | `yyyy-MM-dd`. Mandatory at booking |
+| `toDateOfInjury` | Yes | `yyyy-MM-dd`. END of the exposure period on a cumulative injury; null on a specific one |
+| `isCumulativeInjury` | No | True means the two dates are a PERIOD, not an incident date |
+| `claimNumber` | No | Exactly as typed. Mandatory at booking |
+| `claimNumberNormalized` | Yes | Uppercased alphanumerics only, for GROUPING. Null if nothing alphanumeric remains |
+| `wcabAdj` | No | WCAB ADJ number as typed. Mandatory at booking |
+| `wcabAdjNormalized` | Yes | Same rule as the claim number |
+| `bodyPartsSummary` | No | Free text as typed |
+| `wcabOffice` | Yes | `{ name, abbreviation }`. Genuinely per-injury. Never the id |
+
+Three things to build for:
+
+- **The array can be empty.** Booking blocks submit without at least one injury (OLD parity), but that
+  guard is CLIENT-side and injury rows are written separately, so render "no claim information recorded"
+  rather than reaching for `injuries[0]`.
+- **Ordering carries no meaning.** There is no primary injury.
+- **`claimNumber` and `wcabAdj` are FREE TEXT.** The portal validates them for presence and 50
+  characters only -- no pattern, no trim, no case rule. So one claim can arrive as `WC-4417` at one
+  booking and `WC4417` at the next. Group on the `*Normalized` variants; display the raw ones.
+  NOTE the trade-off in normalising: all punctuation is stripped, so two genuinely different identifiers
+  differing ONLY in punctuation would collapse to the same value. Group for human confirmation, never
+  treat a normalised value as a key.
+- **A re-evaluation's claim numbers are not validated against its original.** They are entered
+  independently, so compare rather than assume.
+
+### `data.applicantAttorney` / `data.defenseAttorney` (ADDED 2026-07-28, Part 6)
+
+Both objects nullable -- null means none recorded, rather than an object of nulls. Keys: `firstName`,
+`lastName`, `firmName`, `email`, `phoneNumber`, `faxNumber`, `webAddress`, `street`, `city`, `state`,
+`zipCode`. All individually nullable. `state` is the resolved state NAME, never its id.
+
+Read from the appointment's own columns rather than the master attorney list, so they reflect what was
+recorded for THIS appointment.
+
+### `data.primaryInsurances[]` / `data.claimExaminers[]` (ADDED 2026-07-28, Part 6)
+
+**READ THIS BEFORE DESIGNING A SCREEN.** These are attached to the APPOINTMENT, not to a specific
+injury. The booking UI collects them through the injury modal, so a booker experiences them as belonging
+to an injury, but neither entity stores an injury foreign key. On a two-injury appointment the portal
+therefore does NOT record which carrier covers which claim, and that link cannot be inferred from
+ordering or any other field. Show them as appointment-level parties.
+
+Only rows the office has left ACTIVE are published.
+
+Insurance keys: `name`, `suite`, `phoneNumber`, `faxNumber`, `street`, `city`, `state`, `zipCode`.
+Claim examiner keys: the same plus `email`. All nullable; `state` is a resolved name.
 
 ---
 

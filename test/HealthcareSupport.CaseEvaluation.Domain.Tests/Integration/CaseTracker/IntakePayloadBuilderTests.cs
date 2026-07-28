@@ -4,8 +4,11 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -13,6 +16,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.States;
 using Microsoft.Extensions.Configuration;
 using NSubstitute;
 using Shouldly;
@@ -67,7 +71,8 @@ public class IntakePayloadBuilderTests
         Appointment appointment,
         Appointment? sourceAppointment = null,
         List<AppointmentDocument>? documents = null,
-        List<AppointmentPacket>? packets = null)
+        List<AppointmentPacket>? packets = null,
+        List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null)
     {
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetAsync(appointment.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -135,12 +140,35 @@ public class IntakePayloadBuilderTests
                 Arg.Any<Expression<Func<AppointmentDocumentType, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<AppointmentDocumentType>()));
 
+        var injuryRepo = Substitute.For<IAppointmentInjuryDetailRepository>();
+        injuryRepo.GetListWithNavigationPropertiesAsync(
+                Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+                Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(injuries ?? new List<AppointmentInjuryDetailWithNavigationProperties>()));
+
+        var insuranceRepo = Substitute.For<IRepository<AppointmentPrimaryInsurance, Guid>>();
+        insuranceRepo.GetListAsync(
+                Arg.Any<Expression<Func<AppointmentPrimaryInsurance, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<AppointmentPrimaryInsurance>()));
+
+        var examinerRepo = Substitute.For<IRepository<AppointmentClaimExaminer, Guid>>();
+        examinerRepo.GetListAsync(
+                Arg.Any<Expression<Func<AppointmentClaimExaminer, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<AppointmentClaimExaminer>()));
+
+        var stateRepo = Substitute.For<IRepository<State, Guid>>();
+        stateRepo.GetListAsync(
+                Arg.Any<Expression<Func<State, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<State>()));
+
         return new IntakePayloadBuilder(
             appointmentRepo,
             new AppointmentCoreResolver(appointmentRepo, slotRepo, typeRepo),
             new PartyResolver(patientRepo, doctorRepo),
             new TenantLocationResolver(locationRepo, tenantStore, configuration),
             new DocumentListResolver(documentRepo, packetRepo, documentTypeRepo),
+            new InjuryResolver(injuryRepo),
+            new PartyDetailResolver(insuranceRepo, examinerRepo, stateRepo),
             SimpleGuidGenerator.Instance);
     }
 
@@ -281,5 +309,88 @@ public class IntakePayloadBuilderTests
         // No patient identifier of any kind may appear -- see the class remarks.
         json.ShouldNotContain("\"patientId\"");
         json.ShouldNotContain("\"calMed\"");
+    }
+
+    [Fact]
+    public async Task SerializedPayload_NeverCarriesTheRawPatientRowKey()
+    {
+        // Part 6 added a same-person hint. It MUST be the office-salted hash, never Patient.Id -- our row
+        // key means nothing in CalMed's world and would invite something downstream to store it as a
+        // patient identifier. This is the guard that keeps that decision honest.
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+        var envelope = await builder.BuildAsync(AppointmentId);
+
+        var json = IntakePayloadSerializer.Serialize(envelope);
+
+        json.ShouldNotContain(PatientId.ToString("D"), Case.Insensitive);
+        json.ShouldNotContain(PatientId.ToString("N"), Case.Insensitive);
+        json.ShouldNotContain("\"portalPatientId\"");
+        envelope.Data.Patient.SamePersonGroupKey
+            .ShouldBe(SamePersonGroupKey.Compute(TenantId, PatientId));
+    }
+
+    [Fact]
+    public async Task BuildAsync_PublishesEveryInjuryWithRawAndNormalizedIdentifiers()
+    {
+        var injury = new AppointmentInjuryDetailWithNavigationProperties
+        {
+            AppointmentInjuryDetail = new AppointmentInjuryDetail(
+                new Guid("9f2c4b71-8ad3-4e15-b6c2-7e1f0a3d5b48"),
+                AppointmentId,
+                dateOfInjury: new DateTime(2025, 11, 14, 0, 0, 0, DateTimeKind.Utc),
+                claimNumber: "wc-sample-a",
+                isCumulativeInjury: false,
+                bodyPartsSummary: "Lower back",
+                wcabAdj: "adj-sample-a"),
+        };
+
+        var builder = Build(
+            NewAppointment(AppointmentId, "A00065"),
+            injuries: new List<AppointmentInjuryDetailWithNavigationProperties> { injury });
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        var entry = data.Injuries.ShouldHaveSingleItem();
+        entry.ClaimNumber.ShouldBe("wc-sample-a");
+        entry.ClaimNumberNormalized.ShouldBe("WCSAMPLEA");
+        entry.WcabAdjNormalized.ShouldBe("ADJSAMPLEA");
+        entry.DateOfInjury.ShouldBe("2025-11-14");
+    }
+
+    [Fact]
+    public async Task BuildAsync_WithNoClaimOrPartyData_ReturnsEmptyCollectionsAndNullAttorneys()
+    {
+        // The receiver renders "no claim information recorded" from this, so it must not be null.
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.Injuries.ShouldNotBeNull();
+        data.Injuries.ShouldBeEmpty();
+        data.PrimaryInsurances.ShouldBeEmpty();
+        data.ClaimExaminers.ShouldBeEmpty();
+        data.ApplicantAttorney.ShouldBeNull();
+        data.DefenseAttorney.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task PreExistingFields_AreUnchangedByThePart6Refactor()
+    {
+        // BuildAsync was split in two to stay under the method-length cap; this guards that the split
+        // did not drop or reorder any field Parts 1-4 already publish.
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.AppointmentId.ShouldBe(AppointmentId);
+        data.ConfirmationNumber.ShouldBe("A00065");
+        data.Status.ShouldBe("Approved");
+        data.Tenant.FacilityId.ShouldBe("FAC-SAMPLE");
+        data.Location.Name.ShouldBe("North Clinic");
+        data.Storage.Bucket.ShouldBe("case-evaluation-documents");
+        data.Patient.LastName.ShouldBe("Sample");
+        data.Doctor.LastName.ShouldBe("Reyes");
+        data.AppointmentDateLocal.ShouldBe("2026-08-15");
+        data.DurationMinutes.ShouldBe(60);
     }
 }
