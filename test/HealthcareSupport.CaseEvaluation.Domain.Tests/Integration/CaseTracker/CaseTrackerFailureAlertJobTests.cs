@@ -95,8 +95,13 @@ public class CaseTrackerFailureAlertJobTests
         var clock = Substitute.For<IClock>();
         clock.Now.Returns(Now);
 
-        var currentTenant = Substitute.For<ICurrentTenant>();
-        currentTenant.Name.Returns("Sample Medical Group");
+        // The tenant STORE, not ICurrentTenant.Name. ForEachOfficeAsync enters an office via
+        // ICurrentTenant.Change(id), which leaves Name null -- substituting ICurrentTenant here used to
+        // hide that, and live testing found the alert would name a blank office.
+        var tenantStore = Substitute.For<ITenantStore>();
+        tenantStore.FindAsync(OfficeId)
+            .Returns(Task.FromResult<TenantConfiguration?>(
+                new TenantConfiguration(OfficeId, "Sample Medical Group")));
 
         var bus = Substitute.For<ILocalEventBus>();
 
@@ -105,7 +110,7 @@ public class CaseTrackerFailureAlertJobTests
             Job = new CaseTrackerFailureAlertJob(
                 runner, outboxRepo,
                 new IntegrationOutboxManager(outboxRepo, SimpleGuidGenerator.Instance),
-                appointmentRepo, users, bus, currentTenant, clock,
+                appointmentRepo, users, bus, tenantStore, clock,
                 NullLogger<CaseTrackerFailureAlertJob>.Instance),
             Bus = bus,
             Rows = rows,

@@ -58,7 +58,7 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IIdentityUserRepository _identityUserRepository;
     private readonly ILocalEventBus _localEventBus;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantStore _tenantStore;
     private readonly IClock _clock;
     private readonly ILogger<CaseTrackerFailureAlertJob> _logger;
 
@@ -69,7 +69,7 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         IRepository<Appointment, Guid> appointmentRepository,
         IIdentityUserRepository identityUserRepository,
         ILocalEventBus localEventBus,
-        ICurrentTenant currentTenant,
+        ITenantStore tenantStore,
         IClock clock,
         ILogger<CaseTrackerFailureAlertJob> logger)
     {
@@ -79,7 +79,7 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         _appointmentRepository = appointmentRepository;
         _identityUserRepository = identityUserRepository;
         _localEventBus = localEventBus;
-        _currentTenant = currentTenant;
+        _tenantStore = tenantStore;
         _clock = clock;
         _logger = logger;
     }
@@ -135,12 +135,18 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         var summaries = await BuildSummariesAsync(unalerted);
         var now = _clock.Now;
 
+        // From the tenant STORE, not ICurrentTenant.Name. ForEachOfficeAsync enters each office via
+        // ICurrentTenant.Change(id), which sets the id but leaves Name null -- reading Name here would
+        // have put a blank office into the alert email. Same bug found live on the admin screen.
+        var tenant = await _tenantStore.FindAsync(officeId);
+        var officeName = tenant?.Name ?? string.Empty;
+
         foreach (var user in staff)
         {
             await _localEventBus.PublishAsync(new CaseTrackerPushFailedEto
             {
                 TenantId = officeId,
-                OfficeName = _currentTenant.Name ?? string.Empty,
+                OfficeName = officeName,
                 StaffUserId = user.Id,
                 StaffEmail = user.Email,
                 StaffFirstName = string.IsNullOrWhiteSpace(user.Name) ? user.UserName : user.Name,

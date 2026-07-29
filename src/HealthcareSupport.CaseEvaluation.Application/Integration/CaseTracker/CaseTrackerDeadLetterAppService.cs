@@ -33,6 +33,7 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly ICaseTrackerIntakeQueue _intakeQueue;
     private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantStore _tenantStore;
     private readonly IClock _clock;
 
     public CaseTrackerDeadLetterAppService(
@@ -42,6 +43,7 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
         IRepository<Appointment, Guid> appointmentRepository,
         ICaseTrackerIntakeQueue intakeQueue,
         ICurrentTenant currentTenant,
+        ITenantStore tenantStore,
         IClock clock)
     {
         _tenantWorkRunner = tenantWorkRunner;
@@ -50,6 +52,7 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
         _appointmentRepository = appointmentRepository;
         _intakeQueue = intakeQueue;
         _currentTenant = currentTenant;
+        _tenantStore = tenantStore;
         _clock = clock;
     }
 
@@ -87,7 +90,12 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
         var appointments = await _appointmentRepository.GetListAsync(a => appointmentIds.Contains(a.Id));
         var confirmationByAppointment = appointments.ToDictionary(a => a.Id, a => a.RequestConfirmationNumber);
 
-        var officeName = _currentTenant.Name ?? string.Empty;
+        // From the tenant STORE, not ICurrentTenant.Name. ITenantWorkRunner enters each office via
+        // ICurrentTenant.Change(id), which sets the id but leaves Name null -- so reading Name here
+        // produced a blank Clinic column. Caught in live testing; the unit tests substituted
+        // ICurrentTenant and returned a name, so they could not see it.
+        var tenant = await _tenantStore.FindAsync(officeId);
+        var officeName = tenant?.Name ?? string.Empty;
 
         return failures
             .Select(f => new CaseTrackerDeadLetterDto
