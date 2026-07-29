@@ -459,12 +459,32 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// cleared to trust the in-network proxy. Applied unconditionally (unlike the
     /// AuthServer's old dev-only gate) so production works. Internal + static so it is
     /// unit-testable via the module's InternalsVisibleTo.
+    ///
+    /// <para>2026-07-29 -- X-Forwarded-For added. Without it
+    /// <c>Connection.RemoteIpAddress</c> was the nginx CONTAINER address for every
+    /// request (the api service publishes no ports, so nginx is its sole ingress).
+    /// That silently collapsed every "per-IP" rate-limit partition into ONE global
+    /// bucket in production: external-signup register became 15/hour for the whole
+    /// deployment rather than per client, and the password-reset secondary limiter
+    /// became 50/hour for the whole deployment. The buckets read as per-IP controls
+    /// in code while behaving as a shared quota in the deployed stack.</para>
+    ///
+    /// <para>Trusting a client-supplied header would normally be a spoofing vector.
+    /// It is not one here: nginx sets the header from
+    /// <c>$proxy_add_x_forwarded_for</c>, which APPENDS the real <c>$remote_addr</c>
+    /// to the end of whatever the client sent, and this middleware reads
+    /// right-to-left consuming <c>ForwardLimit</c> entries (default 1). A forged
+    /// <c>X-Forwarded-For: 1.2.3.4</c> therefore arrives as <c>1.2.3.4, &lt;real&gt;</c>
+    /// and the real address is the one used. <b>Do not raise ForwardLimit</b> -- that
+    /// is what would start trusting client-supplied hops. Ref:
+    /// https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer
+    /// </para>
     /// </summary>
     internal static void ConfigureForwardedHeaders(ServiceConfigurationContext context)
     {
         context.Services.Configure<ForwardedHeadersOptions>(options =>
         {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
         });
@@ -680,6 +700,35 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                                 AutoReplenishment = true,
                             });
                     }
+                    if (IsIntegrationPath(httpContext))
+                    {
+                        // 2026-07-29 -- the Case Tracker reconcile GET under
+                        // /api/integration is anonymous: a shared token is the
+                        // only barrier, and since the claim/party payload landed
+                        // it returns claim numbers, injury dates, body parts,
+                        // employer/insurer details and attorney contacts. A
+                        // leaked token previously permitted unbounded
+                        // enumeration. Prefix-scoped rather than route-scoped so
+                        // any future /api/integration endpoint inherits the cap
+                        // instead of having to remember to ask for one.
+                        var key = ResolveIntegrationPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"integration:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                // Each reconcile call is ~8-10 indexed reads on ONE office
+                                // database, so a post-outage repair sweep needs real
+                                // headroom -- throttling their recovery path would be a
+                                // worse failure than the one being prevented. 300/hour
+                                // leaves that room while capping enumeration at a bounded
+                                // rate. Single constant to raise if their sweep outgrows it.
+                                PermitLimit = IntegrationRequestsPerHour,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
                     return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited");
                 });
 
@@ -725,6 +774,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>2026-05-13: full path matched by the register rate limiter.</summary>
     public const string ExternalSignupRegisterPath = "/api/public/external-signup/register";
+
+    /// <summary>
+    /// 2026-07-29: path prefix matched by the machine-to-machine integration limiter
+    /// (the Case Tracker reconcile GET and anything added beside it later).
+    /// </summary>
+    public const string IntegrationPathPrefix = "/api/integration";
+
+    /// <summary>Requests per hour, per source IP, allowed under <see cref="IntegrationPathPrefix"/>.</summary>
+    public const int IntegrationRequestsPerHour = 300;
 
     /// <summary>
     /// True when the request targets one of the password-reset endpoints
@@ -774,6 +832,33 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         return httpContext.Request.Path.Equals(
             ExternalSignupRegisterPath,
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 2026-07-29 -- true when the request targets the machine-to-machine integration
+    /// surface under <see cref="IntegrationPathPrefix"/>.
+    ///
+    /// <para>Unlike the other matchers this does NOT filter by HTTP method. The other
+    /// three guard endpoints where only one verb is abusable; here the whole prefix is
+    /// anonymous and token-gated, so a verb added later should arrive already throttled
+    /// rather than depend on someone remembering to widen this check.</para>
+    /// </summary>
+    internal static bool IsIntegrationPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        return httpContext.Request.Path.StartsWithSegments(IntegrationPathPrefix);
+    }
+
+    /// <summary>
+    /// 2026-07-29 -- partition key for the integration limiter. Purely IP-based: the
+    /// caller is a server, so there is no account or code to partition on, and the
+    /// shared token deliberately is NOT used as a key (keying on the secret would put
+    /// it in partition names and defeat the point, since a leaked token is exactly the
+    /// scenario being contained).
+    /// </summary>
+    internal static string ResolveIntegrationPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        return string.IsNullOrWhiteSpace(ip) ? "global" : $"ip:{ip}";
     }
 
     /// <summary>

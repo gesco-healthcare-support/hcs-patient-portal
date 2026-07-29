@@ -35,17 +35,26 @@ tenants as host-scope (no data returned, silent failure).
 
 ### Rate limiter
 
-Three anonymous endpoint families are rate-limited (see `ConfigurePasswordResetRateLimiter`):
+Four anonymous endpoint families are rate-limited (see `ConfigurePasswordResetRateLimiter`):
 
 | Path prefix | Partition strategy | Limit |
 |---|---|---|
 | `/api/public/external-account` (password reset) | per-email primary (5/hr) chained with per-IP secondary (50/hr) | both must pass |
 | `/api/public/appointment-documents` POST upload-by-code | per-verification-code (5/hr) | single layer |
-| `/api/public/external-signup/register` POST | per-IP (5/hr) | single layer |
+| `/api/public/external-signup/register` POST | per-IP (15/hr) | single layer |
+| `/api/integration` (Case Tracker reconcile, any verb) | per-IP (300/hr) | single layer |
 
 `PasswordResetEmailPeekMiddleware` must run before `UseRateLimiter` and after `UseAuthorization`
 (see Middleware order below). The global limiter returns `GetNoLimiter` for unmatched paths;
 new anonymous endpoints that need abuse protection require a new partition here.
+
+Per-IP partitions depend on `ConfigureForwardedHeaders` processing `X-Forwarded-For`. Until
+2026-07-29 it processed only `X-Forwarded-Proto`, so behind the reverse proxy every per-IP
+partition keyed on the nginx container address -- one shared bucket for the whole deployment
+instead of one per caller. If that flag is ever removed, three of the four rows above silently
+stop meaning what they say. `ForwardLimit` must stay at 1: nginx appends the real address to the
+end of any client-supplied header, and the middleware reads right-to-left, so 1 hop is what makes
+a forged `X-Forwarded-For` harmless.
 
 ### Middleware order
 

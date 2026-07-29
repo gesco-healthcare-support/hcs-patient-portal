@@ -55,6 +55,22 @@ REVISION 2026-07-28 (Part 6 -- claim and party data):
   appointment-level and carry NO link to a specific injury -- see their section.
 - Every one of these appears in the reconcile GET (§F) too, since both share one payload builder.
 
+REVISION 2026-07-29 (reconcile hostname + rate limit -- BOTH CHANGE WHAT THE RECEIVER BUILDS):
+- **The reconcile GET host is `admin.api.<base>`, not `api.<base>`.** Full URL below in §F. The
+  obvious guess does not work: the portal's reverse proxy routes `api.<base>` to the Angular
+  container, because that host matches the catch-all `*.<base>` block and NOT `*.api.<base>` (an
+  nginx wildcard label cannot be empty). The `admin` label is the reserved slug that puts the
+  request in the portal's shared host context, which is what this endpoint needs since it carries
+  the office id in the path instead.
+- **The reconcile GET is now rate limited: 300 requests per hour per source IP**, reversing the
+  "no rate limit" statements in §F below. On 429 the response carries `Retry-After` in seconds.
+  Reason: the endpoint is anonymous with a shared token as its only barrier, and since the Part 6
+  payload landed it returns claim numbers, injury dates, body parts, employer/insurer details and
+  attorney contacts. 300/hour was chosen to leave a post-outage catch-up sweep plenty of room --
+  if a planned sweep needs more, say so and it is a one-line change.
+- Portal-side only, no contract impact: the API now honours `X-Forwarded-For`, so per-IP limits
+  partition on the real caller rather than on the portal's own proxy.
+
 Grounding: every field value maps to real portal source (branch `main` @ `100a617c`), cited inline;
 MinIO facts verified live. The JSON key NAMES/envelope were locked here first and the portal emitter
 was then built to match; as of `8a1568eb` the emitter exists and this document describes what it
@@ -419,8 +435,16 @@ BACKSTOP: it recovers a push that dead-lettered, and it is the clean way to refr
 full-payload shape is kept regardless, because the portal reuses one payload builder for both and a
 documents-only variant would cost the same to build while giving you less.
 
-- URL (**CHANGED 2026-07-28 -- note the office segment**):
-  `GET {portalBase}/api/integration/offices/{tenantId}/appointments/{appointmentId}` ->
+- URL (**CHANGED 2026-07-28 -- note the office segment; hostname PINNED 2026-07-29**):
+  `GET https://admin.api.<portal-base-domain>/api/integration/offices/{tenantId}/appointments/{appointmentId}` ->
+
+  The `admin.api.` prefix is required and is not decorative. `api.<base>` reaches the portal's Angular
+  container, not the API, because the reverse proxy's `*.api.<base>` block cannot match an empty
+  wildcard label while the catch-all `*.<base>` block can. `admin` is the portal's reserved slug for
+  its shared host context, which is the right context here precisely because this request identifies
+  the office by the path segment rather than by hostname. Adrian confirms the exact base domain at
+  deploy.
+
   `{ "data": { <the complete §A intake payload, including the documents[] array> }, "meta": {...}, "errors": [] }`.
   `{tenantId}` is exactly the `data.tenant.tenantId` you already receive in every push, so no new
   lookup is needed on your side. It is REQUIRED, and here is why: the portal is database-per-office,
@@ -437,8 +461,8 @@ documents-only variant would cost the same to build while giving you less.
 - Recommended Case Tracker usage (REVISED 2026-07-28): call it on case-open, and otherwise only as a
   BACKSTOP. A periodic sweep is no longer needed for freshness now that every appointment change is
   pushed; its remaining value is recovering a push that dead-lettered. An hourly sweep is harmless if
-  you want one (each call is ~8-10 indexed reads on one office database, and there is no rate limit),
-  but it is no longer load-bearing.
+  you want one (each call is ~8-10 indexed reads on one office database, and the 300/hour limit leaves
+  room for it), but it is no longer load-bearing.
 
 Answers to the receiver's reconcile questions (2026-07-28):
 - **Same clock as the push?** Yes, and stronger than that: reconcile runs the SAME
@@ -474,8 +498,15 @@ Answers to the receiver's reconcile questions (2026-07-28):
 - The token is compared in constant time and is never logged. If the portal has no token configured the
   endpoint rejects EVERY request rather than allowing them through, so a misconfigured deploy fails
   closed rather than serving PHI.
-- Rate limiting: none, as agreed. Be aware this makes the shared token the only barrier, so treat it as
-  a secret of the same weight as your `X-Intake-Token`.
+- Rate limiting (CHANGED 2026-07-29 -- was "none, as agreed"): **300 requests per hour per source IP.**
+  A 429 carries `Retry-After` in seconds, so back off for that long rather than retrying immediately.
+  The value is `3600` -- the whole window, not the remaining time, which is what the fixed-window
+  limiter reports. Treat it as an upper bound (verified live, not inferred).
+  The change is because the shared token is the only barrier and the payload now carries claim numbers,
+  injury dates, body parts, employer/insurer details and attorney contacts -- unthrottled, a leaked
+  token would allow all of that to be enumerated. Treat the token as a secret of the same weight as
+  your `X-Intake-Token`. If a planned sweep needs more than 300/hour, tell us the shape of it; the
+  limit is one constant.
 - STATUS: BUILT (Part 4). Portal config key `CaseTracker:IntegrationToken`, supplied per environment as
   a secret and never committed; Adrian issues the value out of band.
 - Distinct from Case Tracker's own `GET /api/intake/health` (§I), which we call to check
