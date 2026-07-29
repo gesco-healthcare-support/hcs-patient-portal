@@ -534,5 +534,13 @@
         </table>
       </div>
     }
+
+    <!--
+      Case Tracker failures (Part 5). Delegated to its own standalone component rather than inlined:
+      this file is already well past the repo's size ceiling, and the section is self-contained.
+    -->
+    @if (section() === 'integration-failures') {
+      <app-integration-failures />
+    }
   </div>
 </div>

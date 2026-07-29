@@ -291,6 +291,18 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
         canActivate: [authGuard, permissionGuard],
         data: { section: 'audit', requiredPolicy: 'AuditLogging.AuditLogs' },
       },
+      {
+        // Case Tracker failures (Part 5). Host-scoped: the screen aggregates every clinic, so unlike
+        // templates and parameters it is not gated behind switching into one.
+        path: 'integration-failures',
+        loadComponent: () =>
+          import('./admin/internal-admin-hub.component').then((c) => c.InternalAdminHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: {
+          section: 'integration-failures',
+          requiredPolicy: 'CaseEvaluation.Appointments.ViewIntegrationDeadLetters',
+        },
+      },
     ],
   },
 ];
