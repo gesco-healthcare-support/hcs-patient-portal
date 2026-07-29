@@ -246,10 +246,12 @@ public class CaseEvaluationHttpApiHostModuleTests
     // ConfigureForwardedHeaders (G7, 2026-07-09) -- honor nginx's
     // X-Forwarded-Proto so the API sees https behind TLS termination.
     // Applied unconditionally (no dev-only gate) so production works.
+    // 2026-07-29: X-Forwarded-For added so the per-IP rate-limit
+    // partitions see the real client instead of the nginx container.
     // ------------------------------------------------------------------
 
     [Fact]
-    public void ConfigureForwardedHeaders_ProcessesXForwardedProto()
+    public void ConfigureForwardedHeaders_ProcessesXForwardedProtoAndXForwardedFor()
     {
         var services = new ServiceCollection();
         services.AddOptions();
@@ -259,7 +261,28 @@ public class CaseEvaluationHttpApiHostModuleTests
 
         var options = services.BuildServiceProvider()
             .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
-        options.ForwardedHeaders.ShouldBe(ForwardedHeaders.XForwardedProto);
+        options.ForwardedHeaders.HasFlag(ForwardedHeaders.XForwardedProto).ShouldBeTrue();
+        options.ForwardedHeaders.HasFlag(ForwardedHeaders.XForwardedFor).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ConfigureForwardedHeaders_LeavesForwardLimitAtOne()
+    {
+        // The reason trusting X-Forwarded-For is safe here rests entirely on this value.
+        // nginx's $proxy_add_x_forwarded_for APPENDS the real $remote_addr to whatever the
+        // client sent, and the middleware reads right-to-left consuming ForwardLimit hops --
+        // so at 1 a forged header ("1.2.3.4, <real>") still resolves to the real address.
+        // Raising it would start honoring client-supplied hops and make the per-IP
+        // partitions spoofable.
+        var services = new ServiceCollection();
+        services.AddOptions();
+        var context = new ServiceConfigurationContext(services);
+
+        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context);
+
+        var options = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        options.ForwardLimit.ShouldBe(1);
     }
 
     [Fact]
@@ -279,5 +302,73 @@ public class CaseEvaluationHttpApiHostModuleTests
             .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
         options.KnownProxies.ShouldBeEmpty();
         options.KnownIPNetworks.ShouldBeEmpty();
+    }
+
+    // ------------------------------------------------------------------
+    // Integration limiter (2026-07-29) -- the Case Tracker reconcile GET
+    // is anonymous and token-gated, and returns the full claim/party
+    // payload. Capped per source IP so a leaked token cannot be used to
+    // enumerate at will.
+    // ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("/api/integration/offices/abc/appointments/def", true)]
+    [InlineData("/api/integration", true)]
+    [InlineData("/API/Integration/offices/abc/appointments/def", true)]
+    [InlineData("/api/app/case-tracker/dead-letters", false)]
+    [InlineData("/api/public/external-account/reset-password", false)]
+    [InlineData("/api/integrationsomething", false)]
+    public void IsIntegrationPath_MatchesOnlyTheIntegrationPrefix(string path, bool expected)
+    {
+        // "/api/integrationsomething" must NOT match: StartsWithSegments is
+        // segment-aware, so a longer path that merely shares a prefix string
+        // is a different route and gets no limit.
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = path;
+
+        CaseEvaluationHttpApiHostModule.IsIntegrationPath(ctx).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("POST")]
+    public void IsIntegrationPath_IgnoresTheHttpMethod(string method)
+    {
+        // Deliberately verb-agnostic, unlike the other three matchers: the whole
+        // prefix is anonymous, so a verb added later should already be throttled.
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/api/integration/offices/abc/appointments/def";
+        ctx.Request.Method = method;
+
+        CaseEvaluationHttpApiHostModule.IsIntegrationPath(ctx).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ResolveIntegrationPartitionKey_PrefixesIpAddress()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.0.2.35");
+
+        CaseEvaluationHttpApiHostModule.ResolveIntegrationPartitionKey(ctx).ShouldBe("ip:192.0.2.35");
+    }
+
+    [Fact]
+    public void ResolveIntegrationPartitionKey_FallBackToGlobalWhenIpUnknown()
+    {
+        // One shared bucket is the right failure mode for a machine caller: it still
+        // caps total volume rather than handing out an unlimited partition.
+        var ctx = new DefaultHttpContext();
+
+        CaseEvaluationHttpApiHostModule.ResolveIntegrationPartitionKey(ctx).ShouldBe("global");
+    }
+
+    [Fact]
+    public void IntegrationRequestsPerHour_LeavesRoomForARepairSweep()
+    {
+        // Guards the intent rather than the number: throttling the Case Tracker's
+        // post-outage catch-up would be a worse failure than the enumeration this
+        // limit prevents. If someone lowers this to a password-reset-sized value,
+        // that trade has been forgotten.
+        CaseEvaluationHttpApiHostModule.IntegrationRequestsPerHour.ShouldBeGreaterThanOrEqualTo(100);
     }
 }
