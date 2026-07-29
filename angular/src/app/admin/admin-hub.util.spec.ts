@@ -15,14 +15,24 @@ import {
 
 describe('admin-hub.util', () => {
   describe('ADMIN_SECTIONS', () => {
-    it('has the four sections in rail order, each with a gating policy', () => {
+    it('has the sections in rail order, each with a gating policy', () => {
       expect(ADMIN_SECTIONS.map((s) => s.key)).toEqual([
         'templates',
         'parameters',
         'roles',
         'audit',
+        'integration-failures',
       ]);
       expect(ADMIN_SECTIONS.every((s) => !!s.policy && !!s.route && !!s.icon)).toBeTrue();
+    });
+
+    it('marks only the per-clinic sections as tenant-scoped', () => {
+      // integration-failures aggregates EVERY clinic, so it must NOT be tenant-scoped -- otherwise the
+      // hub hides it at host scope, which is the only place it is meant to be used.
+      expect(ADMIN_SECTIONS.filter((s) => s.tenantScoped).map((s) => s.key)).toEqual([
+        'templates',
+        'parameters',
+      ]);
     });
   });
 
