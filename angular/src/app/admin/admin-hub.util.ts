@@ -6,8 +6,13 @@
  * tested without DI.
  */
 
-/** The four sections of the Admin hub, in rail order. */
-export type AdminSectionKey = 'templates' | 'parameters' | 'roles' | 'audit';
+/** The sections of the Admin hub, in rail order. */
+export type AdminSectionKey =
+  | 'templates'
+  | 'parameters'
+  | 'roles'
+  | 'audit'
+  | 'integration-failures';
 
 /** Rail metadata for one section: label, icon, deep-link route, gating policy. */
 export interface AdminSection {
@@ -68,6 +73,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'Audit Logs',
     route: '/admin/audit',
     policy: 'AuditLogging.AuditLogs',
+    tenantScoped: false,
+  },
+  {
+    key: 'integration-failures',
+    icon: 'alert',
+    label: 'Case Tracker Failures',
+    route: '/admin/integration-failures',
+    policy: 'CaseEvaluation.Appointments.ViewIntegrationDeadLetters',
+    // NOT tenant-scoped: this screen deliberately aggregates every clinic, because a failed push is
+    // something staff must chase and they should not have to switch into each clinic to find it.
     tenantScoped: false,
   },
 ];

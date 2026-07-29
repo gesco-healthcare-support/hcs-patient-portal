@@ -126,6 +126,15 @@ public static class CaseEvaluationPermissions
         /// belongs with IT Admin / Staff Supervisor rather than every approver.
         /// </summary>
         public const string PushToCaseTracker = Default + ".PushToCaseTracker";
+
+        /// <summary>
+        /// Part 5 (2026-07-28) -- view and retry dead-lettered Case Tracker pushes on the admin screen.
+        /// Kept alongside <see cref="PushToCaseTracker"/> because both are Case Tracker integration
+        /// capabilities, and the retry action on that screen runs the same push code path. Separate from
+        /// it because reading the failure list is a strictly narrower capability than re-sending PHI, so
+        /// an operator can be given visibility without the ability to act.
+        /// </summary>
+        public const string ViewIntegrationDeadLetters = Default + ".ViewIntegrationDeadLetters";
     }
 
     public static class AppointmentDocuments

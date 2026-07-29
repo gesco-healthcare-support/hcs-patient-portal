@@ -2862,6 +2862,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("AlertedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("AlertedAt");
+
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("AppointmentId");
@@ -2943,6 +2947,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("Payload");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ResolvedAt");
 
                     b.Property<DateTime?>("SentAt")
                         .HasColumnType("datetime2")

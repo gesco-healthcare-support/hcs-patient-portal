@@ -605,6 +605,7 @@
     "Permission:RequestCancellation": "Request Cancellation",
     "Permission:RequestReschedule": "Request Reschedule",
     "Permission:PushToCaseTracker": "Push to Case Tracker",
+    "Permission:ViewIntegrationDeadLetters": "View Case Tracker failures",
     "Permission:AppointmentChangeRequests": "Appointment Change Requests",
     "Permission:NotificationTemplates": "Notification Templates",
     "NotificationTemplate:NotFound": "No active notification template was found for the supplied id or template code.",

@@ -33,6 +33,7 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.RequestReschedule, L("Permission:RequestReschedule"));
         // 2026-07-27 -- manual (re-)push of an approved appointment to the Case Tracker.
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.PushToCaseTracker, L("Permission:PushToCaseTracker"));
+        appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters, L("Permission:ViewIntegrationDeadLetters"));
 
         var appointmentEmployerDetailPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentEmployerDetails.Default, L("Permission:AppointmentEmployerDetails"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Create, L("Permission:Create"));

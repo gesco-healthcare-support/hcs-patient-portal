@@ -69,6 +69,19 @@ public class IntegrationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
     /// <summary>Last delivery error (bounded); cleared on Sent.</summary>
     public virtual string? LastError { get; protected set; }
 
+    /// <summary>
+    /// When internal staff were alerted about this dead letter; null until they were.
+    ///
+    /// <para>A column rather than a computed time window because "has this row been alerted?" is a fact
+    /// about the row: it survives restarts, and it cannot drift the way a last-run timestamp can. This is
+    /// what stops a systemic failure -- a bad token failing every row at once -- from mailing staff once
+    /// per row.</para>
+    /// </summary>
+    public virtual DateTime? AlertedAt { get; protected set; }
+
+    /// <summary>When a human dealt with this dead letter via the admin screen; null otherwise.</summary>
+    public virtual DateTime? ResolvedAt { get; protected set; }
+
     protected IntegrationOutboxItem()
     {
     }
@@ -179,6 +192,36 @@ public class IntegrationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
         LockedUntil = null;
         NextAttemptAt = null;
         Status = IntegrationOutboxStatus.Failed;
+    }
+
+    /// <summary>
+    /// Stamps that internal staff have been told about this dead letter. Idempotent, and that matters:
+    /// this flag IS the alert throttle, so a second stamp must not let a later run mail staff again
+    /// about a failure they have already seen.
+    /// </summary>
+    public virtual void MarkAlerted(DateTime nowUtc)
+    {
+        AlertedAt ??= nowUtc;
+    }
+
+    /// <summary>
+    /// Marks a dead letter as dealt with, removing it from the outstanding-failures list.
+    ///
+    /// <para>Only acts on a <see cref="IntegrationOutboxStatus.Failed"/> row. Resolving a Pending row
+    /// would silently cancel a push that is still due, and resolving a Sent row would rewrite delivery
+    /// history -- neither is ever what the caller means.</para>
+    /// </summary>
+    public virtual void MarkResolved(DateTime nowUtc)
+    {
+        if (Status != IntegrationOutboxStatus.Failed)
+        {
+            return;
+        }
+
+        Status = IntegrationOutboxStatus.Resolved;
+        ResolvedAt = nowUtc;
+        LockedUntil = null;
+        NextAttemptAt = null;
     }
 
     private static string? Truncate(string? value, int maxLength) =>

@@ -184,6 +184,13 @@ internal static class EmailSubjects
         "Updated Appointment Request";
 
     /// <summary>
+    /// Part 5 (2026-07-28). Deliberately states the consequence rather than the mechanism, because the
+    /// reader is intake staff, not a developer: what matters is that a case has not arrived.
+    /// </summary>
+    public const string CaseTrackerPushFailed =
+        "Action needed: appointment(s) did not reach the Case Tracker";
+
+    /// <summary>
     /// Group F (2026-06-09) -- the single consolidated reminder subject. The
     /// body carries the due-date nudge plus any outstanding documents, so the
     /// subject stays generic enough to fit both the docs and no-docs cases.
@@ -353,6 +360,7 @@ internal static class EmailSubjects
             // Phase 7 (Category 7, 2026-05-10): OLD SchedulerDomain reminder subjects.
             [NotificationTemplateConsts.Codes.PendingAppointmentDailyNotification] = PendingAppointmentDailyNotification,
             [NotificationTemplateConsts.Codes.AppointmentApproveRejectInternal] = AppointmentApproveRejectInternal,
+            [NotificationTemplateConsts.Codes.CaseTrackerPushFailed] = CaseTrackerPushFailed,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.

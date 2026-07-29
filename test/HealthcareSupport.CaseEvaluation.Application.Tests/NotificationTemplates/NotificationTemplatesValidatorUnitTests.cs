@@ -213,7 +213,9 @@ public class NotificationTemplatesValidatorUnitTests
         // send-back / request-info notice (+1 -> 63).
         // Issue #3 (2026-07-16) added AccessorAppointmentAdded, the existing-account
         // accessor "you were added" notice (+1 -> 64).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(64);
+        // Case Tracker Part 5 (2026-07-28) added CaseTrackerPushFailed, the dead-letter
+        // alert to internal staff (+1 -> 65).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(65);
     }
 
     [Fact]

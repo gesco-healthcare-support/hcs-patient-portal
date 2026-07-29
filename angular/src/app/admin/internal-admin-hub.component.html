@@ -1,6 +1,15 @@
 <div class="ia-head">
   <h1>Administration</h1>
-  <p class="ia-sub">Templates, parameters, roles, and audit for this tenant.</p>
+  <!--
+    Section-aware: "for this tenant" is wrong on the Case Tracker failures screen, which deliberately
+    aggregates EVERY clinic. Left unqualified there it reads as "you are seeing one clinic", which is the
+    opposite of what that screen does.
+  -->
+  @if (section() === 'integration-failures') {
+    <p class="ia-sub">Case Tracker delivery failures across all clinics.</p>
+  } @else {
+    <p class="ia-sub">Templates, parameters, roles, and audit for this tenant.</p>
+  }
 </div>
 
 <div class="cf">
@@ -533,6 +542,14 @@
           </tbody>
         </table>
       </div>
+    }
+
+    <!--
+      Case Tracker failures (Part 5). Delegated to its own standalone component rather than inlined:
+      this file is already well past the repo's size ceiling, and the section is self-contained.
+    -->
+    @if (section() === 'integration-failures') {
+      <app-integration-failures />
     }
   </div>
 </div>
