@@ -34,6 +34,8 @@ import {
   SP_GROUPS,
 } from './admin-hub.util';
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
+import { CaseTrackerOfficesComponent } from './case-tracker-offices.component';
+import { IntegrationFailuresComponent } from './integration-failures.component';
 import {
   catalogEntryFor,
   groupTemplatesByLifecycle,
@@ -111,6 +113,8 @@ function auditSortValue(row: AuditLogDto, key: string): SortValue {
     IconComponent,
     SortHeaderComponent,
     QuillEditorComponent,
+    CaseTrackerOfficesComponent,
+    IntegrationFailuresComponent,
   ],
   templateUrl: './internal-admin-hub.component.html',
   styles: `
@@ -338,8 +342,14 @@ export class InternalAdminHubComponent {
       this.loadParameters();
     } else if (key === 'roles') {
       this.loadRoles();
-    } else {
+    } else if (key === 'audit') {
       this.loadAudit();
+    } else {
+      // Sections that fetch their own data (integration-failures) must land HERE, not in the audit
+      // branch. This was an `else` when audit was the last key, so adding a section silently made the
+      // hub call the audit-log API for it -- which 403s for a role without AuditLogging.AuditLogs and
+      // puts ABP's blocking error overlay over the whole page. Found in live testing.
+      this.loading.set(false);
     }
   }
 

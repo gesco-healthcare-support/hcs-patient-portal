@@ -145,6 +145,17 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public virtual Guid? OriginalAppointmentId { get; set; }
 
+    /// <summary>
+    /// Whether this is a first evaluation or a re-evaluation (2026-07-27, Case Tracker
+    /// integration). Stamped at booking from the lifecycle flow, NOT derived from
+    /// <see cref="OriginalAppointmentId"/>: that column is documented as a reschedule-chain link
+    /// and pre-2026-07-01 rows may carry it for that reason, so deriving would mislabel. The Case
+    /// Tracker uses this to label a case folder, so a wrong value is an operational problem in
+    /// another system. Defaults to <see cref="EvaluationKind.Evaluation"/>; the migration
+    /// backfills existing rows to the same value (no re-evaluations exist yet).
+    /// </summary>
+    public virtual EvaluationKind EvaluationKind { get; set; } = EvaluationKind.Evaluation;
+
     [CanBeNull]
     public virtual string? ReScheduleReason { get; set; }
 

@@ -118,6 +118,23 @@ public static class CaseEvaluationPermissions
         public const string Reject = Default + ".Reject";
         public const string RequestCancellation = Default + ".RequestCancellation";
         public const string RequestReschedule = Default + ".RequestReschedule";
+
+        /// <summary>
+        /// 2026-07-27 -- manually (re-)push an approved appointment to the Case Tracker. A dedicated
+        /// gate rather than reusing Approve: re-sending PHI to an external system is a distinct
+        /// capability, and the action doubles as the recovery tool for a dead-lettered push, so it
+        /// belongs with IT Admin / Staff Supervisor rather than every approver.
+        /// </summary>
+        public const string PushToCaseTracker = Default + ".PushToCaseTracker";
+
+        /// <summary>
+        /// Part 5 (2026-07-28) -- view and retry dead-lettered Case Tracker pushes on the admin screen.
+        /// Kept alongside <see cref="PushToCaseTracker"/> because both are Case Tracker integration
+        /// capabilities, and the retry action on that screen runs the same push code path. Separate from
+        /// it because reading the failure list is a strictly narrower capability than re-sending PHI, so
+        /// an operator can be given visibility without the ability to act.
+        /// </summary>
+        public const string ViewIntegrationDeadLetters = Default + ".ViewIntegrationDeadLetters";
     }
 
     public static class AppointmentDocuments

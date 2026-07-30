@@ -36,6 +36,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Branding;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -92,6 +93,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppNotification> AppNotifications { get; set; } = null!;
     // Phase 2 (T9): durable per-recipient email outbox (delivery ledger).
     public DbSet<NotificationOutboxItem> NotificationOutboxItems { get; set; } = null!;
+    // Case Tracker integration Part 1 (2026-07-27): outbound message ledger. IMultiTenant, so it
+    // lives in BOTH the host and office DBs -- the office copy is the one that actually carries rows.
+    public DbSet<IntegrationOutboxItem> IntegrationOutboxItems { get; set; } = null!;
     // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
     public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
     // Phase E (2026-06-25): host/management per-office branding (name + logo).
@@ -306,6 +310,35 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
         });
 
+        // Case Tracker outbound ledger. Configured identically here and in
+        // CaseEvaluationTenantDbContext so the shared AppIntegrationOutboxItems table is
+        // column-identical across host + office DBs.
+        builder.Entity<IntegrationOutboxItem>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "IntegrationOutboxItems", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.MessageType).HasColumnName(nameof(IntegrationOutboxItem.MessageType));
+            b.Property(x => x.TargetPath).HasColumnName(nameof(IntegrationOutboxItem.TargetPath)).IsRequired().HasMaxLength(IntegrationOutboxConsts.TargetPathMaxLength);
+            b.Property(x => x.AppointmentId).HasColumnName(nameof(IntegrationOutboxItem.AppointmentId));
+            b.Property(x => x.Payload).HasColumnName(nameof(IntegrationOutboxItem.Payload)).IsRequired();
+            b.Property(x => x.IdempotencyKey).HasColumnName(nameof(IntegrationOutboxItem.IdempotencyKey)).IsRequired().HasMaxLength(IntegrationOutboxConsts.IdempotencyKeyMaxLength);
+            b.Property(x => x.Status).HasColumnName(nameof(IntegrationOutboxItem.Status));
+            b.Property(x => x.AttemptCount).HasColumnName(nameof(IntegrationOutboxItem.AttemptCount));
+            b.Property(x => x.MaxAttempts).HasColumnName(nameof(IntegrationOutboxItem.MaxAttempts));
+            b.Property(x => x.NextAttemptAt).HasColumnName(nameof(IntegrationOutboxItem.NextAttemptAt));
+            b.Property(x => x.LockedUntil).HasColumnName(nameof(IntegrationOutboxItem.LockedUntil));
+            b.Property(x => x.SentAt).HasColumnName(nameof(IntegrationOutboxItem.SentAt));
+            b.Property(x => x.LastError).HasColumnName(nameof(IntegrationOutboxItem.LastError)).HasMaxLength(IntegrationOutboxConsts.LastErrorMaxLength);
+            // Part 5: alert throttle + human-resolution audit. Nullable, so no default is needed.
+            b.Property(x => x.AlertedAt).HasColumnName(nameof(IntegrationOutboxItem.AlertedAt));
+            b.Property(x => x.ResolvedAt).HasColumnName(nameof(IntegrationOutboxItem.ResolvedAt));
+            b.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique().HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
+            // Staff search the dead-letter view by appointment.
+            b.HasIndex(x => new { x.TenantId, x.AppointmentId });
+        });
+
         // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the
         // parent it lives in BOTH DBs; AppointmentTypeId is a loose Guid (no FK)
         // because AppointmentType is host-only. The soft-delete filter mirrors
@@ -516,6 +549,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.DefenseAttorneyZipCode).HasColumnName(nameof(Appointment.DefenseAttorneyZipCode)).HasMaxLength(DefenseAttorneyConsts.ZipCodeMaxLength);
             b.Property(x => x.RefferedBy).HasColumnName(nameof(Appointment.RefferedBy)).HasMaxLength(AppointmentConsts.RefferedByMaxLength);
             b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
+            b.Property(x => x.EvaluationKind).HasColumnName(nameof(Appointment.EvaluationKind));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
             b.Property(x => x.ReScheduledById).HasColumnName(nameof(Appointment.ReScheduledById));
             b.Property(x => x.CancellationReason).HasColumnName(nameof(Appointment.CancellationReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);

@@ -684,15 +684,24 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // surface consistent if the permission ever leaks to an external
         // role.
         await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
-        try
-        {
-            await _blobContainer.DeleteAsync(entity.BlobName);
-        }
-        catch
-        {
-            // swallowed -- entity row is the source of truth.
-        }
+
+        // Part 2 (2026-07-28): the MinIO object is deliberately RETAINED. It used to be deleted
+        // here, but the portal now guarantees the Case Tracker that any object key it has been
+        // handed stays fetchable -- an 18-month re-evaluation can still reference the file. ABP
+        // only soft-deletes the row, so destroying the bytes was the one irreversible half of an
+        // otherwise reversible operation. Deletions are rare and IT-Admin-only, so the storage
+        // held is negligible; orphan cleanup stays a separate concern.
+        var appointmentId = entity.AppointmentId;
         await _documentRepository.DeleteAsync(entity);
+
+        await _localEventBus.PublishAsync(new AppointmentDocumentDeletedEto
+        {
+            AppointmentId = appointmentId,
+            AppointmentDocumentId = id,
+            TenantId = _currentTenant.Id,
+            DeletedByUserId = CurrentUser.Id ?? Guid.Empty,
+            OccurredAt = DateTime.UtcNow,
+        });
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Approve)]
@@ -808,7 +817,13 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
                 Id = p.Id,
                 Source = PatientPortalDocumentSource.GeneratedPacket,
                 FileName = p.BlobName.Split('/').Last(),
-                ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                // Part 2 (2026-07-28): packets have rendered as PDF since 2026-06-10, so the
+                // hardcoded DOCX type was wrong for every current row. Derived from the blob (as
+                // AppointmentPacketsAppService.DownloadByKindAsync already does) so legacy DOCX
+                // rows still report correctly.
+                ContentType = p.BlobName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase)
+                    ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    : "application/pdf",
                 CreatedAt = p.GeneratedAt,
                 PacketKind = p.Kind,
                 UploadStatus = null,
