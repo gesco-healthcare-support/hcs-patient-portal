@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Timing;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -27,7 +28,12 @@ public class CaseTrackerCompletenessSweepJobTests
     private static readonly Guid WithRow = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly Guid WithoutRow = new("3c9d1b77-2e40-4a51-8bb2-77f0a1c9d233");
 
-    private static Appointment NewAppointment(Guid id, AppointmentStatusType status) =>
+    private static readonly DateTime Now = new(2026, 7, 29, 12, 0, 0, DateTimeKind.Utc);
+
+    private static Appointment NewAppointment(
+        Guid id,
+        AppointmentStatusType status,
+        DateTime? changedAt = null) =>
         new(
             id,
             patientId: new Guid("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc"),
@@ -41,6 +47,9 @@ public class CaseTrackerCompletenessSweepJobTests
             panelNumber: "PN-SAMPLE")
         {
             TenantId = OfficeId,
+            // Must be set explicitly: an unsaved entity's CreationTime is default(DateTime), which is
+            // outside any lookback window, so every case here would silently stop exercising the sweep.
+            CreationTime = changedAt ?? Now.AddHours(-1),
         };
 
     private static IntegrationOutboxItem IntakeRowFor(Guid appointmentId)
@@ -67,9 +76,12 @@ public class CaseTrackerCompletenessSweepJobTests
 
         var queue = Substitute.For<ICaseTrackerIntakeQueue>();
 
+        var clock = Substitute.For<IClock>();
+        clock.Now.Returns(Now);
+
         return (
             new CaseTrackerCompletenessSweepJob(
-                runner, appointmentRepo, outboxRepo, queue,
+                runner, appointmentRepo, outboxRepo, queue, clock,
                 NullLogger<CaseTrackerCompletenessSweepJob>.Instance),
             queue);
     }
@@ -142,6 +154,62 @@ public class CaseTrackerCompletenessSweepJobTests
         var (job, queue) = Build(
             new List<Appointment> { NewAppointment(WithoutRow, AppointmentStatusType.Approved) },
             new List<IntegrationOutboxItem> { documentRow });
+
+        await job.ExecuteAsync();
+
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AnAppointmentOlderThanTheLookback_IsIgnored()
+    {
+        // THE point of the window. Every appointment predating the integration has no intake row, so
+        // without a floor the sweep would enqueue an office's entire history -- and enabling that
+        // office would flush all of it to the Case Tracker as fresh intakes, creating duplicate cases
+        // for work their staff already did by hand.
+        var old = NewAppointment(
+            WithoutRow,
+            AppointmentStatusType.Approved,
+            changedAt: Now.AddDays(-(CaseTrackerCompletenessSweepJob.LookbackDays + 1)));
+
+        var (job, queue) = Build(
+            new List<Appointment> { old },
+            new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task AnAppointmentInsideTheLookback_IsStillEnqueued()
+    {
+        // The window must not defeat the job's actual purpose: a lost enqueue from earlier today.
+        var recent = NewAppointment(
+            WithoutRow,
+            AppointmentStatusType.Approved,
+            changedAt: Now.AddDays(-1));
+
+        var (job, queue) = Build(
+            new List<Appointment> { recent },
+            new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ARecentEditToAnOldAppointment_BringsItBackIntoScope()
+    {
+        // LastModificationTime wins over CreationTime, so an old appointment approved (or edited)
+        // today is inside the window -- which is the case the sweep exists for.
+        var reopened = NewAppointment(WithoutRow, AppointmentStatusType.Approved, changedAt: Now.AddYears(-2));
+        reopened.LastModificationTime = Now.AddMinutes(-30);
+
+        var (job, queue) = Build(
+            new List<Appointment> { reopened },
+            new List<IntegrationOutboxItem>());
 
         await job.ExecuteAsync();
 
