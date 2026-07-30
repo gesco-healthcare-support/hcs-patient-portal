@@ -274,6 +274,22 @@ services:
       Settings__Abp.Mailing.Smtp.UseDefaultCredentials: "false"
       Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
       Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
+      # Case Tracker integration (2026-07-30). Read via IConfiguration by
+      # CaseTrackerClient and IntegrationTokenValidator, NOT as ABP settings -- the master
+      # on/off switch is a per-office ABP setting, but the endpoint and the credentials are
+      # environment config. Both are deliberately left EMPTY by default: an unset BaseUrl
+      # leaves the typed HttpClient with no base address so a misconfigured deploy fails as
+      # a transport error the outbox records, whereas a wrong-but-plausible default could
+      # POST ePHI at the wrong host. Values live in secrets/env.prod, never in the repo.
+      #
+      # IntakeToken = the token THEY issue to us, sent as X-Intake-Token on every push.
+      # IntegrationToken = the token WE issue to them, required on the reconcile GET; the
+      # validator fails CLOSED when it is unset, so leaving it blank refuses every reconcile
+      # request rather than serving PHI.
+      CaseTracker__BaseUrl: "${CASE_TRACKER_BASE_URL:-}"
+      CaseTracker__IntakeToken: "${CASE_TRACKER_INTAKE_TOKEN:-}"
+      CaseTracker__IntegrationToken: "${CASE_TRACKER_INTEGRATION_TOKEN:-}"
+      CaseTracker__TimeoutSeconds: "${CASE_TRACKER_TIMEOUT_SECONDS:-30}"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
