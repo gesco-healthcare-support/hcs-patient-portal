@@ -549,6 +549,12 @@
       this file is already well past the repo's size ceiling, and the section is self-contained.
     -->
     @if (section() === 'integration-failures') {
+      <!--
+        Two sibling components under one section: the push switch (which decides whether anything
+        sends) above the failures (which show what did not). Separate components because the failures
+        one is already at the 250-line component ceiling.
+      -->
+      <app-case-tracker-offices />
       <app-integration-failures />
     }
   </div>

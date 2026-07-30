@@ -34,6 +34,7 @@ import {
   SP_GROUPS,
 } from './admin-hub.util';
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
+import { CaseTrackerOfficesComponent } from './case-tracker-offices.component';
 import { IntegrationFailuresComponent } from './integration-failures.component';
 import {
   catalogEntryFor,
@@ -112,6 +113,7 @@ function auditSortValue(row: AuditLogDto, key: string): SortValue {
     IconComponent,
     SortHeaderComponent,
     QuillEditorComponent,
+    CaseTrackerOfficesComponent,
     IntegrationFailuresComponent,
   ],
   templateUrl: './internal-admin-hub.component.html',
