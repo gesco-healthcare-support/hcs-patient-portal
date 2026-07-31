@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Microsoft.Extensions.Logging;
@@ -7,6 +8,7 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Entities.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
+using Volo.Abp.Timing;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
@@ -18,6 +20,14 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 /// sweep every appointment periodically for freshness was overhead their team objected to, and the
 /// idempotent enqueue makes re-pushing nearly free: an unchanged save produces the same
 /// <c>updatedAt</c>, so the same idempotency key, so no second push.</para>
+///
+/// <para>Gated on <see cref="IntakeSettlePolicy"/> since 2026-07-30, and that gate is what makes
+/// deferring the intake actually work. Approval IS an appointment update, so this handler fires on the
+/// approval itself and would push a packet-less intake even after the approval trigger was removed --
+/// the two enqueues simply collapsed onto one row because they shared an <c>updatedAt</c>, which is why
+/// the first live approval produced two rows rather than three. Skipping while the packet set is still
+/// rendering leaves the settle path to send one complete message; a genuine later edit arrives after
+/// the set is complete, so it still re-pushes immediately.</para>
 ///
 /// <para>Watches <see cref="Appointment"/> and <see cref="Patient"/> ONLY. The payload carries
 /// appointment scalars, tenant, location, appointment type, schedule, patient, doctor, storage and
@@ -33,16 +43,22 @@ public class AppointmentChangedHandler :
     ITransientDependency
 {
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly ICaseTrackerIntakeQueue _intakeQueue;
+    private readonly IClock _clock;
     private readonly ILogger<AppointmentChangedHandler> _logger;
 
     public AppointmentChangedHandler(
         IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<AppointmentPacket, Guid> packetRepository,
         ICaseTrackerIntakeQueue intakeQueue,
+        IClock clock,
         ILogger<AppointmentChangedHandler> logger)
     {
         _appointmentRepository = appointmentRepository;
+        _packetRepository = packetRepository;
         _intakeQueue = intakeQueue;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -57,7 +73,8 @@ public class AppointmentChangedHandler :
 
         if (!CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
         {
-            // Not yet a case on their side. Approval will push the current state in full.
+            // Not yet a case on their side. The settle path pushes the current state in full once the
+            // appointment is published and its packets have finished rendering.
             return;
         }
 
@@ -100,6 +117,23 @@ public class AppointmentChangedHandler :
     {
         try
         {
+            var appointment = await _appointmentRepository.FindAsync(appointmentId);
+            if (appointment == null)
+            {
+                return;
+            }
+
+            var packets = await _packetRepository.GetListAsync(p => p.AppointmentId == appointmentId);
+            if (!IntakeSettlePolicy.IsSettled(appointment, packets, PacketSetPolicy.Cutoff(_clock.Now)))
+            {
+                // Mid-render. Pushing now would send the packet-less version that the settle path is
+                // about to supersede -- the exact double push this gate exists to remove.
+                _logger.LogDebug(
+                    "AppointmentChangedHandler: {Trigger} change for appointment {AppointmentId} skipped; its packet set has not settled yet.",
+                    trigger, appointmentId);
+                return;
+            }
+
             var row = await _intakeQueue.EnqueueIntakeAsync(appointmentId, tenantId);
 
             _logger.LogDebug(

@@ -31,8 +31,7 @@ public class CaseTrackerReconciliationJob : ITransientDependency
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
-    private readonly IDocumentListResolver _documentListResolver;
-    private readonly ICaseTrackerDocumentQueue _documentQueue;
+    private readonly CaseTrackerPacketPublishService _packetPublishService;
     private readonly IClock _clock;
     private readonly ILogger<CaseTrackerReconciliationJob> _logger;
 
@@ -41,8 +40,7 @@ public class CaseTrackerReconciliationJob : ITransientDependency
         IBackgroundJobManager backgroundJobManager,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentPacket, Guid> packetRepository,
-        IDocumentListResolver documentListResolver,
-        ICaseTrackerDocumentQueue documentQueue,
+        CaseTrackerPacketPublishService packetPublishService,
         IClock clock,
         ILogger<CaseTrackerReconciliationJob> logger)
     {
@@ -50,8 +48,7 @@ public class CaseTrackerReconciliationJob : ITransientDependency
         _backgroundJobManager = backgroundJobManager;
         _appointmentRepository = appointmentRepository;
         _packetRepository = packetRepository;
-        _documentListResolver = documentListResolver;
-        _documentQueue = documentQueue;
+        _packetPublishService = packetPublishService;
         _clock = clock;
         _logger = logger;
     }
@@ -60,13 +57,6 @@ public class CaseTrackerReconciliationJob : ITransientDependency
 
     /// <summary>Every 15 minutes -- a backstop cadence, matching the approval reconciliation sweep.</summary>
     public const string CronExpression = "*/15 * * * *";
-
-    /// <summary>
-    /// How long a packet set must sit unchanged before the generated kinds are released without it.
-    /// Comfortably longer than a normal render (seconds to a couple of minutes) so a slow job is never
-    /// mistaken for a stuck one, but short enough that their staff are not waiting on a dead template.
-    /// </summary>
-    public const int PacketReleaseAfterMinutes = 30;
 
     /// <summary>
     /// Ceiling on releases per office per sweep, so a backlog cannot turn one sweep into a long-running
@@ -121,7 +111,7 @@ public class CaseTrackerReconciliationJob : ITransientDependency
     /// </summary>
     private async Task<int> ReleaseStalledPacketSetsAsync(Guid officeId)
     {
-        var cutoff = _clock.Now.AddMinutes(-PacketReleaseAfterMinutes);
+        var cutoff = PacketSetPolicy.Cutoff(_clock.Now);
 
         var packetQueryable = await _packetRepository.GetQueryableAsync();
         var candidateIds = packetQueryable
@@ -168,17 +158,18 @@ public class CaseTrackerReconciliationJob : ITransientDependency
             return false;
         }
 
-        var entries = await _documentListResolver.ResolvePacketsAsync(appointment);
-        if (entries.Count == 0)
+        // Routed through the shared service because a stalled set is now ALSO the moment an
+        // appointment's first intake goes out: since 2026-07-30 the intake waits for packets, so a
+        // set that gives up before ever completing must still produce the intake rather than only a
+        // document update the receiver has no case to attach to.
+        if (!await _packetPublishService.PublishSettledPacketsAsync(appointment))
         {
             return false;
         }
 
-        await _documentQueue.EnqueueDocumentEntriesAsync(appointmentId, appointment.TenantId, entries);
-
         _logger.LogInformation(
-            "CaseTrackerReconciliationJob: released {Count} generated packet(s) for appointment {AppointmentId}; the set has been incomplete since before {Cutoff:o}.",
-            entries.Count, appointmentId, cutoff);
+            "CaseTrackerReconciliationJob: released packets for appointment {AppointmentId}; the set has been incomplete since before {Cutoff:o}.",
+            appointmentId, cutoff);
 
         return true;
     }
