@@ -217,11 +217,22 @@ two claims are the same person". That is its only purpose: EQUALITY.
 
 | Key | Type | Nullable | Source |
 |---|---|---|---|
+| `id` | GUID | YES -- null when the office has no Doctor row | `Doctor.Id` |
 | `firstName` | string | Can be `""` | `Doctor.FirstName` (`Doctor.cs:19`) |
 | `lastName` | string | No | `Doctor.LastName` (`Doctor.cs:22`) |
 
 Office's single Doctor row (tenant = doctor; `IX_AppEntity_Doctors_TenantId_Unique`). Not an
 appointment field.
+
+ADDED 2026-07-31: `id`, at the Case Tracker team's request. Their matcher keyed on first + last name,
+which found no match on the first live push (A00005) and left staff selecting the doctor manually on
+every intake. MATCH ON `id`, NOT ON THE NAME -- two systems cannot be relied on to spell a name
+identically forever, and the name is admin-editable.
+
+`id` is the portal's OWN row key, stable for the life of that Doctor record. It is NOT a licence
+number and NOT an externally-minted identifier; do not expect it to correspond to anything outside the
+portal. It is null rather than an empty GUID when no Doctor row exists, so a missing doctor is
+distinguishable from a real one.
 
 ### `data.storage`
 

@@ -46,6 +46,7 @@ public class IntakePayloadBuilderTests
     private static readonly Guid LocationId = new("c0ffee0a-bcde-4f01-9abc-de0123456f7a");
     private static readonly Guid SlotId = new("d1e2f3a4-b5c6-4d7e-8f90-a1b2c3d4e5fa");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
+    private static readonly Guid DoctorId = new("f7a8b9c0-d1e2-4f30-a415-263748596a7b");
 
     private static Appointment NewAppointment(
         Guid id,
@@ -72,7 +73,8 @@ public class IntakePayloadBuilderTests
         Appointment? sourceAppointment = null,
         List<AppointmentDocument>? documents = null,
         List<AppointmentPacket>? packets = null,
-        List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null)
+        List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null,
+        bool withDoctor = true)
     {
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetAsync(appointment.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -105,10 +107,12 @@ public class IntakePayloadBuilderTests
                 phoneNumberTypeId: PhoneNumberType.Home,
                 middleName: "A", phoneNumber: "555-0142", cellPhoneNumber: "555-0177")));
 
-        var doctors = new List<Doctor>
-        {
-            new(Guid.NewGuid(), "Morgan", "Reyes", "morgan.reyes@example.test", Gender.Male),
-        };
+        var doctors = withDoctor
+            ? new List<Doctor>
+            {
+                new(DoctorId, "Morgan", "Reyes", "morgan.reyes@example.test", Gender.Male),
+            }
+            : new List<Doctor>();
         var doctorRepo = Substitute.For<IRepository<Doctor, Guid>>();
         doctorRepo.GetQueryableAsync().Returns(_ => doctors.AsQueryable());
 
@@ -190,6 +194,9 @@ public class IntakePayloadBuilderTests
         data.Tenant.OfficeName.ShouldBe("Reyes Medical Group");
         data.Location.Name.ShouldBe("North Clinic");
         data.AppointmentType.Name.ShouldBe("Panel Qualified Medical Examination (PQME)");
+        // The id is what the receiver matches on: their name-based matcher failed on the first live
+        // push, so the stable identifier is the durable fix (2026-07-31).
+        data.Doctor.Id.ShouldBe(DoctorId);
         data.Doctor.FirstName.ShouldBe("Morgan");
         data.Doctor.LastName.ShouldBe("Reyes");
         data.Storage.Bucket.ShouldBe("case-evaluation-documents");
@@ -392,5 +399,19 @@ public class IntakePayloadBuilderTests
         data.Doctor.LastName.ShouldBe("Reyes");
         data.AppointmentDateLocal.ShouldBe("2026-08-15");
         data.DurationMinutes.ShouldBe(60);
+    }
+
+    [Fact]
+    public async Task WhenTheOfficeHasNoDoctor_TheIdIsNullRatherThanAnEmptyGuid()
+    {
+        // Null says "no doctor on file". Guid.Empty would look like a real identifier the receiver
+        // could try to map, and their matcher now keys on this field.
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), withDoctor: false);
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.Doctor.Id.ShouldBeNull();
+        data.Doctor.FirstName.ShouldBeEmpty();
+        data.Doctor.LastName.ShouldBeEmpty();
     }
 }
