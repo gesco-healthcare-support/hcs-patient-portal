@@ -20,6 +20,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 public class IntegrationOutboxDrainService : ITransientDependency
 {
     private readonly IntegrationOutboxManager _outboxManager;
+    private readonly IIntegrationOutboxRepository _outboxRepository;
     private readonly ICaseTrackerClient _client;
     private readonly IClock _clock;
     private readonly ISettingProvider _settingProvider;
@@ -27,12 +28,14 @@ public class IntegrationOutboxDrainService : ITransientDependency
 
     public IntegrationOutboxDrainService(
         IntegrationOutboxManager outboxManager,
+        IIntegrationOutboxRepository outboxRepository,
         ICaseTrackerClient client,
         IClock clock,
         ISettingProvider settingProvider,
         ILogger<IntegrationOutboxDrainService> logger)
     {
         _outboxManager = outboxManager;
+        _outboxRepository = outboxRepository;
         _client = client;
         _clock = clock;
         _settingProvider = settingProvider;
@@ -53,6 +56,35 @@ public class IntegrationOutboxDrainService : ITransientDependency
         {
             _logger.LogInformation(
                 "IntegrationOutboxDrainService: Case Tracker push is disabled; holding due rows Pending.");
+            return new IntegrationDrainResult(0, 0);
+        }
+
+        // Volume guard. DrainBatchSize caps ONE invocation, but every enqueue schedules its own drain,
+        // so N queued rows become N drains on parallel workers -- without this there is no ceiling at
+        // all. Three current paths can produce a burst: releasing an office's accumulated backlog when
+        // its switch is first turned on ("all sent on enable"), a patient edit fanning out across all
+        // that patient's published appointments, and any future deliberate backfill.
+        //
+        // It matters more than a typical rate limit because each intake becomes a CASE their staff must
+        // handle. Holding rows Pending is cheap and reversible; delivering hundreds of wrong ones is
+        // not, because someone has to unpick them by hand.
+        //
+        // Deliberately NOT a trip flag: the count is measured over a rolling window from SentAt, so it
+        // clears itself as the window slides. There is nothing to reset, and therefore no way to leave
+        // an office switched off by accident -- which was the main risk of a breaker with its own state.
+        var windowStart = _clock.Now.AddMinutes(-IntegrationOutboxConsts.VolumeWindowMinutes);
+        var sentInWindow = await _outboxRepository.CountSentSinceAsync(windowStart);
+        if (sentInWindow >= IntegrationOutboxConsts.VolumeThresholdPerWindow)
+        {
+            // Warning, not Error: hitting the cap is a legitimate outcome for a large backlog, which
+            // simply drains over the following windows. Logged with the numbers so a genuine runaway is
+            // distinguishable from a slow release.
+            _logger.LogWarning(
+                "IntegrationOutboxDrainService: volume guard held delivery -- {SentInWindow} sent since {WindowStart:o} reaches the {Threshold} per {WindowMinutes} min cap. Rows stay Pending and resume as the window slides.",
+                sentInWindow,
+                windowStart,
+                IntegrationOutboxConsts.VolumeThresholdPerWindow,
+                IntegrationOutboxConsts.VolumeWindowMinutes);
             return new IntegrationDrainResult(0, 0);
         }
 

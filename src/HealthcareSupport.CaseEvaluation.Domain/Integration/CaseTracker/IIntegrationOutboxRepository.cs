@@ -25,4 +25,19 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
         DateTime nowUtc,
         DateTime leaseUntil,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many rows this office has SENT since <paramref name="sinceUtc"/>. Feeds the drain's volume
+    /// guard.
+    ///
+    /// <para>Counted from the ledger rather than a separate counter or cache key on purpose: the
+    /// outbox already stamps <c>SentAt</c> on every successful push, so the number is derivable and
+    /// cannot drift from reality, survives a restart, and needs no migration. It also means the guard
+    /// releases itself as the window slides -- there is no trip flag to reset and therefore no way to
+    /// leave delivery stuck off by accident.</para>
+    ///
+    /// <para>Office scoping is the ambient tenant filter, matching every other query on this
+    /// repository; the drain always runs inside one office's scope.</para>
+    /// </summary>
+    Task<int> CountSentSinceAsync(DateTime sinceUtc, CancellationToken cancellationToken = default);
 }

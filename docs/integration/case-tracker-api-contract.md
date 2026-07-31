@@ -560,6 +560,18 @@ carrying the packets and every already-accepted uploaded document. This SUPERSED
 - Appointment changes still re-push intake (§E2), but only once the packet set has settled; field
   edits are pulled (§F).
 
+VOLUME CAP (added 2026-07-31): the portal sends at most 100 messages per office per rolling hour.
+Beyond that, delivery is HELD -- rows stay queued and resume automatically as the window slides. There
+is no trip state and nothing to reset.
+
+What this means for Case Tracker: a large burst arrives spread over hours rather than all at once, and
+a gap in delivery is not necessarily a fault. Normal traffic is nowhere near the cap -- an office runs
+about a dozen appointment slots a day, so organic approvals are single digits per hour. The cap exists
+because three paths could otherwise produce an unbounded burst: releasing an office's accumulated
+backlog the first time its switch is turned on, a patient edit fanning out across all of that
+patient's appointments, and any deliberate backfill. Since each intake becomes a case your staff must
+handle, we would rather deliver slowly than fill your queue with work to unpick.
+
 Why this reversed, measured rather than theorised: the first live approval (falkinstein A00004,
 2026-07-30) queued TWO intakes ten seconds apart. The first carried no packets; the second was
 identical but for a populated `documents` array, because packet generation modifies the appointment
