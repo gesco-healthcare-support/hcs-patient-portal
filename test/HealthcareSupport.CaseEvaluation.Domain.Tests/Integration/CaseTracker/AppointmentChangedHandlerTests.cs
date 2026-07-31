@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
@@ -13,6 +15,7 @@ using NSubstitute.ExceptionExtensions;
 using Shouldly;
 using Volo.Abp.Domain.Entities.Events;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Timing;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -63,9 +66,41 @@ public class AppointmentChangedHandlerTests
             dateOfBirth: new DateTime(1980, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             phoneNumberTypeId: default);
 
+    private static readonly DateTime Now = new(2026, 7, 30, 20, 0, 0, DateTimeKind.Utc);
+
+    private static AppointmentPacket NewPacket(
+        Guid appointmentId,
+        PacketKind kind,
+        PacketGenerationStatus status,
+        DateTime lastChanged) =>
+        new(
+            Guid.NewGuid(),
+            TenantId,
+            appointmentId,
+            kind,
+            blobName: "tenantseg/apptseg/packet/patient/228d6bed62e04be7b1146e58629bf901.pdf",
+            status: status)
+        {
+            GeneratedAt = status == PacketGenerationStatus.Generated ? lastChanged : default,
+            CreationTime = lastChanged,
+        };
+
+    /// <summary>A settled (fully generated) set -- the state after packet rendering finishes.</summary>
+    private static List<AppointmentPacket> SettledPackets(Guid appointmentId) =>
+        PacketSetPolicy.AllKinds
+            .Select(k => NewPacket(appointmentId, k, PacketGenerationStatus.Generated, Now))
+            .ToList();
+
+    /// <summary>Mid-render: what an approval looks like in the seconds after it commits.</summary>
+    private static List<AppointmentPacket> RenderingPackets(Guid appointmentId) =>
+        PacketSetPolicy.AllKinds
+            .Select(k => NewPacket(appointmentId, k, PacketGenerationStatus.Generating, Now))
+            .ToList();
+
     private static (AppointmentChangedHandler Handler, ICaseTrackerIntakeQueue Queue) Build(
         List<Appointment>? patientAppointments = null,
-        bool queueThrows = false)
+        bool queueThrows = false,
+        Func<Guid, List<AppointmentPacket>>? packetsFor = null)
     {
         var repo = Substitute.For<IRepository<Appointment, Guid>>();
         repo.GetListAsync(
@@ -73,6 +108,28 @@ public class AppointmentChangedHandlerTests
                 Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(patientAppointments ?? new List<Appointment>()));
+
+        // The settle gate re-reads the appointment, so FindAsync must answer for every id under test.
+        // NSubstitute returns null for an unstubbed class-returning member, which would silently make
+        // every re-push assertion fail for the wrong reason.
+        repo.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var id = ci.ArgAt<Guid>(0);
+                var known = patientAppointments?.FirstOrDefault(a => a.Id == id);
+                return Task.FromResult<Appointment?>(
+                    known ?? NewAppointment(id, AppointmentStatusType.Approved));
+            });
+
+        var packetRepo = Substitute.For<IRepository<AppointmentPacket, Guid>>();
+        packetRepo.GetListAsync(
+                Arg.Any<Expression<Func<AppointmentPacket, bool>>>(),
+                Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult((packetsFor ?? SettledPackets)(AppointmentId)));
+
+        var clock = Substitute.For<IClock>();
+        clock.Now.Returns(Now);
 
         var queue = Substitute.For<ICaseTrackerIntakeQueue>();
         if (queueThrows)
@@ -94,7 +151,8 @@ public class AppointmentChangedHandlerTests
         }
 
         return (
-            new AppointmentChangedHandler(repo, queue, NullLogger<AppointmentChangedHandler>.Instance),
+            new AppointmentChangedHandler(
+                repo, packetRepo, queue, clock, NullLogger<AppointmentChangedHandler>.Instance),
             queue);
     }
 
@@ -102,6 +160,41 @@ public class AppointmentChangedHandlerTests
     public async Task WhenAnApprovedAppointmentIsEdited_ARePushIsQueued()
     {
         var (handler, queue) = Build();
+
+        await handler.HandleEventAsync(
+            new EntityUpdatedEventData<Appointment>(NewAppointment(AppointmentId, AppointmentStatusType.Approved)));
+
+        await queue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WhileItsPacketsAreStillRendering_NothingIsQueued()
+    {
+        // REGRESSION, measured in production 2026-07-30 (falkinstein A00004). Approval is itself an
+        // appointment update, so this handler fires on the approval and -- without this gate -- pushed
+        // a packet-less intake that the settle path superseded ten seconds later. Deleting the approval
+        // trigger alone did NOT fix that: the two enqueues had merely collapsed onto one row because
+        // they shared an updatedAt. If this test ever passes trivially, check the gate still exists.
+        var (handler, queue) = Build(packetsFor: RenderingPackets);
+
+        await handler.HandleEventAsync(
+            new EntityUpdatedEventData<Appointment>(NewAppointment(AppointmentId, AppointmentStatusType.Approved)));
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task WhenAStuckPacketSetPassesTheCutoff_TheEditIsPushedAnyway()
+    {
+        // A permanently failed template must not withhold the appointment forever -- the appointment
+        // itself is the news, and a withheld intake is a case their staff never see.
+        var stale = Now.AddHours(-2);
+        var (handler, queue) = Build(packetsFor: id => new List<AppointmentPacket>
+        {
+            NewPacket(id, PacketKind.Patient, PacketGenerationStatus.Generated, stale),
+            NewPacket(id, PacketKind.Doctor, PacketGenerationStatus.Failed, stale),
+            NewPacket(id, PacketKind.AttorneyClaimExaminer, PacketGenerationStatus.Failed, stale),
+        });
 
         await handler.HandleEventAsync(
             new EntityUpdatedEventData<Appointment>(NewAppointment(AppointmentId, AppointmentStatusType.Approved)));

@@ -22,6 +22,21 @@ public static class PacketSetPolicy
     /// </summary>
     public static IReadOnlyList<PacketKind> AllKinds { get; } = Enum.GetValues<PacketKind>();
 
+    /// <summary>
+    /// How long a packet set must sit unchanged before it counts as stalled rather than still
+    /// rendering. Comfortably longer than a normal render (seconds to a couple of minutes) so a slow
+    /// job is never mistaken for a stuck one, but short enough that their staff are not waiting on a
+    /// dead template.
+    ///
+    /// <para>ONE constant, deliberately: both the document feed's stalled release and
+    /// <see cref="IntakeSettlePolicy"/>'s settle check time out on the same boundary. Two constants
+    /// would let the intake and its packets disagree about when a set has given up.</para>
+    /// </summary>
+    public const int SettleAfterMinutes = 30;
+
+    /// <summary>The instant a packet row must predate to count as idle. See <see cref="SettleAfterMinutes"/>.</summary>
+    public static DateTime Cutoff(DateTime nowUtc) => nowUtc.AddMinutes(-SettleAfterMinutes);
+
     /// <summary>True once every kind has reached <c>Generated</c>.</summary>
     public static bool IsComplete(IEnumerable<AppointmentPacket> packets)
     {
