@@ -387,6 +387,17 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         requiredPolicy: 'AuditLogging.AuditLogs',
       },
       {
+        // 2026-07-31 -- this screen had no sidebar entry for ANY role, so it was reachable
+        // only by typing the URL. Supervisor is included because operating Case Tracker
+        // delivery is an operator duty rather than a technical one.
+        id: 'integration-failures',
+        label: 'Case Tracker Delivery',
+        icon: 'alert',
+        route: '/admin/integration-failures',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.Appointments.ViewIntegrationDeadLetters',
+      },
+      {
         id: 'file-management',
         label: 'File Management',
         icon: 'folder',

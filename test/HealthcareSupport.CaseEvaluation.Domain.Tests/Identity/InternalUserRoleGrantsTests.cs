@@ -56,6 +56,11 @@ public class InternalUserRoleGrantsTests
     [InlineData("CaseEvaluation.IntakeAssignments.Manage")]
     [InlineData("CaseEvaluation.InternalUsers.Create")]
     [InlineData("CaseEvaluation.InternalUsers.Edit")]
+    // 2026-07-31 -- the Supervisor operates the host dead-letter screen, so it needs the
+    // same Case Tracker pair IT Admin got in #406; without them the rail entry is hidden
+    // from its own navigation and the retry action 403s.
+    [InlineData("CaseEvaluation.Appointments.PushToCaseTracker")]
+    [InlineData("CaseEvaluation.Appointments.ViewIntegrationDeadLetters")]
     public void SupervisorHost_has_operator_powers(string permission) =>
         SupervisorHost.ShouldContain(permission);
 
