@@ -82,7 +82,7 @@ public class CaseTrackerPacketPublishService : ITransientDependency
         }
 
         var documentRow = await _documentQueue.EnqueueDocumentEntriesAsync(
-            appointment.Id, appointment.TenantId, entries);
+            appointment.Id, appointment.TenantId, entries, cancellationToken);
 
         _logger.LogInformation(
             "CaseTrackerPacketPublishService: appointment {AppointmentId} packets changed after its intake; {Count} entry(s) queued as a document update (row {RowId}).",
