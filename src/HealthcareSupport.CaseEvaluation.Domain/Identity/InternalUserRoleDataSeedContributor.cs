@@ -317,11 +317,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
         // 2026-07-31 -- Case Tracker integration. Two custom actions the epic added without
         // yielding them here, so the role documented as holding the full CaseEvaluation.* tree
-        // silently lacked both: the push toggle 403'd and /admin/integration-failures was hidden
-        // from its own nav. Worse, the role permission editor renders IT Admin read-only (it is the
-        // all-granted system role), so nobody could tick them in the UI either -- the only fix was
-        // here. PushToCaseTracker gates the per-office switch and the manual re-push;
-        // ViewIntegrationDeadLetters gates the failures screen those actions live on.
+        // silently lacked both: the per-office push toggle returned 403 and the failures screen at
+        // /admin/integration-failures was hidden from its own navigation. It could not be fixed in
+        // the UI either, because the role permission editor renders IT Admin read-only as the
+        // all-granted system role, leaving both checkboxes disabled and unticked. The first grant
+        // gates the per-office switch and the manual re-push, the second gates the failures screen
+        // that those actions are operated from.
         yield return $"{Group}.Appointments.PushToCaseTracker";
         yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
 
