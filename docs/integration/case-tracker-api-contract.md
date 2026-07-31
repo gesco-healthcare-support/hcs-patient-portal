@@ -103,6 +103,8 @@ build; the deployed integration base must be `https://...` (`:7272` = API, `:80`
 | `appointmentId` | string | GUID | No | `Appointment.Id` (`Domain/Appointments/Appointment.cs:21`) |
 | `confirmationNumber` | string | `A`+5 digits, e.g. `A00065` | No (per-office, mutable - NOT a key) | `Appointment.RequestConfirmationNumber` (`Appointment.cs:33`); format `AppointmentBookingValidators.cs:29` |
 | `status` | string | enum name; at intake `"Approved"` (later re-pushes may carry cancel/reschedule states, §E2) | No | `Appointment.AppointmentStatus` (`Appointment.cs:42`); `AppointmentStatusType` (`Domain.Shared/Enums/AppointmentStatusType.cs`) |
+| `billingStatus` | string | `"NO_BILL"`, `"LATE"` or `"NONE"` | No (ALWAYS present) | ADDED 2026-07-31. Derived from `Appointment.AppointmentStatus` by `BillingStatusWire.ToWire` (`Domain/Integration/CaseTracker/Payload/BillingStatusWire.cs`): `Cancelled/RescheduledNoBill` -> `NO_BILL`, `Cancelled/RescheduledLate` -> `LATE`, everything else -> `NONE`. Explicit rather than implicit so you never string-match `status` to decide whether to bill; an enum rename cannot change the wire value. `status` remains authoritative for LIFECYCLE - this answers only "bill or not". |
+| `cancellationReason` | string | free text | Yes (present only when cancelled) | ADDED 2026-07-31. `Appointment.CancellationReason` (`Appointment.cs:165`), copied from the change request when a supervisor approves a cancellation, or set to a fixed sentence by the joint-declaration auto-cancel job (which has no change request). **USER-AUTHORED FREE TEXT, unbounded length, not validated beyond being non-empty at submit** - treat as untrusted display data, escape it before rendering, and do not log it. `null` (not `""`) when no reason was recorded, so absence is distinguishable from a blank reason. |
 | `approvedAtUtc` | string | ISO-8601 UTC `Z` | No at intake | `Appointment.AppointmentApproveDate` (`Appointment.cs:40`); `= DateTime.UtcNow` (`AppointmentManager.cs:344`) |
 | `submittedAtUtc` | string | ISO-8601 UTC `Z` | No | `Appointment.CreationTime` (ABP `FullAuditedAggregateRoot`, UTC) |
 | `updatedAt` | string | ISO-8601 UTC `Z` | No | appointment `LastModificationTime ?? CreationTime`. Monotonic per appointment; Case Tracker's skip-if-older guard (they are last-write-wins, no version column). |
@@ -137,6 +139,14 @@ NEVER sent (do not build logic for these):
 
 Recommendation for Case Tracker: store the status string verbatim and treat only `CancelledNoBill` /
 `CancelledLate` as terminal-cancelled; treat `*Requested` as "change pending, still active".
+
+BILLING INTENT IS NOW EXPLICIT (ADDED 2026-07-31). Branch on the new `billingStatus` field rather
+than parsing the status string: `NO_BILL` / `LATE` / `NONE`. Both fields ship together and agree by
+construction (one is derived from the other), so nothing about the existing status handling has to
+change. Both additions are ADDITIVE and OPTIONAL on your side -- a receiver that ignores
+`billingStatus` and `cancellationReason` stays exactly as correct as it is today, so this needs no
+coordinated release. `billingStatus` is always present (`NONE` when there is nothing to bill), so it
+never requires a null check; `cancellationReason` is present only for a cancelled appointment.
 
 NO PATIENT IDENTIFIER IS SENT (DECIDED 2026-07-23). The portal is database-per-office, so the same
 human booking at two offices produces two unrelated `Patient` rows with different GUIDs - the portal

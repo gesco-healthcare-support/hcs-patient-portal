@@ -35,6 +35,20 @@ public class IntakePayload
     /// </summary>
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Billing intent as an explicit value (<c>NO_BILL</c> / <c>LATE</c> / <c>NONE</c>) so the
+    /// receiver need not string-match <see cref="Status"/>. Always present; <c>NONE</c> when the
+    /// appointment is not in a billing-bearing state. <see cref="Status"/> stays authoritative
+    /// for lifecycle.
+    /// </summary>
+    public string BillingStatus { get; set; } = BillingStatusWire.None;
+
+    /// <summary>
+    /// Why the appointment was cancelled. Null unless it was. USER-AUTHORED FREE TEXT (or the
+    /// auto-cancel constant) -- treat as untrusted display data and never log it.
+    /// </summary>
+    public string? CancellationReason { get; set; }
+
     /// <summary>ISO-8601 UTC. Null only if pushed before approval, which the trigger prevents.</summary>
     public string? ApprovedAtUtc { get; set; }
 

@@ -97,6 +97,12 @@ public class AppointmentChangeRequestsApprovalAppService :
             input.CancellationOutcome == AppointmentStatusType.CancelledLate)
         {
             appointment.CancelledById = CurrentUser.Id;
+            // 2026-07-31 -- copy the reason onto the appointment. It was previously left on the
+            // change-request row only, so this column was permanently null: the patient
+            // PatientAppointmentCancelledNoBill email rendered a blank reason (it reads the
+            // appointment, unlike the staff templates which read the request), and the Case
+            // Tracker payload had nothing to send.
+            appointment.CancellationReason = changeRequest.CancellationReason;
         }
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
