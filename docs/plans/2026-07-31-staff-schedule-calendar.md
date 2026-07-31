@@ -150,8 +150,19 @@ surface (patient names stay internal-only).
 
 ### Task 3 - add the FullCalendar MIT packages
 
-- what: MODIFY `angular/package.json` via `yarn add @fullcalendar/angular @fullcalendar/core @fullcalendar/timegrid`
-  (plus `temporal-polyfill` if yarn reports it as a missing peer). Commit the lockfile.
+- what: MODIFY `angular/package.json` via
+  `yarn add @fullcalendar/angular fullcalendar temporal-polyfill`. Commit the lockfile.
+
+  CORRECTED DURING BUILD (2026-07-31): the plan first named the v6-style package set
+  (`@fullcalendar/core` + `@fullcalendar/timegrid`). That is WRONG for v7 and yarn proved it --
+  `@fullcalendar/timegrid` has no v7 release so it resolved to `6.1.21` against a `7.0.2` core, and
+  `yarn explain peer-requirements` flagged unmet peers for `fullcalendar` and `temporal-polyfill`.
+  In v7 the Angular package peers on the `fullcalendar` BUNDLE (which carries dayGrid/timeGrid/list)
+  rather than on separate plugin packages. Installed set, all peers met, all MIT:
+  `@fullcalendar/angular` 7.0.2, `fullcalendar` 7.0.2, `temporal-polyfill` 1.0.2. Verified
+  `node_modules/@fullcalendar/` holds only `angular` + `core` -- no `resource-*`/timeline package
+  was pulled in, so nothing commercial is present. Import plugins FROM the bundle, not from
+  `@fullcalendar/timegrid`.
 - pattern: n/a (dependency addition). Do NOT add any `@fullcalendar/resource-*` or timeline package
   -- those are the commercial ones.
 - approach: code
