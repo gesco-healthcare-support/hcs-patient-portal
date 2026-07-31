@@ -217,11 +217,22 @@ two claims are the same person". That is its only purpose: EQUALITY.
 
 | Key | Type | Nullable | Source |
 |---|---|---|---|
+| `id` | GUID | YES -- null when the office has no Doctor row | `Doctor.Id` |
 | `firstName` | string | Can be `""` | `Doctor.FirstName` (`Doctor.cs:19`) |
 | `lastName` | string | No | `Doctor.LastName` (`Doctor.cs:22`) |
 
 Office's single Doctor row (tenant = doctor; `IX_AppEntity_Doctors_TenantId_Unique`). Not an
 appointment field.
+
+ADDED 2026-07-31: `id`, at the Case Tracker team's request. Their matcher keyed on first + last name,
+which found no match on the first live push (A00005) and left staff selecting the doctor manually on
+every intake. MATCH ON `id`, NOT ON THE NAME -- two systems cannot be relied on to spell a name
+identically forever, and the name is admin-editable.
+
+`id` is the portal's OWN row key, stable for the life of that Doctor record. It is NOT a licence
+number and NOT an externally-minted identifier; do not expect it to correspond to anything outside the
+portal. It is null rather than an empty GUID when no Doctor row exists, so a missing doctor is
+distinguishable from a real one.
 
 ### `data.storage`
 
@@ -548,6 +559,18 @@ carrying the packets and every already-accepted uploaded document. This SUPERSED
   after the intake went -- arrive on the document-update feed (§E), not as another intake.
 - Appointment changes still re-push intake (§E2), but only once the packet set has settled; field
   edits are pulled (§F).
+
+VOLUME CAP (added 2026-07-31): the portal sends at most 100 messages per office per rolling hour.
+Beyond that, delivery is HELD -- rows stay queued and resume automatically as the window slides. There
+is no trip state and nothing to reset.
+
+What this means for Case Tracker: a large burst arrives spread over hours rather than all at once, and
+a gap in delivery is not necessarily a fault. Normal traffic is nowhere near the cap -- an office runs
+about a dozen appointment slots a day, so organic approvals are single digits per hour. The cap exists
+because three paths could otherwise produce an unbounded burst: releasing an office's accumulated
+backlog the first time its switch is turned on, a patient edit fanning out across all of that
+patient's appointments, and any deliberate backfill. Since each intake becomes a case your staff must
+handle, we would rather deliver slowly than fill your queue with work to unpick.
 
 Why this reversed, measured rather than theorised: the first live approval (falkinstein A00004,
 2026-07-30) queued TWO intakes ten seconds apart. The first carried no packets; the second was

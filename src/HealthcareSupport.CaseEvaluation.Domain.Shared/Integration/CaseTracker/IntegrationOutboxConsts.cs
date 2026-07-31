@@ -38,4 +38,30 @@ public static class IntegrationOutboxConsts
 
     /// <summary>Max rows a single drain claims per office per pass.</summary>
     public const int DrainBatchSize = 50;
+
+    /// <summary>
+    /// Rolling window the volume guard measures sends over, per office.
+    ///
+    /// <para><see cref="DrainBatchSize"/> bounds ONE drain invocation, not throughput: every enqueue
+    /// schedules its own drain, so N queued rows become N drain jobs on parallel workers and the
+    /// effective ceiling is unbounded. This window plus <see cref="VolumeThresholdPerWindow"/> is the
+    /// actual ceiling.</para>
+    /// </summary>
+    public const int VolumeWindowMinutes = 60;
+
+    /// <summary>
+    /// Sends allowed per office per <see cref="VolumeWindowMinutes"/> before the guard holds delivery.
+    ///
+    /// <para>Chosen against physical capacity rather than guessed: an office runs roughly a dozen
+    /// appointment slots a day, so organic approval traffic is single digits per hour. 100 leaves an
+    /// order of magnitude of headroom for legitimate bursts -- a backlog released when an office is
+    /// first enabled, or a patient edit fanning out across their appointments -- while still stopping
+    /// a runaway at a fraction of the damage.</para>
+    ///
+    /// <para>Why a ceiling matters more here than for a typical rate limit: each intake becomes a CASE
+    /// their staff must handle. A flood does not degrade a service, it fills another team's live queue
+    /// with work they then unpick by hand. A withheld push is recoverable; a thousand delivered wrong
+    /// ones are not.</para>
+    /// </summary>
+    public const int VolumeThresholdPerWindow = 100;
 }

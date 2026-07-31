@@ -180,6 +180,25 @@ public class IntakePatientSection
 /// <summary>The office's single doctor (tenant == doctor). FirstName can legitimately be empty.</summary>
 public class IntakeDoctorSection
 {
+    /// <summary>
+    /// The doctor's stable portal identifier, for matching instead of the name.
+    ///
+    /// <para>Added 2026-07-31 at the Case Tracker team's request. Their matcher previously keyed on
+    /// first + last name, which failed on the first live push and left staff picking the doctor by
+    /// hand on every intake -- two systems cannot be relied on to spell a name identically forever.
+    /// Map once against this and ignore the name for matching.</para>
+    ///
+    /// <para>This is the portal's own row key, stable for the life of the doctor record. It is NOT a
+    /// licence number or any externally-minted identifier, and it is deliberately NOT the CalMed
+    /// Facility ID equivalent -- conflating our surrogate keys with externally-minted ones is a
+    /// mistake this integration has had to correct before.</para>
+    ///
+    /// <para>Nullable because an office with no doctor record resolves to an empty section; null says
+    /// "no doctor on file" honestly, where <c>Guid.Empty</c> would look like a real identifier the
+    /// receiver could try to map.</para>
+    /// </summary>
+    public Guid? Id { get; set; }
+
     public string FirstName { get; set; } = string.Empty;
 
     public string LastName { get; set; } = string.Empty;
