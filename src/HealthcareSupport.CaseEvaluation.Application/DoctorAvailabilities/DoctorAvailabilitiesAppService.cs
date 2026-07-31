@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.SystemParameters;
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Uow;
+using Volo.Abp.Validation;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -636,6 +638,68 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         return namesBySlot
             .Select(kvp => new SlotPatientNamesDto { SlotId = kvp.Key, Names = kvp.Value })
             .ToList();
+    }
+
+    /// <summary>
+    /// Phase 3 (2026-07-31) -- the staff schedule: slots in a date range for one location, each with
+    /// real occupancy and the appointments in it. See the interface for why this is separate from the
+    /// booking lookup.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
+    public virtual async Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input)
+    {
+        Check.NotNull(input, nameof(input));
+        if (input.LocationId == Guid.Empty)
+        {
+            // Required rather than "all locations" on purpose: the result carries patient names, so
+            // the caller must say which clinic it is looking at.
+            throw new AbpValidationException(
+                "LocationId is required.",
+                new List<ValidationResult>
+                {
+                    new("LocationId is required.", new[] { nameof(GetScheduleInput.LocationId) }),
+                });
+        }
+
+        var fromDate = input.FromDate.Date;
+        var toDate = input.ToDate.Date;
+
+        // NO BookingStatusId filter and NO full-slot exclusion -- unlike the booking picker, a
+        // booked or manually closed slot is exactly what this screen exists to show.
+        var slotQuery = (await _doctorAvailabilityRepository.GetQueryableAsync())
+            .Where(x =>
+                x.LocationId == input.LocationId &&
+                x.AvailableDate >= fromDate &&
+                x.AvailableDate <= toDate);
+
+        var slots = await AsyncExecuter.ToListAsync(slotQuery);
+        if (slots.Count == 0)
+        {
+            return new List<ScheduleSlotDto>();
+        }
+
+        var slotIds = slots.Select(x => x.Id).ToList();
+
+        // Two bulk reads over the same bounded slot set, mirroring the lookup path's N+1 avoidance.
+        var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
+        var appointments = await _appointmentRepository.GetActiveAppointmentsForSlotsAsync(slotIds);
+
+        var appointmentsBySlot = appointments
+            .GroupBy(a => a.DoctorAvailabilityId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderBy(a => a.RequestConfirmationNumber, StringComparer.Ordinal)
+                    .Select(a => new ScheduleAppointmentDto
+                    {
+                        AppointmentId = a.AppointmentId,
+                        RequestConfirmationNumber = a.RequestConfirmationNumber,
+                        PatientName = a.PatientName,
+                        Status = a.Status,
+                    })
+                    .ToList());
+
+        return ScheduleProjection.Build(slots, appointmentsBySlot, activeCounts);
     }
 
     /// <summary>
