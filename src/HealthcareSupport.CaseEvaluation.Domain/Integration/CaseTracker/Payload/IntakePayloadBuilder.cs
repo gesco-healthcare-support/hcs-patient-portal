@@ -90,6 +90,8 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
             AppointmentId = appointment.Id,
             ConfirmationNumber = appointment.RequestConfirmationNumber,
             Status = appointment.AppointmentStatus.ToString(),
+            BillingStatus = BillingStatusWire.ToWire(appointment.AppointmentStatus),
+            CancellationReason = appointment.CancellationReason,
             ApprovedAtUtc = IntegrationTimestamp.ToIsoUtcOrNull(appointment.AppointmentApproveDate),
             SubmittedAtUtc = IntegrationTimestamp.ToIsoUtc(appointment.CreationTime),
             UpdatedAt = IntegrationTimestamp.ToIsoUtc(

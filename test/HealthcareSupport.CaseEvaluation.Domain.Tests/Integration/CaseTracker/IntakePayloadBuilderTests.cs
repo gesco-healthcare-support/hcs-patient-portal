@@ -52,19 +52,22 @@ public class IntakePayloadBuilderTests
         Guid id,
         string confirmation,
         EvaluationKind kind = EvaluationKind.Evaluation,
-        Guid? originalAppointmentId = null)
+        Guid? originalAppointmentId = null,
+        AppointmentStatusType status = AppointmentStatusType.Approved,
+        string? cancellationReason = null)
     {
         return new Appointment(
             id, PatientId, identityUserId: null, AppointmentTypeId, LocationId, SlotId,
             appointmentDate: new DateTime(2026, 8, 15, 9, 30, 0, DateTimeKind.Utc),
             requestConfirmationNumber: confirmation,
-            appointmentStatus: AppointmentStatusType.Approved,
+            appointmentStatus: status,
             panelNumber: SyntheticPanelNumber)
         {
             TenantId = TenantId,
             EvaluationKind = kind,
             OriginalAppointmentId = originalAppointmentId,
             AppointmentApproveDate = new DateTime(2026, 7, 27, 18, 30, 12, DateTimeKind.Utc),
+            CancellationReason = cancellationReason,
         };
     }
 
@@ -201,6 +204,52 @@ public class IntakePayloadBuilderTests
         data.Doctor.LastName.ShouldBe("Reyes");
         data.Storage.Bucket.ShouldBe("case-evaluation-documents");
         envelope.Errors.ShouldBeEmpty();
+    }
+
+    // Phase 2 (2026-07-31): billing intent used to be implicit in the status string and the
+    // cancellation reason was not sent at all -- the Case Tracker could not tell whether to bill a
+    // cancelled case, nor why it was cancelled.
+    [Fact]
+    public async Task BuildAsync_ForAnApprovedAppointment_SendsNoBillingIntentAndNoReason()
+    {
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        // Always present, so the receiver never distinguishes "absent" from "nothing to bill".
+        data.BillingStatus.ShouldBe("NONE");
+        data.CancellationReason.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.CancelledNoBill, "NO_BILL")]
+    [InlineData(AppointmentStatusType.CancelledLate, "LATE")]
+    public async Task BuildAsync_ForACancelledAppointment_SendsTheReasonAndBillingIntent(
+        AppointmentStatusType status,
+        string expectedBillingStatus)
+    {
+        var builder = Build(NewAppointment(
+            AppointmentId, "A00065", status: status, cancellationReason: "Patient moved out of state"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.Status.ShouldBe(status.ToString());
+        data.BillingStatus.ShouldBe(expectedBillingStatus);
+        data.CancellationReason.ShouldBe("Patient moved out of state");
+    }
+
+    [Fact]
+    public async Task BuildAsync_WhenNoReasonWasRecorded_SendsNullRatherThanEmptyString()
+    {
+        // Null distinguishes "no reason recorded" from "reason recorded as blank", which matters
+        // because the receiver renders this field to staff.
+        var builder = Build(NewAppointment(
+            AppointmentId, "A00065", status: AppointmentStatusType.CancelledNoBill));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.CancellationReason.ShouldBeNull();
+        data.BillingStatus.ShouldBe("NO_BILL");
     }
 
     [Fact]
