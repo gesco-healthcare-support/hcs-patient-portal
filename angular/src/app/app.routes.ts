@@ -1,5 +1,8 @@
-import { authGuard, permissionGuard } from '@abp/ng.core';
+import { authGuard, ConfigStateService, permissionGuard, PermissionService } from '@abp/ng.core';
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { firstVisibleAdminSection } from './admin/admin-hub.util';
+import { isHostScope } from './shared/auth/internal-user-roles';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
 import { internalUserOnlyMatchGuard } from './shared/auth/internal-user-match.guard';
 import { externalUserOnlyMatchGuard } from './shared/auth/external-user-match.guard';
@@ -262,7 +265,23 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   {
     path: 'admin',
     children: [
-      { path: '', redirectTo: 'templates', pathMatch: 'full' },
+      {
+        // 2026-07-31 -- was a fixed redirect to 'templates', which 403s for any role lacking
+        // CaseEvaluation.NotificationTemplates: a Staff Supervisor opening /admin landed on
+        // "You don't have access" and could never reach the rail. Resolve to the first
+        // section the caller can actually see, via the SAME rule the rail uses.
+        path: '',
+        pathMatch: 'full',
+        redirectTo: () => {
+          const permission = inject(PermissionService);
+          const config = inject(ConfigStateService);
+          const target = firstVisibleAdminSection(
+            (policy) => permission.getGrantedPolicy(policy),
+            isHostScope(config),
+          );
+          return target?.route ?? '/dashboard';
+        },
+      },
       {
         path: 'templates',
         loadComponent: () =>

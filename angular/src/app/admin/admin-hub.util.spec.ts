@@ -4,8 +4,10 @@ import {
   auditResultLabel,
   auditStatusClass,
   buildAuditCsv,
+  firstVisibleAdminSection,
   humanizeToken,
   insertVariable,
+  isAdminSectionVisible,
   isLockedRole,
   previewSegments,
   roleKind,
@@ -33,6 +35,57 @@ describe('admin-hub.util', () => {
         'templates',
         'parameters',
       ]);
+    });
+  });
+
+  describe('isAdminSectionVisible / firstVisibleAdminSection', () => {
+    const section = (key: string) => ADMIN_SECTIONS.find((s) => s.key === key)!;
+    const grantAll = () => true;
+    const grantNone = () => false;
+    const grantOnly =
+      (...policies: string[]) =>
+      (policy: string) =>
+        policies.includes(policy);
+
+    it('hides a section whose policy is not granted', () => {
+      expect(isAdminSectionVisible(section('audit'), grantNone, false)).toBeFalse();
+    });
+
+    it('hides a tenant-scoped section at host scope but shows it inside a clinic', () => {
+      // templates is tenantScoped: it 403s at host, so the rail must hide it there.
+      expect(isAdminSectionVisible(section('templates'), grantAll, true)).toBeFalse();
+      expect(isAdminSectionVisible(section('templates'), grantAll, false)).toBeTrue();
+    });
+
+    it('shows a host-scoped section at host scope', () => {
+      expect(isAdminSectionVisible(section('integration-failures'), grantAll, true)).toBeTrue();
+    });
+
+    it('resolves /admin to the only section a Case Tracker operator can see', () => {
+      // Staff Supervisor at host holds ViewIntegrationDeadLetters and none of the others,
+      // so a fixed redirect to templates would 403; the first VISIBLE section is the target.
+      const first = firstVisibleAdminSection(
+        grantOnly('CaseEvaluation.Appointments.ViewIntegrationDeadLetters'),
+        true,
+      );
+      expect(first?.route).toBe('/admin/integration-failures');
+    });
+
+    it('keeps templates as the landing section for a clinic-scoped template manager', () => {
+      const first = firstVisibleAdminSection(
+        grantOnly('CaseEvaluation.NotificationTemplates'),
+        false,
+      );
+      expect(first?.route).toBe('/admin/templates');
+    });
+
+    it('never lands on a tenant-scoped section while at host scope', () => {
+      const first = firstVisibleAdminSection(grantAll, true);
+      expect(first?.tenantScoped).toBeFalse();
+    });
+
+    it('returns undefined when no section is visible', () => {
+      expect(firstVisibleAdminSection(grantNone, true)).toBeUndefined();
     });
   });
 

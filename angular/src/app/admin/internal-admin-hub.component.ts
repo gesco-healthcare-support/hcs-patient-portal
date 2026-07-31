@@ -29,6 +29,7 @@ import {
   auditStatusClass,
   buildAuditCsv,
   insertVariable,
+  isAdminSectionVisible,
   isLockedRole,
   previewSegments,
   SP_GROUPS,
@@ -316,10 +317,11 @@ export class InternalAdminHubComponent {
    * Admin reaches them by switching into a clinic first.
    */
   protected canSee(section: AdminSection): boolean {
-    if (!this.permission.getGrantedPolicy(section.policy)) {
-      return false;
-    }
-    return !section.tenantScoped || !isHostScope(this.config);
+    return isAdminSectionVisible(
+      section,
+      (policy) => this.permission.getGrantedPolicy(policy),
+      isHostScope(this.config),
+    );
   }
 
   /** The current section is a tenant-scoped one being viewed at host scope. */

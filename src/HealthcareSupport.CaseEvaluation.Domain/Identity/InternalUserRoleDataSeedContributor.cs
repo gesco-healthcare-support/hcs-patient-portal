@@ -426,6 +426,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // File/Language management, or Saas.Tenants.Create -- those stay IT-Admin-only.
         yield return "AbpIdentity.Users";
         yield return "AbpIdentity.Users.Update";
+
+        // 2026-07-31 -- Case Tracker integration, the Supervisor half of the gap #406 fixed
+        // for IT Admin. The permission definitions always intended both roles to hold these,
+        // but only ItAdminGrants yielded them, so the Supervisor's own navigation hid
+        // /admin/integration-failures and the retry action 403'd. Granted HOST-side only:
+        // that screen aggregates every office through ITenantWorkRunner, so a tenant-side
+        // grant would gate nothing it reads.
+        yield return $"{Group}.Appointments.PushToCaseTracker";
+        yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
     }
 
     /// <summary>
