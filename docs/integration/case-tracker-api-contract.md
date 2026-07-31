@@ -10,7 +10,8 @@ everything except the reconcile GET (§F) and failure visibility (§I2) - see se
 built/remaining split. It ships DISABLED behind the `CaseTrackerPushEnabled` setting.
 
 Decisions folded in (2026-07-23, all FINAL):
-- Intake pushes IMMEDIATELY on approval; packets/docs stream in afterwards (§H). No all-3 aggregator.
+- Intake waits for the packet set to settle, then pushes ONCE with packets + accepted docs (§H).
+  REVISED 2026-07-30; it previously pushed immediately with an empty `documents` array.
 - Retention + soft-delete guarantee, scoped to appointment documents + packets (§C).
 - Appointment-lifecycle re-push on cancel / reschedule / rejection+info-requested, NOT field edits (§E2).
   (SUPERSEDED 2026-07-28 -- field edits ARE pushed; see the revision block below.)
@@ -531,22 +532,36 @@ Answers to the receiver's reconcile questions (2026-07-28):
 
 ## H. Timing
 
-DECIDED 2026-07-23: the intake pushes IMMEDIATELY on appointment approval. It does NOT wait for
-packets.
+REVISED 2026-07-30: the intake WAITS for the appointment's packet set to settle, then pushes ONCE
+carrying the packets and every already-accepted uploaded document. This SUPERSEDES the 2026-07-23
+"push immediately, do not wait for packets" decision recorded below.
 
-- Trigger: the approval transition (`AppointmentApprovedEto` / `AppointmentStatusChangedEto`
-  `ToStatus=Approved`). The intake typically carries ZERO packets, because packet rendering is an
-  async Hangfire job that finishes seconds-to-minutes later.
-- Packets then arrive individually through the document-update feed (§E) as each `PacketGeneratedEto`
-  fires; uploaded documents likewise as they are uploaded/accepted.
-- Case Tracker already upserts on `appointmentId` and accepts 0-3 packets per message, so an initially
-  packet-less case is expected and valid on their side (their staff complete it before it becomes a
-  case).
-- Rationale for dropping the previous "wait for all 3 packets + Failed-timeout" design: it required a
-  stateful aggregator (track 3 kinds, detect completion, arm a timer, handle a permanently `Failed`
-  kind) that bought Case Tracker nothing they need. Immediate push creates the case sooner with
-  strictly less machinery and fewer failure modes.
-- Appointment changes re-push intake (§E2); field edits are pulled (§F).
+- Trigger: the packet set settling, not the approval. Settled means every kind has rendered, OR the
+  set has sat unchanged for 30 minutes (a stuck or failed template must not withhold the appointment
+  forever -- the appointment itself is the news).
+- Consequence for Case Tracker: **one** intake per approval instead of two, and its `documents` array
+  is normally already populated. Expect the intake seconds-to-minutes AFTER approval rather than
+  instantly.
+- A permanently failed template still produces an intake, just with fewer (or zero) packet entries.
+  Nothing is withheld indefinitely.
+- Packets that settle a SECOND time -- a regenerated packet, or a stalled kind that finally renders
+  after the intake went -- arrive on the document-update feed (§E), not as another intake.
+- Appointment changes still re-push intake (§E2), but only once the packet set has settled; field
+  edits are pulled (§F).
+
+Why this reversed, measured rather than theorised: the first live approval (falkinstein A00004,
+2026-07-30) queued TWO intakes ten seconds apart. The first carried no packets; the second was
+identical but for a populated `documents` array, because packet generation modifies the appointment
+and the change trigger legitimately re-pushed. The idempotency key behaved correctly -- the two
+states genuinely differed -- so this was never a dedup fault, just a wasted message. The original
+rationale (below) argued waiting "bought Case Tracker nothing they need"; in practice it buys them
+one complete message instead of one stale message plus a correction.
+
+Superseded rationale, kept because it records what was traded away: the previous design avoided a
+stateful aggregator and a Failed-kind timeout. The current design needs neither -- `PacketSetPolicy`
+already provided the completeness and stalled-set rules for the document feed, so the intake reuses
+them and shares ONE 30-minute constant with it. The cost paid is latency: an approved appointment now
+reaches the Case Tracker seconds-to-minutes later than it used to.
 
 ---
 
@@ -679,8 +694,9 @@ Agreed decisions (2026-07-23), all FINAL:
 2. The portal guarantees retention: no purge, and soft-delete-only (blob retained) for appointment
    documents + packets. So Case Tracker does NOT need a copy-into-own-bucket safety net for the
    18-month re-eval window.
-3. Intake pushes immediately on approval (0 packets expected initially); packets/docs follow via the
-   update feed.
+3. ~~Intake pushes immediately on approval (0 packets expected initially); packets/docs follow via the
+   update feed.~~ SUPERSEDED 2026-07-30 -- the intake now waits for the packet set to settle and
+   arrives once, with packets and accepted documents already in `documents`. See §H.
 4. REVISED 2026-07-28: the portal re-pushes on ANY change to a published appointment, field edits
    included, so no periodic pull is needed for freshness. (Was: lifecycle-only, with field edits
    pulled. "Rejection+info-requested" was also dropped as impossible - both are reachable only

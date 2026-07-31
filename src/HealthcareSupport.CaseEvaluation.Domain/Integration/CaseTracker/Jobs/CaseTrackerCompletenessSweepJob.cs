@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Microsoft.Extensions.Logging;
@@ -63,6 +64,7 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
 
     private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IIntegrationOutboxRepository _outboxRepository;
     private readonly ICaseTrackerIntakeQueue _intakeQueue;
     private readonly IClock _clock;
@@ -71,6 +73,7 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
     public CaseTrackerCompletenessSweepJob(
         ITenantWorkRunner tenantWorkRunner,
         IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<AppointmentPacket, Guid> packetRepository,
         IIntegrationOutboxRepository outboxRepository,
         ICaseTrackerIntakeQueue intakeQueue,
         IClock clock,
@@ -78,6 +81,7 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
     {
         _tenantWorkRunner = tenantWorkRunner;
         _appointmentRepository = appointmentRepository;
+        _packetRepository = packetRepository;
         _outboxRepository = outboxRepository;
         _intakeQueue = intakeQueue;
         _clock = clock;
@@ -123,19 +127,37 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
             return 0;
         }
 
+        var settleCutoff = PacketSetPolicy.Cutoff(_clock.Now);
+        var recovered = 0;
+
         foreach (var appointment in missing)
         {
+            // Since 2026-07-30 "published with no intake row" is the NORMAL state between approval and
+            // the packet set settling, so recovering unconditionally would race the deferral and send
+            // exactly the packet-less intake it exists to prevent. Waiting for settle keeps this job
+            // what it is meant to be -- a backstop for an enqueue that was genuinely lost -- and the
+            // settle cutoff doubles as its grace period, so there is no second timing knob.
+            var packets = await _packetRepository.GetListAsync(p => p.AppointmentId == appointment.Id);
+            if (!IntakeSettlePolicy.IsSettled(appointment, packets, settleCutoff))
+            {
+                _logger.LogDebug(
+                    "CaseTrackerCompletenessSweepJob: appointment {AppointmentId} has no intake row yet, but its packet set is still settling; leaving it to the settle path.",
+                    appointment.Id);
+                continue;
+            }
+
             // Enqueue rather than push. Re-enqueueing something that DOES have a row is harmless anyway:
             // the idempotency key is versioned by the appointment's UpdatedAt, so a duplicate collapses
             // onto the existing row instead of double-sending.
             await _intakeQueue.EnqueueIntakeAsync(appointment.Id, appointment.TenantId);
+            recovered++;
 
             _logger.LogWarning(
-                "CaseTrackerCompletenessSweepJob: appointment {AppointmentId} in office {OfficeId} is {Status} with no intake row; enqueued one. Its original enqueue was lost.",
+                "CaseTrackerCompletenessSweepJob: appointment {AppointmentId} in office {OfficeId} is {Status} with a settled packet set and no intake row; enqueued one. Its original enqueue was lost.",
                 appointment.Id, officeId, appointment.AppointmentStatus);
         }
 
-        return missing.Count;
+        return recovered;
     }
 
     /// <summary>

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs;
@@ -60,9 +62,31 @@ public class CaseTrackerCompletenessSweepJobTests
             "key-" + appointmentId.ToString("N"));
     }
 
+    /// <summary>
+    /// A settled (fully generated) packet set. This is the DEFAULT for these tests because the sweep
+    /// only recovers appointments whose packets have settled -- since 2026-07-30 "published with no
+    /// intake row" is the normal mid-render state, so recovering unconditionally would race the
+    /// deferral and send the packet-less intake the deferral exists to prevent.
+    /// </summary>
+    private static List<AppointmentPacket> SettledPackets(Guid appointmentId) =>
+        PacketSetPolicy.AllKinds
+            .Select(k => new AppointmentPacket(
+                Guid.NewGuid(),
+                OfficeId,
+                appointmentId,
+                k,
+                blobName: "tenantseg/apptseg/packet/patient/228d6bed62e04be7b1146e58629bf901.pdf",
+                status: PacketGenerationStatus.Generated)
+            {
+                GeneratedAt = Now.AddHours(-1),
+                CreationTime = Now.AddHours(-1),
+            })
+            .ToList();
+
     private static (CaseTrackerCompletenessSweepJob Job, ICaseTrackerIntakeQueue Queue) Build(
         List<Appointment> appointments,
-        List<IntegrationOutboxItem> outboxRows)
+        List<IntegrationOutboxItem> outboxRows,
+        Func<Guid, List<AppointmentPacket>>? packetsFor = null)
     {
         var runner = Substitute.For<ITenantWorkRunner>();
         runner.ForEachOfficeAsync(Arg.Any<Func<Guid, Task>>())
@@ -70,6 +94,13 @@ public class CaseTrackerCompletenessSweepJobTests
 
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetQueryableAsync().Returns(_ => appointments.AsQueryable());
+
+        var packetRepo = Substitute.For<IRepository<AppointmentPacket, Guid>>();
+        packetRepo.GetListAsync(
+                Arg.Any<Expression<Func<AppointmentPacket, bool>>>(),
+                Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult((packetsFor ?? SettledPackets)(WithoutRow)));
 
         var outboxRepo = Substitute.For<IIntegrationOutboxRepository>();
         outboxRepo.GetQueryableAsync().Returns(_ => outboxRows.AsQueryable());
@@ -81,7 +112,7 @@ public class CaseTrackerCompletenessSweepJobTests
 
         return (
             new CaseTrackerCompletenessSweepJob(
-                runner, appointmentRepo, outboxRepo, queue, clock,
+                runner, appointmentRepo, packetRepo, outboxRepo, queue, clock,
                 NullLogger<CaseTrackerCompletenessSweepJob>.Instance),
             queue);
     }
@@ -92,6 +123,48 @@ public class CaseTrackerCompletenessSweepJobTests
         var (job, queue) = Build(
             new List<Appointment> { NewAppointment(WithoutRow, AppointmentStatusType.Approved) },
             new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WhilePacketsAreStillRendering_TheSweepLeavesItToTheSettlePath()
+    {
+        // Without this the sweep races the 2026-07-30 deferral: an approval at 10:59 whose packets land
+        // at 11:00:30 would get a packet-less intake from the 11:00 run, reintroducing the double push.
+        var (job, queue) = Build(
+            new List<Appointment> { NewAppointment(WithoutRow, AppointmentStatusType.Approved) },
+            new List<IntegrationOutboxItem>(),
+            packetsFor: id => PacketSetPolicy.AllKinds
+                .Select(k => new AppointmentPacket(
+                    Guid.NewGuid(), OfficeId, id, k,
+                    blobName: "tenantseg/apptseg/packet/patient/228d6bed62e04be7b1146e58629bf901.pdf",
+                    status: PacketGenerationStatus.Generating)
+                {
+                    CreationTime = Now,
+                })
+                .ToList());
+
+        await job.ExecuteAsync();
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task WhenPacketGenerationNeverCreatedRows_TheSweepStillRecoversItEventually()
+    {
+        // No packet rows at all -- generation itself never ran. The appointment's own stamp stands in,
+        // so once it is older than the settle cutoff the intake is recovered rather than withheld
+        // forever waiting for packets that will never exist.
+        var (job, queue) = Build(
+            new List<Appointment>
+            {
+                NewAppointment(WithoutRow, AppointmentStatusType.Approved, Now.AddHours(-2)),
+            },
+            new List<IntegrationOutboxItem>(),
+            packetsFor: _ => new List<AppointmentPacket>());
 
         await job.ExecuteAsync();
 

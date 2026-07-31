@@ -22,6 +22,11 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 ///
 /// <para>A fourth event for an already-complete set is harmless: the entry set is unchanged, so the
 /// outbox's idempotency key matches the existing row and the enqueue collapses.</para>
+///
+/// <para>Since 2026-07-30 this is ALSO the normal moment an appointment's first intake is sent --
+/// approval no longer pushes one, so the settle point is first contact. Which message a settled set
+/// becomes is <see cref="CaseTrackerPacketPublishService"/>'s decision, shared with the reconciliation
+/// release so the two paths cannot disagree.</para>
 /// </summary>
 public class PacketsCompleteHandler :
     ILocalEventHandler<PacketGeneratedEto>,
@@ -29,21 +34,18 @@ public class PacketsCompleteHandler :
 {
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
-    private readonly IDocumentListResolver _documentListResolver;
-    private readonly ICaseTrackerDocumentQueue _documentQueue;
+    private readonly CaseTrackerPacketPublishService _packetPublishService;
     private readonly ILogger<PacketsCompleteHandler> _logger;
 
     public PacketsCompleteHandler(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentPacket, Guid> packetRepository,
-        IDocumentListResolver documentListResolver,
-        ICaseTrackerDocumentQueue documentQueue,
+        CaseTrackerPacketPublishService packetPublishService,
         ILogger<PacketsCompleteHandler> logger)
     {
         _appointmentRepository = appointmentRepository;
         _packetRepository = packetRepository;
-        _documentListResolver = documentListResolver;
-        _documentQueue = documentQueue;
+        _packetPublishService = packetPublishService;
         _logger = logger;
     }
 
@@ -85,13 +87,11 @@ public class PacketsCompleteHandler :
                 return;
             }
 
-            var entries = await _documentListResolver.ResolvePacketsAsync(appointment);
-            var row = await _documentQueue.EnqueueDocumentEntriesAsync(
-                appointment.Id, appointment.TenantId, entries);
+            var published = await _packetPublishService.PublishSettledPacketsAsync(appointment);
 
             _logger.LogInformation(
-                "PacketsCompleteHandler: appointment {AppointmentId} packet set ({Count} entries) queued for Case Tracker (row {RowId}).",
-                eventData.AppointmentId, entries.Count, row?.Id);
+                "PacketsCompleteHandler: appointment {AppointmentId} packet set is complete; published = {Published}.",
+                eventData.AppointmentId, published);
         }
         catch (Exception ex)
         {

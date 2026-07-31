@@ -63,9 +63,21 @@ public class PacketsCompleteHandlerTests
             CreationTime = lastChanged ?? Now,
         };
 
-    private static (PacketsCompleteHandler Handler, ICaseTrackerDocumentQueue Queue) Build(
+    /// <summary>
+    /// Wires a REAL <see cref="CaseTrackerPacketPublishService"/> over substituted queues rather than
+    /// substituting the service itself, so these tests exercise the actual intake-vs-document-update
+    /// branch instead of trusting a stub to have picked correctly.
+    /// </summary>
+    /// <param name="hasExistingIntake">
+    /// Whether the Case Tracker has already been told about this appointment. False is the normal
+    /// case since 2026-07-30 -- the settle moment IS first contact, so a complete set becomes the
+    /// intake. True models packets settling a SECOND time (a regenerated or finally-rendered kind),
+    /// where the intake is history and the change belongs on the document feed.
+    /// </param>
+    private static (PacketsCompleteHandler Handler, ICaseTrackerDocumentQueue DocumentQueue, ICaseTrackerIntakeQueue IntakeQueue) Build(
         List<AppointmentPacket> packets,
-        AppointmentStatusType status = AppointmentStatusType.Approved)
+        AppointmentStatusType status = AppointmentStatusType.Approved,
+        bool hasExistingIntake = false)
     {
         var appointment = NewAppointment(status);
 
@@ -87,13 +99,41 @@ public class PacketsCompleteHandlerTests
                 .Select(p => DocumentEntryMapper.FromPacket(p, "A00065", TenantId))
                 .ToList()));
 
-        var queue = Substitute.For<ICaseTrackerDocumentQueue>();
+        var documentQueue = Substitute.For<ICaseTrackerDocumentQueue>();
+        var intakeQueue = Substitute.For<ICaseTrackerIntakeQueue>();
+        intakeQueue.EnqueueIntakeAsync(Arg.Any<Guid>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(NewOutboxRow(ci.ArgAt<Guid>(0), ci.ArgAt<Guid?>(1))));
+
+        var existingRows = hasExistingIntake
+            ? new List<IntegrationOutboxItem> { NewOutboxRow(AppointmentId, TenantId) }
+            : new List<IntegrationOutboxItem>();
+
+        var outboxRepo = Substitute.For<IIntegrationOutboxRepository>();
+        outboxRepo.GetQueryableAsync().Returns(Task.FromResult(existingRows.AsQueryable()));
+
+        var publishService = new CaseTrackerPacketPublishService(
+            outboxRepo,
+            intakeQueue,
+            documentQueue,
+            resolver,
+            NullLogger<CaseTrackerPacketPublishService>.Instance);
 
         return (
             new PacketsCompleteHandler(
-                appointmentRepo, packetRepo, resolver, queue, NullLogger<PacketsCompleteHandler>.Instance),
-            queue);
+                appointmentRepo, packetRepo, publishService, NullLogger<PacketsCompleteHandler>.Instance),
+            documentQueue,
+            intakeQueue);
     }
+
+    private static IntegrationOutboxItem NewOutboxRow(Guid appointmentId, Guid? tenantId) =>
+        new(
+            Guid.NewGuid(),
+            tenantId,
+            IntegrationMessageType.Intake,
+            CaseTrackerEndpoints.Intake,
+            appointmentId,
+            "{\"data\":{}}",
+            "key-" + appointmentId.ToString("N"));
 
     private static PacketGeneratedEto Event(PacketKind kind) => new()
     {
@@ -112,7 +152,7 @@ public class PacketsCompleteHandlerTests
     [Fact]
     public async Task WhenTheFirstPacketCompletes_NothingIsQueued()
     {
-        var (handler, queue) = Build(new List<AppointmentPacket>
+        var (handler, documentQueue, intakeQueue) = Build(new List<AppointmentPacket>
         {
             NewPacket(PacketKind.Patient, PacketGenerationStatus.Generated),
             NewPacket(PacketKind.Doctor, PacketGenerationStatus.Generating),
@@ -121,32 +161,49 @@ public class PacketsCompleteHandlerTests
 
         await handler.HandleEventAsync(Event(PacketKind.Patient));
 
-        await queue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
     }
 
     [Fact]
-    public async Task WhenTheLastPacketCompletes_AllThreeAreQueuedTogether()
+    public async Task WhenTheLastPacketCompletesAndNoIntakeHasGone_TheSetBecomesTheIntake()
     {
-        var (handler, queue) = Build(AllThreeGenerated());
+        // The 2026-07-30 change: settle is first contact, so the packets ride inside the intake
+        // instead of arriving as a document update the receiver has no case to attach to.
+        var (handler, documentQueue, intakeQueue) = Build(AllThreeGenerated());
 
         await handler.HandleEventAsync(Event(PacketKind.AttorneyClaimExaminer));
 
-        await queue.Received(1).EnqueueDocumentEntriesAsync(
+        await intakeQueue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+        await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+    }
+
+    [Fact]
+    public async Task WhenPacketsSettleAgainAfterTheIntake_TheyGoOnTheDocumentFeed()
+    {
+        // A regenerated packet, or a stalled kind that finally rendered. Sending another intake here
+        // would be a full-appointment push to deliver one file.
+        var (handler, documentQueue, intakeQueue) = Build(AllThreeGenerated(), hasExistingIntake: true);
+
+        await handler.HandleEventAsync(Event(PacketKind.AttorneyClaimExaminer));
+
+        await documentQueue.Received(1).EnqueueDocumentEntriesAsync(
             AppointmentId,
             TenantId,
             Arg.Is<IReadOnlyList<IntakeDocumentEntry>>(list =>
                 list.Count == 3 && list.All(e => e.Source == DocumentEntryMapper.PacketSource)),
             Arg.Any<CancellationToken>());
+        await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
     }
 
     [Fact]
     public async Task PublishedPacketsClaimPdf_NotDocx()
     {
-        var (handler, queue) = Build(AllThreeGenerated());
+        var (handler, documentQueue, _) = Build(AllThreeGenerated(), hasExistingIntake: true);
 
         await handler.HandleEventAsync(Event(PacketKind.Doctor));
 
-        await queue.Received(1).EnqueueDocumentEntriesAsync(
+        await documentQueue.Received(1).EnqueueDocumentEntriesAsync(
             Arg.Any<Guid>(),
             Arg.Any<Guid?>(),
             Arg.Is<IReadOnlyList<IntakeDocumentEntry>>(list =>
@@ -158,7 +215,7 @@ public class PacketsCompleteHandlerTests
     public async Task WhenAKindFailed_NothingIsQueuedImmediately()
     {
         // The release path, not this handler, decides when to give up on the failed kind.
-        var (handler, queue) = Build(new List<AppointmentPacket>
+        var (handler, documentQueue, intakeQueue) = Build(new List<AppointmentPacket>
         {
             NewPacket(PacketKind.Patient, PacketGenerationStatus.Generated),
             NewPacket(PacketKind.Doctor, PacketGenerationStatus.Generated),
@@ -167,17 +224,19 @@ public class PacketsCompleteHandlerTests
 
         await handler.HandleEventAsync(Event(PacketKind.Doctor));
 
-        await queue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
     }
 
     [Fact]
     public async Task WhenTheAppointmentWasNeverApproved_NothingIsQueued()
     {
-        var (handler, queue) = Build(AllThreeGenerated(), status: AppointmentStatusType.Pending);
+        var (handler, documentQueue, intakeQueue) = Build(AllThreeGenerated(), status: AppointmentStatusType.Pending);
 
         await handler.HandleEventAsync(Event(PacketKind.Patient));
 
-        await queue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
     }
 
     [Fact]
