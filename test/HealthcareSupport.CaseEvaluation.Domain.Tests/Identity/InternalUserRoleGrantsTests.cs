@@ -95,6 +95,19 @@ public class InternalUserRoleGrantsTests
         SupervisorHost.ShouldContain("CaseEvaluation.Branding.Edit");
     }
 
+    // ---- Case Tracker integration (2026-07-31). REGRESSION: the epic added two custom actions and
+    // never yielded them here, so IT Admin -- documented as holding the full CaseEvaluation.* tree --
+    // silently lacked both. The push toggle 403'd and the failures screen was hidden from its own
+    // nav, and because the role editor renders IT Admin read-only there was no way to fix it in the
+    // UI. Pinned because the omission was invisible: nothing failed, the buttons simply were not
+    // there. Any future custom action on this integration needs the same treatment. ----
+    [Fact]
+    public void CaseTrackerIntegration_grantedToItAdmin()
+    {
+        ItAdmin.ShouldContain("CaseEvaluation.Appointments.PushToCaseTracker");
+        ItAdmin.ShouldContain("CaseEvaluation.Appointments.ViewIntegrationDeadLetters");
+    }
+
     [Theory]
     [InlineData("Saas.Tenants")]
     [InlineData("Saas.Tenants.Impersonation")]

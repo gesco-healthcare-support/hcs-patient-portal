@@ -315,6 +315,16 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.InternalUsers.Create";
         yield return $"{Group}.InternalUsers.Edit";
 
+        // 2026-07-31 -- Case Tracker integration. Two custom actions the epic added without
+        // yielding them here, so the role documented as holding the full CaseEvaluation.* tree
+        // silently lacked both: the push toggle 403'd and /admin/integration-failures was hidden
+        // from its own nav. Worse, the role permission editor renders IT Admin read-only (it is the
+        // all-granted system role), so nobody could tick them in the UI either -- the only fix was
+        // here. PushToCaseTracker gates the per-office switch and the manual re-push;
+        // ViewIntegrationDeadLetters gates the failures screen those actions live on.
+        yield return $"{Group}.Appointments.PushToCaseTracker";
+        yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
+
         // 2026-06-26 -- the internal-users hub LISTS staff via UserExtendedAppService
         // (extends Volo IdentityUserAppService), whose endpoints are gated by the
         // framework AbpIdentity.Users policy, NOT CaseEvaluation.InternalUsers. Without
