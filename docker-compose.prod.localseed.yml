@@ -1,0 +1,20 @@
+# CHECKPOINT 1 local-seed override (Option A, 2026-07-09). LOCAL VERIFICATION ONLY --
+# NEVER use on the server.
+#
+# Runs the DbMigrator in Development so its dev-only seed contributors create the sample
+# offices (Falkinstein/Hekmat/Longacre/Pelton) + it.admin@hcs.test into the persistent SQL
+# volume. The app services still run ASPNETCORE_ENVIRONMENT=Production (base compose), so
+# the never-before-run prod code path (openiddict.pfx cert, RequireHttpsMetadata,
+# SetIssuer -> G6/G8) executes against real seeded data -- letting CHECKPOINT 1 observe G8
+# with an office to log into, without waiting to create one through the host UI.
+#
+# Usage (from the worktree root):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.localseed.yml \
+#     --env-file secrets/env.prod up -d --build
+#
+# The full-Production confirming run (Option B) omits this override, so the DbMigrator
+# seeds nothing and offices are created via the host UI -- the real go-live path.
+services:
+  db-migrator:
+    environment:
+      DOTNET_ENVIRONMENT: Development

@@ -15,12 +15,24 @@ import {
   ButtonComponent,
   ToasterService,
 } from '@abp/ng.theme.shared';
-import { AppointmentService } from '../../../proxy/appointments/appointment.service';
+import { AppointmentApprovalService } from '../../../proxy/appointments/appointment-approval.service';
 import type { AppointmentDto, RejectAppointmentInput } from '../../../proxy/appointments/models';
 
 /**
- * W1-1 Reject modal -- captures a required reason and POSTs to
- * /api/app/appointments/{id}/reject. Reason is required (W1-1 Q2).
+ * Reject modal -- OLD-parity reject flow.
+ *
+ * Mirrors OLD's "Reject appointment request" popup at
+ * `P:\PatientPortalOld\patientappointment-portal\src\app\components\
+ * appointment-request\appointments\view\appointment-view.component.html`:132-135:
+ *   - Header: "Reject appointment request"
+ *   - Body  : single textarea labelled "Write Rejection Reason", 5 rows
+ *   - Footer: Reject (disabled until reason populated) + Close
+ *
+ * A1 (2026-05-05): switch from the thin endpoint
+ * (POST /api/app/appointments/{id}/reject, Authorize=Edit) to the rich
+ * endpoint (POST /api/app/appointment-approvals/{id}/reject,
+ * Authorize=Reject) so the per-action permission gate matches the OLD
+ * intent and the AppointmentRejectedEto dispatch path is exercised.
  *
  * Usage from parent:
  *   <app-reject-appointment-modal
@@ -49,7 +61,7 @@ export class RejectAppointmentModalComponent {
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() succeeded = new EventEmitter<AppointmentDto>();
 
-  private appointmentService = inject(AppointmentService);
+  private approvalService = inject(AppointmentApprovalService);
   private toaster = inject(ToasterService);
 
   reason = '';
@@ -79,9 +91,11 @@ export class RejectAppointmentModalComponent {
     }
     this.isBusy = true;
     const input: RejectAppointmentInput = { reason: this.reason.trim() };
-    this.appointmentService.reject(this.appointmentId, input).subscribe({
-      next: (dto) => {
-        this.toaster.success('::Appointment:Toast:Rejected');
+    this.approvalService.rejectAppointment(this.appointmentId, input).subscribe({
+      next: (dto: AppointmentDto) => {
+        // OLD-verbatim toast (P:\PatientPortalOld\...\view\
+        // appointment-view.component.ts:117).
+        this.toaster.success('Appointment booking request has been Rejected');
         this.succeeded.emit(dto);
         this.setVisible(false);
       },

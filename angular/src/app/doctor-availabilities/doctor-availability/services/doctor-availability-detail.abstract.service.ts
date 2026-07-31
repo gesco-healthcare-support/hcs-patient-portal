@@ -27,6 +27,15 @@ export abstract class AbstractDoctorAvailabilityDetailViewService {
   selected = {} as any;
   form: FormGroup | undefined;
 
+  // The ABP <abp-lookup-typeahead-mtm> control writes an array of
+  // { id, name, ... } lookup objects, not bare ids. Collapse to Guid strings.
+  protected toIdArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((v) => (typeof v === 'string' ? v : ((v as { id?: string } | null)?.id ?? '')))
+      .filter((v): v is string => !!v);
+  }
+
   protected normalizeTime(value: string | null | undefined): string | null {
     if (!value) {
       return null;
@@ -66,6 +75,8 @@ export abstract class AbstractDoctorAvailabilityDetailViewService {
       availableDate: this.normalizeDate(this.form.value.availableDate),
       fromTime: this.normalizeTime(this.form.value.fromTime),
       toTime: this.normalizeTime(this.form.value.toTime),
+      appointmentTypeIds: this.toIdArray(this.form.value.appointmentTypeIds),
+      capacity: Number(this.form.value.capacity ?? 1),
     };
 
     if (this.selected) {
@@ -79,8 +90,15 @@ export abstract class AbstractDoctorAvailabilityDetailViewService {
   }
 
   buildForm() {
-    const { availableDate, fromTime, toTime, bookingStatusId, locationId, appointmentTypeId } =
-      this.selected?.doctorAvailability || {};
+    const {
+      availableDate,
+      fromTime,
+      toTime,
+      bookingStatusId,
+      locationId,
+      appointmentTypeIds,
+      capacity,
+    } = this.selected?.doctorAvailability || {};
 
     this.form = this.fb.group({
       availableDate: [this.normalizeDate(availableDate) ?? null, [Validators.required]],
@@ -91,7 +109,8 @@ export abstract class AbstractDoctorAvailabilityDetailViewService {
         [Validators.required],
       ],
       locationId: [locationId ?? null, [Validators.required]],
-      appointmentTypeId: [appointmentTypeId ?? null, []],
+      appointmentTypeIds: [appointmentTypeIds ?? [], []],
+      capacity: [capacity ?? 1, [Validators.required, Validators.min(1)]],
     });
   }
 

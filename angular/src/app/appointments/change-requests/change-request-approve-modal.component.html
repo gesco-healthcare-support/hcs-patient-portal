@@ -1,0 +1,33 @@
+<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)">
+  <ng-template #abpHeader>
+    <h3>{{ titleKey | abpLocalization }}</h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <div class="mb-3">
+      <label class="form-label" for="change-request-outcome">
+        {{ '::ChangeRequest:Modal:OutcomeLabel' | abpLocalization }} *
+      </label>
+      <select id="change-request-outcome" class="form-select form-control" [(ngModel)]="outcome">
+        @for (option of outcomeOptions; track option.value) {
+          <option [ngValue]="option.value">{{ option.labelKey | abpLocalization }}</option>
+        }
+      </select>
+    </div>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button
+      iconClass="fa fa-check"
+      buttonType="button"
+      [disabled]="!canSubmit"
+      (click)="submit()"
+    >
+      {{ '::ChangeRequest:Action:Approve' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

@@ -1,19 +1,56 @@
-<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)">
+<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)" size="md">
   <ng-template #abpHeader>
-    <h3>{{ '::Appointment:Modal:ApproveTitle' | abpLocalization }}</h3>
+    <div>
+      <h3 class="modal-title text-white mb-1">Approve appointment request</h3>
+      <h6 class="my-1 text-white">Please approve an appointment request from here.</h6>
+    </div>
   </ng-template>
 
   <ng-template #abpBody>
-    <p>{{ '::Appointment:Modal:ApproveBody' | abpLocalization }}</p>
+    <form [formGroup]="form">
+      <div class="form-group mb-3">
+        <label class="form-label">
+          Responsible User
+          <span class="text-danger">*</span>
+        </label>
+        <ng-container *ngIf="isLoadingUsers">
+          <div class="form-text text-muted">Loading...</div>
+        </ng-container>
+        <ng-container *ngIf="!isLoadingUsers && !loadError">
+          <select class="form-select" formControlName="primaryResponsibleUserId">
+            <option [ngValue]="null" disabled>Select</option>
+            <option *ngFor="let u of responsibleUsers" [ngValue]="u.id">{{ u.displayName }}</option>
+          </select>
+        </ng-container>
+        <ng-container *ngIf="loadError">
+          <div class="alert alert-danger py-2 mb-1 small">{{ loadError }}</div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="retryLoad()">
+            Retry
+          </button>
+        </ng-container>
+      </div>
+
+      <div class="form-group mb-3">
+        <label class="form-label">Any comments?</label>
+        <textarea
+          class="form-control"
+          rows="3"
+          formControlName="internalUserComments"
+          placeholder="Please enter comments regarding this appointment"
+        ></textarea>
+      </div>
+    </form>
   </ng-template>
 
   <ng-template #abpFooter>
-    <button type="button" class="btn btn-secondary" abpClose>
-      {{ '::Appointment:Action:Cancel' | abpLocalization }}
-    </button>
-
-    <abp-button iconClass="fa fa-check" buttonType="button" (click)="confirm()">
-      {{ '::Appointment:Action:Approve' | abpLocalization }}
+    <button type="button" class="btn btn-secondary" abpClose>Close</button>
+    <abp-button
+      iconClass="fa fa-check"
+      buttonType="button"
+      [disabled]="form.invalid || isBusy || isLoadingUsers || !!loadError"
+      (click)="confirm()"
+    >
+      Approve
     </abp-button>
   </ng-template>
 </abp-modal>

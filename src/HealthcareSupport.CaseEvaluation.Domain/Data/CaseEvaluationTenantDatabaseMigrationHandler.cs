@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus.Distributed;
-using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
-using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Data;
 
@@ -18,26 +15,17 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
     IDistributedEventHandler<ApplyDatabaseMigrationsEto>,
     ITransientDependency
 {
-    private readonly IEnumerable<ICaseEvaluationDbSchemaMigrator> _dbSchemaMigrators;
-    private readonly ICurrentTenant _currentTenant;
-    private readonly IUnitOfWorkManager _unitOfWorkManager;
-    private readonly IDataSeeder _dataSeeder;
-    private readonly ITenantStore _tenantStore;
+    private readonly IOfficeDatabaseProvisioner _officeProvisioner;
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<CaseEvaluationTenantDatabaseMigrationHandler> _logger;
 
     public CaseEvaluationTenantDatabaseMigrationHandler(
-        IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators,
-        ICurrentTenant currentTenant,
-        IUnitOfWorkManager unitOfWorkManager,
-        IDataSeeder dataSeeder,
-        ITenantStore tenantStore,
+        IOfficeDatabaseProvisioner officeProvisioner,
+        IHostEnvironment hostEnvironment,
         ILogger<CaseEvaluationTenantDatabaseMigrationHandler> logger)
     {
-        _dbSchemaMigrators = dbSchemaMigrators;
-        _currentTenant = currentTenant;
-        _unitOfWorkManager = unitOfWorkManager;
-        _dataSeeder = dataSeeder;
-        _tenantStore = tenantStore;
+        _officeProvisioner = officeProvisioner;
+        _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
 
@@ -89,38 +77,29 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         string adminEmail,
         string adminPassword)
     {
+        // Smoke-test 2026-05-04 (G0c): the duplicate-key race on
+        // AbpLocalizationResources came from this handler running concurrently
+        // in HttpApi.Host AND AuthServer (each subscribes via ITransientDependency
+        // when the Domain module loads). The DbMigrator already runs the central
+        // IDataSeeder pipeline, so non-migrator hosts can no-op safely. The
+        // synchronous runtime path (DoctorTenantAppService) provisions office
+        // databases in-process via IOfficeDatabaseProvisioner; this broadcast-event
+        // handler covers only the deploy/bulk path under the DbMigrator.
+        // Detect via IHostEnvironment.ApplicationName, which ASP.NET Core sets
+        // from the entry-assembly name (HealthcareSupport.CaseEvaluation.DbMigrator
+        // for the migrator console, AuthServer / HttpApi.Host otherwise).
+        if (!_hostEnvironment.ApplicationName.Contains("DbMigrator", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug(
+                "CaseEvaluationTenantDatabaseMigrationHandler: skipping tenant migration + seed " +
+                "(host '{ApplicationName}' is not the DbMigrator).",
+                _hostEnvironment.ApplicationName);
+            return;
+        }
+
         try
         {
-            using (_currentTenant.Change(tenantId))
-            {
-                // Create database tables if needed
-                using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false))
-                {
-                    var tenantConfiguration = await _tenantStore.FindAsync(tenantId);
-                    if (tenantConfiguration?.ConnectionStrings != null &&
-                        !tenantConfiguration.ConnectionStrings.Default.IsNullOrWhiteSpace())
-                    {
-                        foreach (var migrator in _dbSchemaMigrators)
-                        {
-                            await migrator.MigrateAsync();
-                        }
-                    }
-
-                    await uow.CompleteAsync();
-                }
-
-                // Seed data
-                using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
-                {
-                    await _dataSeeder.SeedAsync(
-                        new DataSeedContext(tenantId)
-                            .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail)
-                            .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword)
-                    );
-
-                    await uow.CompleteAsync();
-                }
-            }
+            await _officeProvisioner.ProvisionAsync(tenantId, adminEmail, adminPassword);
         }
         catch (Exception ex)
         {

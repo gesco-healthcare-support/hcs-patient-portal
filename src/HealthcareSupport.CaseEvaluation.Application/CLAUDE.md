@@ -1,37 +1,83 @@
-# Application Layer
+# Application Layer -- use cases, AppServices, Mapperly mappers
 
-Application services (use cases) that orchestrate domain logic and expose DTOs to the HTTP API. Every feature under `Domain/` has a corresponding AppService here.
+Orchestrates domain logic and exposes DTOs to the HTTP API. Every feature under `Domain/`
+has a corresponding AppService here.
 
 ## What Lives Here
 
-- **17 feature folders** that mirror `Domain/`: Appointments, Doctors, Patients, DoctorAvailabilities, ApplicantAttorneys, AppointmentAccessors, AppointmentApplicantAttorneys, AppointmentEmployerDetails, AppointmentLanguages, AppointmentStatuses, AppointmentTypes, Books, Locations, States, WcabOffices, ExternalSignups, Users
+- Feature folders (Appointments, Doctors, Patients, DoctorAvailabilities, ApplicantAttorneys,
+  DefenseAttorneys, AppointmentAccessors, AppointmentApplicantAttorneys,
+  AppointmentDefenseAttorneys, AppointmentBodyParts, AppointmentChangeRequests,
+  AppointmentClaimExaminers, AppointmentDocuments, AppointmentEmployerDetails,
+  AppointmentInjuryDetails, AppointmentLanguages, AppointmentPrimaryInsurances,
+  AppointmentStatuses, AppointmentTypeFieldConfigs, AppointmentTypes, Books, CustomFields,
+  Dashboards, DoctorPreferredLocations, Documents, Emailing, ExternalAccount, ExternalSignups,
+  InternalUsers, Locations, Notifications, NotificationTemplates, PackageDetails, States,
+  SystemParameters, UserProfile, Users, WcabOffices)
 - **Cross-cutting files** at the project root:
-  - `CaseEvaluationApplicationMappers.cs` -- all Riok.Mapperly mapper classes
+  - `CaseEvaluationApplicationMappers.cs` -- primary Mapperly mapper file; split across
+    partial files (`*.AppointmentChangeRequests.cs`, `*.CustomFields.cs`,
+    `*.DoctorPreferredLocations.cs`, `*.NotificationTemplates.cs`, `*.PackageDetails.cs`)
   - `CaseEvaluationApplicationModule.cs` -- ABP module definition
-  - `CaseEvaluationAppService.cs` -- base class for all AppServices in this project
+  - `CaseEvaluationAppService.cs` -- base class; wires localization + permission helpers
 
 ## Conventions
 
-1. **Extend `CaseEvaluationAppService`**, not `ApplicationService` directly. The base wires up localization and permission helpers.
-2. **Always add `[RemoteService(IsEnabled = false)]`** to every AppService class. Without it, ABP auto-generates duplicate routes that clash with the manual controllers in `HttpApi/`.
-3. **Use Riok.Mapperly, not AutoMapper.** Add a `partial class` decorated with `[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]` to `CaseEvaluationApplicationMappers.cs`. Do not call `ObjectMapper.Map<>` for new mappers -- see [ADR-001](../../docs/decisions/001-mapperly-over-automapper.md).
-4. **Permissions are enforced here**, not in controllers. Apply `[Authorize(CaseEvaluationPermissions.{Entity}.Default)]` at class level and override with `.Create` / `.Edit` / `.Delete` on specific methods.
-5. **Business rules belong in the domain layer.** AppServices orchestrate (validate input, map DTOs, call domain services / repositories, return DTOs). Invariants and multi-step business logic live in domain services like `AppointmentManager`.
+### AppService base class
 
-## Key Files
+IMPORTANT: Extend `CaseEvaluationAppService`, NOT `ApplicationService` directly.
 
-| File | Purpose |
-|------|---------|
-| `CaseEvaluationAppService.cs` | Base class every AppService extends |
-| `CaseEvaluationApplicationMappers.cs` | All Mapperly mapper classes in one file |
-| `CaseEvaluationApplicationModule.cs` | ABP module registration, DI wiring |
-| `ExternalSignups/` | Cross-cutting: multi-step tenant provisioning flow (not an entity CRUD feature) |
-| `Users/` | Extends ABP Identity user flows (not generated from a Domain entity) |
+Two known deviations (do not replicate):
+- `SystemParametersAppService` extends `ApplicationService` -- localization calls fall back
+  to the default ABP resource instead of the project's `CaseEvaluationResource`.
+- `NotificationTemplatesAppService` extends `ApplicationService` -- same localization fallback.
 
-## Related Docs
+Fix in a dedicated chore ticket; do not silently add more `ApplicationService` subclasses.
 
-- [Root CLAUDE.md](../../CLAUDE.md) -- global ABP conventions and constraints
-- [docs/backend/APPLICATION-SERVICES.md](../../docs/backend/APPLICATION-SERVICES.md)
-- [docs/security/AUTHORIZATION.md](../../docs/security/AUTHORIZATION.md)
-- [ADR-001: Mapperly over AutoMapper](../../docs/decisions/001-mapperly-over-automapper.md)
-- [ADR-002: Manual controllers](../../docs/decisions/002-manual-controllers-not-auto.md)
+### RemoteService attribute
+
+See root CLAUDE.md for the `[RemoteService(IsEnabled = false)]` rule.
+
+Known deviation: `ExternalSignupAppService` is missing this attribute. It may register
+duplicate routes. Do not extend this pattern.
+
+### Mapperly mappers
+
+Add new mappers as additional `partial class` entries in `CaseEvaluationApplicationMappers.cs`
+(or a new named partial file if it is a cross-cutting concern). Annotate with
+`[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]` and extend
+`MapperBase<TSource, TDest>`. Missing target members are compile errors, not runtime errors.
+
+See ADR: `docs/decisions/001-mapperly-over-automapper.md`.
+
+### Permissions
+
+Enforce in AppServices, not controllers. Apply
+`[Authorize(CaseEvaluationPermissions.{Entity}.Default)]` at class level; override with
+`.Create` / `.Edit` / `.Delete` on individual methods.
+
+### SSN masking -- mandatory on all patient DTO exits
+
+Every method that returns a `PatientDto` or `PatientWithNavigationPropertiesDto` MUST call
+`SsnVisibility.MaskToLast4(dto)` before returning (both read and write paths). The SSN
+field is masked to the last 4 digits on every standard response.
+
+`GetFullSsnAsync` is the ONLY endpoint that returns the full SSN value; it is audited and
+lives in `Patients/PatientsAppService.cs`. Do not bypass masking on any other path.
+
+## Gotchas
+
+- `CaseEvaluationApplicationMappers.cs` is one logical unit spread across multiple `partial`
+  files. Searching only the root file misses mappers for CustomFields, NotificationTemplates,
+  PackageDetails, DoctorPreferredLocations, and AppointmentChangeRequests.
+- `Books/BookAppService.cs` also extends `ApplicationService` directly (scaffold leftover).
+- `ExternalSignups/` is not a standard entity CRUD feature -- it operates on ABP's
+  `IdentityUser` and `Tenant` entities and calls `PatientManager` to create Patient records.
+  Its `ExternalSignupController` sits at `api/public/external-signup` (not `api/app/`).
+
+## Related
+
+- docs/backend/APPLICATION-SERVICES.md
+- docs/security/AUTHORIZATION.md
+- docs/decisions/001-mapperly-over-automapper.md
+- docs/decisions/002-manual-controllers-not-auto.md

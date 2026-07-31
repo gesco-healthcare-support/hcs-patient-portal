@@ -1,6 +1,6 @@
 # Worktree helper scripts
 
-Automation for the Patient Portal git-worktree workflow. Manages persistent worktrees (`main`, `development`, `staging`) and ad-hoc feature worktrees under `W:\patient-portal\` (= `C:\src\patient-portal\`).
+Automation for the Appointment Portal git-worktree workflow. Manages persistent worktrees (`main`, `development`, `staging`) and ad-hoc feature worktrees under `W:\patient-portal\` (= `C:\src\patient-portal\`).
 
 The intended runtime is **`docker compose up -d`** inside any worktree. Host ports and URL env vars are parameterised in `docker-compose.yml` (see `docs/runbooks/DOCKER-DEV.md`); per-worktree overrides live in each worktree's gitignored `.env`.
 
@@ -23,6 +23,12 @@ The intended runtime is **`docker compose up -d`** inside any worktree. Host por
 | `staging` | 44388 | 44347 | 4220 | 1454 | 6399 |
 | feature (first) | 44398 | 44357 | 4230 | 1437 | 6382 |
 | feature (second) | 44408 | 44367 | 4240 | 1438 | 6383 |
+
+MinIO (API 9000 / console 9001) and the packet-renderer sidecar (3001) stride by
+`offset * 10` from their `main` defaults too, so a feature worktree gets MinIO
+9010/9011 + packet-renderer 3011 (second: 9020/9021 + 3021). `add-worktree.sh`
+writes all of these into the worktree's `.env`; without the packet-renderer
+override a new worktree collides with the `main` stack on 3001.
 
 Compose uses the worktree directory basename as the project name (so main's containers auto-name as `main-sql-server-1`, etc.), which gives free isolation for container names, networks, and volumes. Each worktree's SQL container is independent; the DB name inside can stay as the default `CaseEvaluation`.
 

@@ -2,8 +2,43 @@
 
 # Shell scripts must keep LF endings (Docker containers run Linux)
 *.sh text eol=lf
+# nginx /docker-entrypoint.d/*.envsh scripts are sourced as POSIX shell; CRLF
+# would corrupt the heredoc body written into dynamic-env.json.
+*.envsh text eol=lf
 
 # Husky hook scripts have no extension but are POSIX shell scripts
 angular/.husky/pre-commit text eol=lf
 angular/.husky/commit-msg text eol=lf
 angular/.husky/pre-push text eol=lf
+
+# Dockerfiles + docker-compose: must stay LF on every host. Even though the
+# Docker daemon parses Dockerfile syntax fine with CRLF, any heredoc body
+# (`COPY <<EOF ...`) is written into the resulting image verbatim including
+# CR characters -- which then corrupts shebangs on shell scripts emitted via
+# heredoc. We removed angular/Dockerfile.dev's heredoc on 2026-05-08 in
+# favor of a real `dev-entrypoint.sh` file (covered by the *.sh rule above),
+# but pinning Dockerfiles + compose to LF is the belt-and-suspenders that
+# prevents the same class of bug if anyone ever reintroduces a heredoc.
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+*.dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+docker-compose*.yaml text eol=lf
+
+# Yarn Berry release binary: generated + large; mark binary + vendored so it is
+# not diffed, not counted as code, and not EOL-normalized across hosts.
+angular/.yarn/releases/** binary linguist-vendored
+
+# --- Generated code: keep out of LOCAL diffs/line-counts; collapse on GitHub ---
+# `-diff` makes git render these as "binary" so they don't count toward +/- line
+# totals LOCALLY. `linguist-generated=true` collapses them in GitHub PR diffs and
+# removes them from the language-stats bar. CAVEAT: GitHub still tallies these
+# lines in a PR's header "+N/-M" badge -- it honors -diff for the collapsed VIEW,
+# not for the count. A single new EF migration Designer.cs embeds the full model
+# snapshot (thousands of lines x2 for the dual host/tenant contexts), so the badge
+# can read +13k on a PR whose real hand-written diff is ~100 lines. The files stay
+# fully tracked and committed and remain openable in an editor -- ONLY the diff
+# rendering changes; nothing functional is affected.
+**/Migrations/**          linguist-generated=true -diff
+**/TenantMigrations/**    linguist-generated=true -diff
+angular/src/app/proxy/**  linguist-generated=true -diff

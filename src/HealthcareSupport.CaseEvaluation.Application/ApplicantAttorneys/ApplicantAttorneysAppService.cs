@@ -14,6 +14,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 
 namespace HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 
@@ -29,13 +30,15 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     protected ApplicantAttorneyManager _applicantAttorneyManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
+    protected IRepository<AppointmentApplicantAttorney, Guid> _appointmentApplicantAttorneyRepository;
 
-    public ApplicantAttorneysAppService(IApplicantAttorneyRepository applicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository)
+    public ApplicantAttorneysAppService(IApplicantAttorneyRepository applicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentApplicantAttorney, Guid> appointmentApplicantAttorneyRepository)
     {
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _stateRepository = stateRepository;
         _identityUserRepository = identityUserRepository;
+        _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
     }
 
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
@@ -66,7 +69,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     // read the State lookup for the AA section of the booking form.
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
     {
-        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.States.State>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -92,30 +95,28 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Prompt 15 / item 32: block delete while any appointment references
+        // this applicant attorney (AppointmentApplicantAttorney.ApplicantAttorneyId).
+        if (await _appointmentApplicantAttorneyRepository.AnyAsync(x => x.ApplicantAttorneyId == id))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ApplicantAttorneyInUse);
+        }
         await _applicantAttorneyRepository.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Create)]
     public virtual async Task<ApplicantAttorneyDto> CreateAsync(ApplicantAttorneyCreateDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
-        var applicantAttorney = await _applicantAttorneyManager.CreateAsync(input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode);
+        // BUG-042 / UM4 (2026-06-05): persist First/Last name (the manager already
+        // accepts them) and allow a record with no login (identity now optional).
+        var applicantAttorney = await _applicantAttorneyManager.CreateAsync(input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, email: input.Email, firstName: input.FirstName, lastName: input.LastName);
         return ObjectMapper.Map<ApplicantAttorney, ApplicantAttorneyDto>(applicantAttorney);
     }
 
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Edit)]
     public virtual async Task<ApplicantAttorneyDto> UpdateAsync(Guid id, ApplicantAttorneyUpdateDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
-        var applicantAttorney = await _applicantAttorneyManager.UpdateAsync(id, input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, input.ConcurrencyStamp);
+        var applicantAttorney = await _applicantAttorneyManager.UpdateAsync(id, input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, input.ConcurrencyStamp, email: input.Email, firstName: input.FirstName, lastName: input.LastName);
         return ObjectMapper.Map<ApplicantAttorney, ApplicantAttorneyDto>(applicantAttorney);
     }
 }

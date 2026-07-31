@@ -2,6 +2,8 @@
 
 # Local Development Troubleshooting
 
+> Purpose: Troubleshooting playbook for common local dev failures. Audience: developer. Last verified: 2026-06-01 vs main.
+
 > This is a **"when things go wrong" reference**, not a setup guide. For first-time setup, see [Getting Started](../onboarding/GETTING-STARTED.md).
 
 Playbook for the five most common failures during local (non-Docker) development. For Docker-based dev, see [DOCKER-DEV.md](DOCKER-DEV.md).
@@ -162,5 +164,4 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:4200/                 
 
 - [Getting Started](../onboarding/GETTING-STARTED.md) -- initial setup
 - [Docker Development](DOCKER-DEV.md) -- alternative Docker-based setup
-- [Incident Response](INCIDENT-RESPONSE.md) -- when things go wrong in a production-incident sense
 - [ADR-005: No ng serve](../decisions/005-no-ng-serve-vite-workaround.md)

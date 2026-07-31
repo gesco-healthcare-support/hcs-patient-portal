@@ -1,0 +1,59 @@
+<abp-page [title]="titleKey | abpLocalization">
+  <div class="card">
+    <div class="card-body">
+      @if (isLoading) {
+        <p class="text-muted mb-0">{{ 'AbpUi::LoadingWithThreeDot' | abpLocalization }}</p>
+      } @else if (items.length === 0) {
+        <p class="text-muted mb-0">{{ '::ChangeRequest:Empty' | abpLocalization }}</p>
+      } @else {
+        <table class="table table-striped align-middle">
+          <thead>
+            <tr>
+              <th>{{ '::ChangeRequest:Column:Appointment' | abpLocalization }}</th>
+              <th>{{ '::ChangeRequest:Column:Reason' | abpLocalization }}</th>
+              <th>{{ '::ChangeRequest:Column:Requested' | abpLocalization }}</th>
+              <th class="text-end">{{ 'AbpUi::Actions' | abpLocalization }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of items; track row.id) {
+              <tr>
+                <td>{{ row.appointmentConfirmationNumber || row.appointmentId }}</td>
+                <td>{{ reasonOf(row) }}</td>
+                <td>{{ row.creationTime | abpUtcToLocal: 'datetime' }}</td>
+                <td class="text-end">
+                  <a
+                    class="btn btn-sm btn-outline-secondary me-2"
+                    [routerLink]="['/appointments/view', row.appointmentId]"
+                  >
+                    {{ '::ChangeRequest:Action:View' | abpLocalization }}
+                  </a>
+                  <button class="btn btn-sm btn-success me-2" (click)="openApprove(row)">
+                    {{ '::ChangeRequest:Action:Approve' | abpLocalization }}
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" (click)="openReject(row)">
+                    {{ '::ChangeRequest:Action:Reject' | abpLocalization }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
+</abp-page>
+
+@if (selected) {
+  <app-change-request-approve-modal
+    [changeRequest]="selected"
+    [(visible)]="approveVisible"
+    (handled)="onHandled()"
+  ></app-change-request-approve-modal>
+
+  <app-change-request-reject-modal
+    [changeRequest]="selected"
+    [(visible)]="rejectVisible"
+    (handled)="onHandled()"
+  ></app-change-request-reject-modal>
+}

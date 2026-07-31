@@ -20,9 +20,11 @@ public class PatientManager : DomainService
         _patientRepository = patientRepository;
     }
 
-    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
-        Check.NotNull(identityUserId, nameof(identityUserId));
+        // identityUserId is now nullable (IP6 2026-06-05): a Patient may exist
+        // as a record with no login. Booking inserts null; the claim flow links
+        // an identity later. Admin/profile callers still pass a real id.
         // firstName / lastName accept empty string at create-time. The minimal
         // register form does not collect names; the booker fills them later
         // through the booking form's patient section. Keep length validation
@@ -32,7 +34,9 @@ public class PatientManager : DomainService
         lastName ??= string.Empty;
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
-        Check.NotNullOrWhiteSpace(email, nameof(email));
+        // task_d5407b22 (2026-07-21): patient email is optional (injured workers often
+        // lack one); accept empty at create time like firstName / lastName above.
+        email ??= string.Empty;
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
         Check.NotNull(genderId, nameof(genderId));
         Check.NotNull(dateOfBirth, nameof(dateOfBirth));
@@ -43,24 +47,23 @@ public class PatientManager : DomainService
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
         Check.Length(apptNumber, nameof(apptNumber), PatientConsts.ApptNumberMaxLength);
         Check.Length(othersLanguageName, nameof(othersLanguageName), PatientConsts.OthersLanguageNameMaxLength);
-        var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
+        var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
         return await _patientRepository.InsertAsync(patient);
     }
 
-    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
     {
-        Check.NotNull(identityUserId, nameof(identityUserId));
         Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.NotNullOrWhiteSpace(lastName, nameof(lastName));
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
-        Check.NotNullOrWhiteSpace(email, nameof(email));
+        // task_d5407b22 (2026-07-21): patient email is optional; accept empty on update too.
+        email ??= string.Empty;
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
         Check.NotNull(genderId, nameof(genderId));
         Check.NotNull(dateOfBirth, nameof(dateOfBirth));
@@ -71,7 +74,6 @@ public class PatientManager : DomainService
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
@@ -90,11 +92,20 @@ public class PatientManager : DomainService
         patient.PhoneNumberTypeId = phoneNumberTypeId;
         patient.MiddleName = middleName;
         patient.PhoneNumber = phoneNumber;
-        patient.SocialSecurityNumber = socialSecurityNumber;
+        // F1 / Design B (2026-05-29): the SSN field is never pre-filled into any
+        // edit/booking form, so an update that carries no SSN means "leave the
+        // stored value unchanged" -- NOT "clear it". Only overwrite when a value
+        // is actually provided. This guards all three update callers
+        // (admin UpdateAsync, UpdateMyProfileAsync, UpdatePatientForAppointment
+        // BookingAsync). A typed SSN still overwrites. SSN is the only field
+        // with this rule because it is the only never-pre-filled field.
+        if (!string.IsNullOrEmpty(socialSecurityNumber))
+        {
+            patient.SocialSecurityNumber = socialSecurityNumber;
+        }
         patient.Address = address;
         patient.City = city;
         patient.ZipCode = zipCode;
-        patient.RefferedBy = refferedBy;
         patient.CellPhoneNumber = cellPhoneNumber;
         patient.Street = street;
         patient.InterpreterVendorName = interpreterVendorName;
@@ -124,7 +135,7 @@ public class PatientManager : DomainService
     /// </summary>
     public virtual async Task<(Patient Patient, bool WasExisting)> FindOrCreateAsync(
         Guid? tenantId,
-        Guid identityUserId,
+        Guid? identityUserId,
         string firstName,
         string lastName,
         string email,
@@ -139,7 +150,6 @@ public class PatientManager : DomainService
         string? middleName = null,
         string? address = null,
         string? city = null,
-        string? refferedBy = null,
         string? cellPhoneNumber = null,
         string? street = null,
         string? interpreterVendorName = null,
@@ -184,7 +194,6 @@ public class PatientManager : DomainService
             address,
             city,
             zipCode,
-            refferedBy,
             cellPhoneNumber,
             street,
             interpreterVendorName,

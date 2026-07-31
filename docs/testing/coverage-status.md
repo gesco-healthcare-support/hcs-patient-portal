@@ -6,6 +6,8 @@ last-verified: 2026-04-24
 
 # Backend Test Coverage Status
 
+> Purpose: Single source of truth for backend test suite counts and per-entity coverage. Audience: developers. Last verified: 2026-06-01 vs main.
+
 This document is the single source of truth for the live state of the backend
 test suite. Older docs (executive-summary.md, INCOMPLETE-FEATURES.md, the root
 CLAUDE.md, TEST-EVIDENCE.md, README.md) historically carried scattered, drifted
@@ -63,7 +65,7 @@ Separate from the xUnit suite above, the Plan-A/Plan-B PowerShell harness in
 11 exploratory** on **2026-04-02** (246 PASS, 5 FAIL-EXPECTED, 7 SKIP, 0
 unexpected failures). That number has not been re-measured against the
 post-Tier-2 codebase. Historical baseline lives in
-[docs/issues/TEST-EVIDENCE.md](../issues/TEST-EVIDENCE.md). Re-running the
+docs/issues/TEST-EVIDENCE.md (frozen; see the Related section below). Re-running the
 harness is tracked separately and is out of scope for this doc.
 
 ## How To Re-Verify
@@ -101,7 +103,7 @@ frontmatter.
 
 ## Related
 
-- [docs/issues/INCOMPLETE-FEATURES.md FEAT-07](../issues/INCOMPLETE-FEATURES.md#feat-07-test-coverage-gaps-mostly-obsolete) -- issue tracker entry, downgraded from Critical to Medium.
-- [docs/issues/TEST-EVIDENCE.md](../issues/TEST-EVIDENCE.md) -- frozen E2E baseline (2026-04-02).
+- [docs/runbooks/ENGINEERING-ROADMAP.md FEAT-07](../runbooks/ENGINEERING-ROADMAP.md) -- issue tracker entry, downgraded from Critical to Medium.
+- docs/issues/TEST-EVIDENCE.md -- frozen E2E baseline (2026-04-02).
 - [docs/devops/TESTING-STRATEGY.md](../devops/TESTING-STRATEGY.md) -- structure of the test projects.
-- [docs/devops/TEST-CATALOG.md](../devops/TEST-CATALOG.md) -- E2E phase map.
+- docs/devops/TEST-CATALOG.md -- E2E phase map (superseded by this file).

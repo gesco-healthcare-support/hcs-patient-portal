@@ -1,253 +1,429 @@
 /**
- * Single source of truth for the office's send-back-for-info modal field list.
+ * One flaggable appointment field. `key` is the stable identifier shared by two
+ * features so they can never drift apart:
+ *  1. the staff "Request info" / Send Back modal (which fields a requester must
+ *     review/fix and resubmit), and
+ *  2. the per-appointment-type Field Configuration panel, which persists this
+ *     `key` verbatim as the config row's FieldName.
  *
- * Field names mirror OLD's appointment form (camelCase). Renaming a key here
- * propagates to (a) the send-back modal checkbox list, (b) the booker's
- * AwaitingMoreInfo banner pill rendering, (c) the AppointmentSendBackInfo
- * row's FlaggedFieldsJson value. Backend stores the field key strings
- * verbatim -- no enum validation -- so renames are NEW-side cosmetic.
+ * Most keys are live form-control names on the booking form's parent FormGroup
+ * (appointment-add.component.ts), so a field's hidden / read-only / default-value
+ * config takes effect on the real form. Two keys are section-level pseudo-fields
+ * with no single control: `claimInformation` (the whole Claim Information section
+ * is too dynamic to enumerate as discrete fields, so it is requested as a unit)
+ * and `documents` (file uploads, stored-only).
  *
- * Wave-by-wave editability:
- *   - W1: PATIENT_DEMOGRAPHICS, EMPLOYER_DETAIL, APPLICANT_ATTORNEY,
- *     AUTHORIZED_USERS, APPOINTMENT_DETAILS already render as editable
- *     fields on the booker's appointment-add / appointment-view pages.
- *   - W2 (`attorney-defense-patient-separation` cap [LANDED IN W2-7]):
- *     DEFENSE_ATTORNEY fields ship as editable on the booker form
- *     (appointment-add) parallel to APPLICANT_ATTORNEY.
- *   - W2 (`appointment-injury-workflow` cap [LANDED IN W2-8]):
- *     PATIENT_INJURY, INSURANCE_CARRIER, CLAIM_ADJUSTER fields ship as
- *     editable in the Claim Information modal on appointment-add. Multi-injury
- *     per appointment supported (table-of-injuries below the Claim Information
- *     header). Each injury row carries its own insurance + claim examiner
- *     sub-section with isActive toggle, mirroring OLD's UX.
+ * `sendBackFlaggable` separates the two concerns: every field is configurable in
+ * the Field Configuration panel, but only requester-provided fields appear in the
+ * staff send-back modal. The Schedule fields are staff/scheduling-controlled
+ * (changing the date is a reschedule, not a fix), so they stay configurable but
+ * never appear in the send-back modal.
  *
- * Until each cap lands, the corresponding section's checkboxes are still
- * visible in the send-back modal -- the office can pre-flag -- but the
- * booker won't see editable inputs for them on the resubmit screen.
- *
- * OLD-form citations: see `P:\PatientPortalOld\patientappointment-portal\src\app\components\appointment-request\appointments\add\appointment-add.component.html`.
+ * `group` is the wizard section name -- it MUST match the appointment wizard's
+ * section headings (parity) so a non-technical user sees the same sections in the
+ * send-back modal as in the form. The send-back modal renders these groups in
+ * SEND_BACK_SECTION_ORDER as collapsible sections with a select-all-in-section
+ * toggle (QA item L, 2026-06-30, per Adrian: 65 flaggable fields, Schedule and
+ * Additional Accessor and Custom Fields excluded).
  */
-
-export type FlaggableWaveTag = 'W1' | 'W2' | 'POST_MVP';
-
 export interface FlaggableField {
-  /** Unique key persisted to AppointmentSendBackInfo.FlaggedFieldsJson */
   key: string;
-  /** Human-readable label rendered on the modal checkbox + booker pill */
   label: string;
-  /** Wave the actual editable form field ships in */
-  wave: FlaggableWaveTag;
+  group: string;
+  /** Selectable in the staff send-back modal (false = Field-Config-only). */
+  sendBackFlaggable: boolean;
 }
 
-export interface FlaggableSection {
-  /** Section identifier; used in pill rendering on the booker banner */
-  id: string;
-  /** Section label rendered as the modal panel header */
-  label: string;
-  /** Wave when ALL fields in the section become editable on the booker form */
-  wave: FlaggableWaveTag;
-  /** Field list */
-  fields: FlaggableField[];
-}
+/**
+ * Wizard-parity section order for the send-back modal's collapsible groups. Only
+ * groups that contain at least one `sendBackFlaggable` field are shown in the modal.
+ */
+export const SEND_BACK_SECTION_ORDER: string[] = [
+  'Patient Demographics',
+  'Employer Details',
+  'Applicant Attorney',
+  'Defense Attorney',
+  'Insurance Carrier',
+  'Claim Examiner',
+  'Claim Information',
+  'Documents',
+];
 
-export const FLAGGABLE_SECTIONS: readonly FlaggableSection[] = [
-  // Section 1: Patient Demographics (W1 -- editable on appointment-add today)
+export const FLAGGABLE_FIELDS: FlaggableField[] = [
+  // --- Patient Demographics (18) ---
+  { key: 'firstName', label: 'First name', group: 'Patient Demographics', sendBackFlaggable: true },
   {
-    id: 'patientDemographics',
-    label: 'Patient Demographics',
-    wave: 'W1',
-    fields: [
-      { key: 'firstName', label: 'First Name', wave: 'W1' },
-      { key: 'lastName', label: 'Last Name', wave: 'W1' },
-      { key: 'middleName', label: 'Middle Name', wave: 'W1' },
-      { key: 'genderId', label: 'Gender', wave: 'W1' },
-      { key: 'dateOfBirth', label: 'Date of Birth', wave: 'W1' },
-      { key: 'email', label: 'Email', wave: 'W1' },
-      { key: 'cellPhoneNumber', label: 'Cell Phone Number', wave: 'W1' },
-      { key: 'phoneNumber', label: 'Phone Number', wave: 'W1' },
-      { key: 'phoneNumberType', label: 'Phone Number Type', wave: 'W1' },
-      { key: 'socialSecurityNumber', label: 'Social Security #', wave: 'W1' },
-      { key: 'street', label: 'Street Address', wave: 'W1' },
-      { key: 'apptNumber', label: 'Unit / Apartment', wave: 'W1' },
-      { key: 'city', label: 'City', wave: 'W1' },
-      { key: 'stateId', label: 'State', wave: 'W1' },
-      { key: 'zipCode', label: 'Zip Code', wave: 'W1' },
-      { key: 'languageId', label: 'Language', wave: 'W1' },
-      { key: 'othersLanguageName', label: 'Other Language Name', wave: 'W1' },
-      { key: 'isInterpreter', label: 'Interpreter Needed', wave: 'W1' },
-      { key: 'interpreterVendorName', label: 'Interpreter Vendor', wave: 'W1' },
-      { key: 'referredBy', label: 'Referred By', wave: 'W1' },
-    ],
+    key: 'middleName',
+    label: 'Middle name',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  { key: 'lastName', label: 'Last name', group: 'Patient Demographics', sendBackFlaggable: true },
+  { key: 'genderId', label: 'Gender', group: 'Patient Demographics', sendBackFlaggable: true },
+  {
+    key: 'dateOfBirth',
+    label: 'Date of birth',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  { key: 'email', label: 'Email', group: 'Patient Demographics', sendBackFlaggable: true },
+  {
+    key: 'cellPhoneNumber',
+    label: 'Cell phone',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  { key: 'phoneNumber', label: 'Phone', group: 'Patient Demographics', sendBackFlaggable: true },
+  {
+    key: 'socialSecurityNumber',
+    label: 'Social Security #',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  { key: 'street', label: 'Street', group: 'Patient Demographics', sendBackFlaggable: true },
+  {
+    // 2026-07-10 QA (item 4a): the Patient "Unit #" address-line-2 (control `address`
+    // -> Patient.Address). Present on the booking form; wired here + in the backend
+    // InfoRequestFields registry so staff can request/correct it.
+    key: 'address',
+    label: 'Unit #',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  { key: 'city', label: 'City', group: 'Patient Demographics', sendBackFlaggable: true },
+  { key: 'stateId', label: 'State', group: 'Patient Demographics', sendBackFlaggable: true },
+  { key: 'zipCode', label: 'ZIP code', group: 'Patient Demographics', sendBackFlaggable: true },
+  {
+    key: 'appointmentLanguageId',
+    label: 'Language',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  {
+    // Dropped from send-back (2026-06-30): no persisted column -- the interpreter
+    // need is expressed by Language + Interpreter vendor, which ARE flaggable.
+    key: 'needsInterpreter',
+    label: 'Needs interpreter',
+    group: 'Patient Demographics',
+    sendBackFlaggable: false,
+  },
+  {
+    key: 'interpreterVendorName',
+    label: 'Interpreter vendor',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'refferedBy',
+    label: 'Referred by',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
   },
 
-  // Section 2: Employer Detail (W1 -- editable today)
+  // --- Employer Details (7) ---
   {
-    id: 'employerDetail',
-    label: 'Employer Detail',
-    wave: 'W1',
-    fields: [
-      { key: 'employerName', label: 'Employer Name', wave: 'W1' },
-      { key: 'occupation', label: 'Occupation', wave: 'W1' },
-      { key: 'employerPhoneNumber', label: 'Employer Phone Number', wave: 'W1' },
-      { key: 'employerStreet', label: 'Employer Street', wave: 'W1' },
-      { key: 'employerCity', label: 'Employer City', wave: 'W1' },
-      { key: 'employerStateId', label: 'Employer State', wave: 'W1' },
-      { key: 'employerZip', label: 'Employer Zip', wave: 'W1' },
-    ],
+    key: 'employerName',
+    label: 'Employer name',
+    group: 'Employer Details',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'employerOccupation',
+    label: 'Occupation',
+    group: 'Employer Details',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'employerPhoneNumber',
+    label: 'Phone',
+    group: 'Employer Details',
+    sendBackFlaggable: true,
+  },
+  { key: 'employerStreet', label: 'Street', group: 'Employer Details', sendBackFlaggable: true },
+  { key: 'employerCity', label: 'City', group: 'Employer Details', sendBackFlaggable: true },
+  { key: 'employerStateId', label: 'State', group: 'Employer Details', sendBackFlaggable: true },
+  { key: 'employerZipCode', label: 'ZIP code', group: 'Employer Details', sendBackFlaggable: true },
+
+  // --- Applicant Attorney (11) ---
+  {
+    key: 'applicantAttorneyFirstName',
+    label: 'First name',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyLastName',
+    label: 'Last name',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyEmail',
+    label: 'Email',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyFirmName',
+    label: 'Firm name',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyWebAddress',
+    label: 'Website',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyPhoneNumber',
+    label: 'Phone',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyFaxNumber',
+    label: 'Fax',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyStreet',
+    label: 'Street',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyCity',
+    label: 'City',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyStateId',
+    label: 'State',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'applicantAttorneyZipCode',
+    label: 'ZIP code',
+    group: 'Applicant Attorney',
+    sendBackFlaggable: true,
   },
 
-  // Section 3: Applicant Attorney (W1 -- editable today)
+  // --- Defense Attorney (11) ---
   {
-    id: 'applicantAttorney',
-    label: 'Applicant Attorney',
-    wave: 'W1',
-    fields: [
-      { key: 'applicantAttorneyIsActive', label: 'Active', wave: 'W1' },
-      { key: 'applicantAttorneyName', label: 'Attorney Name', wave: 'W1' },
-      { key: 'applicantAttorneyEmail', label: 'Email', wave: 'W1' },
-      { key: 'applicantAttorneyFirmName', label: 'Firm Name', wave: 'W1' },
-      { key: 'applicantAttorneyWebAddress', label: 'Web Address', wave: 'W1' },
-      { key: 'applicantAttorneyPhoneNumber', label: 'Phone Number', wave: 'W1' },
-      { key: 'applicantAttorneyFaxNumber', label: 'Fax Number', wave: 'W1' },
-      { key: 'applicantAttorneyStreet', label: 'Street', wave: 'W1' },
-      { key: 'applicantAttorneyCity', label: 'City', wave: 'W1' },
-      { key: 'applicantAttorneyStateId', label: 'State', wave: 'W1' },
-      { key: 'applicantAttorneyZip', label: 'Zip', wave: 'W1' },
-    ],
+    key: 'defenseAttorneyFirstName',
+    label: 'First name',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyLastName',
+    label: 'Last name',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyEmail',
+    label: 'Email',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyFirmName',
+    label: 'Firm name',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyWebAddress',
+    label: 'Website',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyPhoneNumber',
+    label: 'Phone',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyFaxNumber',
+    label: 'Fax',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyStreet',
+    label: 'Street',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  { key: 'defenseAttorneyCity', label: 'City', group: 'Defense Attorney', sendBackFlaggable: true },
+  {
+    key: 'defenseAttorneyStateId',
+    label: 'State',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'defenseAttorneyZipCode',
+    label: 'ZIP code',
+    group: 'Defense Attorney',
+    sendBackFlaggable: true,
   },
 
-  // Section 4: Authorized Users (W1 -- editable today)
+  // --- Insurance Carrier (8) ---
   {
-    id: 'authorizedUsers',
-    label: 'Authorized Users',
-    wave: 'W1',
-    fields: [
-      { key: 'authorizedUserEmail', label: 'Email', wave: 'W1' },
-      { key: 'authorizedUserFirstName', label: 'First Name', wave: 'W1' },
-      { key: 'authorizedUserLastName', label: 'Last Name', wave: 'W1' },
-      { key: 'authorizedUserRoleId', label: 'User Role', wave: 'W1' },
-      { key: 'authorizedUserAccessTypeId', label: 'Access Rights Type', wave: 'W1' },
-    ],
+    key: 'appointmentInsuranceName',
+    label: 'Insurance company',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsuranceStreet',
+    label: 'Street',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsuranceSuite',
+    label: 'Suite',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsurancePhoneNumber',
+    label: 'Phone',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsuranceFaxNumber',
+    label: 'Fax',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsuranceCity',
+    label: 'City',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsuranceStateId',
+    label: 'State',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentInsuranceZip',
+    label: 'ZIP code',
+    group: 'Insurance Carrier',
+    sendBackFlaggable: true,
   },
 
-  // Section 5: Appointment Details (W1 -- editable today)
+  // --- Claim Examiner (9) ---
   {
-    id: 'appointmentDetails',
-    label: 'Appointment Details',
-    wave: 'W1',
-    fields: [
-      { key: 'appointmentTypeId', label: 'Appointment Type', wave: 'W1' },
-      { key: 'requestConfirmationNumber', label: 'Confirmation Number', wave: 'W1' },
-      { key: 'panelNumber', label: 'Panel Number', wave: 'W1' },
-      { key: 'locationId', label: 'Location', wave: 'W1' },
-      { key: 'primaryResponsibleUserId', label: 'Responsible User', wave: 'W1' },
-      { key: 'availableDate', label: 'Appointment Date', wave: 'W1' },
-      { key: 'doctorAvailabilityId', label: 'Appointment Time', wave: 'W1' },
-    ],
+    key: 'appointmentClaimExaminerName',
+    label: 'Name',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerEmail',
+    label: 'Email',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerStreet',
+    label: 'Street',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerSuite',
+    label: 'Suite',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerPhoneNumber',
+    label: 'Phone',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerFax',
+    label: 'Fax',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerCity',
+    label: 'City',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerStateId',
+    label: 'State',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
+  },
+  {
+    key: 'appointmentClaimExaminerZip',
+    label: 'ZIP code',
+    group: 'Claim Examiner',
+    sendBackFlaggable: true,
   },
 
-  // Section 6: Defense Attorney (W2 -- attorney-defense-patient-separation cap; deferred per ledger)
+  // --- Claim Information (1, consolidated section-level flag) ---
   {
-    id: 'defenseAttorney',
-    label: 'Defense Attorney',
-    wave: 'W2',
-    fields: [
-      { key: 'defenseAttorneyIsActive', label: 'Active', wave: 'W2' },
-      { key: 'defenseAttorneyName', label: 'Attorney Name', wave: 'W2' },
-      { key: 'defenseAttorneyEmail', label: 'Email', wave: 'W2' },
-      { key: 'defenseAttorneyFirmName', label: 'Firm Name', wave: 'W2' },
-      { key: 'defenseAttorneyWebAddress', label: 'Web Address', wave: 'W2' },
-      { key: 'defenseAttorneyPhoneNumber', label: 'Phone Number', wave: 'W2' },
-      { key: 'defenseAttorneyFaxNumber', label: 'Fax Number', wave: 'W2' },
-      { key: 'defenseAttorneyStreet', label: 'Street', wave: 'W2' },
-      { key: 'defenseAttorneyCity', label: 'City', wave: 'W2' },
-      { key: 'defenseAttorneyStateId', label: 'State', wave: 'W2' },
-      { key: 'defenseAttorneyZip', label: 'Zip', wave: 'W2' },
-    ],
+    // Section-level pseudo-field (QA item 11, 2026-07-01): the repeating injury-detail
+    // collection is corrected as a full replacement set via the fix-it page's embedded
+    // editor, not the per-field scalar flow. isInlineEditable() keeps it out of the scalar
+    // loop; the fix-it page renders the collection editor + posts SaveInfoRequestCorrectionsInput.InjuryDetails.
+    key: 'claimInformation',
+    label: 'Claim information',
+    group: 'Claim Information',
+    sendBackFlaggable: true,
   },
 
-  // Section 7: Patient Injury / Claim Details (W2 -- appointment-injury-workflow cap)
-  {
-    id: 'patientInjury',
-    label: 'Patient Injury / Claim Details',
-    wave: 'W2',
-    fields: [
-      { key: 'isCumulativeInjury', label: 'Cumulative Trauma Injury', wave: 'W2' },
-      { key: 'dateOfInjury', label: 'Date of Injury / From Date', wave: 'W2' },
-      { key: 'toDateOfInjury', label: 'To Date of Injury', wave: 'W2' },
-      { key: 'claimNumber', label: 'Claim Number', wave: 'W2' },
-      { key: 'wcabOfficeId', label: 'WCAB Office / Venue', wave: 'W2' },
-      { key: 'wcabAdj', label: 'WCAB ADJ #', wave: 'W2' },
-      { key: 'bodyParts', label: 'Body Parts', wave: 'W2' },
-    ],
-  },
+  // --- Documents (1) ---
+  { key: 'documents', label: 'Documents', group: 'Documents', sendBackFlaggable: true },
 
-  // Section 8: Insurance Carrier (W2 -- appointment-injury-workflow cap covers AppointmentPrimaryInsurance)
+  // --- Schedule (Field-Config only; never in the send-back modal) ---
   {
-    id: 'insuranceCarrier',
-    label: 'Insurance Carrier',
-    wave: 'W2',
-    fields: [
-      { key: 'insuranceCarrierIsActive', label: 'Active', wave: 'W2' },
-      { key: 'insuranceCarrierName', label: 'Company Name', wave: 'W2' },
-      { key: 'insuranceCarrierAttention', label: 'Attention To', wave: 'W2' },
-      { key: 'insuranceCarrierPhoneNumber', label: 'Phone Number', wave: 'W2' },
-      { key: 'insuranceCarrierFaxNumber', label: 'Fax Number', wave: 'W2' },
-      { key: 'insuranceCarrierStreet', label: 'Street', wave: 'W2' },
-      { key: 'insuranceCarrierSuite', label: 'STE / Suite', wave: 'W2' },
-      { key: 'insuranceCarrierCity', label: 'City', wave: 'W2' },
-      { key: 'insuranceCarrierStateId', label: 'State', wave: 'W2' },
-      { key: 'insuranceCarrierZip', label: 'Zip', wave: 'W2' },
-    ],
+    key: 'appointmentTypeId',
+    label: 'Appointment type',
+    group: 'Schedule',
+    sendBackFlaggable: false,
   },
-
-  // Section 9: Claim Adjuster / Claim Examiner (W2 -- appointment-injury-workflow cap covers AppointmentClaimExaminer)
+  { key: 'panelNumber', label: 'Panel number', group: 'Schedule', sendBackFlaggable: false },
+  { key: 'locationId', label: 'Location', group: 'Schedule', sendBackFlaggable: false },
   {
-    id: 'claimAdjuster',
-    label: 'Claim Adjuster',
-    wave: 'W2',
-    fields: [
-      { key: 'claimAdjusterIsActive', label: 'Active', wave: 'W2' },
-      { key: 'claimAdjusterName', label: 'Name', wave: 'W2' },
-      { key: 'claimAdjusterEmail', label: 'Email', wave: 'W2' },
-      { key: 'claimAdjusterPhoneNumber', label: 'Phone Number', wave: 'W2' },
-      { key: 'claimAdjusterFax', label: 'Fax', wave: 'W2' },
-      { key: 'claimAdjusterStreet', label: 'Street', wave: 'W2' },
-      { key: 'claimAdjusterSuite', label: 'STE / Suite', wave: 'W2' },
-      { key: 'claimAdjusterCity', label: 'City', wave: 'W2' },
-      { key: 'claimAdjusterStateId', label: 'State', wave: 'W2' },
-      { key: 'claimAdjusterZip', label: 'Zip', wave: 'W2' },
-    ],
+    key: 'appointmentDate',
+    label: 'Appointment date',
+    group: 'Schedule',
+    sendBackFlaggable: false,
+  },
+  {
+    key: 'appointmentTime',
+    label: 'Appointment time',
+    group: 'Schedule',
+    sendBackFlaggable: false,
   },
 ];
 
-/** Total flaggable field count -- 92 across 9 sections. Matches OLD's appointment form. */
-export const TOTAL_FLAGGABLE_FIELD_COUNT: number = FLAGGABLE_SECTIONS.reduce(
-  (sum, section) => sum + section.fields.length,
-  0,
-);
-
-/**
- * Build a map of `key -> { sectionId, label }` for fast lookup when rendering
- * the booker's banner pills (we know flagged keys, need section + label).
- */
-export function buildFlaggedFieldLookup(): Map<
-  string,
-  { sectionId: string; sectionLabel: string; fieldLabel: string; wave: FlaggableWaveTag }
-> {
-  const lookup = new Map<
-    string,
-    { sectionId: string; sectionLabel: string; fieldLabel: string; wave: FlaggableWaveTag }
-  >();
-  for (const section of FLAGGABLE_SECTIONS) {
-    for (const field of section.fields) {
-      lookup.set(field.key, {
-        sectionId: section.id,
-        sectionLabel: section.label,
-        fieldLabel: field.label,
-        wave: field.wave,
-      });
-    }
-  }
-  return lookup;
-}
+/** The send-back-flaggable fields grouped by wizard section, in wizard order.
+ *  Drives the collapsible modal: each entry is one collapsible section with its
+ *  selectable fields. Sections with no flaggable fields are omitted. */
+export const SEND_BACK_GROUPS: { group: string; fields: FlaggableField[] }[] =
+  SEND_BACK_SECTION_ORDER.map((group) => ({
+    group,
+    fields: FLAGGABLE_FIELDS.filter((f) => f.group === group && f.sendBackFlaggable),
+  })).filter((g) => g.fields.length > 0);

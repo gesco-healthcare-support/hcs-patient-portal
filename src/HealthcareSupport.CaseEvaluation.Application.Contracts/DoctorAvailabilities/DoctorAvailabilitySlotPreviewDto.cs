@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
+using System.Collections.Generic;
 
 namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -15,7 +16,16 @@ public class DoctorAvailabilitySlotPreviewDto
 
     public Guid LocationId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    /// <summary>
+    /// 2026-05-15 -- the set of AppointmentType ids this preview slot will
+    /// accept. Empty list = any type accepted (loose mode).
+    /// </summary>
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
+
+    /// <summary>
+    /// 2026-05-15 -- max simultaneous appointments for this preview slot.
+    /// </summary>
+    public int Capacity { get; set; } = 3;
 
     public int TimeId { get; set; }
 

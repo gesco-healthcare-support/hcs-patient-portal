@@ -25,7 +25,9 @@ public class WcabOfficeDataSeedContributor : IDataSeedContributor, ITransientDep
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (context?.TenantId != null)
+        // Per-office (db-per-office): seed under the active tenant; skip host scope
+        // (no catalogs there). Per-office seed execution + ordering is Phase B (B4).
+        if (context?.TenantId == null)
         {
             return;
         }

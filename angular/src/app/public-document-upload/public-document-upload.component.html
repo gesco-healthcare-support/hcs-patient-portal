@@ -1,0 +1,32 @@
+<div class="public-upload">
+  <div class="card">
+    <h1>Upload your document</h1>
+
+    @if (!hasValidLink) {
+      <p class="msg error">
+        This upload link is missing required information. Please use the link from your email.
+      </p>
+    } @else if (state === 'success') {
+      <p class="msg success">
+        Thank you. Your document has been uploaded and is now awaiting review.
+      </p>
+    } @else {
+      <p class="hint">Choose the document to upload (PDF, JPG, or PNG, up to 10 MB).</p>
+
+      <input
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        (change)="onFileSelected($event)"
+        [disabled]="state === 'uploading'"
+      />
+
+      @if (errorMessage) {
+        <p class="msg error">{{ errorMessage }}</p>
+      }
+
+      <button type="button" (click)="upload()" [disabled]="!selectedFile || state === 'uploading'">
+        {{ state === 'uploading' ? 'Uploading...' : 'Upload' }}
+      </button>
+    }
+  </div>
+</div>

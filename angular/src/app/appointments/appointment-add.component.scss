@@ -38,21 +38,6 @@
   }
 }
 
-::ng-deep .appointment-date-day {
-  display: inline-flex;
-  width: 2rem;
-  height: 2rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-}
-
-::ng-deep .appointment-date-day.outside-month {
-  opacity: 0.4;
-}
-
-::ng-deep .appointment-date-day.available-day {
-  background-color: #198754;
-  color: #fff;
-  font-weight: 600;
-}
+// #13 (2026-06-17): the .appointment-date-day highlight moved to the schedule
+// section's own stylesheet (appointment-add-schedule.component.scss) so it loads
+// on both the legacy form and the redesigned wizard, which embed that section.

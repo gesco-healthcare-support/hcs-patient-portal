@@ -1,0 +1,6 @@
+# Generated render artifacts. The build_*.py generators are the single source of truth; the
+# packet-renderer image regenerates the HTML at build time (see docker/packet-renderer/Dockerfile),
+# and the .NET side embeds no HTML. Never commit the generated output -- only the generators and
+# their image assets (*.jpg / *.png) are source.
+*.html
+*.pdf

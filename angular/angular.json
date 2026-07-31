@@ -52,6 +52,11 @@
             ],
             "styles": [
               {
+                "input": "node_modules/quill/dist/quill.snow.css",
+                "inject": true,
+                "bundleName": "quill-snow"
+              },
+              {
                 "input": "node_modules/@swimlane/ngx-datatable/index.css",
                 "inject": true,
                 "bundleName": "ngx-datatable-index"
@@ -185,6 +190,11 @@
               "node_modules/cropperjs/dist/cropper.css",
               "node_modules/@uppy/core/dist/style.min.css",
               "node_modules/@uppy/dashboard/dist/style.min.css",
+              "node_modules/@fontsource/roboto/300.css",
+              "node_modules/@fontsource/roboto/400.css",
+              "node_modules/@fontsource/roboto/500.css",
+              "node_modules/@fontsource/roboto/700.css",
+              "node_modules/@fontsource/roboto/900.css",
               "src/styles.scss"
             ],
             "scripts": [],
@@ -203,7 +213,7 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "2kb",
+                  "maximumWarning": "16kb",
                   "maximumError": "100kb"
                 }
               ],
@@ -245,7 +255,7 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "2kb",
+                  "maximumWarning": "16kb",
                   "maximumError": "100kb"
                 }
               ],

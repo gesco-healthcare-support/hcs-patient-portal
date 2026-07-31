@@ -1,12 +1,15 @@
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
@@ -18,6 +21,7 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     private readonly IAppointmentAccessorRepository _accessorRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected AppointmentAccessorsAppServiceTests()
     {
@@ -25,6 +29,7 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
         _accessorRepository = GetRequiredService<IAppointmentAccessorRepository>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // ------------------------------------------------------------------------
@@ -59,26 +64,62 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     }
 
     [Fact]
-    public async Task CreateAsync_PersistsNewAccessor_AsHostScoped()
+    public async Task CreateAsync_AsInternalUser_LinksExistingUserByEmail()
     {
-        // Create in host context -> TenantId = null; the ABP IMultiTenant filter
-        // hides this from tenant-scoped callers but keeps it visible from host.
-        var input = new AppointmentAccessorCreateDto
+        // Group J: accessors are added by typing an email. An internal caller
+        // bypasses the edit-gate; the email resolves to a seeded user so
+        // create-or-link LINKS the existing identity (no auto-provision).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   IdentityUsersTestData.HostAdminId,
+                   IdentityUsersTestData.HostAdminRoleName))
         {
-            AccessTypeId = AccessType.View,
-            IdentityUserId = IdentityUsersTestData.Patient1UserId,
-            AppointmentId = AppointmentsTestData.Appointment1Id
-        };
+            var input = new AppointmentAccessorCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                Email = IdentityUsersTestData.Patient1Email,
+                Role = IdentityUsersTestData.PatientRoleName,
+                AccessTypeId = AccessType.View
+            };
 
-        var created = await _accessorsAppService.CreateAsync(input);
+            var created = await _accessorsAppService.CreateAsync(input);
 
-        created.ShouldNotBeNull();
-        created.AccessTypeId.ShouldBe(AccessType.View);
-        created.IdentityUserId.ShouldBe(input.IdentityUserId);
-        created.AppointmentId.ShouldBe(input.AppointmentId);
+            created.ShouldNotBeNull();
+            created.AccessTypeId.ShouldBe(AccessType.View);
+            created.IdentityUserId.ShouldBe(IdentityUsersTestData.Patient1UserId);
+            created.AppointmentId.ShouldBe(input.AppointmentId);
 
-        var persisted = await _accessorRepository.FindAsync(created.Id);
-        persisted.ShouldNotBeNull();
+            var persisted = await _accessorRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCallerIsNonParty_IsDenied()
+    {
+        // Deny-by-default (Group J): a same-tenant external user who is NOT a
+        // party to the appointment (not creator, not an Edit-accessor) must not
+        // be able to add an accessor -- blocks self-escalation. The edit-gate
+        // fires before create-or-link, so the email never resolves.
+        var nonPartyUserId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   nonPartyUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var input = new AppointmentAccessorCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                Email = "TEST-outsider@test.local",
+                Role = IdentityUsersTestData.PatientRoleName,
+                AccessTypeId = AccessType.View
+            };
+
+            await Should.ThrowAsync<UserFriendlyException>(
+                async () => await _accessorsAppService.CreateAsync(input));
+        }
     }
 
     [Fact]
@@ -105,18 +146,27 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     }
 
     [Fact]
-    public async Task DeleteAsync_RemovesAccessor()
+    public async Task DeleteAsync_AsInternalUser_RemovesAccessor()
     {
-        var created = await _accessorsAppService.CreateAsync(new AppointmentAccessorCreateDto
+        // Delete is gated by edit-access; an internal caller bypasses the gate.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   IdentityUsersTestData.HostAdminId,
+                   IdentityUsersTestData.HostAdminRoleName))
         {
-            AccessTypeId = AccessType.View,
-            IdentityUserId = IdentityUsersTestData.Patient1UserId,
-            AppointmentId = AppointmentsTestData.Appointment1Id
-        });
+            var created = await _accessorsAppService.CreateAsync(new AppointmentAccessorCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                Email = IdentityUsersTestData.Patient1Email,
+                Role = IdentityUsersTestData.PatientRoleName,
+                AccessTypeId = AccessType.View
+            });
 
-        await _accessorsAppService.DeleteAsync(created.Id);
+            await _accessorsAppService.DeleteAsync(created.Id);
 
-        (await _accessorRepository.FindAsync(created.Id)).ShouldBeNull();
+            (await _accessorRepository.FindAsync(created.Id)).ShouldBeNull();
+        }
     }
 
     // ------------------------------------------------------------------------

@@ -18,11 +18,10 @@ public class AppointmentPrimaryInsuranceManager : DomainService
     }
 
     public virtual async Task<AppointmentPrimaryInsurance> CreateAsync(
-        Guid appointmentInjuryDetailId,
+        Guid appointmentId,
         bool isActive,
         string? name = null,
         string? insuranceNumber = null,
-        string? attention = null,
         string? phoneNumber = null,
         string? faxNumber = null,
         string? street = null,
@@ -30,21 +29,19 @@ public class AppointmentPrimaryInsuranceManager : DomainService
         string? zip = null,
         Guid? stateId = null)
     {
-        Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
+        Check.NotNull(appointmentId, nameof(appointmentId));
         Check.Length(name, nameof(name), AppointmentPrimaryInsuranceConsts.NameMaxLength, 0);
-        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength, 0);
-        Check.Length(attention, nameof(attention), AppointmentPrimaryInsuranceConsts.AttentionMaxLength, 0);
+        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.SuiteMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength, 0);
         Check.Length(faxNumber, nameof(faxNumber), AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength, 0);
         Check.Length(street, nameof(street), AppointmentPrimaryInsuranceConsts.StreetMaxLength, 0);
         Check.Length(city, nameof(city), AppointmentPrimaryInsuranceConsts.CityMaxLength, 0);
         Check.Length(zip, nameof(zip), AppointmentPrimaryInsuranceConsts.ZipMaxLength, 0);
 
-        var entity = new AppointmentPrimaryInsurance(GuidGenerator.Create(), appointmentInjuryDetailId, isActive)
+        var entity = new AppointmentPrimaryInsurance(GuidGenerator.Create(), appointmentId, isActive)
         {
             Name = name,
-            InsuranceNumber = insuranceNumber,
-            Attention = attention,
+            Suite = insuranceNumber,
             PhoneNumber = phoneNumber,
             FaxNumber = faxNumber,
             Street = street,
@@ -57,11 +54,10 @@ public class AppointmentPrimaryInsuranceManager : DomainService
 
     public virtual async Task<AppointmentPrimaryInsurance> UpdateAsync(
         Guid id,
-        Guid appointmentInjuryDetailId,
+        Guid appointmentId,
         bool isActive,
         string? name = null,
         string? insuranceNumber = null,
-        string? attention = null,
         string? phoneNumber = null,
         string? faxNumber = null,
         string? street = null,
@@ -70,10 +66,9 @@ public class AppointmentPrimaryInsuranceManager : DomainService
         Guid? stateId = null,
         [CanBeNull] string? concurrencyStamp = null)
     {
-        Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
+        Check.NotNull(appointmentId, nameof(appointmentId));
         Check.Length(name, nameof(name), AppointmentPrimaryInsuranceConsts.NameMaxLength, 0);
-        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength, 0);
-        Check.Length(attention, nameof(attention), AppointmentPrimaryInsuranceConsts.AttentionMaxLength, 0);
+        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.SuiteMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength, 0);
         Check.Length(faxNumber, nameof(faxNumber), AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength, 0);
         Check.Length(street, nameof(street), AppointmentPrimaryInsuranceConsts.StreetMaxLength, 0);
@@ -81,11 +76,10 @@ public class AppointmentPrimaryInsuranceManager : DomainService
         Check.Length(zip, nameof(zip), AppointmentPrimaryInsuranceConsts.ZipMaxLength, 0);
 
         var entity = await _repository.GetAsync(id);
-        entity.AppointmentInjuryDetailId = appointmentInjuryDetailId;
+        entity.AppointmentId = appointmentId;
         entity.IsActive = isActive;
         entity.Name = name;
-        entity.InsuranceNumber = insuranceNumber;
-        entity.Attention = attention;
+        entity.Suite = insuranceNumber;
         entity.PhoneNumber = phoneNumber;
         entity.FaxNumber = faxNumber;
         entity.Street = street;

@@ -70,7 +70,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
     {
-        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.States.State>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -86,7 +86,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         await _appointmentEmployerDetailRepository.DeleteAsync(id);
     }
 
-    [Authorize]
+    [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Create)]
     public virtual async Task<AppointmentEmployerDetailDto> CreateAsync(AppointmentEmployerDetailCreateDto input)
     {
         if (input.AppointmentId == Guid.Empty)
@@ -106,7 +106,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         return ObjectMapper.Map<AppointmentEmployerDetail, AppointmentEmployerDetailDto>(appointmentEmployerDetail);
     }
 
-    [Authorize]
+    [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Edit)]
     public virtual async Task<AppointmentEmployerDetailDto> UpdateAsync(Guid id, AppointmentEmployerDetailUpdateDto input)
     {
         if (input.AppointmentId == Guid.Empty)

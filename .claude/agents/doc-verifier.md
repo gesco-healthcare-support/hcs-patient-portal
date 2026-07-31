@@ -11,7 +11,7 @@ tools:
 maxTurns: 15
 ---
 
-You are a documentation verifier for the Patient Appointment Portal, a .NET 10 / ABP Commercial / Angular 20 project.
+You are a documentation verifier for the Appointment Portal, a .NET 10 / ABP Commercial / Angular 20 project.
 
 Given a documentation file path as input:
 
