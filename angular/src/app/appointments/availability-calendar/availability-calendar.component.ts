@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   EventEmitter,
   Input,
@@ -59,6 +60,10 @@ export interface AvailabilitySelection {
 })
 export class AvailabilityCalendarComponent implements OnChanges {
   private readonly doctorAvailabilityService = inject(DoctorAvailabilityService);
+  // OnPush + async state: every mutation that happens off the template's own event path has to be
+  // marked, or the view keeps showing stale state. A stuck "Loading available dates..." was exactly
+  // that -- the flag cleared but nothing re-rendered.
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
   @Input() locationId: string | null = null;
   @Input() appointmentTypeId: string | null = null;
@@ -79,7 +84,6 @@ export class AvailabilityCalendarComponent implements OnChanges {
   @Input() dateInvalid = false;
   @Input() timeInvalid = false;
   @Input() minimumBookingRuleMessage = '';
-  @Input() noBookableDatesMessage = '';
 
   // Copy comes in as inputs rather than being localized here on purpose: a presentational calendar
   // should not own wording, and taking the strings keeps this component free of ABP's localization
@@ -129,15 +133,44 @@ export class AvailabilityCalendarComponent implements OnChanges {
   protected readonly isAvailableDate = (date: NgbDateStruct): boolean =>
     this.availableDateKeys.has(toDateKey(date.year, date.month, date.day));
 
+  /**
+   * Explains an all-grey calendar. Derived HERE because this component owns availability now: when
+   * the parent still computed it from its own (no longer populated) state it fired on every
+   * selection, telling bookers no dates existed while 48 were published.
+   */
+  protected get noDatesMessage(): string {
+    if (!this.typeChosen || this.isLoading || this.availableDateKeys.size > 0) {
+      return '';
+    }
+    const days = this.leadDays;
+    return (
+      'No appointment dates are available for the selected type and location. ' +
+      `Appointments must be booked at least ${days} day${days === 1 ? '' : 's'} ahead, ` +
+      'and no availability is published in that window yet.'
+    );
+  }
+
   protected get selectedDateStruct(): NgbDateStruct | null {
     if (!this.selectedDate) return null;
     const [year, month, day] = this.selectedDate.split('-').map(Number);
     return year && month && day ? { year, month, day } : null;
   }
 
-  protected onDatePicked(date: NgbDateStruct): void {
-    const key = toDateKey(date.year, date.month, date.day);
+  /**
+   * ngbDatepicker's `ngModelChange` does NOT always emit an `NgbDateStruct`: depending on how the
+   * value is set it can arrive as a formatted string. Assuming the struct threw
+   * "Cannot read properties of undefined (reading 'toString')" on the first real click, which also
+   * meant the time options never populated. Normalise both shapes instead of trusting one.
+   */
+  protected onDatePicked(value: NgbDateStruct | string | null): void {
+    const key = AvailabilityCalendarComponent.normaliseToDateKey(value);
+    if (!key) {
+      this.timeOptions = [];
+      this.changeDetector.markForCheck();
+      return;
+    }
     this.populateTimesFor(key);
+    this.changeDetector.markForCheck();
 
     // Emit the date immediately with no time: the parent applies its role-horizon interception
     // before committing, and the user then picks a time.
@@ -167,6 +200,8 @@ export class AvailabilityCalendarComponent implements OnChanges {
       this.availableDateKeys = new Set<string>();
       this.availableSlotsByDate = new Map();
       this.timeOptions = [];
+      this.isLoading = false;
+      this.changeDetector.markForCheck();
       return;
     }
 
@@ -214,10 +249,12 @@ export class AvailabilityCalendarComponent implements OnChanges {
       if (this.selectedDate) {
         this.populateTimesFor(this.selectedDate);
       }
+      this.changeDetector.markForCheck();
     } finally {
       if (version === this.requestVersion) {
         this.isLoading = false;
       }
+      this.changeDetector.markForCheck();
     }
   }
 
@@ -231,6 +268,22 @@ export class AvailabilityCalendarComponent implements OnChanges {
       label: AvailabilityCalendarComponent.toTimeLabel(slot.time),
       doctorAvailabilityId: slot.doctorAvailabilityId,
     }));
+  }
+
+  /** Accepts either an `NgbDateStruct` or a date string and returns a `YYYY-MM-DD` key. */
+  private static normaliseToDateKey(value: NgbDateStruct | string | null): string | null {
+    if (!value) return null;
+    if (typeof value === 'string') {
+      const iso = toDateKeyFromApi(value);
+      if (iso) return iso;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return toDateKey(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
+    }
+    if (value.year && value.month && value.day) {
+      return toDateKey(value.year, value.month, value.day);
+    }
+    return null;
   }
 
   /** `HH:mm[:ss]` -> a 12-hour label, matching what the booking form showed before. */

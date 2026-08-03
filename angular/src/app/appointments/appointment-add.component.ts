@@ -239,7 +239,17 @@ export class AppointmentAddComponent {
   patientLabel = '';
   patientLoadMessage = '';
   isLocationSelected = false;
-  checkForAppointmentTypeSelected = false;
+  /**
+   * Phase 4a (2026-08-03): DERIVED, not a stored flag.
+   *
+   * <p>It used to be assigned inside `loadAvailableDatesBySelection()`. When that fetch moved into
+   * AvailabilityCalendarComponent and the parent stopped calling it, the flag stopped being set and
+   * the date/time UI never unhid -- a regression that 452 green specs did not catch and only a live
+   * booking attempt surfaced. Deriving it from the form removes the possibility entirely.</p>
+   */
+  get checkForAppointmentTypeSelected(): boolean {
+    return !!this.form?.get('locationId')?.value && !!this.form?.get('appointmentTypeId')?.value;
+  }
   isAvailableDatesLoading = false;
 
   // W2-5: per-AppointmentType field-config state. The booker form fetches the
@@ -3351,7 +3361,6 @@ export class AppointmentAddComponent {
   private loadAvailableDatesBySelection(): void {
     const locationId = this.form.get('locationId')?.value;
     const appointmentTypeId = this.form.get('appointmentTypeId')?.value;
-    this.checkForAppointmentTypeSelected = !!locationId && !!appointmentTypeId;
 
     if (!this.checkForAppointmentTypeSelected) {
       this.availableDateKeys.clear();

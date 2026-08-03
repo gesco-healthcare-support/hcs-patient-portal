@@ -225,6 +225,37 @@ all three controls, keeping the form contract identical.
   - WHEN a booking is submitted from the wizard after this change, THE SYSTEM SHALL do the same.
   - If either surface fails, then the phase SHALL NOT be shipped.
 
+## What the live gate caught (2026-08-03) -- FOUR defects, all invisible to 452 green specs
+
+This is the entry that justifies the gate. After tasks 1-4 the suite was fully green, the build was
+clean, and THE BOOKING FORM WAS BROKEN. Every one of these was found by driving the real app.
+
+1. `checkForAppointmentTypeSelected` was assigned INSIDE `loadAvailableDatesBySelection()`. When the
+   parent stopped calling that (because the child now fetches), the flag was never set, so the
+   date/time UI never unhid at all. FIXED by deriving it from the form -- a stored flag that only one
+   removed method maintained was the whole problem, so removing the possibility beats re-wiring it.
+2. `OnPush` + async mutation with no `markForCheck()`: "Loading available dates..." stuck forever.
+   The flag DID clear; the view never re-rendered. FIXED with `ChangeDetectorRef.markForCheck()` on
+   every off-template state change, plus resetting `isLoading` on the early-return path.
+3. The "no bookable dates" message fired FALSELY -- it told the booker no dates existed while 48 were
+   published, because the parent computed it from `availableDateKeys` / `isAvailableDatesLoading`,
+   which the parent no longer populates. FIXED by deriving it in the child, which owns availability.
+4. `ngbDatepicker`'s `ngModelChange` does NOT always emit an `NgbDateStruct` -- it can arrive as a
+   formatted string. Assuming the struct threw
+   "Cannot read properties of undefined (reading 'toString')" inside `onDatePicked`, so the time
+   options never populated. FIXED by normalising both shapes.
+
+Pattern across all four: THREE of them are state that used to be maintained by the method that moved.
+When extracting behaviour out of a large component, grep for everything the moved method ASSIGNED,
+not just what it read -- the assignments are the silent breakages.
+
+TOOLING TRAP, cost ~30 minutes: do NOT put `async` / `await sleep(...)` inside Playwright's
+`browser_evaluate`. It deadlocked the MCP server for 1800s before aborting. Click and read must be
+separate calls.
+
+Still UNVERIFIED at the time of writing: that fix 4 actually populates the time dropdown, and the two
+end-to-end bookings required by task 5.
+
 ## Validation loop
 
 Frontend-only diff, so no `dotnet` commands are required by `~/.claude/rules/testing.md` -- but the
