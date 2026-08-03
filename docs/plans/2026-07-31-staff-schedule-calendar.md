@@ -178,9 +178,23 @@ surface (patient names stay internal-only).
   `id` = appointment id, title composed from confirmation number + patient name, classed by
   requested-vs-booked), plus `isRequestedStatus(status)`.
 - pattern: `angular/src/app/admin/admin-hub.util.ts` -- pure exported functions unit-tested without
-  DI, which is how this codebase keeps components thin.
+  DI, which is how this codebase keeps components thin. Closer still: `avail-grid.util.ts` in this
+  same area, whose `.slice(0, 10)` date-portion guard this util reuses.
 - approach: tdd (the classification decides what staff see as free; a wrong answer causes a
   double-booking)
+
+  BLOCKER FOUND + RESOLVED DURING BUILD (2026-08-03): merely importing a TYPE from `fullcalendar`
+  failed the build -- FullCalendar v7's transitive `@full-ui/headless-calendar` references
+  `Intl.DateTimeRangeFormatPart`, which is declared in `lib.es2021.intl.d.ts`, but
+  `angular/tsconfig.json` sets `"lib": ["es2018", "dom"]` while `"target"` is ALREADY `ES2022` --
+  an inherited inconsistency, untouched since the initial commit. `skipLibCheck` is unset (so
+  `false`) repo-wide, which is why a dependency's `.d.ts` can break the build at all.
+  Decision (Adrian, 2026-08-03): widen to `"lib": ["es2022", "dom"]` rather than set
+  `skipLibCheck: true`, because it fixes the actual inconsistency and KEEPS dependency `.d.ts`
+  type-checking (Angular's own v20 template sets both; we deliberately take only the lib half).
+  Verified before deciding: full `npx ng build` passes and the initial bundle stays at its
+  pre-existing 2.32 MB. Rejected alternatives: `skipLibCheck: true` alone (hides future dependency
+  type regressions), both, and dropping FullCalendar.
 - acceptance (EARS):
   - WHEN a slot has `RemainingCapacity` 0, THE SYSTEM SHALL class its background event as full.
   - WHEN an appointment's status is `Pending`, `RescheduleRequested`, `CancellationRequested` or
