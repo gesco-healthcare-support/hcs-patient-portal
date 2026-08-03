@@ -74,7 +74,12 @@
   }
 
   // -- calendar surface ------------------------------------------------------
-  .fc {
+  // Styled via the HOST element, not `.fc`: FullCalendar v7 emits HASHED class
+  // names (fc-classic-dl1, fc-BO), so v6's stable `.fc` / `.fc-bg-event` hooks
+  // no longer exist. The element selector and our own event classes are the
+  // only stable handles.
+  full-calendar {
+    display: block;
     background: var(--surface-card);
     border-radius: 8px;
     padding: 12px;
@@ -84,20 +89,22 @@
   // -- slot occupancy bands --------------------------------------------------
   // Colour alone never carries the meaning: the toolbar legend labels each band
   // and every chip shows its confirmation number and patient name as text.
-  .fc-bg-event {
+  .slot-free,
+  .slot-partial,
+  .slot-full {
     opacity: 1;
+  }
 
-    &.slot-free {
-      background: var(--green-50);
-    }
+  .slot-free {
+    background: var(--green-50);
+  }
 
-    &.slot-partial {
-      background: var(--st-pending-bg);
-    }
+  .slot-partial {
+    background: var(--st-pending-bg);
+  }
 
-    &.slot-full {
-      background: var(--st-rejected-bg);
-    }
+  .slot-full {
+    background: var(--st-rejected-bg);
   }
 
   // -- appointment chips -----------------------------------------------------
@@ -111,15 +118,27 @@
     line-height: 1.3;
   }
 
+  // The colour must be forced onto the DESCENDANTS, not just the chip: v7 wraps
+  // the title in its own div that sets `color: #fff` via a hashed class. Setting
+  // it only on the chip leaves white text on a pale background -- legible in
+  // neither theme, and a contrast failure on a screen staff read all day.
   .appt-booked {
     background: var(--st-approved-bg);
-    color: var(--st-approved-fg);
     border-left: 3px solid var(--st-approved-dot);
+
+    &,
+    * {
+      color: var(--st-approved-fg);
+    }
   }
 
   .appt-requested {
     background: var(--st-pending-bg);
-    color: var(--st-pending-fg);
     border-left: 3px solid var(--st-pending-dot);
+
+    &,
+    * {
+      color: var(--st-pending-fg);
+    }
   }
 }

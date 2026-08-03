@@ -111,7 +111,10 @@ export function toBackgroundEvents(slots: ScheduleSlotDto[]): EventInput[] {
       id: `slot-${slot.slotId ?? ''}`,
       ...range,
       display: 'background',
-      classNames: [slotOccupancyClass(slot)],
+      // v7 takes `className` as a STRING (v6 took `classNames: string[]`). Passing
+      // the v6 shape type-checks -- EventInput tolerates extra properties -- but
+      // FullCalendar ignores it, so the slot renders with no occupancy colour.
+      className: slotOccupancyClass(slot),
       extendedProps: {
         kind: 'slot',
         slotId: slot.slotId,
@@ -148,7 +151,7 @@ export function toAppointmentEvents(slots: ScheduleSlotDto[]): EventInput[] {
         id: appointment.appointmentId ?? '',
         ...range,
         title: chipTitle(appointment),
-        classNames: [isRequestedStatus(appointment.status) ? 'appt-requested' : 'appt-booked'],
+        className: isRequestedStatus(appointment.status) ? 'appt-requested' : 'appt-booked',
         extendedProps: {
           kind: 'appointment',
           appointmentId: appointment.appointmentId,

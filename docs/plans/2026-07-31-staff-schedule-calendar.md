@@ -298,6 +298,35 @@ Live check (needs the local stack; restart the `angular` container first so it s
 open `/doctor-management/schedule` as a seeded staff user, confirm slots render at real times with
 booked/requested/free distinguishable, and click a chip through to the appointment.
 
+DONE 2026-08-03, as `admin@falkinstein.test` on `falkinstein.localhost:4200`, Demo Clinic South,
+week of 2026-07-12. Verified: nav item present; 24 slot bands + 24 chips matching the endpoint
+response exactly (1 `appt-booked` = the single Approved appointment, 23 `appt-requested`); the
+endpoint reloads on both location change and week navigation; chip click routed to
+`/appointments/view/2e0acb63-...` and that page rendered A00005 / the right patient; anonymous
+call to the endpoint returns 401.
+
+TWO REAL DEFECTS THE AUTOMATED LOOP COULD NOT CATCH -- both found only by looking at the running
+app, and both fixed:
+
+1. FullCalendar v7 replaced v6's `classNames: string[]` with `class`/`className` as a STRING
+   (`EVENT_UI_REFINERS`, `refineClassName`). Events carrying the v6 shape TYPE-CHECK -- `EventInput`
+   tolerates unknown properties because of `extendedProps` -- but FullCalendar silently ignores
+   them, so every slot band and chip rendered with NO occupancy colour. The unit tests passed
+   throughout because they asserted the object shape we invented, not the shape the library
+   consumes. Lesson: a pure mapper tested only against itself proves nothing about the contract.
+2. v7 emits HASHED class names (`fc-classic-dl1`, `fc-BO`), so the v6 hooks `.fc` and
+   `.fc-bg-event` match nothing. Styling now uses the `full-calendar` ELEMENT plus our own event
+   classes, which are the only stable handles. Related: v7 wraps the chip title in an inner div
+   that sets `color: #fff`, so the colour must be forced onto descendants (`&, *`) -- otherwise
+   chips render white-on-pale. Measured after the fix: 5.53:1 (booked) and 5.36:1 (requested),
+   both above the WCAG AA 4.5:1 floor.
+
+OPEN UX OBSERVATION (not a defect, not fixed): because the plan deliberately sets no
+`slotMinTime`/`slotMaxTime` -- clipping the day could hide a real slot -- the grid renders all 24
+hours, so roughly a third of the screen is empty night hours. A compact fix that still hides
+nothing would derive the bounds from the loaded slots' min/max times. Deferred: it needs the
+options object to become reactive, which the component deliberately avoids.
+
 ## Risk / rollback
 
 Blast radius: one new read endpoint, one new screen, one nav item, one dependency. Task 7 is the

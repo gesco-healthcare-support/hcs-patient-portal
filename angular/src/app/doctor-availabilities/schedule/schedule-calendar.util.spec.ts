@@ -63,8 +63,8 @@ describe('schedule-calendar.util', () => {
         slot({ slotId: 'b', activeCount: 3, remainingCapacity: 0 }),
       ]);
 
-      expect(events[0].classNames).toEqual(['slot-free']);
-      expect(events[1].classNames).toEqual(['slot-full']);
+      expect(events[0].className).toBe('slot-free');
+      expect(events[1].className).toBe('slot-full');
     });
 
     it('keeps a full slot in the result instead of hiding it', () => {
@@ -148,8 +148,8 @@ describe('schedule-calendar.util', () => {
     it('classes a requested appointment apart from a booked one', () => {
       const events = toAppointmentEvents([booked]);
 
-      expect(events[0].classNames).toEqual(['appt-booked']);
-      expect(events[1].classNames).toEqual(['appt-requested']);
+      expect(events[0].className).toBe('appt-booked');
+      expect(events[1].className).toBe('appt-requested');
     });
 
     it('places each chip at its slot time, since an appointment carries no time of its own', () => {
