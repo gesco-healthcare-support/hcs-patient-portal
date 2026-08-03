@@ -715,9 +715,7 @@ export class AppointmentAddComponent {
     this.form
       .get('locationId')
       ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
-    this.form.get('locationId')?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
     this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
-      this.loadAvailableDatesBySelection();
       this.applyFieldConfigsForAppointmentType(appointmentTypeId);
       // B1 (2026-05-05): rebuild the custom-field FormArray for the newly
       // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
@@ -2019,7 +2017,6 @@ export class AppointmentAddComponent {
           { appointmentTime: null, doctorAvailabilityId: null },
           { emitEvent: false },
         );
-        this.loadAvailableDatesBySelection();
         return;
       }
       this.toaster.error(message ?? 'Booking failed.');
@@ -3456,13 +3453,12 @@ export class AppointmentAddComponent {
   }
 
   private onAppointmentDateChanged(value: string | null): void {
+    // Phase 4a (2026-08-03): the availability check and the time-slot population moved into
+    // AvailabilityCalendarComponent, which only offers dates that HAVE availability and derives the
+    // times itself. What stays here is the role-aware horizon interception below -- that is
+    // booking-context UX, not a calendar rule, which is why the calendar is role-agnostic.
     const dateKey = this.toDateKeyFromControl(value);
-    if (!dateKey || !this.availableDateKeys.has(dateKey)) {
-      this.form.patchValue(
-        { appointmentTime: null, doctorAvailabilityId: null },
-        { emitEvent: false },
-      );
-      this.clearTimeSlots();
+    if (!dateKey) {
       return;
     }
 
@@ -3477,8 +3473,6 @@ export class AppointmentAddComponent {
       this.clearAppointmentDate();
       return;
     }
-
-    this.populateTimeSlotsForDate(dateKey);
   }
 
   /**

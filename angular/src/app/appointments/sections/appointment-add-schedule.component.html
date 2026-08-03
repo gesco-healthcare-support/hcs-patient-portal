@@ -46,86 +46,34 @@
         ></app-lookup-select>
       </div>
 
-      <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">
-        <label class="form-label fw-semibold">{{ '::AppointmentDate' | abpLocalization }} *</label>
-        <div class="input-group">
-          <input
-            readonly
-            class="form-control"
-            formControlName="appointmentDate"
-            [class.is-invalid]="isFieldInvalid('appointmentDate')"
-            ngbDatepicker
-            #appointmentDatePicker="ngbDatepicker"
-            [displayMonths]="2"
-            [markDisabled]="markAppointmentDateDisabled"
-            [dayTemplate]="appointmentDateDayTpl"
-            (click)="appointmentDatePicker.open()"
+      <!--
+        Phase 4a (2026-08-03): the date + time columns became
+        <app-availability-calendar>. They moved together because choosing a date is what yields the
+        time options and the doctorAvailabilityId, so splitting them would put one half in a
+        component and the other here. The form contract is unchanged: this still patches
+        appointmentDate / appointmentTime / doctorAvailabilityId. appointmentDate is patched WITH
+        events so the parent's existing role-horizon interception (contact-staff notice beyond 60
+        days for external users) still fires -- that rule is role-aware and stays in the parent.
+      -->
+      @if (checkForAppointmentTypeSelected) {
+        <div class="col-md-6 mb-3">
+          <app-availability-calendar
+            [locationId]="form.get('locationId')?.value ?? null"
+            [appointmentTypeId]="form.get('appointmentTypeId')?.value ?? null"
+            [typeChosen]="checkForAppointmentTypeSelected"
+            [selectedDate]="selectedDateKey"
+            [selectedTime]="form.get('appointmentTime')?.value ?? null"
+            [dateInvalid]="isFieldInvalid('appointmentDate')"
+            [timeInvalid]="isFieldInvalid('appointmentTime')"
+            [minimumBookingRuleMessage]="minimumBookingRuleMessage"
+            [noBookableDatesMessage]="noBookableDatesMessage"
+            [dateLabel]="'::AppointmentDate' | abpLocalization"
+            [noSlotsMessage]="'Appointment:NoSlotsRemaining' | abpLocalization"
+            (slotSelected)="onSlotSelected($event)"
+            (dateCleared)="appointmentDateCleared.emit()"
           />
-          <button
-            class="btn btn-outline-secondary"
-            type="button"
-            (click)="appointmentDatePicker.open()"
-          >
-            <i class="fa fa-calendar"></i>
-          </button>
-          @if (form.get('appointmentDate')?.value) {
-            <button
-              class="btn btn-outline-secondary"
-              type="button"
-              (click)="appointmentDateCleared.emit()"
-            >
-              <i class="fa fa-times"></i>
-            </button>
-          }
         </div>
-        <ng-template
-          #appointmentDateDayTpl
-          let-date="date"
-          let-currentMonth="currentMonth"
-          let-selected="selected"
-        >
-          <span
-            class="appointment-date-day"
-            [class.outside-month]="date.month !== currentMonth"
-            [class.selected-day]="selected"
-            [class.available-day]="
-              date.month === currentMonth && !selected && isAvailableAppointmentDate(date)
-            "
-          >
-            {{ date.day }}
-          </span>
-        </ng-template>
-        @if (isAvailableDatesLoading) {
-          <small class="text-muted">Loading available dates...</small>
-        }
-        @if (!isAvailableDatesLoading && form.get('appointmentDate')?.value) {
-          <small class="text-muted">{{ minimumBookingRuleMessage }}</small>
-        }
-        @if (noBookableDatesMessage) {
-          <small class="text-warning d-block mt-1">{{ noBookableDatesMessage }}</small>
-        }
-      </div>
-
-      <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">
-        <label class="form-label fw-semibold">Appointment Time *</label>
-        <select
-          class="form-select"
-          formControlName="appointmentTime"
-          [class.is-invalid]="isFieldInvalid('appointmentTime')"
-        >
-          <option [ngValue]="null">SELECT</option>
-          @for (slot of appointmentTimeOptions; track slot.value) {
-            <option [value]="slot.value">{{ slot.label }}</option>
-          }
-        </select>
-        @if (
-          form.get('appointmentDate')?.value &&
-          !isAvailableDatesLoading &&
-          appointmentTimeOptions.length === 0
-        ) {
-          <small class="text-danger">{{ 'Appointment:NoSlotsRemaining' | abpLocalization }}</small>
-        }
-      </div>
+      }
     </div>
   </div>
 </div>
