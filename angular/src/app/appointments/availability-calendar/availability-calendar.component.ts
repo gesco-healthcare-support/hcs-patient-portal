@@ -150,10 +150,27 @@ export class AvailabilityCalendarComponent implements OnChanges {
     );
   }
 
+  /**
+   * MEMOISED, and that is load-bearing. This is bound with `[ngModel]`, and a getter that returns a
+   * FRESH object every call makes Angular see a new reference on every change-detection pass, which
+   * ngModel writes back, which schedules another pass -- an infinite loop that wedges the browser
+   * hard enough to hang tooling. Recompute only when `selectedDate` actually changes.
+   */
+  private selectedDateStructCache: NgbDateStruct | null = null;
+  private selectedDateStructKey: string | null = null;
+
   protected get selectedDateStruct(): NgbDateStruct | null {
-    if (!this.selectedDate) return null;
+    if (this.selectedDateStructKey === this.selectedDate) {
+      return this.selectedDateStructCache;
+    }
+    this.selectedDateStructKey = this.selectedDate;
+    if (!this.selectedDate) {
+      this.selectedDateStructCache = null;
+      return null;
+    }
     const [year, month, day] = this.selectedDate.split('-').map(Number);
-    return year && month && day ? { year, month, day } : null;
+    this.selectedDateStructCache = year && month && day ? { year, month, day } : null;
+    return this.selectedDateStructCache;
   }
 
   /**
