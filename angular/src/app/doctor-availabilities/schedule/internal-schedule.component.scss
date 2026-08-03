@@ -1,0 +1,125 @@
+// FullCalendar v7 ships its CSS as separate files (v6 injected them from JS).
+// Importing them HERE rather than in angular.json keeps them in this route's
+// lazy chunk -- the initial bundle is already over budget, so nothing about this
+// screen may land in it.
+@use 'fullcalendar/skeleton.css';
+@use 'fullcalendar/themes/classic/theme.css';
+@use 'fullcalendar/themes/classic/palette.css';
+
+// This component runs with ViewEncapsulation.None because FullCalendar builds
+// its DOM imperatively. Everything below is therefore nested under .sched-page
+// so none of it escapes into the rest of the app.
+.sched-page {
+  .sched-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    label {
+      font-size: 12px;
+      color: var(--n-600);
+    }
+
+    .ia-input {
+      width: 230px;
+    }
+  }
+
+  .sched-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--n-600);
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .key {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid var(--border-strong);
+    }
+
+    .key--free {
+      background: var(--green-50);
+    }
+    .key--partial {
+      background: var(--st-pending-bg);
+    }
+    .key--full {
+      background: var(--st-rejected-bg);
+    }
+    .key--booked {
+      background: var(--st-approved-dot);
+    }
+    .key--requested {
+      background: var(--st-pending-dot);
+    }
+  }
+
+  .sched-status {
+    font-size: 12px;
+    color: var(--n-600);
+  }
+
+  .sched-empty {
+    margin: 24px 0;
+    color: var(--n-600);
+  }
+
+  // -- calendar surface ------------------------------------------------------
+  .fc {
+    background: var(--surface-card);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  // -- slot occupancy bands --------------------------------------------------
+  // Colour alone never carries the meaning: the toolbar legend labels each band
+  // and every chip shows its confirmation number and patient name as text.
+  .fc-bg-event {
+    opacity: 1;
+
+    &.slot-free {
+      background: var(--green-50);
+    }
+
+    &.slot-partial {
+      background: var(--st-pending-bg);
+    }
+
+    &.slot-full {
+      background: var(--st-rejected-bg);
+    }
+  }
+
+  // -- appointment chips -----------------------------------------------------
+  .appt-booked,
+  .appt-requested {
+    cursor: pointer;
+    border-radius: 4px;
+    border: none;
+    padding: 1px 4px;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .appt-booked {
+    background: var(--st-approved-bg);
+    color: var(--st-approved-fg);
+    border-left: 3px solid var(--st-approved-dot);
+  }
+
+  .appt-requested {
+    background: var(--st-pending-bg);
+    color: var(--st-pending-fg);
+    border-left: 3px solid var(--st-pending-dot);
+  }
+}
