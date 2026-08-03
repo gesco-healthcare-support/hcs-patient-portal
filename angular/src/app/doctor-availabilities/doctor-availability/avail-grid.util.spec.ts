@@ -7,6 +7,7 @@ import {
   formatTimeRange,
   formatWeekRange,
   isoDate,
+  slotStatusKey,
   startOfWeekMonday,
   weekDatesFor,
 } from './avail-grid.util';
@@ -150,6 +151,64 @@ describe('avail-grid.util', () => {
       const tuesday = buildWeekColumns(items, week)[1];
       expect(tuesday.total).toBe(3);
       expect(tuesday.busy).toBe(2);
+    });
+  });
+
+  describe('slotStatusKey -- occupancy-driven colour', () => {
+    it('reports a slot with capacity left as available', () => {
+      expect(slotStatusKey(BookingStatus.Available, 2)).toBe('available');
+    });
+
+    it('reports a slot with nothing left as booked', () => {
+      // The whole point of the change: BookingStatus.Booked is never assigned by
+      // any code, so a full slot used to render as available.
+      expect(slotStatusKey(BookingStatus.Available, 0)).toBe('booked');
+    });
+
+    it('keeps a manually reserved slot unavailable even when it has room', () => {
+      expect(slotStatusKey(BookingStatus.Reserved, 3)).toBe('reserved');
+    });
+
+    it('falls back to the stored status when occupancy was not computed', () => {
+      // Reads that do not populate remainingCapacity must not be reported as free.
+      expect(slotStatusKey(BookingStatus.Reserved, null)).toBe('reserved');
+      expect(slotStatusKey(BookingStatus.Booked, undefined)).toBe('booked');
+      expect(slotStatusKey(BookingStatus.Available, undefined)).toBe('available');
+    });
+  });
+
+  describe('buildWeekColumns -- occupancy', () => {
+    const occupiedRow = (
+      remainingCapacity: number | undefined,
+      status = BookingStatus.Available,
+    ): DoctorAvailabilityWithNavigationPropertiesDto => ({
+      doctorAvailability: {
+        id: `slot-${remainingCapacity}-${status}`,
+        availableDate: '2026-06-15T00:00:00',
+        fromTime: '09:00:00',
+        toTime: '10:00:00',
+        bookingStatusId: status,
+        capacity: 3,
+        remainingCapacity,
+      },
+    });
+
+    it('colours a full slot as booked and counts it as busy', () => {
+      const week = weekDatesFor(new Date(2026, 5, 15), 0);
+
+      const monday = buildWeekColumns([occupiedRow(0)], week)[0];
+
+      expect(monday.slots[0].statusKey).toBe('booked');
+      expect(monday.busy).toBe(1);
+    });
+
+    it('leaves a partly booked slot bookable', () => {
+      const week = weekDatesFor(new Date(2026, 5, 15), 0);
+
+      const monday = buildWeekColumns([occupiedRow(1)], week)[0];
+
+      expect(monday.slots[0].statusKey).toBe('available');
+      expect(monday.busy).toBe(0);
     });
   });
 });

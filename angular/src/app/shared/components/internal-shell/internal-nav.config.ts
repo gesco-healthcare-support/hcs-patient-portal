@@ -120,6 +120,18 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
       },
       {
+        id: 'schedule',
+        label: 'Schedule',
+        // 'clock' rather than 'calendar': this is the time-grid read view, and the
+        // sibling slot-management grid above already owns the calendar icon.
+        icon: 'clock',
+        route: '/doctor-management/schedule',
+        // Same audience and policy as the availabilities grid it sits beside, so
+        // visibility equals access -- no dead nav item, no click-into-403.
+        roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
+      },
+      {
         id: 'locations',
         label: 'Locations',
         icon: 'map',

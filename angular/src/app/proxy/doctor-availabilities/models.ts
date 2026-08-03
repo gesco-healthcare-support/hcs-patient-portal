@@ -2,6 +2,7 @@ import type { BookingStatus } from '../enums/booking-status.enum';
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { LocationDto } from '../locations/models';
 import type { AppointmentTypeDto } from '../appointment-types/models';
+import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
 
 export interface DoctorAvailabilityBulkDeleteResultDto {
   deletedCount?: number;
@@ -117,6 +118,30 @@ export interface GetDoctorAvailabilityLookupInput {
   appointmentTypeId?: string | null;
   availableDateFrom?: string | null;
   availableDateTo?: string | null;
+}
+
+export interface GetScheduleInput {
+  locationId: string;
+  fromDate: string;
+  toDate: string;
+}
+
+export interface ScheduleAppointmentDto {
+  appointmentId?: string;
+  requestConfirmationNumber?: string;
+  patientName?: string;
+  status?: AppointmentStatusType;
+}
+
+export interface ScheduleSlotDto {
+  slotId?: string;
+  availableDate?: string;
+  fromTime?: string;
+  toTime?: string;
+  capacity?: number;
+  activeCount?: number;
+  remainingCapacity?: number;
+  appointments?: ScheduleAppointmentDto[];
 }
 
 export interface SlotPatientNamesDto {

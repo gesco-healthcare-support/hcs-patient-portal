@@ -82,14 +82,35 @@ Admin and Staff Supervisor.
 
 | # | Phase | Branch | Plan | Status |
 |---|---|---|---|---|
-| 1 | Staff Supervisor CT permissions | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md` | PLAN APPROVED - not built |
-| 2 | Cancellation reason + billing status to CT | `feat/cancel-reason-to-case-tracker` | not written | TODO |
-| 3 | Staff schedule calendar (FullCalendar) | `feat/staff-schedule-calendar` | not written | TODO |
+| 1 | Staff Supervisor CT permissions | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md` | **DONE** - PR #409 -> main `7b0d9c30` |
+| 2 | Cancellation reason + billing status to CT | `feat/cancel-reason-to-case-tracker` | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
+| 3 | Staff schedule calendar (FullCalendar) | `feat/staff-schedule-calendar` | in progress | PLANNING |
 | 4a | Extract reusable availability calendar | `refactor/extract-availability-calendar` | not written | TODO (prereq for 4b) |
 | 4b | Staff pick the reschedule date | `feat/staff-picks-reschedule-date` | not written | TODO (after 4a) |
 | 4c | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds` | not written | TODO (after 4b) |
 | 4d | Reschedule creates a new appointment | `feat/reschedule-creates-new-appointment` | not written | TODO (after 4c) |
 | 4e | CT two-case semantics + contract amendment | `feat/case-tracker-two-case-reschedule` | not written | TODO (after 4d) |
+| 5 | No-show round trip (INBOUND from CT) | `feat/no-show-round-trip` | not written | TODO (after 4d) |
+
+Phase 5 ADDED 2026-07-31 (Adrian, while resolving phase 2's NoShow question). It is NOT a phase-2
+rider: it needs an INBOUND Case Tracker -> portal endpoint, which does not exist today (the
+integration is push-only plus a reconcile GET). Flow: CT staff mark a no-show -> CT calls a NEW
+portal endpoint with the appointment info -> the portal sets the appointment to `NoShow` and ALERTS
+staff -> staff use the appointment number to create a replacement appointment that is PRE-APPROVED
+-> external parties may then cancel/reschedule it by the normal routes -> the replacement is pushed
+to CT so it starts tracking. Sequenced after 4d because "create a pre-approved replacement" reuses
+4d's create-new-appointment machinery.
+
+Open questions to settle before planning phase 5:
+- Auth: reuse the static `X-Integration-Token` that already guards the reconcile GET (contract §F),
+  or mint something separate?
+- Office resolution: database-per-office means the request must carry `{tenantId}` as a PATH
+  segment, exactly as §F documents for the reconcile GET -- a header will not do, since the portal
+  blocks tenant headers globally.
+- Idempotency: what happens when CT retries the same no-show?
+- MUST VERIFY FIRST: whether `Approved -> NoShow` is even a legal transition. `NoShow` is in
+  `AppointmentStatusType` but the contract records it as having NO API surface today, so the state
+  machine (`AppointmentManager.BuildMachine`) has to be read before any of this can be planned.
 
 Phases 1, 2 and 3 are mutually independent. 4a-4e are strictly sequential.
 
@@ -164,7 +185,9 @@ rather than expanding scope; Adrian was told and did not exclude them.
 
 ## Learnings carried forward
 
-Append after each phase. Empty until Phase 1 ships.
+Append after each phase.
+
+### Process
 
 - (2026-07-31, pre-build) The worktree was stale on a merged branch while `origin/main`
   had advanced through PR #406. Always fast-forward `main` before designing OR building a
@@ -172,4 +195,66 @@ Append after each phase. Empty until Phase 1 ships.
 - (2026-07-31, pre-build) Phase 1 shrank mid-design: PR #406 (`058fd57f`) had already
   granted IT Admin the same two permissions hours earlier, leaving only the Staff
   Supervisor half. Re-check `origin/main` at the START of each phase's design -- other
-  sessions are shipping into this repo.
+  sessions are shipping into this repo. Main moved FOUR times during 2026-07-31 alone
+  (#406, #408, #411-#413, then this epic's own merges).
+- (P1) SHARED-WORKTREE BRANCH HAZARD, cost a recovery: another session switched the
+  worktree's branch mid-build, so the commit landed on THEIR branch. Committing by pathspec
+  protects their FILES but CANNOT protect against the branch ref moving. Re-check
+  `git rev-parse --abbrev-ref HEAD` IMMEDIATELY before every commit. Recovery that rewrote
+  nothing pushed: switch to the intended branch, `git cherry-pick <sha>`, then
+  `git branch -f <their-branch> origin/<their-branch>`.
+- (P1) SCOPE LESSON: the CT1 ask contained TWO requirements -- "accessible using UI" AND
+  "IT admin and Staff Supervisor can access". The plan covered only the second, and the
+  missing sidebar entry surfaced during live QA. Decompose each requested SENTENCE into its
+  separate verifiable claims BEFORE writing the plan.
+- (P2) Do not mark an app-service task `tdd` without first checking a harness exists. The
+  change-request area has ZERO integration coverage and no test-data seeder, and
+  `AppointmentChangeRequestsAppService` takes 10 ctor dependencies (five CONCRETE classes)
+  plus 13 uses of ABP ambient members -- so it is neither unit- nor integration-testable
+  today. Phase 4c NEEDS that harness; it is tracked separately.
+- (P2) When a plan says "reuse that exact string", READ THE CONSUMERS FIRST.
+  `"JDF-not-uploaded"` turned out to be a routing DISCRIMINATOR that
+  `JdfAutoCancelledEmailHandler` filters on, and the column it would have been persisted
+  into is rendered to patients. Two constants were needed, not one.
+
+### Environment / tooling
+
+- (P1) Dev containers build from BIND-MOUNTED source at container START, so after a branch
+  switch `api`/`angular` still serve the OLD branch's code. Restart both before any live
+  verification. Angular takes ~2 minutes to come back.
+- (P1) `ng lint` / `yarn lint` is BROKEN locally: `@angular-eslint/builder` 20 expects
+  ESLint 9 flat config but ESLint 8.57.1 is installed, so it reports "Invalid lint
+  configuration. Nothing to lint". CI's lint job passes. Use `npx eslint <changed files>`,
+  which honours the legacy `.eslintrc.json`.
+- (P1) Run `npx prettier --check` on changed frontend files BEFORE committing -- it caught a
+  spec that would otherwise have failed CI's Frontend: Format Check.
+- (P1) Playwright MCP writes screenshots to the HOME ROOT, violating the no-artifacts rule.
+  Move them to the scratchpad, or to `.github/pr-media/` for a PR.
+- (P1) Shell gotcha: `grep -c` exits 1 when the count is 0, silently breaking an `&&` chain
+  and truncating the rest of a diagnostic command. Use `;` between independent checks.
+- (P2) Passing SQL through `tr '"' "'"` mangles any escaped quotes inside the statement. Use
+  a quoted heredoc piped into `cat > /tmp/x.sql; sqlcmd ... -i /tmp/x.sql`, and keep the
+  `/opt/...` sqlcmd path OFF the front of `bash -c` or MSYS rewrites it to a Windows path.
+- (P1) `AbpPermissionGrants` has NO audit columns, so a hand-ticked grant is indistinguishable
+  from a seeded one. To prove a seeder change on a dirty local DB, use a role that LACKS the
+  grant as the control.
+
+### Verification
+
+- (P2) The live check is worth its cost: it proved the persist assignment executes AND that
+  the outbox payload serializes the new fields, neither of which any existing test could
+  cover. Recipe: SQL-seed a change request with both consent sides set to `Approved` (2),
+  approve through the office UI, then assert on the appointment row and the queued
+  `AppIntegrationOutboxItems.Payload`.
+- (P2) Consent gating is ON (`AppointmentChangeRequestConsts.ConsentGatingEnabled = true`),
+  so any approval test must set consent state directly -- the tokenised email click cannot be
+  simulated.
+- (P2) Left behind by the phase-2 live check, on purpose rather than silently reverted:
+  falkinstein appointment **A00034** is now `CancelledLate` and carries a seeded
+  change-request row. Restore it if a later phase needs A00034 back in `Approved`.
+
+### Case Tracker coordination
+
+- (P2) Additive wire fields need NO coordinated release -- a receiver that ignores unknown
+  fields stays correct. Only phase 4e's two-case reschedule is a genuine contract BREAK
+  requiring Levon to change his receiver.
