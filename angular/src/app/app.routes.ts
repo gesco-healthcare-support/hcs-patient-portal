@@ -131,6 +131,15 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   { path: 'doctor-management/wcab-offices', children: WCAB_OFFICE_ROUTES },
   { path: 'doctor-management/doctors', children: DOCTOR_ROUTES },
   {
+    path: 'doctor-management/schedule',
+    loadComponent: () =>
+      import('./doctor-availabilities/schedule/internal-schedule.component').then(
+        (c) => c.InternalScheduleComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.DoctorAvailabilities' },
+  },
+  {
     path: 'doctor-management/doctor-availabilities/generate',
     loadComponent: () =>
       import('./doctor-availabilities/doctor-availability/internal-generate-slots.component').then(
