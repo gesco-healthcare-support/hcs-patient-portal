@@ -1,7 +1,8 @@
 ---
 feature: Google-Calendar-style staff schedule with clickable appointment chips
 date: 2026-07-31
-status: in-progress
+status: done
+shipped: PR #418 -> main 1784a6bb (2026-08-03)
 base-branch: main
 related-issues: []
 ---

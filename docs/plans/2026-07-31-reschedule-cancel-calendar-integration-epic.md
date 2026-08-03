@@ -84,7 +84,7 @@ Admin and Staff Supervisor.
 |---|---|---|---|---|
 | 1 | Staff Supervisor CT permissions | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md` | **DONE** - PR #409 -> main `7b0d9c30` |
 | 2 | Cancellation reason + billing status to CT | `feat/cancel-reason-to-case-tracker` | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
-| 3 | Staff schedule calendar (FullCalendar) | `feat/staff-schedule-calendar` | in progress | PLANNING |
+| 3 | Staff schedule calendar (FullCalendar) | `feat/staff-schedule-calendar` | `2026-07-31-staff-schedule-calendar.md` | **DONE** - PR #418 -> main `1784a6bb` |
 | 4a | Extract reusable availability calendar | `refactor/extract-availability-calendar` | not written | TODO (prereq for 4b) |
 | 4b | Staff pick the reschedule date | `feat/staff-picks-reschedule-date` | not written | TODO (after 4a) |
 | 4c | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds` | not written | TODO (after 4b) |
@@ -217,6 +217,22 @@ Append after each phase.
   `JdfAutoCancelledEmailHandler` filters on, and the column it would have been persisted
   into is rendered to patients. Two constants were needed, not one.
 
+- (P3) **A PURE MAPPER TESTED ONLY AGAINST ITSELF PROVES NOTHING ABOUT THE CONTRACT.** The single
+  most useful lesson of the epic so far. 432 frontend + 1831 backend tests were green while EVERY
+  calendar band and chip rendered with no occupancy colour, because FullCalendar v7 renamed the event
+  class property (v6 `classNames: string[]` -> v7 `class`/`className` as a STRING) and the v6 shape
+  still TYPE-CHECKS: `EventInput` tolerates unknown keys on account of `extendedProps`, so the
+  library silently ignored it. The unit tests asserted the object shape WE invented, not the shape
+  the library consumes. Where a mapper feeds a third-party component, at least one check must
+  exercise the real component or the real rendered output.
+- (P3) Task 2's `tdd` flag WAS achievable here, unlike phase 2's -- this app service has an
+  integration harness (`DoctorAvailabilitiesAppServiceTests<T>` + `EfCore...` subclass) and the
+  seed data was ideal: Slot1 is seeded `BookingStatus.Booked` AND holds Appointment1
+  (`Pending`, `A90001`), so ONE read proves the endpoint's whole point. Check for a harness and
+  usable seed data BEFORE assuming a task cannot be TDD'd.
+- (P3) Phase 3's SonarCloud quality gate PASSED, where phase 2's failed at 77.8% new-code coverage.
+  The difference was purely that the logic here was extracted into pure, tested units.
+
 ### Environment / tooling
 
 - (P1) Dev containers build from BIND-MOUNTED source at container START, so after a branch
@@ -238,6 +254,33 @@ Append after each phase.
 - (P1) `AbpPermissionGrants` has NO audit columns, so a hand-ticked grant is indistinguishable
   from a seeded one. To prove a seeder change on a dirty local DB, use a role that LACKS the
   grant as the control.
+- (P3) FullCalendar v7 specifics, for whoever touches the calendar next: there is NO
+  `@fullcalendar/timegrid` v7 (asking for it resolves 6.1.21 against a 7.0.2 core with unmet
+  peers) -- plugins come from the `fullcalendar` BUNDLE subpaths (`fullcalendar/timegrid`,
+  `fullcalendar/themes/classic`), a theme plugin must be registered, and 3 CSS files are needed.
+  `FullCalendarComponent` is NOT standalone: import `FullCalendarModule`. Click type is
+  `EventClickInfo` (v6: `EventClickArg`); range type is `DatesSetInfo`. v7 emits HASHED class names
+  (`fc-classic-dl1`), so v6's `.fc` / `.fc-bg-event` selectors match NOTHING -- style via the
+  `full-calendar` element plus our own event classes, and force chip colour onto descendants
+  (`&, *`) because v7 wraps the title in a div setting `color: #fff`.
+- (P3) FullCalendar weeks are Sunday-start here, and its `datesSet.end` is EXCLUSIVE while
+  `GetScheduleInput` treats both bounds as INCLUSIVE -- the client sends `end - 1 day`.
+- (P3) `abp generate-proxy` churns the WHOLE repo (rewrote 40 files, deleted `proxy/books/`, added
+  `proxy/integration/`). Repo precedent (`0f904e7a`, same app service) commits ONLY the touched
+  feature files + `generate-proxy.json` and reverts the rest. `angular/src/app/proxy/**` is
+  `linguist-generated -diff` in `.gitattributes`, which is why those show as "Binary files differ"
+  -- intentional noise suppression, not corruption. Also: the CLI cannot resolve
+  `admin.api.localhost`; use `http://localhost:44327`.
+- (P3) `angular/tsconfig.json` had `lib: es2018` while `target` was already `ES2022`, an inherited
+  inconsistency. Widened `lib` to es2022 rather than setting `skipLibCheck: true`, so dependency
+  `.d.ts` files stay type-checked.
+- (P3) The angular container serves a STATIC build made at container START -- source edits do NOT
+  hot-reload. `docker restart main-angular-1` and wait ~75s for "Accepting connections" after every
+  frontend change before re-checking live.
+- (P3) DO NOT RUN THE PORTAL AND MRR STACKS AT ONCE. WSL2 is capped at 12 GB on a 15.5 GB host;
+  starting the 7-container portal stack alongside the 11-container MRR stack took the whole WSL2 VM
+  down -- every container SIGKILLed at the same instant with `OOMKilled=false`, which is the
+  VM-level signature rather than a cgroup kill.
 
 ### Verification
 
@@ -252,6 +295,16 @@ Append after each phase.
 - (P2) Left behind by the phase-2 live check, on purpose rather than silently reverted:
   falkinstein appointment **A00034** is now `CancelledLate` and carries a seeded
   change-request row. Restore it if a later phase needs A00034 back in `Approved`.
+- (P3) Best live-check data for the calendar: office **Demo Clinic South**
+  (`A0A00005-0000-4000-9000-000000000002`), week of **2026-07-12** -- 24 slots, 24 appointments,
+  exactly 1 Approved (A00005) and 23 Pending/InfoRequested. The CURRENT week is empty for that
+  office, so the calendar legitimately looks blank until you page back; do not read that as a bug.
+- (P3) Known cosmetic gap shipped deliberately: the calendar sets no `slotMinTime`/`slotMaxTime`, so
+  all 24 hours render and night hours sit empty. Clipping the day could HIDE a real slot, which on a
+  staff schedule is a correctness bug rather than a cosmetic one. A compact fix that still hides
+  nothing is to derive bounds from the loaded slots, but that needs `calendarOptions` to become
+  reactive, which the component avoids on purpose (FullCalendar deep-checks that input; a new object
+  per cycle churns the calendar). Only `events` is data-bound.
 
 ### Case Tracker coordination
 
