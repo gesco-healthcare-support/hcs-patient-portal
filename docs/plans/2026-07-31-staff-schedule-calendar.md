@@ -73,7 +73,7 @@ surface (patient names stay internal-only).
   and its interface in `Application.Contracts/DoctorAvailabilities/`. NOTE: the controller
   `src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs`
   IMPLEMENTS the interface (`[RemoteService] [Area("app")] [ControllerName("DoctorAvailability")]
-  [Route("api/app/doctor-availabilities")]`), so a new interface member MUST also be added there or
+[Route("api/app/doctor-availabilities")]`), so a new interface member MUST also be added there or
   the build breaks.
 - Permission pattern to mirror: `[Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]`
   on `GetSlotPatientNamesAsync` (`DoctorAvailabilitiesAppService.cs:627-628`), whose doc comment
@@ -105,7 +105,7 @@ surface (patient names stay internal-only).
 
 - what: CREATE `src/HealthcareSupport.CaseEvaluation.Application/DoctorAvailabilities/ScheduleProjection.cs`
   with a static `ScheduleProjection.Build(IReadOnlyCollection<DoctorAvailability> slots,
-  IReadOnlyCollection<ScheduleAppointmentDto> appointments, IReadOnlyDictionary<Guid, long> activeCounts)`
+IReadOnlyCollection<ScheduleAppointmentDto> appointments, IReadOnlyDictionary<Guid, long> activeCounts)`
   returning `List<ScheduleSlotDto>`: group appointments by `DoctorAvailabilityId`, set
   `ActiveCount` from the dictionary (missing = 0) and `RemainingCapacity = Max(0, Capacity - ActiveCount)`,
   and order by date then `FromTime`.
@@ -163,6 +163,7 @@ surface (patient names stay internal-only).
   `node_modules/@fullcalendar/` holds only `angular` + `core` -- no `resource-*`/timeline package
   was pulled in, so nothing commercial is present. Import plugins FROM the bundle, not from
   `@fullcalendar/timegrid`.
+
 - pattern: n/a (dependency addition). Do NOT add any `@fullcalendar/resource-*` or timeline package
   -- those are the commercial ones.
 - approach: code
@@ -195,6 +196,7 @@ surface (patient names stay internal-only).
   Verified before deciding: full `npx ng build` passes and the initial bundle stays at its
   pre-existing 2.32 MB. Rejected alternatives: `skipLibCheck: true` alone (hides future dependency
   type regressions), both, and dropping FullCalendar.
+
 - acceptance (EARS):
   - WHEN a slot has `RemainingCapacity` 0, THE SYSTEM SHALL class its background event as full.
   - WHEN an appointment's status is `Pending`, `RescheduleRequested`, `CancellationRequested` or
@@ -249,6 +251,15 @@ independent of tasks 1-6 and can be dropped without affecting them.
   `BookingStatusId`, keeping `Reserved` as the manual-close indicator it actually is.
 - pattern: the count+assign block at `DoctorAvailabilitiesAppService.cs:601-614`.
 - approach: test-after
+
+  DEVIATION (2026-08-03): the template needed NO change. The plan assumed
+  `internal-availabilities.component.html` read `BookingStatusId` directly; it actually binds
+  only `slot.statusKey`, which `avail-grid.util.buildWeekColumns` computes. So the colour fix
+  is one new pure function (`slotStatusKey`) plus its call site -- the template is untouched.
+  `slotStatusKey` falls back to the stored status when `remainingCapacity` is null, so reads
+  that do not compute occupancy are not silently reported as free; that fallback is what keeps
+  the pre-existing `buildWeekColumns` specs passing unchanged.
+
 - acceptance (EARS):
   - WHEN the availabilities grid loads, THE SYSTEM SHALL colour each slot from its active-count
     versus capacity, not from `BookingStatusId`.

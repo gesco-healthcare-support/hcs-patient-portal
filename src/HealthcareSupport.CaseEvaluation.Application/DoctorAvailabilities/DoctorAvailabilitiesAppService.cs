@@ -63,11 +63,53 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     {
         var totalCount = await _doctorAvailabilityRepository.GetCountAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId);
         var items = await _doctorAvailabilityRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var dtos = ObjectMapper.Map<List<DoctorAvailabilityWithNavigationProperties>, List<DoctorAvailabilityWithNavigationPropertiesDto>>(items);
+
+        // Phase 3 (2026-08-03) -- populate RemainingCapacity here too, so the grid can
+        // colour a slot by whether it is REALLY full. It previously had no occupancy at
+        // all and fell back on BookingStatusId, which no code ever sets to Booked, so
+        // every slot looked available until someone manually reserved it. One bulk read
+        // over the page's slots, mirroring the picker's N+1 avoidance.
+        await PopulateRemainingCapacityAsync(dtos);
+
         return new PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<DoctorAvailabilityWithNavigationProperties>, List<DoctorAvailabilityWithNavigationPropertiesDto>>(items)
+            Items = dtos
         };
+    }
+
+    /// <summary>
+    /// Fills <see cref="DoctorAvailabilityDto.RemainingCapacity"/> from the real
+    /// non-terminal appointment count for each slot on the page. Missing key means zero
+    /// active appointments; the value is clamped at 0 so an over-subscribed slot never
+    /// reads as bookable.
+    /// </summary>
+    private async Task PopulateRemainingCapacityAsync(List<DoctorAvailabilityWithNavigationPropertiesDto> dtos)
+    {
+        var slotIds = dtos
+            .Where(x => x.DoctorAvailability != null)
+            .Select(x => x.DoctorAvailability.Id)
+            .ToList();
+
+        if (slotIds.Count == 0)
+        {
+            return;
+        }
+
+        var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
+
+        foreach (var dto in dtos)
+        {
+            var slot = dto.DoctorAvailability;
+            if (slot == null)
+            {
+                continue;
+            }
+
+            var active = activeCounts.TryGetValue(slot.Id, out var count) ? count : 0;
+            slot.RemainingCapacity = (int)Math.Max(0, slot.Capacity - active);
+        }
     }
 
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]

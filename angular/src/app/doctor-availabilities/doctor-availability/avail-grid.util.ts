@@ -55,6 +55,32 @@ export function bookingStatusLabel(status: BookingStatus | undefined | null): st
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
+/**
+ * Phase 3 (2026-08-03) -- the grid colour, from REAL occupancy.
+ *
+ * `BookingStatus.Booked` is assigned by no code in the system, so colouring by
+ * status alone painted every slot "available" until someone manually reserved
+ * one -- a fully booked slot looked free. `remainingCapacity` now comes back
+ * from GetListAsync, so a slot is booked when nothing is left on it.
+ *
+ * `Reserved` still wins: it is the manual close, and staff closing a slot must
+ * not be overridden by it happening to have room.
+ */
+export function slotStatusKey(
+  status: BookingStatus | undefined | null,
+  remainingCapacity: number | undefined | null,
+): SlotStatusKey {
+  if (status === BookingStatus.Reserved) {
+    return 'reserved';
+  }
+  // Null means this read did not compute occupancy; fall back to the stored
+  // status rather than asserting the slot is free.
+  if (remainingCapacity == null) {
+    return bookingStatusToKey(status);
+  }
+  return remainingCapacity <= 0 ? 'booked' : 'available';
+}
+
 interface ParsedTime {
   h: number;
   m: number;
@@ -164,7 +190,7 @@ export function buildWeekColumns(
         const da = it.doctorAvailability!;
         return {
           id: da.id ?? '',
-          statusKey: bookingStatusToKey(da.bookingStatusId),
+          statusKey: slotStatusKey(da.bookingStatusId, da.remainingCapacity),
           capacity: da.capacity ?? 0,
           fromTime: da.fromTime ?? '',
           toTime: da.toTime ?? '',

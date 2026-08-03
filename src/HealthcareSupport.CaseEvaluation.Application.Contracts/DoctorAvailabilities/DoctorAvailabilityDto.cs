@@ -33,7 +33,10 @@ public class DoctorAvailabilityDto : FullAuditedEntityDto<Guid>, IHasConcurrency
     /// 2026-05-15 -- remaining bookable capacity for this slot, computed
     /// as <c>Capacity - activeAppointmentCount</c>. Populated by
     /// <c>GetDoctorAvailabilityLookupAsync</c> (booking-form picker
-    /// endpoint); null on CRUD reads. Always &gt;= 0 when populated.
+    /// endpoint) and, since 2026-08-03, by <c>GetListAsync</c> so the staff
+    /// grid can colour a slot by real occupancy rather than by
+    /// <c>BookingStatusId</c>. Null on other CRUD reads. Always &gt;= 0 when
+    /// populated.
     /// </summary>
     public int? RemainingCapacity { get; set; }
 

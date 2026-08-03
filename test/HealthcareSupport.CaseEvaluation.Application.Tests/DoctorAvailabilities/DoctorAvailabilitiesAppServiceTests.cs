@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -957,5 +958,34 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         }
 
         result.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Task 7: the grid's own read now carries occupancy. Before this, RemainingCapacity was
+    /// null on GetListAsync and the grid fell back on BookingStatusId -- which no code sets to
+    /// Booked, so a fully booked slot rendered as available.
+    /// </summary>
+    [Fact]
+    public async Task GetListAsync_PopulatesRemainingCapacityFromRealOccupancy()
+    {
+        PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetListAsync(new GetDoctorAvailabilitiesInput
+            {
+                MaxResultCount = 100,
+            });
+        }
+
+        var slot1 = result.Items
+            .Select(x => x.DoctorAvailability)
+            .Single(x => x.Id == DoctorAvailabilitiesTestData.Slot1Id);
+
+        // Slot1 holds one non-terminal appointment (Appointment1).
+        slot1.RemainingCapacity.ShouldBe(slot1.Capacity - 1);
+
+        // Every returned slot must carry occupancy, not just the one with an appointment --
+        // a null would send the grid back to its BookingStatusId fallback.
+        result.Items.ShouldAllBe(x => x.DoctorAvailability.RemainingCapacity != null);
     }
 }
