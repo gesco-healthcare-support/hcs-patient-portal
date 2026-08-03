@@ -12,7 +12,7 @@
         readonly
         class="form-control"
         [class.is-invalid]="dateInvalid"
-        [ngModel]="selectedDateStruct"
+        [ngModel]="dateModel"
         (ngModelChange)="onDatePicked($event)"
         name="availabilityDate"
         ngbDatepicker

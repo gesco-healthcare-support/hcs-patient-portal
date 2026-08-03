@@ -115,8 +115,11 @@ export class AvailabilityCalendarComponent implements OnChanges {
       void this.reload();
       return;
     }
-    if (changes['selectedDate'] && this.selectedDate) {
-      this.populateTimesFor(this.selectedDate);
+    if (changes['selectedDate']) {
+      this.dateModel = AvailabilityCalendarComponent.toStruct(this.selectedDate);
+      if (this.selectedDate) {
+        this.populateTimesFor(this.selectedDate);
+      }
     }
   }
 
@@ -151,26 +154,25 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   /**
-   * MEMOISED, and that is load-bearing. This is bound with `[ngModel]`, and a getter that returns a
-   * FRESH object every call makes Angular see a new reference on every change-detection pass, which
-   * ngModel writes back, which schedules another pass -- an infinite loop that wedges the browser
-   * hard enough to hang tooling. Recompute only when `selectedDate` actually changes.
+   * A real FIELD, not a getter, and that distinction is the whole fix.
+   *
+   * <p>Two failures bracket this. A getter returning a FRESH object every call made every
+   * change-detection pass look like a new value, which `ngModel` wrote back, which scheduled another
+   * pass -- an infinite loop that wedged the browser. Memoising the getter stopped the loop but broke
+   * the display instead: `[ngModel]` only writes to the datepicker when the reference CHANGES, and a
+   * memoised getter hands back the same reference forever, so it wrote once while the value was still
+   * null and never again.</p>
+   *
+   * <p>A field satisfies both: its reference changes exactly when the value changes, and never
+   * otherwise. Kept in sync in `ngOnChanges` (parent-driven) and in `onDatePicked` (user-driven, so
+   * the field updates immediately rather than waiting for the parent round-trip).</p>
    */
-  private selectedDateStructCache: NgbDateStruct | null = null;
-  private selectedDateStructKey: string | null = null;
+  protected dateModel: NgbDateStruct | null = null;
 
-  protected get selectedDateStruct(): NgbDateStruct | null {
-    if (this.selectedDateStructKey === this.selectedDate) {
-      return this.selectedDateStructCache;
-    }
-    this.selectedDateStructKey = this.selectedDate;
-    if (!this.selectedDate) {
-      this.selectedDateStructCache = null;
-      return null;
-    }
-    const [year, month, day] = this.selectedDate.split('-').map(Number);
-    this.selectedDateStructCache = year && month && day ? { year, month, day } : null;
-    return this.selectedDateStructCache;
+  private static toStruct(dateKey: string | null): NgbDateStruct | null {
+    if (!dateKey) return null;
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return year && month && day ? { year, month, day } : null;
   }
 
   /**
@@ -182,10 +184,12 @@ export class AvailabilityCalendarComponent implements OnChanges {
   protected onDatePicked(value: NgbDateStruct | string | null): void {
     const key = AvailabilityCalendarComponent.normaliseToDateKey(value);
     if (!key) {
+      this.dateModel = null;
       this.timeOptions = [];
       this.changeDetector.markForCheck();
       return;
     }
+    this.dateModel = AvailabilityCalendarComponent.toStruct(key);
     this.populateTimesFor(key);
     this.changeDetector.markForCheck();
 
@@ -208,6 +212,7 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   protected onClear(): void {
+    this.dateModel = null;
     this.timeOptions = [];
     this.dateCleared.emit();
   }
