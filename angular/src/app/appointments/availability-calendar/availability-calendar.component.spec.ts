@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
 import { of } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
+import { UsDateParserFormatter } from '../../shared/us-date-parser-formatter';
 import {
   AvailabilityCalendarComponent,
   AvailabilitySelection,
@@ -41,6 +43,9 @@ describe('AvailabilityCalendarComponent', () => {
       imports: [AvailabilityCalendarComponent],
       providers: [
         { provide: DoctorAvailabilityService, useValue: { getDoctorAvailabilityLookup: lookup } },
+        // Mirrors app.config.ts, which formats every datepicker as MM/DD/YYYY app-wide. Display
+        // format is app policy; the component pins only the date ADAPTER (its own model shape).
+        { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
       ],
     }).compileComponents();
 
@@ -119,6 +124,35 @@ describe('AvailabilityCalendarComponent', () => {
       time: '14:00',
       doctorAvailabilityId: 'slot-2pm',
     });
+  });
+
+  /**
+   * Regression for defect #6 (2026-08-03): the picked date rendered as an EMPTY input on every one
+   * of three binding mechanisms, because each fed an `NgbDateStruct` to an `NgbDateAdapter<string>`.
+   * No spec asserted the DISPLAYED text, so 452 green specs shipped an unusable picker. Asserting
+   * `input.value` is the only assertion that fails on the wrong model shape -- the component's own
+   * state, the emitted output and the time options were all correct throughout.
+   */
+  it('DISPLAYS the selected date in the input', async () => {
+    await loadFor('loc-1');
+    component.selectedDate = bookableKey;
+    component.ngOnChanges({
+      selectedDate: {
+        currentValue: bookableKey,
+        previousValue: null,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    fixture.detectChanges();
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const expected = `${pad(bookable.getMonth() + 1)}/${pad(
+      bookable.getDate(),
+    )}/${bookable.getFullYear()}`;
+
+    const input = fixture.nativeElement.querySelector('input[ngbDatepicker]') as HTMLInputElement;
+    expect(input.value).toBe(expected);
   });
 
   // ---- The contract test: real DOM, not just our helpers ----

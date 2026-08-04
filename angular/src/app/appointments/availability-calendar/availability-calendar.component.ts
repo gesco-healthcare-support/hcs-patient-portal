@@ -13,9 +13,10 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
+import { NgbDateAdapter, NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
+import { AvailabilityDateAdapter } from './availability-date-adapter';
 import {
   buildAvailableDateKeys,
   isSelectableDate,
@@ -59,6 +60,9 @@ export interface AvailabilitySelection {
   templateUrl: './availability-calendar.component.html',
   styleUrls: ['./availability-calendar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Pins the datepicker's MODEL SHAPE to this component's `YYYY-MM-DD` contract instead of letting it
+  // be decided by whichever host happens to provide an adapter. See AvailabilityDateAdapter.
+  providers: [{ provide: NgbDateAdapter, useClass: AvailabilityDateAdapter }],
 })
 export class AvailabilityCalendarComponent implements OnChanges {
   private readonly doctorAvailabilityService = inject(DoctorAvailabilityService);
@@ -118,9 +122,8 @@ export class AvailabilityCalendarComponent implements OnChanges {
       return;
     }
     if (changes['selectedDate']) {
-      this.dateControl.setValue(AvailabilityCalendarComponent.toStruct(this.selectedDate), {
-        emitEvent: false,
-      });
+      // Written through as-is: the pinned adapter's model IS the `YYYY-MM-DD` key.
+      this.dateControl.setValue(this.selectedDate, { emitEvent: false });
       if (this.selectedDate) {
         this.populateTimesFor(this.selectedDate);
       }
@@ -161,26 +164,22 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   /**
-   * Own FormControls, bound with `[formControl]` -- deliberately NOT `ngModel`.
+   * Own FormControls, bound with `[formControl]`. The controls are LOCAL to this component, so they
+   * never join the parent's form -- the parent still owns the real values; these only drive what the
+   * widgets display.
    *
-   * <p>Three attempts landed here. `[ngModel]` bound to a getter returning a fresh object looped
-   * change detection until the browser wedged; memoising the getter stopped the loop but then never
-   * re-wrote the view, so the picked date never appeared; and a plain field still left the datepicker
-   * writing no display text. A `FormControl` is what the original code used (`formControlName`) and
-   * is the mechanism ngbDatepicker is actually built against -- `writeValue` runs on `setValue`,
-   * independent of reference identity or change-detection timing.</p>
-   *
-   * <p>The controls are LOCAL to this component, so they never join the parent's form. The parent
-   * still owns the real values; these only drive what the widgets display.</p>
+   * <p>`dateControl` holds a `YYYY-MM-DD` STRING, not an `NgbDateStruct`, because the pinned
+   * {@link AvailabilityDateAdapter} is an `NgbDateAdapter<string>`. This is the fix for a bug worth
+   * recording: the picked date rendered as an EMPTY input for three successive attempts (an
+   * ngModel-bound getter, a memoised getter, then a plain field) because all three fed a struct.
+   * ngbDatepicker runs the value through `NgbDateAdapter.fromModel` inside `writeValue`, and the
+   * ambient adapter here was ABP's string-based one, which returns null for a struct
+   * (`new Date({year,month,day})` is an Invalid Date) -- so the formatter was handed null and wrote
+   * ''. The mechanism was never the fault, the MODEL SHAPE was. `selectedDate` already arrives as
+   * `YYYY-MM-DD`, so the correct code converts nothing at all.</p>
    */
-  protected readonly dateControl = new FormControl<NgbDateStruct | null>(null);
+  protected readonly dateControl = new FormControl<string | null>(null);
   protected readonly timeControl = new FormControl<string | null>(null);
-
-  private static toStruct(dateKey: string | null): NgbDateStruct | null {
-    if (!dateKey) return null;
-    const [year, month, day] = dateKey.split('-').map(Number);
-    return year && month && day ? { year, month, day } : null;
-  }
 
   constructor() {
     // User-driven changes. Parent-driven writes below use emitEvent:false, so these fire only for
@@ -194,10 +193,11 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   /**
-   * ngbDatepicker's `ngModelChange` does NOT always emit an `NgbDateStruct`: depending on how the
-   * value is set it can arrive as a formatted string. Assuming the struct threw
+   * The emitted value is whatever `NgbDateAdapter.toModel` produced, so with the pinned adapter a
+   * click arrives as a `YYYY-MM-DD` string, NOT an `NgbDateStruct`. Assuming the struct threw
    * "Cannot read properties of undefined (reading 'toString')" on the first real click, which also
-   * meant the time options never populated. Normalise both shapes instead of trusting one.
+   * meant the time options never populated. Both shapes are still normalised so that a host which
+   * somehow supplies a struct-based adapter degrades instead of throwing.
    */
   protected onDatePicked(value: NgbDateStruct | string | null): void {
     const key = AvailabilityCalendarComponent.normaliseToDateKey(value);
