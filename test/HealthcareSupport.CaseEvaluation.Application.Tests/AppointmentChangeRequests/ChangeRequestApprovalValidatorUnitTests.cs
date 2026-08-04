@@ -146,24 +146,138 @@ public class ChangeRequestApprovalValidatorUnitTests
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestAdminReasonRequired);
     }
 
+    // Phase 4b (2026-08-04): a null user pick is now the NORMAL case -- the requestor sends a
+    // reason only and staff choose the slot -- so the staff pick arrives as overrideSlotId with
+    // nothing to "override". The two tests that previously pinned ArgumentException here were
+    // replaced deliberately: they encoded the pre-4b contract.
+
     [Fact]
-    public void ResolveNewSlot_NullUserPicked_Throws()
+    public void ResolveNewSlot_NullUserPicked_WithStaffPick_ReturnsStaffPickAndNeedsNoReason()
     {
-        Should.Throw<ArgumentException>(
-            () => ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
-                userPickedSlotId: null,
-                overrideSlotId: Guid.NewGuid(),
-                adminReason: "x"));
+        var staffPick = Guid.NewGuid();
+
+        var resolved = ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
+            userPickedSlotId: null,
+            overrideSlotId: staffPick,
+            adminReason: null);
+
+        resolved.ShouldBe(staffPick);
     }
 
     [Fact]
-    public void ResolveNewSlot_EmptyUserPicked_Throws()
+    public void ResolveNewSlot_EmptyUserPicked_WithStaffPick_ReturnsStaffPick()
     {
-        Should.Throw<ArgumentException>(
+        // Guid.Empty is treated as "nothing proposed", matching the pre-4b coalescing.
+        var staffPick = Guid.NewGuid();
+
+        var resolved = ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
+            userPickedSlotId: Guid.Empty,
+            overrideSlotId: staffPick,
+            adminReason: null);
+
+        resolved.ShouldBe(staffPick);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public void ResolveNewSlot_NoUserPickAndNoStaffPick_Throws(string? overrideSlot)
+    {
+        // Nothing to schedule onto -- a friendly BusinessException, not a 500.
+        var ex = Should.Throw<BusinessException>(
             () => ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
-                userPickedSlotId: Guid.Empty,
-                overrideSlotId: Guid.NewGuid(),
-                adminReason: "x"));
+                userPickedSlotId: null,
+                overrideSlotId: overrideSlot == null ? null : Guid.Parse(overrideSlot),
+                adminReason: null));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotRequired);
+    }
+
+    // ------------------------------------------------------------------
+    // IsAdminOverride (phase 4b, 2026-08-04)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void IsAdminOverride_StaffPickWithNoProposal_IsNotAnOverride()
+    {
+        // The 4b external path: nobody proposed a date, so the staff pick overrules no one.
+        // Reported as an override, every requestor would get "changed by our team".
+        ChangeRequestApprovalValidator
+            .IsAdminOverride(proposedSlotId: null, staffSlotId: Guid.NewGuid())
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsAdminOverride_StaffPickDiffersFromProposal_IsAnOverride()
+    {
+        ChangeRequestApprovalValidator
+            .IsAdminOverride(proposedSlotId: Guid.NewGuid(), staffSlotId: Guid.NewGuid())
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsAdminOverride_StaffAcceptsTheProposal_IsNotAnOverride()
+    {
+        var proposed = Guid.NewGuid();
+        ChangeRequestApprovalValidator
+            .IsAdminOverride(proposedSlotId: proposed, staffSlotId: proposed)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsAdminOverride_NoStaffPick_IsNotAnOverride()
+    {
+        ChangeRequestApprovalValidator
+            .IsAdminOverride(proposedSlotId: Guid.NewGuid(), staffSlotId: null)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsAdminOverride_EmptyGuidsCountAsNotSupplied()
+    {
+        ChangeRequestApprovalValidator
+            .IsAdminOverride(proposedSlotId: Guid.Empty, staffSlotId: Guid.NewGuid())
+            .ShouldBeFalse();
+    }
+
+    // ------------------------------------------------------------------
+    // ResolveScheduledSlotId (phase 4b, 2026-08-04)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ResolveScheduledSlotId_PrefersTheStaffChoice()
+    {
+        var staffChoice = Guid.NewGuid();
+        ChangeRequestApprovalValidator
+            .ResolveScheduledSlotId(adminOverrideSlotId: staffChoice, newDoctorAvailabilityId: Guid.NewGuid())
+            .ShouldBe(staffChoice);
+    }
+
+    [Fact]
+    public void ResolveScheduledSlotId_FallsBackToTheSubmitProposal()
+    {
+        var proposed = Guid.NewGuid();
+        ChangeRequestApprovalValidator
+            .ResolveScheduledSlotId(adminOverrideSlotId: null, newDoctorAvailabilityId: proposed)
+            .ShouldBe(proposed);
+    }
+
+    [Fact]
+    public void ResolveScheduledSlotId_StaffChoiceOnlyStillResolves()
+    {
+        // The 4b external path. Resolving to null here is what blanked the date in the
+        // approval email, because ResolveNewSlotAsync maps null to empty strings.
+        var staffChoice = Guid.NewGuid();
+        ChangeRequestApprovalValidator
+            .ResolveScheduledSlotId(adminOverrideSlotId: staffChoice, newDoctorAvailabilityId: null)
+            .ShouldBe(staffChoice);
+    }
+
+    [Fact]
+    public void ResolveScheduledSlotId_NeitherSupplied_IsNull()
+    {
+        ChangeRequestApprovalValidator
+            .ResolveScheduledSlotId(adminOverrideSlotId: null, newDoctorAvailabilityId: null)
+            .ShouldBeNull();
     }
 
     // ------------------------------------------------------------------

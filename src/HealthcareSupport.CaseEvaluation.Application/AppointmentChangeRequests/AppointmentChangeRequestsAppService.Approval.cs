@@ -51,19 +51,24 @@ public class AppointmentChangeRequestsApprovalAppService :
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<AppointmentChangeRequestsApprovalAppService> _logger;
+    // Phase 4b (2026-08-04): the approve path now chooses the date, so it must enforce the same
+    // lead-time + horizon gates the booking and submit paths enforce.
+    private readonly BookingPolicyValidator _bookingPolicyValidator;
 
     public AppointmentChangeRequestsApprovalAppService(
         IAppointmentChangeRequestRepository changeRequestRepository,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         ILocalEventBus localEventBus,
-        ILogger<AppointmentChangeRequestsApprovalAppService> logger)
+        ILogger<AppointmentChangeRequestsApprovalAppService> logger,
+        BookingPolicyValidator bookingPolicyValidator)
     {
         _changeRequestRepository = changeRequestRepository;
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _localEventBus = localEventBus;
         _logger = logger;
+        _bookingPolicyValidator = bookingPolicyValidator;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentChangeRequests.Approve)]
@@ -215,11 +220,25 @@ public class AppointmentChangeRequestsApprovalAppService :
             overrideSlotId: input.OverrideSlotId,
             adminReason: input.AdminReScheduleReason);
 
-        var isAdminOverride = input.OverrideSlotId.HasValue &&
-            input.OverrideSlotId.Value != changeRequest.NewDoctorAvailabilityId;
+        // An "override" requires something to override -- see ChangeRequestApprovalValidator
+        // .IsAdminOverride for why the null case matters after phase 4b.
+        var isAdminOverride = ChangeRequestApprovalValidator.IsAdminOverride(
+            proposedSlotId: changeRequest.NewDoctorAvailabilityId,
+            staffSlotId: input.OverrideSlotId);
 
         var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var newSlot = await _doctorAvailabilityRepository.GetAsync(newSlotId);
+
+        // Phase 4b (2026-08-04): enforce the SAME booking policy the submit path enforces, on
+        // the slot actually being scheduled onto. Previously the approve path ran no policy
+        // check at all, so a supervisor override could land inside the lead time or past the
+        // horizon; 4b makes the staff pick the primary path, which would have turned that
+        // pre-existing bypass into the normal one. Approval is always an internal actor, hence
+        // the internal (90-day) horizon.
+        await _bookingPolicyValidator.ValidateAsync(
+            newSlot.AvailableDate,
+            sourceAppointment.AppointmentTypeId,
+            isInternalCaller: true);
 
         // B2 (2026-07-01) reschedule redesign -- move the SAME appointment to the
         // resolved slot instead of cloning a new row. The confirmation number,
@@ -260,13 +279,22 @@ public class AppointmentChangeRequestsApprovalAppService :
             }
         }
 
-        // Mark change request Accepted; record outcome + override fields + approver.
+        // Mark change request Accepted; record outcome + the staff slot choice + approver.
         changeRequest.RequestStatus = RequestStatusType.Accepted;
         changeRequest.ApprovedById = CurrentUser.Id;
         changeRequest.CancellationOutcome = input.RescheduleOutcome;
-        if (isAdminOverride)
+        // Phase 4b (2026-08-04): record the staff-chosen slot whenever staff chose one, NOT only
+        // when it overrode a requestor proposal. Since 4b the external path has no proposal to
+        // override, so gating this on isAdminOverride left BOTH slot columns null on the row --
+        // losing the audit trail and blanking the date in the approval email, which resolves the
+        // slot from this row. The admin REASON stays gated on a genuine override: there is
+        // nobody to justify a change to when the requestor proposed nothing.
+        if (input.OverrideSlotId.HasValue)
         {
             changeRequest.AdminOverrideSlotId = input.OverrideSlotId;
+        }
+        if (isAdminOverride)
+        {
             changeRequest.AdminReScheduleReason = input.AdminReScheduleReason;
         }
         await PersistChangeRequestAsync(changeRequest);
@@ -411,7 +439,60 @@ public class AppointmentChangeRequestsApprovalAppService :
 
         var dtos = ObjectMapper.Map<List<AppointmentChangeRequest>, List<AppointmentChangeRequestDto>>(paged);
         await PopulateAppointmentConfirmationNumbersAsync(paged, dtos);
+        await PopulateAppointmentContextAsync(paged, dtos);
         return new PagedResultDto<AppointmentChangeRequestDto>(totalCount, dtos);
+    }
+
+    /// <summary>
+    /// Phase 4b (2026-08-04) -- copies the referenced appointment's location + appointment type,
+    /// and the proposed slot's date + start time, onto the matching change-request DTOs. The
+    /// approval queue needs the first pair to drive the availability calendar staff now choose
+    /// the new date with, and the second to SHOW what was requested instead of a bare GUID
+    /// (before this the queue told staff to go open the appointment to see the slot).
+    ///
+    /// <para>Set-based like <see cref="PopulateAppointmentConfirmationNumbersAsync"/>: one
+    /// projection query per referenced table, never per row. Slots are looked up only for rows
+    /// that actually proposed one -- after 4b most do not.</para>
+    /// </summary>
+    private async Task PopulateAppointmentContextAsync(
+        IReadOnlyCollection<AppointmentChangeRequest> changeRequests,
+        IReadOnlyCollection<AppointmentChangeRequestDto> dtos)
+    {
+        var appointmentIds = changeRequests.Select(c => c.AppointmentId).Distinct().ToList();
+        if (appointmentIds.Count == 0)
+        {
+            return;
+        }
+
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var appointmentRows = await AsyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a => appointmentIds.Contains(a.Id))
+                .Select(a => new { a.Id, a.LocationId, a.AppointmentTypeId }));
+        var appointmentsById = appointmentRows.ToDictionary(
+            row => row.Id,
+            row => new ChangeRequestQueueContext.AppointmentContext(row.LocationId, row.AppointmentTypeId));
+
+        // Only rows that actually proposed a slot need one resolved -- after 4b most do not.
+        var slotIds = changeRequests
+            .Where(c => c.NewDoctorAvailabilityId.HasValue)
+            .Select(c => c.NewDoctorAvailabilityId!.Value)
+            .Distinct()
+            .ToList();
+        var slotsById = new Dictionary<Guid, ChangeRequestQueueContext.SlotContext>();
+        if (slotIds.Count > 0)
+        {
+            var slotQuery = await _doctorAvailabilityRepository.GetQueryableAsync();
+            var slotRows = await AsyncExecuter.ToListAsync(
+                slotQuery
+                    .Where(s => slotIds.Contains(s.Id))
+                    .Select(s => new { s.Id, s.AvailableDate, s.FromTime }));
+            slotsById = slotRows.ToDictionary(
+                row => row.Id,
+                row => new ChangeRequestQueueContext.SlotContext(row.AvailableDate, row.FromTime));
+        }
+
+        ChangeRequestQueueContext.Apply(dtos, appointmentsById, slotsById);
     }
 
     /// <summary>
