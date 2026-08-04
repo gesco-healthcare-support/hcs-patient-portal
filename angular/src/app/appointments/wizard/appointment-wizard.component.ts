@@ -83,8 +83,8 @@ const STEPS: WizardStep[] = [
  * zero logic duplication. This subclass only adds the redesigned .ra-* shell:
  * the header band, the stepper, and the sticky footer nav, reusing the existing
  * section components inside each step (their per-field .ra-* restyle is a
- * follow-up). Mounted at /appointments/request while /appointments/add keeps
- * the legacy template.
+ * follow-up). Mounted at /appointments/request -- the ONLY booking route, for both
+ * internal and external bookers, as of 4a (2026-08-04).
  */
 @Component({
   selector: 'app-appointment-wizard',

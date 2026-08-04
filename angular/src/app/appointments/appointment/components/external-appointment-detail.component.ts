@@ -256,11 +256,11 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
 
   /**
    * Redesign swap (2026-06-15): external re-request launches the booking WIZARD
-   * (/appointments/request) instead of the legacy add form. The internal
-   * AppointmentViewComponent.reRequest() keeps targeting /appointments/add so
-   * staff stay on the in-shell legacy form. Same mode=rerequest + source conf#
-   * contract; the wizard inherits the re-request load + reSubmit path. Uses
-   * shellRouter because the parent's `router` is private.
+   * (/appointments/request) instead of the legacy add form. As of 4a (2026-08-04) the
+   * internal AppointmentViewComponent.reRequest() targets the SAME path -- there is
+   * only one booking route now -- so this override exists purely to use shellRouter,
+   * the parent's `router` being private. Same mode=rerequest + source conf# contract;
+   * the wizard inherits the re-request load + reSubmit path.
    */
   override reRequest(): void {
     const conf = this.appointment?.appointment?.requestConfirmationNumber;

@@ -80,17 +80,17 @@ Admin and Staff Supervisor.
 
 ## Phases
 
-| # | Phase | Branch | Plan | Status |
-|---|---|---|---|---|
-| 1 | Staff Supervisor CT permissions | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md` | **DONE** - PR #409 -> main `7b0d9c30` |
-| 2 | Cancellation reason + billing status to CT | `feat/cancel-reason-to-case-tracker` | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
-| 3 | Staff schedule calendar (FullCalendar) | `feat/staff-schedule-calendar` | `2026-07-31-staff-schedule-calendar.md` | **DONE** - PR #418 -> main `1784a6bb` |
-| 4a | Extract reusable availability calendar | `refactor/extract-availability-calendar` | not written | TODO (prereq for 4b) |
-| 4b | Staff pick the reschedule date | `feat/staff-picks-reschedule-date` | not written | TODO (after 4a) |
-| 4c | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds` | not written | TODO (after 4b) |
-| 4d | Reschedule creates a new appointment | `feat/reschedule-creates-new-appointment` | not written | TODO (after 4c) |
-| 4e | CT two-case semantics + contract amendment | `feat/case-tracker-two-case-reschedule` | not written | TODO (after 4d) |
-| 5 | No-show round trip (INBOUND from CT) | `feat/no-show-round-trip` | not written | TODO (after 4d) |
+| #   | Phase                                       | Branch                                    | Plan                                                               | Status                                |
+| --- | ------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------ | ------------------------------------- |
+| 1   | Staff Supervisor CT permissions             | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md`          | **DONE** - PR #409 -> main `7b0d9c30` |
+| 2   | Cancellation reason + billing status to CT  | `feat/cancel-reason-to-case-tracker`      | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
+| 3   | Staff schedule calendar (FullCalendar)      | `feat/staff-schedule-calendar`            | `2026-07-31-staff-schedule-calendar.md`                            | **DONE** - PR #418 -> main `1784a6bb` |
+| 4a  | Extract reusable availability calendar      | `refactor/extract-availability-calendar`  | `2026-08-03-extract-availability-calendar.md`                      | IN PROGRESS - PR #420, live gate open |
+| 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | not written                                                        | TODO (after 4a)                       |
+| 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | not written                                                        | TODO (after 4b)                       |
+| 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | not written                                                        | TODO (after 4c)                       |
+| 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | not written                                                        | TODO (after 4d)                       |
+| 5   | No-show round trip (INBOUND from CT)        | `feat/no-show-round-trip`                 | not written                                                        | TODO (after 4d)                       |
 
 Phase 5 ADDED 2026-07-31 (Adrian, while resolving phase 2's NoShow question). It is NOT a phase-2
 rider: it needs an INBOUND Case Tracker -> portal endpoint, which does not exist today (the
@@ -102,6 +102,7 @@ to CT so it starts tracking. Sequenced after 4d because "create a pre-approved r
 4d's create-new-appointment machinery.
 
 Open questions to settle before planning phase 5:
+
 - Auth: reuse the static `X-Integration-Token` that already guards the reconcile GET (contract §F),
   or mint something separate?
 - Office resolution: database-per-office means the request must carry `{tenantId}` as a PATH
@@ -232,6 +233,50 @@ Append after each phase.
   usable seed data BEFORE assuming a task cannot be TDD'd.
 - (P3) Phase 3's SonarCloud quality gate PASSED, where phase 2's failed at 77.8% new-code coverage.
   The difference was purely that the logic here was extracted into pure, tested units.
+
+- (P4a) **AN EXTRACTED COMPONENT INHERITS AMBIENT DI FROM ITS HOST, SO "MOVE THE MARKUP" CAN CHANGE
+  BEHAVIOUR WITH NO CODE CHANGE.** The picked date rendered as an EMPTY input for three fix attempts.
+  `ngbDatepicker` converts every control value through the ambient `NgbDateAdapter` inside
+  `writeValue`, and that token is resolved from the HOST injector: both booking surfaces provide ABP's
+  string-based `DateAdapter` at component level, while a modal or a bare spec falls back to
+  ng-bootstrap's struct-based default. The same value therefore renders in one host and blanks in
+  another. When extracting markup that binds a third-party directive, enumerate the tokens that
+  directive injects and PIN the ones that define your contract on the new component. Generalises to
+  4b: the reschedule modal is exactly the host that would have re-broken this.
+- (P4a) THE COROLLARY TO P3's MAPPER LESSON, in its sharpest form: assert THE OBSERVABLE THE USER SEES.
+  The specs covered component state, the emitted output, disabled days and the availability highlight
+  -- all correct throughout -- and none covered the input's displayed TEXT, the one thing that was
+  wrong. 452 green specs plus a clean build shipped an unusable picker.
+- (P4a) WHEN THE SECOND FIX FOR ONE SYMPTOM FAILS, STOP CHANGING THE MECHANISM. Three attempts at the
+  blank input each swapped the binding mechanism (getter -> memoised getter -> field -> `FormControl`)
+  while leaving the MODEL SHAPE wrong, and attempts 5 and 6 were each caused by the fix to the
+  previous one. Ten minutes reading `NgbDateAdapter` replaced three rounds of guessing. Read what the
+  third-party code does with the value before trying another way to hand it over.
+- (P4a) **VERIFY THROUGH THE DOOR THE ROLE ACTUALLY USES, or the verification is theatre.** Internal
+  staff are HOST users (`TenantId IS NULL`) who sign in at `admin.<base>`, land on
+  `/host/my-offices`, and "Enter practice" IMPERSONATES them into a tenant (token carries
+  `impersonator_userid`). External users live in the TENANT databases at `{tenant}.<base>`.
+  `admin@falkinstein.test` is a TENANT admin, so an internal-booking check run as that user on
+  `falkinstein.localhost` exercised NEITHER real path -- which is how a hard 404 on the internal New
+  Appointment button reached Adrian instead of the gate. Establish the role-to-subdomain mapping
+  BEFORE claiming a live check passed.
+- (P4a) `canMatch` DOES NOT PREVENT A `redirectTo` ROUTE FROM APPLYING. A redirect guarded
+  external-only fired for an internal user (token said `role: "Intake Staff"`), who then failed the
+  external-only target route and landed on the `**` 404. Never pair `canMatch` with `redirectTo`; and
+  never keep two paths to one screen split by role -- collapse to one path and split only the chrome.
+- (P4a) A ROUTE THAT NOTHING NAVIGATES TO IS NOT HARMLESS -- it is a second surface you must verify
+  forever. `/appointments/add` served the WIZARD to internal staff and the legacy add form to external
+  users on the same path via `canMatch`, while every real entry point had already moved to
+  `/appointments/request`. The dead branch cost a full round of confusion about what "both booking
+  surfaces" even meant. Retired via a redirect (deletion would have 404'd external users, since the
+  internal shell is `internalUserOnlyMatchGuard`-gated). Two things to carry: check what NAVIGATES to
+  a route before treating it as live, and when a component is wired
+  `loadComponent: () => Promise.resolve(X)` it is EAGER -- that one line held a 3763-line component in
+  the initial bundle, and removing it cut 176 kB (2.32 MB -> 2.15 MB).
+- (P4a) Never bind a two-way binding (`[ngModel]`, `[(x)]`) to an expression that ALLOCATES. A getter
+  returning a fresh object made every change-detection pass see a new reference and schedule another,
+  wedging the browser hard enough to hang the automation tooling for 1800s -- which read as a tool
+  fault, not an app fault. Reference identity IS the change signal.
 
 ### Environment / tooling
 
