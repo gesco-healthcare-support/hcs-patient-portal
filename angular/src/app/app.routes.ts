@@ -1,6 +1,7 @@
 import { authGuard, ConfigStateService, permissionGuard, PermissionService } from '@abp/ng.core';
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { legacyAddRedirect } from './appointments/legacy-add-redirect';
 import { firstVisibleAdminSection } from './admin/admin-hub.util';
 import { isHostScope } from './shared/auth/internal-user-roles';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
@@ -21,7 +22,6 @@ import { DOCTOR_AVAILABILITY_ROUTES } from './doctor-availabilities/doctor-avail
 import { PATIENT_ROUTES } from './patients/patient/patient-routes';
 import { APPOINTMENT_ROUTES } from './appointments/appointment/appointment-routes';
 import { CHANGE_REQUEST_ROUTES } from './appointments/change-requests/change-request-routes';
-import { AppointmentAddComponent } from './appointments/appointment-add.component';
 import { APPLICANT_ATTORNEY_ROUTES } from './applicant-attorneys/applicant-attorney/applicant-attorney-routes';
 import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/defense-attorney-routes';
 import { CLAIM_EXAMINER_ROUTES } from './claim-examiners/claim-examiner/claim-examiner-routes';
@@ -404,13 +404,23 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
-    // Legacy add form, reached by external booking (external-home -> ?type=1/2).
-    // Role-split so external books chrome-less while internal staff get the
-    // in-shell copy (INTERNAL_SHELL_CHILDREN) and keep the sidebar.
+    // 4a (2026-08-03): the legacy add form is NO LONGER ROUTED. It was the only surface still
+    // rendering AppointmentAddComponent's own template, yet nothing navigated to it -- external
+    // booking moved to the wizard at /appointments/request (external-home, external appointment
+    // detail), so it was reachable only by typing the URL. Keeping two booking surfaces alive meant
+    // every booking change had to be verified twice, and the dead one silently drifted.
+    //
+    // A redirect rather than a deletion: the internal shell below is gated by
+    // internalUserOnlyMatchGuard, so a pure-external user who no longer matches here would fall
+    // straight through to the '**' 404. This keeps old bookmarks working.
+    //
+    // The redirect itself lives in legacy-add-redirect.ts so it can be unit-tested: dropping
+    // ?type=2 would silently turn every re-evaluation link into a new booking, and an inline arrow
+    // in this array is unreachable from a spec.
     path: 'appointments/add',
     canMatch: [externalUserOnlyMatchGuard],
-    loadComponent: () => Promise.resolve(AppointmentAddComponent),
-    canActivate: [authGuard],
+    redirectTo: legacyAddRedirect,
+    pathMatch: 'full',
   },
   {
     // Redesign (temp, 2026-06-13): the new external booking wizard. External-only
