@@ -805,7 +805,7 @@ export class AppointmentViewComponent implements OnInit {
     if (!conf) {
       return;
     }
-    this.router.navigate(['/appointments/add'], {
+    this.router.navigate(['/appointments/request'], {
       queryParams: { mode: 'rerequest', source: conf },
     });
   }

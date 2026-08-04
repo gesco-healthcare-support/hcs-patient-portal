@@ -1,7 +1,6 @@
 import { authGuard, ConfigStateService, permissionGuard, PermissionService } from '@abp/ng.core';
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
-import { legacyAddRedirect } from './appointments/legacy-add-redirect';
 import { firstVisibleAdminSection } from './admin/admin-hub.util';
 import { isHostScope } from './shared/auth/internal-user-roles';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
@@ -35,9 +34,8 @@ import { CLAIM_EXAMINER_ROUTES } from './claim-examiners/claim-examiner/claim-ex
  *
  * Intentionally EXCLUDED (kept outside the shell, declared in APP_ROUTES):
  *   - external appointment pages, role-split out to top-level chrome-less
- *     routes: the read-only detail (appointments/view/:id) and the legacy add
- *     form (external books via ?type=1/2), plus the external booking wizard
- *     (appointments/request);
+ *     routes: the read-only detail (appointments/view/:id) and the booking
+ *     wizard (appointments/request, which external users reach via ?type=1/2);
  *   - gdpr / gdpr-cookie-consent (anonymous / data-subject facing);
  *   - user-management/patients/my-profile (external patient page).
  */
@@ -49,10 +47,10 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
     canActivate: [authGuard, permissionGuard],
   },
   // Internal appointment views. The external equivalents (read-only detail at
-  // view/:id, and the legacy add form reached by external booking) are role-split
-  // out to top-level chrome-less routes in APP_ROUTES; these in-shell copies serve
-  // internal staff so the sidebar persists. APPOINTMENT_ROUTES holds the staff
-  // list ('') + legacy AppointmentViewComponent (view/:id).
+  // view/:id, and the booking wizard) are role-split out to top-level chrome-less
+  // routes in APP_ROUTES; these in-shell copies serve internal staff so the sidebar
+  // persists. APPOINTMENT_ROUTES holds the staff list ('') + legacy
+  // AppointmentViewComponent (view/:id).
   { path: 'appointments', children: APPOINTMENT_ROUTES },
   { path: 'appointments/change-requests', children: CHANGE_REQUEST_ROUTES },
   {
@@ -60,7 +58,12 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
     // wrapped by the shell. The wizard suppresses its own external navbar for
     // internal bookers (isInternalBooker) so only the shell chrome shows.
     // authGuard only (no permissionGuard), matching the prior in-shell add route.
-    path: 'appointments/add',
+    //
+    // 4a (2026-08-04): moved from 'appointments/add' to the SAME path external users
+    // use. There is now exactly ONE booking path in the app; only the chrome differs
+    // (internal renders here inside the shell, external matches the chrome-less copy
+    // declared before the shell parent). '/appointments/add' no longer exists at all.
+    path: 'appointments/request',
     loadComponent: () =>
       import('./appointments/wizard/appointment-wizard.component').then(
         (c) => c.AppointmentWizardComponent,
@@ -404,29 +407,15 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
-    // 4a (2026-08-03): the legacy add form is NO LONGER ROUTED. It was the only surface still
-    // rendering AppointmentAddComponent's own template, yet nothing navigated to it -- external
-    // booking moved to the wizard at /appointments/request (external-home, external appointment
-    // detail), so it was reachable only by typing the URL. Keeping two booking surfaces alive meant
-    // every booking change had to be verified twice, and the dead one silently drifted.
+    // The external, chrome-less booking wizard. External-only (externalUserOnlyMatchGuard) --
+    // internal staff book the SAME wizard at the SAME path, but as a child of the shell declared
+    // below, so they keep the sidebar. Declared before the shell parent so external wins.
     //
-    // A redirect rather than a deletion: the internal shell below is gated by
-    // internalUserOnlyMatchGuard, so a pure-external user who no longer matches here would fall
-    // straight through to the '**' 404. This keeps old bookmarks working.
-    //
-    // The redirect itself lives in legacy-add-redirect.ts so it can be unit-tested: dropping
-    // ?type=2 would silently turn every re-evaluation link into a new booking, and an inline arrow
-    // in this array is unreachable from a spec.
-    path: 'appointments/add',
-    canMatch: [externalUserOnlyMatchGuard],
-    redirectTo: legacyAddRedirect,
-    pathMatch: 'full',
-  },
-  {
-    // Redesign (temp, 2026-06-13): the new external booking wizard. External-only
-    // as of 2026-06-15 (externalUserOnlyMatchGuard) -- internal staff book the
-    // same wizard at the in-shell /appointments/add, so they must never land on
-    // this chrome-less route; they fall through to the shell instead.
+    // 4a (2026-08-04): '/appointments/add' is GONE -- route, redirect and every link. It had been a
+    // second path to this same wizard, split by role, which produced a real 404: a redirect from
+    // /appointments/add to here fired for an INTERNAL user (canMatch did NOT stop a redirectTo
+    // route), and this route then correctly refused them, dropping the click on the '**' 404. One
+    // path with one role-split cannot fail that way. Do NOT reintroduce an alias for booking.
     path: 'appointments/request',
     canMatch: [externalUserOnlyMatchGuard],
     loadComponent: () =>
