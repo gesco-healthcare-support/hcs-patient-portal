@@ -3,14 +3,20 @@
   columns so the rendered result is unchanged for booking. Differences are only in wiring: the input
   is no longer `formControlName`-bound (this component is controlled, so the parent owns the form),
   and the day template asks THIS component whether a date has availability.
+
+  The label/input `id`s are LITERAL, matching the repo convention (see appointment-detail) and
+  satisfying the static label-association check. That assumes ONE instance per rendered page, which
+  holds today (booking renders one; the 4b reschedule modal opens over pages that render none). If a
+  host ever shows two calendars at once, these ids must become per-instance or they will collide.
 -->
 <div class="row">
   <div class="col-md-6 mb-3">
-    <label class="form-label fw-semibold">{{ dateLabel }} *</label>
+    <label class="form-label fw-semibold" for="availability-calendar-date">{{ dateLabel }} *</label>
     <div class="input-group">
       <input
         readonly
         class="form-control"
+        id="availability-calendar-date"
         [class.is-invalid]="dateInvalid"
         [formControl]="dateControl"
         name="availabilityDate"
@@ -54,9 +60,10 @@
   </div>
 
   <div class="col-md-6 mb-3">
-    <label class="form-label fw-semibold">{{ timeLabel }} *</label>
+    <label class="form-label fw-semibold" for="availability-calendar-time">{{ timeLabel }} *</label>
     <select
       class="form-select"
+      id="availability-calendar-time"
       [class.is-invalid]="timeInvalid"
       [formControl]="timeControl"
       name="availabilityTime"
