@@ -214,11 +214,14 @@
 
             @if (needsAdminReason(m.row)) {
               <div class="ra-field col-12" style="margin-bottom: 12px">
-                <label>
+                <!-- Literal id + for, matching the repo convention. Only one approve modal is
+                     open at a time, so a literal id cannot collide. -->
+                <label for="cr-admin-reschedule-reason">
                   Why are you changing the requested date?
                   <span class="req">*</span>
                 </label>
                 <textarea
+                  id="cr-admin-reschedule-reason"
                   class="ra-input"
                   rows="3"
                   maxlength="2000"
