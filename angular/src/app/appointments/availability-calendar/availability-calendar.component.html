@@ -12,8 +12,7 @@
         readonly
         class="form-control"
         [class.is-invalid]="dateInvalid"
-        [ngModel]="dateModel"
-        (ngModelChange)="onDatePicked($event)"
+        [formControl]="dateControl"
         name="availabilityDate"
         ngbDatepicker
         #datePicker="ngbDatepicker"
@@ -59,8 +58,7 @@
     <select
       class="form-select"
       [class.is-invalid]="timeInvalid"
-      [ngModel]="selectedTime"
-      (ngModelChange)="onTimePicked($event)"
+      [formControl]="timeControl"
       name="availabilityTime"
     >
       <option [ngValue]="null">SELECT</option>

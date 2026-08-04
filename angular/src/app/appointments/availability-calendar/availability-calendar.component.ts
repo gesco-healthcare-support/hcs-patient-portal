@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  DestroyRef,
   EventEmitter,
   Input,
   OnChanges,
@@ -10,7 +11,8 @@ import {
   SimpleChanges,
   inject,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
@@ -53,7 +55,7 @@ export interface AvailabilitySelection {
 @Component({
   selector: 'app-availability-calendar',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgbDatepickerModule],
+  imports: [CommonModule, ReactiveFormsModule, NgbDatepickerModule],
   templateUrl: './availability-calendar.component.html',
   styleUrls: ['./availability-calendar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,10 +118,15 @@ export class AvailabilityCalendarComponent implements OnChanges {
       return;
     }
     if (changes['selectedDate']) {
-      this.dateModel = AvailabilityCalendarComponent.toStruct(this.selectedDate);
+      this.dateControl.setValue(AvailabilityCalendarComponent.toStruct(this.selectedDate), {
+        emitEvent: false,
+      });
       if (this.selectedDate) {
         this.populateTimesFor(this.selectedDate);
       }
+    }
+    if (changes['selectedTime']) {
+      this.timeControl.setValue(this.selectedTime, { emitEvent: false });
     }
   }
 
@@ -154,25 +161,36 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   /**
-   * A real FIELD, not a getter, and that distinction is the whole fix.
+   * Own FormControls, bound with `[formControl]` -- deliberately NOT `ngModel`.
    *
-   * <p>Two failures bracket this. A getter returning a FRESH object every call made every
-   * change-detection pass look like a new value, which `ngModel` wrote back, which scheduled another
-   * pass -- an infinite loop that wedged the browser. Memoising the getter stopped the loop but broke
-   * the display instead: `[ngModel]` only writes to the datepicker when the reference CHANGES, and a
-   * memoised getter hands back the same reference forever, so it wrote once while the value was still
-   * null and never again.</p>
+   * <p>Three attempts landed here. `[ngModel]` bound to a getter returning a fresh object looped
+   * change detection until the browser wedged; memoising the getter stopped the loop but then never
+   * re-wrote the view, so the picked date never appeared; and a plain field still left the datepicker
+   * writing no display text. A `FormControl` is what the original code used (`formControlName`) and
+   * is the mechanism ngbDatepicker is actually built against -- `writeValue` runs on `setValue`,
+   * independent of reference identity or change-detection timing.</p>
    *
-   * <p>A field satisfies both: its reference changes exactly when the value changes, and never
-   * otherwise. Kept in sync in `ngOnChanges` (parent-driven) and in `onDatePicked` (user-driven, so
-   * the field updates immediately rather than waiting for the parent round-trip).</p>
+   * <p>The controls are LOCAL to this component, so they never join the parent's form. The parent
+   * still owns the real values; these only drive what the widgets display.</p>
    */
-  protected dateModel: NgbDateStruct | null = null;
+  protected readonly dateControl = new FormControl<NgbDateStruct | null>(null);
+  protected readonly timeControl = new FormControl<string | null>(null);
 
   private static toStruct(dateKey: string | null): NgbDateStruct | null {
     if (!dateKey) return null;
     const [year, month, day] = dateKey.split('-').map(Number);
     return year && month && day ? { year, month, day } : null;
+  }
+
+  constructor() {
+    // User-driven changes. Parent-driven writes below use emitEvent:false, so these fire only for
+    // real interaction and cannot feed back into themselves.
+    this.dateControl.valueChanges
+      .pipe(takeUntilDestroyed(inject(DestroyRef)))
+      .subscribe((value) => this.onDatePicked(value));
+    this.timeControl.valueChanges
+      .pipe(takeUntilDestroyed(inject(DestroyRef)))
+      .subscribe((value) => this.onTimePicked(value));
   }
 
   /**
@@ -184,12 +202,10 @@ export class AvailabilityCalendarComponent implements OnChanges {
   protected onDatePicked(value: NgbDateStruct | string | null): void {
     const key = AvailabilityCalendarComponent.normaliseToDateKey(value);
     if (!key) {
-      this.dateModel = null;
       this.timeOptions = [];
       this.changeDetector.markForCheck();
       return;
     }
-    this.dateModel = AvailabilityCalendarComponent.toStruct(key);
     this.populateTimesFor(key);
     this.changeDetector.markForCheck();
 
@@ -212,7 +228,8 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   protected onClear(): void {
-    this.dateModel = null;
+    this.dateControl.setValue(null, { emitEvent: false });
+    this.timeControl.setValue(null, { emitEvent: false });
     this.timeOptions = [];
     this.dateCleared.emit();
   }
