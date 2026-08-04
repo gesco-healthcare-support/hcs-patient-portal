@@ -58,6 +58,15 @@ Admin and Staff Supervisor.
 - Decision: a declined/expired consent creates a NEW consent ROUND per staff-proposed
   date (needs a round/supersedes link + migration), because Adrian wants the full audit
   trail of every date proposed and who declined it.
+- Decision (2026-08-04): 4b and 4c DEPLOY TOGETHER as a single server release. 4b stops
+  issuing reschedule consent at submit and only 4c reissues it after the staff date pick,
+  so neither is deployable alone. Merging stays per-phase; only the deploy is paired.
+- Decision (2026-08-04, Adrian): consent emails go out only once staff have selected a
+  date -- confirms the 4c trigger is the date pick, not the submit.
+- 4c input (2026-08-04, Adrian, tentative -- "maybe"): add a staff-facing BUTTON to send
+  the consent emails once a date is picked. Open for 4c research: is the button the only
+  trigger, or a manual re-send on top of an automatic issue-on-pick? Not in 4b, which
+  issues no consent at all.
 - Decision: uploaded documents carry over by COPYING rows that SHARE the same MinIO
   object key, because the rescheduled appointment must keep its own history; consequence
   is delete becomes soft-delete-only for shared blobs, which already matches the
