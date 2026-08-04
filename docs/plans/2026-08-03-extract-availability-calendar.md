@@ -1,7 +1,7 @@
 ---
 feature: Extract a reusable availability calendar from the booking component
 date: 2026-08-03
-status: in-progress
+status: done
 base-branch: main
 related-issues: []
 ---
@@ -222,7 +222,35 @@ moved into a component that different hosts embed. See defect 6.
   - WHEN the solution builds, THE SYSTEM SHALL contain no remaining reference to the removed members.
   - THE SYSTEM SHALL leave `AppointmentWizardComponent`'s TypeScript unmodified.
 
-### Task 6 - retire the legacy add route (ADDED 2026-08-03, on request)
+### Task 7 - collapse booking onto ONE route (ADDED 2026-08-04, after a live 404)
+
+- what: DELETE `/appointments/add` entirely. The internal shell child moves to
+  `path: 'appointments/request'`, the task-6 redirect route and `legacy-add-redirect.ts` (+ spec) are
+  deleted, and all three navigations are repointed: the topbar button
+  (`internal-shell-layout.component.html:139`), the list action
+  (`internal-appointments.component.ts:157`) and internal re-request
+  (`appointment-view.component.ts:808`).
+- WHY, and this supersedes task 6: task 6's redirect BROKE internal booking. An internal Intake
+  Staff clicking New Appointment was redirected to `/appointments/request`, which is external-only,
+  so they fell through to the `**` wildcard and got "Page not found". **`canMatch` did NOT prevent a
+  `redirectTo` route from applying** -- the access token proved `role: "Intake Staff"` while the
+  external-only guard's route still fired. Never combine `canMatch` with `redirectTo`; and more
+  usefully, never keep two paths to one screen split by role, because the split is the failure.
+- result: ONE booking path, `/appointments/request`, with the role split only on CHROME -- internal
+  renders it as a shell child (sidebar), external matches the chrome-less copy declared before the
+  shell parent. `/appointments/add` now 404s for both roles, verified live.
+- approach: code (routing) -- the deleted redirect spec is not replaced, because the construct it
+  tested no longer exists.
+- acceptance (EARS):
+  - WHEN an internal user clicks New Appointment, THE SYSTEM SHALL render the wizard inside the shell.
+  - WHEN an external user books from home, THE SYSTEM SHALL render the chrome-less wizard with
+    `?type` preserved.
+  - WHEN anyone opens `/appointments/add`, THE SYSTEM SHALL render the 404 page.
+
+### Task 6 - retire the legacy add route (2026-08-03, SUPERSEDED by task 7)
+
+Kept for the record because its failure is the lesson. The redirect described below was the wrong
+mechanism; task 7 deletes the path instead.
 
 - why: task 5 exposed that "both booking surfaces" was a stale premise. `/appointments/add` resolves
   to the WIZARD for internal staff, and the legacy `AppointmentAddComponent` sat behind the same path
@@ -343,9 +371,40 @@ TOOLING TRAP, cost ~30 minutes: do NOT put `async` / `await sleep(...)` inside P
 separate calls. Note the second 1800s hang was NOT the tool -- it was defect 5 wedging the page, so
 treat a repeat hang as a possible app fault, not just a tooling one.
 
-Still UNVERIFIED at the time of writing: the two end-to-end bookings required by task 5. The display
-fix itself has real-DOM evidence from the karma contract spec (real `ngbDatepicker`, real adapter,
-real formatter, in Chrome), but that is not a substitute for submitting a booking on both surfaces.
+## Task 5 gate: PASSED (2026-08-04), both surfaces, with database proof
+
+Driven through the CORRECT doors, which is itself the finding below:
+
+| Conf#  | Surface                       | Date + time         | Location          | Type | Slot FromTime |
+| ------ | ----------------------------- | ------------------- | ----------------- | ---- | ------------- |
+| A00036 | internal, Intake Staff, shell | 2026-08-13 09:00:00 | Demo Clinic South | IME  | 09:00:00      |
+| A00037 | external, Patient, chromeless | 2026-08-08 09:30:00 | Demo Clinic North | AME  | 09:30:00      |
+
+Both rows carry a resolved `DoctorAvailabilityId` whose `FromTime` matches the chosen time, so the
+component's three-value output (date, time, slot id) reaches the form and the API intact.
+
+Also observed live, i.e. the defects above are genuinely fixed and not merely unit-green: the date
+DISPLAYS (`08/13/2026`, `08/20/2026`, `08/08/2026`), the label/input association is present, the time
+list fills, no stuck "Loading available dates", no false no-dates warning, and lead time disables
+correctly (on 2026-08-04 the 6th had fallen inside the 3-day window; 13/20/27 stayed open, and Demo
+Clinic North's 08-04 slots were disabled while 08-08/11/14/18/20/25 + Sep 1/8/15/22/29 matched the DB
+exactly -- which also proves the location-change reload and its race guard).
+
+Console errors during the run were all Smarty address-validation 401s (an external dev key),
+unrelated to this phase.
+
+### THE ENVIRONMENT LESSON, worth more than the gate itself
+
+The FIRST attempt at this gate tested the wrong application entirely. Internal staff are HOST users
+(`AbpUsers.TenantId IS NULL`: Intake Staff, IT Admin, Staff Supervisor) who sign in at
+`admin.<base>`, land on `/host/my-offices`, and "Enter practice" IMPERSONATES them into a tenant
+(the access token carries `impersonator_userid`). EXTERNAL users (Patient, Applicant/Defense
+Attorney, Claim Examiner) live in the TENANT databases and sign in at `{tenant}.<base>`.
+
+`admin@falkinstein.test` is a TENANT admin, so testing internal booking as that user on
+`falkinstein.localhost` exercised neither real path. Verify through the door the actual role uses, or
+the verification is theatre -- this is exactly how the `/appointments/add` 404 below reached Adrian
+instead of being caught here.
 
 ## Validation loop
 

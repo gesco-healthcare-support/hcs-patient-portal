@@ -252,6 +252,18 @@ Append after each phase.
   while leaving the MODEL SHAPE wrong, and attempts 5 and 6 were each caused by the fix to the
   previous one. Ten minutes reading `NgbDateAdapter` replaced three rounds of guessing. Read what the
   third-party code does with the value before trying another way to hand it over.
+- (P4a) **VERIFY THROUGH THE DOOR THE ROLE ACTUALLY USES, or the verification is theatre.** Internal
+  staff are HOST users (`TenantId IS NULL`) who sign in at `admin.<base>`, land on
+  `/host/my-offices`, and "Enter practice" IMPERSONATES them into a tenant (token carries
+  `impersonator_userid`). External users live in the TENANT databases at `{tenant}.<base>`.
+  `admin@falkinstein.test` is a TENANT admin, so an internal-booking check run as that user on
+  `falkinstein.localhost` exercised NEITHER real path -- which is how a hard 404 on the internal New
+  Appointment button reached Adrian instead of the gate. Establish the role-to-subdomain mapping
+  BEFORE claiming a live check passed.
+- (P4a) `canMatch` DOES NOT PREVENT A `redirectTo` ROUTE FROM APPLYING. A redirect guarded
+  external-only fired for an internal user (token said `role: "Intake Staff"`), who then failed the
+  external-only target route and landed on the `**` 404. Never pair `canMatch` with `redirectTo`; and
+  never keep two paths to one screen split by role -- collapse to one path and split only the chrome.
 - (P4a) A ROUTE THAT NOTHING NAVIGATES TO IS NOT HARMLESS -- it is a second surface you must verify
   forever. `/appointments/add` served the WIZARD to internal staff and the legacy add form to external
   users on the same path via `canMatch`, while every real entry point had already moved to
