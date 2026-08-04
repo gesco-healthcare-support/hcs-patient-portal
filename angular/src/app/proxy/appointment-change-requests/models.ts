@@ -9,6 +9,10 @@ export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string
   tenantId?: string | null;
   appointmentId?: string;
   appointmentConfirmationNumber?: string | null;
+  appointmentLocationId?: string | null;
+  appointmentTypeId?: string | null;
+  requestedSlotDate?: string | null;
+  requestedSlotFromTime?: string | null;
   changeRequestType?: ChangeRequestType;
   cancellationReason?: string | null;
   reScheduleReason?: string | null;
@@ -64,7 +68,7 @@ export interface RequestCancellationDto {
 }
 
 export interface RequestRescheduleDto {
-  newDoctorAvailabilityId: string;
+  newDoctorAvailabilityId?: string | null;
   reScheduleReason: string;
   isBeyondLimit?: boolean;
 }
