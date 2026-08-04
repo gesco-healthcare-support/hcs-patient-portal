@@ -180,6 +180,15 @@ all three controls, keeping the form contract identical.
     rather than an empty calendar with no explanation.
   - THE SYSTEM SHALL include at least one spec that RENDERS the component and asserts disabled days
     in the DOM, not merely that the helper returned false.
+  - WHEN a date is selected, THE SYSTEM SHALL DISPLAY it as text in the picker input. (Added after
+    defect 6; the original acceptance list covered state and disabled days but never the one
+    observable that was broken.)
+
+SECOND SCOPE ADDITION (2026-08-03) -- one more file: `availability-date-adapter.ts` (+ spec), an
+`NgbDateAdapter<string>` PINNED on the component via `providers`. Not foreseen when the plan was
+written, because the plan assumed the datepicker's model shape was a property of the markup being
+moved. It is not: it is resolved from the HOST injector, so it changed meaning the moment the markup
+moved into a component that different hosts embed. See defect 6.
 
 ### Task 3 - slim the shell onto the new component
 
@@ -225,7 +234,7 @@ all three controls, keeping the form contract identical.
   - WHEN a booking is submitted from the wizard after this change, THE SYSTEM SHALL do the same.
   - If either surface fails, then the phase SHALL NOT be shipped.
 
-## What the live gate caught (2026-08-03) -- FOUR defects, all invisible to 452 green specs
+## What the live gate caught (2026-08-03) -- SIX defects, all invisible to 452 green specs
 
 This is the entry that justifies the gate. After tasks 1-4 the suite was fully green, the build was
 clean, and THE BOOKING FORM WAS BROKEN. Every one of these was found by driving the real app.
@@ -240,21 +249,62 @@ clean, and THE BOOKING FORM WAS BROKEN. Every one of these was found by driving 
 3. The "no bookable dates" message fired FALSELY -- it told the booker no dates existed while 48 were
    published, because the parent computed it from `availableDateKeys` / `isAvailableDatesLoading`,
    which the parent no longer populates. FIXED by deriving it in the child, which owns availability.
-4. `ngbDatepicker`'s `ngModelChange` does NOT always emit an `NgbDateStruct` -- it can arrive as a
-   formatted string. Assuming the struct threw
+4. `ngbDatepicker` did NOT emit an `NgbDateStruct` on selection -- the value arrived as a formatted
+   string. Assuming the struct threw
    "Cannot read properties of undefined (reading 'toString')" inside `onDatePicked`, so the time
-   options never populated. FIXED by normalising both shapes.
+   options never populated. FIXED by normalising both shapes. (Defect 6 later explained WHY: the
+   emitted value is whatever the ambient `NgbDateAdapter.toModel` produces, and that adapter is
+   string-based here.)
+5. Clicking a date WEDGED THE BROWSER -- hard enough that even a synchronous `browser_evaluate` hung
+   for 1800s, which initially looked like a tooling fault rather than an app fault. Cause:
+   `[ngModel]` was bound to a GETTER that built a fresh object on every call, so every
+   change-detection pass saw a new reference, wrote it back, and scheduled another pass. FIXED by not
+   deriving the bound value on the fly. Lesson: never bind `ngModel` (or any two-way binding) to an
+   expression that allocates -- reference identity IS the change signal.
+6. THE PICKED DATE DISPLAYED AS AN EMPTY INPUT, while everything else was correct (the clear button
+   and lead-time note appeared, 13 real time slots loaded, lead time disabled 73 of 77 day cells).
+   Three successive mechanism changes did not fix it -- a memoised getter, then a plain field, then a
+   component-owned `FormControl` -- because THE MECHANISM WAS NEVER THE FAULT. `ngbDatepicker` runs
+   every control value through the ambient `NgbDateAdapter` inside `writeValue`, and the ambient one
+   here is ABP's `DateAdapter`, an `NgbDateAdapter<string>` expecting `YYYY-MM-DD`. All three attempts
+   fed an `NgbDateStruct`, so `fromModel` returned null (`new Date({year,month,day})` is an Invalid
+   Date), the parser-formatter was handed null, and it wrote ''.
 
-Pattern across all four: THREE of them are state that used to be maintained by the method that moved.
+   FIXED in two parts. The control now holds the `YYYY-MM-DD` key it already receives (converting
+   nothing), and the adapter is PINNED on the component via a local `AvailabilityDateAdapter`. The
+   pin is the part that matters beyond this bug: `ngbDatepicker` resolves `NgbDateAdapter` from the
+   HOST injector, so the required model shape silently differed per host -- both booking surfaces
+   provide ABP's, while the reschedule modal (4b) and this component's own spec fall back to
+   ng-bootstrap's struct-based default. Left unpinned, the same control value renders correctly in one
+   host and blank in another, which would have re-introduced this bug in 4b. Pinning makes the model
+   shape part of the component's own contract. A local adapter rather than ABP's keeps the component
+   free of the ABP DI barrel (matching its no-ABP design note) and is itself unit-tested.
+
+Pattern across all six: THREE of them are state that used to be maintained by the method that moved.
 When extracting behaviour out of a large component, grep for everything the moved method ASSIGNED,
 not just what it read -- the assignments are the silent breakages.
 
+The other transferable lesson, from 5 and 6: EACH WAS INTRODUCED BY THE FIX TO THE PREVIOUS ONE. Three
+attempts at defect 6 all changed the binding MECHANISM while leaving the model SHAPE wrong. When the
+second attempt at the same symptom fails, stop tuning the mechanism and go read what the third-party
+directive actually does with the value -- here, ten minutes in `NgbDateAdapter` would have replaced
+three rounds of guessing.
+
+Why no spec caught 6, and what now does: the specs asserted component state, the emitted output, the
+disabled days and the availability highlight -- every one of which was CORRECT throughout. Nothing
+asserted the input's DISPLAYED TEXT, the single observable that was wrong. There is now a spec that
+does (`DISPLAYS the selected date in the input`), and it was FALSIFIED before being trusted: restoring
+the struct shape makes it fail with `Expected '' to be '08/13/2026'`, which is defect 6 reproduced in
+a unit test. `AvailabilityDateAdapter` also has its own round-trip spec.
+
 TOOLING TRAP, cost ~30 minutes: do NOT put `async` / `await sleep(...)` inside Playwright's
 `browser_evaluate`. It deadlocked the MCP server for 1800s before aborting. Click and read must be
-separate calls.
+separate calls. Note the second 1800s hang was NOT the tool -- it was defect 5 wedging the page, so
+treat a repeat hang as a possible app fault, not just a tooling one.
 
-Still UNVERIFIED at the time of writing: that fix 4 actually populates the time dropdown, and the two
-end-to-end bookings required by task 5.
+Still UNVERIFIED at the time of writing: the two end-to-end bookings required by task 5. The display
+fix itself has real-DOM evidence from the karma contract spec (real `ngbDatepicker`, real adapter,
+real formatter, in Chrome), but that is not a substitute for submitting a booking on both surfaces.
 
 ## Validation loop
 

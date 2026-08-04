@@ -233,6 +233,29 @@ Append after each phase.
 - (P3) Phase 3's SonarCloud quality gate PASSED, where phase 2's failed at 77.8% new-code coverage.
   The difference was purely that the logic here was extracted into pure, tested units.
 
+- (P4a) **AN EXTRACTED COMPONENT INHERITS AMBIENT DI FROM ITS HOST, SO "MOVE THE MARKUP" CAN CHANGE
+  BEHAVIOUR WITH NO CODE CHANGE.** The picked date rendered as an EMPTY input for three fix attempts.
+  `ngbDatepicker` converts every control value through the ambient `NgbDateAdapter` inside
+  `writeValue`, and that token is resolved from the HOST injector: both booking surfaces provide ABP's
+  string-based `DateAdapter` at component level, while a modal or a bare spec falls back to
+  ng-bootstrap's struct-based default. The same value therefore renders in one host and blanks in
+  another. When extracting markup that binds a third-party directive, enumerate the tokens that
+  directive injects and PIN the ones that define your contract on the new component. Generalises to
+  4b: the reschedule modal is exactly the host that would have re-broken this.
+- (P4a) THE COROLLARY TO P3's MAPPER LESSON, in its sharpest form: assert THE OBSERVABLE THE USER SEES.
+  The specs covered component state, the emitted output, disabled days and the availability highlight
+  -- all correct throughout -- and none covered the input's displayed TEXT, the one thing that was
+  wrong. 452 green specs plus a clean build shipped an unusable picker.
+- (P4a) WHEN THE SECOND FIX FOR ONE SYMPTOM FAILS, STOP CHANGING THE MECHANISM. Three attempts at the
+  blank input each swapped the binding mechanism (getter -> memoised getter -> field -> `FormControl`)
+  while leaving the MODEL SHAPE wrong, and attempts 5 and 6 were each caused by the fix to the
+  previous one. Ten minutes reading `NgbDateAdapter` replaced three rounds of guessing. Read what the
+  third-party code does with the value before trying another way to hand it over.
+- (P4a) Never bind a two-way binding (`[ngModel]`, `[(x)]`) to an expression that ALLOCATES. A getter
+  returning a fresh object made every change-detection pass see a new reference and schedule another,
+  wedging the browser hard enough to hang the automation tooling for 1800s -- which read as a tool
+  fault, not an app fault. Reference identity IS the change signal.
+
 ### Environment / tooling
 
 - (P1) Dev containers build from BIND-MOUNTED source at container START, so after a branch
