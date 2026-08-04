@@ -26,6 +26,7 @@ crude `<select>` with NO lead-time or horizon gating at all -- so without this e
 either duplicate the rules or ship a second, inconsistent set.
 
 Blast radius, VERIFIED against `main` at `61b43501` (the epic-wide research had assumed worse):
+
 - `AppointmentWizardComponent` EXTENDS `AppointmentAddComponent`
   (`appointment-wizard.component.ts:121-122`) but overrides exactly ONE method,
   `navigateAfterBooking()` (`:619`), and references ZERO calendar members in TypeScript. The
@@ -68,21 +69,21 @@ location selectors, and the reschedule modal itself (that is 4b).
 Members to move off `angular/src/app/appointments/appointment-add.component.ts` (all verified
 present on current main):
 
-| Kind | Member | Line |
-| --- | --- | --- |
-| state | `isAvailableDatesLoading` | 243 |
-| state | `availableDateKeys` (private Set) | 252 |
-| state | `appointmentTimeOptions` | 272 |
-| rule | `minimumBookingDays = 3` | 258 |
-| rule | `minimumBookingRuleMessage` | 259 |
-| rule | `externalMaxBookingDays = 60` | 265 |
-| rule | `internalMaxBookingDays` + `maxBookingDays` getter | ~266-270 |
-| behaviour | `loadAvailableDatesBySelection()` | body ~3371-3426; called 718, 720, 2022 |
-| behaviour | `fetchAllAvailableSlots()` | 3373 |
-| behaviour | `toDateKeyFromApi()` | 3437 |
-| behaviour | `markAppointmentDateDisabled` | 2219 |
-| behaviour | `isAvailableAppointmentDate` | (beside the above) |
-| behaviour | `isBeyondAbsoluteBookingCeiling` | 2231 |
+| Kind      | Member                                             | Line                                   |
+| --------- | -------------------------------------------------- | -------------------------------------- |
+| state     | `isAvailableDatesLoading`                          | 243                                    |
+| state     | `availableDateKeys` (private Set)                  | 252                                    |
+| state     | `appointmentTimeOptions`                           | 272                                    |
+| rule      | `minimumBookingDays = 3`                           | 258                                    |
+| rule      | `minimumBookingRuleMessage`                        | 259                                    |
+| rule      | `externalMaxBookingDays = 60`                      | 265                                    |
+| rule      | `internalMaxBookingDays` + `maxBookingDays` getter | ~266-270                               |
+| behaviour | `loadAvailableDatesBySelection()`                  | body ~3371-3426; called 718, 720, 2022 |
+| behaviour | `fetchAllAvailableSlots()`                         | 3373                                   |
+| behaviour | `toDateKeyFromApi()`                               | 3437                                   |
+| behaviour | `markAppointmentDateDisabled`                      | 2219                                   |
+| behaviour | `isAvailableAppointmentDate`                       | (beside the above)                     |
+| behaviour | `isBeyondAbsoluteBookingCeiling`                   | 2231                                   |
 
 - Shell to slim: `angular/src/app/appointments/sections/appointment-add-schedule.component.ts`
   (104 lines, 12 `@Input`s at `:74-100`) + its `.html`. Its date column is `:49-101`; the
@@ -155,6 +156,7 @@ present on current main):
 SCOPE CORRECTED DURING BUILD (2026-08-03) -- task 2 is BIGGER than the 13-member table above.
 Reading the loader body (`appointment-add.component.ts:3360-3426`) and the rest of the shell
 template showed the reusable unit is DATE + TIME + SLOT ID, not date alone:
+
 - The shell also renders the TIME `<select>` (`formControlName="appointmentTime"`, options from
   `appointmentTimeOptions`, with a `Appointment:NoSlotsRemaining` message), so the component must own
   that column too or the two halves would live in different places.
@@ -166,11 +168,11 @@ template showed the reusable unit is DATE + TIME + SLOT ID, not date alone:
   slots.
 - It writes THREE form values (`appointmentDate`, `appointmentTime`, `doctorAvailabilityId`) and
   calls `clearTimeSlots()`, so the component's output has to carry the slot id, not just a date.
-Additional members to move beyond the table: `availableSlotsByDate`,
-`availableSlotsRequestVersion`, `clearTimeSlots`, and the slot-population half of
-`onAppointmentDateChanged`. The output therefore emits
-`{ date: string; time: string | null; doctorAvailabilityId: string | null }` and the shell patches
-all three controls, keeping the form contract identical.
+  Additional members to move beyond the table: `availableSlotsByDate`,
+  `availableSlotsRequestVersion`, `clearTimeSlots`, and the slot-population half of
+  `onAppointmentDateChanged`. The output therefore emits
+  `{ date: string; time: string | null; doctorAvailabilityId: string | null }` and the shell patches
+  all three controls, keeping the form contract identical.
 - acceptance (EARS):
   - WHEN location and appointment type are both set, THE SYSTEM SHALL load availability and enable
     only selectable dates.
@@ -220,7 +222,46 @@ moved into a component that different hosts embed. See defect 6.
   - WHEN the solution builds, THE SYSTEM SHALL contain no remaining reference to the removed members.
   - THE SYSTEM SHALL leave `AppointmentWizardComponent`'s TypeScript unmodified.
 
+### Task 6 - retire the legacy add route (ADDED 2026-08-03, on request)
+
+- why: task 5 exposed that "both booking surfaces" was a stale premise. `/appointments/add` resolves
+  to the WIZARD for internal staff, and the legacy `AppointmentAddComponent` sat behind the same path
+  under `externalUserOnlyMatchGuard` with NOTHING navigating to it -- external booking had already
+  moved to `/appointments/request` (`external-home.component.ts:355`,
+  `external-appointment-detail.component.ts:270`). It was reachable only by typing the URL, so it was
+  a surface that had to be re-verified on every booking change while silently drifting.
+- what: MODIFY `app.routes.ts` -- replace the legacy route's `loadComponent` with
+  `redirectTo: legacyAddRedirect`, and drop the now-unused eager import. CREATE
+  `appointments/legacy-add-redirect.ts` (+ spec).
+- a REDIRECT, not a deletion: the internal shell is gated by `internalUserOnlyMatchGuard`
+  (`app.routes.ts:469`), so an external user who no longer matched the removed route would fall past
+  the shell to the `**` 404 instead of reaching any booking form.
+- returns a `UrlTree`, not a path string, so `?type=1/2` (new vs RE-EVALUATION) is carried across
+  explicitly. Extracted out of the route array purely so that is testable -- an inline arrow in
+  `APP_ROUTES` cannot be reached from a spec, and a dropped `?type=2` would quietly turn every
+  re-evaluation link into a new booking.
+- NOT done, deliberately: `AppointmentAddComponent` the CLASS stays, because
+  `AppointmentWizardComponent extends` it (`appointment-wizard.component.ts:122`), so its
+  `@Component` still compiles `appointment-add.component.html`. Deleting that template means
+  de-componentising the base class -- a separate refactor, not smuggled into this phase.
+- MEASURED BENEFIT: the legacy component was imported EAGERLY
+  (`loadComponent: () => Promise.resolve(...)`), putting a 3763-line component and its template in
+  the INITIAL bundle. Removing it took initial from 2.32 MB to 2.15 MB (over-budget warning
+  322.62 kB -> 146.51 kB). The pre-existing budget warning is now less than half what it was.
+- approach: code (routing config) + a unit spec for the redirect
+- acceptance (EARS):
+  - WHEN a pure-external user opens `/appointments/add`, THE SYSTEM SHALL redirect to
+    `/appointments/request` rather than render the legacy form or a 404.
+  - WHEN that URL carries `?type=2`, THE SYSTEM SHALL preserve it through the redirect.
+  - WHEN an internal user opens `/appointments/add`, THE SYSTEM SHALL still render the in-shell
+    wizard, unchanged.
+
 ### Task 5 - live re-verification of BOTH booking surfaces (HARD GATE)
+
+PREMISE CORRECTED (2026-08-03): there is no longer a "legacy page vs wizard" split. After task 6 both
+surfaces are the WIZARD, differing only in chrome and guard: internal in-shell at
+`/appointments/add`, external chrome-less at `/appointments/request`. The gate is therefore one
+booking as internal staff and one as an external user, NOT two different components.
 
 - what: MODIFY nothing. Restart the angular container, then drive BOTH surfaces: the legacy add page
   and the wizard. For each, confirm the calendar loads, that dates inside lead time are disabled,

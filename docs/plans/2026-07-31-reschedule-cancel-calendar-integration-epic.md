@@ -80,17 +80,17 @@ Admin and Staff Supervisor.
 
 ## Phases
 
-| # | Phase | Branch | Plan | Status |
-|---|---|---|---|---|
-| 1 | Staff Supervisor CT permissions | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md` | **DONE** - PR #409 -> main `7b0d9c30` |
-| 2 | Cancellation reason + billing status to CT | `feat/cancel-reason-to-case-tracker` | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
-| 3 | Staff schedule calendar (FullCalendar) | `feat/staff-schedule-calendar` | `2026-07-31-staff-schedule-calendar.md` | **DONE** - PR #418 -> main `1784a6bb` |
-| 4a | Extract reusable availability calendar | `refactor/extract-availability-calendar` | not written | TODO (prereq for 4b) |
-| 4b | Staff pick the reschedule date | `feat/staff-picks-reschedule-date` | not written | TODO (after 4a) |
-| 4c | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds` | not written | TODO (after 4b) |
-| 4d | Reschedule creates a new appointment | `feat/reschedule-creates-new-appointment` | not written | TODO (after 4c) |
-| 4e | CT two-case semantics + contract amendment | `feat/case-tracker-two-case-reschedule` | not written | TODO (after 4d) |
-| 5 | No-show round trip (INBOUND from CT) | `feat/no-show-round-trip` | not written | TODO (after 4d) |
+| #   | Phase                                       | Branch                                    | Plan                                                               | Status                                |
+| --- | ------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------ | ------------------------------------- |
+| 1   | Staff Supervisor CT permissions             | `fix/supervisor-case-tracker-permissions` | `2026-07-31-staff-supervisor-case-tracker-permissions.md`          | **DONE** - PR #409 -> main `7b0d9c30` |
+| 2   | Cancellation reason + billing status to CT  | `feat/cancel-reason-to-case-tracker`      | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
+| 3   | Staff schedule calendar (FullCalendar)      | `feat/staff-schedule-calendar`            | `2026-07-31-staff-schedule-calendar.md`                            | **DONE** - PR #418 -> main `1784a6bb` |
+| 4a  | Extract reusable availability calendar      | `refactor/extract-availability-calendar`  | not written                                                        | TODO (prereq for 4b)                  |
+| 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | not written                                                        | TODO (after 4a)                       |
+| 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | not written                                                        | TODO (after 4b)                       |
+| 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | not written                                                        | TODO (after 4c)                       |
+| 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | not written                                                        | TODO (after 4d)                       |
+| 5   | No-show round trip (INBOUND from CT)        | `feat/no-show-round-trip`                 | not written                                                        | TODO (after 4d)                       |
 
 Phase 5 ADDED 2026-07-31 (Adrian, while resolving phase 2's NoShow question). It is NOT a phase-2
 rider: it needs an INBOUND Case Tracker -> portal endpoint, which does not exist today (the
@@ -102,6 +102,7 @@ to CT so it starts tracking. Sequenced after 4d because "create a pre-approved r
 4d's create-new-appointment machinery.
 
 Open questions to settle before planning phase 5:
+
 - Auth: reuse the static `X-Integration-Token` that already guards the reconcile GET (contract §F),
   or mint something separate?
 - Office resolution: database-per-office means the request must carry `{tenantId}` as a PATH
@@ -251,6 +252,15 @@ Append after each phase.
   while leaving the MODEL SHAPE wrong, and attempts 5 and 6 were each caused by the fix to the
   previous one. Ten minutes reading `NgbDateAdapter` replaced three rounds of guessing. Read what the
   third-party code does with the value before trying another way to hand it over.
+- (P4a) A ROUTE THAT NOTHING NAVIGATES TO IS NOT HARMLESS -- it is a second surface you must verify
+  forever. `/appointments/add` served the WIZARD to internal staff and the legacy add form to external
+  users on the same path via `canMatch`, while every real entry point had already moved to
+  `/appointments/request`. The dead branch cost a full round of confusion about what "both booking
+  surfaces" even meant. Retired via a redirect (deletion would have 404'd external users, since the
+  internal shell is `internalUserOnlyMatchGuard`-gated). Two things to carry: check what NAVIGATES to
+  a route before treating it as live, and when a component is wired
+  `loadComponent: () => Promise.resolve(X)` it is EAGER -- that one line held a 3763-line component in
+  the initial bundle, and removing it cut 176 kB (2.32 MB -> 2.15 MB).
 - (P4a) Never bind a two-way binding (`[ngModel]`, `[(x)]`) to an expression that ALLOCATES. A getter
   returning a fresh object made every change-detection pass see a new reference and schedule another,
   wedging the browser hard enough to hang the automation tooling for 1800s -- which read as a tool
