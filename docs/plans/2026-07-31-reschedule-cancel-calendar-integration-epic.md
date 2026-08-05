@@ -95,8 +95,8 @@ Admin and Staff Supervisor.
 | 2   | Cancellation reason + billing status to CT  | `feat/cancel-reason-to-case-tracker`      | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
 | 3   | Staff schedule calendar (FullCalendar)      | `feat/staff-schedule-calendar`            | `2026-07-31-staff-schedule-calendar.md`                            | **DONE** - PR #418 -> main `1784a6bb` |
 | 4a  | Extract reusable availability calendar      | `refactor/extract-availability-calendar`  | `2026-08-03-extract-availability-calendar.md`                      | **DONE** - PR #420 -> main `86d76b54` |
-| 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | `docs/plans/2026-08-04-staff-picks-reschedule-date.md`             | **DONE** - PR #423, live gate PASSED  |
-| 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | not written                                                        | TODO (after 4b)                       |
+| 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | `docs/plans/2026-08-04-staff-picks-reschedule-date.md`             | **DONE** - #423 -> main `326f08a9`    |
+| 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | `docs/plans/2026-08-05-reschedule-consent-rounds.md`               | PLANNED + APPROVED - ready to build   |
 | 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | not written                                                        | TODO (after 4c)                       |
 | 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | not written                                                        | TODO (after 4d)                       |
 | 5   | No-show round trip (INBOUND from CT)        | `feat/no-show-round-trip`                 | not written                                                        | TODO (after 4d)                       |
@@ -258,7 +258,14 @@ Append after each phase.
   change-request area has ZERO integration coverage and no test-data seeder, and
   `AppointmentChangeRequestsAppService` takes 10 ctor dependencies (five CONCRETE classes)
   plus 13 uses of ABP ambient members -- so it is neither unit- nor integration-testable
-  today. Phase 4c NEEDS that harness; it is tracked separately.
+  today. ~~Phase 4c NEEDS that harness; it is tracked separately.~~
+  **CORRECTED 2026-08-05 (4c research):** a suitable app-service integration harness ALREADY
+  EXISTS -- `test/...EntityFrameworkCore.Tests/MultiOffice/` (`CaseEvaluationMultiOfficeTestBase`,
+  `MultiOfficeTestDatabase`, and a `MultiOfficeSeeder` that seeds appointment type, location,
+  doctor availability AND an appointment per office). `MultiOfficeAppointmentsAppServiceTests:39-43`
+  resolves real app services and can act as a role via `ICurrentPrincipalAccessor`. 4c adds
+  change-request consent tests there; no harness needs building. An earlier grep that appeared to
+  find no harness was matching compiled DLLs under `bin/`.
 - (P2) When a plan says "reuse that exact string", READ THE CONSUMERS FIRST.
   `"JDF-not-uploaded"` turned out to be a routing DISCRIMINATOR that
   `JdfAutoCancelledEmailHandler` filters on, and the column it would have been persisted

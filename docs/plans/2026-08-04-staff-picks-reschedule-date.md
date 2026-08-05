@@ -1,7 +1,7 @@
 ---
 feature: Staff pick the reschedule date (epic phase 4b)
 date: 2026-08-04
-status: in-progress
+status: done
 base-branch: main
 related-issues: []
 ---
