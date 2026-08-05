@@ -240,7 +240,7 @@
               <button
                 class="af-btn af-btn--blue"
                 type="button"
-                [disabled]="isBusy() || !canConfirm()"
+                [disabled]="isBusy() || !canConfirm(m.row)"
                 (click)="confirmDate()"
               >
                 {{ isBusy() ? 'Sending...' : 'Confirm date &amp; request consent' }}

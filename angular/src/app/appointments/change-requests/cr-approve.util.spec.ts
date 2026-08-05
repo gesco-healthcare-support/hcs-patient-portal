@@ -140,6 +140,25 @@ describe('cr-approve.util', () => {
       ).toBe('granted');
     });
 
+    // A declined side kills the round even while the OTHER side is still thinking: resending
+    // would only re-ask the pending side, and the round stays unfinalizable however they answer.
+    it('sends a declined round back to needing a date even if the other side has not answered', () => {
+      expect(
+        rescheduleStage({
+          currentConsentRoundNumber: 1,
+          currentRoundSideAStatus: PENDING,
+          currentRoundSideBStatus: REJECTED,
+        }),
+      ).toBe('needs-date');
+      expect(
+        rescheduleStage({
+          currentConsentRoundNumber: 1,
+          currentRoundSideAStatus: PENDING,
+          currentRoundSideBStatus: EXPIRED,
+        }),
+      ).toBe('needs-date');
+    });
+
     // A declined date is not a dead end: the way forward is to propose a different one, which
     // supersedes that round and opens the next.
     it('sends a rejected or expired round back to needing a date', () => {
@@ -165,6 +184,41 @@ describe('cr-approve.util', () => {
       expect(canConfirmDate({ slotId: CHOSEN, time: '09:30' })).toBe(true);
       expect(canConfirmDate({ slotId: CHOSEN, time: null })).toBe(false);
       expect(canConfirmDate({ slotId: null, time: '09:30' })).toBe(false);
+    });
+
+    // Confirming is what emails both sides, so a missing explanation must make the button
+    // unavailable rather than let it fire and refuse.
+    it('also needs the admin reason when staff replace a slot the requestor proposed', () => {
+      expect(
+        canConfirmDate({
+          slotId: CHOSEN,
+          time: '09:30',
+          proposedSlotId: PROPOSED,
+          adminReason: '',
+        }),
+      ).toBe(false);
+      expect(
+        canConfirmDate({
+          slotId: CHOSEN,
+          time: '09:30',
+          proposedSlotId: PROPOSED,
+          adminReason: '   ',
+        }),
+      ).toBe(false);
+      expect(
+        canConfirmDate({
+          slotId: CHOSEN,
+          time: '09:30',
+          proposedSlotId: PROPOSED,
+          adminReason: 'Doctor unavailable',
+        }),
+      ).toBe(true);
+    });
+
+    it('does not demand a reason for a first-and-only staff choice', () => {
+      expect(
+        canConfirmDate({ slotId: CHOSEN, time: '09:30', proposedSlotId: null, adminReason: '' }),
+      ).toBe(true);
     });
   });
 

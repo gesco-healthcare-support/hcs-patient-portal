@@ -254,6 +254,24 @@ Append after each phase.
 - **`Check.Positive` / `Check.NotDefaultOrNull` make an entity ctor self-guarding**, which is
   worth more than a test: `RoundNumber >= 1` and a non-empty proposed slot are invariants the
   unique index and the entire point of a round depend on.
+- **THE LIVE GATE CAUGHT TWO BUGS THAT 499 GREEN SPECS DID NOT, AND BOTH WERE STATE-MACHINE
+  BUGS RATHER THAN RENDERING ONES.** (1) The modal never advanced past "needs a date" after a
+  successful confirm: `queueMicrotask` re-pointed it at the refreshed row long before the
+  reload's HTTP round trip returned, so it always re-read the pre-confirm row. Fixed by
+  re-pointing from `load()`'s own completion. (2) A round with one side DECLINED still offered
+  "Resend", which is a dead end -- resending only re-asks the still-pending side while the
+  declined one keeps the round unfinalizable forever. Both were invisible to unit tests because
+  the specs asserted the derivation, not the sequence. Anything involving "after the server
+  responds" needs a live pass.
+- **Verify the button's DISABLED state, not just its click handler.** Confirm was enabled while
+  its required admin reason was empty, so clicking produced a warning toast instead of the
+  button simply being unavailable -- and confirm is the irreversible step that emails both
+  sides. The click guard and the disabled binding must be the SAME predicate.
+- (Live-check data, left deliberately) falkinstein **A00036** is now `Approved` at Aug 20 13:30
+  with an ACCEPTED reschedule request carrying two consent rounds: round 1 (Aug 13, superseded,
+  Side B `Rejected`) and round 2 (Aug 20, current, both sides `Approved`). Six consent outbox
+  rows tagged `/r1/a1`, `/r1/a2`, `/r2/a1`. Useful as a ready-made multi-round audit-trail
+  fixture; reset it if a later phase needs A00036 clean.
 
 ### From phase 4b (2026-08-04/05)
 

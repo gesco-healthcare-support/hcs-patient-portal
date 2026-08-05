@@ -184,7 +184,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     this.load();
   }
 
-  private load(): void {
+  private load(afterLoad?: () => void): void {
     this.loading.set(true);
     this.nowMs = Date.now();
     forkJoin({
@@ -205,10 +205,12 @@ export class InternalChangeRequestInboxComponent implements OnInit {
         );
         this.rows.set(merged);
         this.loading.set(false);
+        afterLoad?.();
       },
       error: () => {
         this.rows.set([]);
         this.loading.set(false);
+        afterLoad?.();
       },
     });
   }
@@ -337,8 +339,13 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   }
 
   /** Whether "Confirm date & request consent" may fire. */
-  protected canConfirm(): boolean {
-    return canConfirmDate({ slotId: this.chosenSlotId(), time: this.chosenTime() });
+  protected canConfirm(row: AppointmentChangeRequestDto): boolean {
+    return canConfirmDate({
+      slotId: this.chosenSlotId(),
+      time: this.chosenTime(),
+      proposedSlotId: row.newDoctorAvailabilityId,
+      adminReason: this.adminReason(),
+    });
   }
 
   /** Whether "Finalize reschedule" may fire. */
@@ -369,12 +376,12 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     if (!m || m.kind !== 'approve' || !m.row.id || this.isBusy() || !this.isReschedule(m.row)) {
       return;
     }
-    if (!this.canConfirm()) {
-      this.toaster.warn('Choose the new appointment date and time before confirming.');
-      return;
-    }
-    if (this.needsAdminReason(m.row) && !this.adminReason().trim()) {
-      this.toaster.warn('Explain why you are changing the requested date before confirming.');
+    if (!this.canConfirm(m.row)) {
+      this.toaster.warn(
+        this.needsAdminReason(m.row)
+          ? 'Explain why you are changing the requested date before confirming.'
+          : 'Choose the new appointment date and time before confirming.',
+      );
       return;
     }
 
@@ -420,9 +427,10 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   }
 
   private reloadAndRefreshModal(changeRequestId: string): void {
-    this.load();
-    // load() is async; re-point the modal once the rows land.
-    queueMicrotask(() => {
+    // Re-point the modal from load()'s own completion, NOT from a microtask: load() is an HTTP
+    // forkJoin, so a microtask runs long before the rows arrive and the modal would keep
+    // rendering the pre-confirm row -- i.e. sit on "needs a date" forever after a confirm.
+    this.load(() => {
       const refreshed = this.rows().find((r) => r.id === changeRequestId);
       const current = this.modal();
       if (refreshed && current?.kind === 'approve') {

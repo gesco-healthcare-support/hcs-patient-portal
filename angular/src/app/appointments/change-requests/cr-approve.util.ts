@@ -80,6 +80,8 @@ export interface ConsentRoundRow {
 const CONSENT_NOT_REQUIRED = 0;
 const CONSENT_PENDING = 1;
 const CONSENT_APPROVED = 2;
+const CONSENT_REJECTED = 3;
+const CONSENT_EXPIRED = 4;
 
 /**
  * Which stage the modal should render.
@@ -95,14 +97,18 @@ export function rescheduleStage(row: ConsentRoundRow | null | undefined): Consen
 
   const sides = [row.currentRoundSideAStatus, row.currentRoundSideBStatus];
 
+  // A declined or expired side kills the WHOLE round: it can never satisfy the finalize gate,
+  // so there is nothing left to wait for even if the other side has not answered. Offering
+  // "resend" here would be a dead end -- it only re-asks the still-pending side, and the round
+  // would stay unfinalizable however they answer. The only way forward is a new date.
+  if (sides.some((s) => s === CONSENT_REJECTED || s === CONSENT_EXPIRED)) {
+    return 'needs-date';
+  }
+
   // A side that was never solicited (no representative) is auto-satisfied, matching the
   // server's RescheduleConsentGate.
   const blocked = sides.some((s) => s !== CONSENT_NOT_REQUIRED && s !== CONSENT_APPROVED);
-  if (!blocked) {
-    return 'granted';
-  }
-
-  return sides.some((s) => s === CONSENT_PENDING) ? 'awaiting-consent' : 'needs-date';
+  return blocked ? 'awaiting-consent' : 'granted';
 }
 
 /**
@@ -150,12 +156,26 @@ export function consentStatusLabel(status: number | null | undefined): string {
   }
 }
 
-/** Whether "Confirm date & request consent" may fire: a date AND a time identify one slot. */
+/**
+ * Whether "Confirm date & request consent" may fire: a date AND a time identify one slot, and
+ * REPLACING a slot the requestor proposed owes the explanation they will read.
+ *
+ * The admin reason belongs in this gate, not only in the click handler: confirming is what
+ * emails both sides, so the button must be visibly unavailable rather than enabled-then-refusing.
+ */
 export function canConfirmDate(state: {
   slotId: string | null | undefined;
   time: string | null | undefined;
+  proposedSlotId?: string | null;
+  adminReason?: string | null;
 }): boolean {
-  return !!state.slotId && !!state.time;
+  if (!state.slotId || !state.time) {
+    return false;
+  }
+  if (requiresAdminReason(state.proposedSlotId, state.slotId)) {
+    return !!state.adminReason && state.adminReason.trim().length > 0;
+  }
+  return true;
 }
 
 /**
