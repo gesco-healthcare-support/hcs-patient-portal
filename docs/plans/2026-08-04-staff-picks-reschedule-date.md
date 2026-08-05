@@ -476,6 +476,41 @@ Live gate (Playwright MCP; `docker restart main-angular-1` first, wait for "Acce
 No migration is expected -- confirm `dotnet ef migrations has-pending-model-changes` reports none
 for BOTH the host and Tenant contexts.
 
+## Live gate: PASSED (2026-08-05, Playwright MCP, both doors)
+
+Run after `docker compose up -d` (the stack had OOM'd -- `main-sql-server-1` exited 137 during the
+15-minute EF Core run) and a `main-angular-1` restart.
+
+| Step | Door                                                                       | Result                                                                                                                                                                                                                                                      |
+| ---- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | External `patient@falkinstein.test` at `falkinstein.localhost:4200`        | Modal has NO calendar, NO date input, NO time select, NO old slot dropdown. Dialog stays `modal-md` (500px). Submit disabled on empty reason, enabled on reason alone. Submitted.                                                                           |
+| 2    | Internal `clistaff1@gesco.com` at `admin.localhost:4200` -> Enter practice | Calendar renders, dialog widens to `modal-lg` (800px), picker NOT clipped (spans 584-1058 inside a body of 560-1360). Only 13/20/27 clickable -- exactly Demo Clinic South's published availability. Picked date DISPLAYS as `08/27/2026`. Submitted.       |
+| 3    | Same internal session -> Change requests inbox                             | Detail panel reads "No date was requested -- choose the new date and time when you approve" (replacing the old "open the appointment" copy). Exactly ONE calendar instance. Approve disabled until date AND time; no admin-reason field demanded. Approved. |
+
+SQL proof (`CaseEvaluation_falkinstein`), with enum values verified from source rather than assumed
+(`RequestStatusType.Pending = 25 / Accepted = 26`, `AppointmentStatusType.Approved = 2 /
+RescheduledNoBill = 7 / RescheduleRequested = 12`, `BookingStatus.Available = 8 / Reserved = 10`,
+`ChangeRequestConsentStatus.NotRequired = 0`):
+
+- External reason-only submit: `NewDoctorAvailabilityId = NULL`, `RequestStatus = 25`, reason
+  persisted, `SideA = SideB = 0` (consent NOT issued -- T5), appointment -> `12`.
+- Staff approval: appointment moved `2026-08-13 09:00` -> `2026-08-20 13:30`, status -> `2`,
+  request -> `26`, outcome `7`, `AdminOverrideSlotId` SET even though it overrode nothing (the
+  defect-2 fix), `AdminReScheduleReason = NULL` (no reason demanded -- the defect-1 fix), the
+  landed slot `8`.
+- Staff-filed submit: `NewDoctorAvailabilityId` SET to the Aug 27 10:30 slot, that slot ->
+  `10` (Reserved hold applies when a slot IS proposed -- T3), consent still `0`.
+
+The two branches were exercised on the SAME appointment, so the conditional slot handling and the
+conditional Reserved hold are proven side by side rather than inferred.
+
+Screenshots: `.github/pr-media/4b-external-reason-only.png`,
+`4b-staff-calendar-in-request-modal.png`, `4b-staff-picks-date-in-approve.png`.
+
+Test data left in the dev DB on purpose: A00036 sits at Aug 20 13:30 (Approved) with a PENDING
+staff-filed reschedule to Aug 27 10:30 holding that slot Reserved. A00037 and A00034 are unchanged
+from earlier phases.
+
 ## Risk / rollback
 
 Blast radius: the reschedule request path (4 hosts) and the change-request approval path. Cancel

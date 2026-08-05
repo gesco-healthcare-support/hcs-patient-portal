@@ -95,7 +95,7 @@ Admin and Staff Supervisor.
 | 2   | Cancellation reason + billing status to CT  | `feat/cancel-reason-to-case-tracker`      | `2026-07-31-cancellation-reason-billing-status-to-case-tracker.md` | **DONE** - PR #414 -> main `baa1fee6` |
 | 3   | Staff schedule calendar (FullCalendar)      | `feat/staff-schedule-calendar`            | `2026-07-31-staff-schedule-calendar.md`                            | **DONE** - PR #418 -> main `1784a6bb` |
 | 4a  | Extract reusable availability calendar      | `refactor/extract-availability-calendar`  | `2026-08-03-extract-availability-calendar.md`                      | **DONE** - PR #420 -> main `86d76b54` |
-| 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | not written                                                        | TODO (after 4a)                       |
+| 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | `docs/plans/2026-08-04-staff-picks-reschedule-date.md`             | **DONE** - PR #423, live gate PASSED  |
 | 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | not written                                                        | TODO (after 4b)                       |
 | 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | not written                                                        | TODO (after 4c)                       |
 | 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | not written                                                        | TODO (after 4d)                       |
@@ -166,7 +166,13 @@ Facts later phases depend on. Re-verify before asserting -- code moves.
   lives on the 3764-line `AppointmentAddComponent`. That extraction is Phase 4a.
 - The reschedule modal today lacks the 60/90-day horizon rules, so "same rules as
   booking" requires porting them, not just swapping the widget.
-- `ChangeRequestApproveModalComponent` has NO slot picker at all -- Phase 4b adds one.
+- ~~`ChangeRequestApproveModalComponent` has NO slot picker at all -- Phase 4b adds one.~~
+  **CORRECTED 2026-08-04 (phase 4b research):** that component is DEAD CODE and was never the
+  live approve surface. `CHANGE_REQUEST_ROUTES` routes only `InternalChangeRequestInboxComponent`
+  (its own inline `.ra-modal`); `ChangeRequestListComponent` had zero references and was the sole
+  importer of the approve + reject modals. 4b added the picker to the INBOX and deleted the
+  orphaned trio. Anchors go stale -- re-verify which component a route actually renders before
+  planning against it.
 - No calendar library exists in `angular/package.json`; Phase 3 adds the first one.
 - No endpoint joins slots to appointments. `getSlotPatientNames` returns names only (no
   id, no status), so it cannot power a clickable chip -- Phase 3 needs a new joined
@@ -196,6 +202,37 @@ rather than expanding scope; Adrian was told and did not exclude them.
 ## Learnings carried forward
 
 Append after each phase.
+
+### From phase 4b (2026-08-04/05)
+
+- **A route is the only proof of which component is live.** This doc's own 4b anchor named a
+  component that no route reaches; building to it would have shipped a picker nobody could open.
+  Before planning against a component, check what its route actually renders and who imports it.
+  (Third time this class of mistake has cost the epic -- see also F-005.)
+- **A binding that CONSTRUCTS a value breaks ABP v10 signal inputs.** `[options]="getterThatBuilds()"`
+  on `<abp-modal>` sets the signal to a new identity every change-detection pass, which re-dirties
+  the view and loops forever. It HUNG THE BROWSER, and silently: the dev containers serve a
+  PRODUCTION build, where Angular's dev-mode infinite-CD guard is compiled out. Cost ~2 hours and
+  took the Playwright MCP server down with the renderer. Return frozen constants; a getter that
+  merely SELECTS is fine.
+- **A "silent" behaviour flag needs both its writer and its readers audited.** Fixing
+  `isAdminOverride` immediately exposed that `AdminOverrideSlotId` was only PERSISTED on an
+  override, and then that the email handler resolved its slot from that column. One wrong boolean
+  had three downstream consequences, two of which would have reached a patient's inbox.
+- **Where a `tdd` task's logic sits in an untestable class, extract the decision rather than
+  downgrade the flag.** Three pure extractions (`IsAdminOverride`, `ResolveScheduledSlotId`,
+  `ChangeRequestQueueContext`) turned untestable app-service branches into unit-tested ones,
+  matching this folder's existing pure-helper precedent.
+- **Mutation-check any test written after its code.** Two suites here passed on first run; both
+  were only trustworthy after a deliberate mutation made them fail. One mutation was caught by the
+  compiler instead (CS8629), which proved that guard was type-enforced, not test-enforced.
+- **The full backend suite can OOM the stack.** The 15-minute EF Core run killed
+  `main-sql-server-1` (exit 137) and took the whole portal stack down with it. Check
+  `docker ps` before a live gate; `docker compose up -d` restores it.
+- `abp generate-proxy` is a DOTNET GLOBAL TOOL (`~/.dotnet/tools/abp`), not npm -- `npx abp` fails.
+  It rewrites the whole proxy tree; keep only the feature's files. `.gitattributes` marks the
+  generated proxy `diff: unset`, so git reporting "binary files differ" there is policy, not an
+  encoding problem.
 
 ### Process
 
