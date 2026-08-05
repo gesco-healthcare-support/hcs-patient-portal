@@ -33,6 +33,24 @@ describe('StatusPillComponent', () => {
     expect(pill().classList).toContain('app-status-pill--info');
   });
 
+  // Phase 4c (2026-08-05): the two in-flight pills must render as IN PROGRESS. Reusing their
+  // terminal pill's tone was the original defect -- info blue and neutral grey both read as done.
+  it('renders RescheduleRequested as in-progress amber, never as the blue Rescheduled pill', () => {
+    fixture.componentRef.setInput('status', 'RescheduleRequested');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--pending');
+    expect(pill().classList).not.toContain('app-status-pill--info');
+    expect(pill().textContent?.trim()).toBe('Reschedule Requested');
+  });
+
+  it('renders CancellationRequested as in-progress amber, never as the grey Cancelled pill', () => {
+    fixture.componentRef.setInput('status', 'CancellationRequested');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--pending');
+    expect(pill().classList).not.toContain('app-status-pill--neutral');
+    expect(pill().textContent?.trim()).toBe('Cancellation Requested');
+  });
+
   it('always renders a dot and text (never color-alone)', () => {
     fixture.componentRef.setInput('status', 'Approved');
     fixture.detectChanges();

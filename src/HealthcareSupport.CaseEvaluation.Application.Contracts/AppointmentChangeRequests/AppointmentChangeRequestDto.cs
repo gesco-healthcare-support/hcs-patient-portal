@@ -50,6 +50,36 @@ public class AppointmentChangeRequestDto : FullAuditedEntityDto<Guid>
     /// <inheritdoc cref="RequestedSlotDate"/>
     public string? RequestedSlotFromTime { get; set; }
 
+    /// <summary>
+    /// Phase 4c (2026-08-05) -- the CURRENT consent round: which date staff confirmed, where each
+    /// side stands on it, and how many times it has been sent. This is what drives the approval
+    /// modal's three stages (needs-date / awaiting-consent / granted). Null when staff have not
+    /// confirmed a date yet, which is how a freshly submitted reschedule arrives.
+    ///
+    /// <para>Distinct from <see cref="RequestedSlotDate"/>, which is what the REQUESTOR proposed
+    /// at submit. Same population caveat as <see cref="AppointmentLocationId"/>: the queue query
+    /// fills these, the Mapperly mapper does not.</para>
+    /// </summary>
+    public int? CurrentConsentRoundNumber { get; set; }
+
+    /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    public Guid? CurrentRoundProposedSlotId { get; set; }
+
+    /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    public DateTime? CurrentRoundProposedDate { get; set; }
+
+    /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    public string? CurrentRoundProposedFromTime { get; set; }
+
+    /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    public ChangeRequestConsentStatus? CurrentRoundSideAStatus { get; set; }
+
+    /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    public ChangeRequestConsentStatus? CurrentRoundSideBStatus { get; set; }
+
+    /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    public int? CurrentRoundSendAttempts { get; set; }
+
     public ChangeRequestType ChangeRequestType { get; set; }
 
     public string? CancellationReason { get; set; }

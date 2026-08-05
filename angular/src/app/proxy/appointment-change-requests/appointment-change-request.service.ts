@@ -10,6 +10,14 @@ export class AppointmentChangeRequestService {
   apiName = 'Default';
   
 
+  getActiveForAppointment = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentChangeRequestDto>({
+      method: 'GET',
+      url: `/api/app/appointment-change-requests/active/${appointmentId}`,
+    },
+    { apiName: this.apiName,...config });
+  
+
   requestCancellation = (appointmentId: string, input: RequestCancellationDto, config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentChangeRequestDto>({
       method: 'POST',
@@ -24,16 +32,6 @@ export class AppointmentChangeRequestService {
       method: 'POST',
       url: `/api/app/appointment-change-requests/reschedule/${appointmentId}`,
       body: input,
-    },
-    { apiName: this.apiName,...config });
-
-
-  // C2a (2026-07-01): active (Pending) change request + per-side consent for an
-  // appointment, or null. Hand-added to avoid a full generate-proxy sweep.
-  getActiveForAppointment = (appointmentId: string, config?: Partial<Rest.Config>) =>
-    this.restService.request<any, AppointmentChangeRequestDto>({
-      method: 'GET',
-      url: `/api/app/appointment-change-requests/active/${appointmentId}`,
     },
     { apiName: this.apiName,...config });
 }

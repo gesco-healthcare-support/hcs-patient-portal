@@ -195,9 +195,13 @@
             Phase 4b (2026-08-04): staff choose the reschedule date here, using the SAME
             availability calendar and rules as booking (shared since 4a). Exactly one instance
             renders at a time -- the component uses literal element ids, so one calendar per row
-            would collide. Submitted as ApproveRescheduleInput.overrideSlotId.
+            would collide, and the stage gate below keeps it that way.
+
+            Phase 4c (2026-08-05): the calendar shows only while a date still needs choosing.
+            Picking has no server effect; the Confirm button below is what commits the date and
+            emails both sides.
           -->
-          @if (isReschedule(m.row)) {
+          @if (isReschedule(m.row) && stage(m.row) === 'needs-date') {
             <app-availability-calendar
               [locationId]="m.row.appointmentLocationId ?? null"
               [appointmentTypeId]="m.row.appointmentTypeId ?? null"
@@ -231,6 +235,59 @@
                 ></textarea>
               </div>
             }
+
+            <div class="ra-modal__foot" style="padding: 0; border: 0; margin-bottom: 4px">
+              <button
+                class="af-btn af-btn--blue"
+                type="button"
+                [disabled]="isBusy() || !canConfirm()"
+                (click)="confirmDate()"
+              >
+                {{ isBusy() ? 'Sending...' : 'Confirm date &amp; request consent' }}
+              </button>
+            </div>
+          }
+
+          <!--
+            Phase 4c: a round is open on a confirmed date. Both sides' answers are shown because
+            "who are we waiting on" is the only question staff have at this point.
+          -->
+          @if (isReschedule(m.row) && stage(m.row) !== 'needs-date') {
+            <div class="ra-note" style="margin-bottom: 14px">
+              <span class="i"><app-icon name="calendar" [size]="15" /></span>
+              <span>
+                Proposed date:
+                <b>{{ confirmedSlotLabel(m.row) ?? 'unknown' }}</b>
+                @if (m.row.currentConsentRoundNumber; as roundNo) {
+                  <span style="color: var(--n-500)">(round {{ roundNo }})</span>
+                }
+                <br />
+                Patient / applicant side:
+                <b>{{ sideAConsentLabel(m.row) }}</b>
+                &middot; Defense / claim-examiner side:
+                <b>{{ sideBConsentLabel(m.row) }}</b>
+              </span>
+            </div>
+          }
+
+          @if (isReschedule(m.row) && stage(m.row) === 'awaiting-consent') {
+            <div class="ra-note warn" style="margin-bottom: 14px">
+              <span class="i"><app-icon name="alert" [size]="15" /></span>
+              <span>
+                Waiting for both sides to agree before this can be finalized. Resending sends a
+                fresh link, which stops the previously emailed link from working.
+              </span>
+            </div>
+            <div class="ra-modal__foot" style="padding: 0; border: 0; margin-bottom: 4px">
+              <button
+                class="af-btn af-btn--ghost"
+                type="button"
+                [disabled]="isBusy()"
+                (click)="resendConsent()"
+              >
+                {{ isBusy() ? 'Sending...' : 'Resend consent request' }}
+              </button>
+            </div>
           }
 
           <div class="ra-field col-12">
@@ -254,7 +311,10 @@
             class="af-btn af-btn--green"
             type="button"
             [disabled]="
-              isBusy() || outcome() === null || approveBlocked(m.row) || !canApproveSlot(m.row)
+              isBusy() ||
+              outcome() === null ||
+              approveBlocked(m.row) ||
+              (isReschedule(m.row) && !canFinalize(m.row))
             "
             (click)="confirmApprove()"
           >

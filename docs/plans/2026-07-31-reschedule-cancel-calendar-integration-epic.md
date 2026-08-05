@@ -96,7 +96,7 @@ Admin and Staff Supervisor.
 | 3   | Staff schedule calendar (FullCalendar)      | `feat/staff-schedule-calendar`            | `2026-07-31-staff-schedule-calendar.md`                            | **DONE** - PR #418 -> main `1784a6bb` |
 | 4a  | Extract reusable availability calendar      | `refactor/extract-availability-calendar`  | `2026-08-03-extract-availability-calendar.md`                      | **DONE** - PR #420 -> main `86d76b54` |
 | 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | `docs/plans/2026-08-04-staff-picks-reschedule-date.md`             | **DONE** - #423 -> main `326f08a9`    |
-| 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | `docs/plans/2026-08-05-reschedule-consent-rounds.md`               | PLANNED + APPROVED - ready to build   |
+| 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | `docs/plans/2026-08-05-reschedule-consent-rounds.md`               | **DONE** - PR #428                    |
 | 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | not written                                                        | TODO (after 4c)                       |
 | 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | not written                                                        | TODO (after 4d)                       |
 | 5   | No-show round trip (INBOUND from CT)        | `feat/no-show-round-trip`                 | not written                                                        | TODO (after 4d)                       |
@@ -195,13 +195,65 @@ rather than expanding scope; Adrian was told and did not exclude them.
 - Packets go STALE after an in-place reschedule: packet content embeds the appointment
   date (`PacketTokenResolver.cs:222-233`) but nothing calls regeneration from the
   reschedule approval path. -> Fixed by Phase 4d. Affects production until then.
-- Consent can hang forever: there is NO expiry job, so a side stays `Pending`
-  indefinitely and blocks finalize, and the consent email's "referred to our clinic
-  staff" promise has no implementation. -> Phase 4c.
+- ~~Consent can hang forever: there is NO expiry job, so a side stays `Pending`
+  indefinitely and blocks finalize~~ -- **FIXED in 4c** by
+  `ChangeRequestConsentExpirySweepJob` (hourly, per-office). The consent email's "referred to
+  our clinic staff" promise still has no implementation.
+- **FIXED in 4c (found during 4c research):** the notification outbox SILENTLY swallowed
+  duplicate consent sends. `NotificationOutboxManager.EnqueueAsync` returns the EXISTING row on
+  an idempotency-key match -- no throw, no log -- and the consent context tag carried neither
+  round nor send attempt. Any second consent email to the same recipient vanished without a
+  trace. The tag now carries `/r{round}/a{attempt}`; a MultiOffice test asserts the outbox row
+  count and fails if the discriminator is removed.
+- **FIXED in 4c:** two stale readers of the proposed slot. 4b moved the staff slot to
+  `AdminOverrideSlotId`, and both the consent EMAIL handler and the public consent PAGE still
+  read the now-null `NewDoctorAvailabilityId` -- so a party would have been asked to approve a
+  reschedule with NO DATE SHOWN ANYWHERE. Inert until 4c only because 4b had suppressed consent
+  issuance. Both now read the current round's slot, with a fallback for legacy rows.
+- **FIXED in 4c:** an in-flight request read as a completed one. `RescheduleRequested` rendered
+  as the `Rescheduled` pill and the external banner asserted "This appointment has been
+  rescheduled" while nothing had moved; `CancellationRequested` -> `Cancelled` was the identical
+  defect. Both now have their own amber pill, banner and copy, filtering under the SAME chips so
+  no counts moved. Pre-existing on `main`, not introduced by the epic.
 
 ## Learnings carried forward
 
 Append after each phase.
+
+### From phase 4c (2026-08-05)
+
+- **A DECISION CAN BE UNIMPLEMENTABLE AND STILL SURVIVE RESEARCH, PLANNING AND APPROVAL.** The
+  plan locked "a resend reuses the SAME tokens so a link a party already holds keeps working".
+  It cannot: only the SHA256 HASH is persisted and the raw token is returned once, so there is
+  nothing to rebuild the URL from. Three documents and an approval gate all passed it through
+  because every one of them reasoned about the DESIRED behaviour and none checked whether the
+  stored data could produce it. Adrian re-decided at build time (fresh token; the old link
+  dies). Ask "what is actually persisted?" of any requirement that says "the same X again".
+- **TWO MORE PLAN DEFECTS OF THE SAME SHAPE**, both caught only by reading the code the task
+  named: T5 said the round-based `IssueSideConsent` REPLACES the request-based one and that
+  `Match.Round` is non-nullable -- which would have broken CANCELLATION consent, contradicting
+  the plan's own "reschedule only" decision and its risk 3. And T8 said finalize copies "the
+  round's reason" onto the request, but T1's field list defined no reason field on the round.
+  A plan concrete enough to execute in one pass is still not a plan that has been type-checked.
+- **THE "EXPECTED TO FAIL" NOTE WAS WRONG, AND THAT WAS THE INTERESTING RESULT.** The plan
+  predicted three specs would break on the pill split. All 475 stayed green -- because those
+  specs assert the SEGMENT mapping, which the design deliberately preserved. Green was the
+  correct signal that chip counts had not moved, AND the proof that nothing covered the pill
+  text, tone, banner or actions at all. 13 specs were added. When a predicted failure does not
+  happen, find out which of the two possibilities it is before moving on.
+- **A COMPILER-CAUGHT MUTATION IS A STRONGER RESULT THAN A TEST-CAUGHT ONE.** Inverting the
+  round-vs-parent branch in `RecordDecisionAsync` produced CS8602 (nullable dereference) rather
+  than a red test: the branch is type-enforced, so no test needs to defend it. Same class as
+  4b's CS8629. Nullable reference types earn their keep as executable design constraints.
+- **The MultiOffice harness reached further than expected.** It resolves real app services,
+  bypasses authorization (`AddAlwaysAllowAuthorization`), and -- once notification templates are
+  seeded per office -- exercises the whole local-event -> handler -> template render -> outbox
+  chain. That is what let the outbox-suppression regression be asserted on real rows rather than
+  on a hash comparison. Seed slots at `DateTime.Today + N`, though: `BookingPolicyValidator`
+  anchors on `DateTime.Today` and the harness's own seeded slot is in the past.
+- **`Check.Positive` / `Check.NotDefaultOrNull` make an entity ctor self-guarding**, which is
+  worth more than a test: `RoundNumber >= 1` and a non-empty proposed slot are invariants the
+  unique index and the entire point of a round depend on.
 
 ### From phase 4b (2026-08-04/05)
 

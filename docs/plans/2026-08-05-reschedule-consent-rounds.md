@@ -1,7 +1,7 @@
 ---
 feature: Reschedule consent rounds (epic phase 4c)
 date: 2026-08-05
-status: draft
+status: done
 base-branch: main
 related-issues: []
 ---

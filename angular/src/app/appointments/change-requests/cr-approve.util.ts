@@ -55,3 +55,117 @@ export function canApproveReschedule(state: RescheduleApprovalState): boolean {
 
   return true;
 }
+
+/**
+ * Phase 4c (2026-08-05) -- which of the three stages the reschedule approve modal is in.
+ *
+ * Staff now PICK a date, CONFIRM it (which opens a consent round and emails both sides), and
+ * only then FINALIZE. The stage is derived from the row's current-round fields rather than
+ * held as component state, so a reload lands on the same stage the server believes it is in.
+ */
+export type ConsentRoundStage = 'needs-date' | 'awaiting-consent' | 'granted';
+
+/** The current-round fields the stage is derived from (a subset of AppointmentChangeRequestDto). */
+export interface ConsentRoundRow {
+  currentConsentRoundNumber?: number | null;
+  currentRoundSideAStatus?: number | null;
+  currentRoundSideBStatus?: number | null;
+}
+
+/**
+ * Mirrors the backend `ChangeRequestConsentStatus` enum. Declared locally rather than imported
+ * from the proxy so this file stays a pure, TestBed-free unit -- the values are a persisted
+ * contract and do not drift.
+ */
+const CONSENT_NOT_REQUIRED = 0;
+const CONSENT_PENDING = 1;
+const CONSENT_APPROVED = 2;
+
+/**
+ * Which stage the modal should render.
+ *
+ * A round whose side was REJECTED or EXPIRED goes back to `needs-date`, not to a dead end:
+ * the way forward from a declined date is to propose a different one, which supersedes that
+ * round and opens the next. That is the whole reason rounds exist as separate rows.
+ */
+export function rescheduleStage(row: ConsentRoundRow | null | undefined): ConsentRoundStage {
+  if (!row?.currentConsentRoundNumber) {
+    return 'needs-date';
+  }
+
+  const sides = [row.currentRoundSideAStatus, row.currentRoundSideBStatus];
+
+  // A side that was never solicited (no representative) is auto-satisfied, matching the
+  // server's RescheduleConsentGate.
+  const blocked = sides.some((s) => s !== CONSENT_NOT_REQUIRED && s !== CONSENT_APPROVED);
+  if (!blocked) {
+    return 'granted';
+  }
+
+  return sides.some((s) => s === CONSENT_PENDING) ? 'awaiting-consent' : 'needs-date';
+}
+
+/**
+ * "Aug 27, 2026 at 10:30", or null when there is no date to show. Shared by the requestor's
+ * proposal and the confirmed round's date so the two read identically in the modal.
+ */
+export function formatSlotLabel(
+  isoDate: string | null | undefined,
+  fromTime: string | null | undefined,
+): string | null {
+  if (!isoDate) {
+    return null;
+  }
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const day = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return fromTime ? `${day} at ${fromTime}` : day;
+}
+
+/**
+ * Staff-facing wording for one side's consent state. "Not needed" rather than "Not required"
+ * because the reason is always that the side has no representative to ask -- staff read it as
+ * "nobody to chase", not as "the rule was waived".
+ */
+export function consentStatusLabel(status: number | null | undefined): string {
+  switch (status) {
+    case CONSENT_NOT_REQUIRED:
+      return 'Not needed';
+    case CONSENT_PENDING:
+      return 'Awaiting reply';
+    case CONSENT_APPROVED:
+      return 'Agreed';
+    case 3:
+      return 'Declined';
+    case 4:
+      return 'Expired';
+    default:
+      return 'Not asked';
+  }
+}
+
+/** Whether "Confirm date & request consent" may fire: a date AND a time identify one slot. */
+export function canConfirmDate(state: {
+  slotId: string | null | undefined;
+  time: string | null | undefined;
+}): boolean {
+  return !!state.slotId && !!state.time;
+}
+
+/**
+ * Whether "Finalize reschedule" may fire. Finalize is the step that picks the billing outcome,
+ * so it needs one -- and it is only reachable once the current round is fully granted. The
+ * server re-checks both (`RescheduleConsentGate`, `EnsureRescheduleOutcome`).
+ */
+export function canFinalizeReschedule(state: {
+  stage: ConsentRoundStage;
+  outcome: number | null | undefined;
+}): boolean {
+  return state.stage === 'granted' && !!state.outcome;
+}

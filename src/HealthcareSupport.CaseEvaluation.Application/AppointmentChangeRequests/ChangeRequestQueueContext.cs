@@ -29,16 +29,32 @@ internal static class ChangeRequestQueueContext
     internal readonly record struct SlotContext(DateTime AvailableDate, TimeOnly FromTime);
 
     /// <summary>
+    /// Phase 4c (2026-08-05) -- the current consent round for one change request: the date staff
+    /// confirmed, where each side stands on it, and how many times it has been sent.
+    /// </summary>
+    internal readonly record struct ConsentRoundContext(
+        int RoundNumber,
+        Guid ProposedDoctorAvailabilityId,
+        ChangeRequestConsentStatus SideAStatus,
+        ChangeRequestConsentStatus SideBStatus,
+        int SendAttempts);
+
+    /// <summary>
     /// Fills each DTO's appointment context, and its requested-slot context ONLY when that row
     /// actually proposed a slot. A row with no proposal keeps null date/time -- the normal case
     /// after 4b, and the signal the UI uses to say "no date requested" rather than showing a
     /// stale one. Rows whose lookups are missing are left untouched rather than zeroed, so a
     /// deleted appointment or slot degrades to "unknown" instead of a misleading value.
+    ///
+    /// <para>Phase 4c (2026-08-05) additionally projects the CURRENT consent round, keyed by
+    /// change-request id. A row with no round keeps every current-round field null, which is what
+    /// the approval modal reads as "staff still need to pick a date".</para>
     /// </summary>
     internal static void Apply(
         IEnumerable<AppointmentChangeRequestDto> dtos,
         IReadOnlyDictionary<Guid, AppointmentContext> appointmentsById,
-        IReadOnlyDictionary<Guid, SlotContext> slotsById)
+        IReadOnlyDictionary<Guid, SlotContext> slotsById,
+        IReadOnlyDictionary<Guid, ConsentRoundContext> roundsByChangeRequestId)
     {
         foreach (var dto in dtos)
         {
@@ -53,6 +69,25 @@ internal static class ChangeRequestQueueContext
             {
                 dto.RequestedSlotDate = slot.AvailableDate;
                 dto.RequestedSlotFromTime = FormatFromTime(slot.FromTime);
+            }
+
+            if (!roundsByChangeRequestId.TryGetValue(dto.Id, out var round))
+            {
+                continue;
+            }
+
+            dto.CurrentConsentRoundNumber = round.RoundNumber;
+            dto.CurrentRoundProposedSlotId = round.ProposedDoctorAvailabilityId;
+            dto.CurrentRoundSideAStatus = round.SideAStatus;
+            dto.CurrentRoundSideBStatus = round.SideBStatus;
+            dto.CurrentRoundSendAttempts = round.SendAttempts;
+
+            // The round's slot is looked up from the same dictionary as the requested slot, so a
+            // round pointing at a deleted slot degrades to "unknown date" rather than throwing.
+            if (slotsById.TryGetValue(round.ProposedDoctorAvailabilityId, out var roundSlot))
+            {
+                dto.CurrentRoundProposedDate = roundSlot.AvailableDate;
+                dto.CurrentRoundProposedFromTime = FormatFromTime(roundSlot.FromTime);
             }
         }
     }

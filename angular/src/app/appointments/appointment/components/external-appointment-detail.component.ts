@@ -29,6 +29,7 @@ import { performFullLogout } from '../../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
+import { bannerVariant, statusLabel } from './internal-detail.util';
 import type { PatientDto } from '../../../proxy/patients/models';
 import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
 import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-info-requests/models';
@@ -80,6 +81,19 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     icon: 'help',
     title: 'The clinic needs more information',
     body: 'Update the highlighted details below, then resubmit. Your request returns to the clinic for review.',
+  },
+  // Phase 4c (2026-08-05): an in-flight request now says so. Before this, a reschedule awaiting
+  // consent fell into the `rescheduled` callout above and told the patient "This appointment has
+  // been rescheduled -- the new date and time are shown above" while nothing had moved.
+  'reschedule-requested': {
+    icon: 'refresh',
+    title: 'Reschedule requested',
+    body: 'We received your reschedule request. Our staff will propose a new date and time, and all parties must agree before it takes effect.',
+  },
+  'cancellation-requested': {
+    icon: 'x',
+    title: 'Cancellation requested',
+    body: 'We received your cancellation request. It is awaiting review; the appointment is still scheduled until then.',
   },
 };
 
@@ -161,16 +175,21 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected get pill(): AppointmentPillStatus {
     return appointmentStatusToPill(this.currentStatus ?? AppointmentStatusType.Pending);
   }
+  // Phase 4c (2026-08-05): delegate to the shared helpers instead of re-deriving the variant
+  // and label inline. The duplicates here silently diverged from internal-detail.util the moment
+  // a multi-word pill was added -- `toLowerCase()` yields `reschedulerequested`, which matches
+  // no CALLOUTS key and falls back to the generic pending copy via the `??` below.
   protected get bannerVariant(): string {
-    return this.pill === 'InfoRequested' ? 'info-requested' : this.pill.toLowerCase();
+    return bannerVariant(this.pill);
   }
   protected get statusLabel(): string {
-    return this.pill === 'InfoRequested' ? 'Info requested' : this.pill;
+    return statusLabel(this.pill);
   }
   protected get callout(): CalloutCopy {
     return CALLOUTS[this.bannerVariant] ?? CALLOUTS['pending'];
   }
   protected get showOutcomeNote(): boolean {
+    // The two in-flight variants are excluded: no outcome exists yet, so there is nothing to note.
     return ['approved', 'rejected', 'cancelled', 'rescheduled'].includes(this.bannerVariant);
   }
 

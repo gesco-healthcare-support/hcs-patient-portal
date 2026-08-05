@@ -22,7 +22,15 @@ import {
   AvailabilityCalendarComponent,
   type AvailabilitySelection,
 } from '../availability-calendar/availability-calendar.component';
-import { canApproveReschedule, requiresAdminReason } from './cr-approve.util';
+import {
+  canConfirmDate,
+  canFinalizeReschedule,
+  consentStatusLabel,
+  formatSlotLabel,
+  requiresAdminReason,
+  rescheduleStage,
+  type ConsentRoundStage,
+} from './cr-approve.util';
 import {
   changeRequestAgeClass,
   changeRequestAgeDays,
@@ -127,10 +135,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   protected readonly reason = signal('');
   protected readonly isBusy = signal(false);
 
-  // Phase 4b (2026-08-04): staff choose the reschedule date HERE. Since the requestor no longer
-  // proposes one, the approve modal carries an availability calendar and sends the result as
-  // ApproveRescheduleInput.overrideSlotId. chosenDate/-Time drive the calendar's display;
-  // chosenSlotId is the value actually submitted.
+  // Phase 4b (2026-08-04): staff choose the reschedule date HERE. Phase 4c (2026-08-05) split
+  // the act of choosing from the act of committing: picking has NO server effect, and the
+  // Confirm button is what opens a consent round and emails both sides. Adrian: "what if the
+  // staff selects a date and then changes it immediately, in that case 2 different emails will
+  // go out." chosenDate/-Time drive the calendar's display; chosenSlotId is what is submitted.
   protected readonly chosenSlotId = signal<string | null>(null);
   protected readonly chosenDate = signal<string | null>(null);
   protected readonly chosenTime = signal<string | null>(null);
@@ -298,19 +307,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
    * used to carry (which is why the panel previously told staff to go open the appointment).
    */
   protected requestedSlotLabel(row: AppointmentChangeRequestDto): string | null {
-    if (!row.requestedSlotDate) {
-      return null;
-    }
-    const date = new Date(row.requestedSlotDate);
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-    const day = date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    return row.requestedSlotFromTime ? `${day} at ${row.requestedSlotFromTime}` : day;
+    return formatSlotLabel(row.requestedSlotDate, row.requestedSlotFromTime);
   }
 
   protected onSlotSelected(selection: AvailabilitySelection): void {
@@ -328,16 +325,109 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     return requiresAdminReason(row.newDoctorAvailabilityId, this.chosenSlotId());
   }
 
-  /** Whether the reschedule half of the approve modal is satisfied. */
-  protected canApproveSlot(row: AppointmentChangeRequestDto): boolean {
-    if (!this.isReschedule(row)) {
-      return true;
+  // ---- consent rounds (phase 4c, 2026-08-05) ----
+
+  /**
+   * Which of the three steps the reschedule modal is on. Derived from the row's current-round
+   * fields rather than held as component state, so closing and reopening the modal -- or a full
+   * reload -- lands on the step the SERVER believes it is on.
+   */
+  protected stage(row: AppointmentChangeRequestDto): ConsentRoundStage {
+    return rescheduleStage(row);
+  }
+
+  /** Whether "Confirm date & request consent" may fire. */
+  protected canConfirm(): boolean {
+    return canConfirmDate({ slotId: this.chosenSlotId(), time: this.chosenTime() });
+  }
+
+  /** Whether "Finalize reschedule" may fire. */
+  protected canFinalize(row: AppointmentChangeRequestDto): boolean {
+    return canFinalizeReschedule({ stage: this.stage(row), outcome: this.outcome() });
+  }
+
+  /** The date both sides are being asked to agree to, or null before anything is confirmed. */
+  protected confirmedSlotLabel(row: AppointmentChangeRequestDto): string | null {
+    return formatSlotLabel(row.currentRoundProposedDate, row.currentRoundProposedFromTime);
+  }
+
+  protected sideAConsentLabel(row: AppointmentChangeRequestDto): string {
+    return consentStatusLabel(row.currentRoundSideAStatus);
+  }
+
+  protected sideBConsentLabel(row: AppointmentChangeRequestDto): string {
+    return consentStatusLabel(row.currentRoundSideBStatus);
+  }
+
+  /**
+   * Commits the picked date: opens a consent round and sends one email per side. Confirming the
+   * SAME date again resends inside the current round; a different date supersedes it and opens
+   * the next one. Both are decided server-side.
+   */
+  protected confirmDate(): void {
+    const m = this.modal();
+    if (!m || m.kind !== 'approve' || !m.row.id || this.isBusy() || !this.isReschedule(m.row)) {
+      return;
     }
-    return canApproveReschedule({
-      proposedSlotId: row.newDoctorAvailabilityId,
-      chosenSlotId: this.chosenSlotId(),
-      chosenTime: this.chosenTime(),
-      adminReason: this.adminReason(),
+    if (!this.canConfirm()) {
+      this.toaster.warn('Choose the new appointment date and time before confirming.');
+      return;
+    }
+    if (this.needsAdminReason(m.row) && !this.adminReason().trim()) {
+      this.toaster.warn('Explain why you are changing the requested date before confirming.');
+      return;
+    }
+
+    this.isBusy.set(true);
+    this.approvalService
+      .confirmRescheduleDate(
+        m.row.id,
+        {
+          doctorAvailabilityId: this.chosenSlotId()!,
+          adminReScheduleReason: this.adminReason().trim() || null,
+        },
+        { skipHandleError: true },
+      )
+      .subscribe({
+        next: () => this.onRoundChanged(m.row.id!, 'Consent request sent to both sides.'),
+        error: (err) => this.handleRequestError(err),
+      });
+  }
+
+  /** Re-asks whoever has not answered yet, without changing the date. */
+  protected resendConsent(): void {
+    const m = this.modal();
+    if (!m || m.kind !== 'approve' || !m.row.id || this.isBusy()) {
+      return;
+    }
+    this.isBusy.set(true);
+    this.approvalService.resendConsentRequest(m.row.id, { skipHandleError: true }).subscribe({
+      next: () => this.onRoundChanged(m.row.id!, 'Consent request sent again.'),
+      error: (err) => this.handleRequestError(err),
+    });
+  }
+
+  /**
+   * Reloads after a confirm/resend and re-points the open modal at the refreshed row, so the
+   * modal advances to the next stage in place. The request stays Pending through both actions,
+   * so unlike approve/reject the row does NOT leave the queue.
+   */
+  private onRoundChanged(changeRequestId: string, message: string): void {
+    this.isBusy.set(false);
+    this.toaster.success(message);
+    this.resetSlotChoice();
+    this.reloadAndRefreshModal(changeRequestId);
+  }
+
+  private reloadAndRefreshModal(changeRequestId: string): void {
+    this.load();
+    // load() is async; re-point the modal once the rows land.
+    queueMicrotask(() => {
+      const refreshed = this.rows().find((r) => r.id === changeRequestId);
+      const current = this.modal();
+      if (refreshed && current?.kind === 'approve') {
+        this.modal.set({ kind: 'approve', row: refreshed });
+      }
     });
   }
 
@@ -387,14 +477,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
       );
       return;
     }
-    // Phase 4b: same defense-in-depth for the date choice -- the server rejects a reschedule
-    // with no resolvable slot (ChangeRequestNewSlotRequired), so never fire a doomed request.
-    if (!this.canApproveSlot(m.row)) {
-      this.toaster.warn(
-        this.needsAdminReason(m.row)
-          ? 'Explain why you are changing the requested date before approving.'
-          : 'Choose the new appointment date and time before approving.',
-      );
+    // Phase 4c: same defense-in-depth, now on CONSENT rather than on the date. The server
+    // rejects a finalize whose current round is missing or not fully agreed
+    // (ChangeRequestConsentNotGranted), so never fire a doomed request.
+    if (this.isReschedule(m.row) && !this.canFinalize(m.row)) {
+      this.toaster.warn('Both sides must agree to the confirmed date before you can finalize.');
       return;
     }
     this.isBusy.set(true);
@@ -404,14 +491,10 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     const req$ = this.isReschedule(m.row)
       ? this.approvalService.approveReschedule(
           m.row.id,
-          {
-            rescheduleOutcome: out,
-            // Phase 4b: the slot staff chose in this modal. Null means "accept whatever the
-            // requestor proposed", which the server resolves; it can only be null when the row
-            // actually carries a proposal (canApproveSlot enforces that).
-            overrideSlotId: this.chosenSlotId(),
-            adminReScheduleReason: this.needsAdminReason(m.row) ? this.adminReason().trim() : null,
-          },
+          // Phase 4c: the date is no longer sent. It comes from the consent round both sides
+          // agreed to, so finalize carries only the billing outcome -- there is no way for this
+          // call to move the appointment to a date nobody consented to.
+          { rescheduleOutcome: out },
           { skipHandleError: true },
         )
       : this.approvalService.approveCancellation(

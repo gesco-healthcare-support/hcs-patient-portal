@@ -695,10 +695,45 @@ public class AppointmentChangeRequestsApprovalAppService :
             row => row.Id,
             row => new ChangeRequestQueueContext.AppointmentContext(row.LocationId, row.AppointmentTypeId));
 
-        // Only rows that actually proposed a slot need one resolved -- after 4b most do not.
+        // Phase 4c (2026-08-05): the current consent round per request, in ONE query over the
+        // whole page. Ordering by RoundNumber descending and keeping the first per request gives
+        // the same answer as GetCurrentAsync would per row, without a query per row.
+        var changeRequestIds = changeRequests.Select(c => c.Id).ToList();
+        var roundQuery = await _consentRoundRepository.GetQueryableAsync();
+        var roundRows = await AsyncExecuter.ToListAsync(
+            roundQuery
+                .Where(r => changeRequestIds.Contains(r.AppointmentChangeRequestId)
+                    && r.SupersededAt == null)
+                .Select(r => new
+                {
+                    r.AppointmentChangeRequestId,
+                    r.RoundNumber,
+                    r.ProposedDoctorAvailabilityId,
+                    r.SideAConsentStatus,
+                    r.SideBConsentStatus,
+                    r.SendAttempts,
+                }));
+        var roundsByChangeRequestId = roundRows
+            .GroupBy(r => r.AppointmentChangeRequestId)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var current = g.OrderByDescending(r => r.RoundNumber).First();
+                    return new ChangeRequestQueueContext.ConsentRoundContext(
+                        current.RoundNumber,
+                        current.ProposedDoctorAvailabilityId,
+                        current.SideAConsentStatus,
+                        current.SideBConsentStatus,
+                        current.SendAttempts);
+                });
+
+        // Slots for BOTH the requestor's proposal (after 4b most rows have none) and each
+        // current round's confirmed date, resolved together so one query serves both.
         var slotIds = changeRequests
             .Where(c => c.NewDoctorAvailabilityId.HasValue)
             .Select(c => c.NewDoctorAvailabilityId!.Value)
+            .Concat(roundsByChangeRequestId.Values.Select(r => r.ProposedDoctorAvailabilityId))
             .Distinct()
             .ToList();
         var slotsById = new Dictionary<Guid, ChangeRequestQueueContext.SlotContext>();
@@ -714,7 +749,7 @@ public class AppointmentChangeRequestsApprovalAppService :
                 row => new ChangeRequestQueueContext.SlotContext(row.AvailableDate, row.FromTime));
         }
 
-        ChangeRequestQueueContext.Apply(dtos, appointmentsById, slotsById);
+        ChangeRequestQueueContext.Apply(dtos, appointmentsById, slotsById, roundsByChangeRequestId);
     }
 
     /// <summary>
