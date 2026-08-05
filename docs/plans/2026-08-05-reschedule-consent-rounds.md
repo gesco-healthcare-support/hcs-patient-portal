@@ -49,6 +49,18 @@ the same release.
 - Decision: RESCHEDULE ONLY. Cancellation keeps its existing at-submit consent on the parent's
   flat columns, because a cancellation has no proposed date to re-propose and nobody asked to
   change a working flow.
+- Decision (Adrian, 2026-08-05, post-build review): a RESCHEDULE submit sends NO stakeholder
+  email. "Once the staff selects a date, both parties get consent emails that include and tell
+  them that reschedule was requested, this extra email is not required." Implemented as an early
+  return in `ChangeRequestSubmittedEmailHandler`, scoped to the EMAIL only -- staff still get
+  their in-app notification and the cancel-side clinical-staff email is untouched.
+  Found while implementing: that email was a THIRD stale reader of the proposed slot. It
+  rendered `NewAppointmentDate` / `NewAppointmentFromTime` from `NewDoctorAvailabilityId`, which
+  4b leaves null on the external path, so it was already going out with BLANK date and time --
+  the only one of the three stale readers reaching real inboxes. Cancellation keeps its email:
+  its consent is issued at submit, so there is no later message to fold the notice into.
+  Consequence to accept: a party who is neither side's representative now hears nothing until
+  the approval email at finalize.
 - Decision: confirming again WITHOUT changing the date RESENDS within the current round
   (`SendAttempts + 1`, same `RoundNumber`); changing the date creates a new round.
 - Decision (Adrian, 2026-08-05, build time -- SUPERSEDES "same tokens"): a resend MINTS A FRESH

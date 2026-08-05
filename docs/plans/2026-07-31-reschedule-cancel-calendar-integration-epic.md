@@ -210,6 +210,12 @@ rather than expanding scope; Adrian was told and did not exclude them.
   read the now-null `NewDoctorAvailabilityId` -- so a party would have been asked to approve a
   reschedule with NO DATE SHOWN ANYWHERE. Inert until 4c only because 4b had suppressed consent
   issuance. Both now read the current round's slot, with a fallback for legacy rows.
+- **FIXED in 4c:** a THIRD stale reader of the proposed slot, and the only one already reaching
+  real inboxes. The change-request SUBMIT email rendered `NewAppointmentDate` /
+  `NewAppointmentFromTime` from `NewDoctorAvailabilityId`, which 4b leaves null on the external
+  path, so every reschedule submit emailed all parties with BLANK date and time fields. Adrian
+  removed that email for reschedule entirely (the consent email at date-confirm carries the
+  notice and names the date); cancellation keeps it.
 - **FIXED in 4c:** an in-flight request read as a completed one. `RescheduleRequested` rendered
   as the `Rescheduled` pill and the external banner asserted "This appointment has been
   rescheduled" while nothing had moved; `CancellationRequested` -> `Cancelled` was the identical
