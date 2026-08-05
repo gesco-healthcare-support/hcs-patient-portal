@@ -11,12 +11,18 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 public class RequestRescheduleDto
 {
     /// <summary>
-    /// User-picked new slot. Required: OLD's
-    /// <c>AppointmentChangeRequestDomain.cs:103-106</c> rejects empty
-    /// slots with <c>ProvideNewAppointmentDateTime</c>.
+    /// OPTIONAL proposed slot. Phase 4b (2026-08-04) moved date selection from the
+    /// requestor to internal staff, who choose it at approval via
+    /// <see cref="ApproveRescheduleInput.OverrideSlotId"/>, so external requestors
+    /// leave this null and send a reason only. Internal staff filing a reschedule
+    /// may still propose a slot here. Kept (rather than removed) so a future
+    /// requestor-side "suggested date" needs no contract change.
+    ///
+    /// <para>Deviates from OLD's <c>AppointmentChangeRequestDomain.cs:103-106</c>,
+    /// which rejected an empty slot with <c>ProvideNewAppointmentDateTime</c>;
+    /// deliberate, per the epic decision that staff own the new date.</para>
     /// </summary>
-    [Required]
-    public Guid NewDoctorAvailabilityId { get; set; }
+    public Guid? NewDoctorAvailabilityId { get; set; }
 
     /// <summary>
     /// Verbatim reason from the user. Required: OLD's

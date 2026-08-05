@@ -136,8 +136,15 @@
             <h4>{{ isReschedule(row) ? 'Requested change' : 'Appointment to cancel' }}</h4>
             <p>
               @if (isReschedule(row)) {
-                A new time slot was requested. Open the appointment to review and confirm the slot
-                before approving.
+                <!-- Phase 4b (2026-08-04): the queue now carries the requested slot's date, so it
+                     states what was asked for instead of sending staff off to the appointment. -->
+                @if (requestedSlotLabel(row); as requested) {
+                  Requested for
+                  <b>{{ requested }}</b>
+                  . Approve to confirm it, or choose a different date.
+                } @else {
+                  No date was requested -- choose the new date and time when you approve.
+                }
               } @else {
                 Cancelling this appointment. Both parties are notified once approved.
               }
@@ -166,15 +173,66 @@
         <div class="ra-modal__body">
           <p style="margin: 0 0 14px; font-size: 14px; color: var(--n-600); line-height: 1.5">
             @if (isReschedule(m.row)) {
-              Move
-              <b>{{ m.row.appointmentConfirmationNumber }}</b>
-              to the requested slot and record the billing outcome.
+              @if (requestedSlotLabel(m.row); as requested) {
+                Move
+                <b>{{ m.row.appointmentConfirmationNumber }}</b>
+                to
+                <b>{{ requested }}</b>
+                , or pick a different date below.
+              } @else {
+                Choose the new date and time for
+                <b>{{ m.row.appointmentConfirmationNumber }}</b>
+                and record the billing outcome.
+              }
             } @else {
               Cancel
               <b>{{ m.row.appointmentConfirmationNumber }}</b>
               ? Both parties will be notified.
             }
           </p>
+
+          <!--
+            Phase 4b (2026-08-04): staff choose the reschedule date here, using the SAME
+            availability calendar and rules as booking (shared since 4a). Exactly one instance
+            renders at a time -- the component uses literal element ids, so one calendar per row
+            would collide. Submitted as ApproveRescheduleInput.overrideSlotId.
+          -->
+          @if (isReschedule(m.row)) {
+            <app-availability-calendar
+              [locationId]="m.row.appointmentLocationId ?? null"
+              [appointmentTypeId]="m.row.appointmentTypeId ?? null"
+              [typeChosen]="true"
+              [selectedDate]="chosenDate()"
+              [selectedTime]="chosenTime()"
+              [dateLabel]="requestedSlotLabel(m.row) ? 'Change date to' : 'New appointment date'"
+              timeLabel="New appointment time"
+              noSlotsMessage="No available slots for this location and appointment type."
+              minimumBookingRuleMessage="Appointments must be at least 3 days from today."
+              (slotSelected)="onSlotSelected($event)"
+              (dateCleared)="onDateCleared()"
+            />
+
+            @if (needsAdminReason(m.row)) {
+              <div class="ra-field col-12" style="margin-bottom: 12px">
+                <!-- Literal id + for, matching the repo convention. Only one approve modal is
+                     open at a time, so a literal id cannot collide. -->
+                <label for="cr-admin-reschedule-reason">
+                  Why are you changing the requested date?
+                  <span class="req">*</span>
+                </label>
+                <textarea
+                  id="cr-admin-reschedule-reason"
+                  class="ra-input"
+                  rows="3"
+                  maxlength="2000"
+                  [ngModel]="adminReason()"
+                  (ngModelChange)="adminReason.set($event)"
+                  placeholder="The requester sees this explanation."
+                ></textarea>
+              </div>
+            }
+          }
+
           <div class="ra-field col-12">
             <label>Billing outcome</label>
             <select class="ra-input" [ngModel]="outcome()" (ngModelChange)="outcome.set($event)">
@@ -195,7 +253,9 @@
           <button
             class="af-btn af-btn--green"
             type="button"
-            [disabled]="isBusy() || outcome() === null || approveBlocked(m.row)"
+            [disabled]="
+              isBusy() || outcome() === null || approveBlocked(m.row) || !canApproveSlot(m.row)
+            "
             (click)="confirmApprove()"
           >
             <app-icon name="check" [size]="15" />

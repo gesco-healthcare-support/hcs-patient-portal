@@ -16,13 +16,22 @@ namespace HealthcareSupport.CaseEvaluation;
 public partial class AppointmentChangeRequestToAppointmentChangeRequestDtoMapper
     : MapperBase<AppointmentChangeRequest, AppointmentChangeRequestDto>
 {
-    // AppointmentConfirmationNumber has no source on the entity (the change
-    // request stores only AppointmentId); it is filled in the AppService from
-    // the referenced appointment. Tell Mapperly to skip it so it does not emit
-    // an unmapped-target diagnostic.
+    // These targets have no source on the entity (the change request stores only
+    // AppointmentId and NewDoctorAvailabilityId); they are filled in the AppService from the
+    // referenced appointment and slot. Tell Mapperly to skip them so it does not emit an
+    // unmapped-target diagnostic. Phase 4b (2026-08-04) added the four appointment/slot
+    // context fields for the approval queue's date picker.
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentConfirmationNumber))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentLocationId))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentTypeId))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotDate))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotFromTime))]
     public override partial AppointmentChangeRequestDto Map(AppointmentChangeRequest source);
 
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentConfirmationNumber))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentLocationId))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentTypeId))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotDate))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotFromTime))]
     public override partial void Map(AppointmentChangeRequest source, AppointmentChangeRequestDto destination);
 }

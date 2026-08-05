@@ -19,6 +19,11 @@ import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 import { makeComparator, type SortModel, type SortValue } from '../../shared/sort/sort-state';
 import {
+  AvailabilityCalendarComponent,
+  type AvailabilitySelection,
+} from '../availability-calendar/availability-calendar.component';
+import { canApproveReschedule, requiresAdminReason } from './cr-approve.util';
+import {
   changeRequestAgeClass,
   changeRequestAgeDays,
   changeRequestConsentView,
@@ -49,7 +54,13 @@ interface CrModal {
   selector: 'app-internal-change-request-inbox',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent, SkeletonComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IconComponent,
+    SkeletonComponent,
+    AvailabilityCalendarComponent,
+  ],
   templateUrl: './internal-change-request-inbox.component.html',
   styles: `
     /* QA #15 item 6: right-aligned Sort-by control in the chips row. */
@@ -115,6 +126,15 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   protected readonly outcome = signal<AppointmentStatusType | null>(null);
   protected readonly reason = signal('');
   protected readonly isBusy = signal(false);
+
+  // Phase 4b (2026-08-04): staff choose the reschedule date HERE. Since the requestor no longer
+  // proposes one, the approve modal carries an availability calendar and sends the result as
+  // ApproveRescheduleInput.overrideSlotId. chosenDate/-Time drive the calendar's display;
+  // chosenSlotId is the value actually submitted.
+  protected readonly chosenSlotId = signal<string | null>(null);
+  protected readonly chosenDate = signal<string | null>(null);
+  protected readonly chosenTime = signal<string | null>(null);
+  protected readonly adminReason = signal('');
 
   // Captured once per load so the age pills stay stable + the template is pure.
   private nowMs = 0;
@@ -253,6 +273,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
         ? AppointmentStatusType.RescheduledNoBill
         : AppointmentStatusType.CancelledNoBill,
     );
+    this.resetSlotChoice();
     this.modal.set({ kind: 'approve', row });
   }
   protected openReject(row: AppointmentChangeRequestDto): void {
@@ -265,6 +286,66 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     }
     this.modal.set(null);
     this.reason.set('');
+    this.resetSlotChoice();
+  }
+
+  // ---- reschedule date choice (phase 4b, 2026-08-04) ----
+
+  /**
+   * Human-readable summary of what the requestor asked for, or null when they asked for no
+   * particular date -- the normal case since 4b, where staff choose it here. Reads the queue's
+   * enriched requestedSlotDate / requestedSlotFromTime rather than the bare slot GUID the row
+   * used to carry (which is why the panel previously told staff to go open the appointment).
+   */
+  protected requestedSlotLabel(row: AppointmentChangeRequestDto): string | null {
+    if (!row.requestedSlotDate) {
+      return null;
+    }
+    const date = new Date(row.requestedSlotDate);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    const day = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    return row.requestedSlotFromTime ? `${day} at ${row.requestedSlotFromTime}` : day;
+  }
+
+  protected onSlotSelected(selection: AvailabilitySelection): void {
+    this.chosenDate.set(selection.date);
+    this.chosenTime.set(selection.time);
+    this.chosenSlotId.set(selection.doctorAvailabilityId);
+  }
+
+  protected onDateCleared(): void {
+    this.resetSlotChoice();
+  }
+
+  /** An admin reason is owed only when staff REPLACE a slot the requestor proposed. */
+  protected needsAdminReason(row: AppointmentChangeRequestDto): boolean {
+    return requiresAdminReason(row.newDoctorAvailabilityId, this.chosenSlotId());
+  }
+
+  /** Whether the reschedule half of the approve modal is satisfied. */
+  protected canApproveSlot(row: AppointmentChangeRequestDto): boolean {
+    if (!this.isReschedule(row)) {
+      return true;
+    }
+    return canApproveReschedule({
+      proposedSlotId: row.newDoctorAvailabilityId,
+      chosenSlotId: this.chosenSlotId(),
+      chosenTime: this.chosenTime(),
+      adminReason: this.adminReason(),
+    });
+  }
+
+  private resetSlotChoice(): void {
+    this.chosenSlotId.set(null);
+    this.chosenDate.set(null);
+    this.chosenTime.set(null);
+    this.adminReason.set('');
   }
 
   protected outcomeOptions(
@@ -306,6 +387,16 @@ export class InternalChangeRequestInboxComponent implements OnInit {
       );
       return;
     }
+    // Phase 4b: same defense-in-depth for the date choice -- the server rejects a reschedule
+    // with no resolvable slot (ChangeRequestNewSlotRequired), so never fire a doomed request.
+    if (!this.canApproveSlot(m.row)) {
+      this.toaster.warn(
+        this.needsAdminReason(m.row)
+          ? 'Explain why you are changing the requested date before approving.'
+          : 'Choose the new appointment date and time before approving.',
+      );
+      return;
+    }
     this.isBusy.set(true);
     // skipHandleError: surface failures as our own corrective toast (see
     // handleRequestError) instead of ABP's global blocking dialog, which left
@@ -313,7 +404,14 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     const req$ = this.isReschedule(m.row)
       ? this.approvalService.approveReschedule(
           m.row.id,
-          { rescheduleOutcome: out },
+          {
+            rescheduleOutcome: out,
+            // Phase 4b: the slot staff chose in this modal. Null means "accept whatever the
+            // requestor proposed", which the server resolves; it can only be null when the row
+            // actually carries a proposal (canApproveSlot enforces that).
+            overrideSlotId: this.chosenSlotId(),
+            adminReScheduleReason: this.needsAdminReason(m.row) ? this.adminReason().trim() : null,
+          },
           { skipHandleError: true },
         )
       : this.approvalService.approveCancellation(

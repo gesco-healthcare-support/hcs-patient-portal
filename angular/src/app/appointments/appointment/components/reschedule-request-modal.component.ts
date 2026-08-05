@@ -14,19 +14,34 @@ import { LocalizationPipe } from '@abp/ng.core';
 import { ModalComponent, ModalCloseDirective, ButtonComponent } from '@abp/ng.theme.shared';
 import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
-import { DoctorAvailabilityService } from '../../../proxy/doctor-availabilities/doctor-availability.service';
-import type { DoctorAvailabilityDto } from '../../../proxy/doctor-availabilities/models';
+import {
+  AvailabilityCalendarComponent,
+  type AvailabilitySelection,
+} from '../../availability-calendar/availability-calendar.component';
+import { canSubmitReschedule, rescheduleModalOptions } from './reschedule-submit.util';
 
 /**
  * AP1 reschedule-request modal. Mirrors the approve/reject modal pattern
  * (ABP `<abp-modal>` + `[(visible)]` two-way binding + `(succeeded)` output --
  * the in-use appointment modal stack, not MatDialog/NgbModal). Submits the
- * change request only; the host decides whether to chain the auto-approve call
- * (internal staff) or leave it Pending (external), and owns the toast.
+ * change request only; the host owns the toast and the reload.
+ *
+ * <p>PHASE 4B (2026-08-04) -- ROLE-SPLIT BODY. Date selection moved from the requestor to
+ * internal staff, so:</p>
+ * <ul>
+ *   <li>Internal staff filing a reschedule (`requesterIsStaff`) pick the new date with the
+ *       shared {@link AvailabilityCalendarComponent} -- the SAME component and rules the booking
+ *       flow uses. It replaced a raw `<select>` of every Available slot in a 90-day window that
+ *       applied no lead-time or horizon gating at all, so a requestor could pick a date the
+ *       server then rejected.</li>
+ *   <li>External requestors get NO date control. They submit a reason and staff choose the date
+ *       at approval, which is why `newDoctorAvailabilityId` is now nullable on the wire.</li>
+ * </ul>
  *
  * Usage:
  *   <app-reschedule-request-modal
  *     [appointmentId]="..." [locationId]="..." [appointmentTypeId]="..."
+ *     [requesterIsStaff]="..."
  *     [(visible)]="rescheduleVisible" (succeeded)="onChangeRequestSucceeded($event)">
  *   </app-reschedule-request-modal>
  */
@@ -40,6 +55,7 @@ import type { DoctorAvailabilityDto } from '../../../proxy/doctor-availabilities
     ModalComponent,
     ModalCloseDirective,
     ButtonComponent,
+    AvailabilityCalendarComponent,
   ],
   templateUrl: './reschedule-request-modal.component.html',
   styles: [],
@@ -49,19 +65,21 @@ export class RescheduleRequestModalComponent implements OnChanges {
   @Input() locationId: string | null = null;
   @Input() appointmentTypeId: string | null = null;
   // C2 (2026-07-01): staff filer -> both-parties-consent note; external -> opposing-party note.
+  // Phase 4b also uses this to decide whether the date picker renders at all.
   @Input() requesterIsStaff = false;
   @Input() visible = false;
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() succeeded = new EventEmitter<AppointmentChangeRequestDto>();
 
   private readonly changeRequestService = inject(AppointmentChangeRequestService);
-  private readonly availabilityService = inject(DoctorAvailabilityService);
 
-  slots: DoctorAvailabilityDto[] = [];
+  /** Null for external requestors, who propose no date (phase 4b). */
   newDoctorAvailabilityId: string | null = null;
+  /** `YYYY-MM-DD`; drives the calendar's selected day. Staff only. */
+  selectedDate: string | null = null;
+  selectedTime: string | null = null;
   reason = '';
   isBusy = false;
-  isLoadingSlots = false;
   // F-M04 parity (2026-06-29): surface a request failure inside the modal instead
   // of leaving an enabled-but-dead Submit button. Matches the cancellation modal;
   // without it an unmapped BusinessException (e.g. NewSlotNotAvailable when the
@@ -71,22 +89,37 @@ export class RescheduleRequestModalComponent implements OnChanges {
 
   readonly maxReasonLength = 500;
 
+  /**
+   * Staff get the wide dialog so the two-month datepicker popup is not clipped. Delegated to a
+   * pure helper that returns FROZEN CONSTANTS -- see `rescheduleModalOptions` for why a fresh
+   * object literal here hangs the browser.
+   */
+  get modalOptions(): object {
+    return rescheduleModalOptions(this.requesterIsStaff);
+  }
+
+  get minimumBookingRuleMessage(): string {
+    return 'Appointments must be at least 3 days from today.';
+  }
+
   get canSubmit(): boolean {
-    return (
-      !this.isBusy &&
-      !!this.newDoctorAvailabilityId &&
-      this.reason.trim().length > 0 &&
-      this.reason.length <= this.maxReasonLength
-    );
+    if (this.isBusy) {
+      return false;
+    }
+    return canSubmitReschedule({
+      requesterIsStaff: this.requesterIsStaff,
+      slotId: this.newDoctorAvailabilityId,
+      time: this.selectedTime,
+      reason: this.reason,
+      maxReasonLength: this.maxReasonLength,
+    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    // Load slots fresh each time the modal opens (false -> true).
+    // Reset each time the modal opens (false -> true). The calendar loads its own
+    // availability from locationId / appointmentTypeId, so there is nothing to fetch here.
     if (changes['visible'] && this.visible && !changes['visible'].previousValue) {
-      this.reason = '';
-      this.newDoctorAvailabilityId = null;
-      this.errorMessage = null;
-      this.loadSlots();
+      this.resetForm();
     }
   }
 
@@ -94,56 +127,37 @@ export class RescheduleRequestModalComponent implements OnChanges {
     this.visible = value;
     this.visibleChange.emit(value);
     if (!value) {
-      this.reason = '';
-      this.newDoctorAvailabilityId = null;
+      this.resetForm();
       this.isBusy = false;
-      this.errorMessage = null;
     }
   }
 
-  slotLabel(slot: DoctorAvailabilityDto): string {
-    const date = slot.availableDate ? slot.availableDate.substring(0, 10) : '';
-    const from = slot.fromTime ?? '';
-    const to = slot.toTime ?? '';
-    return `${date} ${from} - ${to}`.trim();
+  /**
+   * The calendar emits the date first with no time (so a parent can intercept before a slot is
+   * committed), then again with the time and the resolved slot id. Mirror both so Submit only
+   * unlocks once a real slot is identified.
+   */
+  onSlotSelected(selection: AvailabilitySelection): void {
+    this.selectedDate = selection.date;
+    this.selectedTime = selection.time;
+    this.newDoctorAvailabilityId = selection.doctorAvailabilityId;
   }
 
-  private loadSlots(): void {
-    if (!this.locationId || !this.appointmentTypeId) {
-      this.slots = [];
-      return;
-    }
-    this.isLoadingSlots = true;
-    const from = new Date();
-    const to = new Date();
-    to.setDate(to.getDate() + 90);
-    this.availabilityService
-      .getDoctorAvailabilityLookup({
-        locationId: this.locationId,
-        appointmentTypeId: this.appointmentTypeId,
-        availableDateFrom: from.toISOString(),
-        availableDateTo: to.toISOString(),
-      })
-      .subscribe({
-        next: (slots) => {
-          this.slots = slots ?? [];
-          this.isLoadingSlots = false;
-        },
-        error: () => {
-          this.slots = [];
-          this.isLoadingSlots = false;
-        },
-      });
+  onDateCleared(): void {
+    this.selectedDate = null;
+    this.selectedTime = null;
+    this.newDoctorAvailabilityId = null;
   }
 
   submit(): void {
-    if (!this.appointmentId || !this.newDoctorAvailabilityId || !this.canSubmit) {
+    if (!this.appointmentId || !this.canSubmit) {
       return;
     }
     this.isBusy = true;
     this.errorMessage = null;
     this.changeRequestService
       .requestReschedule(this.appointmentId, {
+        // Null when an external requestor filed: staff pick the date at approval.
         newDoctorAvailabilityId: this.newDoctorAvailabilityId,
         reScheduleReason: this.reason.trim(),
         isBeyondLimit: false,
@@ -158,8 +172,16 @@ export class RescheduleRequestModalComponent implements OnChanges {
           this.isBusy = false;
           this.errorMessage =
             err?.error?.error?.message ??
-            'This appointment could not be rescheduled to the selected slot. The slot may no longer be available -- pick another, or try again.';
+            'This reschedule request could not be submitted. If you chose a slot it may no longer be available -- pick another, or try again.';
         },
       });
+  }
+
+  private resetForm(): void {
+    this.reason = '';
+    this.newDoctorAvailabilityId = null;
+    this.selectedDate = null;
+    this.selectedTime = null;
+    this.errorMessage = null;
   }
 }

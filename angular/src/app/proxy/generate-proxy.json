@@ -47185,6 +47185,58 @@
           "isNullable": true
         },
         {
+          "name": "AppointmentLocationId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "RequestedSlotDate",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "RequestedSlotFromTime",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "ChangeRequestType",
           "jsonName": null,
           "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestType",
@@ -47740,15 +47792,15 @@
         {
           "name": "NewDoctorAvailabilityId",
           "jsonName": null,
-          "type": "System.Guid",
-          "typeSimple": "string",
-          "isRequired": true,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": false
+          "isNullable": true
         },
         {
           "name": "ReScheduleReason",

@@ -178,15 +178,19 @@ public class AppointmentChangeRequestManager : DomainService
     }
 
     /// <summary>
-    /// Phase 16 (2026-05-04) -- OLD-parity reschedule submit. Loads the
-    /// source appointment and the user-picked new slot, validates
-    /// status (Approved) + slot availability, inserts a Pending
+    /// Phase 16 (2026-05-04) -- reschedule submit. Loads the source appointment,
+    /// validates its status (Approved), inserts a Pending
     /// <see cref="AppointmentChangeRequest"/> with
-    /// <see cref="ChangeRequestType.Reschedule"/>, transitions the
-    /// new slot Available -> Reserved (interim hold pending supervisor
-    /// approval), and transitions the parent appointment Approved ->
-    /// RescheduleRequested via the state machine. Mirrors OLD
-    /// <c>AppointmentChangeRequestDomain.cs:197-223</c>.
+    /// <see cref="ChangeRequestType.Reschedule"/>, and transitions the parent
+    /// appointment Approved -&gt; RescheduleRequested via the state machine.
+    /// Mirrors OLD <c>AppointmentChangeRequestDomain.cs:197-223</c>.
+    ///
+    /// <para>Phase 4b (2026-08-04): <paramref name="newDoctorAvailabilityId"/> is now
+    /// OPTIONAL. When a slot IS proposed it is validated (must be Available) and held
+    /// Available -&gt; Reserved as an interim hold; when it is null -- the external
+    /// requestor's normal path, since staff now choose the date at approval -- no slot
+    /// is looked up and none is held. The parent status transition is unaffected
+    /// either way.</para>
     ///
     /// Lead-time + per-AppointmentType max-time gates run UPSTREAM of
     /// this method via the Application-layer
@@ -194,7 +198,10 @@ public class AppointmentChangeRequestManager : DomainService
     /// flow per OLD parity.
     /// </summary>
     /// <param name="appointmentId">Source appointment to reschedule.</param>
-    /// <param name="newDoctorAvailabilityId">User-picked new slot.</param>
+    /// <param name="newDoctorAvailabilityId">
+    /// Optional slot proposed at submit time (internal staff filing a reschedule).
+    /// Null for external requestors, who supply a reason only.
+    /// </param>
     /// <param name="reScheduleReason">Verbatim reason supplied by the user.</param>
     /// <param name="isBeyondLimit">
     /// Admin override flag. External-user submits always pass false;
@@ -206,13 +213,13 @@ public class AppointmentChangeRequestManager : DomainService
     /// Pending source appointment in addition to Approved; false
     /// (external) keeps the Approved-only OLD parity. A Pending source
     /// skips the Approved -&gt; RescheduleRequested state-machine step
-    /// (no such transition exists) and stays Pending; the new-slot hold
-    /// still applies.
+    /// (no such transition exists) and stays Pending; a hold on a
+    /// proposed slot, if any, still applies.
     /// </param>
     /// <param name="actingUserId">Caller, threaded through to the ETO.</param>
     public virtual async Task<AppointmentChangeRequest> SubmitRescheduleAsync(
         Guid appointmentId,
-        Guid newDoctorAvailabilityId,
+        Guid? newDoctorAvailabilityId,
         string reScheduleReason,
         bool isBeyondLimit,
         bool allowPendingSource,
@@ -228,6 +235,9 @@ public class AppointmentChangeRequestManager : DomainService
         }
 
         Check.NotDefaultOrNull<Guid>(appointmentId, nameof(appointmentId));
+        // Phase 4b (2026-08-04): a null slot is now the normal external case -- staff choose
+        // the date at approval. Guid.Empty is still rejected, because that is a malformed id
+        // rather than a deliberate "no proposal".
         if (newDoctorAvailabilityId == Guid.Empty)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotRequired);
@@ -250,17 +260,23 @@ public class AppointmentChangeRequestManager : DomainService
                 .WithData("status", appointment.AppointmentStatus);
         }
 
-        var newSlot = await _doctorAvailabilityRepository.FindAsync(newDoctorAvailabilityId);
-        if (newSlot == null)
+        // Only validate + hold a slot when one was actually proposed (phase 4b: external
+        // requestors propose none). A proposed slot must still be Available.
+        DoctorAvailability? newSlot = null;
+        if (newDoctorAvailabilityId.HasValue)
         {
-            throw new EntityNotFoundException(typeof(DoctorAvailability), newDoctorAvailabilityId);
-        }
+            newSlot = await _doctorAvailabilityRepository.FindAsync(newDoctorAvailabilityId.Value);
+            if (newSlot == null)
+            {
+                throw new EntityNotFoundException(typeof(DoctorAvailability), newDoctorAvailabilityId.Value);
+            }
 
-        if (!RescheduleRequestValidators.IsSlotAvailable(newSlot.BookingStatusId))
-        {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable)
-                .WithData("newSlotId", newDoctorAvailabilityId)
-                .WithData("currentStatus", newSlot.BookingStatusId);
+            if (!RescheduleRequestValidators.IsSlotAvailable(newSlot.BookingStatusId))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable)
+                    .WithData("newSlotId", newDoctorAvailabilityId.Value)
+                    .WithData("currentStatus", newSlot.BookingStatusId);
+            }
         }
 
         var changeRequest = new AppointmentChangeRequest(
@@ -275,12 +291,18 @@ public class AppointmentChangeRequestManager : DomainService
 
         await _repository.InsertAsync(changeRequest);
 
-        // Transition the NEW slot Available -> Reserved. The OLD slot
+        // Transition a PROPOSED slot Available -> Reserved. The OLD slot
         // (appointment.DoctorAvailabilityId) stays Booked while the
         // change request is Pending -- the supervisor's approve flow
-        // (Phase 17) releases it.
-        newSlot.BookingStatusId = HealthcareSupport.CaseEvaluation.Enums.BookingStatus.Reserved;
-        await _doctorAvailabilityRepository.UpdateAsync(newSlot);
+        // (Phase 17) releases it. With no proposal (phase 4b's external
+        // path) there is nothing to hold; the approve flow reserves
+        // nothing either, it moves the appointment straight onto the
+        // slot staff choose.
+        if (newSlot != null)
+        {
+            newSlot.BookingStatusId = HealthcareSupport.CaseEvaluation.Enums.BookingStatus.Reserved;
+            await _doctorAvailabilityRepository.UpdateAsync(newSlot);
+        }
 
         // Transition the parent appointment Approved -> RescheduleRequested
         // via the state machine. Publishes its own AppointmentStatusChangedEto
