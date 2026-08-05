@@ -12,7 +12,6 @@ using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
-using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -27,7 +26,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// be driven from a test, and the raw token is never persisted.</para>
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
-public class MultiOfficeRescheduleConsentTests : CaseEvaluationMultiOfficeTestBase
+public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
 {
     private static readonly Guid EmailTypeId = Guid.Parse("c0000001-0000-4000-9000-000000000001");
 
@@ -39,7 +38,6 @@ public class MultiOfficeRescheduleConsentTests : CaseEvaluationMultiOfficeTestBa
     private readonly IRepository<NotificationOutboxItem, Guid> _outboxRepository;
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly INotificationTemplateTypeRepository _templateTypeRepository;
-    private readonly ICurrentTenant _currentTenant;
     private readonly IGuidGenerator _guidGenerator;
 
     public MultiOfficeRescheduleConsentTests()
@@ -52,7 +50,6 @@ public class MultiOfficeRescheduleConsentTests : CaseEvaluationMultiOfficeTestBa
         _outboxRepository = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
         _templateRepository = GetRequiredService<INotificationTemplateRepository>();
         _templateTypeRepository = GetRequiredService<INotificationTemplateTypeRepository>();
-        _currentTenant = GetRequiredService<ICurrentTenant>();
         _guidGenerator = GetRequiredService<IGuidGenerator>();
     }
 
@@ -450,12 +447,4 @@ public class MultiOfficeRescheduleConsentTests : CaseEvaluationMultiOfficeTestBa
         }
     }
 
-    private Task InOfficeAsync(SeededOffice office, Func<Task> action) =>
-        WithUnitOfWorkAsync(async () =>
-        {
-            using (_currentTenant.Change(office.OfficeId))
-            {
-                await action();
-            }
-        }, requiresNew: true);
 }

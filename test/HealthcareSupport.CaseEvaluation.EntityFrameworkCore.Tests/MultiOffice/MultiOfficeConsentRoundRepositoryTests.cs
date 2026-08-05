@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -16,17 +15,15 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// to objects.
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
-public class MultiOfficeConsentRoundRepositoryTests : CaseEvaluationMultiOfficeTestBase
+public class MultiOfficeConsentRoundRepositoryTests : ConsentRoundTestBase
 {
     private readonly IChangeRequestConsentRoundRepository _roundRepository;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
-    private readonly ICurrentTenant _currentTenant;
 
     public MultiOfficeConsentRoundRepositoryTests()
     {
         _roundRepository = GetRequiredService<IChangeRequestConsentRoundRepository>();
         _changeRequestRepository = GetRequiredService<IRepository<AppointmentChangeRequest, Guid>>();
-        _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
@@ -40,7 +37,7 @@ public class MultiOfficeConsentRoundRepositoryTests : CaseEvaluationMultiOfficeT
 
         await InOfficeAsync(officeA, async () =>
         {
-            await SeedChangeRequestAsync(officeA, changeRequestId);
+            await SeedRescheduleRequestAsync(officeA, changeRequestId);
             var round = NewRound(officeA, changeRequestId, roundId, roundNumber: 1);
             round.IssueSideConsent(ChangeRequestSide.SideA, sideAHash, DateTime.UtcNow.AddDays(7));
             round.IssueSideConsent(ChangeRequestSide.SideB, sideBHash, DateTime.UtcNow.AddDays(7));
@@ -64,7 +61,7 @@ public class MultiOfficeConsentRoundRepositoryTests : CaseEvaluationMultiOfficeT
 
         await InOfficeAsync(officeA, async () =>
         {
-            await SeedChangeRequestAsync(officeA, changeRequestId);
+            await SeedRescheduleRequestAsync(officeA, changeRequestId);
 
             // Round 1 was proposed, declined, then replaced -- it must never be "current"
             // again, or a finalize would gate on a date staff already abandoned.
@@ -96,7 +93,7 @@ public class MultiOfficeConsentRoundRepositoryTests : CaseEvaluationMultiOfficeT
 
         await InOfficeAsync(officeA, async () =>
         {
-            await SeedChangeRequestAsync(officeA, changeRequestId);
+            await SeedRescheduleRequestAsync(officeA, changeRequestId);
             var round = NewRound(officeA, changeRequestId, Guid.NewGuid(), roundNumber: 1);
             round.Supersede(DateTime.UtcNow);
             await _roundRepository.InsertAsync(round, autoSave: true);
@@ -119,36 +116,4 @@ public class MultiOfficeConsentRoundRepositoryTests : CaseEvaluationMultiOfficeT
         });
     }
 
-    private async Task SeedChangeRequestAsync(SeededOffice office, Guid changeRequestId)
-    {
-        await _changeRequestRepository.InsertAsync(
-            new AppointmentChangeRequest(
-                id: changeRequestId,
-                tenantId: office.OfficeId,
-                appointmentId: office.AppointmentId,
-                changeRequestType: ChangeRequestType.Reschedule,
-                cancellationReason: null,
-                reScheduleReason: "TEST-reschedule-reason",
-                newDoctorAvailabilityId: null),
-            autoSave: true);
-    }
-
-    private static ChangeRequestConsentRound NewRound(
-        SeededOffice office, Guid changeRequestId, Guid roundId, int roundNumber) =>
-        new(
-            id: roundId,
-            tenantId: office.OfficeId,
-            appointmentChangeRequestId: changeRequestId,
-            roundNumber: roundNumber,
-            proposedDoctorAvailabilityId: office.DoctorAvailabilityId,
-            proposedByUserId: office.BookerUserId);
-
-    private Task InOfficeAsync(SeededOffice office, Func<Task> action) =>
-        WithUnitOfWorkAsync(async () =>
-        {
-            using (_currentTenant.Change(office.OfficeId))
-            {
-                await action();
-            }
-        }, requiresNew: true);
 }

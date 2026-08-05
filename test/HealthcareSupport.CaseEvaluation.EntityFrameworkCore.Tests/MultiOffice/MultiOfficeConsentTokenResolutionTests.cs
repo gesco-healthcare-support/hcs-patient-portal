@@ -4,7 +4,6 @@ using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -17,19 +16,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// unchanged and pre-4c reschedule links may still be sitting in somebody's inbox.
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
-public class MultiOfficeConsentTokenResolutionTests : CaseEvaluationMultiOfficeTestBase
+public class MultiOfficeConsentTokenResolutionTests : ConsentRoundTestBase
 {
     private readonly ChangeRequestConsentManager _consentManager;
     private readonly IChangeRequestConsentRoundRepository _roundRepository;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
-    private readonly ICurrentTenant _currentTenant;
 
     public MultiOfficeConsentTokenResolutionTests()
     {
         _consentManager = GetRequiredService<ChangeRequestConsentManager>();
         _roundRepository = GetRequiredService<IChangeRequestConsentRoundRepository>();
         _changeRequestRepository = GetRequiredService<IRepository<AppointmentChangeRequest, Guid>>();
-        _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
@@ -208,19 +205,6 @@ public class MultiOfficeConsentTokenResolutionTests : CaseEvaluationMultiOfficeT
         });
     }
 
-    private async Task SeedRescheduleRequestAsync(SeededOffice office, Guid changeRequestId)
-    {
-        await _changeRequestRepository.InsertAsync(
-            new AppointmentChangeRequest(
-                id: changeRequestId,
-                tenantId: office.OfficeId,
-                appointmentId: office.AppointmentId,
-                changeRequestType: ChangeRequestType.Reschedule,
-                cancellationReason: null,
-                reScheduleReason: "TEST-reschedule-reason",
-                newDoctorAvailabilityId: null),
-            autoSave: true);
-    }
 
     private async Task<AppointmentChangeRequest> SeedCancellationRequestAsync(
         SeededOffice office, Guid changeRequestId)
@@ -236,23 +220,4 @@ public class MultiOfficeConsentTokenResolutionTests : CaseEvaluationMultiOfficeT
                 newDoctorAvailabilityId: null),
             autoSave: true);
     }
-
-    private static ChangeRequestConsentRound NewRound(
-        SeededOffice office, Guid changeRequestId, Guid roundId, int roundNumber) =>
-        new(
-            id: roundId,
-            tenantId: office.OfficeId,
-            appointmentChangeRequestId: changeRequestId,
-            roundNumber: roundNumber,
-            proposedDoctorAvailabilityId: office.DoctorAvailabilityId,
-            proposedByUserId: office.BookerUserId);
-
-    private Task InOfficeAsync(SeededOffice office, Func<Task> action) =>
-        WithUnitOfWorkAsync(async () =>
-        {
-            using (_currentTenant.Change(office.OfficeId))
-            {
-                await action();
-            }
-        }, requiresNew: true);
 }

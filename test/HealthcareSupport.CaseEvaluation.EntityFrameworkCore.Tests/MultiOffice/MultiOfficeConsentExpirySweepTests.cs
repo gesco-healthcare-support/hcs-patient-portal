@@ -4,7 +4,6 @@ using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.Jobs;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -19,19 +18,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// whichever database the ambient tenant happened to be.</para>
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
-public class MultiOfficeConsentExpirySweepTests : CaseEvaluationMultiOfficeTestBase
+public class MultiOfficeConsentExpirySweepTests : ConsentRoundTestBase
 {
     private readonly ChangeRequestConsentExpirySweepJob _job;
     private readonly IChangeRequestConsentRoundRepository _roundRepository;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
-    private readonly ICurrentTenant _currentTenant;
 
     public MultiOfficeConsentExpirySweepTests()
     {
         _job = GetRequiredService<ChangeRequestConsentExpirySweepJob>();
         _roundRepository = GetRequiredService<IChangeRequestConsentRoundRepository>();
         _changeRequestRepository = GetRequiredService<IRepository<AppointmentChangeRequest, Guid>>();
-        _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
@@ -157,37 +154,4 @@ public class MultiOfficeConsentExpirySweepTests : CaseEvaluationMultiOfficeTestB
                 .SideConsentStatus(ChangeRequestSide.SideA)
                 .ShouldBe(ChangeRequestConsentStatus.Expired));
     }
-
-    private async Task SeedRescheduleRequestAsync(SeededOffice office, Guid changeRequestId)
-    {
-        await _changeRequestRepository.InsertAsync(
-            new AppointmentChangeRequest(
-                id: changeRequestId,
-                tenantId: office.OfficeId,
-                appointmentId: office.AppointmentId,
-                changeRequestType: ChangeRequestType.Reschedule,
-                cancellationReason: null,
-                reScheduleReason: "TEST-reschedule-reason",
-                newDoctorAvailabilityId: null),
-            autoSave: true);
-    }
-
-    private static ChangeRequestConsentRound NewRound(
-        SeededOffice office, Guid changeRequestId, Guid roundId) =>
-        new(
-            id: roundId,
-            tenantId: office.OfficeId,
-            appointmentChangeRequestId: changeRequestId,
-            roundNumber: 1,
-            proposedDoctorAvailabilityId: office.DoctorAvailabilityId,
-            proposedByUserId: office.BookerUserId);
-
-    private Task InOfficeAsync(SeededOffice office, Func<Task> action) =>
-        WithUnitOfWorkAsync(async () =>
-        {
-            using (_currentTenant.Change(office.OfficeId))
-            {
-                await action();
-            }
-        }, requiresNew: true);
 }
