@@ -37,12 +37,23 @@ describe('internal-detail.util', () => {
       expect(detailActions('InfoRequested')).toEqual([]);
     });
 
+    // Phase 4c (2026-08-05): stacking a second change request on one already awaiting consent
+    // has no coherent meaning. This REMOVES two buttons that render on a reschedule-requested
+    // appointment today -- intentional, and the change most likely to read as "something
+    // disappeared".
+    it('offers no office actions while a change request is in flight', () => {
+      expect(detailActions('RescheduleRequested')).toEqual([]);
+      expect(detailActions('CancellationRequested')).toEqual([]);
+    });
+
     it('never offers approve/reject outside Pending', () => {
       for (const pill of [
         'Approved',
         'Rescheduled',
+        'RescheduleRequested',
         'Rejected',
         'Cancelled',
+        'CancellationRequested',
         'InfoRequested',
       ] as const) {
         expect(detailActions(pill)).not.toContain('approve');
@@ -57,12 +68,24 @@ describe('internal-detail.util', () => {
       expect(bannerVariant('Approved')).toBe('approved');
       expect(bannerVariant('InfoRequested')).toBe('info-requested');
     });
+
+    // A bare toLowerCase() yields 'reschedulerequested', which matches no CALLOUTS key and
+    // silently falls back to the generic pending copy -- the failure mode is invisible.
+    it('hyphenates the multi-word in-flight pills', () => {
+      expect(bannerVariant('RescheduleRequested')).toBe('reschedule-requested');
+      expect(bannerVariant('CancellationRequested')).toBe('cancellation-requested');
+    });
   });
 
   describe('statusLabel', () => {
     it('humanizes InfoRequested and passes the rest through', () => {
       expect(statusLabel('InfoRequested')).toBe('Info requested');
       expect(statusLabel('Approved')).toBe('Approved');
+    });
+
+    it('humanizes the multi-word in-flight pills instead of running the words together', () => {
+      expect(statusLabel('RescheduleRequested')).toBe('Reschedule requested');
+      expect(statusLabel('CancellationRequested')).toBe('Cancellation requested');
     });
   });
 

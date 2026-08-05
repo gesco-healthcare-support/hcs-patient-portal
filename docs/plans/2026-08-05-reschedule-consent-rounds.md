@@ -1,7 +1,7 @@
 ---
 feature: Reschedule consent rounds (epic phase 4c)
 date: 2026-08-05
-status: draft
+status: done
 base-branch: main
 related-issues: []
 ---
@@ -49,9 +49,30 @@ the same release.
 - Decision: RESCHEDULE ONLY. Cancellation keeps its existing at-submit consent on the parent's
   flat columns, because a cancellation has no proposed date to re-propose and nobody asked to
   change a working flow.
-- Decision: confirming again WITHOUT changing the date RESENDS within the current round (same
-  tokens, `SendAttempts + 1`); changing the date creates a new round. A resend must not invalidate
-  a link a party may already be holding.
+- Decision (Adrian, 2026-08-05, post-build review): a RESCHEDULE submit sends NO stakeholder
+  email. "Once the staff selects a date, both parties get consent emails that include and tell
+  them that reschedule was requested, this extra email is not required." Implemented as an early
+  return in `ChangeRequestSubmittedEmailHandler`, scoped to the EMAIL only -- staff still get
+  their in-app notification and the cancel-side clinical-staff email is untouched.
+  Found while implementing: that email was a THIRD stale reader of the proposed slot. It
+  rendered `NewAppointmentDate` / `NewAppointmentFromTime` from `NewDoctorAvailabilityId`, which
+  4b leaves null on the external path, so it was already going out with BLANK date and time --
+  the only one of the three stale readers reaching real inboxes. Cancellation keeps its email:
+  its consent is issued at submit, so there is no later message to fold the notice into.
+  Consequence to accept: a party who is neither side's representative now hears nothing until
+  the approval email at finalize.
+- Decision: confirming again WITHOUT changing the date RESENDS within the current round
+  (`SendAttempts + 1`, same `RoundNumber`); changing the date creates a new round.
+- Decision (Adrian, 2026-08-05, build time -- SUPERSEDES "same tokens"): a resend MINTS A FRESH
+  TOKEN for each still-`Pending` side and replaces that side's stored hash and expiry. The
+  original decision said the resend must reuse the same tokens so a link a party already holds
+  stays valid. That is not implementable: only the SHA256 HASH is persisted
+  (`ChangeRequestConsentManager.cs:116`) and the raw token is returned exactly once at issuance,
+  so a resend cannot rebuild the URL. Rejected alternative: store the token reversibly
+  (encrypted) -- it would keep every old link alive but leaves a decryptable consent credential
+  at rest in a PHI-adjacent system. Consequence to accept: clicking the link from a SUPERSEDED
+  send returns the invalid-token page; the recipient must use the newest email. Sides already
+  Approved / Rejected / Expired are NOT re-tokened -- only still-`Pending` sides are resent.
 - Decision: the appointment status needs no new value -- it stays
   `AppointmentStatusType.RescheduleRequested` (12) while a round awaits consent, and
   `RequestStatus` stays `Pending` until finalize.
@@ -178,12 +199,20 @@ consent tests belong here. No change-request test source exists yet.
 - what: CREATE `src/HealthcareSupport.CaseEvaluation.Domain/AppointmentChangeRequests/ChangeRequestConsentRound.cs`
   -- `ChangeRequestConsentRound : FullAuditedAggregateRoot<Guid>, IMultiTenant`, `[Audited]`.
   Fields: `TenantId`, `AppointmentChangeRequestId`, `RoundNumber` (int), `ProposedDoctorAvailabilityId`
-  (Guid), `ProposedByUserId` (Guid?), `SendAttempts` (int, starts 1), `SupersededAt` (DateTime?),
+  (Guid), `ProposedByUserId` (Guid?), `ProposedReason` (string?), `SendAttempts` (int, starts 1),
+  `SupersededAt` (DateTime?),
   and per side `SideAConsentStatus/TokenHash/ExpiresAt/RespondedAt/RespondedByEmail` (+ SideB).
   Methods ported from the parent's consent region: `IssueSideConsent`, `RecordSideDecision`,
   `MarkSideExpired`, `IsSideExpired`, `SideConsentStatus`, `SideConsentTokenHash`,
-  `AreAllRequiredSidesGranted`, plus `RegisterResend()` (increments `SendAttempts`) and
-  `Supersede(DateTime nowUtc)`.
+  `AreAllRequiredSidesGranted`, plus `ReissueSideConsent()`, `RegisterResend()` (increments
+  `SendAttempts`) and `Supersede(DateTime nowUtc)`.
+- **CORRECTION (2026-08-05, build time).** Two fields this task's original list omitted, both
+  required by T8: `ProposedReason` (T8 says finalize copies "the round's reason" onto
+  `AdminReScheduleReason`, but no reason field was defined -- and holding it per round is what
+  keeps "we proposed Aug 27 because X, they declined" queryable, which is the stated point of
+  rounds), and `ReissueSideConsent(side, tokenHash, expiresAt)`, valid only from `Pending`, which
+  the corrected resend decision above needs. `IssueSideConsent` stays restricted to
+  `NotRequired`, so re-soliciting a DECIDED side still requires a new round.
 - pattern: `AppointmentChangeRequestDocument.cs:16-65` for the shape;
   `AppointmentChangeRequest.cs:168-289` for the per-side transitions.
 - approach: tdd
@@ -235,15 +264,26 @@ consent tests belong here. No change-request test source exists yet.
 ### T5 -- relocate token resolution to rounds
 
 - what: MODIFY `.../Domain/AppointmentChangeRequests/ChangeRequestConsentManager.cs` -- inject
-  `IChangeRequestConsentRoundRepository`; `IssueSideConsent(round, side)` now takes a round;
-  `ResolveByRawTokenAsync` looks the hash up via `FindByTokenHashAsync`; `RecordDecisionAsync`
-  records on the round. Change `ChangeRequestConsentMatch` to
-  `(AppointmentChangeRequest Request, ChangeRequestConsentRound Round, ChangeRequestSide Side)`.
+  `IChangeRequestConsentRoundRepository`; ADD an `IssueSideConsent(round, side)` overload;
+  `ResolveByRawTokenAsync` looks the hash up via `FindByTokenHashAsync` FIRST, then falls back to
+  the parent's two hash columns; `RecordDecisionAsync` records on whichever matched. Change
+  `ChangeRequestConsentMatch` to
+  `(AppointmentChangeRequest Request, ChangeRequestConsentRound? Round, ChangeRequestSide Side)`.
   Keep `GenerateRawToken` / `ComputeTokenHash` unchanged.
+- **CORRECTION (2026-08-05, build time).** This task originally said the round-based
+  `IssueSideConsent` REPLACES the request-based one and that `Match.Round` is non-nullable. Both
+  are wrong and would have broken cancellation consent, contradicting this plan's own
+  "RESCHEDULE ONLY" decision and risk 3. Verified: `IssueConsentAndNotifyAsync` is CANCEL ONLY
+  since 4b (`AppointmentChangeRequestsAppService.cs:225`, `:263`, `:279`, `:284`) and issues onto
+  the PARENT's flat columns. A cancel token therefore has NO round, so: the request-based
+  overload STAYS, and `Round` is NULLABLE. Token resolution must cover both stores -- rounds for
+  reschedule, parent columns for cancel and for legacy pre-4b reschedule rows.
 - pattern: the existing method bodies (`:37-100`).
 - approach: tdd
 - acceptance (EARS): WHEN a raw token matches a round side, THE SYSTEM SHALL return that round and
-  side. WHEN the token is unknown or over `ConsentEncodedTokenMaxLength`, THE SYSTEM SHALL throw
+  side. WHEN a raw token matches only the PARENT's hash columns (cancel / legacy), THE SYSTEM
+  SHALL return that request with a null round and SHALL record the decision on the parent. WHEN
+  the token is unknown or over `ConsentEncodedTokenMaxLength`, THE SYSTEM SHALL throw
   `ChangeRequestConsentTokenInvalid`. WHEN the matched side's token has expired, THE SYSTEM SHALL
   mark it `Expired` and throw `ChangeRequestConsentExpired`.
 

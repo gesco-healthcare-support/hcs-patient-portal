@@ -72,6 +72,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<UserQuery> UserQueries { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
+    public DbSet<ChangeRequestConsentRound> ChangeRequestConsentRounds { get; set; } = null!;
     public DbSet<AppointmentInfoRequest> AppointmentInfoRequests { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
@@ -657,6 +658,38 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.RequestStatus });
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+        // ChangeRequestConsentRound (phase 4c, 2026-08-05) -- one row per staff-confirmed
+        // reschedule date plus the consent both sides gave for it. Configured identically to
+        // the host context so the shared table is column-identical across host + office DBs.
+        builder.Entity<ChangeRequestConsentRound>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "ChangeRequestConsentRounds", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentChangeRequestId).HasColumnName(nameof(ChangeRequestConsentRound.AppointmentChangeRequestId)).IsRequired();
+            b.Property(x => x.RoundNumber).HasColumnName(nameof(ChangeRequestConsentRound.RoundNumber));
+            b.Property(x => x.ProposedDoctorAvailabilityId).HasColumnName(nameof(ChangeRequestConsentRound.ProposedDoctorAvailabilityId)).IsRequired();
+            b.Property(x => x.ProposedByUserId).HasColumnName(nameof(ChangeRequestConsentRound.ProposedByUserId));
+            b.Property(x => x.ProposedReason).HasColumnName(nameof(ChangeRequestConsentRound.ProposedReason)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
+            b.Property(x => x.SendAttempts).HasColumnName(nameof(ChangeRequestConsentRound.SendAttempts));
+            b.Property(x => x.SupersededAt).HasColumnName(nameof(ChangeRequestConsentRound.SupersededAt));
+            b.Property(x => x.SideAConsentStatus).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentStatus));
+            b.Property(x => x.SideAConsentTokenHash).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.SideAConsentExpiresAt).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentExpiresAt));
+            b.Property(x => x.SideAConsentRespondedAt).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentRespondedAt));
+            b.Property(x => x.SideAConsentRespondedByEmail).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.Property(x => x.SideBConsentStatus).HasColumnName(nameof(ChangeRequestConsentRound.SideBConsentStatus));
+            b.Property(x => x.SideBConsentTokenHash).HasColumnName(nameof(ChangeRequestConsentRound.SideBConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.SideBConsentExpiresAt).HasColumnName(nameof(ChangeRequestConsentRound.SideBConsentExpiresAt));
+            b.Property(x => x.SideBConsentRespondedAt).HasColumnName(nameof(ChangeRequestConsentRound.SideBConsentRespondedAt));
+            b.Property(x => x.SideBConsentRespondedByEmail).HasColumnName(nameof(ChangeRequestConsentRound.SideBConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            // Token resolution seeks these two columns on every public consent click.
+            b.HasIndex(x => x.SideAConsentTokenHash);
+            b.HasIndex(x => x.SideBConsentTokenHash);
+            b.HasIndex(x => x.AppointmentChangeRequestId);
+            b.HasIndex(x => new { x.TenantId, x.AppointmentChangeRequestId, x.RoundNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
+            b.HasOne<AppointmentChangeRequest>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentChangeRequestId).OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<AppointmentChangeRequestDocument>(b =>
         {

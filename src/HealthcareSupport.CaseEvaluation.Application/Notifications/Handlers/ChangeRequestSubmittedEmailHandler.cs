@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
-using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
@@ -24,13 +22,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// <see cref="INotificationDispatcher"/>. Branches on
 /// <see cref="ChangeRequestType"/> to pick the OLD-verbatim template code.
 ///
-/// <para>Phase 3 (Category 3, 2026-05-10): fetches the
-/// <c>AppointmentChangeRequest</c> entity to surface the human-relevant
-/// reschedule details (`NewAppointmentDate`, `NewAppointmentFromTime`,
-/// `ReScheduleReason`) and the `CancellationReason` for cancel-submits.
-/// Mirrors OLD <c>AppointmentChangeRequestDomain.cs</c>:756-767 -- OLD
-/// fetched the new <c>DoctorsAvailability</c> for AvailableDate +
-/// FromTime; NEW does the same via <c>NewDoctorAvailabilityId</c>.</para>
+/// <para>Phase 4c (2026-08-05, Adrian): CANCELLATIONS ONLY. A reschedule submit sends no
+/// stakeholder email -- the consent email dispatched when staff confirm a date already tells
+/// both sides a reschedule was requested, and names the date. This one could not: since 4b the
+/// external path leaves <c>NewDoctorAvailabilityId</c> null, so its date variables rendered
+/// empty. Cancellation keeps the email because its consent is issued at submit, leaving no
+/// later message to fold the notice into.</para>
 /// </summary>
 public class ChangeRequestSubmittedEmailHandler :
     ILocalEventHandler<AppointmentChangeRequestSubmittedEto>,
@@ -40,7 +37,6 @@ public class ChangeRequestSubmittedEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
-    private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestSubmittedEmailHandler> _logger;
 
@@ -49,7 +45,6 @@ public class ChangeRequestSubmittedEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
-        IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         ICurrentTenant currentTenant,
         ILogger<ChangeRequestSubmittedEmailHandler> logger)
     {
@@ -57,7 +52,6 @@ public class ChangeRequestSubmittedEmailHandler :
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _changeRequestRepository = changeRequestRepository;
-        _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -67,6 +61,26 @@ public class ChangeRequestSubmittedEmailHandler :
     {
         if (eventData == null)
         {
+            return;
+        }
+
+        // Phase 4c (2026-08-05, Adrian): RESCHEDULE submits send no stakeholder email. The
+        // consent email that goes out when staff CONFIRM a date already tells both sides a
+        // reschedule was requested -- and says which date, which this one cannot: since 4b the
+        // external path leaves NewDoctorAvailabilityId null, so the NewAppointmentDate and
+        // NewAppointmentFromTime variables below render EMPTY. This was the third stale reader
+        // of the proposed slot, and the only one already reaching real inboxes.
+        //
+        // Deliberately scoped to the email only. The other two subscribers to this event are
+        // untouched: staff still get their in-app notification (InAppNotificationHandlers) so
+        // the request is visible in the queue, and the cancel-side clinical-staff email
+        // (ClinicalStaffCancellationEmailHandler) is unaffected. CANCELLATION keeps this email
+        // -- its consent is issued at submit, so there is no later message to fold it into.
+        if (eventData.ChangeRequestType == ChangeRequestType.Reschedule)
+        {
+            _logger.LogInformation(
+                "ChangeRequestSubmittedEmailHandler: reschedule {ChangeRequestId} -- submit email suppressed; the consent email sent at date-confirm carries this notice.",
+                eventData.ChangeRequestId);
             return;
         }
 
@@ -110,12 +124,9 @@ public class ChangeRequestSubmittedEmailHandler :
                 return;
             }
 
-            var templateCode = eventData.ChangeRequestType switch
-            {
-                ChangeRequestType.Cancel => NotificationTemplateConsts.Codes.AppointmentCancelledRequest,
-                ChangeRequestType.Reschedule => NotificationTemplateConsts.Codes.AppointmentRescheduleRequest,
-                _ => NotificationTemplateConsts.Codes.AppointmentCancelledRequest,
-            };
+            // Only cancellations reach here (reschedules returned above), so the OLD-verbatim
+            // cancel template is the only one this handler still dispatches.
+            var templateCode = NotificationTemplateConsts.Codes.AppointmentCancelledRequest;
 
             var baseVariables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
@@ -130,19 +141,10 @@ public class ChangeRequestSubmittedEmailHandler :
                 clinicName: _currentTenant.Name,
                 portalUrl: ctx.PortalBaseUrl);
 
-            var variables = new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal);
-
-            if (eventData.ChangeRequestType == ChangeRequestType.Reschedule)
+            var variables = new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
             {
-                var (newDate, newTime) = await ResolveNewSlotAsync(changeRequest.NewDoctorAvailabilityId);
-                variables["NewAppointmentDate"] = newDate;
-                variables["NewAppointmentFromTime"] = newTime;
-                variables["ReScheduleReason"] = changeRequest.ReScheduleReason ?? string.Empty;
-            }
-            else
-            {
-                variables["CancellationReason"] = changeRequest.CancellationReason ?? string.Empty;
-            }
+                ["CancellationReason"] = changeRequest.CancellationReason ?? string.Empty,
+            };
 
             await _dispatcher.DispatchAsync(
                 templateCode: templateCode,
@@ -152,21 +154,4 @@ public class ChangeRequestSubmittedEmailHandler :
         }
     }
 
-    private async Task<(string Date, string Time)> ResolveNewSlotAsync(Guid? slotId)
-    {
-        if (!slotId.HasValue || slotId.Value == Guid.Empty)
-        {
-            return (string.Empty, string.Empty);
-        }
-        var slot = await _doctorAvailabilityRepository.FindAsync(slotId.Value);
-        if (slot == null)
-        {
-            return (string.Empty, string.Empty);
-        }
-        var date = slot.AvailableDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
-        // TimeOnly -> 12h "h:mm tt" per OLD :699.
-        var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second)
-            .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-        return (date, time);
-    }
 }

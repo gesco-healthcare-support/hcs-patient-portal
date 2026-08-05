@@ -70,6 +70,8 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<AppointmentApplicantAttorney, AppointmentApplicantAttorneys.EfCoreAppointmentApplicantAttorneyRepository>();
             // task_349a723c (2026-07-21): custom outbox repo adds the atomic status-gated lease.
             options.AddRepository<Notifications.Outbox.NotificationOutboxItem, Notifications.Outbox.EfCoreNotificationOutboxRepository>();
+            // Phase 4c (2026-08-05): consent-round lookups by token hash + current round.
+            options.AddRepository<AppointmentChangeRequests.ChangeRequestConsentRound, AppointmentChangeRequests.EfCoreChangeRequestConsentRoundRepository>();
         });
         context.Services.AddAbpDbContext<CaseEvaluationTenantDbContext>(options =>
         {

@@ -22,6 +22,13 @@ export type DetailAction = 'approve' | 'reject' | 'reschedule' | 'cancel' | 'req
  * approved appointment via the change-request + consent flow. The backend
  * precondition relaxation + consent pipeline are unchanged; only the Pending
  * button is removed (F-M04 (2026-06-25) had also hidden Cancel on Pending).
+ *
+ * Phase 4c (2026-08-05): `RescheduleRequested` and `CancellationRequested` fall to the
+ * default (no actions) because a request is already in flight -- stacking a second one on an
+ * appointment awaiting consent has no coherent meaning. `CancellationRequested` already
+ * behaved this way (it used to map to the `Cancelled` pill); `RescheduleRequested` did NOT,
+ * so this REMOVES two buttons that render on a reschedule-requested appointment today. That is
+ * an intentional behaviour change, not a regression.
  */
 export function detailActions(pill: AppointmentPillStatus): DetailAction[] {
   switch (pill) {
@@ -30,8 +37,8 @@ export function detailActions(pill: AppointmentPillStatus): DetailAction[] {
     case 'Approved':
     case 'Rescheduled':
       return ['reschedule', 'cancel'];
-    // Rejected, Cancelled, InfoRequested -> no office actions (terminal or
-    // awaiting the requester); the banner + re-request handle those.
+    // Rejected, Cancelled, InfoRequested, and the two in-flight REQUESTED pills -> no office
+    // actions (terminal, awaiting the requester, or awaiting consent); the banner handles those.
     default:
       return [];
   }
@@ -61,12 +68,31 @@ export function resolveBookerEmail(appointment: BookerEmailSource | null | undef
   );
 }
 
-/** Banner theme variant for a pill (InfoRequested -> the hyphenated key). */
+/**
+ * Banner theme variant for a pill. Multi-word pills need an explicit kebab-case key --
+ * `toLowerCase()` alone would yield `reschedulerequested`, which matches no CALLOUTS entry and
+ * would silently fall back to the generic pending copy.
+ */
+const BANNER_VARIANTS: Partial<Record<AppointmentPillStatus, string>> = {
+  InfoRequested: 'info-requested',
+  RescheduleRequested: 'reschedule-requested',
+  CancellationRequested: 'cancellation-requested',
+};
+
 export function bannerVariant(pill: AppointmentPillStatus): string {
-  return pill === 'InfoRequested' ? 'info-requested' : pill.toLowerCase();
+  return BANNER_VARIANTS[pill] ?? pill.toLowerCase();
 }
 
-/** Human label for a pill in the status chip ('Info requested' for InfoRequested). */
+/**
+ * Human label for a pill in the status chip. Multi-word pills need an explicit entry --
+ * without one the raw PascalCase key renders as a single run-on word.
+ */
+const STATUS_LABELS: Partial<Record<AppointmentPillStatus, string>> = {
+  InfoRequested: 'Info requested',
+  RescheduleRequested: 'Reschedule requested',
+  CancellationRequested: 'Cancellation requested',
+};
+
 export function statusLabel(pill: AppointmentPillStatus): string {
-  return pill === 'InfoRequested' ? 'Info requested' : pill;
+  return STATUS_LABELS[pill] ?? pill;
 }

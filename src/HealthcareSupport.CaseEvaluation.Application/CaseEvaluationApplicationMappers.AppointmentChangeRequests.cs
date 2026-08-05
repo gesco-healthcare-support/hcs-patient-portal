@@ -26,6 +26,13 @@ public partial class AppointmentChangeRequestToAppointmentChangeRequestDtoMapper
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentTypeId))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotDate))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotFromTime))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentConsentRoundNumber))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedSlotId))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedDate))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedFromTime))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideAStatus))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideBStatus))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSendAttempts))]
     public override partial AppointmentChangeRequestDto Map(AppointmentChangeRequest source);
 
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentConfirmationNumber))]
@@ -33,5 +40,12 @@ public partial class AppointmentChangeRequestToAppointmentChangeRequestDtoMapper
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentTypeId))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotDate))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.RequestedSlotFromTime))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentConsentRoundNumber))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedSlotId))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedDate))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedFromTime))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideAStatus))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideBStatus))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSendAttempts))]
     public override partial void Map(AppointmentChangeRequest source, AppointmentChangeRequestDto destination);
 }

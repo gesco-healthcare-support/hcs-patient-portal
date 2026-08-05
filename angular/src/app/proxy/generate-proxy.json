@@ -6595,6 +6595,100 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeRequests.AppointmentChangeRequestApprovalController"
             },
+            "ConfirmRescheduleDateAsyncByIdAndInput": {
+              "uniqueName": "ConfirmRescheduleDateAsyncByIdAndInput",
+              "name": "ConfirmRescheduleDateAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-change-request-approvals/{id}/confirm-reschedule-date",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ConfirmRescheduleDateInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ConfirmRescheduleDateInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ConfirmRescheduleDateInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ConfirmRescheduleDateInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ConfirmRescheduleDateInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeRequests.AppointmentChangeRequestApprovalController"
+            },
+            "ResendConsentRequestAsyncById": {
+              "uniqueName": "ResendConsentRequestAsyncById",
+              "name": "ResendConsentRequestAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-change-request-approvals/{id}/resend-consent-request",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeRequests.AppointmentChangeRequestApprovalController"
+            },
             "ApproveRescheduleAsyncByIdAndInput": {
               "uniqueName": "ApproveRescheduleAsyncByIdAndInput",
               "name": "ApproveRescheduleAsync",
@@ -47237,6 +47331,97 @@
           "isNullable": true
         },
         {
+          "name": "CurrentConsentRoundNumber",
+          "jsonName": null,
+          "type": "System.Int32?",
+          "typeSimple": "number?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CurrentRoundProposedSlotId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CurrentRoundProposedDate",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CurrentRoundProposedFromTime",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CurrentRoundSideAStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestConsentStatus?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CurrentRoundSideBStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestConsentStatus?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CurrentRoundSendAttempts",
+          "jsonName": null,
+          "type": "System.Int32?",
+          "typeSimple": "number?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "ChangeRequestType",
           "jsonName": null,
           "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestType",
@@ -47489,32 +47674,6 @@
           "isNullable": false
         },
         {
-          "name": "OverrideSlotId",
-          "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
-          "isRequired": false,
-          "minLength": null,
-          "maxLength": null,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": true
-        },
-        {
-          "name": "AdminReScheduleReason",
-          "jsonName": null,
-          "type": "System.String",
-          "typeSimple": "string",
-          "isRequired": false,
-          "minLength": 0,
-          "maxLength": 2000,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": true
-        },
-        {
           "name": "ConcurrencyStamp",
           "jsonName": null,
           "type": "System.String",
@@ -47650,6 +47809,54 @@
       ],
       "genericArguments": null,
       "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ConfirmRescheduleDateInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "DoctorAvailabilityId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AdminReScheduleReason",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 1000,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ConcurrencyStamp",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
     },
     "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.GetChangeRequestsInput": {
       "baseType": "Volo.Abp.Application.Dtos.PagedAndSortedResultRequestDto",

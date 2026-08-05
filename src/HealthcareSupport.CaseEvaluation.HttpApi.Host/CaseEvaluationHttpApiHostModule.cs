@@ -1358,6 +1358,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.CronExpression,
             options);
 
+        // Phase 4c (2026-08-05): without this sweep a consent token nobody clicks stays Pending
+        // past its TTL forever and blocks finalize with no signal to staff -- expiry was only
+        // ever evaluated when a party followed their link.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.Jobs.ChangeRequestConsentExpirySweepJob>(
+            HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.Jobs.ChangeRequestConsentExpirySweepJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.Jobs.ChangeRequestConsentExpirySweepJob.CronExpression,
+            options);
+
         // Phase 14 (2026-05-04) -- JDF auto-cancel daily 06:00 PT.
         // Earlier than the AppointmentDayReminderJob (07:00) so an
         // auto-cancelled appointment does not also trigger a T-1
