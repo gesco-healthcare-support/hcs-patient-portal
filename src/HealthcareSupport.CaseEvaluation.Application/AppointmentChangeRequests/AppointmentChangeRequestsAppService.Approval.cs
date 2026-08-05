@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -54,6 +56,11 @@ public class AppointmentChangeRequestsApprovalAppService :
     // Phase 4b (2026-08-04): the approve path now chooses the date, so it must enforce the same
     // lead-time + horizon gates the booking and submit paths enforce.
     private readonly BookingPolicyValidator _bookingPolicyValidator;
+    // Phase 4c (2026-08-05): confirming a date opens a consent round and tokens both sides.
+    private readonly IChangeRequestConsentRoundRepository _consentRoundRepository;
+    private readonly ChangeRequestConsentManager _consentManager;
+    private readonly ChangeRequestSideResolver _sideResolver;
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public AppointmentChangeRequestsApprovalAppService(
         IAppointmentChangeRequestRepository changeRequestRepository,
@@ -61,7 +68,11 @@ public class AppointmentChangeRequestsApprovalAppService :
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         ILocalEventBus localEventBus,
         ILogger<AppointmentChangeRequestsApprovalAppService> logger,
-        BookingPolicyValidator bookingPolicyValidator)
+        BookingPolicyValidator bookingPolicyValidator,
+        IChangeRequestConsentRoundRepository consentRoundRepository,
+        ChangeRequestConsentManager consentManager,
+        ChangeRequestSideResolver sideResolver,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _changeRequestRepository = changeRequestRepository;
         _appointmentRepository = appointmentRepository;
@@ -69,6 +80,10 @@ public class AppointmentChangeRequestsApprovalAppService :
         _localEventBus = localEventBus;
         _logger = logger;
         _bookingPolicyValidator = bookingPolicyValidator;
+        _consentRoundRepository = consentRoundRepository;
+        _consentManager = consentManager;
+        _sideResolver = sideResolver;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentChangeRequests.Approve)]
@@ -194,6 +209,227 @@ public class AppointmentChangeRequestsApprovalAppService :
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentChangeRequests.Approve)]
+    public virtual async Task<AppointmentChangeRequestDto> ConfirmRescheduleDateAsync(
+        Guid changeRequestId,
+        ConfirmRescheduleDateInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        var changeRequest = await LoadAndStampStampAsync(changeRequestId, input.ConcurrencyStamp);
+        ChangeRequestApprovalValidator.EnsurePending(changeRequest);
+        EnsureRescheduleRequest(changeRequest);
+
+        if (input.DoctorAvailabilityId == Guid.Empty)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotRequired);
+        }
+
+        var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
+        var slot = await _doctorAvailabilityRepository.GetAsync(input.DoctorAvailabilityId);
+
+        // Same lead-time + horizon gates the booking and submit paths enforce, applied at the
+        // moment staff COMMIT to the date rather than at finalize -- there is no point asking
+        // two parties to consent to a date the policy will later reject. Approval is always an
+        // internal actor, hence the internal (90-day) horizon.
+        await _bookingPolicyValidator.ValidateAsync(
+            slot.AvailableDate,
+            appointment.AppointmentTypeId,
+            isInternalCaller: true);
+
+        // One read serves both questions: which round is current, and what the next round
+        // number is. Deriving "next" from the CURRENT round alone would restart at 1 if every
+        // round were somehow superseded, colliding with the unique
+        // (TenantId, ChangeRequestId, RoundNumber) index.
+        var rounds = await _consentRoundRepository.GetListAsync(
+            x => x.AppointmentChangeRequestId == changeRequestId);
+        var currentRound = rounds
+            .Where(r => r.SupersededAt == null)
+            .OrderByDescending(r => r.RoundNumber)
+            .FirstOrDefault();
+
+        if (currentRound != null
+            && currentRound.ProposedDoctorAvailabilityId == input.DoctorAvailabilityId)
+        {
+            // Confirming the SAME date again is a RESEND, not a new proposal: the parties have
+            // already been asked about this date and may simply not have acted yet.
+            return await ResendForRoundAsync(changeRequest, currentRound);
+        }
+
+        // A genuinely new date needs a free slot. The slot this request itself already holds is
+        // acceptable: an internal staff-filed reschedule reserves its proposed slot at submit,
+        // so requiring Available here would reject staff confirming their own proposal.
+        var isHeldByThisRequest = changeRequest.NewDoctorAvailabilityId == slot.Id;
+        if (!isHeldByThisRequest && !RescheduleRequestValidators.IsSlotAvailable(slot.BookingStatusId))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable);
+        }
+
+        var nowUtc = Clock.Now.ToUniversalTime();
+        if (currentRound != null)
+        {
+            // The previous date is retired, but its row and its decisions stay -- that record of
+            // who declined which date is the reason rounds are rows at all.
+            currentRound.Supersede(nowUtc);
+            await _consentRoundRepository.UpdateAsync(currentRound, autoSave: true);
+        }
+
+        var round = new ChangeRequestConsentRound(
+            id: GuidGenerator.Create(),
+            tenantId: changeRequest.TenantId,
+            appointmentChangeRequestId: changeRequestId,
+            roundNumber: rounds.Count == 0 ? 1 : rounds.Max(r => r.RoundNumber) + 1,
+            proposedDoctorAvailabilityId: slot.Id,
+            proposedByUserId: CurrentUser.Id,
+            proposedReason: input.AdminReScheduleReason);
+
+        // Both sides must agree to a staff-chosen date; a side with no representative stays
+        // NotRequired and is auto-satisfied. Reuses the resolver the staff-initiated submit path
+        // already uses -- do not write a second one.
+        var bothSides = await _sideResolver.ResolveBothSidesAsync(changeRequest.AppointmentId);
+        var toNotify = new List<(string Email, RecipientRole Role, string Token)>();
+        if (!string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
+        {
+            var token = _consentManager.IssueSideConsent(round, ChangeRequestSide.SideA);
+            toNotify.Add((bothSides.SideARepEmail!, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+        }
+        if (!string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
+        {
+            var token = _consentManager.IssueSideConsent(round, ChangeRequestSide.SideB);
+            toNotify.Add((bothSides.SideBRepEmail!, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+        }
+
+        await _consentRoundRepository.InsertAsync(round, autoSave: true);
+
+        foreach (var (email, role, token) in toNotify)
+        {
+            await PublishConsentRequestedAsync(changeRequest, round, email, role, token);
+        }
+
+        if (toNotify.Count == 0)
+        {
+            // Nobody to ask: both sides stay NotRequired, so the round is immediately grantable
+            // and staff can finalize. Logged because it is unexpected in practice -- a patient
+            // and a claim examiner normally always exist.
+            _logger.LogWarning(
+                "ConfirmRescheduleDateAsync: change request {ChangeRequestId} round {RoundNumber} has no representative on either side; consent skipped.",
+                changeRequestId,
+                round.RoundNumber);
+        }
+
+        _logger.LogInformation(
+            "ConfirmRescheduleDateAsync: change request {ChangeRequestId} round {RoundNumber} opened on slot {SlotId}; {SideCount} side(s) asked to consent.",
+            changeRequestId,
+            round.RoundNumber,
+            slot.Id,
+            toNotify.Count);
+
+        return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
+    }
+
+    [Authorize(CaseEvaluationPermissions.AppointmentChangeRequests.Approve)]
+    public virtual async Task<AppointmentChangeRequestDto> ResendConsentRequestAsync(Guid changeRequestId)
+    {
+        var changeRequest = await _changeRequestRepository.GetAsync(changeRequestId);
+        ChangeRequestApprovalValidator.EnsurePending(changeRequest);
+        EnsureRescheduleRequest(changeRequest);
+
+        var currentRound = await _consentRoundRepository.GetCurrentAsync(changeRequestId);
+        if (currentRound == null)
+        {
+            // Nothing has been proposed, so there is no consent request to resend.
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotRequired);
+        }
+
+        return await ResendForRoundAsync(changeRequest, currentRound);
+    }
+
+    /// <summary>
+    /// Re-asks the sides of <paramref name="round"/> that have not answered yet. Each still-Pending
+    /// side gets a FRESH token (Adrian, 2026-08-05): only the token's SHA256 hash is stored, so the
+    /// original raw token cannot be recovered to rebuild its URL. The link in the superseded email
+    /// therefore stops working and the recipient must use the newest one -- accepted, because the
+    /// alternative is holding a decryptable consent credential at rest.
+    ///
+    /// <para>Sides that already Approved / Rejected / Expired are deliberately left alone: re-asking
+    /// a party who answered needs a NEW ROUND, which is what confirming a different date does.</para>
+    /// </summary>
+    private async Task<AppointmentChangeRequestDto> ResendForRoundAsync(
+        AppointmentChangeRequest changeRequest,
+        ChangeRequestConsentRound round)
+    {
+        var bothSides = await _sideResolver.ResolveBothSidesAsync(changeRequest.AppointmentId);
+        var toNotify = new List<(string Email, RecipientRole Role, string Token)>();
+
+        if (round.SideConsentStatus(ChangeRequestSide.SideA) == ChangeRequestConsentStatus.Pending
+            && !string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
+        {
+            var token = _consentManager.ReissueSideConsent(round, ChangeRequestSide.SideA);
+            toNotify.Add((bothSides.SideARepEmail!, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+        }
+        if (round.SideConsentStatus(ChangeRequestSide.SideB) == ChangeRequestConsentStatus.Pending
+            && !string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
+        {
+            var token = _consentManager.ReissueSideConsent(round, ChangeRequestSide.SideB);
+            toNotify.Add((bothSides.SideBRepEmail!, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+        }
+
+        // The attempt counter is what makes the outbox idempotency key distinct. Bumping it is
+        // NOT bookkeeping: without it EnqueueAsync silently returns the row from the previous
+        // send and the resend never reaches anyone.
+        round.RegisterResend();
+        await _consentRoundRepository.UpdateAsync(round, autoSave: true);
+
+        foreach (var (email, role, token) in toNotify)
+        {
+            await PublishConsentRequestedAsync(changeRequest, round, email, role, token);
+        }
+
+        _logger.LogInformation(
+            "ResendForRoundAsync: change request {ChangeRequestId} round {RoundNumber} attempt {SendAttempt}; {SideCount} side(s) re-asked.",
+            changeRequest.Id,
+            round.RoundNumber,
+            round.SendAttempts,
+            toNotify.Count);
+
+        return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
+    }
+
+    private async Task PublishConsentRequestedAsync(
+        AppointmentChangeRequest changeRequest,
+        ChangeRequestConsentRound round,
+        string recipientEmail,
+        RecipientRole recipientRole,
+        string rawToken)
+    {
+        var consentUrl = await _accountUrlBuilder.BuildChangeRequestConsentUrlAsync(
+            changeRequest.TenantId!.Value, rawToken);
+
+        await _localEventBus.PublishAsync(new NotificationsEvents.ChangeRequestConsentRequestedEto
+        {
+            AppointmentId = changeRequest.AppointmentId,
+            ChangeRequestId = changeRequest.Id,
+            TenantId = changeRequest.TenantId,
+            ChangeRequestType = changeRequest.ChangeRequestType,
+            OpposingRecipientEmail = recipientEmail,
+            OpposingRecipientRole = recipientRole,
+            ConsentUrl = consentUrl,
+            RoundNumber = round.RoundNumber,
+            SendAttempt = round.SendAttempts,
+            ProposedDoctorAvailabilityId = round.ProposedDoctorAvailabilityId,
+            OccurredAt = DateTime.UtcNow,
+        });
+    }
+
+    private static void EnsureRescheduleRequest(AppointmentChangeRequest changeRequest)
+    {
+        if (changeRequest.ChangeRequestType != ChangeRequestType.Reschedule)
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.ChangeRequestInvalidRescheduleOutcome);
+        }
+    }
+
+    [Authorize(CaseEvaluationPermissions.AppointmentChangeRequests.Approve)]
     public virtual async Task<AppointmentChangeRequestDto> ApproveRescheduleAsync(
         Guid changeRequestId,
         ApproveRescheduleInput input)
@@ -203,42 +439,29 @@ public class AppointmentChangeRequestsApprovalAppService :
 
         var changeRequest = await LoadAndStampStampAsync(changeRequestId, input.ConcurrencyStamp);
         ChangeRequestApprovalValidator.EnsurePending(changeRequest);
-        if (changeRequest.ChangeRequestType != ChangeRequestType.Reschedule)
-        {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.ChangeRequestInvalidRescheduleOutcome);
-        }
+        EnsureRescheduleRequest(changeRequest);
 
-        // Resolve the actual new slot (override or user-picked) +
-        // enforce admin-reason gate.
-        // Group D (2026-06-09): block finalize until the opposing side consents.
-        OpposingConsentValidator.EnsureConsentGranted(
-            changeRequest, AppointmentChangeRequestConsts.ConsentGatingEnabled);
+        // Phase 4c (2026-08-05): the date is no longer chosen here. It comes from the consent
+        // round staff confirmed -- the one both sides actually agreed to -- so the gate and the
+        // slot are read from the same row and cannot disagree. A missing round is a hard block:
+        // the parent's own consent columns are both NotRequired on a reschedule, and the cancel
+        // gate reads both-NotRequired as "nothing to consent", which would wave this through
+        // with no consent recorded at all.
+        var currentRound = await _consentRoundRepository.GetCurrentAsync(changeRequestId);
+        RescheduleConsentGate.EnsureRoundConsentGranted(
+            currentRound, AppointmentChangeRequestConsts.ConsentGatingEnabled);
 
-        var newSlotId = ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
-            userPickedSlotId: changeRequest.NewDoctorAvailabilityId,
-            overrideSlotId: input.OverrideSlotId,
-            adminReason: input.AdminReScheduleReason);
-
-        // An "override" requires something to override -- see ChangeRequestApprovalValidator
-        // .IsAdminOverride for why the null case matters after phase 4b.
-        var isAdminOverride = ChangeRequestApprovalValidator.IsAdminOverride(
-            proposedSlotId: changeRequest.NewDoctorAvailabilityId,
-            staffSlotId: input.OverrideSlotId);
+        var newSlotId = currentRound!.ProposedDoctorAvailabilityId;
 
         var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var newSlot = await _doctorAvailabilityRepository.GetAsync(newSlotId);
 
-        // Phase 4b (2026-08-04): enforce the SAME booking policy the submit path enforces, on
-        // the slot actually being scheduled onto. Previously the approve path ran no policy
-        // check at all, so a supervisor override could land inside the lead time or past the
-        // horizon; 4b makes the staff pick the primary path, which would have turned that
-        // pre-existing bypass into the normal one. Approval is always an internal actor, hence
-        // the internal (90-day) horizon.
-        await _bookingPolicyValidator.ValidateAsync(
-            newSlot.AvailableDate,
-            sourceAppointment.AppointmentTypeId,
-            isInternalCaller: true);
+        // An "override" requires something to override -- see ChangeRequestApprovalValidator
+        // .IsAdminOverride for why the null case matters after phase 4b. The staff slot is now
+        // the round's, not an input field.
+        var isAdminOverride = ChangeRequestApprovalValidator.IsAdminOverride(
+            proposedSlotId: changeRequest.NewDoctorAvailabilityId,
+            staffSlotId: newSlotId);
 
         // B2 (2026-07-01) reschedule redesign -- move the SAME appointment to the
         // resolved slot instead of cloning a new row. The confirmation number,
@@ -287,15 +510,14 @@ public class AppointmentChangeRequestsApprovalAppService :
         // when it overrode a requestor proposal. Since 4b the external path has no proposal to
         // override, so gating this on isAdminOverride left BOTH slot columns null on the row --
         // losing the audit trail and blanking the date in the approval email, which resolves the
-        // slot from this row. The admin REASON stays gated on a genuine override: there is
+        // slot from this row. Phase 4c: the slot comes from the consented round, and this column
+        // must still be written because ChangeRequestApprovedEmailHandler resolves the approval
+        // email's date from it. The admin REASON stays gated on a genuine override: there is
         // nobody to justify a change to when the requestor proposed nothing.
-        if (input.OverrideSlotId.HasValue)
-        {
-            changeRequest.AdminOverrideSlotId = input.OverrideSlotId;
-        }
+        changeRequest.AdminOverrideSlotId = newSlotId;
         if (isAdminOverride)
         {
-            changeRequest.AdminReScheduleReason = input.AdminReScheduleReason;
+            changeRequest.AdminReScheduleReason = currentRound.ProposedReason;
         }
         await PersistChangeRequestAsync(changeRequest);
 

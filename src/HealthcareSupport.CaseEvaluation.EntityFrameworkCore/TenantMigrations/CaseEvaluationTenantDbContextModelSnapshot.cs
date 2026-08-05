@@ -600,6 +600,145 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.ToTable("AppAppointmentChangeRequestDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestConsentRound", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentChangeRequestId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentChangeRequestId");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("ProposedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ProposedByUserId");
+
+                    b.Property<Guid>("ProposedDoctorAvailabilityId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ProposedDoctorAvailabilityId");
+
+                    b.Property<string>("ProposedReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("ProposedReason");
+
+                    b.Property<int>("RoundNumber")
+                        .HasColumnType("int")
+                        .HasColumnName("RoundNumber");
+
+                    b.Property<int>("SendAttempts")
+                        .HasColumnType("int")
+                        .HasColumnName("SendAttempts");
+
+                    b.Property<DateTime?>("SideAConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideAConsentExpiresAt");
+
+                    b.Property<DateTime?>("SideAConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideAConsentRespondedAt");
+
+                    b.Property<string>("SideAConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("SideAConsentRespondedByEmail");
+
+                    b.Property<int>("SideAConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("SideAConsentStatus");
+
+                    b.Property<string>("SideAConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SideAConsentTokenHash");
+
+                    b.Property<DateTime?>("SideBConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideBConsentExpiresAt");
+
+                    b.Property<DateTime?>("SideBConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideBConsentRespondedAt");
+
+                    b.Property<string>("SideBConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("SideBConsentRespondedByEmail");
+
+                    b.Property<int>("SideBConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("SideBConsentStatus");
+
+                    b.Property<string>("SideBConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SideBConsentTokenHash");
+
+                    b.Property<DateTime?>("SupersededAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SupersededAt");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentChangeRequestId");
+
+                    b.HasIndex("SideAConsentTokenHash");
+
+                    b.HasIndex("SideBConsentTokenHash");
+
+                    b.HasIndex("TenantId", "AppointmentChangeRequestId", "RoundNumber")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("AppChangeRequestConsentRounds", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers.AppointmentClaimExaminer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5521,6 +5660,15 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDocument", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequest", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentChangeRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestConsentRound", b =>
                 {
                     b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequest", null)
                         .WithMany()

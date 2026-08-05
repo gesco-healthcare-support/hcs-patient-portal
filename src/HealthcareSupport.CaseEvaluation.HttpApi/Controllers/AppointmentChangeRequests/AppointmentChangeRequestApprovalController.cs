@@ -58,6 +58,22 @@ public class AppointmentChangeRequestApprovalController : AbpController
     }
 
     [HttpPost]
+    [Route("{id}/confirm-reschedule-date")]
+    public virtual Task<AppointmentChangeRequestDto> ConfirmRescheduleDateAsync(
+        Guid id,
+        [FromBody] ConfirmRescheduleDateInput input)
+    {
+        return _appService.ConfirmRescheduleDateAsync(id, input);
+    }
+
+    [HttpPost]
+    [Route("{id}/resend-consent-request")]
+    public virtual Task<AppointmentChangeRequestDto> ResendConsentRequestAsync(Guid id)
+    {
+        return _appService.ResendConsentRequestAsync(id);
+    }
+
+    [HttpPost]
     [Route("{id}/approve-reschedule")]
     public virtual Task<AppointmentChangeRequestDto> ApproveRescheduleAsync(
         Guid id,

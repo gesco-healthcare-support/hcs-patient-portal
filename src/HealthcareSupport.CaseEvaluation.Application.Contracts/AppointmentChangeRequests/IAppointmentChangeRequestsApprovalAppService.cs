@@ -47,14 +47,40 @@ public interface IAppointmentChangeRequestsApprovalAppService : IApplicationServ
         RejectChangeRequestInput input);
 
     /// <summary>
-    /// Supervisor approves a Reschedule change request. Optionally
-    /// overrides the user-picked slot with their own + reason. On
-    /// approve (B2 2026-07-01): the SAME appointment moves IN PLACE to
-    /// the new slot -- keeping its confirmation number, child rows and
+    /// Phase 4c (2026-08-05) -- staff COMMIT to a reschedule date: opens a consent round on the
+    /// chosen slot, tokens each side that has a representative, and sends one consent email per
+    /// side. Picking a date in the calendar has no server effect; this is the step that sends.
+    ///
+    /// <para>Confirming the SAME date again RESENDS within the current round (fresh tokens,
+    /// <c>SendAttempts + 1</c>, same round number). Confirming a DIFFERENT date supersedes the
+    /// current round and opens round N+1, so a declined date and who declined it stay on
+    /// record.</para>
+    /// </summary>
+    Task<AppointmentChangeRequestDto> ConfirmRescheduleDateAsync(
+        Guid changeRequestId,
+        ConfirmRescheduleDateInput input);
+
+    /// <summary>
+    /// Phase 4c (2026-08-05) -- re-asks the current round's sides that have not answered yet,
+    /// without changing the proposed date. Each still-Pending side gets a FRESH token, so the
+    /// link in the previous email stops working (only the token hash is stored, so the original
+    /// URL cannot be rebuilt). Raises <c>ChangeRequestNewSlotRequired</c> when no date has been
+    /// confirmed yet -- there is nothing to resend.
+    /// </summary>
+    Task<AppointmentChangeRequestDto> ResendConsentRequestAsync(Guid changeRequestId);
+
+    /// <summary>
+    /// Supervisor FINALIZES a Reschedule change request with a billing outcome. Phase 4c
+    /// (2026-08-05): the date is no longer chosen here -- it comes from the consent round both
+    /// sides agreed to, and finalize is BLOCKED until they have
+    /// (<c>ChangeRequestConsentNotGranted</c>).
+    ///
+    /// <para>On finalize (B2 2026-07-01): the SAME appointment moves IN PLACE to
+    /// the round's slot -- keeping its confirmation number, child rows and
     /// audit trail. An Approved source returns to Approved and a Pending
     /// source stays Pending; the transient Reserved hold on the
     /// user-picked slot is released; the RescheduledNoBill/Late outcome
-    /// is recorded on the change-request row (no appointment clone).
+    /// is recorded on the change-request row (no appointment clone).</para>
     /// </summary>
     Task<AppointmentChangeRequestDto> ApproveRescheduleAsync(
         Guid changeRequestId,

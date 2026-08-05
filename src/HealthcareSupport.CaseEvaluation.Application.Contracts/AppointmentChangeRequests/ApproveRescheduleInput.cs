@@ -7,42 +7,25 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
 /// <summary>
 /// Phase 17 (2026-05-04) -- input DTO for
-/// <c>IAppointmentChangeRequestsApprovalAppService.ApproveRescheduleAsync</c>.
-/// Mirrors OLD's supervisor reschedule-approval surface where the
-/// supervisor can either accept the user-picked slot or override with
-/// a different slot + admin reason. OLD persists both fields on the
-/// AppointmentChangeRequest row
-/// (<c>AdminOverrideSlotId</c> + <c>AdminReScheduleReason</c>) for the
-/// audit trail.
+/// <c>IAppointmentChangeRequestsApprovalAppService.ApproveRescheduleAsync</c>, which phase 4c
+/// (2026-08-05) turned into FINALIZE: the date is no longer chosen here.
+///
+/// <para>4c REMOVED <c>OverrideSlotId</c> and <c>AdminReScheduleReason</c> from this input.
+/// The slot now comes from the consent round staff confirmed via
+/// <see cref="ConfirmRescheduleDateInput"/> -- the one both sides actually agreed to. Keeping
+/// them here would create two sources of truth and let a finalize silently move the
+/// appointment to a date nobody consented to. This is a BREAKING wire change, safe only
+/// because 4b is unreleased and ships together with 4c.</para>
 /// </summary>
 public class ApproveRescheduleInput
 {
     /// <summary>
-    /// Supervisor-selected outcome bucket. Must be
+    /// Supervisor-selected outcome bucket, chosen at finalize. Must be
     /// <see cref="AppointmentStatusType.RescheduledNoBill"/> or
     /// <see cref="AppointmentStatusType.RescheduledLate"/>.
     /// </summary>
     [Required]
     public AppointmentStatusType RescheduleOutcome { get; set; }
-
-    /// <summary>
-    /// Optional override slot id. When set AND different from the
-    /// user-picked slot on the change request, the supervisor must
-    /// also supply <see cref="AdminReScheduleReason"/>; the
-    /// validator throws
-    /// <c>BusinessException(ChangeRequestAdminReasonRequired)</c>
-    /// otherwise.
-    /// </summary>
-    public Guid? OverrideSlotId { get; set; }
-
-    /// <summary>
-    /// Reason the supervisor overrode the user-picked slot. Required
-    /// when <see cref="OverrideSlotId"/> differs from the user's
-    /// pick; persisted on the change-request row for audit.
-    /// </summary>
-    [CanBeNull]
-    [StringLength(2000)]
-    public string? AdminReScheduleReason { get; set; }
 
     /// <summary>
     /// Optional ABP optimistic-concurrency stamp. See

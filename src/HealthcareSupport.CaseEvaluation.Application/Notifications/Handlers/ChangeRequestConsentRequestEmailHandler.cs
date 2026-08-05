@@ -79,16 +79,21 @@ public class ChangeRequestConsentRequestEmailHandler :
             var actionLabel = isReschedule ? "reschedule" : "cancel";
             var reason = isReschedule ? changeRequest.ReScheduleReason : changeRequest.CancellationReason;
 
+            // Phase 4c (2026-08-05): the date a reschedule asks consent FOR is the round's
+            // proposed slot, carried on the event. Reading NewDoctorAvailabilityId alone was a
+            // latent blank-date bug: 4b moved the staff slot off that column, leaving it null on
+            // the external path, so BuildDetailsBlock would have omitted the date line entirely
+            // and asked a party to approve a reschedule with no date shown anywhere. Inert until
+            // now only because 4b had suppressed reschedule consent. The fallback keeps
+            // pre-4c rows -- and internal staff-filed requests that did propose a slot -- working.
             string? newDateTime = null;
-            if (isReschedule && changeRequest.NewDoctorAvailabilityId.HasValue)
+            var slotId = eventData.ProposedDoctorAvailabilityId ?? changeRequest.NewDoctorAvailabilityId;
+            if (isReschedule && slotId.HasValue)
             {
-                var slot = await _slotRepository.FindAsync(changeRequest.NewDoctorAvailabilityId.Value);
+                var slot = await _slotRepository.FindAsync(slotId.Value);
                 if (slot != null)
                 {
-                    var date = slot.AvailableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                    var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second)
-                        .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                    newDateTime = $"{date} at {time}";
+                    newDateTime = FormatSlot(slot.AvailableDate, slot.FromTime);
                 }
             }
 
@@ -114,7 +119,7 @@ public class ChangeRequestConsentRequestEmailHandler :
                     templateCode: NotificationTemplateConsts.Codes.ChangeRequestConsentRequest,
                     recipients: recipients,
                     variables: variables,
-                    contextTag: $"ChangeRequestConsent/{eventData.ChangeRequestId}");
+                    contextTag: BuildContextTag(eventData));
             }
             catch (BusinessException ex)
                 when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
@@ -124,6 +129,31 @@ public class ChangeRequestConsentRequestEmailHandler :
                     eventData.ChangeRequestId);
             }
         }
+    }
+
+    /// <summary>
+    /// Phase 4c (2026-08-05) -- the outbox idempotency key is
+    /// <c>SHA256(tenantId | recipientEmail | contextTag | packetKind)</c> and
+    /// <c>NotificationOutboxManager.EnqueueAsync</c> SILENTLY RETURNS THE EXISTING ROW on a
+    /// match: no throw, no log. With the pre-4c tag of <c>ChangeRequestConsent/{id}</c> a second
+    /// round's email to the same recipient -- and every resend -- would therefore vanish without
+    /// a trace. Round + attempt make each dispatch its own key.
+    ///
+    /// <para>CANCELLATION consent keeps the original tag verbatim (its <c>RoundNumber</c> is 0):
+    /// it has no rounds, is only ever sent once per request, and phase 4c deliberately left the
+    /// cancel path untouched.</para>
+    /// </summary>
+    internal static string BuildContextTag(ChangeRequestConsentRequestedEto eventData) =>
+        eventData.RoundNumber > 0
+            ? $"ChangeRequestConsent/{eventData.ChangeRequestId}/r{eventData.RoundNumber}/a{eventData.SendAttempt}"
+            : $"ChangeRequestConsent/{eventData.ChangeRequestId}";
+
+    private static string FormatSlot(DateTime availableDate, TimeOnly fromTime)
+    {
+        var date = availableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+        var time = new DateTime(2000, 1, 1, fromTime.Hour, fromTime.Minute, fromTime.Second)
+            .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+        return $"{date} at {time}";
     }
 
     private static string BuildDetailsBlock(string? newDateTime, string? reason)
