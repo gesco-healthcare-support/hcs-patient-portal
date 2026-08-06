@@ -431,18 +431,107 @@ copier lives in the **EntityFrameworkCore** project, not Domain, because it need
 
   Each mutation failed ONLY its own site's tests, so no site is covered by accident.
 
+### What "the agreed date" means -- RESOLVED AT BUILD TIME (Adrian, 2026-08-05, via modal)
+
+T11 and T13 said "the agreed date" without defining it, and it resolves three different ways with
+three different queries. Adrian's answer:
+
+- The AGREED DATE is the new appointment's own date -- the date both parties consented to. It is
+  already on the DTO and already at the top of the page, so the chain block does NOT restate it.
+- THREE further timestamps are separate from it and from each other: each side agrees at its own
+  moment, and staff may not finalize immediately after the second side agrees.
+- Those three are NOT shown inline. They go behind a disclosure, and they must be STORED, so the
+  history of what happened when is recoverable rather than inferred.
+
+Inventory against the code (not assumed):
+
+| Timestamp       | Stored today                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| Side A agreed   | YES -- `ChangeRequestConsentRound.SideAConsentRespondedAt`, per round                           |
+| Side B agreed   | YES -- `ChangeRequestConsentRound.SideBConsentRespondedAt`, per round                           |
+| Staff finalized | **NO** -- only `FullAuditedAggregateRoot.LastModificationTime`, which any later edit overwrites |
+
+Hence T11a. A log entry that silently becomes wrong is worse than one that is absent.
+
+### The audit-log + timezone initiative is NOT 4d (Adrian, 2026-08-05, via modal)
+
+Adrian also asked for timestamps on effectively every lifecycle step, and for Pacific-time display
+throughout (DST-aware). That is its own phase, researched separately AFTER 4d, 4e and 5 -- it
+touches every surface, and guessing its shape mid-4d is how it ends up half-built in three places.
+
+Groundwork that already exists, for whoever picks it up: `America/Los_Angeles` appears in
+`AppointmentCoreResolver.ClinicTimeZone`, the `ReminderTimezoneId` setting default, and the cron
+schedule (`CaseEvaluationHttpApiHostModule.cs:1463` has the IANA -> Windows fallback). The known
+hazard is recorded at `IntegrationTimestamp.cs:16-21`: `AbpClockOptions.Kind` is left `Unspecified`,
+so stored timestamps are UTC only by virtue of the API container's clock.
+
+### T11a -- a real finalize timestamp on the change request
+
+- what: MODIFY `AppointmentChangeRequest` -- add `public virtual DateTime? DecidedAt { get; set; }`;
+  map it in BOTH contexts; add the PAIRED migrations. Set it at ALL FOUR decision points, not just
+  the reschedule one, or the column is half-built: `Approval.cs:148` (cancel approve), `:206`
+  (cancel reject), `:586` (reschedule finalize), `:672` (reschedule reject).
+- pattern: T1 + T2 + T3 (the `RescheduledFromAppointmentId` column) for the entity, mapping and
+  migration shape.
+- approach: tdd
+- acceptance (EARS): WHEN a change request reaches Accepted or Rejected, THE SYSTEM SHALL stamp
+  `DecidedAt`, and a later unrelated edit to the row SHALL NOT change it. WHILE a request is still
+  Pending, `DecidedAt` SHALL be null.
+
+  RESULT (2026-08-05). The stamp went in ONE place, not four: all four decision paths -- and
+  nothing else in the codebase -- call `PersistChangeRequestAsync`, which is evidently why that
+  private seam exists. So the column cannot be half-built by a path being forgotten, and a future
+  fifth decision path gets it for free. `Clock.Now.ToUniversalTime()`, matching the consent
+  timestamps it sits beside; `DateTime.UtcNow` in that file is only ever a transient event
+  `OccurredAt`, never a persisted column. `??=` so a re-entrant save cannot relabel the decision.
+
+  Migrations `20260806172525` (host) + `20260806172601` (tenant), one `AddColumn` each, both
+  contexts report no pending model changes.
+
+  Test `MultiOfficeRescheduleConsentTests.Finalize_stamps_when_the_request_was_decided`: null while
+  Pending, set after finalize, then UNCHANGED after a later unrelated write to the row -- which is
+  the property `LastModificationTime` cannot give. MUTATION: disabling the stamp failed exactly
+  that test (1 of 12).
+
 ### T11 -- surface the chain on the new appointment (read side)
 
-- what: MODIFY the appointment read DTO + its app service to expose
-  `RescheduledFromAppointmentId`, the source appointment's `RequestConfirmationNumber`, and the
-  agreed date -- populated set-based, mirroring 4b's `PopulateAppointmentContextAsync` /
-  `ChangeRequestQueueContext` pattern rather than per-row lookups.
+- what: CREATE `RescheduleChainDto` and expose it on `AppointmentWithNavigationPropertiesDto`:
+  the source appointment's id and `RequestConfirmationNumber`, plus the three disclosure
+  timestamps (both sides' `...ConsentRespondedAt` from the CURRENT round, and `DecidedAt`).
+  Populate in the two DETAIL reads -- `GetWithNavigationPropertiesAsync` and
+  `GetByConfirmationNumberAsync` -- set-based, one query per referenced table.
 - pattern: `ChangeRequestQueueContext` + `PopulateAppointmentContextAsync` (phase 4b).
 - approach: tdd
 - acceptance (EARS): WHEN an appointment created by a reschedule is fetched, THE SYSTEM SHALL
-  return the source appointment's confirmation number and the agreed date. WHEN a normal
-  appointment is fetched, THE SYSTEM SHALL return nulls for those fields and SHALL issue no extra
+  return the source appointment's confirmation number and the three consent timestamps. WHEN a
+  normal appointment is fetched, THE SYSTEM SHALL return a null chain and SHALL issue no extra
   query per row.
+
+  SCOPE NOTE (2026-08-05): the LIST path deliberately does not carry the chain. T13 puts the block
+  on the appointment DETAIL only, so populating the list would widen every page of the grid's
+  payload for something nothing renders. If a later phase wants the chain in the grid, the
+  population helper is already set-based and takes a collection.
+
+  RESULT (2026-08-05). `RescheduleChainResolver` (Application) rather than a fifth private method
+  on `AppointmentsAppService`: the chain needs the change-request and consent-round repositories,
+  which that class has no other reason to know about, and the file is already far past the 400-line
+  threshold. `ResolveAsync` takes a collection and issues THREE queries regardless of how many
+  appointments it gets; `ResolveOneAsync` wraps it for the two detail reads.
+
+  A normally booked appointment costs ZERO queries -- the resolver returns early when nothing in
+  the batch has a `RescheduledFromAppointmentId`, so the feature is not paid for by the 99% case.
+
+  Two non-obvious filters, both load-bearing:
+  - the change request is found by the SOURCE appointment id, because decision 5 leaves it on the
+    old row;
+  - `RequestStatus == Accepted` only, since a rejected or still-pending request against the same
+    appointment did not produce this replacement and its timestamps describe a different decision.
+
+  Test `The_replacement_carries_the_chain_back_to_the_appointment_it_replaced` asserts the source
+  number, both timestamps, and that the SOURCE appointment resolves to null rather than an empty
+  chain. MUTATION: sourcing `SideAAgreedAt` from anywhere but the current round failed exactly that
+  test (1 of 12) -- the hazard being that 4c leaves the change request's OWN consent columns at
+  `NotRequired`, so reading the parent would return nulls for a request that plainly had consent.
 
 ### T12 -- regenerate Angular proxies
 
@@ -455,23 +544,29 @@ copier lives in the **EntityFrameworkCore** project, not Domain, because it need
 ### T13 -- "rescheduled from" block on the appointment detail
 
 - what: MODIFY the internal and external appointment detail components to render a block reading
-  e.g. "Rescheduled from A00036, agreed by both sides on Aug 20, 2026" when the chain fields are
-  present, linking to the source appointment. Render nothing when absent.
+  "Rescheduled from A00036", linking to the source appointment, with a COLLAPSED disclosure holding
+  the three timestamps (each side's agreement, then the staff finalize). The agreed date itself is
+  NOT repeated -- it is this appointment's own date, already at the top of the page. Render nothing
+  when there is no chain.
 - pattern: the 4c consent block in `internal-change-request-inbox.component.html`; `formatSlotLabel`
   in `cr-approve.util.ts` for the date wording.
 - approach: test-after
 - acceptance (EARS): WHILE an appointment has a reschedule source, THE SYSTEM SHALL show the
-  source's confirmation number and the agreed date and SHALL link to that appointment. WHILE it has
-  none, THE SYSTEM SHALL render no such block.
+  source's confirmation number, SHALL link to that appointment, and SHALL keep the three timestamps
+  collapsed until the user opens the disclosure. WHILE it has none, THE SYSTEM SHALL render no such
+  block.
 
 ### T14 -- pure util + specs for the chain block
 
-- what: CREATE the derivation (`hasRescheduleSource`, `rescheduleSourceLabel`) as a pure util
-  beside the component, with a spec, so the component holds no logic.
+- what: CREATE the derivation (`hasRescheduleSource`, `rescheduleSourceLabel`, and the disclosure's
+  timestamp rows) as a pure util beside the component, with a spec, so the component holds no logic.
+  A side that never had to consent contributes NO row rather than a row reading "not recorded" --
+  an internal staff reschedule solicits only the sides that exist.
 - pattern: `cr-approve.util.ts` + its spec.
 - approach: tdd
 - acceptance (EARS): THE SYSTEM SHALL return no label when the source id is absent, and a label
-  containing the confirmation number and formatted date when present.
+  containing the confirmation number when present. THE SYSTEM SHALL emit one timestamp row per
+  recorded moment and SHALL omit rows for moments that never happened.
 
 ### T15 -- localization
 
