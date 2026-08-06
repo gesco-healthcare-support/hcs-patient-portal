@@ -47,11 +47,32 @@ Admin and Staff Supervisor.
 - Decision: reschedule produces TWO Case Tracker cases (old closed/billed, new opened),
   reversing the 2026-07-01 in-place design, because staff need to bill or close the old
   date while tracking the new one separately.
-- Decision: the new appointment is created by REUSING the existing create pipeline
+- ~~Decision: the new appointment is created by REUSING the existing create pipeline
   (`CreateRevalAsync`-style `AppointmentCreateDto` path) rather than resurrecting the
-  deleted cascade cloner -- with an explicit per-child-group audit + tests, because the
+  deleted cascade cloner~~ -- with an explicit per-child-group audit + tests, because the
   old cloner caused bug F18 (silently dropped 2 of 8 child groups). Adrian's condition:
   "implement the concrete fixes ... not a patchwork."
+
+  **CORRECTION (2026-08-05, phase 4d).** The create-pipeline half of this decision CANNOT
+  HOLD, and was struck rather than quietly worked around. `AppointmentCreateDto` declares
+  16 scalar properties plus `CustomFieldValues` and nothing else -- no injuries, body
+  parts, employer details, accessors, attorney links, insurances or claim examiners. The
+  child cascade is CLIENT-SIDE: the Angular wizard fires six further POSTs after create,
+  plus two attorney upserts. Finalize is a server-side staff action with no wizard in the
+  loop, so reusing the create pipeline would have produced an appointment row carrying
+  custom field values and nothing else -- a WORSE version of F18, dropping nine groups
+  instead of two.
+
+  Replaced by a server-side `IAppointmentChildCascadeCopier` copying via EF's
+  `CurrentValues.SetValues`, so a column added to any child entity later is carried
+  automatically instead of being silently lost. The audit-and-test condition is unchanged
+  and is what the phase actually delivered: one test per group, full field equality, and a
+  per-group mutation check.
+
+  What survives intact: NOT resurrecting the deleted cloner, and the per-group audit.
+  What changed: the mechanism. Rationale and evidence in
+  `docs/plans/2026-08-05-reschedule-creates-new-appointment.md`.
+
 - Decision: the requestor gets NO date picker for now (reason only); keep
   `NewDoctorAvailabilityId` and the suggestion wiring intact so a future "suggested date"
   needs no migration.
@@ -192,9 +213,20 @@ rather than expanding scope; Adrian was told and did not exclude them.
   are ever assigned, so the existing week-grid's "Booked" colour is only reachable by a
   manual admin edit and is not ground truth. -> Phase 3 (which needs real occupancy
   counts anyway).
-- Packets go STALE after an in-place reschedule: packet content embeds the appointment
+- ~~Packets go STALE after an in-place reschedule: packet content embeds the appointment
   date (`PacketTokenResolver.cs:222-233`) but nothing calls regeneration from the
-  reschedule approval path. -> Fixed by Phase 4d. Affects production until then.
+  reschedule approval path~~ -- **FIXED in 4d.** There is no longer an in-place move to go
+  stale: finalize creates a new appointment and enqueues its packet generation, while the old
+  appointment KEEPS its packets deliberately (they correctly document what was scheduled and
+  who was sent it -- regenerating would rewrite a document already in inboxes).
+
+  Found while fixing it: the obvious implementation, calling
+  `AppointmentDocumentsAppService.RegeneratePacketAsync`, THROWS. That method opens with a
+  read-access guard written for a user-facing HTTP caller, and staff finalizing are not a party
+  to the appointment they have just created. Finalize enqueues the same
+  `GenerateAppointmentPacketArgs` job directly. General lesson: calling one app service from
+  another silently inherits its authorization.
+
 - ~~Consent can hang forever: there is NO expiry job, so a side stays `Pending`
   indefinitely and blocks finalize~~ -- **FIXED in 4c** by
   `ChangeRequestConsentExpirySweepJob` (hourly, per-office). The consent email's "referred to
@@ -225,6 +257,49 @@ rather than expanding scope; Adrian was told and did not exclude them.
 ## Learnings carried forward
 
 Append after each phase.
+
+### From phase 4d (2026-08-05)
+
+- **A LOCKED DECISION WAS FALSE, NOT MERELY AWKWARD -- AND ONLY COUNTING THE DTO'S PROPERTIES
+  SHOWED IT.** "Reuse the existing create pipeline" survived research, planning and approval. The
+  DTO it named carries 16 scalars and `CustomFieldValues`; the whole child cascade is CLIENT-side,
+  fired by the Angular wizard as six further POSTs. Following the decision would have produced a
+  replacement appointment with no injuries, attorneys, employer, insurance, examiner or accessors
+  -- and with no accessor rows, NOBODY could have opened it. Same shape as 4c's token learning:
+  the decision described a desired outcome and nobody checked whether the named mechanism could
+  produce it. Counting the fields took two minutes.
+- **SEVEN MORE PLAN DEFECTS, ALL FOUND BY READING THE CODE THE TASK NAMED.** Running total across
+  4c and 4d: eleven. The two most expensive if shipped: hardcoding the replacement to `Approved`
+  would have turned an UNAPPROVED appointment into an approved one purely by rescheduling it,
+  past the approval gate and its claim-information check (B1 lets staff reschedule a Pending
+  appointment); and the plan's "many-to-many join" shape for accessors does not exist --
+  `AppointmentAccessorAppointment` is DEAD CODE, unmapped and unwritten, so building to the plan
+  would have written rows into a table nothing reads.
+- **CALLING ONE APP SERVICE FROM ANOTHER SILENTLY INHERITS ITS AUTHORIZATION.**
+  `RegeneratePacketAsync` opens with a read-access guard meant for a user-facing HTTP caller, so
+  staff finalizing were refused access to the appointment they had just created. Enqueue the same
+  background job instead of borrowing a method's guard. Worth checking anywhere a server-side flow
+  reuses a method that was written for a request.
+- **A `BusinessException` INSTEAD OF AN ASSERTION DIFF IS THE TELL.** A 4c test failed at finalize
+  with an invalid-transition error, not a wrong value. That distinguished "stale expectation" from
+  "real defect" -- it was both: the test seeded a state the submit flow never leaves behind, AND
+  the reschedule-confirm triggers were not permitted from `Pending`, which broke the whole
+  staff-reschedules-a-Pending-appointment path. When a test fails by throwing rather than
+  mismatching, suspect the code first.
+- **SILENCE IS NOT THE DEFAULT ON THE CASE TRACKER WIRE.** `CaseTrackerPublishPolicy.IsPublished`
+  is a DENY list of three statuses, so anything new is published automatically. 4d needed three
+  separate suppression gates, and one of them -- the hourly completeness sweep -- would have
+  undone the other two within the hour AND logged it as a successful recovery. Before assuming a
+  change sends nothing, enumerate the enqueue sites; there were three, not the two the plan named.
+- **A TEST CAN PASS FOR A REASON THAT IS NOT THE BEHAVIOUR.** `LifecycleChangesAfterApprovalArePushed`
+  asserted `RescheduledNoBill` gets pushed -- the exact behaviour 4d reverses -- and did NOT fail,
+  because its `Build` stub made `FindAsync` return an `Approved` appointment regardless of the
+  status the theory passed in. The theory had never exercised its own parameter past the first
+  gate. When a test that should have broken does not, check what its fixture actually returns.
+- **THE PLAN'S OWN ACCEPTANCE CAN BE TOO WEAK.** "The same number of rows in each group" would
+  have passed a copier producing the right count of BLANK rows -- F18 one level down, at field
+  granularity. Replaced with full field equality driven by EF model metadata, so a column added to
+  a child entity later is compared with no test change.
 
 ### From phase 4c (2026-08-05)
 
