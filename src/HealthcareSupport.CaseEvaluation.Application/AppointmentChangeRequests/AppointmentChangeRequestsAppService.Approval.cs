@@ -502,6 +502,15 @@ public class AppointmentChangeRequestsApprovalAppService :
         var newAppointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
         {
             var confirmationNumber = await _confirmationNumberGenerator.GenerateAsync();
+
+            // Decision 3: the new appointment INHERITS THE SOURCE'S STATUS -- no re-approval,
+            // because both sides already consented to this exact date in 4c. Normally that is
+            // Approved (an external reschedule requires an Approved source), but B1 lets staff
+            // reschedule a PENDING appointment, and hardcoding Approved there would turn an
+            // unapproved appointment into an approved one just by rescheduling it, bypassing the
+            // approval gate and its claim-information check.
+            var newAppointmentStatus = RescheduleSplitPolicy.ResolveNewAppointmentStatus(fromStatus);
+
             var created = new Appointment(
                 id: GuidGenerator.Create(),
                 patientId: sourceAppointment.PatientId,
@@ -511,13 +520,7 @@ public class AppointmentChangeRequestsApprovalAppService :
                 doctorAvailabilityId: newSlotId,
                 appointmentDate: newAppointmentDate,
                 requestConfirmationNumber: confirmationNumber,
-                // Decision 3: the new appointment INHERITS THE SOURCE'S STATUS -- no re-approval,
-                // because both sides already consented to this exact date in 4c. Normally that is
-                // Approved (an external reschedule requires an Approved source), but B1 lets staff
-                // reschedule a PENDING appointment, and hardcoding Approved there would turn an
-                // unapproved appointment into an approved one just by rescheduling it, bypassing
-                // the approval gate and its claim-information check.
-                appointmentStatus: RescheduleSplitPolicy.ResolveNewAppointmentStatus(fromStatus));
+                appointmentStatus: newAppointmentStatus);
 
             // The reschedule chain. OriginalAppointmentId and EvaluationKind are carried across
             // UNCHANGED: they describe whether this case is a re-evaluation, which a reschedule
