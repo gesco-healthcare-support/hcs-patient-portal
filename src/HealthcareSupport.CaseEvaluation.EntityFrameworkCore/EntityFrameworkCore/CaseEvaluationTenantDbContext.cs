@@ -645,6 +645,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
             b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
+            b.Property(x => x.DecidedAt).HasColumnName(nameof(AppointmentChangeRequest.DecidedAt));
             // Consent (2026-07-01 redesign): two symmetric side-consent slots.
             b.Property(x => x.RequestingSide).HasColumnName(nameof(AppointmentChangeRequest.RequestingSide));
             b.Property(x => x.SubmittedByUserId).HasColumnName(nameof(AppointmentChangeRequest.SubmittedByUserId));

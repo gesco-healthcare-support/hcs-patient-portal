@@ -891,8 +891,23 @@ public class AppointmentChangeRequestsApprovalAppService :
         return changeRequest;
     }
 
+    /// <summary>
+    /// Saves a DECIDED change request. All four decision paths -- cancel approve/reject and
+    /// reschedule finalize/reject -- and nothing else reach this method, which is why the
+    /// <see cref="AppointmentChangeRequest.DecidedAt"/> stamp belongs here rather than repeated at
+    /// each of them.
+    /// </summary>
     private async Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {
+        // Phase 4d (2026-08-05). Stamped once and never overwritten: "when was this decided" must
+        // not drift if a later write touches the row. Clock.Now.ToUniversalTime() rather than
+        // DateTime.UtcNow to match the consent timestamps this sits beside -- DateTime.UtcNow in
+        // this file is only ever a transient event OccurredAt, never a persisted column.
+        if (changeRequest.RequestStatus is RequestStatusType.Accepted or RequestStatusType.Rejected)
+        {
+            changeRequest.DecidedAt ??= Clock.Now.ToUniversalTime();
+        }
+
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
     }
 
