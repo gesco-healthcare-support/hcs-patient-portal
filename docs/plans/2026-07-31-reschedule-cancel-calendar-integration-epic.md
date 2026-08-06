@@ -118,9 +118,23 @@ Admin and Staff Supervisor.
 | 4a  | Extract reusable availability calendar      | `refactor/extract-availability-calendar`  | `2026-08-03-extract-availability-calendar.md`                      | **DONE** - PR #420 -> main `86d76b54` |
 | 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | `docs/plans/2026-08-04-staff-picks-reschedule-date.md`             | **DONE** - #423 -> main `326f08a9`    |
 | 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | `docs/plans/2026-08-05-reschedule-consent-rounds.md`               | **DONE** - PR #428                    |
-| 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | `docs/plans/2026-08-05-reschedule-creates-new-appointment.md`      | **DONE** - PR #430                    |
-| 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | not written                                                        | TODO (after 4d)                       |
+| 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | `docs/plans/2026-08-05-reschedule-creates-new-appointment.md`      | **DONE** - PR #430 -> main `daeedbb2` |
+| 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | `docs/plans/2026-08-06-case-tracker-two-case-reschedule.md`        | BUILT, PR pending                     |
 | 5   | No-show round trip (INBOUND from CT)        | `feat/no-show-round-trip`                 | not written                                                        | TODO (after 4d)                       |
+
+**RELEASE TRAIN (Adrian, 2026-08-06): 4b + 4c + 4d + 4e DEPLOY TOGETHER as one release.** 4d holds
+the reschedule split off the Case Tracker wire behind three suppression gates and 4e removes them,
+so shipping them together means the suppression window never exists in production -- no appointment
+is ever created while suppressed, so there is nothing to backfill and no late burst to explain.
+Consequence worth stating: the suppression code is never active in production for a single
+reschedule. It earned its place anyway, by letting 4d merge and be live-gated without lying to
+Case Tracker. None of the four is deployed; the deploy needs a fresh explicit go.
+
+4e is BUILT on `feat/case-tracker-two-case-reschedule`, stacked on 4d's branch because its first
+task deletes a policy that does not exist on `main`. Rebase onto main once 4d's PR #430 merges.
+Coordination note: Levon needs to be INFORMED, not deployed -- the receiver's case key is
+`appointmentId` and it upserts on it, so two cases work with no code change on their side
+(`docs/integration/case-tracker-two-case-reschedule-change-summary.md`).
 
 Phase 5 ADDED 2026-07-31 (Adrian, while resolving phase 2's NoShow question). It is NOT a phase-2
 rider: it needs an INBOUND Case Tracker -> portal endpoint, which does not exist today (the
@@ -257,6 +271,36 @@ rather than expanding scope; Adrian was told and did not exclude them.
 ## Learnings carried forward
 
 Append after each phase.
+
+### From phase 4e (2026-08-06)
+
+- **THE INTEGRATION NEEDED NO RECEIVER CHANGE -- and finding that out reframed the whole phase.**
+  Section G already says "case dedup key: `appointmentId`, upsert on it", so a second appointment id
+  opens a second case by itself. What was missing was never mechanism, only MEANING: nothing on the
+  wire said the new case continued the old one. 4e became four additive fields plus a document
+  rewrite instead of a negotiation. Read the receiver's own stated keying rules before assuming a
+  semantic change requires their code to move.
+- **AN EXTENSION METHOD ON A SUBSTITUTED INTERFACE IS NOT A TEST SEAM.**
+  `repository.FirstOrDefaultAsync(predicate)` is used all over the app services and looks like an
+  interface member; it is an extension (`RepositoryAsyncExtensions:80`, verified by decompiling
+  `Volo.Abp.Ddd.Domain 10.0.2`). NSubstitute cannot intercept it -- the arrangement compiles,
+  silently does nothing, and the real extension runs against the substitute. Switched to
+  `GetListAsync(predicate, ...)`, which IS an interface member. Same family as 4c's NSubstitute
+  auto-mock learning: verify the seam is real, do not assume it from the call site.
+- **WRITING THE ASSERTION FIRST IS WHAT CAUGHT IT.** The extension-method problem surfaced as a
+  failing test only because the expectation existed before the implementation. Written afterwards,
+  the null would have read as correct "no successor" behaviour and shipped.
+- **A PLANNED TEST CAN BE WORSE THAN NO TEST.** T5 called for a MultiOffice assertion that finalize
+  now produces two outbox rows. Dropped after checking `IntakeSettlePolicy`: that harness renders no
+  packets, so nothing is ever enqueued there regardless of suppression -- the assertion would have
+  failed for an unrelated reason, and its inverse would have passed vacuously while looking like
+  proof. Check that a test CAN fail for the reason you intend before writing it.
+- **A ONE-MEMBER ENUM IS SOMETIMES RIGHT AND SOMETIMES NOT.** `supersededReason` ships with exactly
+  one value, which normally reads as speculative generality. It earns its place because phase 5 --
+  already in this epic -- adds a second cause (`NO_SHOW`), and because the alternative (inferring
+  the cause by cross-referencing the successor's own message) needs that message to have arrived
+  first. But it is derived from `AppointmentStatusType` rather than introducing a new C# enum: the
+  status already carries the distinction.
 
 ### From phase 4d (2026-08-05)
 
