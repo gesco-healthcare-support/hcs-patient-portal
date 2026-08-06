@@ -501,6 +501,11 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.DefenseAttorneyZipCode).HasColumnName(nameof(Appointment.DefenseAttorneyZipCode)).HasMaxLength(DefenseAttorneyConsts.ZipCodeMaxLength);
             b.Property(x => x.RefferedBy).HasColumnName(nameof(Appointment.RefferedBy)).HasMaxLength(AppointmentConsts.RefferedByMaxLength);
             b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
+            // Phase 4d (2026-08-05): the RESCHEDULE chain, kept separate from OriginalAppointmentId.
+            // Indexed (non-unique) because the read side joins a new appointment back to the one it
+            // replaced; nothing enforces one-replacement-per-source at the DB level.
+            b.Property(x => x.RescheduledFromAppointmentId).HasColumnName(nameof(Appointment.RescheduledFromAppointmentId));
+            b.HasIndex(x => x.RescheduledFromAppointmentId);
             b.Property(x => x.EvaluationKind).HasColumnName(nameof(Appointment.EvaluationKind));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
             b.Property(x => x.ReScheduledById).HasColumnName(nameof(Appointment.ReScheduledById));

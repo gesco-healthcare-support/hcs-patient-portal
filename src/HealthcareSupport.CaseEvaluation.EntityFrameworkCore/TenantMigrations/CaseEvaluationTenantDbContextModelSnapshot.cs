@@ -2222,6 +2222,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("RequestConfirmationNumber");
 
+                    b.Property<Guid?>("RescheduledFromAppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RescheduledFromAppointmentId");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
@@ -2237,6 +2241,8 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.HasIndex("LocationId");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("RescheduledFromAppointmentId");
 
                     b.HasIndex("TenantId", "RequestConfirmationNumber")
                         .IsUnique()
