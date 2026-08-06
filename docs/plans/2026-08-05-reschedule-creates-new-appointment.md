@@ -345,6 +345,28 @@ copier lives in the **EntityFrameworkCore** project, not Domain, because it need
 - acceptance (EARS): WHEN the old appointment reaches a terminal Rescheduled status, THE SYSTEM
   SHALL NOT count it against its slot's capacity, and that slot SHALL become offerable again.
 
+  RESULT (2026-08-05): **VERIFIED -- no production code.** The capacity gate is
+  `activeCount >= DoctorAvailability.Capacity` (`AppointmentsAppService.cs:1009`) fed by
+  `IAppointmentRepository.GetActiveCountForSlotAsync`, whose predicate already excludes
+  `RescheduledNoBill` and `RescheduledLate` (`EfCoreAppointmentRepository.cs:437-438`, and three
+  sibling queries at `:462`, `:490`, `:534`). Closing the old row IS the release.
+
+  `ActiveSlotAppointment` in the plan's pattern line is a query PROJECTION for the staff-schedule
+  chips, not a stored slot reservation -- there is no reservation row to delete.
+
+  Pinned by two tests, because the two clauses fail differently:
+  - `MultiOfficeAppointmentsAppServiceTests.CreateAsync_WhenSlotHasRescheduledAppointments_DoesNotCountThem`
+    -- a `[Theory]` over BOTH statuses, booking through the REAL gate on a **capacity-1** slot, so
+    "offerable again" is exercised rather than restated. The pre-existing freed-status test covers
+    `Rejected` only; these two arms were untested because until 4d nothing could produce them.
+  - `MultiOfficeRescheduleConsentTests.Finalize_frees_the_old_slot_and_takes_the_agreed_one` -- the
+    origin slot's active count goes 1 -> 0 and the agreed slot's 0 -> 1 across a real finalize.
+
+  MUTATION (run, then reverted): dropping `RescheduledNoBill` from the `GetActiveCountForSlotAsync`
+  predicate failed EXACTLY those two (78/80 passed) -- the consent test on the count assertion, the
+  booking test with "This time slot is full (1 of 1 booked)" from `AppointmentsAppService.cs:1014`.
+  The `RescheduledLate` theory case stayed green, proving the arms are independently covered.
+
 ### T9 -- suppress the old appointment's CT re-push
 
 - what: MODIFY `Domain/Integration/CaseTracker/Handlers/AppointmentChangedHandler.cs` -- skip the
@@ -356,6 +378,29 @@ copier lives in the **EntityFrameworkCore** project, not Domain, because it need
 - acceptance (EARS): WHEN an appointment moves to `RescheduledNoBill` or `RescheduledLate`, THE
   SYSTEM SHALL NOT enqueue an intake row and SHALL log the skip. WHEN an appointment moves to any
   other published status, THE SYSTEM SHALL enqueue exactly as before.
+
+  **CORRECTED AT BUILD TIME (2026-08-05).** The plan split the condition by task -- T9 gates the OLD
+  half, T10 the NEW one -- which reads as one condition per site. Wrong on both counts:
+
+  1. BOTH conditions are needed at ALL THREE sites. The replacement is `Approved` with no intake
+     row, so any later edit to it reaches `AppointmentChangedHandler` and pushes a FIRST intake --
+     T10's hole, opened through T9's file. Gating T9's site on the closure status alone would have
+     left it.
+  2. The gate belongs in `RePushAsync` (after the row is re-read), not in the two
+     `HandleEventAsync` overloads: one placement then covers the direct edit AND the patient
+     demographic fan-out, which is a second, independent way into the same push.
+
+  Both conditions therefore live in ONE new pure policy,
+  `Domain/Integration/CaseTracker/CaseTrackerRescheduleSuppressionPolicy.cs`, called from three
+  sites -- so 4e deletes one file plus three call sites and cannot leave an arm behind. Leaving one
+  behind would show up as a silent divergence between the two systems, not as an error, which is
+  risk 2 in this plan.
+
+  ALSO CORRECTED: `AppointmentChangedHandlerTests.LifecycleChangesAfterApprovalArePushed` asserted
+  `RescheduledNoBill` IS pushed -- the exact behaviour 4d reverses. It did not fail, because the
+  test's `Build` stub made `FindAsync` return an `Approved` appointment whatever status the event
+  carried, so the theory never exercised its own parameter past the `IsPublished` check. Fixed on
+  both counts: the case moved to the suppression tests, and the stub now answers with the real row.
 
 ### T10 -- suppress the new appointment's CT intake push
 
@@ -369,6 +414,22 @@ copier lives in the **EntityFrameworkCore** project, not Domain, because it need
   NOT enqueue an intake row. WHEN the completeness sweep runs, THE SYSTEM SHALL NOT enqueue one
   either. WHEN a normal appointment's packet set completes, THE SYSTEM SHALL enqueue exactly as
   before.
+
+  RESULT (T9 + T10, 2026-08-05). Three gates, all calling
+  `CaseTrackerRescheduleSuppressionPolicy.IsSuppressed`, each with a `LogDebug` naming 4e as the
+  owner: `AppointmentChangedHandler.RePushAsync`,
+  `CaseTrackerPacketPublishService.PublishSettledPacketsAsync` (before the intake-vs-document
+  branch, so neither message type escapes), and the `CaseTrackerCompletenessSweepJob` loop.
+
+  Ten tests across the three existing CaseTracker test files. MUTATIONS (each run, then reverted) --
+  one per site, to prove the sites are independently covered and not all riding one test:
+  - handler gate off -> 4 failed / 246 passed (both closure statuses, the replacement edit, and the
+    patient fan-out);
+  - packet-publish gate off -> 3 failed / 247 passed (the replacement's first-contact intake, and
+    both closure statuses on the document feed);
+  - sweep gate off -> 3 failed / 247 passed (both halves).
+
+  Each mutation failed ONLY its own site's tests, so no site is covered by accident.
 
 ### T11 -- surface the chain on the new appointment (read side)
 
