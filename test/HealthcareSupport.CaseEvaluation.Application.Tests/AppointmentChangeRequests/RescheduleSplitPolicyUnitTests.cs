@@ -50,4 +50,43 @@ public class RescheduleSplitPolicyUnitTests
             () => RescheduleSplitPolicy.ResolveOldAppointmentTrigger(outcome));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestInvalidRescheduleOutcome);
     }
+
+    // ---- the replacement appointment's starting status ----
+
+    /// <summary>
+    /// An external reschedule requires an Approved source, which the submit flow moves to
+    /// RescheduleRequested. Both mean "this appointment was approved", so the replacement is too.
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.Approved)]
+    [InlineData(AppointmentStatusType.RescheduleRequested)]
+    public void An_approved_source_yields_an_approved_replacement(AppointmentStatusType sourceStatus)
+    {
+        RescheduleSplitPolicy.ResolveNewAppointmentStatus(sourceStatus)
+            .ShouldBe(AppointmentStatusType.Approved);
+    }
+
+    /// <summary>
+    /// B1 (2026-07-01) lets internal staff reschedule a still-Pending appointment. The replacement
+    /// must stay Pending: handing it Approved would slip past the approval gate and the
+    /// claim-information check purely because someone rescheduled it.
+    /// </summary>
+    [Fact]
+    public void A_pending_source_yields_a_pending_replacement()
+    {
+        RescheduleSplitPolicy.ResolveNewAppointmentStatus(AppointmentStatusType.Pending)
+            .ShouldBe(AppointmentStatusType.Pending);
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.CancelledNoBill)]
+    [InlineData(AppointmentStatusType.NoShow)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    public void A_source_that_should_never_reach_finalize_is_rejected(AppointmentStatusType sourceStatus)
+    {
+        var ex = Should.Throw<BusinessException>(
+            () => RescheduleSplitPolicy.ResolveNewAppointmentStatus(sourceStatus));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestAppointmentNotApproved);
+    }
 }

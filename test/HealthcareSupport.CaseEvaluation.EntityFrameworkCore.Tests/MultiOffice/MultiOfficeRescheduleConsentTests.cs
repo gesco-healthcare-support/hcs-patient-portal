@@ -243,15 +243,34 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
 
         await InOfficeAsync(scenario.Office, async () =>
         {
-            var appointment = await _appointmentRepository.GetAsync(scenario.AppointmentId);
-            appointment.DoctorAvailabilityId.ShouldBe(scenario.SecondSlotId);
-            appointment.AppointmentDate.Date.ShouldBe(scenario.SecondSlotDate.Date);
+            // Phase 4d (2026-08-05) CHANGED WHAT THIS ASSERTS. Until 4d finalize moved the SAME
+            // appointment onto the agreed slot, and this test read that row to prove it had moved.
+            // 4d splits it in two: the OLD appointment no longer moves, it CLOSES, and the agreed
+            // slot belongs to a NEW appointment. The original assertion did not merely go stale --
+            // it failed with an invalid-transition BusinessException, which is what exposed that a
+            // Pending-source reschedule could not close at all.
+            var oldAppointment = await _appointmentRepository.GetAsync(scenario.AppointmentId);
+            oldAppointment.AppointmentStatus.ShouldBe(AppointmentStatusType.RescheduledNoBill);
+
+            var replacement = await _appointmentRepository.FirstOrDefaultAsync(
+                a => a.RescheduledFromAppointmentId == scenario.AppointmentId);
+            replacement.ShouldNotBeNull();
+            replacement!.DoctorAvailabilityId.ShouldBe(scenario.SecondSlotId);
+            replacement.AppointmentDate.Date.ShouldBe(scenario.SecondSlotDate.Date);
+            // Its own number: (TenantId, RequestConfirmationNumber) is a hard unique index.
+            replacement.RequestConfirmationNumber.ShouldNotBe(oldAppointment.RequestConfirmationNumber);
+            // The source was approved (RescheduleRequested is the post-submit form of that), so the
+            // replacement inherits Approved -- both sides already consented to this exact date.
+            replacement.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
 
             var changeRequest = await _changeRequestRepository.GetAsync(scenario.ChangeRequestId);
             changeRequest.RequestStatus.ShouldBe(RequestStatusType.Accepted);
             // The approval email resolves its date from this column, so finalize must write it.
             changeRequest.AdminOverrideSlotId.ShouldBe(scenario.SecondSlotId);
             changeRequest.CancellationOutcome.ShouldBe(AppointmentStatusType.RescheduledNoBill);
+            // Decision 5: the request and its rounds stay with the appointment they were filed
+            // against, so 4c's audit trail is not rewritten.
+            changeRequest.AppointmentId.ShouldBe(scenario.AppointmentId);
         });
     }
 
@@ -355,7 +374,13 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
                     doctorAvailabilityId: originSlotId,
                     appointmentDate: originSlotDate.Date.AddHours(8),
                     requestConfirmationNumber: $"RCN-4C-{appointmentId:N}"[..20],
-                    appointmentStatus: AppointmentStatusType.Approved),
+                    // Seeded as RescheduleRequested, which is where the real submit flow leaves an
+                    // Approved appointment (SubmitRescheduleAsync fires Approved -> RescheduleRequested).
+                    // These tests insert the change-request row directly and never run submit, so
+                    // seeding Approved left the appointment in a state production never reaches --
+                    // harmless while 4c only moved the row, but 4d closes it through the state
+                    // machine, where Approved permits no reschedule-confirm trigger.
+                    appointmentStatus: AppointmentStatusType.RescheduleRequested),
                 autoSave: true);
 
             await _changeRequestRepository.InsertAsync(

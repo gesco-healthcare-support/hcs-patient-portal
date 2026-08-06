@@ -38,4 +38,31 @@ public static class RescheduleSplitPolicy
                 .WithData("outcome", outcome),
         };
     }
+
+    /// <summary>
+    /// The status the REPLACEMENT appointment starts in: whatever the source was in. No
+    /// re-approval, because both sides already consented to this exact date.
+    ///
+    /// <para>Normally that is <c>Approved</c> -- an external reschedule requires an Approved
+    /// source. But B1 (2026-07-01) lets internal staff reschedule a still-<c>Pending</c>
+    /// appointment, and a replacement must not arrive Approved in that case: it would slip past
+    /// the approval gate and the claim-information check that guards it, purely because someone
+    /// rescheduled it.</para>
+    ///
+    /// <para>A source in any other status should never reach finalize -- the submit validators
+    /// admit only Approved and (for staff) Pending -- so anything else is rejected rather than
+    /// carried into a new row.</para>
+    /// </summary>
+    public static AppointmentStatusType ResolveNewAppointmentStatus(AppointmentStatusType sourceStatus)
+    {
+        return sourceStatus switch
+        {
+            AppointmentStatusType.Approved => AppointmentStatusType.Approved,
+            AppointmentStatusType.RescheduleRequested => AppointmentStatusType.Approved,
+            AppointmentStatusType.Pending => AppointmentStatusType.Pending,
+            _ => throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.ChangeRequestAppointmentNotApproved)
+                .WithData("sourceStatus", sourceStatus),
+        };
+    }
 }

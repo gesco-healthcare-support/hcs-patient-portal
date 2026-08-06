@@ -52,8 +52,24 @@ Amending that locked decision is IN SCOPE for 4d (T16).
 - Decision 2: a NEW dedicated `RescheduledFromAppointmentId` column, NOT `OriginalAppointmentId`,
   because `EvaluationKind` exists precisely to stop a dual-purpose link mislabelling a Case Tracker
   case folder (`Appointment.cs:151-154`). Costs one column + a migration in BOTH contexts.
-- Decision 3: the new appointment starts **Approved**, inheriting the old status, with no
-  re-approval -- both sides already consented to this exact date in 4c.
+- Decision 3: the new appointment INHERITS THE SOURCE APPOINTMENT'S STATUS, with no re-approval --
+  both sides already consented to this exact date in 4c. In practice that is `Approved`, because
+  an external reschedule requires an Approved source.
+
+  **CORRECTED AT BUILD TIME (2026-08-05, Adrian via modal).** The plan said "starts **Approved**",
+  which was wrong for a real path. B1 (2026-07-01) lets INTERNAL STAFF reschedule a still-`Pending`
+  appointment, and `SubmitRescheduleAsync` deliberately skips the Approved -> RescheduleRequested
+  transition for a Pending source because no such transition exists -- so the appointment reaches
+  finalize still `Pending`. Hardcoding `Approved` would have turned an unapproved appointment into
+  an approved one purely by rescheduling it, bypassing the approval gate AND the claim-information
+  check that guards it. The new row now inherits the source status literally, as the decision's own
+  wording ("inherits the old status") always said.
+
+- Decision 8 (Adrian, 2026-08-05, at build): `ConfirmReschedule` / `ConfirmRescheduleLate` are
+  additionally permitted FROM `Pending`, so a Pending-source reschedule can close the old row
+  through the state machine like any other. Without it finalize throws an invalid-transition for
+  that entire path -- caught by a 4c test failing with a `BusinessException` rather than an
+  assertion, which is what distinguished a real defect from a merely stale expectation.
 - Decision 4: the old appointment goes to `RescheduledNoBill` / `RescheduledLate` from the billing
   outcome staff pick at finalize, using transitions that already exist but are unreachable
   (`AppointmentManager.cs:409-410`). No new enum value, no migration.
@@ -64,6 +80,15 @@ Amending that locked decision is IN SCOPE for 4d (T16).
 - Decision 6: the old appointment's packet is left intact as a historical record. It correctly
   documents what WAS scheduled and what parties were sent; regenerating would rewrite a document
   already in inboxes, deleting would destroy medical-legal evidence.
+
+  **CORRECTED AT BUILD TIME (2026-08-05).** T7 said to call
+  `AppointmentDocumentsAppService.RegeneratePacketAsync`. That method's FIRST act is
+  `_readAccessGuard.EnsureCanReadAsync`, a guard written for a user-facing HTTP caller -- and staff
+  finalizing a reschedule are not a party to the appointment they have just created, so it threw
+  "You do not have permission to access this appointment". Finalize now enqueues the SAME
+  `GenerateAppointmentPacketArgs` job that method enqueues. Same generator, no borrowed
+  authorization. Calling one app service from another silently inherits its authorization.
+
 - Decision 7 (Adrian, 2026-08-05, at design): **4d sends NOTHING new to Case Tracker.** Both the
   old appointment's terminal-status re-push AND the new appointment's intake push are SUPPRESSED
   until 4e amends the contract and Levon's receiver is ready. This is not the free default -- see

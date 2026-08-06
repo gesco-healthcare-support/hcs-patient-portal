@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
+using Volo.Abp.BackgroundJobs;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -61,6 +64,13 @@ public class AppointmentChangeRequestsApprovalAppService :
     private readonly ChangeRequestConsentManager _consentManager;
     private readonly ChangeRequestSideResolver _sideResolver;
     private readonly IAccountUrlBuilder _accountUrlBuilder;
+    // Phase 4d (2026-08-05): finalizing a reschedule now creates a SECOND appointment, so it needs
+    // the child copier, its own confirmation number, the state machine to close the old row, and
+    // packet regeneration for the new one.
+    private readonly IAppointmentChildCascadeCopier _childCascadeCopier;
+    private readonly RequestConfirmationNumberGenerator _confirmationNumberGenerator;
+    private readonly AppointmentManager _appointmentManager;
+    private readonly IBackgroundJobManager _backgroundJobManager;
 
     public AppointmentChangeRequestsApprovalAppService(
         IAppointmentChangeRequestRepository changeRequestRepository,
@@ -72,8 +82,16 @@ public class AppointmentChangeRequestsApprovalAppService :
         IChangeRequestConsentRoundRepository consentRoundRepository,
         ChangeRequestConsentManager consentManager,
         ChangeRequestSideResolver sideResolver,
-        IAccountUrlBuilder accountUrlBuilder)
+        IAccountUrlBuilder accountUrlBuilder,
+        IAppointmentChildCascadeCopier childCascadeCopier,
+        RequestConfirmationNumberGenerator confirmationNumberGenerator,
+        AppointmentManager appointmentManager,
+        IBackgroundJobManager backgroundJobManager)
     {
+        _childCascadeCopier = childCascadeCopier;
+        _confirmationNumberGenerator = confirmationNumberGenerator;
+        _appointmentManager = appointmentManager;
+        _backgroundJobManager = backgroundJobManager;
         _changeRequestRepository = changeRequestRepository;
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
@@ -463,25 +481,84 @@ public class AppointmentChangeRequestsApprovalAppService :
             proposedSlotId: changeRequest.NewDoctorAvailabilityId,
             staffSlotId: newSlotId);
 
-        // B2 (2026-07-01) reschedule redesign -- move the SAME appointment to the
-        // resolved slot instead of cloning a new row. The confirmation number,
-        // party links, injuries, documents and audit trail all stay on the one
-        // appointment; the capacity model reflects the move automatically once
-        // DoctorAvailabilityId changes (active-count is evaluated per slot). The
-        // RescheduledNoBill / RescheduledLate outcome is recorded on the
-        // change-request row below, NOT on the appointment status.
+        // Phase 4d (2026-08-05) -- THE SPLIT. Until now finalize moved the SAME appointment to the
+        // new slot; source item R3 asks instead for the old appointment to close into a Rescheduled
+        // status and a NEW appointment to be created in its place, so Case Tracker can bill or
+        // close the old date while tracking the new one separately (phase 4e).
+        //
+        // The new row is NOT built through the create pipeline: AppointmentCreateDto carries 16
+        // scalars and no child collections, because the child cascade is client-side in the booking
+        // wizard. It is created directly here and its children are copied by
+        // IAppointmentChildCascadeCopier.
         var fromStatus = sourceAppointment.AppointmentStatus;
-        sourceAppointment.DoctorAvailabilityId = newSlotId;
-        // F-017 (2026-06-23): AvailableDate is date-only (midnight); the slot's
-        // start time lives in TimeOnly FromTime. Combine them so the moved
-        // appointment carries the picked time (was showing 12:00 AM everywhere).
-        sourceAppointment.AppointmentDate = newSlot.AvailableDate.Date + newSlot.FromTime.ToTimeSpan();
+
+        // F-017 (2026-06-23): AvailableDate is date-only (midnight); the slot's start time lives in
+        // TimeOnly FromTime. Combine them or the new appointment shows 12:00 AM everywhere.
+        var newAppointmentDate = newSlot.AvailableDate.Date + newSlot.FromTime.ToTimeSpan();
+
+        // (TenantId, RequestConfirmationNumber) is a hard unique index and the generator reads
+        // max+1, so two concurrent finalizes can pick the same number -- the retry policy is what
+        // resolves that, exactly as the booking path does.
+        var newAppointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
+        {
+            var confirmationNumber = await _confirmationNumberGenerator.GenerateAsync();
+            var created = new Appointment(
+                id: GuidGenerator.Create(),
+                patientId: sourceAppointment.PatientId,
+                identityUserId: sourceAppointment.IdentityUserId,
+                appointmentTypeId: sourceAppointment.AppointmentTypeId,
+                locationId: sourceAppointment.LocationId,
+                doctorAvailabilityId: newSlotId,
+                appointmentDate: newAppointmentDate,
+                requestConfirmationNumber: confirmationNumber,
+                // Decision 3: the new appointment INHERITS THE SOURCE'S STATUS -- no re-approval,
+                // because both sides already consented to this exact date in 4c. Normally that is
+                // Approved (an external reschedule requires an Approved source), but B1 lets staff
+                // reschedule a PENDING appointment, and hardcoding Approved there would turn an
+                // unapproved appointment into an approved one just by rescheduling it, bypassing
+                // the approval gate and its claim-information check.
+                appointmentStatus: RescheduleSplitPolicy.ResolveNewAppointmentStatus(fromStatus));
+
+            // The reschedule chain. OriginalAppointmentId and EvaluationKind are carried across
+            // UNCHANGED: they describe whether this case is a re-evaluation, which a reschedule
+            // does not alter. Conflating the two links is what mislabels a Case Tracker folder.
+            created.RescheduledFromAppointmentId = sourceAppointment.Id;
+            created.OriginalAppointmentId = sourceAppointment.OriginalAppointmentId;
+            created.EvaluationKind = sourceAppointment.EvaluationKind;
+            created.PanelNumber = sourceAppointment.PanelNumber;
+            created.DueDate = sourceAppointment.DueDate;
+            created.RefferedBy = sourceAppointment.RefferedBy;
+
+            return await _appointmentRepository.InsertAsync(created, autoSave: true);
+        });
+
+        var copied = await _childCascadeCopier.CopyAllAsync(
+            sourceAppointment.Id, newAppointment.Id, sourceAppointment.TenantId);
+
+        // Close the OLD appointment through the state machine rather than by assignment, so the
+        // transition is validated and audited like every other one. These two triggers had been
+        // unreachable since the machine was written.
+        var oldTrigger = RescheduleSplitPolicy.ResolveOldAppointmentTrigger(input.RescheduleOutcome);
         sourceAppointment.ReScheduledById = CurrentUser.Id;
-        // Approved source returns from RescheduleRequested to Approved; a Pending
-        // source stays Pending (see RescheduleInPlacePolicy).
-        sourceAppointment.AppointmentStatus =
-            RescheduleInPlacePolicy.ResolveFinalizedStatus(sourceAppointment.AppointmentStatus);
         await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
+        await _appointmentManager.CloseForRescheduleAsync(
+            sourceAppointment.Id, oldTrigger, changeRequest.ReScheduleReason, CurrentUser.Id);
+        sourceAppointment = await _appointmentRepository.GetAsync(sourceAppointment.Id);
+
+        // Packets embed the appointment date, so the NEW appointment needs its own set. The OLD
+        // appointment's packets are deliberately left intact (decision 6): they document what WAS
+        // scheduled and are already in recipients' inboxes.
+        //
+        // Enqueues the SAME job AppointmentDocumentsAppService.RegeneratePacketAsync enqueues,
+        // rather than calling that method: its first act is a READ-ACCESS GUARD written for a
+        // user-facing HTTP caller, and staff finalizing a reschedule are not a party to the
+        // appointment they just created, so the guard rejects them. Same generator, no borrowed
+        // authorization.
+        await _backgroundJobManager.EnqueueAsync(new GenerateAppointmentPacketArgs
+        {
+            AppointmentId = newAppointment.Id,
+            TenantId = CurrentTenant.Id,
+        });
 
         // Release the transient Reserved hold the submit placed on the user-picked
         // slot (Phase 16 submit sets it Reserved). Idempotent and guarded -- release
@@ -551,10 +628,15 @@ public class AppointmentChangeRequestsApprovalAppService :
         });
 
         _logger.LogInformation(
-            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {AppointmentId} moved in place to slot {SlotId} (override={Override}).",
+            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {OldAppointmentId} closed as {OldStatus} and replaced by {NewAppointmentId} ({NewConfirmationNumber}) on slot {SlotId}. Children copied: {CopiedCounts} (total {CopiedTotal}). Override={Override}.",
             changeRequest.Id,
             sourceAppointment.Id,
+            sourceAppointment.AppointmentStatus,
+            newAppointment.Id,
+            newAppointment.RequestConfirmationNumber,
             newSlotId,
+            copied,
+            copied.Total,
             isAdminOverride);
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
