@@ -358,6 +358,36 @@ practice.
 Note: nothing is DELIVERED -- their endpoints are not deployed to `.35` (contract item 11), so rows
 will sit queued or dead-letter. That is expected and is not a failure of this phase.
 
+### RESULT (2026-08-06) -- PASSED
+
+Ran against the split 4d's own live gate left behind (falkinstein A00003 closed -> A00038), so no
+new reschedule was needed. Triggered a re-push on each half through the REAL event chain by editing
+a field in the UI as internal staff, which is precisely the path `AppointmentChangedHandler` gates.
+
+| Assertion                               | Result                                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| The replacement is no longer suppressed | PASS -- A00038 went from 0 outbox rows to 1, created at 20:48:22, the second I saved                   |
+| The replacement's backward link         | PASS -- `rescheduledFromAppointmentId` = A00003's id, `rescheduledFromConfirmationNumber` = `"A00003"` |
+| The chains stay separate                | PASS -- `previousAppointmentId` is `null` and `evaluationKind` is `"EVAL"` on the replacement          |
+| The closed half's forward link + cause  | PASS -- `supersededByAppointmentId` = A00038's id, `supersededReason` = `"RESCHEDULED"`                |
+| The billing signal                      | PASS -- old half `status` `"RescheduledNoBill"`, `billingStatus` `"NO_BILL"`, with no new code         |
+| Nulls present rather than omitted       | PASS -- the unused pair serializes as explicit `null` on each half                                     |
+
+Reconcile GET (step 6) was NOT exercised over HTTP: it needs the static integration token out of
+band. It is verified STRUCTURALLY instead -- `CaseTrackerReconcileService` and
+`CaseTrackerIntakeQueue` both build through `IIntakePayloadBuilder`, and that builder has now been
+observed live emitting all four fields, so the reconcile response carries them by construction.
+Stated as structural rather than claimed as tested.
+
+FOUND INCIDENTALLY, NOT CAUSED BY THIS PHASE: saving the edit form as Intake Staff returns 403 on
+`PUT /api/app/appointment-employer-details/{id}` (`PermissionRequirement:
+CaseEvaluation.AppointmentEmployerDetails.Edit`) with NO user-visible error -- the failure reaches
+only the browser console, so the user believes the edit saved. It affects BOTH halves identically
+and a normal appointment too whenever its employer section is dirtied, so it is pre-existing role
+configuration, not a consequence of the split. Spun out as its own task rather than fixed here.
+Incidental confirmation: the COPIED employer row behaves exactly like an original, which is what 4d
+intended.
+
 ## Risk / rollback
 
 Blast radius: the Case Tracker publish path only. No entity, no migration, no Angular, no
