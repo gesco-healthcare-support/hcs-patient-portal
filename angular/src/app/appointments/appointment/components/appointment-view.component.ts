@@ -237,11 +237,24 @@ export class AppointmentViewComponent implements OnInit {
    * Opens the appointment this one replaced. One path serves both audiences: the external detail
    * is registered at the top level on `appointments/view/:id` behind externalUserOnlyMatchGuard,
    * and internal staff fall through to their own component on the same path.
+   *
+   * <p>A full browser navigation, NOT `router.navigate`, and the live gate is why. This is the
+   * only detail-to-detail link in the app: every other route into here comes from a list, so the
+   * component is built fresh. Angular reuses the component instance when only the `:id` param
+   * changes, and both this class and the internal subclass read that param ONCE from
+   * `route.snapshot` in `ngOnInit` -- so `router.navigate` changed the URL and left the previous
+   * appointment on screen. Verified live: the address bar showed the source id while the page
+   * still rendered the replacement.</p>
+   *
+   * <p>Subscribing to `paramMap` instead would mean extracting a ~100-line `ngOnInit` in the
+   * shared base and a second one in the subclass -- restructuring the app's highest-traffic
+   * screens for one rarely-clicked audit link. If a future phase adds more detail-to-detail
+   * navigation, do that refactor then and delete this.</p>
    */
   openRescheduleSource(): void {
     const sourceId = this.rescheduleSourceId;
     if (sourceId) {
-      this.router.navigate(['/appointments/view', sourceId]);
+      window.location.assign(`/appointments/view/${sourceId}`);
     }
   }
 
