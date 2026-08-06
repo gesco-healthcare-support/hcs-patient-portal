@@ -347,6 +347,48 @@ public class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMultiOfficeT
         });
     }
 
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- the two RESCHEDULED terminal statuses, through the real capacity
+    /// gate. Until 4d nothing ever produced them: finalizing a reschedule moved one appointment and
+    /// kept its status, so these two arms of the freed-status predicate were untested because they
+    /// were unreachable. 4d closes the old appointment into one of them, and that is the ONLY thing
+    /// that frees its slot -- the split adds no explicit release.
+    ///
+    /// <para>Capacity 1 is what gives the assertion teeth: the freed row is the only other
+    /// appointment on the slot, so the create succeeds ONLY if it is excluded from the active
+    /// count.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill, 20)]
+    [InlineData(AppointmentStatusType.RescheduledLate, 21)]
+    public async Task CreateAsync_WhenSlotHasRescheduledAppointments_DoesNotCountThem(
+        AppointmentStatusType freedStatus,
+        int dayOffset)
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            var date = DateTime.Today.AddDays(dayOffset);
+            var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0), capacity: 1);
+
+            await _appointmentRepository.InsertAsync(new Appointment(
+                id: Guid.NewGuid(),
+                patientId: officeA.PatientId,
+                identityUserId: officeA.BookerUserId,
+                appointmentTypeId: officeA.AppointmentTypeId,
+                locationId: officeA.LocationId,
+                doctorAvailabilityId: slotId,
+                appointmentDate: date.AddHours(9).AddMinutes(10),
+                requestConfirmationNumber: $"A-RESCH-{(int)freedStatus}",
+                appointmentStatus: freedStatus), autoSave: true);
+
+            var result = await _appointmentsAppService.CreateAsync(
+                BuildCreateDto(officeA, slotId, date.AddHours(9).AddMinutes(30)));
+            result.Id.ShouldNotBe(Guid.Empty);
+        });
+    }
+
     [Fact]
     public async Task CreateAsync_WhenSlotTypesEmpty_AnyTypeWorks()
     {

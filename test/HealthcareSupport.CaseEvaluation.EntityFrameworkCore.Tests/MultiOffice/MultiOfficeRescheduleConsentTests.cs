@@ -35,6 +35,14 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+
+    /// <summary>
+    /// The domain repository, resolved only for <c>GetActiveCountForSlotAsync</c> -- the exact
+    /// count the booking capacity gate compares against <c>DoctorAvailability.Capacity</c>
+    /// (<c>AppointmentsAppService.cs:1009</c>).
+    /// </summary>
+    private readonly IAppointmentRepository _capacityRepository;
+
     private readonly IRepository<NotificationOutboxItem, Guid> _outboxRepository;
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly INotificationTemplateTypeRepository _templateTypeRepository;
@@ -47,6 +55,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         _changeRequestRepository = GetRequiredService<IRepository<AppointmentChangeRequest, Guid>>();
         _slotRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();
+        _capacityRepository = GetRequiredService<IAppointmentRepository>();
         _outboxRepository = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
         _templateRepository = GetRequiredService<INotificationTemplateRepository>();
         _templateTypeRepository = GetRequiredService<INotificationTemplateTypeRepository>();
@@ -271,6 +280,49 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
             // Decision 5: the request and its rounds stay with the appointment they were filed
             // against, so 4c's audit trail is not rewritten.
             changeRequest.AppointmentId.ShouldBe(scenario.AppointmentId);
+        });
+    }
+
+    /// <summary>
+    /// Phase 4d T8 (2026-08-05) -- the split hands the slot over: the old appointment stops holding
+    /// its origin slot and the replacement holds the agreed one. 4d writes NO explicit slot release;
+    /// the capacity count excludes the two Rescheduled terminal statuses
+    /// (<c>EfCoreAppointmentRepository.cs:437-438</c>), so closing the old row IS the release.
+    ///
+    /// <para>The before-assertion is not decoration: without it a copier that never created the
+    /// replacement, or a finalize that never closed the old row, could still leave the origin count
+    /// at 0 for the wrong reason.</para>
+    /// </summary>
+    [Fact]
+    public async Task Finalize_frees_the_old_slot_and_takes_the_agreed_one()
+    {
+        var scenario = await NewScenarioAsync();
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.OriginSlotId)).ShouldBe(1L);
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.SecondSlotId)).ShouldBe(0L);
+        });
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.OriginSlotId)).ShouldBe(0L);
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.SecondSlotId)).ShouldBe(1L);
         });
     }
 
