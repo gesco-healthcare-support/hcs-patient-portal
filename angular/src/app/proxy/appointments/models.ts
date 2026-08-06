@@ -134,6 +134,7 @@ export interface AppointmentWithNavigationPropertiesDto {
   appointmentAccessors?: AppointmentAccessorDto[];
   claimExaminer?: AppointmentClaimExaminerDto | null;
   primaryInsurance?: AppointmentPrimaryInsuranceDto | null;
+  rescheduleChain?: RescheduleChainDto | null;
 }
 
 export interface ApproveAppointmentInput {
@@ -174,4 +175,12 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
 
 export interface RejectAppointmentInput {
   reason: string;
+}
+
+export interface RescheduleChainDto {
+  sourceAppointmentId?: string;
+  sourceRequestConfirmationNumber?: string | null;
+  sideAAgreedAt?: string | null;
+  sideBAgreedAt?: string | null;
+  decidedAt?: string | null;
 }
