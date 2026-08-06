@@ -177,4 +177,20 @@ public class InternalUserRoleGrantsTests
     [InlineData("CaseEvaluation.AppointmentEmployerDetails.Create")]
     public void IntakeShadow_can_create_every_booking_child(string permission) =>
         IntakeShadow.ShouldContain(permission);
+
+    /// <summary>
+    /// 2026-08-06 -- the EDIT half of the same parity story, and the reason it is not optional:
+    /// the appointment edit form upserts employer details whenever any employer field holds a
+    /// VALUE (<c>hasEmployerData()</c> in <c>appointment-view.component.ts</c>), not when the
+    /// section is dirty. So without this grant EVERY "Edit details" save by Intake Staff on an
+    /// appointment with employer data 403s at the employer step and half-saves.
+    ///
+    /// <para>Employer is the only child the form upserts under a per-entity permission -- the two
+    /// attorney upserts run on <c>AppointmentsAppService</c> under a bare <c>[Authorize]</c>, and
+    /// injuries are not upserted from this surface at all -- so there is no matching Edit to pin
+    /// for the siblings.</para>
+    /// </summary>
+    [Fact]
+    public void IntakeShadow_can_edit_employer_details_the_edit_form_always_upserts() =>
+        IntakeShadow.ShouldContain("CaseEvaluation.AppointmentEmployerDetails.Edit");
 }
