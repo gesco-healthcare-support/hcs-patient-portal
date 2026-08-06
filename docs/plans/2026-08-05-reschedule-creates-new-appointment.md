@@ -658,6 +658,49 @@ neither real path.
 Note: falkinstein **A00036** is a ready-made multi-round fixture (Approved at Aug 20 13:30, accepted
 request, rounds 1 superseded / 2 granted, six consent outbox rows). Reset it if 4d needs it clean.
 
+### RESULT (2026-08-05) -- all 7 steps PASSED, and step 7 caught a real defect
+
+A00036 turned out to be SPENT: both its change requests were already `Accepted`, finalized under
+4c's in-place behaviour. Ran instead on **A00003** -- Approved, and the better fixture because it
+carries 8 of the 9 groups including an accessor and an injury detail with a body part.
+
+Flow driven live as internal staff (`admin.localhost:4200` -> Enter practice -> Rachel Kim, Intake
+Staff): file a staff reschedule -> confirm the date -> grant both sides -> finalize. Consent was
+recorded straight on the round (the raw token is never persisted), the same shortcut 4c used, with
+the two sides deliberately 4 hours apart so the disclosure had three distinct moments.
+
+| Step | Assertion                                             | Result                                                                                                                                                                                                            |
+| ---- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Finalize completes                                    | PASS                                                                                                                                                                                                              |
+| 2    | Two rows, correct statuses + chain                    | PASS -- old A00003 `RescheduledNoBill`, still on its own Aug 20 slot; new **A00038** Approved on the agreed Aug 13 11:00 slot, own number, `RescheduledFromAppointmentId` set, `EvaluationKind` carried unchanged |
+| 3    | Every child group copied; body parts re-pointed       | PASS -- all 8 populated groups 1:1; the new body part points at the NEW injury-detail id (`115B47FF...`), not the old (`6B2C91CE...`) -- F18's exact failure mode, disproved live                                 |
+| 4    | Change request + rounds still on the OLD appointment  | PASS -- and `DecidedAt` stamped `18:28:32` (T11a working end to end)                                                                                                                                              |
+| 5    | `AppIntegrationOutboxItems` gained NO rows            | PASS -- **0 rows created at or after finalize**, for either appointment. The 3 rows on the old row all predate it (one from July, two from submit/confirm -- pre-existing 4c behaviour, not the split)            |
+| 6    | New appointment's packets regenerated, old untouched  | PASS -- new: 3 packets at `18:29:27`; old: its original 3 from `2026-07-08`, unchanged                                                                                                                            |
+| 7    | Block renders + links; absent on a normal appointment | PASS **after a fix** -- see below                                                                                                                                                                                 |
+
+**DEFECT FOUND AT STEP 7, fixed:** "View the original appointment" changed the URL but left the
+PREVIOUS appointment on screen -- the address bar showed A00003's id while the page still rendered
+A00038. Cause: this is the app's only DETAIL-to-DETAIL link (every other route in comes from a
+list, so the component is built fresh), and Angular reuses the component instance when only the
+`:id` param changes -- while both the shared base and the internal subclass read that param ONCE
+from `route.snapshot` in `ngOnInit`. Fixed with a full browser navigation rather than
+`router.navigate`; the alternative (subscribe to `paramMap`) means extracting a ~100-line
+`ngOnInit` in the base plus a second one in the subclass, restructuring the highest-traffic screens
+in the product for one rarely-clicked audit link. Recorded in the code so a later phase that adds
+more detail-to-detail navigation does the refactor properly.
+
+No unit test could have caught this: the util, the resolver and the markup were all correct. It is
+purely a router-lifecycle interaction, which is the same class of defect the gate caught in 4a
+(six) and 4c (two).
+
+OBSERVED, belongs to the audit-log/timezone phase, NOT fixed here: the disclosure rendered
+`DecidedAt` as "6:28 PM" for a value stored `18:28:32` UTC -- i.e. the UTC instant displayed as if
+local. In Pacific that moment is 11:28 AM. This is exactly the hazard `IntegrationTimestamp.cs:16-21`
+documents (`AbpClockOptions.Kind` left `Unspecified`) and is why the timezone work is its own phase
+rather than a corner of this one -- it affects every timestamp the product already renders, not
+just these three.
+
 ## Risk / rollback
 
 Blast radius: the reschedule FINALIZE path, the appointment entity (one nullable column), the Case
