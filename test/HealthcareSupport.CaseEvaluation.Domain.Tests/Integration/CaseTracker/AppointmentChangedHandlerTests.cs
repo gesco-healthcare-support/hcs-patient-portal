@@ -36,7 +36,10 @@ public class AppointmentChangedHandlerTests
     private static readonly Guid SecondAppointmentId = new("3c9d1b77-2e40-4a51-8bb2-77f0a1c9d233");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
 
-    private static Appointment NewAppointment(Guid id, AppointmentStatusType status) =>
+    private static Appointment NewAppointment(
+        Guid id,
+        AppointmentStatusType status,
+        Guid? rescheduledFromAppointmentId = null) =>
         new(
             id,
             PatientId,
@@ -50,6 +53,7 @@ public class AppointmentChangedHandlerTests
             panelNumber: "PN-SAMPLE")
         {
             TenantId = TenantId,
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
 
     private static Patient NewPatient() =>
@@ -218,18 +222,85 @@ public class AppointmentChangedHandlerTests
 
     [Theory]
     [InlineData(AppointmentStatusType.CancelledLate)]
-    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.CancelledNoBill)]
     [InlineData(AppointmentStatusType.CancellationRequested)]
     public async Task LifecycleChangesAfterApprovalArePushed(AppointmentStatusType status)
     {
         // This is what subsumes the narrower cancel/reschedule trigger: any post-approval state change
         // is just another edit to an appointment their side already holds.
-        var (handler, queue) = Build();
+        //
+        // Phase 4d (2026-08-05) CHANGED THIS TEST TWICE. RescheduledNoBill was one of the cases here;
+        // it moved to the suppression tests below because 4d closes the OLD half of a split into that
+        // status and it must stay off the wire until 4e. And the appointment is now passed to Build so
+        // FindAsync answers with THIS status: the settle gate re-reads the row, and the stub used to
+        // hand back an Approved one regardless, so this theory never actually exercised its own
+        // parameter past the IsPublished check.
+        var appointment = NewAppointment(AppointmentId, status);
+        var (handler, queue) = Build(new List<Appointment> { appointment });
 
-        await handler.HandleEventAsync(
-            new EntityUpdatedEventData<Appointment>(NewAppointment(AppointmentId, status)));
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(appointment));
 
         await queue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Phase 4d T9 (2026-08-05), DELETED IN 4E -- the OLD half of a reschedule split. Its terminal
+    /// status is published by <see cref="CaseTrackerPublishPolicy"/>, so silence needs the gate:
+    /// left alone it would re-push the old appointment carrying a NoBill/Late billing status, telling
+    /// the receiver the case is closed before 4e teaches it what that means.
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.RescheduledLate)]
+    public async Task WhenTheOldHalfOfARescheduleSplitIsEdited_NothingIsQueued(AppointmentStatusType status)
+    {
+        var appointment = NewAppointment(AppointmentId, status);
+        var (handler, queue) = Build(new List<Appointment> { appointment });
+
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(appointment));
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    /// <summary>
+    /// Phase 4d T10 (2026-08-05), DELETED IN 4E -- the NEW half. Suppressing only the packet-settle
+    /// path would leave this hole: the replacement is Approved, so ANY later edit to it re-pushes,
+    /// and with no intake row yet that push IS its first contact -- the second case for one claim
+    /// that the whole suppression exists to prevent.
+    /// </summary>
+    [Fact]
+    public async Task WhenTheReplacementHalfOfARescheduleSplitIsEdited_NothingIsQueued()
+    {
+        var replacement = NewAppointment(
+            SecondAppointmentId,
+            AppointmentStatusType.Approved,
+            rescheduledFromAppointmentId: AppointmentId);
+        var (handler, queue) = Build(new List<Appointment> { replacement });
+
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(replacement));
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task WhenAPatientIsEdited_BothHalvesOfARescheduleSplitAreSkipped()
+    {
+        // The demographic fan-out is a second way into the same push. A gate keyed on the finalize
+        // path would let a name correction publish the split an hour later.
+        var normal = NewAppointment(AppointmentId, AppointmentStatusType.Approved);
+        var closed = NewAppointment(
+            new Guid("7a1b2c3d-4e5f-4061-8273-9a0b1c2d3e4f"), AppointmentStatusType.RescheduledNoBill);
+        var replacement = NewAppointment(
+            SecondAppointmentId, AppointmentStatusType.Approved, rescheduledFromAppointmentId: closed.Id);
+
+        var (handler, queue) = Build(new List<Appointment> { normal, closed, replacement });
+
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Patient>(NewPatient()));
+
+        await queue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+        await queue.DidNotReceive().EnqueueIntakeAsync(closed.Id, Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await queue.DidNotReceive().EnqueueIntakeAsync(
+            SecondAppointmentId, Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

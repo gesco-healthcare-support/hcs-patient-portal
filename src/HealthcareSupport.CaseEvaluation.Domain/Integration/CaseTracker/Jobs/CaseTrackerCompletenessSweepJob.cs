@@ -132,6 +132,17 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
 
         foreach (var appointment in missing)
         {
+            // Phase 4d (2026-08-05), REMOVED IN 4E. Without this arm the sweep undoes the other two
+            // gates within the hour: a replacement appointment is published, settled and has no
+            // intake row, which is precisely this job's definition of a lost enqueue.
+            if (CaseTrackerRescheduleSuppressionPolicy.IsSuppressed(appointment))
+            {
+                _logger.LogDebug(
+                    "CaseTrackerCompletenessSweepJob: appointment {AppointmentId} has no intake row by design; it is one half of a phase-4d reschedule split and stays off the wire until 4e amends the contract (status {Status}, rescheduled-from {SourceId}).",
+                    appointment.Id, appointment.AppointmentStatus, appointment.RescheduledFromAppointmentId);
+                continue;
+            }
+
             // Since 2026-07-30 "published with no intake row" is the NORMAL state between approval and
             // the packet set settling, so recovering unconditionally would race the deferral and send
             // exactly the packet-less intake it exists to prevent. Waiting for settle keeps this job

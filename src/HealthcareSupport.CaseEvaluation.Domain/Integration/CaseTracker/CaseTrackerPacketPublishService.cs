@@ -58,6 +58,17 @@ public class CaseTrackerPacketPublishService : ITransientDependency
     {
         ArgumentNullException.ThrowIfNull(appointment);
 
+        // Phase 4d (2026-08-05), REMOVED IN 4E. The replacement appointment has no intake row, so
+        // without this its settling packet set takes the first-contact branch below and opens a
+        // SECOND case for one claim -- the thing the contract currently promises never happens.
+        if (CaseTrackerRescheduleSuppressionPolicy.IsSuppressed(appointment))
+        {
+            _logger.LogDebug(
+                "CaseTrackerPacketPublishService: appointment {AppointmentId} packets settled but nothing was published; it is one half of a phase-4d reschedule split and stays off the wire until 4e amends the contract (status {Status}, rescheduled-from {SourceId}).",
+                appointment.Id, appointment.AppointmentStatus, appointment.RescheduledFromAppointmentId);
+            return false;
+        }
+
         if (!await HasIntakeAsync(appointment.Id, cancellationToken))
         {
             // First contact: the packets ride along inside the intake, which the payload builder
