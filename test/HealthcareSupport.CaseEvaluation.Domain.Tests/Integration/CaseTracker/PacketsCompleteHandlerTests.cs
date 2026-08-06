@@ -201,13 +201,13 @@ public class PacketsCompleteHandlerTests
     }
 
     /// <summary>
-    /// Phase 4d T10 (2026-08-05), DELETED IN 4E. THE path the suppression exists for: the replacement
-    /// has no intake row, so its settling packet set takes the first-contact branch above and opens a
-    /// SECOND case for one claim -- while the contract still tells the receiver a reschedule is one
-    /// case with a changed date.
+    /// Phase 4e (2026-08-06) -- the REPLACEMENT's settling packet set becomes its intake, which is
+    /// how the second case is opened. 4d suppressed exactly this while the contract still told the
+    /// receiver a reschedule was one case with a changed date; 4e makes the two-case shape the
+    /// documented truth, so the first-contact branch runs normally.
     /// </summary>
     [Fact]
-    public async Task WhenTheReplacementHalfsPacketsSettle_NoIntakeIsQueued()
+    public async Task WhenTheReplacementHalfsPacketsSettle_TheSetBecomesItsIntake()
     {
         var (handler, documentQueue, intakeQueue) = Build(
             AllThreeGenerated(),
@@ -215,26 +215,30 @@ public class PacketsCompleteHandlerTests
 
         await handler.HandleEventAsync(Event(PacketKind.AttorneyClaimExaminer));
 
-        await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+        await intakeQueue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
         await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
     }
 
     /// <summary>
-    /// Phase 4d T9 (2026-08-05), DELETED IN 4E. The old half keeps its packets as a historical record
-    /// (decision 6) and is not regenerated, so this is the narrower case of one stalled kind finally
-    /// rendering afterwards -- which would still put the closed appointment on the document feed.
+    /// Phase 4e (2026-08-06) -- the old half keeps its packets as a historical record and is not
+    /// regenerated, so this is the narrower case of one stalled kind finally rendering after the
+    /// close. It belongs on the DOCUMENT feed, not as another intake: the case already exists.
     /// </summary>
     [Theory]
     [InlineData(AppointmentStatusType.RescheduledNoBill)]
     [InlineData(AppointmentStatusType.RescheduledLate)]
-    public async Task WhenTheOldHalfsPacketsSettleAgain_NothingIsQueued(AppointmentStatusType status)
+    public async Task WhenTheOldHalfsPacketsSettleAgain_TheyGoOnTheDocumentFeed(AppointmentStatusType status)
     {
         var (handler, documentQueue, intakeQueue) = Build(
             AllThreeGenerated(), status: status, hasExistingIntake: true);
 
         await handler.HandleEventAsync(Event(PacketKind.AttorneyClaimExaminer));
 
-        await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+        await documentQueue.Received(1).EnqueueDocumentEntriesAsync(
+            AppointmentId,
+            TenantId,
+            Arg.Any<IReadOnlyList<IntakeDocumentEntry>>(),
+            Arg.Any<CancellationToken>());
         await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
     }
 

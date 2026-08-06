@@ -53,7 +53,9 @@ public class AppointmentCoreResolver : ITransientDependency
         };
 
         // The slot is authoritative for date + time; Appointment.AppointmentDate is a denormalised
-        // copy that the in-place reschedule keeps in step, but the slot is the source of truth.
+        // copy written at booking, but the slot is the source of truth. (Until phase 4d a reschedule
+        // moved the appointment in place and kept the two in step; it now creates a new appointment
+        // on the agreed slot instead, so the copy is only ever written once.)
         var slot = await _doctorAvailabilityRepository.FindAsync(
             appointment.DoctorAvailabilityId, cancellationToken: cancellationToken);
         if (slot != null)
@@ -76,6 +78,37 @@ public class AppointmentCoreResolver : ITransientDependency
             section.PreviousConfirmationNumber = source?.RequestConfirmationNumber;
         }
 
+        // Phase 4e (2026-08-06) -- the reschedule chain, BACKWARD half. Same shape as the re-eval
+        // lookup above and deliberately a separate field: a replacement did not "follow up" the
+        // appointment it replaced, it took its place.
+        if (appointment.RescheduledFromAppointmentId is { } rescheduledFromId &&
+            rescheduledFromId != Guid.Empty)
+        {
+            var replaced = await _appointmentRepository.FindAsync(
+                rescheduledFromId, cancellationToken: cancellationToken);
+            section.RescheduledFromConfirmationNumber = replaced?.RequestConfirmationNumber;
+        }
+
+        // FORWARD half: the appointment that replaced THIS one, if any. A predicate query rather
+        // than a lookup by id, because the link is stored on the successor -- the closed appointment
+        // holds no pointer of its own. Without this a closed case is a dead end: it says it was
+        // rescheduled but not to where.
+        //
+        // GetListAsync, not FirstOrDefaultAsync: the latter is an EXTENSION method
+        // (RepositoryAsyncExtensions), so it cannot be substituted in a unit test -- an arrangement
+        // for it silently does nothing and the real extension runs against the substitute. This is
+        // an interface member, so the seam is real. At most one row can match (a closed appointment
+        // is terminal and cannot be rescheduled again), so taking the first is not a narrowing.
+        var successors = await _appointmentRepository.GetListAsync(
+            a => a.RescheduledFromAppointmentId == appointment.Id,
+            cancellationToken: cancellationToken);
+        var successor = successors.Count > 0 ? successors[0] : null;
+        if (successor != null)
+        {
+            section.SupersededByAppointmentId = successor.Id;
+            section.SupersededReason = SupersededReasonWire.ToWire(appointment.AppointmentStatus);
+        }
+
         return section;
     }
 }
@@ -96,4 +129,13 @@ public class AppointmentCoreSection
     public string AppointmentTypeName { get; set; } = string.Empty;
 
     public string? PreviousConfirmationNumber { get; set; }
+
+    /// <summary>Phase 4e -- the replaced appointment's confirmation number, on a replacement.</summary>
+    public string? RescheduledFromConfirmationNumber { get; set; }
+
+    /// <summary>Phase 4e -- the appointment that replaced this one, on a closed original.</summary>
+    public Guid? SupersededByAppointmentId { get; set; }
+
+    /// <summary>Phase 4e -- why it was superseded. Set exactly when <see cref="SupersededByAppointmentId"/> is.</summary>
+    public string? SupersededReason { get; set; }
 }

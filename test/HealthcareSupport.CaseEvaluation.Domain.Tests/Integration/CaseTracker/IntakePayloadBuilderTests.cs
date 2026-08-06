@@ -54,7 +54,8 @@ public class IntakePayloadBuilderTests
         EvaluationKind kind = EvaluationKind.Evaluation,
         Guid? originalAppointmentId = null,
         AppointmentStatusType status = AppointmentStatusType.Approved,
-        string? cancellationReason = null)
+        string? cancellationReason = null,
+        Guid? rescheduledFromAppointmentId = null)
     {
         return new Appointment(
             id, PatientId, identityUserId: null, AppointmentTypeId, LocationId, SlotId,
@@ -68,6 +69,7 @@ public class IntakePayloadBuilderTests
             OriginalAppointmentId = originalAppointmentId,
             AppointmentApproveDate = new DateTime(2026, 7, 27, 18, 30, 12, DateTimeKind.Utc),
             CancellationReason = cancellationReason,
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
     }
 
@@ -77,13 +79,25 @@ public class IntakePayloadBuilderTests
         List<AppointmentDocument>? documents = null,
         List<AppointmentPacket>? packets = null,
         List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null,
-        bool withDoctor = true)
+        bool withDoctor = true,
+        Appointment? successor = null)
     {
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetAsync(appointment.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(appointment));
         appointmentRepo.FindAsync(SourceAppointmentId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(sourceAppointment));
+
+        // Phase 4e: the FORWARD reschedule link is stored on the successor, so the resolver asks by
+        // predicate rather than by id. It uses GetListAsync because FirstOrDefaultAsync is an
+        // EXTENSION method and therefore unsubstitutable -- arranging it compiles, silently does
+        // nothing, and the real extension runs against this substitute instead.
+        appointmentRepo.GetListAsync(
+                Arg.Any<Expression<Func<Appointment, bool>>>(),
+                Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(
+                successor == null ? new List<Appointment>() : new List<Appointment> { successor }));
 
         var slotRepo = Substitute.For<IRepository<DoctorAvailability, Guid>>();
         slotRepo.FindAsync(SlotId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -306,6 +320,92 @@ public class IntakePayloadBuilderTests
         data.PreviousAppointmentId.ShouldBe(SourceAppointmentId);
         // Display aid only -- the re-eval has its own fresh confirmation number.
         data.PreviousConfirmationNumber.ShouldBe("A00041");
+        // The RESCHEDULE chain is a separate pair and stays empty on a re-evaluation. This is the
+        // assertion that stops the two link kinds being conflated again.
+        data.RescheduledFromAppointmentId.ShouldBeNull();
+        data.SupersededByAppointmentId.ShouldBeNull();
+    }
+
+    // ---- Phase 4e (2026-08-06): the reschedule chain ----
+
+    [Fact]
+    public async Task BuildAsync_ForAReplacement_LinksBackToTheAppointmentItReplaced()
+    {
+        var replacement = NewAppointment(
+            AppointmentId, "A00065", rescheduledFromAppointmentId: SourceAppointmentId);
+        var replaced = NewAppointment(
+            SourceAppointmentId, "A00041", status: AppointmentStatusType.RescheduledNoBill);
+        var builder = Build(replacement, sourceAppointment: replaced);
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.RescheduledFromAppointmentId.ShouldBe(SourceAppointmentId);
+        data.RescheduledFromConfirmationNumber.ShouldBe("A00041");
+        // A replacement is still a FIRST evaluation -- rescheduling does not make it a re-eval.
+        data.EvaluationKind.ShouldBe("EVAL");
+        data.PreviousAppointmentId.ShouldBeNull();
+        // It is the successor, so nothing superseded IT.
+        data.SupersededByAppointmentId.ShouldBeNull();
+        data.SupersededReason.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill, "NO_BILL")]
+    [InlineData(AppointmentStatusType.RescheduledLate, "LATE")]
+    public async Task BuildAsync_ForAReplacedAppointment_PointsForwardAndSaysWhy(
+        AppointmentStatusType status,
+        string expectedBillingStatus)
+    {
+        var replaced = NewAppointment(AppointmentId, "A00041", status: status);
+        var replacement = NewAppointment(
+            SourceAppointmentId, "A00065", rescheduledFromAppointmentId: AppointmentId);
+        var builder = Build(replaced, successor: replacement);
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.SupersededByAppointmentId.ShouldBe(SourceAppointmentId);
+        data.SupersededReason.ShouldBe("RESCHEDULED");
+        // The billing signal that lets Case Tracker close or bill the old date. It needed no new
+        // code -- only for 4d's suppression to be removed.
+        data.BillingStatus.ShouldBe(expectedBillingStatus);
+        data.Status.ShouldBe(status.ToString());
+    }
+
+    [Fact]
+    public async Task BuildAsync_ForAnOrdinaryAppointment_SendsNoRescheduleChainAtAll()
+    {
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.RescheduledFromAppointmentId.ShouldBeNull();
+        data.RescheduledFromConfirmationNumber.ShouldBeNull();
+        data.SupersededByAppointmentId.ShouldBeNull();
+        data.SupersededReason.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// The contract change IS the wire shape, so this asserts the serialized JSON rather than the
+    /// object: a field renamed in C# without updating the contract would pass an object-level
+    /// assertion and still break the receiver.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_SerializesTheRescheduleChainWithTheContractedNames()
+    {
+        var replacement = NewAppointment(
+            AppointmentId, "A00065", rescheduledFromAppointmentId: SourceAppointmentId);
+        var replaced = NewAppointment(
+            SourceAppointmentId, "A00041", status: AppointmentStatusType.RescheduledNoBill);
+        var builder = Build(replacement, sourceAppointment: replaced);
+
+        var json = IntakePayloadSerializer.Serialize(await builder.BuildAsync(AppointmentId));
+
+        json.ShouldContain($"\"rescheduledFromAppointmentId\":\"{SourceAppointmentId}\"");
+        json.ShouldContain("\"rescheduledFromConfirmationNumber\":\"A00041\"");
+        // Nulls are deliberately NOT omitted (IntakePayloadSerializer), so the forward pair is
+        // present and explicitly null rather than absent.
+        json.ShouldContain("\"supersededByAppointmentId\":null");
+        json.ShouldContain("\"supersededReason\":null");
     }
 
     [Fact]

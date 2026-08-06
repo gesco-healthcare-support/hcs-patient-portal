@@ -224,17 +224,22 @@ public class AppointmentChangedHandlerTests
     [InlineData(AppointmentStatusType.CancelledLate)]
     [InlineData(AppointmentStatusType.CancelledNoBill)]
     [InlineData(AppointmentStatusType.CancellationRequested)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.RescheduledLate)]
     public async Task LifecycleChangesAfterApprovalArePushed(AppointmentStatusType status)
     {
         // This is what subsumes the narrower cancel/reschedule trigger: any post-approval state change
         // is just another edit to an appointment their side already holds.
         //
-        // Phase 4d (2026-08-05) CHANGED THIS TEST TWICE. RescheduledNoBill was one of the cases here;
-        // it moved to the suppression tests below because 4d closes the OLD half of a split into that
-        // status and it must stay off the wire until 4e. And the appointment is now passed to Build so
-        // FindAsync answers with THIS status: the settle gate re-reads the row, and the stub used to
-        // hand back an Approved one regardless, so this theory never actually exercised its own
-        // parameter past the IsPublished check.
+        // The two Rescheduled statuses left this theory in 4d and RETURNED in 4e (2026-08-06). 4d
+        // closed the old half of a split into them and held it off the wire while the contract still
+        // promised the portal never creates a second appointment; 4e makes that promise true instead,
+        // so the close is published like any other post-approval change -- carrying the NO_BILL/LATE
+        // billing status that lets Case Tracker close or bill the old date.
+        //
+        // The appointment is passed to Build so FindAsync answers with THIS status: the settle gate
+        // re-reads the row, and the stub used to hand back an Approved one regardless, so before 4d
+        // this theory never exercised its own parameter past the IsPublished check.
         var appointment = NewAppointment(AppointmentId, status);
         var (handler, queue) = Build(new List<Appointment> { appointment });
 
@@ -244,32 +249,13 @@ public class AppointmentChangedHandlerTests
     }
 
     /// <summary>
-    /// Phase 4d T9 (2026-08-05), DELETED IN 4E -- the OLD half of a reschedule split. Its terminal
-    /// status is published by <see cref="CaseTrackerPublishPolicy"/>, so silence needs the gate:
-    /// left alone it would re-push the old appointment carrying a NoBill/Late billing status, telling
-    /// the receiver the case is closed before 4e teaches it what that means.
-    /// </summary>
-    [Theory]
-    [InlineData(AppointmentStatusType.RescheduledNoBill)]
-    [InlineData(AppointmentStatusType.RescheduledLate)]
-    public async Task WhenTheOldHalfOfARescheduleSplitIsEdited_NothingIsQueued(AppointmentStatusType status)
-    {
-        var appointment = NewAppointment(AppointmentId, status);
-        var (handler, queue) = Build(new List<Appointment> { appointment });
-
-        await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(appointment));
-
-        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
-    }
-
-    /// <summary>
-    /// Phase 4d T10 (2026-08-05), DELETED IN 4E -- the NEW half. Suppressing only the packet-settle
-    /// path would leave this hole: the replacement is Approved, so ANY later edit to it re-pushes,
-    /// and with no intake row yet that push IS its first contact -- the second case for one claim
-    /// that the whole suppression exists to prevent.
+    /// Phase 4e (2026-08-06) -- the REPLACEMENT half is published like any other approved
+    /// appointment. 4d suppressed exactly this; the assertion is inverted rather than deleted,
+    /// because "an edit to the replacement reaches the wire" is the behaviour 4e exists to restore
+    /// and it deserves a test of its own rather than only being covered by the theory above.
     /// </summary>
     [Fact]
-    public async Task WhenTheReplacementHalfOfARescheduleSplitIsEdited_NothingIsQueued()
+    public async Task WhenTheReplacementHalfOfARescheduleSplitIsEdited_ItIsPushed()
     {
         var replacement = NewAppointment(
             SecondAppointmentId,
@@ -279,14 +265,16 @@ public class AppointmentChangedHandlerTests
 
         await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(replacement));
 
-        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+        await queue.Received(1).EnqueueIntakeAsync(
+            SecondAppointmentId, TenantId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task WhenAPatientIsEdited_BothHalvesOfARescheduleSplitAreSkipped()
+    public async Task WhenAPatientIsEdited_BothHalvesOfARescheduleSplitArePushed()
     {
-        // The demographic fan-out is a second way into the same push. A gate keyed on the finalize
-        // path would let a name correction publish the split an hour later.
+        // The demographic fan-out reaches both halves. Under 4d this asserted the opposite; a
+        // correction to the patient's name now updates the closed case AND the new one, which is
+        // what "no periodic sweep is needed to stay fresh" (contract section E2) promises.
         var normal = NewAppointment(AppointmentId, AppointmentStatusType.Approved);
         var closed = NewAppointment(
             new Guid("7a1b2c3d-4e5f-4061-8273-9a0b1c2d3e4f"), AppointmentStatusType.RescheduledNoBill);
@@ -298,9 +286,9 @@ public class AppointmentChangedHandlerTests
         await handler.HandleEventAsync(new EntityUpdatedEventData<Patient>(NewPatient()));
 
         await queue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
-        await queue.DidNotReceive().EnqueueIntakeAsync(closed.Id, Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
-        await queue.DidNotReceive().EnqueueIntakeAsync(
-            SecondAppointmentId, Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await queue.Received(1).EnqueueIntakeAsync(closed.Id, TenantId, Arg.Any<CancellationToken>());
+        await queue.Received(1).EnqueueIntakeAsync(
+            SecondAppointmentId, TenantId, Arg.Any<CancellationToken>());
     }
 
     [Fact]

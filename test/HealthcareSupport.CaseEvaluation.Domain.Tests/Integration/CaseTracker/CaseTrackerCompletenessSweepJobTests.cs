@@ -219,14 +219,12 @@ public class CaseTrackerCompletenessSweepJobTests
     }
 
     /// <summary>
-    /// Phase 4d T10 (2026-08-05), DELETED IN 4E. This job is the reason suppressing the two publish
-    /// paths is not enough: a replacement appointment is Approved, settled and has NO intake row,
-    /// which is EXACTLY this job's definition of a lost enqueue. Within the hour it would re-create
-    /// the second case the other two gates just prevented -- and log it as a recovery, so the
-    /// divergence would read as the system working.
+    /// Phase 4e (2026-08-06) -- either half of a split is recovered like any other appointment. 4d
+    /// held both back; now a lost enqueue for a replacement is exactly the fault this job exists to
+    /// repair, and the backstop covers the two-case flow as it covers every other.
     /// </summary>
     [Fact]
-    public async Task TheNewHalfOfARescheduleSplit_IsNotRecovered()
+    public async Task TheNewHalfOfARescheduleSplit_IsRecoveredLikeAnyOther()
     {
         var (job, queue) = Build(
             new List<Appointment>
@@ -240,24 +238,24 @@ public class CaseTrackerCompletenessSweepJobTests
 
         await job.ExecuteAsync();
 
-        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
     }
 
     [Theory]
     [InlineData(AppointmentStatusType.RescheduledNoBill)]
     [InlineData(AppointmentStatusType.RescheduledLate)]
-    public async Task TheOldHalfOfARescheduleSplit_IsNotRecovered(AppointmentStatusType status)
+    public async Task TheOldHalfOfARescheduleSplit_IsRecoveredLikeAnyOther(AppointmentStatusType status)
     {
-        // Phase 4d T9 (2026-08-05), DELETED IN 4E. The old half normally HAS an intake row from its
-        // approval, so the sweep would pass over it -- but not if that original enqueue was the one
-        // that got lost, and then the recovery would carry its NoBill/Late close on the wire.
+        // The old half normally HAS an intake row from its approval, so the sweep passes over it --
+        // but not if that original enqueue was the one that got lost. Recovering it then carries the
+        // NoBill/Late close, which is the billing signal Case Tracker needs, not something to withhold.
         var (job, queue) = Build(
             new List<Appointment> { NewAppointment(WithoutRow, status) },
             new List<IntegrationOutboxItem>());
 
         await job.ExecuteAsync();
 
-        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
