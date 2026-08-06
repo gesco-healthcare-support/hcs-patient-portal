@@ -19,7 +19,15 @@ import type {
   AppointmentDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
+  RescheduleChainDto,
 } from '../../../proxy/appointments/models';
+import {
+  hasRescheduleSource,
+  rescheduleChainSteps,
+  rescheduleSourceLabel,
+  type RescheduleChainStep,
+  type RescheduleChainStepKind,
+} from './reschedule-chain.util';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { Gender, genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
@@ -201,6 +209,71 @@ export class AppointmentViewComponent implements OnInit {
   // PR2 (2026-07-10): read-only custom-field values for the "Additional details"
   // card on both detail views (one row per active field on the type, filled or empty).
   customFieldDisplayValues: CustomFieldValueDisplayDto[] = [];
+
+  // ---- Phase 4d (2026-08-05): the "rescheduled from" block ----
+  // Held on the shared base so the internal and external detail templates render one derivation
+  // rather than two that drift.
+
+  /** Collapsed by default: the timestamps are audit detail, not something the page leads with. */
+  rescheduleHistoryOpen = false;
+
+  toggleRescheduleHistory(): void {
+    this.rescheduleHistoryOpen = !this.rescheduleHistoryOpen;
+  }
+
+  get hasRescheduleSource(): boolean {
+    return hasRescheduleSource(this.appointment?.rescheduleChain);
+  }
+
+  get rescheduleSourceLabel(): string | null {
+    return rescheduleSourceLabel(this.appointment?.rescheduleChain);
+  }
+
+  get rescheduleSourceId(): string | null {
+    return this.appointment?.rescheduleChain?.sourceAppointmentId ?? null;
+  }
+
+  /**
+   * Opens the appointment this one replaced. One path serves both audiences: the external detail
+   * is registered at the top level on `appointments/view/:id` behind externalUserOnlyMatchGuard,
+   * and internal staff fall through to their own component on the same path.
+   */
+  openRescheduleSource(): void {
+    const sourceId = this.rescheduleSourceId;
+    if (sourceId) {
+      this.router.navigate(['/appointments/view', sourceId]);
+    }
+  }
+
+  private rescheduleStepsFor: RescheduleChainDto | null | undefined = undefined;
+  private rescheduleStepsCache: RescheduleChainStep[] = [];
+
+  /**
+   * Memoized on the chain's object identity so the SAME array instance is returned on every change
+   * detection pass. A getter that allocates a fresh array each pass is what hung the tab for two
+   * hours in phase 4b -- and silently, because the containers serve a production build with
+   * Angular's infinite-loop guard compiled out.
+   */
+  get rescheduleChainSteps(): RescheduleChainStep[] {
+    const chain = this.appointment?.rescheduleChain ?? null;
+    if (chain !== this.rescheduleStepsFor) {
+      this.rescheduleStepsFor = chain;
+      this.rescheduleStepsCache = rescheduleChainSteps(chain);
+    }
+    return this.rescheduleStepsCache;
+  }
+
+  /** Caption for a disclosure row. Literal copy, matching both detail templates. */
+  rescheduleStepLabel(kind: RescheduleChainStepKind): string {
+    switch (kind) {
+      case 'side-a-agreed':
+        return 'Patient side agreed';
+      case 'side-b-agreed':
+        return 'Defense side agreed';
+      default:
+        return 'Finalized by staff';
+    }
+  }
   isLoading = true;
   isSaving = false;
   errorMessage = '';

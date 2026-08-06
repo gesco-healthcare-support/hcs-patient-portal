@@ -176,6 +176,56 @@
     </div>
 
     <div class="ad-wrap">
+      <!--
+        Phase 4d (2026-08-05): what this appointment replaced. The agreed DATE is deliberately not
+        repeated here -- it is this appointment's own date, already in the banner above. The three
+        timestamps are collapsed because they are audit detail, not what the page leads with.
+      -->
+      @if (hasRescheduleSource && rescheduleSourceLabel) {
+        <div class="ad-note ad-note--reschedule">
+          <span class="ic"><app-icon name="calendar" [size]="18" /></span>
+          <div class="ad-note__body">
+            <b>Rescheduled from {{ rescheduleSourceLabel }}</b>
+            <p>Both sides agreed to this date before it was booked.</p>
+            <div class="ad-note__actions">
+              @if (rescheduleSourceId) {
+                <button type="button" class="ad-note__link" (click)="openRescheduleSource()">
+                  View the original appointment
+                </button>
+              }
+              @if (rescheduleChainSteps.length) {
+                <button
+                  type="button"
+                  class="ad-note__toggle"
+                  [attr.aria-expanded]="rescheduleHistoryOpen"
+                  (click)="toggleRescheduleHistory()"
+                >
+                  Reschedule history
+                  <app-icon
+                    name="chevDown"
+                    [size]="14"
+                    class="ad-chev"
+                    [class.is-open]="rescheduleHistoryOpen"
+                  />
+                </button>
+              }
+            </div>
+            @if (rescheduleHistoryOpen) {
+              <dl class="ad-note__steps">
+                @for (step of rescheduleChainSteps; track step.kind) {
+                  <div>
+                    <dt>{{ rescheduleStepLabel(step.kind) }}</dt>
+                    <dd>
+                      {{ step.at | date: 'MMM d, y' }} &middot; {{ step.at | date: 'h:mm a' }}
+                    </dd>
+                  </div>
+                }
+              </dl>
+            }
+          </div>
+        </div>
+      }
+
       <!-- outcome / message notes -->
       @if (rejectionReason) {
         <div class="ad-note ad-note--rejected">
