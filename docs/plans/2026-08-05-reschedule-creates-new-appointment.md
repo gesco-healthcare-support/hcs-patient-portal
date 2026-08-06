@@ -254,9 +254,23 @@ copier lives in the **EntityFrameworkCore** project, not Domain, because it need
 - pattern: `MultiOfficeAppointmentsAppServiceTests` for resolution + seeding; seed slots at
   `DateTime.Today + N`.
 - approach: tdd
-- acceptance (EARS): THE SYSTEM SHALL have one failing-then-passing test per group; deleting any
-  single group from the copier SHALL fail exactly one test; and blanking any single copied FIELD
-  SHALL fail that group's test (both mutation-checked).
+- acceptance (EARS): THE SYSTEM SHALL have one test per group; deleting any single group from the
+  copier SHALL fail that group's test AND the per-group counts test while every other group's test
+  stays green; and blanking any single copied FIELD SHALL fail exactly that group's test.
+
+  RESULT (2026-08-05, both mutations run then reverted): deleting the body-parts copy failed
+  `Copies_body_parts_and_repoints_them_at_the_new_injury_details` + `Reports_a_count_for_every_group`
+  (2 of 12; the other 10 stayed green, proving group isolation). Corrupting one field
+  (`EmployerName`) failed `Copies_employer_details` alone (1 of 12). NOTE: the original wording
+  said a dropped group fails "exactly one test". It fails TWO, because the counts test covers every
+  group by design -- a better signal, not a defect.
+
+  Seeding note: four groups carry REQUIRED FKs the office seeder does not create
+  (`AppointmentAccessor.IdentityUserId`, `AppointmentApplicantAttorney.ApplicantAttorneyId`,
+  `AppointmentDefenseAttorney.DefenseAttorneyId`, `CustomFieldValue.CustomFieldId`). Their parents
+  are seeded in the test; without them SQLite fails with a bare "FOREIGN KEY constraint failed"
+  naming no column. Only ONE accessor is seeded because the harness creates exactly one real
+  identity user.
 
 ### T6 -- old-appointment terminal status policy
 
