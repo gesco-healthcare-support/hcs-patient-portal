@@ -43,6 +43,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
     /// </summary>
     private readonly IAppointmentRepository _capacityRepository;
 
+    private readonly RescheduleChainResolver _chainResolver;
     private readonly IRepository<NotificationOutboxItem, Guid> _outboxRepository;
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly INotificationTemplateTypeRepository _templateTypeRepository;
@@ -56,6 +57,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         _slotRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();
         _capacityRepository = GetRequiredService<IAppointmentRepository>();
+        _chainResolver = GetRequiredService<RescheduleChainResolver>();
         _outboxRepository = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
         _templateRepository = GetRequiredService<INotificationTemplateRepository>();
         _templateTypeRepository = GetRequiredService<INotificationTemplateTypeRepository>();
@@ -323,6 +325,107 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         {
             (await _capacityRepository.GetActiveCountForSlotAsync(scenario.OriginSlotId)).ShouldBe(0L);
             (await _capacityRepository.GetActiveCountForSlotAsync(scenario.SecondSlotId)).ShouldBe(1L);
+        });
+    }
+
+    /// <summary>
+    /// Phase 4d T11a (2026-08-05) -- when staff DECIDED, as its own column.
+    ///
+    /// <para>Both sides can agree and staff still not action the request until later, so the
+    /// consent timestamps do not answer "when was this actually decided". The inherited
+    /// <c>LastModificationTime</c> does not either: it moves on ANY later write, which the second
+    /// half of this test is what pins.</para>
+    /// </summary>
+    [Fact]
+    public async Task Finalize_stamps_when_the_request_was_decided()
+    {
+        var scenario = await NewScenarioAsync();
+
+        await InOfficeAsync(scenario.Office, async () =>
+            (await _changeRequestRepository.GetAsync(scenario.ChangeRequestId)).DecidedAt.ShouldBeNull());
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        var decidedAt = default(DateTime);
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var decided = await _changeRequestRepository.GetAsync(scenario.ChangeRequestId);
+            decided.DecidedAt.ShouldNotBeNull();
+            decidedAt = decided.DecidedAt!.Value;
+        });
+
+        // A later unrelated write must not relabel when the decision was made. This is the whole
+        // reason it is a column: LastModificationTime would move here and quietly become wrong.
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var row = await _changeRequestRepository.GetAsync(scenario.ChangeRequestId);
+            row.AdminReScheduleReason = "TEST-later unrelated edit";
+            await _changeRequestRepository.UpdateAsync(row, autoSave: true);
+        });
+
+        await InOfficeAsync(scenario.Office, async () =>
+            (await _changeRequestRepository.GetAsync(scenario.ChangeRequestId))
+                .DecidedAt.ShouldBe(decidedAt));
+    }
+
+    /// <summary>
+    /// Phase 4d T11 (2026-08-05) -- the read side of the chain, through the REAL resolver.
+    ///
+    /// <para>The consent timestamps come from the CURRENT round, not from the change request's own
+    /// consent columns: 4c moved reschedule consent onto rounds and leaves the parent's columns at
+    /// <c>NotRequired</c>, so reading the parent would return nulls for a request that plainly had
+    /// consent.</para>
+    /// </summary>
+    [Fact]
+    public async Task The_replacement_carries_the_chain_back_to_the_appointment_it_replaced()
+    {
+        var scenario = await NewScenarioAsync();
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var source = await _appointmentRepository.GetAsync(scenario.AppointmentId);
+            var replacement = (await _appointmentRepository.FirstOrDefaultAsync(
+                a => a.RescheduledFromAppointmentId == scenario.AppointmentId))!;
+
+            var chain = await _chainResolver.ResolveOneAsync(replacement);
+
+            chain.ShouldNotBeNull();
+            chain!.SourceAppointmentId.ShouldBe(scenario.AppointmentId);
+            chain.SourceRequestConfirmationNumber.ShouldBe(source.RequestConfirmationNumber);
+            // Staff finalize is its own moment; the harness grants consent first, so both are set.
+            chain.DecidedAt.ShouldNotBeNull();
+            chain.SideAAgreedAt.ShouldNotBeNull();
+
+            // The appointment nobody rescheduled has no chain at all -- not an empty one.
+            (await _chainResolver.ResolveOneAsync(source)).ShouldBeNull();
         });
     }
 

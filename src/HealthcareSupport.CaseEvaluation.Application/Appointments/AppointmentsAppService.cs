@@ -85,9 +85,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // reschedule split can allocate one too. (TenantId, RequestConfirmationNumber) is a hard
     // unique index -- two implementations writing to it could drift apart.
     protected RequestConfirmationNumberGenerator _confirmationNumberGenerator;
+    // Phase 4d (2026-08-05): the "rescheduled from" chain for the detail reads.
+    protected RescheduleChainResolver _rescheduleChainResolver;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver)
     {
+        _rescheduleChainResolver = rescheduleChainResolver;
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _patientRepository = patientRepository;
@@ -190,14 +193,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // users (admin / Intake Staff / etc.) bypass; external users
         // must be the creator OR have an AppointmentAccessor row.
         await EnsureCanReadAsync(id);
+        var withNavigation = (await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!;
         var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
-            (await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
+            withNavigation);
         // Phase 13b (2026-05-04) -- mask InternalUserComments for external
         // users so the field is not exposed via the API JSON payload.
         ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
         // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
         // to the last 4 for ALL callers.
         ApplyPatientSsnVisibility(dto);
+        // Phase 4d (2026-08-05) -- null unless this appointment replaced another one.
+        dto.RescheduleChain = await _rescheduleChainResolver.ResolveOneAsync(withNavigation.Appointment);
         return dto;
     }
 
@@ -285,6 +291,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
         // to the last 4 for ALL callers.
         ApplyPatientSsnVisibility(dto);
+        // Phase 4d (2026-08-05) -- null unless this appointment replaced another one.
+        dto.RescheduleChain = await _rescheduleChainResolver.ResolveOneAsync(appointment);
         return dto;
     }
 
