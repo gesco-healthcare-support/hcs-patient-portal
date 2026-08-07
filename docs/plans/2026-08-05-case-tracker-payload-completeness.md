@@ -273,8 +273,10 @@ public void MarkDecided(RequestStatusType outcome, Guid? decidedById, DateTime n
 It must reject `RequestStatusType.Pending` as an outcome (fail fast -- `Pending` is not a decision),
 set `ApprovedById` for `Accepted` and `RejectedById` for `Rejected`, and set `DecidedAt = nowUtc`.
 
-Then replace the four finalization sites with a `MarkDecided` call, using ABP `IClock.Now` for the
-instant (the app service already has a clock; if not, inject `IClock`):
+Then replace the four finalization sites with a `MarkDecided` call. Use `Clock.Now.ToUniversalTime()`
+for the instant -- `Clock` is already inherited from the ABP `ApplicationService` base, so NO new
+dependency is needed, and `.ToUniversalTime()` is the house idiom in this very file
+(`Approval.cs:267`, `AppointmentChangeRequestsAppService.cs:258`). Do not inject `IClock`.
 
 - `AppointmentChangeRequestsAppService.Approval.cs:130-131` (cancel approve, `Accepted`)
 - `:188-189` (cancel reject, `Rejected`)
