@@ -27,6 +27,7 @@ import {
   rescheduleSourceLabel,
   type RescheduleChainStep,
 } from './reschedule-chain.util';
+import { downstreamSaveFailureMessage } from './save-failure-message.util';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { Gender, genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
@@ -1161,9 +1162,12 @@ export class AppointmentViewComponent implements OnInit {
                   );
                   this.successMessage =
                     'Appointment, patient, employer, applicant attorney, and defense attorney details updated successfully.';
-                } catch {
+                } catch (downstreamError) {
+                  // 2026-08-06: capture the error rather than swallowing it. A 403 here means the
+                  // user lacks a permission and retrying can never work, which is the opposite
+                  // advice from a transient failure -- the old single message gave neither.
                   this.errorMessage =
-                    'Appointment and patient updated, but a downstream save (employer / attorney) failed.';
+                    downstreamSaveFailureMessage(downstreamError as { status?: number }) ?? '';
                   savedClean = false;
                 } finally {
                   this.isSaving = false;
