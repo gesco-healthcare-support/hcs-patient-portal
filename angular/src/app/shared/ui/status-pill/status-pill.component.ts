@@ -17,7 +17,9 @@ export type AppointmentPillStatus =
   | 'Cancelled'
   | 'CancellationRequested'
   | 'Rescheduled'
-  | 'RescheduleRequested';
+  | 'RescheduleRequested'
+  | 'NoShow'
+  | 'NotSeen';
 
 type PillTone = 'pending' | 'purple' | 'approved' | 'rejected' | 'neutral' | 'info';
 
@@ -32,6 +34,11 @@ type PillTone = 'pending' | 'purple' | 'approved' | 'rejected' | 'neutral' | 'in
  * The two REQUESTED pills take `pending` (amber), which reads as in-progress. They cannot
  * reuse their terminal pill's tone: `info` blue and `neutral` grey both read as DONE, which is
  * exactly the false impression phase 4c exists to remove.
+ *
+ * Phase 5 (2026-08-07) adds `NoShow` and `NotSeen` on `neutral` -- the inverse of the 4c
+ * reasoning. These ARE done: the appointment happened and produced no evaluation, so grey is
+ * accurate rather than misleading. They share Cancelled's tone but never its LABEL, which is
+ * the whole point: NoShow used to render as "Cancelled" and the appointment was not cancelled.
  */
 const PILL_META: Record<AppointmentPillStatus, { tone: PillTone; label: string }> = {
   Pending: { tone: 'pending', label: 'Pending' },
@@ -42,6 +49,8 @@ const PILL_META: Record<AppointmentPillStatus, { tone: PillTone; label: string }
   CancellationRequested: { tone: 'pending', label: 'Cancellation Requested' },
   Rescheduled: { tone: 'info', label: 'Rescheduled' },
   RescheduleRequested: { tone: 'pending', label: 'Reschedule Requested' },
+  NoShow: { tone: 'neutral', label: 'No Show' },
+  NotSeen: { tone: 'neutral', label: 'Not Seen' },
 };
 
 /**

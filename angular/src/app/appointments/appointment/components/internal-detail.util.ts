@@ -77,6 +77,12 @@ const BANNER_VARIANTS: Partial<Record<AppointmentPillStatus, string>> = {
   InfoRequested: 'info-requested',
   RescheduleRequested: 'reschedule-requested',
   CancellationRequested: 'cancellation-requested',
+  // Phase 5 (2026-08-07). REQUIRED, not cosmetic: without these the fallback yields
+  // `noshow` / `notseen`, which match no CALLOUTS key, so the banner would silently
+  // drop to the generic pending copy on a settled appointment -- exactly the failure
+  // this map exists to prevent.
+  NoShow: 'no-show',
+  NotSeen: 'not-seen',
 };
 
 export function bannerVariant(pill: AppointmentPillStatus): string {
@@ -91,6 +97,11 @@ const STATUS_LABELS: Partial<Record<AppointmentPillStatus, string>> = {
   InfoRequested: 'Info requested',
   RescheduleRequested: 'Reschedule requested',
   CancellationRequested: 'Cancellation requested',
+  // Long-standing business names, kept verbatim rather than sentence-cased to match
+  // the neighbours above -- Adrian: "these are long used names throughout the
+  // business". Without an entry the raw key renders as the run-on "NoShow".
+  NoShow: 'No Show',
+  NotSeen: 'Not Seen',
 };
 
 export function statusLabel(pill: AppointmentPillStatus): string {

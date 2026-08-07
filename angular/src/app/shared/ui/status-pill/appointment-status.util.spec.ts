@@ -30,7 +30,19 @@ describe('appointmentStatusToPill', () => {
   it('still maps the settled cancellation outcomes to Cancelled', () => {
     expect(appointmentStatusToPill(AppointmentStatusType.CancelledNoBill)).toBe('Cancelled');
     expect(appointmentStatusToPill(AppointmentStatusType.CancelledLate)).toBe('Cancelled');
-    expect(appointmentStatusToPill(AppointmentStatusType.NoShow)).toBe('Cancelled');
+  });
+
+  // Phase 5 (2026-08-07). NoShow used to return 'Cancelled' here -- asserted by this
+  // very spec until now -- while the backend StatusPillPolicy returned null for it.
+  // The appointment was neither cancelled nor absent from the UI; it was mislabelled.
+  it('gives each attendance outcome its own pill instead of Cancelled', () => {
+    expect(appointmentStatusToPill(AppointmentStatusType.NoShow)).toBe('NoShow');
+    expect(appointmentStatusToPill(AppointmentStatusType.NotSeen)).toBe('NotSeen');
+  });
+
+  it('does not report either attendance outcome as Cancelled', () => {
+    expect(appointmentStatusToPill(AppointmentStatusType.NoShow)).not.toBe('Cancelled');
+    expect(appointmentStatusToPill(AppointmentStatusType.NotSeen)).not.toBe('Cancelled');
   });
 
   it('leaves the untouched buckets alone', () => {
@@ -70,7 +82,10 @@ describe('appointmentStatusToSegment', () => {
       [AppointmentStatusType.CancelledNoBill, 'cancelled'],
       [AppointmentStatusType.CancelledLate, 'cancelled'],
       [AppointmentStatusType.CancellationRequested, 'cancelled'],
+      // Phase 5: the PILL changed for these two, the CHIP deliberately did not.
+      // This row is the proof that no external chip count moved.
       [AppointmentStatusType.NoShow, 'cancelled'],
+      [AppointmentStatusType.NotSeen, 'cancelled'],
       [AppointmentStatusType.RescheduledNoBill, 'rescheduled'],
       [AppointmentStatusType.RescheduledLate, 'rescheduled'],
       [AppointmentStatusType.RescheduleRequested, 'rescheduled'],

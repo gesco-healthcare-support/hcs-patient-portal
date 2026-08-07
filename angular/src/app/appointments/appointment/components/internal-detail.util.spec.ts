@@ -75,6 +75,13 @@ describe('internal-detail.util', () => {
       expect(bannerVariant('RescheduleRequested')).toBe('reschedule-requested');
       expect(bannerVariant('CancellationRequested')).toBe('cancellation-requested');
     });
+
+    // Phase 5 (2026-08-07): same failure mode. Without explicit entries these degrade to
+    // 'noshow' / 'notseen', which match no CALLOUTS key and no .ad-banner-- SCSS rule.
+    it('hyphenates the attendance outcomes', () => {
+      expect(bannerVariant('NoShow')).toBe('no-show');
+      expect(bannerVariant('NotSeen')).toBe('not-seen');
+    });
   });
 
   describe('statusLabel', () => {
@@ -86,6 +93,12 @@ describe('internal-detail.util', () => {
     it('humanizes the multi-word in-flight pills instead of running the words together', () => {
       expect(statusLabel('RescheduleRequested')).toBe('Reschedule requested');
       expect(statusLabel('CancellationRequested')).toBe('Cancellation requested');
+    });
+
+    // The business's own names, verbatim -- not sentence-cased like the neighbours above.
+    it('uses the business names for the attendance outcomes', () => {
+      expect(statusLabel('NoShow')).toBe('No Show');
+      expect(statusLabel('NotSeen')).toBe('Not Seen');
     });
   });
 

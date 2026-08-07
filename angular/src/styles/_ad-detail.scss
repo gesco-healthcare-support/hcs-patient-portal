@@ -40,6 +40,15 @@
 .ad-banner--info-requested {
   background: linear-gradient(135deg, #3b2a5e, #54398a 62%, #6b4aa8);
 }
+// Phase 5 (2026-08-07): the two attendance outcomes. Slate, not the rejected/cancelled
+// red -- nothing went wrong with the REQUEST; the appointment simply produced no
+// evaluation. Matches the neutral tone their status pill carries. A variant with no rule
+// here inherits only `.ad-banner { color: #fff }`, i.e. white text on no background, so
+// every new bannerVariant needs an entry.
+.ad-banner--no-show,
+.ad-banner--not-seen {
+  background: linear-gradient(135deg, #2f3437, #464e52 66%, #5a6469);
+}
 .ad-banner__in {
   max-width: 1560px;
   margin: 0 auto;

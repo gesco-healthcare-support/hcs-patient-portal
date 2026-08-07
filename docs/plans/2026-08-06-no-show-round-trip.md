@@ -61,10 +61,30 @@ them in CASE TRACKER, which is why this phase exists at all -- the portal has to
   must come back as a new appointment request. So the gate reads status AND
   `Appointment.EvaluationKind`, not status alone. This deliberately breaks the strict-OLD-parity
   rule recorded at `AppointmentLifecycleValidators.cs:50-55`; recorded here rather than slipped in.
-- Decision 2 (Adrian, 2026-08-06, via modal): ONE new UI pill covering both statuses. They are the
-  same thing operationally -- the appointment produced no evaluation -- and today `NoShow` maps to
-  NO pill at all (`StatusPillPolicy.ToPill` returns null), so these appointments are invisible in
-  the donut and its filters. That invisibility is the "make sure it is searchable" half of the ask.
+- ~~Decision 2 (Adrian, 2026-08-06, via modal): ONE new UI pill covering both statuses.~~
+  **SUPERSEDED 2026-08-07 (Adrian, via modal).** TWO pills, labelled `No Show` and `Not Seen`.
+  Verbatim: "I do not want to invent new names, these are long used names throughout the business
+  not something new I am making." So no merged "Not Evaluated" label.
+  Consequence: the backend needs TWO pill constants and TWO donut slices, not one. That is what
+  keeps `StatusPillPolicy` mirroring the Angular util -- a single backend bucket behind two Angular
+  labels would recreate exactly the divergence found below.
+- Decision 2b (Adrian, 2026-08-07, via modal): the new pills go in the backend `DonutOrder` (so the
+  internal dashboard shows the volume) but map to the EXISTING `cancelled` external filter segment.
+  No seventh external chip, no external chip count moves. This follows the 4c precedent verbatim:
+  pill TEXT becomes honest, the filter bar does not churn. The internal donut and the external chip
+  bar are separate surfaces, so they may legitimately differ.
+
+### The draft's premise for decision 2 was HALF WRONG (found 2026-08-07)
+
+The draft argued these appointments are "invisible in the donut and its filters" because
+`StatusPillPolicy.ToPill` returns null. True for the BACKEND donut. False for the UI: the Angular
+util maps `NoShow` to the **`Cancelled`** pill (`appointment-status.util.ts:46`), so a no-showed
+appointment today renders as a grey "Cancelled" chip.
+
+It is therefore MISLABELLED, not invisible -- the same class of defect 4c fixed for the two
+REQUESTED states, and worse than absence. Both files' doc comments claim they mirror each other and
+they do not; T4 must bring them back into agreement rather than only adding to one side.
+
 - Decision 3 (Adrian, 2026-08-06, via modal): the portal does NOT push these statuses back to Case
   Tracker. With no replacement to announce, the push carries nothing they do not already know --
   they authored it. (This REVERSES the recommendation given earlier in the same session, which
@@ -226,17 +246,32 @@ are covered.
   reject it with the new code and SHALL NOT reuse the not-approved message. THE SYSTEM SHALL
   continue to reject every other source status.
 
-### T4 -- one pill for both
+### T4 -- a pill each, and a mislabelling fix
 
-- what: MODIFY `Application/Appointments/StatusPillPolicy.cs` -- add a pill constant covering
-  `NoShow` and `NotSeen`, map both to it in `ToPill`, and place it in `DonutOrder`. MODIFY the
-  Angular status filter/label surfaces that consume the pill set so the new slice renders.
-- pattern: the `CancelledNoBill or CancelledLate => Cancelled` arm, which already folds two statuses
-  into one pill.
+**REWRITTEN 2026-08-07** for decisions 2 (two pills, business names) and 2b, and for the
+backend/Angular divergence recorded above. The draft's title ("one pill for both") is superseded.
+
+- what: MODIFY `Application/Appointments/StatusPillPolicy.cs` -- add TWO constants, `NoShow` and
+  `NotSeen`, map each status to its own in `ToPill`, and place both in `DonutOrder` beside
+  `Cancelled` (same family of terminal non-event). MODIFY
+  `angular/src/app/shared/ui/status-pill/status-pill.component.ts` -- add both keys to
+  `AppointmentPillStatus` and `PILL_META`, labelled "No Show" and "Not Seen", tone `neutral` to
+  match `Cancelled`. These ARE done, so 4c's reason for giving the REQUESTED states an in-progress
+  amber does not apply. MODIFY
+  `angular/src/app/shared/ui/status-pill/appointment-status.util.ts` -- **REMOVE `NoShow` from the
+  `Cancelled` arm** (this is the mislabelling FIX, not an addition), map each status to its own
+  pill, and add both to `PILL_TO_SEGMENT` pointing at `'cancelled'` so no external chip moves.
+  ADD `NotSeen = 15` to `angular/src/app/proxy/enums/appointment-status-type.enum.ts` -- what
+  `abp generate-proxy` would emit; by hand because the generator needs a running API.
+- pattern: the `CancelledNoBill or CancelledLate => Cancelled` arm for the backend switch; 4c's
+  split of the REQUESTED states out of their terminal pills for the Angular side -- the same move
+  for the same reason.
 - approach: tdd
-- acceptance (EARS): WHEN an appointment is `NoShow` or `NotSeen`, THE SYSTEM SHALL report the new
-  pill and SHALL include it in the donut order. WHEN it is any other status, THE SYSTEM SHALL report
-  exactly the pill it reports today.
+- acceptance (EARS): WHEN an appointment is `NoShow`, THE SYSTEM SHALL report the `NoShow` pill;
+  WHEN it is `NotSeen`, the `NotSeen` pill; and THE SYSTEM SHALL include both in the donut order.
+  WHEN an appointment is `NoShow`, THE SYSTEM SHALL NOT report it as `Cancelled` in either the
+  backend policy or the Angular util. WHEN it is any other status, THE SYSTEM SHALL report exactly
+  the pill it reports today, and every external filter chip count SHALL be unchanged.
 
 ### T5 -- the inbound endpoint
 
