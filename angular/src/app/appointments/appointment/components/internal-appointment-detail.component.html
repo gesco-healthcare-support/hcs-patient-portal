@@ -213,12 +213,8 @@
             @if (rescheduleHistoryOpen) {
               <dl class="ad-note__steps">
                 @for (step of rescheduleChainSteps; track step.kind) {
-                  <div>
-                    <dt>{{ rescheduleStepLabel(step.kind) }}</dt>
-                    <dd>
-                      {{ step.at | date: 'MMM d, y' }} &middot; {{ step.at | date: 'h:mm a' }}
-                    </dd>
-                  </div>
+                  <dt>{{ rescheduleStepLabel(step.kind) }}</dt>
+                  <dd>{{ step.at | date: 'MMM d, y' }} &middot; {{ step.at | date: 'h:mm a' }}</dd>
                 }
               </dl>
             }

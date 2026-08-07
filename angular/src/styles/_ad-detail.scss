@@ -363,9 +363,10 @@
   margin: 10px 0 0;
   font-size: 12.5px;
 }
-.ad-note__steps > div {
-  display: contents;
-}
+// dt / dd sit DIRECTLY in the dl -- no wrapper div, so no `display: contents`. The wrapper was
+// only ever there to group each pair, and `display: contents` has a documented history of dropping
+// its element from the accessibility tree, which is the last thing a definition list wants. The
+// two-column grid places each dt and dd on its own without it.
 .ad-note__steps dt {
   font-weight: 600;
   white-space: nowrap;
