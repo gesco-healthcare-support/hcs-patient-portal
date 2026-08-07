@@ -61,11 +61,47 @@ public class IntakePayload
     /// <summary><c>EVAL</c> or <c>RE_EVAL</c>.</summary>
     public string EvaluationKind { get; set; } = string.Empty;
 
-    /// <summary>The original appointment on a re-evaluation; null on a first evaluation.</summary>
+    /// <summary>
+    /// The original appointment on a RE-EVALUATION; null on a first evaluation.
+    ///
+    /// <para>This is the RE-EVAL chain and nothing else. The RESCHEDULE chain is
+    /// <see cref="RescheduledFromAppointmentId"/> -- a separate pair, because the two relationships
+    /// differ: a re-evaluated appointment HAPPENED and is followed up, a rescheduled one did NOT
+    /// happen and is replaced. Conflating them is what <c>evaluationKind</c> was added to prevent.</para>
+    /// </summary>
     public Guid? PreviousAppointmentId { get; set; }
 
     /// <summary>The original's confirmation number. Display only -- a re-eval gets its own.</summary>
     public string? PreviousConfirmationNumber { get; set; }
+
+    // ---- Reschedule chain (phase 4e, 2026-08-06) ----
+    // Finalizing a reschedule closes one appointment and opens another, so one claim becomes TWO
+    // cases. These four fields are what let the receiver join them back up and say why.
+
+    /// <summary>
+    /// On a REPLACEMENT created by finalizing a reschedule: the appointment it replaced. Null
+    /// otherwise. Distinct from <see cref="PreviousAppointmentId"/>; see that field.
+    /// </summary>
+    public Guid? RescheduledFromAppointmentId { get; set; }
+
+    /// <summary>
+    /// The replaced appointment's confirmation number. Display only -- a replacement gets its own,
+    /// and the value is per-office sequential so it repeats across offices. Match on the id.
+    /// </summary>
+    public string? RescheduledFromConfirmationNumber { get; set; }
+
+    /// <summary>
+    /// On a CLOSED appointment that was replaced: the appointment that replaced it. Null otherwise.
+    /// The forward half of the pair, so a closed case is not a dead end for their staff.
+    /// </summary>
+    public Guid? SupersededByAppointmentId { get; set; }
+
+    /// <summary>
+    /// WHY it was superseded (<c>RESCHEDULED</c>). Present exactly when
+    /// <see cref="SupersededByAppointmentId"/> is. Sent explicitly because the id alone cannot say
+    /// what kind of successor it is -- see <see cref="SupersededReasonWire"/>.
+    /// </summary>
+    public string? SupersededReason { get; set; }
 
     public IntakeTenantSection Tenant { get; set; } = new();
 
