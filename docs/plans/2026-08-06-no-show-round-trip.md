@@ -172,6 +172,13 @@ Two differences a POST brings (both RE-EXAMINED 2026-08-07, both were overstated
 
 ### T1 -- the NotSeen status and its transition
 
+**BUILT TOGETHER WITH T2 (2026-08-07).** T1's acceptance ("WHEN an Approved appointment is marked
+not-seen, THE SYSTEM SHALL move it to `NotSeen`") is not reachable on its own: `BuildMachine` is
+`private static` and `ApplyTransitionAsync` is private, so the only seam that can exercise a
+transition is a public manager method -- which is T2. Splitting them would have meant either a task
+with no runnable acceptance or a throwaway test. Both landed in one commit; the acceptances of both
+are covered.
+
 - what: MODIFY `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs`
   -- add `NotSeen = 15` with a doc line stating it means the patient ARRIVED but was not evaluated,
   as distinct from `NoShow`. MODIFY `Domain/Appointments/AppointmentTransitionTrigger.cs` -- add
