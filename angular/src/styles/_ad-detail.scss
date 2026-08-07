@@ -22,7 +22,15 @@
   position: relative;
   overflow: hidden;
 }
-.ad-banner--pending {
+// Phase 4c (2026-08-05) introduced the two in-flight REQUESTED variants but never added a
+// rule for them, so those banners rendered white text on NO background (2026-08-07). They
+// join `pending` here rather than getting their own colour: their status pill already uses
+// the in-progress amber, and reusing the terminal blue/red would restore exactly the
+// "this already happened" impression 4c existed to remove. The banner TITLE is what
+// distinguishes them from an appointment genuinely awaiting approval.
+.ad-banner--pending,
+.ad-banner--reschedule-requested,
+.ad-banner--cancellation-requested {
   background: linear-gradient(135deg, #5a4500, #8a6a00 70%, #a07c00);
 }
 .ad-banner--approved {
