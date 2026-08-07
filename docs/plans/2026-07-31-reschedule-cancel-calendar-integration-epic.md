@@ -119,8 +119,9 @@ Admin and Staff Supervisor.
 | 4b  | Staff pick the reschedule date              | `feat/staff-picks-reschedule-date`        | `docs/plans/2026-08-04-staff-picks-reschedule-date.md`             | **DONE** - #423 -> main `326f08a9`    |
 | 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | `docs/plans/2026-08-05-reschedule-consent-rounds.md`               | **DONE** - PR #428                    |
 | 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | `docs/plans/2026-08-05-reschedule-creates-new-appointment.md`      | **DONE** - PR #430 -> main `daeedbb2` |
-| 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | `docs/plans/2026-08-06-case-tracker-two-case-reschedule.md`        | BUILT, PR pending                     |
-| 5   | No-show round trip (INBOUND from CT)        | `feat/no-show-round-trip`                 | not written                                                        | TODO (after 4d)                       |
+| 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | `docs/plans/2026-08-06-case-tracker-two-case-reschedule.md`        | **DONE** - PR #431 -> main `5114e780` |
+| 5   | No-show / not-seen round trip (INBOUND)     | `feat/no-show-not-seen-round-trip`        | `docs/plans/2026-08-06-no-show-round-trip.md`                      | BUILT T1-T9, PR pending               |
+| 6   | CT payload completeness                     | `feat/case-tracker-payload-completeness`  | plan lives ON THAT BRANCH, not on main                             | PLANNED ONLY - re-audit before build  |
 
 **RELEASE TRAIN (Adrian, 2026-08-06): 4b + 4c + 4d + 4e DEPLOY TOGETHER as one release.** 4d holds
 the reschedule split off the Case Tracker wire behind three suppression gates and 4e removes them,
@@ -130,32 +131,38 @@ Consequence worth stating: the suppression code is never active in production fo
 reschedule. It earned its place anyway, by letting 4d merge and be live-gated without lying to
 Case Tracker. None of the four is deployed; the deploy needs a fresh explicit go.
 
-4e is BUILT on `feat/case-tracker-two-case-reschedule`, stacked on 4d's branch because its first
-task deletes a policy that does not exist on `main`. Rebase onto main once 4d's PR #430 merges.
 Coordination note: Levon needs to be INFORMED, not deployed -- the receiver's case key is
 `appointmentId` and it upserts on it, so two cases work with no code change on their side
 (`docs/integration/case-tracker-two-case-reschedule-change-summary.md`).
 
 Phase 5 ADDED 2026-07-31 (Adrian, while resolving phase 2's NoShow question). It is NOT a phase-2
-rider: it needs an INBOUND Case Tracker -> portal endpoint, which does not exist today (the
-integration is push-only plus a reconcile GET). Flow: CT staff mark a no-show -> CT calls a NEW
-portal endpoint with the appointment info -> the portal sets the appointment to `NoShow` and ALERTS
-staff -> staff use the appointment number to create a replacement appointment that is PRE-APPROVED
--> external parties may then cancel/reschedule it by the normal routes -> the replacement is pushed
-to CT so it starts tracking. Sequenced after 4d because "create a pre-approved replacement" reuses
-4d's create-new-appointment machinery.
+rider: it needs an INBOUND Case Tracker -> portal endpoint, which did not exist before (the
+integration was push-only plus a reconcile GET).
 
-Open questions to settle before planning phase 5:
+**THE DESCRIPTION HERE WAS WRONG AND IS CORRECTED (Adrian, 2026-08-06).** It used to read: the
+portal sets the appointment to `NoShow` and ALERTS staff -> staff use the appointment number to
+create a replacement that is PRE-APPROVED -> the replacement is pushed to CT. Verbatim correction:
+"Once an appointment is NoShow, we just mark it as that and move on. There is no replacement. If the
+clients want an appointment for the NoShow or NotSeen they have to request a new appointment (It
+applies to all appointments including re-evals)."
 
-- Auth: reuse the static `X-Integration-Token` that already guards the reconcile GET (contract §F),
-  or mint something separate?
-- Office resolution: database-per-office means the request must carry `{tenantId}` as a PATH
-  segment, exactly as §F documents for the reconcile GET -- a header will not do, since the portal
-  blocks tenant headers globally.
-- Idempotency: what happens when CT retries the same no-show?
-- MUST VERIFY FIRST: whether `Approved -> NoShow` is even a legal transition. `NoShow` is in
-  `AppointmentStatusType` but the contract records it as having NO API surface today, so the state
-  machine (`AppointmentManager.BuildMachine`) has to be read before any of this can be planned.
+That killed the generalized `ReplacesAppointmentId` + `ReplacementReason` column, which existed only
+to give a no-show replacement somewhere to link from -- and so 4d's reschedule-specific
+`RescheduledFromAppointmentId` is correct as built and 4d did NOT need reopening. It also removed
+phase 5's only dependency on 4d.
+
+Actual flow as BUILT: CT staff mark no-show or not-seen -> CT POSTs the new attendance endpoint
+(contract section K) -> the portal sets the status, shows it, and allows a re-eval ONLY where the
+appointment was itself a re-evaluation. Nothing is pushed back; CT authored it.
+
+- **NoShow** -- the patient did not arrive.
+- **NotSeen** (NEW, = 15) -- the patient arrived but was not evaluated: missing or incorrect
+  interpreter, patient left before being called, and similar.
+
+The four open questions that used to sit here are ALL ANSWERED and are recorded in the phase 5 plan:
+auth reuses the reconcile GET's `X-Integration-Token`; `{tenantId}` is a path segment; a retry with
+the same outcome is a 200 no-op keyed on current status; and `Approved -> NoShow` was already a
+legal transition with no caller, while `NotSeen` had to be added.
 
 Phases 1, 2 and 3 are mutually independent. 4a-4e are strictly sequential.
 
