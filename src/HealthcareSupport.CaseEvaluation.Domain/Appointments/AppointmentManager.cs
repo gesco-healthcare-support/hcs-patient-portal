@@ -272,6 +272,23 @@ public class AppointmentManager : DomainService
     public virtual Task<Appointment> ResubmitInfoAsync(Guid id, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
 
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- RescheduleRequested -> RescheduledNoBill / RescheduledLate. Closes
+    /// the OLD appointment when a reschedule is finalized and a NEW appointment takes its place.
+    ///
+    /// <para>Both triggers have been defined in <see cref="BuildMachine"/> since the state machine
+    /// was written but were UNREACHABLE: B2/4c kept the single appointment and recorded the outcome
+    /// on the change-request row instead, so nothing ever fired them. The caller supplies the
+    /// trigger from <c>RescheduleSplitPolicy</c>, which is the one place the billing outcome is
+    /// mapped -- passing it in keeps that mapping out of the state machine.</para>
+    /// </summary>
+    public virtual Task<Appointment> CloseForRescheduleAsync(
+        Guid id,
+        AppointmentTransitionTrigger trigger,
+        string? reason,
+        Guid? actingUserId)
+        => TransitionAsync(id, trigger, reason, actingUserId);
+
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
         var appointment = await _appointmentRepository.GetAsync(id);
@@ -387,7 +404,15 @@ public class AppointmentManager : DomainService
             .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected)
             // Send Back (2026-06-14): staff request more information.
-            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.InfoRequested);
+            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.InfoRequested)
+            // Phase 4d (2026-08-05): a PENDING appointment can be rescheduled too. B1 (2026-07-01)
+            // lets internal staff file a reschedule against a not-yet-approved appointment, and
+            // SubmitRescheduleAsync skips the Approved -> RescheduleRequested step for that source
+            // because no such transition exists -- so it arrives at finalize still Pending. Without
+            // these two, finalizing that reschedule throws an invalid transition and the whole
+            // Pending-source path is dead.
+            .Permit(AppointmentTransitionTrigger.ConfirmReschedule, AppointmentStatusType.RescheduledNoBill)
+            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate);
 
         // Info Requested is transient: the external user resubmits their fixes
         // and the appointment returns to Pending for staff review. The slot

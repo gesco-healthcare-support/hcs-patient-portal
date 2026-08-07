@@ -35,6 +35,15 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+
+    /// <summary>
+    /// The domain repository, resolved only for <c>GetActiveCountForSlotAsync</c> -- the exact
+    /// count the booking capacity gate compares against <c>DoctorAvailability.Capacity</c>
+    /// (<c>AppointmentsAppService.cs:1009</c>).
+    /// </summary>
+    private readonly IAppointmentRepository _capacityRepository;
+
+    private readonly RescheduleChainResolver _chainResolver;
     private readonly IRepository<NotificationOutboxItem, Guid> _outboxRepository;
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly INotificationTemplateTypeRepository _templateTypeRepository;
@@ -47,6 +56,8 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         _changeRequestRepository = GetRequiredService<IRepository<AppointmentChangeRequest, Guid>>();
         _slotRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();
+        _capacityRepository = GetRequiredService<IAppointmentRepository>();
+        _chainResolver = GetRequiredService<RescheduleChainResolver>();
         _outboxRepository = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
         _templateRepository = GetRequiredService<INotificationTemplateRepository>();
         _templateTypeRepository = GetRequiredService<INotificationTemplateTypeRepository>();
@@ -243,15 +254,178 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
 
         await InOfficeAsync(scenario.Office, async () =>
         {
-            var appointment = await _appointmentRepository.GetAsync(scenario.AppointmentId);
-            appointment.DoctorAvailabilityId.ShouldBe(scenario.SecondSlotId);
-            appointment.AppointmentDate.Date.ShouldBe(scenario.SecondSlotDate.Date);
+            // Phase 4d (2026-08-05) CHANGED WHAT THIS ASSERTS. Until 4d finalize moved the SAME
+            // appointment onto the agreed slot, and this test read that row to prove it had moved.
+            // 4d splits it in two: the OLD appointment no longer moves, it CLOSES, and the agreed
+            // slot belongs to a NEW appointment. The original assertion did not merely go stale --
+            // it failed with an invalid-transition BusinessException, which is what exposed that a
+            // Pending-source reschedule could not close at all.
+            var oldAppointment = await _appointmentRepository.GetAsync(scenario.AppointmentId);
+            oldAppointment.AppointmentStatus.ShouldBe(AppointmentStatusType.RescheduledNoBill);
+
+            var replacement = await _appointmentRepository.FirstOrDefaultAsync(
+                a => a.RescheduledFromAppointmentId == scenario.AppointmentId);
+            replacement.ShouldNotBeNull();
+            replacement!.DoctorAvailabilityId.ShouldBe(scenario.SecondSlotId);
+            replacement.AppointmentDate.Date.ShouldBe(scenario.SecondSlotDate.Date);
+            // Its own number: (TenantId, RequestConfirmationNumber) is a hard unique index.
+            replacement.RequestConfirmationNumber.ShouldNotBe(oldAppointment.RequestConfirmationNumber);
+            // The source was approved (RescheduleRequested is the post-submit form of that), so the
+            // replacement inherits Approved -- both sides already consented to this exact date.
+            replacement.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
 
             var changeRequest = await _changeRequestRepository.GetAsync(scenario.ChangeRequestId);
             changeRequest.RequestStatus.ShouldBe(RequestStatusType.Accepted);
             // The approval email resolves its date from this column, so finalize must write it.
             changeRequest.AdminOverrideSlotId.ShouldBe(scenario.SecondSlotId);
             changeRequest.CancellationOutcome.ShouldBe(AppointmentStatusType.RescheduledNoBill);
+            // Decision 5: the request and its rounds stay with the appointment they were filed
+            // against, so 4c's audit trail is not rewritten.
+            changeRequest.AppointmentId.ShouldBe(scenario.AppointmentId);
+        });
+    }
+
+    /// <summary>
+    /// Phase 4d T8 (2026-08-05) -- the split hands the slot over: the old appointment stops holding
+    /// its origin slot and the replacement holds the agreed one. 4d writes NO explicit slot release;
+    /// the capacity count excludes the two Rescheduled terminal statuses
+    /// (<c>EfCoreAppointmentRepository.cs:437-438</c>), so closing the old row IS the release.
+    ///
+    /// <para>The before-assertion is not decoration: without it a copier that never created the
+    /// replacement, or a finalize that never closed the old row, could still leave the origin count
+    /// at 0 for the wrong reason.</para>
+    /// </summary>
+    [Fact]
+    public async Task Finalize_frees_the_old_slot_and_takes_the_agreed_one()
+    {
+        var scenario = await NewScenarioAsync();
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.OriginSlotId)).ShouldBe(1L);
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.SecondSlotId)).ShouldBe(0L);
+        });
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.OriginSlotId)).ShouldBe(0L);
+            (await _capacityRepository.GetActiveCountForSlotAsync(scenario.SecondSlotId)).ShouldBe(1L);
+        });
+    }
+
+    /// <summary>
+    /// Phase 4d T11a (2026-08-05) -- when staff DECIDED, as its own column.
+    ///
+    /// <para>Both sides can agree and staff still not action the request until later, so the
+    /// consent timestamps do not answer "when was this actually decided". The inherited
+    /// <c>LastModificationTime</c> does not either: it moves on ANY later write, which the second
+    /// half of this test is what pins.</para>
+    /// </summary>
+    [Fact]
+    public async Task Finalize_stamps_when_the_request_was_decided()
+    {
+        var scenario = await NewScenarioAsync();
+
+        await InOfficeAsync(scenario.Office, async () =>
+            (await _changeRequestRepository.GetAsync(scenario.ChangeRequestId)).DecidedAt.ShouldBeNull());
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        var decidedAt = default(DateTime);
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var decided = await _changeRequestRepository.GetAsync(scenario.ChangeRequestId);
+            decided.DecidedAt.ShouldNotBeNull();
+            decidedAt = decided.DecidedAt!.Value;
+        });
+
+        // A later unrelated write must not relabel when the decision was made. This is the whole
+        // reason it is a column: LastModificationTime would move here and quietly become wrong.
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var row = await _changeRequestRepository.GetAsync(scenario.ChangeRequestId);
+            row.AdminReScheduleReason = "TEST-later unrelated edit";
+            await _changeRequestRepository.UpdateAsync(row, autoSave: true);
+        });
+
+        await InOfficeAsync(scenario.Office, async () =>
+            (await _changeRequestRepository.GetAsync(scenario.ChangeRequestId))
+                .DecidedAt.ShouldBe(decidedAt));
+    }
+
+    /// <summary>
+    /// Phase 4d T11 (2026-08-05) -- the read side of the chain, through the REAL resolver.
+    ///
+    /// <para>The consent timestamps come from the CURRENT round, not from the change request's own
+    /// consent columns: 4c moved reschedule consent onto rounds and leaves the parent's columns at
+    /// <c>NotRequired</c>, so reading the parent would return nulls for a request that plainly had
+    /// consent.</para>
+    /// </summary>
+    [Fact]
+    public async Task The_replacement_carries_the_chain_back_to_the_appointment_it_replaced()
+    {
+        var scenario = await NewScenarioAsync();
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var source = await _appointmentRepository.GetAsync(scenario.AppointmentId);
+            var replacement = (await _appointmentRepository.FirstOrDefaultAsync(
+                a => a.RescheduledFromAppointmentId == scenario.AppointmentId))!;
+
+            var chain = await _chainResolver.ResolveOneAsync(replacement);
+
+            chain.ShouldNotBeNull();
+            chain!.SourceAppointmentId.ShouldBe(scenario.AppointmentId);
+            chain.SourceRequestConfirmationNumber.ShouldBe(source.RequestConfirmationNumber);
+            // Staff finalize is its own moment; the harness grants consent first, so both are set.
+            chain.DecidedAt.ShouldNotBeNull();
+            chain.SideAAgreedAt.ShouldNotBeNull();
+
+            // The appointment nobody rescheduled has no chain at all -- not an empty one.
+            (await _chainResolver.ResolveOneAsync(source)).ShouldBeNull();
         });
     }
 
@@ -355,7 +529,13 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
                     doctorAvailabilityId: originSlotId,
                     appointmentDate: originSlotDate.Date.AddHours(8),
                     requestConfirmationNumber: $"RCN-4C-{appointmentId:N}"[..20],
-                    appointmentStatus: AppointmentStatusType.Approved),
+                    // Seeded as RescheduleRequested, which is where the real submit flow leaves an
+                    // Approved appointment (SubmitRescheduleAsync fires Approved -> RescheduleRequested).
+                    // These tests insert the change-request row directly and never run submit, so
+                    // seeding Approved left the appointment in a state production never reaches --
+                    // harmless while 4c only moved the row, but 4d closes it through the state
+                    // machine, where Approved permits no reschedule-confirm trigger.
+                    appointmentStatus: AppointmentStatusType.RescheduleRequested),
                 autoSave: true);
 
             await _changeRequestRepository.InsertAsync(

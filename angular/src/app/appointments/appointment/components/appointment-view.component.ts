@@ -19,7 +19,14 @@ import type {
   AppointmentDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
+  RescheduleChainDto,
 } from '../../../proxy/appointments/models';
+import {
+  hasRescheduleSource,
+  rescheduleChainSteps,
+  rescheduleSourceLabel,
+  type RescheduleChainStep,
+} from './reschedule-chain.util';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { Gender, genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
@@ -201,6 +208,67 @@ export class AppointmentViewComponent implements OnInit {
   // PR2 (2026-07-10): read-only custom-field values for the "Additional details"
   // card on both detail views (one row per active field on the type, filled or empty).
   customFieldDisplayValues: CustomFieldValueDisplayDto[] = [];
+
+  // ---- Phase 4d (2026-08-05): the "rescheduled from" block ----
+  // The DATA lives here so both detail templates share one derivation; the MARKUP and its
+  // open/closed state live in RescheduleChainNoteComponent, extracted 2026-08-07 after SonarCloud
+  // flagged the block as ~90 duplicated lines across the two templates.
+
+  get hasRescheduleSource(): boolean {
+    return hasRescheduleSource(this.appointment?.rescheduleChain);
+  }
+
+  get rescheduleSourceLabel(): string | null {
+    return rescheduleSourceLabel(this.appointment?.rescheduleChain);
+  }
+
+  get rescheduleSourceId(): string | null {
+    return this.appointment?.rescheduleChain?.sourceAppointmentId ?? null;
+  }
+
+  /**
+   * Opens the appointment this one replaced. One path serves both audiences: the external detail
+   * is registered at the top level on `appointments/view/:id` behind externalUserOnlyMatchGuard,
+   * and internal staff fall through to their own component on the same path.
+   *
+   * <p>A full browser navigation, NOT `router.navigate`, and the live gate is why. This is the
+   * only detail-to-detail link in the app: every other route into here comes from a list, so the
+   * component is built fresh. Angular reuses the component instance when only the `:id` param
+   * changes, and both this class and the internal subclass read that param ONCE from
+   * `route.snapshot` in `ngOnInit` -- so `router.navigate` changed the URL and left the previous
+   * appointment on screen. Verified live: the address bar showed the source id while the page
+   * still rendered the replacement.</p>
+   *
+   * <p>Subscribing to `paramMap` instead would mean extracting a ~100-line `ngOnInit` in the
+   * shared base and a second one in the subclass -- restructuring the app's highest-traffic
+   * screens for one rarely-clicked audit link. If a future phase adds more detail-to-detail
+   * navigation, do that refactor then and delete this.</p>
+   */
+  openRescheduleSource(): void {
+    const sourceId = this.rescheduleSourceId;
+    if (sourceId) {
+      window.location.assign(`/appointments/view/${sourceId}`);
+    }
+  }
+
+  private rescheduleStepsFor: RescheduleChainDto | null | undefined = undefined;
+  private rescheduleStepsCache: RescheduleChainStep[] = [];
+
+  /**
+   * Memoized on the chain's object identity so the SAME array instance is returned on every change
+   * detection pass. A getter that allocates a fresh array each pass is what hung the tab for two
+   * hours in phase 4b -- and silently, because the containers serve a production build with
+   * Angular's infinite-loop guard compiled out.
+   */
+  get rescheduleChainSteps(): RescheduleChainStep[] {
+    const chain = this.appointment?.rescheduleChain ?? null;
+    if (chain !== this.rescheduleStepsFor) {
+      this.rescheduleStepsFor = chain;
+      this.rescheduleStepsCache = rescheduleChainSteps(chain);
+    }
+    return this.rescheduleStepsCache;
+  }
+
   isLoading = true;
   isSaving = false;
   errorMessage = '';

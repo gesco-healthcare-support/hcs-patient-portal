@@ -103,6 +103,20 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// </summary>
     public virtual AppointmentStatusType? CancellationOutcome { get; set; }
 
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- when staff DECIDED this request, stamped once as
+    /// <see cref="RequestStatus"/> becomes Accepted or Rejected, on all four decision paths.
+    ///
+    /// <para>Distinct from the consent timestamps: both sides can agree and staff still not get to
+    /// the request until later, so "when both parties agreed" and "when it was actually actioned"
+    /// are different moments and the history needs both.</para>
+    ///
+    /// <para>Why a column rather than the inherited <c>LastModificationTime</c>: that reflects the
+    /// LAST write of any kind, so any later edit silently relabels when the decision was made. A log
+    /// entry that quietly becomes wrong is worse than one that is absent.</para>
+    /// </summary>
+    public virtual DateTime? DecidedAt { get; set; }
+
     // ---- Consent (2026-07-01 redesign): two symmetric side-consent slots ----
     // Side A = Patient + Applicant Attorney; Side B = Defense Attorney + Claim Examiner.
     // Party-initiated auto-grants the requestor's side and tokens the opposing side;

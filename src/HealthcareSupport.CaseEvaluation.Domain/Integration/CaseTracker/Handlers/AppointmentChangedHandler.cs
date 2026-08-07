@@ -123,6 +123,17 @@ public class AppointmentChangedHandler :
                 return;
             }
 
+            // Phase 4d (2026-08-05), REMOVED IN 4E. Gating here rather than in the two
+            // HandleEventAsync overloads covers both entry points at once -- an edit to either half
+            // of a split, and a patient demographic correction fanning out over their appointments.
+            if (CaseTrackerRescheduleSuppressionPolicy.IsSuppressed(appointment))
+            {
+                _logger.LogDebug(
+                    "AppointmentChangedHandler: {Trigger} change for appointment {AppointmentId} skipped; it is one half of a phase-4d reschedule split and stays off the wire until 4e amends the contract (status {Status}, rescheduled-from {SourceId}).",
+                    trigger, appointmentId, appointment.AppointmentStatus, appointment.RescheduledFromAppointmentId);
+                return;
+            }
+
             var packets = await _packetRepository.GetListAsync(p => p.AppointmentId == appointmentId);
             if (!IntakeSettlePolicy.IsSettled(appointment, packets, PacketSetPolicy.Cutoff(_clock.Now)))
             {

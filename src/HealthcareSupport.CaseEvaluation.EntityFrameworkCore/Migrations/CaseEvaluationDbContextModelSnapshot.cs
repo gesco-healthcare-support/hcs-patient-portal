@@ -385,6 +385,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CreatorId");
 
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DecidedAt");
+
                     b.Property<Guid?>("DeleterId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("DeleterId");
@@ -2224,6 +2228,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("RequestConfirmationNumber");
 
+                    b.Property<Guid?>("RescheduledFromAppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RescheduledFromAppointmentId");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
@@ -2239,6 +2247,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasIndex("LocationId");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("RescheduledFromAppointmentId");
 
                     b.HasIndex("TenantId", "RequestConfirmationNumber")
                         .IsUnique()

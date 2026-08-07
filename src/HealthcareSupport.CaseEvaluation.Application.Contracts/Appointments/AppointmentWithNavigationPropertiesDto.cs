@@ -47,4 +47,12 @@ public class AppointmentWithNavigationPropertiesDto
     /// <summary>CI1 (2026-06-05) -- single appointment-level CE + insurance.</summary>
     public AppointmentClaimExaminerDto? ClaimExaminer { get; set; }
     public AppointmentPrimaryInsuranceDto? PrimaryInsurance { get; set; }
+
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- set only when this appointment was created by finalizing a
+    /// reschedule; null otherwise. Populated on the DETAIL reads only: the "rescheduled from" block
+    /// is a detail-page element, so carrying it on every list row would widen each page of the grid
+    /// for something nothing renders.
+    /// </summary>
+    public RescheduleChainDto? RescheduleChain { get; set; }
 }

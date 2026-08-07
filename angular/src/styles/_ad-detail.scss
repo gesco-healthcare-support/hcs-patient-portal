@@ -314,6 +314,68 @@
   color: #4a3578;
 }
 
+// Phase 4d (2026-08-05): the "rescheduled from" note. Deliberately NEUTRAL rather than one of the
+// outcome colours above -- it reports where the appointment came from, not something that went
+// right or wrong, and colouring it green/red would read as a status the appointment does not have.
+.ad-note--reschedule {
+  background: var(--n-50);
+  border: 1px solid var(--n-200);
+  color: var(--n-700);
+}
+.ad-note__body {
+  min-width: 0;
+  flex: 1;
+}
+.ad-note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+// Buttons, not anchors: neither is a document link, and a bare <a> without href is invisible to
+// the keyboard -- the a11y class of defect SonarCloud caught in 4a and 4b.
+.ad-note__link,
+.ad-note__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+.ad-note__link {
+  text-decoration: underline;
+}
+.ad-note__link:hover,
+.ad-note__toggle:hover {
+  opacity: 0.75;
+}
+.ad-note__steps {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+}
+// dt / dd sit DIRECTLY in the dl -- no wrapper div, so no `display: contents`. The wrapper was
+// only ever there to group each pair, and `display: contents` has a documented history of dropping
+// its element from the accessibility tree, which is the last thing a definition list wants. The
+// two-column grid places each dt and dd on its own without it.
+.ad-note__steps dt {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ad-note__steps dd {
+  margin: 0;
+  opacity: 0.85;
+}
+
 // Send Back external fix-it page (status = Info requested)
 .sb-note {
   display: flex;

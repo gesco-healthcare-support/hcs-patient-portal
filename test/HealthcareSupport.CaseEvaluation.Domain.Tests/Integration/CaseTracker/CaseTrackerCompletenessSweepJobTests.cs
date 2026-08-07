@@ -35,7 +35,8 @@ public class CaseTrackerCompletenessSweepJobTests
     private static Appointment NewAppointment(
         Guid id,
         AppointmentStatusType status,
-        DateTime? changedAt = null) =>
+        DateTime? changedAt = null,
+        Guid? rescheduledFromAppointmentId = null) =>
         new(
             id,
             patientId: new Guid("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc"),
@@ -52,6 +53,7 @@ public class CaseTrackerCompletenessSweepJobTests
             // Must be set explicitly: an unsaved entity's CreationTime is default(DateTime), which is
             // outside any lookback window, so every case here would silently stop exercising the sweep.
             CreationTime = changedAt ?? Now.AddHours(-1),
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
 
     private static IntegrationOutboxItem IntakeRowFor(Guid appointmentId)
@@ -207,6 +209,48 @@ public class CaseTrackerCompletenessSweepJobTests
     public async Task AnUnpublishedAppointment_IsIgnored(AppointmentStatusType status)
     {
         // These never had an intake pushed, so a missing row is correct rather than a fault.
+        var (job, queue) = Build(
+            new List<Appointment> { NewAppointment(WithoutRow, status) },
+            new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    /// <summary>
+    /// Phase 4d T10 (2026-08-05), DELETED IN 4E. This job is the reason suppressing the two publish
+    /// paths is not enough: a replacement appointment is Approved, settled and has NO intake row,
+    /// which is EXACTLY this job's definition of a lost enqueue. Within the hour it would re-create
+    /// the second case the other two gates just prevented -- and log it as a recovery, so the
+    /// divergence would read as the system working.
+    /// </summary>
+    [Fact]
+    public async Task TheNewHalfOfARescheduleSplit_IsNotRecovered()
+    {
+        var (job, queue) = Build(
+            new List<Appointment>
+            {
+                NewAppointment(
+                    WithoutRow,
+                    AppointmentStatusType.Approved,
+                    rescheduledFromAppointmentId: WithRow),
+            },
+            new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.RescheduledLate)]
+    public async Task TheOldHalfOfARescheduleSplit_IsNotRecovered(AppointmentStatusType status)
+    {
+        // Phase 4d T9 (2026-08-05), DELETED IN 4E. The old half normally HAS an intake row from its
+        // approval, so the sweep would pass over it -- but not if that original enqueue was the one
+        // that got lost, and then the recovery would carry its NoBill/Late close on the wire.
         var (job, queue) = Build(
             new List<Appointment> { NewAppointment(WithoutRow, status) },
             new List<IntegrationOutboxItem>());

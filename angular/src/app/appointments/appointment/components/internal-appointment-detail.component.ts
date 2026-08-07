@@ -16,6 +16,7 @@ import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
+import { RescheduleChainNoteComponent } from './reschedule-chain-note.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
@@ -63,6 +64,7 @@ import {
     ReactiveFormsModule,
     NgbDatepickerModule,
     IconComponent,
+    RescheduleChainNoteComponent,
     SkeletonComponent,
     SsnInputComponent,
     AppLookupSelectComponent,
