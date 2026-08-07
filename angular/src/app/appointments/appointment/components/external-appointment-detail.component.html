@@ -125,44 +125,12 @@
         asked to agree to this date, so the record of that belongs to them as much as to staff.
       -->
       @if (hasRescheduleSource && rescheduleSourceLabel) {
-        <div class="ad-note ad-note--reschedule">
-          <span class="ic"><app-icon name="calendar" [size]="18" /></span>
-          <div class="ad-note__body">
-            <b>Rescheduled from {{ rescheduleSourceLabel }}</b>
-            <p>Both sides agreed to this date before it was booked.</p>
-            <div class="ad-note__actions">
-              @if (rescheduleSourceId) {
-                <button type="button" class="ad-note__link" (click)="openRescheduleSource()">
-                  View the original appointment
-                </button>
-              }
-              @if (rescheduleChainSteps.length) {
-                <button
-                  type="button"
-                  class="ad-note__toggle"
-                  [attr.aria-expanded]="rescheduleHistoryOpen"
-                  (click)="toggleRescheduleHistory()"
-                >
-                  Reschedule history
-                  <app-icon
-                    name="chevDown"
-                    [size]="14"
-                    class="ad-chev"
-                    [class.is-open]="rescheduleHistoryOpen"
-                  />
-                </button>
-              }
-            </div>
-            @if (rescheduleHistoryOpen) {
-              <dl class="ad-note__steps">
-                @for (step of rescheduleChainSteps; track step.kind) {
-                  <dt>{{ rescheduleStepLabel(step.kind) }}</dt>
-                  <dd>{{ step.at | date: 'MMM d, y' }} &middot; {{ step.at | date: 'h:mm a' }}</dd>
-                }
-              </dl>
-            }
-          </div>
-        </div>
+        <app-reschedule-chain-note
+          [sourceLabel]="rescheduleSourceLabel"
+          [canOpenSource]="!!rescheduleSourceId"
+          [steps]="rescheduleChainSteps"
+          (openSource)="openRescheduleSource()"
+        />
       }
 
       <!-- outcome note -->

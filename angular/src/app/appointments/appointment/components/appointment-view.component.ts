@@ -26,7 +26,6 @@ import {
   rescheduleChainSteps,
   rescheduleSourceLabel,
   type RescheduleChainStep,
-  type RescheduleChainStepKind,
 } from './reschedule-chain.util';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { Gender, genderOptions } from '../../../proxy/enums/gender.enum';
@@ -211,15 +210,9 @@ export class AppointmentViewComponent implements OnInit {
   customFieldDisplayValues: CustomFieldValueDisplayDto[] = [];
 
   // ---- Phase 4d (2026-08-05): the "rescheduled from" block ----
-  // Held on the shared base so the internal and external detail templates render one derivation
-  // rather than two that drift.
-
-  /** Collapsed by default: the timestamps are audit detail, not something the page leads with. */
-  rescheduleHistoryOpen = false;
-
-  toggleRescheduleHistory(): void {
-    this.rescheduleHistoryOpen = !this.rescheduleHistoryOpen;
-  }
+  // The DATA lives here so both detail templates share one derivation; the MARKUP and its
+  // open/closed state live in RescheduleChainNoteComponent, extracted 2026-08-07 after SonarCloud
+  // flagged the block as ~90 duplicated lines across the two templates.
 
   get hasRescheduleSource(): boolean {
     return hasRescheduleSource(this.appointment?.rescheduleChain);
@@ -276,17 +269,6 @@ export class AppointmentViewComponent implements OnInit {
     return this.rescheduleStepsCache;
   }
 
-  /** Caption for a disclosure row. Literal copy, matching both detail templates. */
-  rescheduleStepLabel(kind: RescheduleChainStepKind): string {
-    switch (kind) {
-      case 'side-a-agreed':
-        return 'Patient side agreed';
-      case 'side-b-agreed':
-        return 'Defense side agreed';
-      default:
-        return 'Finalized by staff';
-    }
-  }
   isLoading = true;
   isSaving = false;
   errorMessage = '';
