@@ -89,6 +89,8 @@ public sealed class AppointmentExceptionTranslator : ITransientDependency
             => "Appointment:RevalSourceNotApproved",
         CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApprovedAdminHint
             => "Appointment:RevalSourceNotApprovedAdminHint",
+        CaseEvaluationDomainErrorCodes.AppointmentRevalSourceIncompleteFirstEvaluation
+            => "Appointment:RevalSourceIncompleteFirstEvaluation",
         CaseEvaluationDomainErrorCodes.AppointmentAccessDenied
             => "Appointment:AccessDenied",
         CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded

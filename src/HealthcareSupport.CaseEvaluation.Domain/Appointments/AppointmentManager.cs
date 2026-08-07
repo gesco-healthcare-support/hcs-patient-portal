@@ -191,9 +191,11 @@ public class AppointmentManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
         }
 
-        if (!AppointmentLifecycleValidators.CanCreateReval(source.AppointmentStatus, callerIsItAdmin))
+        if (!AppointmentLifecycleValidators.CanCreateReval(
+                source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin))
         {
-            var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(callerIsItAdmin);
+            var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin);
             throw new BusinessException(errorCode)
                 .WithData("confirmationNumber", sourceConfirmationNumber)
                 .WithData("status", source.AppointmentStatus);

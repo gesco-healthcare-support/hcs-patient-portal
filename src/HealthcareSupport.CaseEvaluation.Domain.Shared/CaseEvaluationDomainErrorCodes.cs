@@ -320,6 +320,19 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.RevalSourceNotApprovedAdminHint";
 
     /// <summary>
+    /// Phase 5 (2026-08-07) -- raised by the Reval path when the source
+    /// appointment is <c>NoShow</c> or <c>NotSeen</c> AND was itself a FIRST
+    /// evaluation. Distinct from the two not-approved codes because the advice
+    /// differs: those say "wait for approval" or "approve it and try again",
+    /// both impossible here -- the source can never return to <c>Approved</c>,
+    /// so the only way forward is a new appointment request. Applies to admin
+    /// and non-admin callers alike.
+    /// Localization key <c>Appointment:RevalSourceIncompleteFirstEvaluation</c>.
+    /// </summary>
+    public const string AppointmentRevalSourceIncompleteFirstEvaluation =
+        "CaseEvaluation:Appointment.RevalSourceIncompleteFirstEvaluation";
+
+    /// <summary>
     /// Phase 12 (2026-05-04) -- raised by
     /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
     /// when <c>ApproveAppointmentInput.PrimaryResponsibleUserId</c>
