@@ -41,6 +41,35 @@ independent work to the epic's longest pole while N3 blocks Levon's proof-of-ser
 - This plan was audited against `main` at `2ce2ef3f` on 2026-08-07 and eight defects in the first
   draft were corrected. The `## Audit trail` section at the bottom records what changed and why, so
   you do not re-derive it or reintroduce it.
+- **Phase 4e is IN FLIGHT and rewriting the same contract file T8 edits.** Read the coordination
+  section below before you touch `docs/integration/case-tracker-api-contract.md`.
+
+### Coordination with phase 4e (IN FLIGHT as of 2026-08-07)
+
+The other session moved from 4d to 4e during this plan's revision. Observed live in the shared
+worktree: branch `feat/case-tracker-two-case-reschedule`, with
+`docs/plans/2026-08-06-case-tracker-two-case-reschedule.md`,
+`docs/integration/case-tracker-two-case-reschedule-change-summary.md`, and a heavily modified
+`docs/integration/case-tracker-api-contract.md`. The epic roadmap was briefly in an unresolved
+merge conflict (`UU`), so that file is being actively merged too.
+
+`git diff main...feat/case-tracker-two-case-reschedule -- docs/integration/case-tracker-api-contract.md`
+shows roughly twenty hunks spread across the whole contract, including the section-A field-table
+region and the claim/party tables. The first draft of this plan called the two "mostly disjoint".
+That assessment predates 4e having a plan and is now WRONG for the contract file specifically.
+
+Consequences for this phase, none of which change its code scope:
+
+- **Do T8 LAST**, after every code task is green, and immediately after
+  `git fetch origin && git rebase origin/main`. Rebasing first means you edit whatever version of the
+  contract actually survived, instead of resurrecting a stale one.
+- **Phase 6 only ADDS to the contract.** If you hit a conflict there, 4e's text is authoritative for
+  sections E2, section A's STATUS table, section H timing, and Coordination decisions 4 and 6. Never
+  resolve it by taking "ours" wholesale -- that silently reverts 4e's rewrite.
+- **T10 has the same hazard** on the epic roadmap. Re-read the Phase table immediately before editing;
+  4e may already have added or moved rows.
+- The code scope is untouched by all of this. `IntakePayload`, the resolvers and the migrations do not
+  overlap 4e at all -- the collision is confined to two markdown files.
 
 ## Goal
 
@@ -451,6 +480,9 @@ appointment with no change request yields nulls throughout and does not throw.
 
 approach: code
 
+**Do this task LAST, and run `git fetch origin && git rebase origin/main` immediately before it.**
+Phase 4e is rewriting this same file; see the coordination section at the top. Phase 6 only ADDS.
+
 `docs/integration/case-tracker-api-contract.md`:
 
 - `data.patient` table: the five new address fields, with decision 10's `Address`-versus-`Street`
@@ -500,8 +532,9 @@ Record in the roadmap's learnings, each in one line:
 - `AppointmentChangeRequest.RequestStatus` still has a public setter; `MarkDecided` (T1) is the
   intended single sink, and tightening the setter to enforce it is a candidate refactor.
 
-**Run `git status --short` first.** That file is shared with the session owning 4d. Commit it by
-explicit pathspec, alone, and leave any file you did not create.
+**Run `git status --short` first, and re-read the Phase table before editing it.** That file is shared
+with the session owning 4e, which has already had it in an unresolved merge conflict once. Commit it
+by explicit pathspec, alone, and leave any file you did not create.
 
 ## Acceptance (EARS)
 
