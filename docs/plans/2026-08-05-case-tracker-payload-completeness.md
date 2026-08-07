@@ -595,14 +595,44 @@ cd /c/src/patient-portal/main && python .claude/scripts/verify_structure.py
 ```
 
 Because T2 adds a column to a dual-context entity, ALSO confirm the column exists in BOTH databases in
-SQL rather than trusting the generator:
+SQL rather than trusting the generator. A dual-context entity has silently landed in only one set
+before, and `dotnet build` cannot detect it.
+
+First resolve the SQL container name -- it differs per worktree/compose project, so do NOT hardcode
+it (`docs/onboarding/GETTING-STARTED.md:270` says `patient-portal-db`;
+`docs/runbooks/database-per-office-go-live-isolation-gate.md:46` shows a different one):
 
 ```bash
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('AppAppointmentChangeRequests') AND name = 'DecidedAt';"
+docker ps --format '{{.Names}}' | grep -i sql
 ```
 
-Run that against the host database and against at least one office database. Confirm the backfill
-populated existing decided rows rather than leaving them null.
+Then, substituting that name. `MSYS_NO_PATHCONV=1` and the `bash -c` wrapper are BOTH required: Git
+Bash rewrites the leading `/opt/...` into a Windows path before Docker sees it
+(`docs/runbooks/DOCKER-DEV.md:232`, and `docs/plans/2026-07-31-...-epic.md:426-427`). The password
+variable is `MSSQL_SA_PASSWORD`, expanded INSIDE the container:
+
+```bash
+MSYS_NO_PATHCONV=1 docker exec -i <sql-container> bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C' <<'SQL'
+SELECT name FROM sys.databases WHERE name LIKE '%CaseEvaluation%';
+GO
+SQL
+```
+
+Run the column check against the host database AND at least one office database, using the names that
+query returns:
+
+```bash
+MSYS_NO_PATHCONV=1 docker exec -i <sql-container> bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d <database>' <<'SQL'
+SELECT COUNT(*) AS ColumnExists FROM sys.columns
+WHERE object_id = OBJECT_ID('AppAppointmentChangeRequests') AND name = 'DecidedAt';
+SELECT COUNT(*) AS StillNull FROM AppAppointmentChangeRequests
+WHERE RequestStatus <> 25 AND DecidedAt IS NULL AND LastModificationTime IS NOT NULL;
+GO
+SQL
+```
+
+`ColumnExists` must be 1 in every database checked, and `StillNull` must be 0 -- a non-zero
+`StillNull` means the T2 backfill did not run in that database.
 
 Re-establish the test baseline on the first run rather than trusting a recorded number: the handoff
 cites 1800 backend and 432 Angular, while the 4c learnings cite 475 frontend specs. Record what this
