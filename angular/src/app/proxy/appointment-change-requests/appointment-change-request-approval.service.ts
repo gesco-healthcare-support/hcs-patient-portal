@@ -1,4 +1,4 @@
-import type { AppointmentChangeRequestDto, ApproveCancellationInput, ApproveRescheduleInput, GetChangeRequestsInput, RejectChangeRequestInput } from './models';
+import type { AppointmentChangeRequestDto, ApproveCancellationInput, ApproveRescheduleInput, ConfirmRescheduleDateInput, GetChangeRequestsInput, RejectChangeRequestInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -29,6 +29,15 @@ export class AppointmentChangeRequestApprovalService {
     { apiName: this.apiName,...config });
   
 
+  confirmRescheduleDate = (id: string, input: ConfirmRescheduleDateInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentChangeRequestDto>({
+      method: 'POST',
+      url: `/api/app/appointment-change-request-approvals/${id}/confirm-reschedule-date`,
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
   getPending = (input: GetChangeRequestsInput, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<AppointmentChangeRequestDto>>({
       method: 'GET',
@@ -52,6 +61,14 @@ export class AppointmentChangeRequestApprovalService {
       method: 'POST',
       url: `/api/app/appointment-change-request-approvals/${id}/reject-reschedule`,
       body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  resendConsentRequest = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentChangeRequestDto>({
+      method: 'POST',
+      url: `/api/app/appointment-change-request-approvals/${id}/resend-consent-request`,
     },
     { apiName: this.apiName,...config });
 }

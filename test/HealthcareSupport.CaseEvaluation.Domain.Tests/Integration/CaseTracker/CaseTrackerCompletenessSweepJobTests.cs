@@ -35,7 +35,8 @@ public class CaseTrackerCompletenessSweepJobTests
     private static Appointment NewAppointment(
         Guid id,
         AppointmentStatusType status,
-        DateTime? changedAt = null) =>
+        DateTime? changedAt = null,
+        Guid? rescheduledFromAppointmentId = null) =>
         new(
             id,
             patientId: new Guid("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc"),
@@ -52,6 +53,7 @@ public class CaseTrackerCompletenessSweepJobTests
             // Must be set explicitly: an unsaved entity's CreationTime is default(DateTime), which is
             // outside any lookback window, so every case here would silently stop exercising the sweep.
             CreationTime = changedAt ?? Now.AddHours(-1),
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
 
     private static IntegrationOutboxItem IntakeRowFor(Guid appointmentId)
@@ -214,6 +216,46 @@ public class CaseTrackerCompletenessSweepJobTests
         await job.ExecuteAsync();
 
         await queue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    /// <summary>
+    /// Phase 4e (2026-08-06) -- either half of a split is recovered like any other appointment. 4d
+    /// held both back; now a lost enqueue for a replacement is exactly the fault this job exists to
+    /// repair, and the backstop covers the two-case flow as it covers every other.
+    /// </summary>
+    [Fact]
+    public async Task TheNewHalfOfARescheduleSplit_IsRecoveredLikeAnyOther()
+    {
+        var (job, queue) = Build(
+            new List<Appointment>
+            {
+                NewAppointment(
+                    WithoutRow,
+                    AppointmentStatusType.Approved,
+                    rescheduledFromAppointmentId: WithRow),
+            },
+            new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.RescheduledLate)]
+    public async Task TheOldHalfOfARescheduleSplit_IsRecoveredLikeAnyOther(AppointmentStatusType status)
+    {
+        // The old half normally HAS an intake row from its approval, so the sweep passes over it --
+        // but not if that original enqueue was the one that got lost. Recovering it then carries the
+        // NoBill/Late close, which is the billing signal Case Tracker needs, not something to withhold.
+        var (job, queue) = Build(
+            new List<Appointment> { NewAppointment(WithoutRow, status) },
+            new List<IntegrationOutboxItem>());
+
+        await job.ExecuteAsync();
+
+        await queue.Received(1).EnqueueIntakeAsync(WithoutRow, OfficeId, Arg.Any<CancellationToken>());
     }
 
     [Fact]

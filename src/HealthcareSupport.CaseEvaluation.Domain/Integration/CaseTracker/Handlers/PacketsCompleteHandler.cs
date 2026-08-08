@@ -68,7 +68,7 @@ public class PacketsCompleteHandler :
                 return;
             }
 
-            if (!CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
+            if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
             {
                 _logger.LogDebug(
                     "PacketsCompleteHandler: appointment {AppointmentId} is {Status}; packets not published.",

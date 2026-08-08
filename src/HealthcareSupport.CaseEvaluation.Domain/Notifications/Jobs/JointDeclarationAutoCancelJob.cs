@@ -46,6 +46,22 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
     public const string RecurringJobId = "appt-jdf-auto-cancel";
     public const string CronExpression = "0 6 * * *";
 
+    /// <summary>
+    /// ROUTING DISCRIMINATOR published on both events, NOT a human message.
+    /// <c>JdfAutoCancelledEmailHandler</c> filters on this exact value with an ordinal compare,
+    /// so changing the string silently stops that email firing. Never render it to a user.
+    /// </summary>
+    public const string AutoCancelReason = "JDF-not-uploaded";
+
+    /// <summary>
+    /// Human-readable reason persisted on <c>Appointment.CancellationReason</c>. Kept separate
+    /// from <see cref="AutoCancelReason"/> deliberately: that column is rendered to patients and
+    /// attorneys by <c>PatientAppointmentCancelledNoBill</c> and forwarded to the Case Tracker,
+    /// so it must read as a sentence rather than as the machine token used for event routing.
+    /// </summary>
+    public const string AutoCancelReasonText =
+        "The Joint Declaration Form was not uploaded before the required deadline.";
+
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly ISettingProvider _settingProvider;
@@ -157,6 +173,11 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
                 var entity = await _appointmentRepository.GetAsync(candidate.Id);
                 var fromStatus = entity.AppointmentStatus;
                 entity.AppointmentStatus = AppointmentStatusType.CancelledNoBill;
+                // 2026-07-31 -- persist a reason too. This path has no change request to read one
+                // from, so without this an auto-cancelled appointment reached the Case Tracker with
+                // no explanation. Uses the human-readable text, NOT the event discriminator: this
+                // column is rendered to patients and attorneys.
+                entity.CancellationReason = AutoCancelReasonText;
                 await _appointmentRepository.UpdateAsync(entity, autoSave: true);
 
                 await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
@@ -165,7 +186,7 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
                     fromStatus: fromStatus,
                     toStatus: entity.AppointmentStatus,
                     actingUserId: null,
-                    reason: "JDF-not-uploaded",
+                    reason: AutoCancelReason,
                     occurredAt: DateTime.UtcNow,
                     doctorAvailabilityId: entity.DoctorAvailabilityId));
 
@@ -173,7 +194,7 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
                 {
                     AppointmentId = candidate.Id,
                     TenantId = tenantId,
-                    Reason = "JDF-not-uploaded",
+                    Reason = AutoCancelReason,
                     OccurredAt = DateTime.UtcNow,
                 });
 

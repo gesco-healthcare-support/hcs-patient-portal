@@ -33,6 +33,49 @@ describe('StatusPillComponent', () => {
     expect(pill().classList).toContain('app-status-pill--info');
   });
 
+  // Phase 4c (2026-08-05): the two in-flight pills must render as IN PROGRESS. Reusing their
+  // terminal pill's tone was the original defect -- info blue and neutral grey both read as done.
+  it('renders RescheduleRequested as in-progress amber, never as the blue Rescheduled pill', () => {
+    fixture.componentRef.setInput('status', 'RescheduleRequested');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--pending');
+    expect(pill().classList).not.toContain('app-status-pill--info');
+    expect(pill().textContent?.trim()).toBe('Reschedule Requested');
+  });
+
+  it('renders CancellationRequested as in-progress amber, never as the grey Cancelled pill', () => {
+    fixture.componentRef.setInput('status', 'CancellationRequested');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--pending');
+    expect(pill().classList).not.toContain('app-status-pill--neutral');
+    expect(pill().textContent?.trim()).toBe('Cancellation Requested');
+  });
+
+  // Phase 5 (2026-08-07): the business's own long-standing names, verbatim. Adrian:
+  // "I do not want to invent new names, these are long used names throughout the
+  // business". Neutral grey rather than 4c's amber -- these ARE settled outcomes.
+  it('renders NoShow with the business label and the neutral tone', () => {
+    fixture.componentRef.setInput('status', 'NoShow');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--neutral');
+    expect(pill().textContent?.trim()).toBe('No Show');
+  });
+
+  it('renders NotSeen with the business label and the neutral tone', () => {
+    fixture.componentRef.setInput('status', 'NotSeen');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--neutral');
+    expect(pill().textContent?.trim()).toBe('Not Seen');
+  });
+
+  it('does not label either attendance outcome "Cancelled"', () => {
+    for (const status of ['NoShow', 'NotSeen']) {
+      fixture.componentRef.setInput('status', status);
+      fixture.detectChanges();
+      expect(pill().textContent?.trim()).not.toBe('Cancelled');
+    }
+  });
+
   it('always renders a dot and text (never color-alone)', () => {
     fixture.componentRef.setInput('status', 'Approved');
     fixture.detectChanges();

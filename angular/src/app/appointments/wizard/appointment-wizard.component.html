@@ -1,6 +1,6 @@
-<!-- External chrome only. Internal staff reach this wizard inside the navy
-  shell (in-shell /appointments/add), which supplies its own topbar + sidebar,
-  so the external navbar is suppressed for them. -->
+<!-- External chrome only. Internal staff reach this same wizard at the same path
+  inside the navy shell, which supplies its own topbar + sidebar, so the external
+  navbar is suppressed for them. -->
 @if (!isInternalBooker) {
   <app-external-navbar
     [clinicName]="displayTenantName"
@@ -121,13 +121,9 @@
           <app-appointment-add-schedule
             [form]="form"
             [checkForAppointmentTypeSelected]="checkForAppointmentTypeSelected"
-            [isAvailableDatesLoading]="isAvailableDatesLoading"
-            [appointmentTimeOptions]="appointmentTimeOptions"
             [minimumBookingRuleMessage]="minimumBookingRuleMessage"
             [getAppointmentTypeLookup]="getAppointmentTypeLookup"
             [getLocationLookup]="getLocationLookup"
-            [markAppointmentDateDisabled]="markAppointmentDateDisabled"
-            [isAvailableAppointmentDate]="isAvailableAppointmentDate"
             [isFieldInvalid]="isFieldInvalidBound"
             [isPqmeType]="isPqmeType"
             [noBookableDatesMessage]="noBookableDatesMessage"

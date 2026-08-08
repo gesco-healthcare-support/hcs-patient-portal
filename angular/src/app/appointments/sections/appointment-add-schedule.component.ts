@@ -3,7 +3,10 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from 
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
-import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
+import {
+  AvailabilityCalendarComponent,
+  AvailabilitySelection,
+} from '../availability-calendar/availability-calendar.component';
 import { Observable } from 'rxjs';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 
@@ -64,7 +67,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
     ReactiveFormsModule,
     LocalizationPipe,
     AppLookupSelectComponent,
-    NgbDatepickerModule,
+    AvailabilityCalendarComponent,
   ],
   templateUrl: './appointment-add-schedule.component.html',
   styleUrl: './appointment-add-schedule.component.scss',
@@ -73,12 +76,6 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 export class AppointmentAddScheduleComponent {
   @Input({ required: true }) form!: FormGroup;
   @Input({ required: true }) checkForAppointmentTypeSelected = false;
-  @Input({ required: true }) isAvailableDatesLoading = false;
-  @Input({ required: true }) appointmentTimeOptions: Array<{
-    value: string;
-    label: string;
-    doctorAvailabilityId: string;
-  }> = [];
   @Input({ required: true }) minimumBookingRuleMessage = '';
   @Input({ required: true }) getAppointmentTypeLookup!: (
     input: LookupRequestDto,
@@ -86,8 +83,6 @@ export class AppointmentAddScheduleComponent {
   @Input({ required: true }) getLocationLookup!: (
     input: LookupRequestDto,
   ) => Observable<PagedResultDto<LookupDto<string>>>;
-  @Input({ required: true }) markAppointmentDateDisabled!: (date: NgbDateStruct) => boolean;
-  @Input({ required: true }) isAvailableAppointmentDate!: (date: NgbDateStruct) => boolean;
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
   // AF4 (2026-06-04): parent-owned flag; true when the selected type is PQME, so
   // the Panel Number label shows a required marker. The enable/disable + required
@@ -101,4 +96,27 @@ export class AppointmentAddScheduleComponent {
 
   @Output() locationSelected = new EventEmitter<string>();
   @Output() appointmentDateCleared = new EventEmitter<void>();
+
+  /** `YYYY-MM-DD` for the calendar, from whatever shape the form control holds. */
+  protected get selectedDateKey(): string | null {
+    const raw = this.form.get('appointmentDate')?.value as string | null;
+    if (!raw) return null;
+    return raw.includes('-') && raw.length >= 10 ? raw.slice(0, 10) : null;
+  }
+
+  /**
+   * Adapts the calendar's output onto the existing form controls, so nothing downstream of the form
+   * changes.
+   *
+   * <p>`appointmentDate` is patched WITH events on purpose: the parent subscribes to it and applies
+   * the role-horizon interception (external users get a contact-staff notice beyond 60 days). The
+   * other two are patched silently because no parent rule depends on them.</p>
+   */
+  protected onSlotSelected(selection: AvailabilitySelection): void {
+    this.form.patchValue(
+      { appointmentTime: selection.time, doctorAvailabilityId: selection.doctorAvailabilityId },
+      { emitEvent: false },
+    );
+    this.form.patchValue({ appointmentDate: selection.date });
+  }
 }

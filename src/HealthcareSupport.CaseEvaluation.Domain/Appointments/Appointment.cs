@@ -138,12 +138,32 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual string? RefferedBy { get; set; }
 
     /// <summary>
-    /// Reschedule-chain link: when this appointment is a reschedule of a
-    /// prior one, points at the prior <see cref="Appointment"/>'s Id. Null
-    /// for first-time bookings. Mirrors OLD's <c>OriginalAppointmentId</c>
-    /// (Phase 1.6, 2026-05-01).
+    /// RE-EVALUATION chain link: when this appointment is a re-evaluation of a prior one, points
+    /// at the prior <see cref="Appointment"/>'s Id. Null for first-time bookings. Mirrors OLD's
+    /// <c>OriginalAppointmentId</c> (Phase 1.6, 2026-05-01).
+    ///
+    /// <para>HISTORICAL AMBIGUITY, clarified in phase 4d (2026-08-05): OLD used this column for the
+    /// RESCHEDULE chain and pre-2026-07-01 rows may still carry it for that reason, which is why
+    /// <see cref="EvaluationKind"/> is persisted rather than derived from it. Current code writes
+    /// it only for re-evaluations. The reschedule chain now has its OWN column,
+    /// <see cref="RescheduledFromAppointmentId"/> -- do NOT overload this one again.</para>
     /// </summary>
     public virtual Guid? OriginalAppointmentId { get; set; }
+
+    /// <summary>
+    /// RESCHEDULE chain link (phase 4d, 2026-08-05): when this appointment was created by
+    /// finalizing a reschedule, points at the appointment it replaced. Null for every other
+    /// appointment, including re-evaluations.
+    ///
+    /// <para>Deliberately NOT <see cref="OriginalAppointmentId"/>: that column already carries the
+    /// re-evaluation meaning in current code and the reschedule meaning in legacy rows, and a
+    /// dual-purpose link is exactly what mislabels a Case Tracker case folder. A second column
+    /// costs one migration per context and removes the ambiguity for good.</para>
+    ///
+    /// <para>The change request and its consent rounds stay on the OLD appointment; this link is
+    /// how the new appointment explains where it came from.</para>
+    /// </summary>
+    public virtual Guid? RescheduledFromAppointmentId { get; set; }
 
     /// <summary>
     /// Whether this is a first evaluation or a re-evaluation (2026-07-27, Case Tracker

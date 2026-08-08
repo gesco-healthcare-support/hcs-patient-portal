@@ -153,7 +153,7 @@ public class CaseTrackerReconciliationJob : ITransientDependency
         }
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
-        if (appointment == null || !CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
+        if (appointment == null || !CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
         {
             return false;
         }

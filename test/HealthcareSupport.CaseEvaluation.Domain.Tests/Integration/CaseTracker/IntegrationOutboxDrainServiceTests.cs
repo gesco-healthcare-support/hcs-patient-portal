@@ -30,11 +30,16 @@ public class IntegrationOutboxDrainServiceTests
     {
         public required List<IntegrationOutboxItem> Rows { get; init; }
         public required IntegrationOutboxManager Manager { get; init; }
+        public required IIntegrationOutboxRepository Repository { get; init; }
         public required ICaseTrackerClient Client { get; init; }
         public required IntegrationOutboxDrainService Service { get; init; }
     }
 
-    private static Harness Build(bool pushEnabled = true)
+    /// <param name="sentInWindow">
+    /// What the volume guard sees as already sent this window. Defaults to 0 -- well under the cap --
+    /// so every pre-existing test exercises the normal path unchanged.
+    /// </param>
+    private static Harness Build(bool pushEnabled = true, int sentInWindow = 0)
     {
         var rows = new List<IntegrationOutboxItem>();
         var repo = Substitute.For<IIntegrationOutboxRepository>();
@@ -69,10 +74,20 @@ public class IntegrationOutboxDrainServiceTests
         settingProvider.GetOrNullAsync(CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled)
             .Returns(pushEnabled ? "true" : "false");
 
-        var service = new IntegrationOutboxDrainService(
-            manager, client, clock, settingProvider, NullLogger<IntegrationOutboxDrainService>.Instance);
+        repo.CountSentSinceAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(sentInWindow));
 
-        return new Harness { Rows = rows, Manager = manager, Client = client, Service = service };
+        var service = new IntegrationOutboxDrainService(
+            manager, repo, client, clock, settingProvider, NullLogger<IntegrationOutboxDrainService>.Instance);
+
+        return new Harness
+        {
+            Rows = rows,
+            Manager = manager,
+            Repository = repo,
+            Client = client,
+            Service = service,
+        };
     }
 
     private static Task SeedPendingAsync(Harness h, string key = "key-1") =>
@@ -196,5 +211,61 @@ public class IntegrationOutboxDrainServiceTests
         result.Sent.ShouldBe(1);
         h.Rows.Count(r => r.Status == IntegrationOutboxStatus.Sent).ShouldBe(1);
         h.Rows.Count(r => r.Status == IntegrationOutboxStatus.Pending).ShouldBe(1);
+    }
+
+    // ---- Volume guard. DrainBatchSize bounds one invocation, but every enqueue schedules its own
+    // drain, so without this there is no throughput ceiling at all. The damage a flood does lands on
+    // the receiver's staff queue as cases to unpick by hand, which is why holding is preferred. ----
+
+    [Fact]
+    public async Task AtTheVolumeCap_NothingIsSentAndRowsStayPending()
+    {
+        var h = Build(sentInWindow: IntegrationOutboxConsts.VolumeThresholdPerWindow);
+        await SeedPendingAsync(h);
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(CaseTrackerPushResult.FromStatusCode(200)));
+
+        var result = await h.Service.DrainDueAsync();
+
+        result.Sent.ShouldBe(0);
+        result.Failed.ShouldBe(0);
+        // Pending, NOT failed: being held is not a delivery attempt, so it must not burn an attempt
+        // against the fail-fast cap or dead-letter a row that was never actually tried.
+        h.Rows.Single().Status.ShouldBe(IntegrationOutboxStatus.Pending);
+        h.Rows.Single().AttemptCount.ShouldBe(0);
+        await h.Client.DidNotReceiveWithAnyArgs().PostAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task JustUnderTheVolumeCap_DeliveryProceeds()
+    {
+        // Boundary: the guard trips AT the cap, so one below must still send. Guards against an
+        // off-by-one that would silently hold delivery a row early.
+        var h = Build(sentInWindow: IntegrationOutboxConsts.VolumeThresholdPerWindow - 1);
+        await SeedPendingAsync(h);
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(CaseTrackerPushResult.FromStatusCode(200)));
+
+        var result = await h.Service.DrainDueAsync();
+
+        result.Sent.ShouldBe(1);
+        h.Rows.Single().Status.ShouldBe(IntegrationOutboxStatus.Sent);
+    }
+
+    [Fact]
+    public async Task TheVolumeWindowIsMeasuredBackFromNow()
+    {
+        // The window is what makes this self-releasing: there is no trip flag to reset, so a held
+        // office resumes on its own as sends age out. Pin that the query is asked for exactly the
+        // window, or a wrong offset would either never trip or never release.
+        var h = Build(sentInWindow: 0);
+        await SeedPendingAsync(h);
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(CaseTrackerPushResult.FromStatusCode(200)));
+
+        await h.Service.DrainDueAsync();
+
+        var expected = Now.AddMinutes(-IntegrationOutboxConsts.VolumeWindowMinutes);
+        await h.Repository.Received().CountSentSinceAsync(expected, Arg.Any<CancellationToken>());
     }
 }

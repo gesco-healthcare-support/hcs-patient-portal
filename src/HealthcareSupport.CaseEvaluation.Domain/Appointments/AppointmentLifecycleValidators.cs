@@ -47,19 +47,61 @@ public static class AppointmentLifecycleValidators
     /// non-Approved + admin alike, and let the caller pick the right error
     /// code (<see cref="ResolveRevalRejectionCode"/>).
     /// </remarks>
-    public static bool CanCreateReval(AppointmentStatusType sourceStatus, bool callerIsItAdmin)
+    public static bool CanCreateReval(
+        AppointmentStatusType sourceStatus,
+        EvaluationKind sourceKind,
+        bool callerIsItAdmin)
     {
         // Strict OLD parity: admin override surfaces a different message but
         // does NOT bypass the gate. See remarks.
-        return sourceStatus == AppointmentStatusType.Approved;
+        if (sourceStatus == AppointmentStatusType.Approved)
+        {
+            return true;
+        }
+
+        // Phase 5 (2026-08-07), decision 1 -- a DELIBERATE break from the OLD
+        // parity rule in the remarks above, recorded rather than slipped in. A
+        // re-evaluation that no-showed may be re-booked as another re-eval,
+        // because an earlier evaluation already established the need for one. A
+        // FIRST evaluation that no-showed may not: nothing has established that
+        // need yet, so the client submits a new appointment request instead.
+        return IsAttendanceOutcome(sourceStatus) && sourceKind == EvaluationKind.ReEvaluation;
     }
 
     /// <summary>
-    /// Returns the OLD-parity error code for a Reval rejection. The two
-    /// branches map to OLD's two distinct messages (line 168 vs line 172).
+    /// Whether a status means the appointment produced NO evaluation -- the patient
+    /// never arrived (<see cref="AppointmentStatusType.NoShow"/>) or arrived but was
+    /// not seen (<see cref="AppointmentStatusType.NotSeen"/>).
+    ///
+    /// <para>THE single definition of that set. Both statuses are authored in the
+    /// Case Tracker; anything reasoning about "the appointment happened but produced
+    /// nothing" asks here rather than restating the pair, so a third cause later is
+    /// one edit instead of a hunt.</para>
     /// </summary>
-    public static string ResolveRevalRejectionCode(bool callerIsItAdmin)
+    public static bool IsAttendanceOutcome(AppointmentStatusType status)
     {
+        return status is AppointmentStatusType.NoShow or AppointmentStatusType.NotSeen;
+    }
+
+    /// <summary>
+    /// Returns the error code for a Reval rejection. The two OLD-parity branches map
+    /// to OLD's distinct messages (line 168 vs line 172); phase 5 adds a third that
+    /// is not about approval at all.
+    /// </summary>
+    public static string ResolveRevalRejectionCode(
+        AppointmentStatusType sourceStatus,
+        EvaluationKind sourceKind,
+        bool callerIsItAdmin)
+    {
+        // Checked BEFORE the admin split and independently of it: the admin hint
+        // says "approve an appointment and try again", which is impossible advice
+        // here -- a no-showed appointment can never return to Approved. Telling an
+        // admin to do the impossible is worse than telling them nothing.
+        if (IsAttendanceOutcome(sourceStatus) && sourceKind == EvaluationKind.Evaluation)
+        {
+            return CaseEvaluationDomainErrorCodes.AppointmentRevalSourceIncompleteFirstEvaluation;
+        }
+
         return callerIsItAdmin
             ? CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApprovedAdminHint
             : CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApproved;

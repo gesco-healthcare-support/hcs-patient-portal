@@ -137,13 +137,18 @@ public class ChangeRequestApprovedEmailHandler :
 
             if (eventData.ChangeRequestType == ChangeRequestType.Reschedule)
             {
-                // OLD :721-722 uses newDoctorsAvailability for the rendered
-                // date/time. Admin-override path uses AdminOverrideSlotId
-                // (NEW field) when set; user-initiated approval uses
-                // NewDoctorAvailabilityId.
-                var slotId = eventData.IsAdminOverride && changeRequest.AdminOverrideSlotId.HasValue
-                    ? changeRequest.AdminOverrideSlotId
-                    : changeRequest.NewDoctorAvailabilityId;
+                // OLD :721-722 uses newDoctorsAvailability for the rendered date/time.
+                // Phase 4b (2026-08-04): resolve AdminOverrideSlotId FIRST and fall back to
+                // NewDoctorAvailabilityId, independent of IsAdminOverride. Since 4b the
+                // requestor proposes no date, so on the external path NewDoctorAvailabilityId
+                // is null while IsAdminOverride is (correctly) false -- the old override-gated
+                // selection therefore resolved null, and ResolveNewSlotAsync returns empty
+                // strings for null, which would send an approval email with a BLANK date. The
+                // slot staff scheduled onto is always the right one to render; IsAdminOverride
+                // only decides the WORDING below.
+                var slotId = ChangeRequestApprovalValidator.ResolveScheduledSlotId(
+                    changeRequest.AdminOverrideSlotId,
+                    changeRequest.NewDoctorAvailabilityId);
                 var (newDate, newTime) = await ResolveNewSlotAsync(slotId);
                 variables["NewAppointmentDate"] = newDate;
                 variables["NewAppointmentFromTime"] = newTime;

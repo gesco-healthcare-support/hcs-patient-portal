@@ -191,9 +191,11 @@ public class AppointmentManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
         }
 
-        if (!AppointmentLifecycleValidators.CanCreateReval(source.AppointmentStatus, callerIsItAdmin))
+        if (!AppointmentLifecycleValidators.CanCreateReval(
+                source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin))
         {
-            var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(callerIsItAdmin);
+            var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin);
             throw new BusinessException(errorCode)
                 .WithData("confirmationNumber", sourceConfirmationNumber)
                 .WithData("status", source.AppointmentStatus);
@@ -271,6 +273,65 @@ public class AppointmentManager : DomainService
     /// </summary>
     public virtual Task<Appointment> ResubmitInfoAsync(Guid id, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
+
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- RescheduleRequested -> RescheduledNoBill / RescheduledLate. Closes
+    /// the OLD appointment when a reschedule is finalized and a NEW appointment takes its place.
+    ///
+    /// <para>Both triggers have been defined in <see cref="BuildMachine"/> since the state machine
+    /// was written but were UNREACHABLE: B2/4c kept the single appointment and recorded the outcome
+    /// on the change-request row instead, so nothing ever fired them. The caller supplies the
+    /// trigger from <c>RescheduleSplitPolicy</c>, which is the one place the billing outcome is
+    /// mapped -- passing it in keeps that mapping out of the state machine.</para>
+    /// </summary>
+    public virtual Task<Appointment> CloseForRescheduleAsync(
+        Guid id,
+        AppointmentTransitionTrigger trigger,
+        string? reason,
+        Guid? actingUserId)
+        => TransitionAsync(id, trigger, reason, actingUserId);
+
+    /// <summary>
+    /// Phase 5 (2026-08-07) -- Approved -> NoShow / NotSeen. Records that an
+    /// appointment produced no evaluation, as reported by the Case Tracker.
+    ///
+    /// <para>Takes the OUTCOME STATUS rather than a trigger, unlike
+    /// <see cref="CloseForRescheduleAsync"/>: the caller is the inbound integration
+    /// endpoint, which speaks in outcomes off the wire and has no business knowing
+    /// the state machine's trigger vocabulary. The mapping is one throwing switch
+    /// here instead of a second one at the boundary.</para>
+    ///
+    /// <para>Publishing the status change is what makes the ALREADY-BUILT staff
+    /// no-show email fire, so this phase adds no notification code.</para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="outcome"/> is not an attendance outcome.
+    /// </exception>
+    public virtual Task<Appointment> MarkAttendanceOutcomeAsync(
+        Guid id,
+        AppointmentStatusType outcome,
+        string? reason,
+        Guid? actingUserId)
+        => TransitionAsync(id, ToAttendanceTrigger(outcome), reason, actingUserId);
+
+    /// <summary>
+    /// Maps an attendance outcome to its trigger, THROWING on anything else.
+    ///
+    /// <para>Throws rather than returning a nullable or coercing to a default: this
+    /// method is the only guard between an inbound wire value and the state machine,
+    /// and a caller free to pass any status could otherwise drive an arbitrary
+    /// transition through <see cref="MarkAttendanceOutcomeAsync"/>. Mirrors the
+    /// throwing switch in the integration's wire enums.</para>
+    /// </summary>
+    private static AppointmentTransitionTrigger ToAttendanceTrigger(AppointmentStatusType outcome) => outcome switch
+    {
+        AppointmentStatusType.NoShow => AppointmentTransitionTrigger.MarkNoShow,
+        AppointmentStatusType.NotSeen => AppointmentTransitionTrigger.MarkNotSeen,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(outcome),
+            outcome,
+            "Only NoShow and NotSeen are attendance outcomes."),
+    };
 
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
@@ -387,7 +448,15 @@ public class AppointmentManager : DomainService
             .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected)
             // Send Back (2026-06-14): staff request more information.
-            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.InfoRequested);
+            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.InfoRequested)
+            // Phase 4d (2026-08-05): a PENDING appointment can be rescheduled too. B1 (2026-07-01)
+            // lets internal staff file a reschedule against a not-yet-approved appointment, and
+            // SubmitRescheduleAsync skips the Approved -> RescheduleRequested step for that source
+            // because no such transition exists -- so it arrives at finalize still Pending. Without
+            // these two, finalizing that reschedule throws an invalid transition and the whole
+            // Pending-source path is dead.
+            .Permit(AppointmentTransitionTrigger.ConfirmReschedule, AppointmentStatusType.RescheduledNoBill)
+            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate);
 
         // Info Requested is transient: the external user resubmits their fixes
         // and the appointment returns to Pending for staff review. The slot
@@ -399,6 +468,12 @@ public class AppointmentManager : DomainService
             .Permit(AppointmentTransitionTrigger.RequestCancellation, AppointmentStatusType.CancellationRequested)
             .Permit(AppointmentTransitionTrigger.RequestReschedule, AppointmentStatusType.RescheduleRequested)
             .Permit(AppointmentTransitionTrigger.MarkNoShow, AppointmentStatusType.NoShow)
+            // Phase 5 (2026-08-07): the not-seen companion to MarkNoShow. Approved is
+            // the ONLY source for both, and deliberately so -- filing a change request
+            // against an Approved appointment moves it to RescheduleRequested /
+            // CancellationRequested, so an appointment that can still take an attendance
+            // outcome has no open request that the (terminal) outcome could strand.
+            .Permit(AppointmentTransitionTrigger.MarkNotSeen, AppointmentStatusType.NotSeen)
             .Permit(AppointmentTransitionTrigger.CheckIn, AppointmentStatusType.CheckedIn);
 
         machine.Configure(AppointmentStatusType.CancellationRequested)

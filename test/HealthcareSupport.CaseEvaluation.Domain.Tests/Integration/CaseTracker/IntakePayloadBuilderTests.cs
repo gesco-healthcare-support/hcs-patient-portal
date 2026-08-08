@@ -46,24 +46,30 @@ public class IntakePayloadBuilderTests
     private static readonly Guid LocationId = new("c0ffee0a-bcde-4f01-9abc-de0123456f7a");
     private static readonly Guid SlotId = new("d1e2f3a4-b5c6-4d7e-8f90-a1b2c3d4e5fa");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
+    private static readonly Guid DoctorId = new("f7a8b9c0-d1e2-4f30-a415-263748596a7b");
 
     private static Appointment NewAppointment(
         Guid id,
         string confirmation,
         EvaluationKind kind = EvaluationKind.Evaluation,
-        Guid? originalAppointmentId = null)
+        Guid? originalAppointmentId = null,
+        AppointmentStatusType status = AppointmentStatusType.Approved,
+        string? cancellationReason = null,
+        Guid? rescheduledFromAppointmentId = null)
     {
         return new Appointment(
             id, PatientId, identityUserId: null, AppointmentTypeId, LocationId, SlotId,
             appointmentDate: new DateTime(2026, 8, 15, 9, 30, 0, DateTimeKind.Utc),
             requestConfirmationNumber: confirmation,
-            appointmentStatus: AppointmentStatusType.Approved,
+            appointmentStatus: status,
             panelNumber: SyntheticPanelNumber)
         {
             TenantId = TenantId,
             EvaluationKind = kind,
             OriginalAppointmentId = originalAppointmentId,
             AppointmentApproveDate = new DateTime(2026, 7, 27, 18, 30, 12, DateTimeKind.Utc),
+            CancellationReason = cancellationReason,
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
     }
 
@@ -72,13 +78,26 @@ public class IntakePayloadBuilderTests
         Appointment? sourceAppointment = null,
         List<AppointmentDocument>? documents = null,
         List<AppointmentPacket>? packets = null,
-        List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null)
+        List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null,
+        bool withDoctor = true,
+        Appointment? successor = null)
     {
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetAsync(appointment.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(appointment));
         appointmentRepo.FindAsync(SourceAppointmentId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(sourceAppointment));
+
+        // Phase 4e: the FORWARD reschedule link is stored on the successor, so the resolver asks by
+        // predicate rather than by id. It uses GetListAsync because FirstOrDefaultAsync is an
+        // EXTENSION method and therefore unsubstitutable -- arranging it compiles, silently does
+        // nothing, and the real extension runs against this substitute instead.
+        appointmentRepo.GetListAsync(
+                Arg.Any<Expression<Func<Appointment, bool>>>(),
+                Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(
+                successor == null ? new List<Appointment>() : new List<Appointment> { successor }));
 
         var slotRepo = Substitute.For<IRepository<DoctorAvailability, Guid>>();
         slotRepo.FindAsync(SlotId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -105,10 +124,12 @@ public class IntakePayloadBuilderTests
                 phoneNumberTypeId: PhoneNumberType.Home,
                 middleName: "A", phoneNumber: "555-0142", cellPhoneNumber: "555-0177")));
 
-        var doctors = new List<Doctor>
-        {
-            new(Guid.NewGuid(), "Morgan", "Reyes", "morgan.reyes@example.test", Gender.Male),
-        };
+        var doctors = withDoctor
+            ? new List<Doctor>
+            {
+                new(DoctorId, "Morgan", "Reyes", "morgan.reyes@example.test", Gender.Male),
+            }
+            : new List<Doctor>();
         var doctorRepo = Substitute.For<IRepository<Doctor, Guid>>();
         doctorRepo.GetQueryableAsync().Returns(_ => doctors.AsQueryable());
 
@@ -190,10 +211,59 @@ public class IntakePayloadBuilderTests
         data.Tenant.OfficeName.ShouldBe("Reyes Medical Group");
         data.Location.Name.ShouldBe("North Clinic");
         data.AppointmentType.Name.ShouldBe("Panel Qualified Medical Examination (PQME)");
+        // The id is what the receiver matches on: their name-based matcher failed on the first live
+        // push, so the stable identifier is the durable fix (2026-07-31).
+        data.Doctor.Id.ShouldBe(DoctorId);
         data.Doctor.FirstName.ShouldBe("Morgan");
         data.Doctor.LastName.ShouldBe("Reyes");
         data.Storage.Bucket.ShouldBe("case-evaluation-documents");
         envelope.Errors.ShouldBeEmpty();
+    }
+
+    // Phase 2 (2026-07-31): billing intent used to be implicit in the status string and the
+    // cancellation reason was not sent at all -- the Case Tracker could not tell whether to bill a
+    // cancelled case, nor why it was cancelled.
+    [Fact]
+    public async Task BuildAsync_ForAnApprovedAppointment_SendsNoBillingIntentAndNoReason()
+    {
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        // Always present, so the receiver never distinguishes "absent" from "nothing to bill".
+        data.BillingStatus.ShouldBe("NONE");
+        data.CancellationReason.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.CancelledNoBill, "NO_BILL")]
+    [InlineData(AppointmentStatusType.CancelledLate, "LATE")]
+    public async Task BuildAsync_ForACancelledAppointment_SendsTheReasonAndBillingIntent(
+        AppointmentStatusType status,
+        string expectedBillingStatus)
+    {
+        var builder = Build(NewAppointment(
+            AppointmentId, "A00065", status: status, cancellationReason: "Patient moved out of state"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.Status.ShouldBe(status.ToString());
+        data.BillingStatus.ShouldBe(expectedBillingStatus);
+        data.CancellationReason.ShouldBe("Patient moved out of state");
+    }
+
+    [Fact]
+    public async Task BuildAsync_WhenNoReasonWasRecorded_SendsNullRatherThanEmptyString()
+    {
+        // Null distinguishes "no reason recorded" from "reason recorded as blank", which matters
+        // because the receiver renders this field to staff.
+        var builder = Build(NewAppointment(
+            AppointmentId, "A00065", status: AppointmentStatusType.CancelledNoBill));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.CancellationReason.ShouldBeNull();
+        data.BillingStatus.ShouldBe("NO_BILL");
     }
 
     [Fact]
@@ -250,6 +320,92 @@ public class IntakePayloadBuilderTests
         data.PreviousAppointmentId.ShouldBe(SourceAppointmentId);
         // Display aid only -- the re-eval has its own fresh confirmation number.
         data.PreviousConfirmationNumber.ShouldBe("A00041");
+        // The RESCHEDULE chain is a separate pair and stays empty on a re-evaluation. This is the
+        // assertion that stops the two link kinds being conflated again.
+        data.RescheduledFromAppointmentId.ShouldBeNull();
+        data.SupersededByAppointmentId.ShouldBeNull();
+    }
+
+    // ---- Phase 4e (2026-08-06): the reschedule chain ----
+
+    [Fact]
+    public async Task BuildAsync_ForAReplacement_LinksBackToTheAppointmentItReplaced()
+    {
+        var replacement = NewAppointment(
+            AppointmentId, "A00065", rescheduledFromAppointmentId: SourceAppointmentId);
+        var replaced = NewAppointment(
+            SourceAppointmentId, "A00041", status: AppointmentStatusType.RescheduledNoBill);
+        var builder = Build(replacement, sourceAppointment: replaced);
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.RescheduledFromAppointmentId.ShouldBe(SourceAppointmentId);
+        data.RescheduledFromConfirmationNumber.ShouldBe("A00041");
+        // A replacement is still a FIRST evaluation -- rescheduling does not make it a re-eval.
+        data.EvaluationKind.ShouldBe("EVAL");
+        data.PreviousAppointmentId.ShouldBeNull();
+        // It is the successor, so nothing superseded IT.
+        data.SupersededByAppointmentId.ShouldBeNull();
+        data.SupersededReason.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill, "NO_BILL")]
+    [InlineData(AppointmentStatusType.RescheduledLate, "LATE")]
+    public async Task BuildAsync_ForAReplacedAppointment_PointsForwardAndSaysWhy(
+        AppointmentStatusType status,
+        string expectedBillingStatus)
+    {
+        var replaced = NewAppointment(AppointmentId, "A00041", status: status);
+        var replacement = NewAppointment(
+            SourceAppointmentId, "A00065", rescheduledFromAppointmentId: AppointmentId);
+        var builder = Build(replaced, successor: replacement);
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.SupersededByAppointmentId.ShouldBe(SourceAppointmentId);
+        data.SupersededReason.ShouldBe("RESCHEDULED");
+        // The billing signal that lets Case Tracker close or bill the old date. It needed no new
+        // code -- only for 4d's suppression to be removed.
+        data.BillingStatus.ShouldBe(expectedBillingStatus);
+        data.Status.ShouldBe(status.ToString());
+    }
+
+    [Fact]
+    public async Task BuildAsync_ForAnOrdinaryAppointment_SendsNoRescheduleChainAtAll()
+    {
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.RescheduledFromAppointmentId.ShouldBeNull();
+        data.RescheduledFromConfirmationNumber.ShouldBeNull();
+        data.SupersededByAppointmentId.ShouldBeNull();
+        data.SupersededReason.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// The contract change IS the wire shape, so this asserts the serialized JSON rather than the
+    /// object: a field renamed in C# without updating the contract would pass an object-level
+    /// assertion and still break the receiver.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_SerializesTheRescheduleChainWithTheContractedNames()
+    {
+        var replacement = NewAppointment(
+            AppointmentId, "A00065", rescheduledFromAppointmentId: SourceAppointmentId);
+        var replaced = NewAppointment(
+            SourceAppointmentId, "A00041", status: AppointmentStatusType.RescheduledNoBill);
+        var builder = Build(replacement, sourceAppointment: replaced);
+
+        var json = IntakePayloadSerializer.Serialize(await builder.BuildAsync(AppointmentId));
+
+        json.ShouldContain($"\"rescheduledFromAppointmentId\":\"{SourceAppointmentId}\"");
+        json.ShouldContain("\"rescheduledFromConfirmationNumber\":\"A00041\"");
+        // Nulls are deliberately NOT omitted (IntakePayloadSerializer), so the forward pair is
+        // present and explicitly null rather than absent.
+        json.ShouldContain("\"supersededByAppointmentId\":null");
+        json.ShouldContain("\"supersededReason\":null");
     }
 
     [Fact]
@@ -392,5 +548,19 @@ public class IntakePayloadBuilderTests
         data.Doctor.LastName.ShouldBe("Reyes");
         data.AppointmentDateLocal.ShouldBe("2026-08-15");
         data.DurationMinutes.ShouldBe(60);
+    }
+
+    [Fact]
+    public async Task WhenTheOfficeHasNoDoctor_TheIdIsNullRatherThanAnEmptyGuid()
+    {
+        // Null says "no doctor on file". Guid.Empty would look like a real identifier the receiver
+        // could try to map, and their matcher now keys on this field.
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), withDoctor: false);
+
+        var data = (await builder.BuildAsync(AppointmentId)).Data;
+
+        data.Doctor.Id.ShouldBeNull();
+        data.Doctor.FirstName.ShouldBeEmpty();
+        data.Doctor.LastName.ShouldBeEmpty();
     }
 }

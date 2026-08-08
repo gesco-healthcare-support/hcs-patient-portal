@@ -22,7 +22,15 @@
   position: relative;
   overflow: hidden;
 }
-.ad-banner--pending {
+// Phase 4c (2026-08-05) introduced the two in-flight REQUESTED variants but never added a
+// rule for them, so those banners rendered white text on NO background (2026-08-07). They
+// join `pending` here rather than getting their own colour: their status pill already uses
+// the in-progress amber, and reusing the terminal blue/red would restore exactly the
+// "this already happened" impression 4c existed to remove. The banner TITLE is what
+// distinguishes them from an appointment genuinely awaiting approval.
+.ad-banner--pending,
+.ad-banner--reschedule-requested,
+.ad-banner--cancellation-requested {
   background: linear-gradient(135deg, #5a4500, #8a6a00 70%, #a07c00);
 }
 .ad-banner--approved {
@@ -39,6 +47,15 @@
 // (applied inline there); added here as a proper modifier.
 .ad-banner--info-requested {
   background: linear-gradient(135deg, #3b2a5e, #54398a 62%, #6b4aa8);
+}
+// Phase 5 (2026-08-07): the two attendance outcomes. Slate, not the rejected/cancelled
+// red -- nothing went wrong with the REQUEST; the appointment simply produced no
+// evaluation. Matches the neutral tone their status pill carries. A variant with no rule
+// here inherits only `.ad-banner { color: #fff }`, i.e. white text on no background, so
+// every new bannerVariant needs an entry.
+.ad-banner--no-show,
+.ad-banner--not-seen {
+  background: linear-gradient(135deg, #2f3437, #464e52 66%, #5a6469);
 }
 .ad-banner__in {
   max-width: 1560px;
@@ -312,6 +329,68 @@
   background: #f4effb;
   border: 1px solid #ddccf2;
   color: #4a3578;
+}
+
+// Phase 4d (2026-08-05): the "rescheduled from" note. Deliberately NEUTRAL rather than one of the
+// outcome colours above -- it reports where the appointment came from, not something that went
+// right or wrong, and colouring it green/red would read as a status the appointment does not have.
+.ad-note--reschedule {
+  background: var(--n-50);
+  border: 1px solid var(--n-200);
+  color: var(--n-700);
+}
+.ad-note__body {
+  min-width: 0;
+  flex: 1;
+}
+.ad-note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+// Buttons, not anchors: neither is a document link, and a bare <a> without href is invisible to
+// the keyboard -- the a11y class of defect SonarCloud caught in 4a and 4b.
+.ad-note__link,
+.ad-note__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+.ad-note__link {
+  text-decoration: underline;
+}
+.ad-note__link:hover,
+.ad-note__toggle:hover {
+  opacity: 0.75;
+}
+.ad-note__steps {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+}
+// dt / dd sit DIRECTLY in the dl -- no wrapper div, so no `display: contents`. The wrapper was
+// only ever there to group each pair, and `display: contents` has a documented history of dropping
+// its element from the accessibility tree, which is the last thing a definition list wants. The
+// two-column grid places each dt and dd on its own without it.
+.ad-note__steps dt {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ad-note__steps dd {
+  margin: 0;
+  opacity: 0.85;
 }
 
 // Send Back external fix-it page (status = Info requested)

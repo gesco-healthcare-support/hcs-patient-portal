@@ -119,6 +119,20 @@
     </div>
 
     <div class="ad-wrap">
+      <!--
+        Phase 4d (2026-08-05): what this appointment replaced. Same block as the internal detail,
+        sharing one derivation on AppointmentViewComponent. External parties see it too: they were
+        asked to agree to this date, so the record of that belongs to them as much as to staff.
+      -->
+      @if (hasRescheduleSource && rescheduleSourceLabel) {
+        <app-reschedule-chain-note
+          [sourceLabel]="rescheduleSourceLabel"
+          [canOpenSource]="!!rescheduleSourceId"
+          [steps]="rescheduleChainSteps"
+          (openSource)="openRescheduleSource()"
+        />
+      }
+
       <!-- outcome note -->
       @if (showOutcomeNote && bannerVariant === 'approved' && fv('internalUserComments')) {
         <div class="ad-note ad-note--approved">

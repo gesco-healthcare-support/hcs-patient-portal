@@ -78,7 +78,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   {
     key: 'integration-failures',
     icon: 'alert',
-    label: 'Case Tracker Failures',
+    label: 'Case Tracker Delivery',
     route: '/admin/integration-failures',
     policy: 'CaseEvaluation.Appointments.ViewIntegrationDeadLetters',
     // NOT tenant-scoped: this screen deliberately aggregates every clinic, because a failed push is
@@ -86,6 +86,34 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     tenantScoped: false,
   },
 ];
+
+/**
+ * Whether a section is visible to the caller: its policy is granted AND either it is
+ * host-safe or we are inside a clinic. Tenant-scoped sections 403 at host scope, so showing
+ * one there would be a click-into-403.
+ *
+ * Extracted 2026-07-31 so the hub rail and the bare-`/admin` redirect share ONE rule -- when
+ * they disagreed, `/admin` sent a Staff Supervisor to a section they cannot see.
+ */
+export function isAdminSectionVisible(
+  section: AdminSection,
+  isGranted: (policy: string) => boolean,
+  isHost: boolean,
+): boolean {
+  return isGranted(section.policy) && (!section.tenantScoped || !isHost);
+}
+
+/**
+ * The first section in rail order the caller may actually see, or undefined when none is.
+ * Used to resolve bare `/admin`, which cannot redirect to a fixed section without 403ing
+ * every role that lacks it.
+ */
+export function firstVisibleAdminSection(
+  isGranted: (policy: string) => boolean,
+  isHost: boolean,
+): AdminSection | undefined {
+  return ADMIN_SECTIONS.find((section) => isAdminSectionVisible(section, isGranted, isHost));
+}
 
 // ---------------------------------------------------------------------------
 // Permission matrix

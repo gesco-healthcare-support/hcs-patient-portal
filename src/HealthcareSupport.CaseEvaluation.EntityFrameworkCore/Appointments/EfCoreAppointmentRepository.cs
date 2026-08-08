@@ -510,4 +510,51 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .ToList());
     }
+
+    public virtual async Task<List<ActiveSlotAppointment>> GetActiveAppointmentsForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default)
+    {
+        // Phase 3 (2026-07-31) -- staff-schedule chips. Same query shape and the same
+        // five-terminal-status predicate as GetActivePatientNamesForSlotsAsync, but also projects
+        // the appointment id, confirmation number and status so a chip can link to the appointment
+        // and be coloured by state. One round-trip over the visible range's slots.
+        if (doctorAvailabilityIds == null || doctorAvailabilityIds.Count == 0)
+        {
+            return new List<ActiveSlotAppointment>();
+        }
+
+        var dbContext = await GetDbContextAsync();
+        var rows = await (await GetDbSetAsync())
+            .Where(x => doctorAvailabilityIds.Contains(x.DoctorAvailabilityId))
+            .Where(x =>
+                x.AppointmentStatus != AppointmentStatusType.Rejected &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledLate &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledLate)
+            .Join(
+                dbContext.Set<Patient>(),
+                appointment => appointment.PatientId,
+                patient => patient.Id,
+                (appointment, patient) => new
+                {
+                    appointment.Id,
+                    appointment.DoctorAvailabilityId,
+                    appointment.RequestConfirmationNumber,
+                    appointment.AppointmentStatus,
+                    patient.FirstName,
+                    patient.LastName,
+                })
+            .ToListAsync(GetCancellationToken(cancellationToken));
+
+        return rows
+            .Select(r => new ActiveSlotAppointment(
+                r.Id,
+                r.DoctorAvailabilityId,
+                r.RequestConfirmationNumber ?? string.Empty,
+                $"{r.FirstName} {r.LastName}".Trim(),
+                r.AppointmentStatus))
+            .ToList();
+    }
 }

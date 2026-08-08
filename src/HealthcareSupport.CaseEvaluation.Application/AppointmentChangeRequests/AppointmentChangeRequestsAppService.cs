@@ -131,24 +131,32 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             throw new EntityNotFoundException(typeof(Appointment), appointmentId);
         }
 
-        // Resolve the new slot's date so the booking policy validator
-        // can reason about it. The validator throws BusinessException
-        // with the same lead-time / max-horizon codes used by the
-        // booking flow on failure (parity-preserved).
-        var newSlot = await _doctorAvailabilityRepository.FindAsync(input.NewDoctorAvailabilityId);
-        if (newSlot == null)
-        {
-            throw new EntityNotFoundException(
-                typeof(HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability),
-                input.NewDoctorAvailabilityId);
-        }
-        // 2026-06-11 -- role-aware horizon, same as the booking flow: a
-        // reschedule re-picks a slot date, so an external requester is bound
-        // by the per-type horizon (60) and internal staff by the internal
-        // horizon (90). Without this, an external user could reschedule past
-        // the 60-day window the create flow enforces.
         var isInternalRescheduler = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
-        await _bookingPolicyValidator.ValidateAsync(newSlot.AvailableDate, appointment.AppointmentTypeId, isInternalRescheduler);
+
+        // Phase 4b (2026-08-04): a slot is OPTIONAL at submit -- external requestors send a
+        // reason only and staff choose the date at approval. Gate only what was actually
+        // proposed; the approval path runs the same validator on the slot staff resolve
+        // (see AppointmentChangeRequestsApprovalAppService.ApproveRescheduleAsync).
+        if (input.NewDoctorAvailabilityId.HasValue)
+        {
+            // Resolve the proposed slot's date so the booking policy validator
+            // can reason about it. The validator throws BusinessException
+            // with the same lead-time / max-horizon codes used by the
+            // booking flow on failure (parity-preserved).
+            var newSlot = await _doctorAvailabilityRepository.FindAsync(input.NewDoctorAvailabilityId.Value);
+            if (newSlot == null)
+            {
+                throw new EntityNotFoundException(
+                    typeof(HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability),
+                    input.NewDoctorAvailabilityId.Value);
+            }
+            // 2026-06-11 -- role-aware horizon, same as the booking flow: a
+            // reschedule re-picks a slot date, so an external requester is bound
+            // by the per-type horizon (60) and internal staff by the internal
+            // horizon (90). Without this, an external user could reschedule past
+            // the 60-day window the create flow enforces.
+            await _bookingPolicyValidator.ValidateAsync(newSlot.AvailableDate, appointment.AppointmentTypeId, isInternalRescheduler);
+        }
 
         // B1 (2026-07-01): the same internal-caller flag admits a Pending
         // source appointment for the reschedule request; external stays
@@ -161,7 +169,11 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             allowPendingSource: isInternalRescheduler,
             actingUserId: CurrentUser.Id);
 
-        await IssueConsentAndNotifyAsync(changeRequest);
+        // Phase 4b (2026-08-04): DELIBERATELY no consent here. Consent is a question about a
+        // specific proposed date, and after 4b no date exists at submit time -- issuing now
+        // would email both sides asking them to approve a reschedule with no date in it.
+        // Epic phase 4c reissues consent as a round triggered by the staff date pick.
+        // Cancellation consent is unaffected (see RequestCancellationAsync).
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
     }
@@ -210,7 +222,9 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
 
     /// <summary>
     /// Issues consent on a just-submitted request (reschedule/cancel consent redesign,
-    /// 2026-07-01). Party-initiated (external submitter maps to a side): auto-grant the
+    /// 2026-07-01). CANCEL ONLY since phase 4b (2026-08-04): a reschedule has no proposed
+    /// date at submit, so its consent round is issued by the staff date pick in phase 4c.
+    /// Party-initiated (external submitter maps to a side): auto-grant the
     /// requestor's side and token the OPPOSING side (one Yes/No email). Staff-initiated
     /// (internal caller, no side): token BOTH sides that have a representative (one email
     /// each); a side with no rep is left NotRequired (auto-satisfied). No-op when gating is

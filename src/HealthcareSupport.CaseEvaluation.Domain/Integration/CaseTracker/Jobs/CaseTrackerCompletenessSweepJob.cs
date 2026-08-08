@@ -51,8 +51,8 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
     /// predates the integration, since none of them has an intake row -- so the sweep would enqueue
     /// the entire history of every office, and enabling an office would flush all of it to the Case
     /// Tracker as fresh intakes (including long-cancelled appointments, because
-    /// <see cref="CaseTrackerPublishPolicy.IsPublished"/> excludes only Pending / Rejected /
-    /// InfoRequested). Their side turns an intake into a case, so that would mean duplicate cases for
+    /// <see cref="CaseTrackerPublishPolicy.ShouldPublish"/> excludes only Pending / Rejected /
+    /// InfoRequested and the two attendance outcomes). Their side turns an intake into a case, so
     /// work their staff already created by hand.</para>
     ///
     /// <para>Seven days is generous for what this job actually targets: an enqueue that threw minutes
@@ -132,6 +132,7 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
 
         foreach (var appointment in missing)
         {
+
             // Since 2026-07-30 "published with no intake row" is the NORMAL state between approval and
             // the packet set settling, so recovering unconditionally would race the deferral and send
             // exactly the packet-less intake it exists to prevent. Waiting for settle keeps this job
@@ -166,7 +167,7 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
     /// Resolved all count as "a row exists", because the point is to catch the case where nothing was
     /// ever written.
     ///
-    /// <para><c>IsPublished</c> is applied in memory after materialising, because it is a C# switch
+    /// <para><c>ShouldPublish</c> is applied in memory after materialising, because it is a C# switch
     /// rather than a translatable expression. The lookback filter is deliberately applied BEFORE that
     /// -- in the database -- so an office with years of history does not have all of it pulled into
     /// memory on every hourly run.</para>
@@ -187,7 +188,7 @@ public class CaseTrackerCompletenessSweepJob : ITransientDependency
             .Where(a => !appointmentIdsWithIntake.Contains(a.Id))
             .Where(a => (a.LastModificationTime ?? a.CreationTime) >= cutoffUtc)
             .ToList()
-            .Where(a => CaseTrackerPublishPolicy.IsPublished(a.AppointmentStatus))
+            .Where(a => CaseTrackerPublishPolicy.ShouldPublish(a.AppointmentStatus))
             .Take(BatchSize)
             .ToList();
     }

@@ -22,6 +22,7 @@ import { CancellationRequestModalComponent } from './cancellation-request-modal.
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
+import { RescheduleChainNoteComponent } from './reschedule-chain-note.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ExternalNavbarComponent } from '../../../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../../../user-queries/submit-query-modal.component';
@@ -29,6 +30,7 @@ import { performFullLogout } from '../../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
+import { bannerVariant, statusLabel } from './internal-detail.util';
 import type { PatientDto } from '../../../proxy/patients/models';
 import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
 import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-info-requests/models';
@@ -81,6 +83,33 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     title: 'The clinic needs more information',
     body: 'Update the highlighted details below, then resubmit. Your request returns to the clinic for review.',
   },
+  // Phase 4c (2026-08-05): an in-flight request now says so. Before this, a reschedule awaiting
+  // consent fell into the `rescheduled` callout above and told the patient "This appointment has
+  // been rescheduled -- the new date and time are shown above" while nothing had moved.
+  'reschedule-requested': {
+    icon: 'refresh',
+    title: 'Reschedule requested',
+    body: 'We received your reschedule request. Our staff will propose a new date and time, and all parties must agree before it takes effect.',
+  },
+  'cancellation-requested': {
+    icon: 'x',
+    title: 'Cancellation requested',
+    body: 'We received your cancellation request. It is awaiting review; the appointment is still scheduled until then.',
+  },
+  // Phase 5 (2026-08-07). Both are settled outcomes recorded by clinic staff, and neither
+  // produces a replacement automatically -- a new request is the only way forward, so both
+  // say so plainly. Kept factual and blame-free: a Not Seen is often a clinic-side cause
+  // (interpreter missing, wait too long), and the patient cannot tell which from here.
+  'no-show': {
+    icon: 'x',
+    title: 'Appointment missed',
+    body: 'Our records show this appointment was not attended. Please submit a new request if an evaluation is still needed.',
+  },
+  'not-seen': {
+    icon: 'x',
+    title: 'Evaluation not completed',
+    body: 'You attended, but the evaluation could not be completed. Please submit a new request if an evaluation is still needed.',
+  },
 };
 
 /**
@@ -103,6 +132,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     IconComponent,
+    RescheduleChainNoteComponent,
     SkeletonComponent,
     ExternalNavbarComponent,
     SubmitQueryModalComponent,
@@ -161,17 +191,27 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected get pill(): AppointmentPillStatus {
     return appointmentStatusToPill(this.currentStatus ?? AppointmentStatusType.Pending);
   }
+  // Phase 4c (2026-08-05): delegate to the shared helpers instead of re-deriving the variant
+  // and label inline. The duplicates here silently diverged from internal-detail.util the moment
+  // a multi-word pill was added -- `toLowerCase()` yields `reschedulerequested`, which matches
+  // no CALLOUTS key and falls back to the generic pending copy via the `??` below.
   protected get bannerVariant(): string {
-    return this.pill === 'InfoRequested' ? 'info-requested' : this.pill.toLowerCase();
+    return bannerVariant(this.pill);
   }
   protected get statusLabel(): string {
-    return this.pill === 'InfoRequested' ? 'Info requested' : this.pill;
+    return statusLabel(this.pill);
   }
   protected get callout(): CalloutCopy {
     return CALLOUTS[this.bannerVariant] ?? CALLOUTS['pending'];
   }
   protected get showOutcomeNote(): boolean {
-    return ['approved', 'rejected', 'cancelled', 'rescheduled'].includes(this.bannerVariant);
+    // The two in-flight variants are excluded: no outcome exists yet, so there is nothing to note.
+    // The phase-5 attendance outcomes ARE settled, and a no-showed appointment already showed
+    // this section back when it fell into the `cancelled` variant -- leaving them out would
+    // silently DROP a section rather than relabel one.
+    return ['approved', 'rejected', 'cancelled', 'rescheduled', 'no-show', 'not-seen'].includes(
+      this.bannerVariant,
+    );
   }
 
   // ---- appointment nav-prop accessors ----
@@ -256,11 +296,11 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
 
   /**
    * Redesign swap (2026-06-15): external re-request launches the booking WIZARD
-   * (/appointments/request) instead of the legacy add form. The internal
-   * AppointmentViewComponent.reRequest() keeps targeting /appointments/add so
-   * staff stay on the in-shell legacy form. Same mode=rerequest + source conf#
-   * contract; the wizard inherits the re-request load + reSubmit path. Uses
-   * shellRouter because the parent's `router` is private.
+   * (/appointments/request) instead of the legacy add form. As of 4a (2026-08-04) the
+   * internal AppointmentViewComponent.reRequest() targets the SAME path -- there is
+   * only one booking route now -- so this override exists purely to use shellRouter,
+   * the parent's `router` being private. Same mode=rerequest + source conf# contract;
+   * the wizard inherits the re-request load + reSubmit path.
    */
   override reRequest(): void {
     const conf = this.appointment?.appointment?.requestConfirmationNumber;

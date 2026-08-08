@@ -57,7 +57,7 @@ public abstract class DocumentRemovalHandlerBase
                 return;
             }
 
-            if (!CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
+            if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
             {
                 _logger.LogDebug(
                     "{Trigger}: appointment {AppointmentId} is {Status} and was never pushed; no tombstone needed.",

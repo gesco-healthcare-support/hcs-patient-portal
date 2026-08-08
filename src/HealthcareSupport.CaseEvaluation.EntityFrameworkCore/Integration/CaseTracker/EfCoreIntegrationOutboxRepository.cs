@@ -46,4 +46,17 @@ public class EfCoreIntegrationOutboxRepository
 
         return affected == 1;
     }
+
+    public async Task<int> CountSentSinceAsync(
+        DateTime sinceUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // Counted in the database, not in memory: a flood is exactly when this must not materialise
+        // thousands of rows. EF's query filters scope it to the current office's live rows.
+        return await dbSet
+            .Where(x => x.Status == IntegrationOutboxStatus.Sent && x.SentAt >= sinceUtc)
+            .CountAsync(cancellationToken);
+    }
 }
