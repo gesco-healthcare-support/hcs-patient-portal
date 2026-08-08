@@ -26,5 +26,21 @@ namespace HealthcareSupport.CaseEvaluation.Enums
         RescheduleRequested = 12,
         CancellationRequested = 13,
         InfoRequested = 14,
+
+        /// <summary>
+        /// Phase 5 (2026-08-07). The patient ARRIVED but was not evaluated --
+        /// a missing or incorrect interpreter, the patient leaving before being
+        /// called, and similar. Distinct from <see cref="NoShow"/>, where the
+        /// patient never arrived at all. Both end with no evaluation performed
+        /// and neither produces a replacement appointment: a client who still
+        /// wants one submits a new request.
+        ///
+        /// Recorded by intake staff in the Case Tracker and pushed to the portal,
+        /// so the portal never originates this status.
+        ///
+        /// The value is persisted as its int, so 15 is PERMANENT -- renumbering
+        /// would silently relabel stored rows.
+        /// </summary>
+        NotSeen = 15,
     }
 }

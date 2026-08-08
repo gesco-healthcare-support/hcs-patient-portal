@@ -51,6 +51,31 @@ describe('StatusPillComponent', () => {
     expect(pill().textContent?.trim()).toBe('Cancellation Requested');
   });
 
+  // Phase 5 (2026-08-07): the business's own long-standing names, verbatim. Adrian:
+  // "I do not want to invent new names, these are long used names throughout the
+  // business". Neutral grey rather than 4c's amber -- these ARE settled outcomes.
+  it('renders NoShow with the business label and the neutral tone', () => {
+    fixture.componentRef.setInput('status', 'NoShow');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--neutral');
+    expect(pill().textContent?.trim()).toBe('No Show');
+  });
+
+  it('renders NotSeen with the business label and the neutral tone', () => {
+    fixture.componentRef.setInput('status', 'NotSeen');
+    fixture.detectChanges();
+    expect(pill().classList).toContain('app-status-pill--neutral');
+    expect(pill().textContent?.trim()).toBe('Not Seen');
+  });
+
+  it('does not label either attendance outcome "Cancelled"', () => {
+    for (const status of ['NoShow', 'NotSeen']) {
+      fixture.componentRef.setInput('status', status);
+      fixture.detectChanges();
+      expect(pill().textContent?.trim()).not.toBe('Cancelled');
+    }
+  });
+
   it('always renders a dot and text (never color-alone)', () => {
     fixture.componentRef.setInput('status', 'Approved');
     fixture.detectChanges();

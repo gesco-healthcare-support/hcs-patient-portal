@@ -160,9 +160,18 @@ NEVER sent (do not build logic for these):
   appointment can never become Rejected or InfoRequested. (This CORRECTS an earlier statement that
   rejection / info-requested would re-push.)
 - `Pending` - pre-approval only.
-- `NoShow`, `CheckedIn`, `CheckedOut`, `Billed` - present in the state machine but have NO API
-  surface today (verified: no app-service exposes those triggers), so unreachable. Tolerate the
-  string if the day-of-exam flow ships later; do not rely on them now.
+- ~~`NoShow`, `CheckedIn`, `CheckedOut`, `Billed` - present in the state machine but have NO API
+  surface today (verified: no app-service exposes those triggers), so unreachable.~~
+  **CHANGED 2026-08-07 for `NoShow`; `NotSeen` (= 15) is new.** Both are now reachable, but the
+  REASON they are never SENT has changed: it is no longer "no API surface", it is that the portal
+  deliberately SUPPRESSES them. You author both (section K), so echoing them back would carry
+  nothing you did not already tell us. `CheckedIn` / `CheckedOut` / `Billed` remain unreachable
+  exactly as originally stated.
+
+  Accepted consequence, stated here so it is not discovered in production: once an appointment is
+  `NoShow` or `NotSeen`, **no further update about it reaches you at all** -- not a demographic
+  correction, not a document, not a packet. Its case is closed on both sides.
+
 - ~~`RescheduledNoBill`, `RescheduledLate` - NOT set on the appointment by the current in-place
   reschedule; that outcome is recorded on the change-request row.~~ **MOVED INTO THE RECEIVED TABLE
   ABOVE, 2026-08-06.** They are now the normal terminal statuses of a rescheduled appointment and
@@ -784,6 +793,96 @@ covered; that `DeleteAsync` leaves the object in place is verified by code revie
 
 Already EXISTS (reused): all field VALUES incl. `LastModificationTime`; upload/accept/reject/
 packet-generated events; byte retrieval by key; the MinIO store + ability to mint scoped users.
+
+---
+
+## K. Attendance report POST (INBOUND -- you call us) (ADDED 2026-08-07, phase 5)
+
+The FIRST inbound write in this integration. Everything else is either a portal push or the portal
+answering a read (section F); this is the one channel where the Case Tracker changes portal state.
+
+**Why it exists.** Intake staff mark a patient as no-show or not-seen in the CASE TRACKER, so the
+portal has no way to learn it. Without this the portal keeps showing the appointment as `Approved`
+forever and a re-evaluation cannot be booked against it.
+
+- **NoShow** -- the patient did not arrive.
+- **NotSeen** -- the patient arrived but was not evaluated (missing or incorrect interpreter, the
+  patient leaving before being called, and similar).
+
+There is **NO replacement appointment.** The portal records the outcome and stops. If the client
+still wants an appointment they submit a new request; that applies to re-evaluations too.
+
+### Endpoint
+
+`POST https://admin.api.<portal-base-domain>/api/integration/offices/{tenantId}/appointments/{appointmentId}/attendance`
+
+The `admin.api.` prefix and the `{tenantId}` path segment work exactly as in section F, and for the
+same reasons -- the portal is database-per-office and this request carries no other tenant signal.
+`{tenantId}` is the same `tenant.tenantId` you receive in every push.
+
+### Auth
+
+Header `X-Integration-Token`, the SAME secret as the reconcile GET (section F), not the outbound
+`X-Intake-Token`. Checked before any database work, so a wrong token cannot be used to probe which
+offices or appointments exist.
+
+### Body
+
+```json
+{ "outcome": "NO_SHOW" }
+```
+
+`outcome` is required and must be exactly `NO_SHOW` or `NOT_SEEN`. Case-sensitive, untrimmed, and no
+other status is accepted -- deliberately, so this endpoint cannot become a general-purpose status
+setter. Anything else is a 400.
+
+### Status codes
+
+| Code  | Meaning                                                                                                   |
+| ----- | --------------------------------------------------------------------------------------------------------- |
+| `200` | Applied. ALSO returned when the appointment already carried this outcome -- see idempotency below.        |
+| `400` | `outcome` missing or not one of the two accepted values.                                                  |
+| `401` | Missing or incorrect `X-Integration-Token`.                                                               |
+| `404` | Unknown office, unknown appointment, or an office with the integration switched off -- indistinguishable. |
+| `409` | The appointment exists but cannot take this outcome from its current status.                              |
+
+No response body on success.
+
+### Idempotency
+
+Keyed on the appointment's CURRENT status, not on a request id. A retry carrying the same outcome
+for an appointment already in that status returns `200` and changes nothing -- no second status
+change, so no duplicate staff notification. Retry freely.
+
+### Conflicts (`409`)
+
+`409` means the portal will not apply this outcome and nothing changed. It is safe to log and stop;
+retrying will not help. Causes:
+
+- The appointment already carries the OTHER attendance outcome.
+- The appointment is not `Approved`. Only an `Approved` appointment can take an attendance outcome,
+  and that is a domain rule rather than a conservative default:
+  - A **Pending** appointment was never approved, so no case exists on your side to report against.
+  - A **RescheduleRequested** appointment has no agreed date yet, so the patient is not expected to
+    attend anything. Finalize the reschedule first; the NEW appointment is the one that can no-show.
+  - A **Cancelled** or **Rescheduled** appointment is already terminal.
+
+`409` is the one failure the portal reports distinguishably. Everything else collapses to `404` so a
+token holder cannot enumerate offices or appointments; by the time a `409` is possible you have
+already authenticated, and staying silent would defeat the log this endpoint exists to create.
+
+### Rate limit
+
+Shares the `/api/integration` allowance with the reconcile GET: 300 requests/hour, partitioned by
+client IP. Attendance reports are one call per appointment per day, so they are negligible beside a
+reconcile repair sweep -- but the budget is SHARED, so a sweep and a burst of reports draw on the
+same 300. Tell us if you ever see a `429` and the cap can be raised.
+
+### What comes back the other way
+
+Nothing. The portal does NOT push these statuses to you (section A, NEVER-sent) -- you authored
+them. Note the accepted consequence recorded there: once an appointment is `NoShow` or `NotSeen`, no
+further update about it reaches you at all.
 
 ---
 

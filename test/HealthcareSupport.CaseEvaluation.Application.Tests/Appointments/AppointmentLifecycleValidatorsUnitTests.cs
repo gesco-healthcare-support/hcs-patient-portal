@@ -32,37 +32,85 @@ public class AppointmentLifecycleValidatorsUnitTests
         AppointmentLifecycleValidators.CanResubmit(status).ShouldBe(expected);
     }
 
+    // Phase 5 (2026-08-07) -- this gate is no longer status-only. Decision 1: a
+    // re-eval MAY be booked against a NoShow / NotSeen appointment, but ONLY if
+    // that appointment was itself a re-evaluation. A no-showed FIRST evaluation
+    // must come back as a new appointment request. This is a DELIBERATE break
+    // from the strict-OLD-parity rule the remarks on CanCreateReval describe --
+    // the previous test asserted NoShow was always rejected.
     [Theory]
-    [InlineData(AppointmentStatusType.Approved, false, true)]
-    [InlineData(AppointmentStatusType.Approved, true, true)]
-    // Strict OLD parity: admin override surfaces a different error message
-    // (line 172) but does NOT bypass the gate. The non-Approved + admin
-    // case should still return false.
-    [InlineData(AppointmentStatusType.Pending, true, false)]
-    [InlineData(AppointmentStatusType.Pending, false, false)]
-    [InlineData(AppointmentStatusType.Rejected, true, false)]
-    [InlineData(AppointmentStatusType.Rejected, false, false)]
-    [InlineData(AppointmentStatusType.NoShow, true, false)]
-    public void CanCreateReval_AllowsOnlyApprovedRegardlessOfAdmin(
+    // Approved is unconditional, as before -- kind is irrelevant to it.
+    [InlineData(AppointmentStatusType.Approved, EvaluationKind.Evaluation, false, true)]
+    [InlineData(AppointmentStatusType.Approved, EvaluationKind.ReEvaluation, false, true)]
+    [InlineData(AppointmentStatusType.Approved, EvaluationKind.Evaluation, true, true)]
+    // The two attendance outcomes, rescued ONLY by a ReEvaluation source.
+    [InlineData(AppointmentStatusType.NoShow, EvaluationKind.ReEvaluation, false, true)]
+    [InlineData(AppointmentStatusType.NotSeen, EvaluationKind.ReEvaluation, false, true)]
+    [InlineData(AppointmentStatusType.NoShow, EvaluationKind.ReEvaluation, true, true)]
+    [InlineData(AppointmentStatusType.NoShow, EvaluationKind.Evaluation, false, false)]
+    [InlineData(AppointmentStatusType.NotSeen, EvaluationKind.Evaluation, false, false)]
+    [InlineData(AppointmentStatusType.NotSeen, EvaluationKind.Evaluation, true, false)]
+    // Every other status stays rejected, and a ReEvaluation kind does NOT rescue
+    // it -- the rescue is scoped to the two attendance outcomes, not to re-evals
+    // in general. Strict OLD parity still holds here: admin surfaces a different
+    // message but does not bypass the gate.
+    [InlineData(AppointmentStatusType.Pending, EvaluationKind.ReEvaluation, false, false)]
+    [InlineData(AppointmentStatusType.Pending, EvaluationKind.Evaluation, true, false)]
+    [InlineData(AppointmentStatusType.Rejected, EvaluationKind.ReEvaluation, true, false)]
+    [InlineData(AppointmentStatusType.CancelledLate, EvaluationKind.ReEvaluation, false, false)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill, EvaluationKind.ReEvaluation, false, false)]
+    public void CanCreateReval_AllowsApprovedAndReEvaluatedAttendanceOutcomes(
         AppointmentStatusType status,
+        EvaluationKind sourceKind,
         bool callerIsItAdmin,
         bool expected)
     {
-        AppointmentLifecycleValidators.CanCreateReval(status, callerIsItAdmin).ShouldBe(expected);
+        AppointmentLifecycleValidators.CanCreateReval(status, sourceKind, callerIsItAdmin)
+            .ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.NoShow, false)]
+    [InlineData(AppointmentStatusType.NoShow, true)]
+    [InlineData(AppointmentStatusType.NotSeen, false)]
+    [InlineData(AppointmentStatusType.NotSeen, true)]
+    public void ResolveRevalRejectionCode_IncompleteFirstEvaluation_UsesItsOwnCode(
+        AppointmentStatusType status,
+        bool callerIsItAdmin)
+    {
+        // Regardless of admin: the admin hint says "approve it and try again",
+        // which is actively wrong advice here -- the appointment can never be
+        // approved again, and the caller must submit a new request instead.
+        AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                status, EvaluationKind.Evaluation, callerIsItAdmin)
+            .ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentRevalSourceIncompleteFirstEvaluation);
     }
 
     [Fact]
     public void ResolveRevalRejectionCode_NonAdmin_UsesPatientFacingCode()
     {
-        AppointmentLifecycleValidators.ResolveRevalRejectionCode(callerIsItAdmin: false)
+        AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                AppointmentStatusType.Pending, EvaluationKind.Evaluation, callerIsItAdmin: false)
             .ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApproved);
     }
 
     [Fact]
     public void ResolveRevalRejectionCode_Admin_UsesAdminHintCode()
     {
-        AppointmentLifecycleValidators.ResolveRevalRejectionCode(callerIsItAdmin: true)
+        AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                AppointmentStatusType.Pending, EvaluationKind.Evaluation, callerIsItAdmin: true)
             .ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApprovedAdminHint);
+    }
+
+    [Fact]
+    public void ResolveRevalRejectionCode_AttendanceOutcomeThatWasAReEval_IsNotTheIncompleteCode()
+    {
+        // Defensive: this combination is ALLOWED by CanCreateReval, so the
+        // resolver should never be consulted for it. If a caller ever does, it
+        // must not claim the source was a first evaluation -- it was not.
+        AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                AppointmentStatusType.NoShow, EvaluationKind.ReEvaluation, callerIsItAdmin: false)
+            .ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApproved);
     }
 
     [Fact]

@@ -96,6 +96,20 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     title: 'Cancellation requested',
     body: 'We received your cancellation request. It is awaiting review; the appointment is still scheduled until then.',
   },
+  // Phase 5 (2026-08-07). Both are settled outcomes recorded by clinic staff, and neither
+  // produces a replacement automatically -- a new request is the only way forward, so both
+  // say so plainly. Kept factual and blame-free: a Not Seen is often a clinic-side cause
+  // (interpreter missing, wait too long), and the patient cannot tell which from here.
+  'no-show': {
+    icon: 'x',
+    title: 'Appointment missed',
+    body: 'Our records show this appointment was not attended. Please submit a new request if an evaluation is still needed.',
+  },
+  'not-seen': {
+    icon: 'x',
+    title: 'Evaluation not completed',
+    body: 'You attended, but the evaluation could not be completed. Please submit a new request if an evaluation is still needed.',
+  },
 };
 
 /**
@@ -192,7 +206,12 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   }
   protected get showOutcomeNote(): boolean {
     // The two in-flight variants are excluded: no outcome exists yet, so there is nothing to note.
-    return ['approved', 'rejected', 'cancelled', 'rescheduled'].includes(this.bannerVariant);
+    // The phase-5 attendance outcomes ARE settled, and a no-showed appointment already showed
+    // this section back when it fell into the `cancelled` variant -- leaving them out would
+    // silently DROP a section rather than relabel one.
+    return ['approved', 'rejected', 'cancelled', 'rescheduled', 'no-show', 'not-seen'].includes(
+      this.bannerVariant,
+    );
   }
 
   // ---- appointment nav-prop accessors ----

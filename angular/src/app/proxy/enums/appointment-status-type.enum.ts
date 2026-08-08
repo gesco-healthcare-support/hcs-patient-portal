@@ -15,6 +15,7 @@ export enum AppointmentStatusType {
   RescheduleRequested = 12,
   CancellationRequested = 13,
   InfoRequested = 14,
+  NotSeen = 15,
 }
 
 export const appointmentStatusTypeOptions = mapEnumToOptions(AppointmentStatusType);

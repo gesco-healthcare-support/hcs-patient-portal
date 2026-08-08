@@ -60,7 +60,7 @@ public class DocumentAcceptedHandler :
                 return;
             }
 
-            if (!CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
+            if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
             {
                 // No case exists yet. The document is not lost: approval builds the intake payload
                 // from the CURRENT document list, so an already-accepted file ships with it.

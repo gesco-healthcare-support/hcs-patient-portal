@@ -1,8 +1,8 @@
 ---
 feature: No-show / not-seen round trip from Case Tracker (epic phase 5)
 date: 2026-08-06
-status: draft
-base-branch: feat/case-tracker-two-case-reschedule
+status: approved
+base-branch: main
 related-issues: []
 ---
 
@@ -11,12 +11,11 @@ related-issues: []
 Epic tracker: `docs/plans/2026-07-31-reschedule-cancel-calendar-integration-epic.md`.
 Follows 4e (`docs/plans/2026-08-06-case-tracker-two-case-reschedule.md`).
 
-**BASE BRANCH IS A JUDGEMENT CALL, flagged for override.** Phase 5 is now FUNCTIONALLY independent
-of 4d/4e -- the dependency the tracker recorded ("reuses 4d's create-new-appointment machinery")
-died with the replacement (see below). It is stacked on 4e anyway for ONE reason: both amend the
-same passages of `case-tracker-api-contract.md` (§A's NEVER-sent list, which 4e already rewrote),
-and branching off `main` would guarantee a conflict in exactly the paragraph both edit. Rebase onto
-main once 4d and 4e merge. Say so and this becomes `main` instead.
+**BASE BRANCH RESOLVED to `main` (2026-08-07).** Phase 5 is FUNCTIONALLY independent of 4d/4e --
+the dependency the tracker recorded ("reuses 4d's create-new-appointment machinery") died with the
+replacement (see below). The draft stacked it on 4e for ONE reason: both amend the same passages of
+`case-tracker-api-contract.md` (section A's NEVER-sent list). 4e merged as #431, so that rewrite is
+on main and the conflict risk is gone. Branch off main.
 
 ## Goal
 
@@ -62,10 +61,30 @@ them in CASE TRACKER, which is why this phase exists at all -- the portal has to
   must come back as a new appointment request. So the gate reads status AND
   `Appointment.EvaluationKind`, not status alone. This deliberately breaks the strict-OLD-parity
   rule recorded at `AppointmentLifecycleValidators.cs:50-55`; recorded here rather than slipped in.
-- Decision 2 (Adrian, 2026-08-06, via modal): ONE new UI pill covering both statuses. They are the
-  same thing operationally -- the appointment produced no evaluation -- and today `NoShow` maps to
-  NO pill at all (`StatusPillPolicy.ToPill` returns null), so these appointments are invisible in
-  the donut and its filters. That invisibility is the "make sure it is searchable" half of the ask.
+- ~~Decision 2 (Adrian, 2026-08-06, via modal): ONE new UI pill covering both statuses.~~
+  **SUPERSEDED 2026-08-07 (Adrian, via modal).** TWO pills, labelled `No Show` and `Not Seen`.
+  Verbatim: "I do not want to invent new names, these are long used names throughout the business
+  not something new I am making." So no merged "Not Evaluated" label.
+  Consequence: the backend needs TWO pill constants and TWO donut slices, not one. That is what
+  keeps `StatusPillPolicy` mirroring the Angular util -- a single backend bucket behind two Angular
+  labels would recreate exactly the divergence found below.
+- Decision 2b (Adrian, 2026-08-07, via modal): the new pills go in the backend `DonutOrder` (so the
+  internal dashboard shows the volume) but map to the EXISTING `cancelled` external filter segment.
+  No seventh external chip, no external chip count moves. This follows the 4c precedent verbatim:
+  pill TEXT becomes honest, the filter bar does not churn. The internal donut and the external chip
+  bar are separate surfaces, so they may legitimately differ.
+
+### The draft's premise for decision 2 was HALF WRONG (found 2026-08-07)
+
+The draft argued these appointments are "invisible in the donut and its filters" because
+`StatusPillPolicy.ToPill` returns null. True for the BACKEND donut. False for the UI: the Angular
+util maps `NoShow` to the **`Cancelled`** pill (`appointment-status.util.ts:46`), so a no-showed
+appointment today renders as a grey "Cancelled" chip.
+
+It is therefore MISLABELLED, not invisible -- the same class of defect 4c fixed for the two
+REQUESTED states, and worse than absence. Both files' doc comments claim they mirror each other and
+they do not; T4 must bring them back into agreement rather than only adding to one side.
+
 - Decision 3 (Adrian, 2026-08-06, via modal): the portal does NOT push these statuses back to Case
   Tracker. With no replacement to announce, the push carries nothing they do not already know --
   they authored it. (This REVERSES the recommendation given earlier in the same session, which
@@ -74,6 +93,30 @@ them in CASE TRACKER, which is why this phase exists at all -- the portal has to
   statuses are one event -- "the appointment produced no evaluation, here is why" -- and an explicit
   wire value matches how the integration already speaks (`BillingStatusWire`, `EvaluationKindWire`).
   A third cause later is then a new enum value, not a new route.
+- Decision 5 (Adrian, 2026-08-07): **a `RescheduleRequested` appointment can never no-show, and
+  refusing it is CORRECT.** Verbatim: "If the reschedule is pending, there is no appointment date
+  and the patient is not expected to show up. So a reschedule requested appointment first needs to
+  be rescheduled and only then is it possible for it to NoShow." So T6's 409 for a non-`Approved`
+  appointment is the right answer, not a gap to widen.
+- Decision 6 (Adrian, 2026-08-07): **a Pending appointment can never no-show.** Verbatim: "Only
+  approved requests go to case tracker and that means a pending request doesn't exist on the case
+  tracker and no one can mark NoShow for that." This closes the B1 path below.
+
+### No open change request can be stranded (verified 2026-08-07)
+
+Marking the outcome cannot leave a change request that can never be decided, because the two states
+are mutually exclusive by construction. Do NOT "fix" this later:
+
+- Filing a reschedule against an **Approved** appointment ALWAYS moves it to `RescheduleRequested`
+  (`AppointmentChangeRequestManager.cs:319-322` fires `RequestRescheduleAsync` on exactly that
+  condition). So `Approved` -- the only status `MarkNoShow` / `MarkNotSeen` are permitted from --
+  implies no open reschedule request.
+- The one case where an open request coexists with its appointment's original status is B1
+  (2026-07-01): internal staff file a reschedule against a **Pending** appointment, which stays
+  Pending because no `Pending --RequestReschedule-->` transition exists. Decision 6 covers it -- a
+  Pending appointment is not on Case Tracker, so no outcome can arrive for it.
+- Consequence for T1's acceptance: "reject from any status other than `Approved`" is not a
+  conservative default, it is the domain rule. Keep it.
 
 ## All needed context
 
@@ -105,14 +148,31 @@ this endpoint has:
 - unknown office and unknown appointment collapse to the SAME not-found answer, so a 500 never
   tells the caller it guessed a real office (`:75-86`).
 
-Two differences a POST brings:
+Two differences a POST brings (both RE-EXAMINED 2026-08-07, both were overstated in the draft):
 
-- it needs class-level `[IgnoreAntiforgeryToken]`. The reconcile controller avoided it only because
-  a GET does not need one; `PublicChangeRequestConsentController` and `PublicDocumentUploadController`
-  set the precedent for an anonymous machine POST.
-- **the 300/hour rate limit is inherited for free.** The limiter is PREFIX-scoped on
-  `/api/integration` precisely "so any future /api/integration endpoint inherits the cap instead of
-  having to remember to ask for one" (`CaseEvaluationHttpApiHostModule.cs:703-731`). Nothing to add.
+- **`[IgnoreAntiforgeryToken]` is CONTESTED, not settled. Do NOT add it reflexively.** The draft
+  asserted the POST "needs" it, citing the two public controllers -- both of which do carry it at
+  class level (`PublicChangeRequestConsentController.cs:18`,
+  `PublicDocumentUploadController.cs:27`). But TWO records say the opposite for new code:
+  `CaseTrackerReconcileController.cs:22-23` ("Sonar flags the attribute as a CRITICAL finding
+  (S4502) on new code") and `docs/plans/2026-07-28-case-tracker-reconcile-get.md:68` ("Do NOT add
+  `[IgnoreAntiforgeryToken]`; Sonar flags it CRITICAL (S4502) and 43 of 50 controllers omit it").
+  That prior justification ends "A GET does not need it regardless", so it does NOT settle a POST.
+  **Resolve it by testing, not by copying:** build T5 WITHOUT the attribute and POST with only the
+  token in the live gate. Add it ONLY if the request is actually rejected -- then the S4502 hotspot
+  has a demonstrated justification rather than an inherited one. Note `CaseTrackerPushController`
+  has a POST with no such attribute, though it is authenticated rather than anonymous.
+- **the 300/hour rate limit is inherited, but it is SHARED, not free.** The limiter is PREFIX-scoped
+  on `/api/integration` precisely "so any future /api/integration endpoint inherits the cap instead
+  of having to remember to ask for one" (`CaseEvaluationHttpApiHostModule.cs:703-731`) -- so no code
+  is needed. What the draft missed: the partition key is the CLIENT IP
+  (`ResolveIntegrationPartitionKey`, `:858-862`, returns `ip:{ip}`), and the window spans the whole
+  prefix. So attendance POSTs and reconcile GETs from one Case Tracker host consume ONE 300/hour
+  budget, and that 300 was sized for their reconcile repair sweep alone ("a post-outage repair sweep
+  needs real headroom"). Adding a second consumer is a capacity decision. The lever is the named
+  constant `IntegrationRequestsPerHour` -- "Single constant to raise if their sweep outgrows it."
+  ACCEPTED for now: attendance calls are one-per-appointment-per-day, negligible beside a sweep.
+  Revisit if their sweep ever reports 429s after this ships.
 
 ### Gotchas
 
@@ -124,13 +184,20 @@ Two differences a POST brings:
   appointment, chaining evaluation -> reval#1 (no-show) -> reval#2, rather than pointing back past
   it. That is honest history and needs no code; noted so it is a decision rather than a surprise.
 - The contract has NO inbound endpoint documented at all today -- the integration is push-only plus
-  the reconcile GET. §F is the section to mirror for documenting one.
+  the reconcile GET. Section F is the section to mirror for documenting one.
 - `AppointmentStatusType` is persisted as its int value, so `NotSeen` must take the next free
   number (15) and must never be renumbered.
 
 ## Tasks
 
 ### T1 -- the NotSeen status and its transition
+
+**BUILT TOGETHER WITH T2 (2026-08-07).** T1's acceptance ("WHEN an Approved appointment is marked
+not-seen, THE SYSTEM SHALL move it to `NotSeen`") is not reachable on its own: `BuildMachine` is
+`private static` and `ApplyTransitionAsync` is private, so the only seam that can exercise a
+transition is a public manager method -- which is T2. Splitting them would have meant either a task
+with no runnable acceptance or a throwaway test. Both landed in one commit; the acceptances of both
+are covered.
 
 - what: MODIFY `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs`
   -- add `NotSeen = 15` with a doc line stating it means the patient ARRIVED but was not evaluated,
@@ -165,6 +232,11 @@ Two differences a POST brings:
   first evaluation that was not completed -- please submit a new appointment request"), beside
   `AppointmentRevalSourceNotApproved` (`CaseEvaluationDomainErrorCodes.cs:305`). MODIFY
   `AppointmentManager.LoadRevalSourceAsync` (`:184-203`) to pass the kind through.
+  **`ResolveRevalRejectionCode` MUST take the kind too** (verified 2026-08-07): today it is
+  `ResolveRevalRejectionCode(bool callerIsItAdmin)` and returns one of exactly two codes keyed on
+  admin alone (`AppointmentLifecycleValidators.cs`, called at `AppointmentManager.cs:196`), so it
+  cannot express the third rejection reason without a new parameter. Changing `CanCreateReval` alone
+  leaves the new code unreachable.
 - pattern: the existing `CanCreateReval` + `ResolveRevalRejectionCode` pair, which already models
   "reject, but with the right message".
 - approach: tdd
@@ -174,23 +246,52 @@ Two differences a POST brings:
   reject it with the new code and SHALL NOT reuse the not-approved message. THE SYSTEM SHALL
   continue to reject every other source status.
 
-### T4 -- one pill for both
+### T4 -- a pill each, and a mislabelling fix
 
-- what: MODIFY `Application/Appointments/StatusPillPolicy.cs` -- add a pill constant covering
-  `NoShow` and `NotSeen`, map both to it in `ToPill`, and place it in `DonutOrder`. MODIFY the
-  Angular status filter/label surfaces that consume the pill set so the new slice renders.
-- pattern: the `CancelledNoBill or CancelledLate => Cancelled` arm, which already folds two statuses
-  into one pill.
+**REWRITTEN 2026-08-07** for decisions 2 (two pills, business names) and 2b, and for the
+backend/Angular divergence recorded above. The draft's title ("one pill for both") is superseded.
+
+- what: MODIFY `Application/Appointments/StatusPillPolicy.cs` -- add TWO constants, `NoShow` and
+  `NotSeen`, map each status to its own in `ToPill`, and place both in `DonutOrder` beside
+  `Cancelled` (same family of terminal non-event). MODIFY
+  `angular/src/app/shared/ui/status-pill/status-pill.component.ts` -- add both keys to
+  `AppointmentPillStatus` and `PILL_META`, labelled "No Show" and "Not Seen", tone `neutral` to
+  match `Cancelled`. These ARE done, so 4c's reason for giving the REQUESTED states an in-progress
+  amber does not apply. MODIFY
+  `angular/src/app/shared/ui/status-pill/appointment-status.util.ts` -- **REMOVE `NoShow` from the
+  `Cancelled` arm** (this is the mislabelling FIX, not an addition), map each status to its own
+  pill, and add both to `PILL_TO_SEGMENT` pointing at `'cancelled'` so no external chip moves.
+  ADD `NotSeen = 15` to `angular/src/app/proxy/enums/appointment-status-type.enum.ts` -- what
+  `abp generate-proxy` would emit; by hand because the generator needs a running API.
+- pattern: the `CancelledNoBill or CancelledLate => Cancelled` arm for the backend switch; 4c's
+  split of the REQUESTED states out of their terminal pills for the Angular side -- the same move
+  for the same reason.
 - approach: tdd
-- acceptance (EARS): WHEN an appointment is `NoShow` or `NotSeen`, THE SYSTEM SHALL report the new
-  pill and SHALL include it in the donut order. WHEN it is any other status, THE SYSTEM SHALL report
-  exactly the pill it reports today.
+- acceptance (EARS): WHEN an appointment is `NoShow`, THE SYSTEM SHALL report the `NoShow` pill;
+  WHEN it is `NotSeen`, the `NotSeen` pill; and THE SYSTEM SHALL include both in the donut order.
+  WHEN an appointment is `NoShow`, THE SYSTEM SHALL NOT report it as `Cancelled` in either the
+  backend policy or the Angular util. WHEN it is any other status, THE SYSTEM SHALL report exactly
+  the pill it reports today, and every external filter chip count SHALL be unchanged.
 
 ### T5 -- the inbound endpoint
 
+**THE RESULT SHAPE IS NOT THE RECONCILE SERVICE'S (found 2026-08-07).** `CaseTrackerReconcileService`
+returns `IntakeEnvelope?` and wraps its whole body in `catch (Exception) -> return null` (`:75-86`)
+so that everything collapses to one indistinguishable 404. Copying that shape makes T6's 409
+UNREACHABLE: an invalid transition throws a `BusinessException` out of the state machine, the
+catch-all swallows it, and the caller is told 404 instead of conflict. The service MUST return a
+THREE-way result -- applied / conflict / not-found -- with the catch-all narrowed so transition
+failures reach the conflict arm rather than the not-found arm. The not-found arm keeps the reconcile
+service's ambiguity exactly (unknown office, unknown appointment, integration disabled); only the
+conflict arm is new, and it is safe to distinguish because the caller is token-authenticated by then.
+
 - what: CREATE `Domain/Integration/CaseTracker/CaseTrackerAttendanceService.cs` -- enters the office
-  with `_currentTenant.Change(tenantId)`, reads the per-office enable setting inside the scope,
-  loads the appointment, and applies the outcome via T2. CREATE
+  with `using (_currentTenant.Change(tenantId))` (the scope is `IDisposable` and MUST be disposed or
+  the ambient tenant leaks into the rest of the request), reads the per-office enable setting inside
+  the scope, loads the appointment, and applies the outcome via T2, returning the three-way result
+  above. It is a DOMAIN service, not an application service: `ConventionalControllers.Create` in the
+  host module auto-exposes every app service over HTTP, so an app service here would gain a SECOND
+  route with no token check (`CaseTrackerReconcileService.cs:16-20` states this). CREATE
   `HttpApi.Host/Controllers/Integration/CaseTrackerAttendanceController.cs` -- `[AllowAnonymous]`,
   class-level `[IgnoreAntiforgeryToken]`, route
   `api/integration/offices/{tenantId}/appointments/{appointmentId}/attendance`, token checked before
@@ -214,6 +315,9 @@ Two differences a POST brings:
 - pattern: the "collapse to a non-distinguishing answer" logging style in
   `CaseTrackerReconcileService.cs:75-86`, but note conflicts are DISTINGUISHABLE here on purpose --
   the caller is authenticated by then, and silence would break the log this phase exists to create.
+  This is why T5's service returns a three-way result rather than a nullable; see the note on T5.
+  Build the conflict arm and its test BEFORE the happy path, so a catch-all that swallows the
+  transition exception shows up as a red test rather than a passing 404.
 - approach: tdd
 - acceptance (EARS): WHEN Case Tracker retries an already-applied outcome, THE SYSTEM SHALL return
   200 and SHALL NOT publish a second status change. WHEN it sends a conflicting outcome, THE SYSTEM
@@ -221,27 +325,52 @@ Two differences a POST brings:
 
 ### T7 -- keep both statuses off the wire
 
-- what: CREATE a small pure policy in `Domain/Integration/CaseTracker/` naming the two statuses as
-  not-published, and call it from the same three enqueue sites 4d used (the re-push in
-  `AppointmentChangedHandler`, `CaseTrackerPacketPublishService`, and the completeness sweep), each
-  with a `LogDebug`. Unlike 4d's, this gate is PERMANENT -- comment it as such so a later reader
-  does not delete it as leftover scaffolding.
-- pattern: 4d's `CaseTrackerRescheduleSuppressionPolicy` and its three call sites (deleted by 4e --
-  read that commit for the shape).
+**RE-ANCHORED 2026-08-07. The draft's site list was wrong** -- it named "the same three enqueue
+sites 4d used (the re-push in `AppointmentChangedHandler`, `CaseTrackerPacketPublishService`, and
+the completeness sweep)". On current main the status gate is ONE shared predicate,
+`CaseTrackerPublishPolicy.IsPublished`, consulted at SEVEN sites across SIX files.
+`CaseTrackerPacketPublishService` is NOT one of them -- it gates on `HasIntakeAsync`, not status.
+Building the draft as written would have wired the gate into a site with no status check and missed
+five that have one.
+
+- what: ADD `IsAttendanceClosed(AppointmentStatusType)` naming `NoShow` and `NotSeen`, plus a
+  combined `ShouldPublish(status) => IsPublished(status) && !IsAttendanceClosed(status)`, to
+  `Domain/Integration/CaseTracker/CaseTrackerPublishPolicy.cs`. MODIFY all seven call sites to
+  consult `ShouldPublish` instead of `IsPublished`, each with a `LogDebug` on the skip:
+  `Handlers/AppointmentChangedHandler.cs:74` and `:101`; `Handlers/DocumentAcceptedHandler.cs:63`;
+  `Handlers/DocumentRemovalHandlerBase.cs:60`; `Handlers/PacketsCompleteHandler.cs:71`;
+  `Jobs/CaseTrackerCompletenessSweepJob.cs:191`; `Jobs/CaseTrackerReconciliationJob.cs:156`. Also
+  update the sweep's doc comment at `:54`, which names `IsPublished` by `<see cref>`.
+  **Do NOT simply add the two statuses to `IsPublished`'s deny list.** `IsPublished` means "the
+  intake was pushed, so a follow-up can land", and a no-showed appointment WAS published. Its own
+  doc comment states the invariant that would break: the excluded states "are all reachable only
+  from `Pending`, so they are a closed set" -- `NoShow` is reachable from `Approved`. Keep the two
+  meanings separate.
+  Unlike 4d's, this gate is PERMANENT -- comment it as such so a later reader does not delete it as
+  leftover scaffolding.
+- pattern: `CaseTrackerPublishPolicy` itself -- a static pure predicate over status, with the reason
+  for its shape in the doc comment. (4d's `CaseTrackerRescheduleSuppressionPolicy`, which the draft
+  cited, was DELETED by 4e and is no longer on main; read that commit only for the call-site shape.)
+- note on the sweep: suppressing there is defence in depth, not a trade-off. The sweep only selects
+  appointments with NO intake row (`:186-192`), and an appointment Case Tracker can no-show
+  necessarily had its intake land -- otherwise they hold no case to mark. The two sets do not
+  intersect.
 - approach: tdd
 - acceptance (EARS): WHEN an appointment is `NoShow` or `NotSeen`, THE SYSTEM SHALL NOT enqueue an
-  integration row from any of the three paths and SHALL log the skip. WHEN it is any other published
-  status, THE SYSTEM SHALL enqueue exactly as before.
+  integration row from ANY of the seven sites and SHALL log the skip. WHEN it is any other published
+  status, THE SYSTEM SHALL enqueue exactly as before. THE SYSTEM SHALL leave `IsPublished` answering
+  exactly what it answers today for every status.
 
 ### T8 -- document the inbound endpoint
 
 - what: MODIFY `docs/integration/case-tracker-api-contract.md` -- add a section for the INBOUND
-  endpoint (the contract documents no inbound surface today), mirroring §F's shape: route, auth
-  header, body, status codes, idempotency and conflict semantics, rate limit. MOVE `NoShow` out of
-  §A's NEVER-sent list -- but state that it is never SENT because the portal suppresses it, which is
+  endpoint (the contract documents no inbound surface today), mirroring section F's shape: route,
+  auth header, body, status codes, idempotency and conflict semantics, rate limit. MOVE `NoShow` out
+  of section A's NEVER-sent list -- but state that it is never SENT because the portal suppresses it,
+  which is
   a different reason from today's "no API surface". Add `NotSeen` to the status vocabulary with the
   same note.
-- pattern: §F (the reconcile GET) for an endpoint section; 4e's strike-through-in-place style for
+- pattern: section F (the reconcile GET) for an endpoint section; 4e's strike-through-in-place for
   correcting a statement that has changed reason.
 - approach: code
 - acceptance (EARS): THE SYSTEM SHALL document the inbound endpoint completely enough to call
@@ -282,13 +411,24 @@ Mutation checks (required):
 - Remove `NotSeen` from the reval gate's allowed set; confirm only the not-seen reval test fails.
 - Make the gate ignore `EvaluationKind`; confirm the "no-showed FIRST evaluation" test fails while
   the "no-showed re-eval" test stays green -- that pair is the whole of decision 1.
-- Remove one of the three suppression call sites; confirm only that site's test fails.
+- Revert ONE of the seven `ShouldPublish` call sites to `IsPublished`; confirm only that site's test
+  fails. Repeat per site -- seven sites need seven tests, and a single shared-policy unit test will
+  NOT catch a missed call site.
+- Make `ShouldPublish` ignore `IsAttendanceClosed`; confirm the suppression tests fail while every
+  existing publish test stays green.
+- Widen T5's service catch to `catch (Exception) -> not-found`, the reconcile service's shape;
+  confirm the T6 conflict test goes red. If it stays green, the conflict arm is not actually being
+  exercised and the test is worthless.
 
 ## Live gate
 
 1. `docker ps`; restart `main-api-1` after building.
 2. Take an Approved appointment and POST the endpoint with a valid token, correct `{tenantId}`, and
-   `{"outcome":"NO_SHOW"}`. Assert 200 and the status in SQL.
+   `{"outcome":"NO_SHOW"}`. Assert 200 and the status in SQL. **Send NO antiforgery cookie or
+   header** -- a raw `curl` with only `X-Integration-Token` is exactly what Case Tracker will send.
+   THIS STEP SETTLES THE `[IgnoreAntiforgeryToken]` QUESTION: a 200 proves the attribute is
+   unnecessary and it stays off (no S4502 hotspot); a 400 proves it is required and the hotspot then
+   has a demonstrated justification to record. Do not decide this from the source alone.
 3. Repeat the same call; assert 200 and that no second status-changed event or duplicate email row
    appeared.
 4. POST `{"outcome":"NOT_SEEN"}` to the same appointment; assert 409 and the status unchanged.

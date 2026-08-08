@@ -16,12 +16,20 @@ const INFO_REQUESTED_STATUS = 14 as AppointmentStatusType;
  *
  *   Approved   <- Approved, CheckedIn, CheckedOut, Billed (post-approval states)
  *   Rejected   <- Rejected
- *   Cancelled  <- CancelledNoBill, CancelledLate, NoShow
+ *   Cancelled  <- CancelledNoBill, CancelledLate
  *   CancellationRequested <- CancellationRequested
  *   Rescheduled<- RescheduledNoBill, RescheduledLate
  *   RescheduleRequested <- RescheduleRequested
  *   InfoRequested <- InfoRequested
+ *   NoShow     <- NoShow
+ *   NotSeen    <- NotSeen
  *   Pending    <- Pending (and anything unknown)
+ *
+ * Phase 5 (2026-08-07) took NoShow OUT of the Cancelled bucket. That mapping was a
+ * MISLABELLING, not a simplification: the appointment was not cancelled, the patient
+ * did not arrive -- and the backend StatusPillPolicy meanwhile returned null for it,
+ * so the two sides of this "mirror" disagreed. NotSeen (the patient arrived but was
+ * not evaluated) joins it. Both use the business's own long-standing names.
  *
  * Phase 4c (2026-08-05) split the two REQUESTED states out of their terminal pills. They used
  * to bucket into `Rescheduled` / `Cancelled`, so an in-flight request rendered as though it had
@@ -43,8 +51,11 @@ export function appointmentStatusToPill(status: AppointmentStatusType): Appointm
       return 'Rejected';
     case AppointmentStatusType.CancelledNoBill:
     case AppointmentStatusType.CancelledLate:
-    case AppointmentStatusType.NoShow:
       return 'Cancelled';
+    case AppointmentStatusType.NoShow:
+      return 'NoShow';
+    case AppointmentStatusType.NotSeen:
+      return 'NotSeen';
     case AppointmentStatusType.CancellationRequested:
       return 'CancellationRequested';
     case AppointmentStatusType.RescheduledNoBill:
@@ -84,6 +95,13 @@ const PILL_TO_SEGMENT: Record<AppointmentPillStatus, Exclude<ExternalStatusSegme
   Cancelled: 'cancelled',
   CancellationRequested: 'cancelled',
   Rejected: 'rejected',
+  // Phase 5 (2026-08-07): the two attendance outcomes get their own honest PILL but
+  // keep filtering under the chip NoShow already filtered under, so no seventh chip
+  // appears and no external chip count moves -- the same trade 4c made for the
+  // REQUESTED states. The internal dashboard donut DOES get a slice each; that is a
+  // separate surface (StatusPillPolicy.DonutOrder) and staff want the volume.
+  NoShow: 'cancelled',
+  NotSeen: 'cancelled',
 };
 
 export function appointmentStatusToSegment(

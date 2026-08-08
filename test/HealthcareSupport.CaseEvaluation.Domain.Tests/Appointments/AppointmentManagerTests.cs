@@ -300,4 +300,108 @@ public abstract class AppointmentManagerTests<TStartupModule> : CaseEvaluationDo
             }
         });
     }
+
+    // --- Phase 5 (2026-08-07): attendance outcomes pushed by the Case Tracker. ---
+    // NoShow = the patient did not arrive. NotSeen = the patient arrived but was
+    // not evaluated (missing interpreter, walked out, ...). Intake staff record
+    // both in the Case Tracker, so the portal only ever learns them inbound.
+    //
+    // Only Approved permits them, and that is the domain rule rather than a
+    // conservative default: filing a change request against an Approved
+    // appointment moves it OUT of Approved, so an appointment that can still take
+    // an outcome has no open request to strand. Appointment2 is seeded Approved
+    // (in TENANT B), Appointment1 is seeded Pending (tenant A).
+
+    [Fact]
+    public void NotSeen_HasTheReservedNumericValue()
+    {
+        // AppointmentStatusType persists as its int value, so renumbering NotSeen
+        // would silently relabel every stored row. Pinned here rather than left to
+        // code review.
+        ((int)AppointmentStatusType.NotSeen).ShouldBe(15);
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.NoShow)]
+    [InlineData(AppointmentStatusType.NotSeen)]
+    public async Task Manager_MarkAttendanceOutcomeAsync_FromApproved_AppliesTheOutcome(
+        AppointmentStatusType outcome)
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
+            {
+                try
+                {
+                    var updated = await _appointmentManager.MarkAttendanceOutcomeAsync(
+                        AppointmentsTestData.Appointment2Id,
+                        outcome,
+                        reason: null,
+                        actingUserId: null);
+
+                    updated.AppointmentStatus.ShouldBe(outcome);
+                }
+                finally
+                {
+                    // Restore the seeded status: the Theory runs twice against the
+                    // same row, and Wave2SeedSanityTests pins it.
+                    await RestoreAppointmentStatusAsync(
+                        AppointmentsTestData.Appointment2Id,
+                        AppointmentsTestData.Appointment2Status);
+                }
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.NoShow)]
+    [InlineData(AppointmentStatusType.NotSeen)]
+    public async Task Manager_MarkAttendanceOutcomeAsync_WhenNotApproved_ThrowsInvalidTransition(
+        AppointmentStatusType outcome)
+    {
+        // A Pending appointment was never approved, so no case exists on the Case
+        // Tracker side and no outcome can legitimately arrive for it.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var ex = await Should.ThrowAsync<BusinessException>(() =>
+                    _appointmentManager.MarkAttendanceOutcomeAsync(
+                        AppointmentsTestData.Appointment1Id,
+                        outcome,
+                        reason: null,
+                        actingUserId: null));
+
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition);
+
+                var after = await _appointmentRepository.GetAsync(AppointmentsTestData.Appointment1Id);
+                after.AppointmentStatus.ShouldBe(AppointmentsTestData.Appointment1Status);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Approved)]
+    [InlineData(AppointmentStatusType.Billed)]
+    [InlineData(AppointmentStatusType.CancelledLate)]
+    public async Task Manager_MarkAttendanceOutcomeAsync_WhenOutcomeIsNotAttendance_Throws(
+        AppointmentStatusType outcome)
+    {
+        // Throws rather than coercing: a caller free to pass any status could
+        // otherwise drive an arbitrary transition through this one method. The
+        // guard runs before the appointment is loaded, so no tenant scope is needed.
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() =>
+            _appointmentManager.MarkAttendanceOutcomeAsync(
+                AppointmentsTestData.Appointment2Id,
+                outcome,
+                reason: null,
+                actingUserId: null));
+    }
+
+    private async Task RestoreAppointmentStatusAsync(Guid appointmentId, AppointmentStatusType status)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        appointment.AppointmentStatus = status;
+        await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+    }
 }
