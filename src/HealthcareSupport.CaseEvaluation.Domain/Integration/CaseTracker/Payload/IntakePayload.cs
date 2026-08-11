@@ -215,6 +215,36 @@ public class IntakePatientSection
     public string? CellPhoneNumber { get; set; }
 
     /// <summary>
+    /// Street address, line 1.
+    ///
+    /// <para>Backed by <c>Patient.Street</c>, which the booking form labels "Street" and fills via
+    /// the address autocomplete. Do NOT confuse it with the column <c>Patient.Address</c>, whose
+    /// name is misleading -- see <see cref="Unit"/>.</para>
+    /// </summary>
+    public string? Street { get; set; }
+
+    /// <summary>
+    /// Apartment / suite number, when the patient supplied one.
+    ///
+    /// <para>Called <c>unit</c> on the wire even though it is backed by the column
+    /// <c>Patient.Address</c>, because "Unit #" is what the booking form asks for and what the value
+    /// actually holds. Publishing it as <c>address</c> would invite the receiver to render a bare
+    /// "4B" as a street address. The column name is a historical accident; this name is the truth.
+    /// </para>
+    /// </summary>
+    public string? Unit { get; set; }
+
+    public string? City { get; set; }
+
+    /// <summary>
+    /// State NAME (e.g. <c>California</c>), not the portal's lookup id -- matching how the attorney
+    /// and claim-examiner sections already publish state.
+    /// </summary>
+    public string? State { get; set; }
+
+    public string? ZipCode { get; set; }
+
+    /// <summary>
     /// Opaque, office-scoped token that is EQUAL for two appointments belonging to the same patient, so
     /// the receiver's staff can be shown "these two claims are the same person".
     ///
