@@ -10,6 +10,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Doctors;
@@ -190,6 +191,7 @@ public class IntakePayloadBuilderTests
             new DocumentListResolver(documentRepo, packetRepo, documentTypeRepo),
             new InjuryResolver(injuryRepo),
             new PartyDetailResolver(insuranceRepo, examinerRepo, stateRepo),
+            new ChangeAttributionResolver(EmptyChangeRequestRepo()),
             SimpleGuidGenerator.Instance);
     }
 
@@ -562,5 +564,21 @@ public class IntakePayloadBuilderTests
         data.Doctor.Id.ShouldBeNull();
         data.Doctor.FirstName.ShouldBeEmpty();
         data.Doctor.LastName.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A change-request repository holding nothing. Configured EXPLICITLY: an unconfigured
+    /// NSubstitute call returning Task&lt;List&lt;T&gt;&gt; yields NULL, not an empty list, which the
+    /// resolver would then order over. Production repositories never return null.
+    /// </summary>
+    private static IRepository<AppointmentChangeRequest, Guid> EmptyChangeRequestRepo()
+    {
+        var repo = Substitute.For<IRepository<AppointmentChangeRequest, Guid>>();
+        repo.GetListAsync(
+                Arg.Any<System.Linq.Expressions.Expression<Func<AppointmentChangeRequest, bool>>>(),
+                Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<AppointmentChangeRequest>()));
+        return repo;
     }
 }
