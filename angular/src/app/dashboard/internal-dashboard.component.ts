@@ -45,6 +45,12 @@ const PILL_LABEL: Record<string, string> = {
   Rescheduled: 'Rescheduled',
   Cancelled: 'Cancelled',
   Rejected: 'Rejected',
+  // Phase 5 (2026-08-08). REQUIRED: the lookup below falls back to the raw pill key,
+  // so without these the legend rendered "NoShow" / "NotSeen" run together. Caught by
+  // the live gate, not by any test -- this map is keyed on plain strings, so a missing
+  // entry is not a compile error and the fallback hides it.
+  NoShow: 'No Show',
+  NotSeen: 'Not Seen',
 };
 const PILL_COLOR: Record<string, string> = {
   Pending: 'var(--st-pending-dot)',
@@ -53,6 +59,11 @@ const PILL_COLOR: Record<string, string> = {
   Rescheduled: 'var(--blue-500)',
   Cancelled: 'var(--n-300)',
   Rejected: 'var(--st-rejected-dot)',
+  // A neutral ramp rather than reusing Cancelled's --n-300: all three are terminal
+  // non-events, but the colour fallback is ALSO --n-300, so leaving these out gave the
+  // donut three indistinguishable grey slices.
+  NoShow: 'var(--n-500)',
+  NotSeen: 'var(--n-400)',
 };
 
 /**

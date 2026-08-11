@@ -287,6 +287,21 @@ services:
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
+      # Case Tracker integration (2026-08-08). Mirrors docker-compose.prod.yml:289-292.
+      # ADDED because dev had NO passthrough at all: these are read via IConfiguration by
+      # CaseTrackerClient and IntegrationTokenValidator, and a key compose does not name never
+      # reaches the container -- so the validator failed closed on every request and neither
+      # the reconcile GET nor the attendance POST could be exercised locally. That is why the
+      # reconcile GET was never live-gated.
+      #
+      # IntakeToken = the token THEY issue to us, sent as X-Intake-Token on every push.
+      # IntegrationToken = the token WE issue to them, required on the inbound endpoints.
+      # Both default EMPTY, exactly as in prod: unset means fail-closed, refusing every
+      # request rather than serving PHI. Supply dev values in the git-ignored env file.
+      CaseTracker__BaseUrl: "${CASE_TRACKER_BASE_URL:-}"
+      CaseTracker__IntakeToken: "${CASE_TRACKER_INTAKE_TOKEN:-}"
+      CaseTracker__IntegrationToken: "${CASE_TRACKER_INTEGRATION_TOKEN:-}"
+      CaseTracker__TimeoutSeconds: "${CASE_TRACKER_TIMEOUT_SECONDS:-30}"
     volumes:
       # dev target (2026-06-12): bind-mount source + NuGet named volume; build
       # output -> container-local /artifacts (Dockerfile dev stage). Shadow the
