@@ -75,4 +75,15 @@ public interface IAppointmentRepository : IRepository<Appointment, Guid>
     Task<Dictionary<Guid, List<string>>> GetActivePatientNamesForSlotsAsync(
         List<Guid> doctorAvailabilityIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Phase 3 (2026-07-31) -- like <see cref="GetActivePatientNamesForSlotsAsync"/>, but returns the
+    /// appointment IDENTITY alongside the name so the staff schedule's chips can link to
+    /// <c>/appointments/view/:id</c> and be coloured by status. Same non-terminal predicate. Returns
+    /// a FLAT list and leaves grouping to the caller, because the schedule nests appointments under
+    /// their slot and a dictionary would just be regrouped.
+    /// </summary>
+    Task<List<ActiveSlotAppointment>> GetActiveAppointmentsForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default);
 }

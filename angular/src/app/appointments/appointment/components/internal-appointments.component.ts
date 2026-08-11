@@ -154,7 +154,7 @@ export class InternalAppointmentsComponent implements OnInit {
   );
 
   protected newAppointment(): void {
-    void this.router.navigateByUrl('/appointments/add');
+    void this.router.navigateByUrl('/appointments/request');
   }
 
   protected readonly totalPages = computed(() =>

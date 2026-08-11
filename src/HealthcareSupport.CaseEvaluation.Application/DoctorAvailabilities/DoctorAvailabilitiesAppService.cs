@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.SystemParameters;
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Uow;
+using Volo.Abp.Validation;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -61,11 +63,53 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     {
         var totalCount = await _doctorAvailabilityRepository.GetCountAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId);
         var items = await _doctorAvailabilityRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var dtos = ObjectMapper.Map<List<DoctorAvailabilityWithNavigationProperties>, List<DoctorAvailabilityWithNavigationPropertiesDto>>(items);
+
+        // Phase 3 (2026-08-03) -- populate RemainingCapacity here too, so the grid can
+        // colour a slot by whether it is REALLY full. It previously had no occupancy at
+        // all and fell back on BookingStatusId, which no code ever sets to Booked, so
+        // every slot looked available until someone manually reserved it. One bulk read
+        // over the page's slots, mirroring the picker's N+1 avoidance.
+        await PopulateRemainingCapacityAsync(dtos);
+
         return new PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<DoctorAvailabilityWithNavigationProperties>, List<DoctorAvailabilityWithNavigationPropertiesDto>>(items)
+            Items = dtos
         };
+    }
+
+    /// <summary>
+    /// Fills <see cref="DoctorAvailabilityDto.RemainingCapacity"/> from the real
+    /// non-terminal appointment count for each slot on the page. Missing key means zero
+    /// active appointments; the value is clamped at 0 so an over-subscribed slot never
+    /// reads as bookable.
+    /// </summary>
+    private async Task PopulateRemainingCapacityAsync(List<DoctorAvailabilityWithNavigationPropertiesDto> dtos)
+    {
+        var slotIds = dtos
+            .Where(x => x.DoctorAvailability != null)
+            .Select(x => x.DoctorAvailability.Id)
+            .ToList();
+
+        if (slotIds.Count == 0)
+        {
+            return;
+        }
+
+        var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
+
+        foreach (var dto in dtos)
+        {
+            var slot = dto.DoctorAvailability;
+            if (slot == null)
+            {
+                continue;
+            }
+
+            var active = activeCounts.TryGetValue(slot.Id, out var count) ? count : 0;
+            slot.RemainingCapacity = (int)Math.Max(0, slot.Capacity - active);
+        }
     }
 
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
@@ -636,6 +680,68 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         return namesBySlot
             .Select(kvp => new SlotPatientNamesDto { SlotId = kvp.Key, Names = kvp.Value })
             .ToList();
+    }
+
+    /// <summary>
+    /// Phase 3 (2026-07-31) -- the staff schedule: slots in a date range for one location, each with
+    /// real occupancy and the appointments in it. See the interface for why this is separate from the
+    /// booking lookup.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
+    public virtual async Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input)
+    {
+        Check.NotNull(input, nameof(input));
+        if (input.LocationId == Guid.Empty)
+        {
+            // Required rather than "all locations" on purpose: the result carries patient names, so
+            // the caller must say which clinic it is looking at.
+            throw new AbpValidationException(
+                "LocationId is required.",
+                new List<ValidationResult>
+                {
+                    new("LocationId is required.", new[] { nameof(GetScheduleInput.LocationId) }),
+                });
+        }
+
+        var fromDate = input.FromDate.Date;
+        var toDate = input.ToDate.Date;
+
+        // NO BookingStatusId filter and NO full-slot exclusion -- unlike the booking picker, a
+        // booked or manually closed slot is exactly what this screen exists to show.
+        var slotQuery = (await _doctorAvailabilityRepository.GetQueryableAsync())
+            .Where(x =>
+                x.LocationId == input.LocationId &&
+                x.AvailableDate >= fromDate &&
+                x.AvailableDate <= toDate);
+
+        var slots = await AsyncExecuter.ToListAsync(slotQuery);
+        if (slots.Count == 0)
+        {
+            return new List<ScheduleSlotDto>();
+        }
+
+        var slotIds = slots.Select(x => x.Id).ToList();
+
+        // Two bulk reads over the same bounded slot set, mirroring the lookup path's N+1 avoidance.
+        var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
+        var appointments = await _appointmentRepository.GetActiveAppointmentsForSlotsAsync(slotIds);
+
+        var appointmentsBySlot = appointments
+            .GroupBy(a => a.DoctorAvailabilityId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderBy(a => a.RequestConfirmationNumber, StringComparer.Ordinal)
+                    .Select(a => new ScheduleAppointmentDto
+                    {
+                        AppointmentId = a.AppointmentId,
+                        RequestConfirmationNumber = a.RequestConfirmationNumber,
+                        PatientName = a.PatientName,
+                        Status = a.Status,
+                    })
+                    .ToList());
+
+        return ScheduleProjection.Build(slots, appointmentsBySlot, activeCounts);
     }
 
     /// <summary>

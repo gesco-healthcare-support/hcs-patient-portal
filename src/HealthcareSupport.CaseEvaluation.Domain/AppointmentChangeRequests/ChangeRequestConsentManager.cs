@@ -18,37 +18,74 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 public class ChangeRequestConsentManager : DomainService
 {
     private readonly IAppointmentChangeRequestRepository _repository;
+    private readonly IChangeRequestConsentRoundRepository _roundRepository;
     private readonly IClock _clock;
 
     public ChangeRequestConsentManager(
         IAppointmentChangeRequestRepository repository,
+        IChangeRequestConsentRoundRepository roundRepository,
         IClock clock)
     {
         _repository = repository;
+        _roundRepository = roundRepository;
         _clock = clock;
     }
 
     /// <summary>
-    /// Issues consent for one side: generates a token, stores its hash + expiry on that
-    /// side of the entity, and returns the raw token (once) for the email link. The caller
-    /// sets submitter metadata via <see cref="AppointmentChangeRequest.InitiateConsent"/> and
-    /// persists the request in its own unit of work.
+    /// Issues consent for one side of a CANCELLATION request: generates a token, stores its
+    /// hash + expiry on that side of the request, and returns the raw token (once) for the
+    /// email link. The caller sets submitter metadata via
+    /// <see cref="AppointmentChangeRequest.InitiateConsent"/> and persists the request in its
+    /// own unit of work.
+    ///
+    /// <para>Reschedule consent does NOT come through here since phase 4c -- it is issued per
+    /// <see cref="ChangeRequestConsentRound"/> by the overload below, because a reschedule can
+    /// be re-proposed and this row can only ever be tokened once per side.</para>
     /// </summary>
     public virtual string IssueSideConsent(AppointmentChangeRequest request, ChangeRequestSide side)
     {
         Check.NotNull(request, nameof(request));
         var rawToken = GenerateRawToken();
-        var tokenHash = ComputeTokenHash(rawToken);
-        var expiresAt = _clock.Now.ToUniversalTime()
-            .AddDays(AppointmentChangeRequestConsts.ConsentDefaultTtlDays);
-        request.IssueSideConsent(side, tokenHash, expiresAt);
+        request.IssueSideConsent(side, ComputeTokenHash(rawToken), BuildExpiry());
         return rawToken;
     }
 
     /// <summary>
-    /// Non-mutating: resolves the change request + which side a raw token points at, for the
-    /// public landing page. Throws <c>ConsentTokenInvalid</c> when no match. A length guard
-    /// rejects obvious fuzzing before a DB roundtrip.
+    /// Issues consent for one side of a RESCHEDULE consent round (phase 4c, 2026-08-05). The
+    /// caller persists the round in its own unit of work.
+    /// </summary>
+    public virtual string IssueSideConsent(ChangeRequestConsentRound round, ChangeRequestSide side)
+    {
+        Check.NotNull(round, nameof(round));
+        var rawToken = GenerateRawToken();
+        round.IssueSideConsent(side, ComputeTokenHash(rawToken), BuildExpiry());
+        return rawToken;
+    }
+
+    /// <summary>
+    /// Re-issues consent for one still-Pending side of a round on a RESEND (phase 4c): mints a
+    /// fresh token, replaces that side's stored hash, and restarts its 7-day window. The old
+    /// token stops working -- unavoidable, because only its hash was ever persisted. The caller
+    /// persists the round in its own unit of work.
+    /// </summary>
+    public virtual string ReissueSideConsent(ChangeRequestConsentRound round, ChangeRequestSide side)
+    {
+        Check.NotNull(round, nameof(round));
+        var rawToken = GenerateRawToken();
+        round.ReissueSideConsent(side, ComputeTokenHash(rawToken), BuildExpiry());
+        return rawToken;
+    }
+
+    /// <summary>
+    /// Non-mutating: resolves the change request, the consent ROUND that owns the token (null
+    /// for cancellations), and which side a raw token points at, for the public landing page.
+    /// Throws <c>ConsentTokenInvalid</c> when no match. A length guard rejects obvious fuzzing
+    /// before a DB roundtrip.
+    ///
+    /// <para>Two stores are searched because consent lives in two places by design: reschedule
+    /// consent on <see cref="ChangeRequestConsentRound"/> rows (phase 4c), cancellation consent
+    /// on the request's own flat columns. The parent lookup ALSO keeps pre-4c reschedule tokens
+    /// -- already emailed and possibly still in someone's inbox -- resolvable.</para>
     /// </summary>
     public virtual async Task<ChangeRequestConsentMatch> ResolveByRawTokenAsync(string rawToken)
     {
@@ -59,17 +96,29 @@ public class ChangeRequestConsentManager : DomainService
         }
 
         var tokenHash = ComputeTokenHash(rawToken);
-        var request = await _repository.FindAsync(x =>
+
+        var round = await _roundRepository.FindByTokenHashAsync(tokenHash);
+        if (round != null)
+        {
+            var request = await _repository.FindAsync(round.AppointmentChangeRequestId);
+            if (request == null)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentTokenInvalid);
+            }
+            return new ChangeRequestConsentMatch(request, round, SideOwning(round, tokenHash));
+        }
+
+        var parentRequest = await _repository.FindAsync(x =>
             x.SideAConsentTokenHash == tokenHash || x.SideBConsentTokenHash == tokenHash);
-        if (request == null)
+        if (parentRequest == null)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentTokenInvalid);
         }
 
-        var side = request.SideConsentTokenHash(ChangeRequestSide.SideA) == tokenHash
+        var parentSide = parentRequest.SideConsentTokenHash(ChangeRequestSide.SideA) == tokenHash
             ? ChangeRequestSide.SideA
             : ChangeRequestSide.SideB;
-        return new ChangeRequestConsentMatch(request, side);
+        return new ChangeRequestConsentMatch(parentRequest, Round: null, parentSide);
     }
 
     /// <summary>
@@ -87,6 +136,22 @@ public class ChangeRequestConsentManager : DomainService
         var match = await ResolveByRawTokenAsync(rawToken);
         var nowUtc = _clock.Now.ToUniversalTime();
 
+        // Reschedule consent lives on the round; cancellation consent on the request itself.
+        // Whichever store the token resolved from is the one the decision is written back to.
+        if (match.Round != null)
+        {
+            if (match.Round.IsSideExpired(match.Side, nowUtc))
+            {
+                match.Round.MarkSideExpired(match.Side, nowUtc);
+                await _roundRepository.UpdateAsync(match.Round, autoSave: true);
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentExpired);
+            }
+
+            match.Round.RecordSideDecision(match.Side, approved, respondedByEmail, nowUtc);
+            await _roundRepository.UpdateAsync(match.Round, autoSave: true);
+            return match;
+        }
+
         if (match.Request.IsSideExpired(match.Side, nowUtc))
         {
             match.Request.MarkSideExpired(match.Side, nowUtc);
@@ -98,6 +163,14 @@ public class ChangeRequestConsentManager : DomainService
         await _repository.UpdateAsync(match.Request, autoSave: true);
         return match;
     }
+
+    private DateTime BuildExpiry() =>
+        _clock.Now.ToUniversalTime().AddDays(AppointmentChangeRequestConsts.ConsentDefaultTtlDays);
+
+    private static ChangeRequestSide SideOwning(ChangeRequestConsentRound round, string tokenHash) =>
+        round.SideConsentTokenHash(ChangeRequestSide.SideA) == tokenHash
+            ? ChangeRequestSide.SideA
+            : ChangeRequestSide.SideB;
 
     /// <summary>
     /// 32 cryptographic random bytes encoded as URL-safe Base64 without padding
@@ -127,5 +200,12 @@ public class ChangeRequestConsentManager : DomainService
     }
 }
 
-/// <summary>A raw consent token resolved to its change request + the side that owns it.</summary>
-public sealed record ChangeRequestConsentMatch(AppointmentChangeRequest Request, ChangeRequestSide Side);
+/// <summary>
+/// A raw consent token resolved to its change request, the consent ROUND that owns it, and the
+/// side that owns it. <paramref name="Round"/> is null for a CANCELLATION (whose consent lives
+/// on the request's own columns) and for any pre-4c reschedule token.
+/// </summary>
+public sealed record ChangeRequestConsentMatch(
+    AppointmentChangeRequest Request,
+    ChangeRequestConsentRound? Round,
+    ChangeRequestSide Side);

@@ -176,6 +176,20 @@
     </div>
 
     <div class="ad-wrap">
+      <!--
+        Phase 4d (2026-08-05): what this appointment replaced. The agreed DATE is deliberately not
+        repeated here -- it is this appointment's own date, already in the banner above. The three
+        timestamps are collapsed because they are audit detail, not what the page leads with.
+      -->
+      @if (hasRescheduleSource && rescheduleSourceLabel) {
+        <app-reschedule-chain-note
+          [sourceLabel]="rescheduleSourceLabel"
+          [canOpenSource]="!!rescheduleSourceId"
+          [steps]="rescheduleChainSteps"
+          (openSource)="openRescheduleSource()"
+        />
+      }
+
       <!-- outcome / message notes -->
       @if (rejectionReason) {
         <div class="ad-note ad-note--rejected">

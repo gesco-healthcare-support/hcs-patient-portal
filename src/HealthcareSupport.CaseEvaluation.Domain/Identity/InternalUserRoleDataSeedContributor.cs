@@ -426,6 +426,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // File/Language management, or Saas.Tenants.Create -- those stay IT-Admin-only.
         yield return "AbpIdentity.Users";
         yield return "AbpIdentity.Users.Update";
+
+        // 2026-07-31 -- Case Tracker integration, the Supervisor half of the gap #406 fixed
+        // for IT Admin. The permission definitions always intended both roles to hold these,
+        // but only ItAdminGrants yielded them, so the Supervisor's own navigation hid
+        // /admin/integration-failures and the retry action 403'd. Granted HOST-side only:
+        // that screen aggregates every office through ITenantWorkRunner, so a tenant-side
+        // grant would gate nothing it reads.
+        yield return $"{Group}.Appointments.PushToCaseTracker";
+        yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
     }
 
     /// <summary>
@@ -537,8 +546,17 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // OperationalEntities loop above grants only Default (read); without this
         // Create, Intake Staff's booking submit 403s on the employer POST -- the same
         // per-child-POST 403 class as the injury / CE / insurance / body-part grants
-        // above. Create only (no Edit), matching the sibling child grants at this tier.
+        // above. ~~Create only (no Edit), matching the sibling child grants at this tier.~~
         yield return Create("AppointmentEmployerDetails");
+        // 2026-08-06: Edit was the missing HALF of that same parity fix, and its absence made the
+        // appointment edit form unusable for this role. The form's save calls
+        // upsertEmployerDetails whenever ANY employer field has a VALUE -- hasEmployerData(), not a
+        // dirty check -- so EVERY "Edit details" save on an appointment carrying employer data hit
+        // the PUT and 403'd, leaving a partial save (appointment + patient committed, employer not).
+        // Granted rather than hidden from the form because Intake Staff already CREATE this record
+        // at booking and already hold Appointments.Edit + Patients.Edit; being unable to correct
+        // what they typed was a gap in the tier, not a safeguard.
+        yield return Edit("AppointmentEmployerDetails");
 
         foreach (var entity in LookupReadEntities)
         {

@@ -1638,6 +1638,39 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@full-ui/headless-calendar@npm:7.0.2":
+  version: 7.0.2
+  resolution: "@full-ui/headless-calendar@npm:7.0.2"
+  peerDependencies:
+    temporal-polyfill: ^1.0.1
+  checksum: 10c0/53650711eb335db3a96e49a0a75cc2b40a837f37b1f9a8c3bca7e4d65b3ec08807dc62b227e6f952c287deb9275d86a199a4989266f6f0994688ccf78010de64
+  languageName: node
+  linkType: hard
+
+"@fullcalendar/angular@npm:^7.0.2":
+  version: 7.0.2
+  resolution: "@fullcalendar/angular@npm:7.0.2"
+  dependencies:
+    tslib: "npm:^2.3.0"
+  peerDependencies:
+    "@angular/common": 16 - 22
+    "@angular/core": 16 - 22
+    fullcalendar: 7.0.2
+    temporal-polyfill: ^1.0.1
+  checksum: 10c0/bdc20411333ff3ac5c73477d16367e3de676af75dc07e6a856e1f6914b9ce3a54f3900927c26c3550d2f81736efdf63817b82007a06b39365a38c23a4bd6b1a2
+  languageName: node
+  linkType: hard
+
+"@fullcalendar/core@npm:7.0.2":
+  version: 7.0.2
+  resolution: "@fullcalendar/core@npm:7.0.2"
+  peerDependencies:
+    "@full-ui/headless-calendar": 7.0.2
+    temporal-polyfill: ^1.0.1
+  checksum: 10c0/7950877fea512e130d6785876bc6820bd48d067a813199438d664b522313abd68a828f2e9c8531041c7066618b5d8c05234952c6eb817694cc14737e4af2e27b
+  languageName: node
+  linkType: hard
+
 "@gar/promise-retry@npm:^1.0.0, @gar/promise-retry@npm:^1.0.2":
   version: 1.0.3
   resolution: "@gar/promise-retry@npm:1.0.3"
@@ -3951,6 +3984,7 @@ __metadata:
     "@commitlint/cli": "npm:^19.5.0"
     "@commitlint/config-conventional": "npm:^19.5.0"
     "@fontsource/roboto": "npm:^5.2.10"
+    "@fullcalendar/angular": "npm:^7.0.2"
     "@rxweb/reactive-form-validators": "npm:^13"
     "@types/jasmine": "npm:~3.6.0"
     "@typescript-eslint/eslint-plugin": "npm:^7.0.0"
@@ -3968,6 +4002,7 @@ __metadata:
     "@volosoft/abp.ng.theme.lepton-x": "npm:~5.0.2"
     eslint: "npm:^8.0.0"
     eslint-config-prettier: "npm:^9.0.0"
+    fullcalendar: "npm:^7.0.2"
     husky: "npm:^9.1.6"
     jasmine-core: "npm:~4.0.0"
     karma: "npm:~6.4.4"
@@ -3981,6 +4016,7 @@ __metadata:
     prettier: "npm:^3.8.0"
     quill: "npm:2.0.3"
     rxjs: "npm:~7.8.0"
+    temporal-polyfill: "npm:^1.0.2"
     tslib: "npm:^2.0.0"
     typescript: "npm:~5.8.0"
     zone.js: "npm:~0.15.0"
@@ -5861,6 +5897,19 @@ __metadata:
   dependencies:
     node-gyp: "npm:latest"
   conditions: os=darwin
+  languageName: node
+  linkType: hard
+
+"fullcalendar@npm:^7.0.2":
+  version: 7.0.2
+  resolution: "fullcalendar@npm:7.0.2"
+  dependencies:
+    "@full-ui/headless-calendar": "npm:7.0.2"
+    "@fullcalendar/core": "npm:7.0.2"
+    preact: "npm:^10.29.0"
+  peerDependencies:
+    temporal-polyfill: ^1.0.1
+  checksum: 10c0/c619fd3fd62f1e2ad30c5c99cf29d9fda982d45a4028b9400f51fdef9fd49e308d173100dbdf894bb12baf47bb3dac839cfaea8cb35f4f20bcaa3f40cabf8bac
   languageName: node
   linkType: hard
 
@@ -8600,6 +8649,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"preact@npm:^10.29.0":
+  version: 10.29.7
+  resolution: "preact@npm:10.29.7"
+  peerDependencies:
+    preact-render-to-string: ">=5"
+  peerDependenciesMeta:
+    preact-render-to-string:
+      optional: true
+  checksum: 10c0/c16df6d83d1f1d7117f5e27c64121989c317c54561535a98d1cce874406b7edcd68c2230dc4d440ef8509f29638d7a6fcb1ae0f974e9f71852aee17d90ccc87b
+  languageName: node
+  linkType: hard
+
 "preact@npm:^10.5.13":
   version: 10.28.3
   resolution: "preact@npm:10.28.3"
@@ -9660,6 +9721,30 @@ __metadata:
     minizlib: "npm:^3.1.0"
     yallist: "npm:^5.0.0"
   checksum: 10c0/5c65b8084799bde7a791593a1c1a45d3d6ee98182e3700b24c247b7b8f8654df4191642abbdb07ff25043d45dcff35620827c3997b88ae6c12040f64bed5076b
+  languageName: node
+  linkType: hard
+
+"temporal-polyfill@npm:^1.0.2":
+  version: 1.0.2
+  resolution: "temporal-polyfill@npm:1.0.2"
+  dependencies:
+    temporal-spec: "npm:1.0.1"
+    temporal-utils: "npm:1.0.1"
+  checksum: 10c0/5d1dab031414df3f66f6d07659e6741938f97e5881052b964c9ad2ca0a29d0536d1db88df016396fa739153dd5e306a97bebf04d91c0625747587114a7bfdeb6
+  languageName: node
+  linkType: hard
+
+"temporal-spec@npm:1.0.1":
+  version: 1.0.1
+  resolution: "temporal-spec@npm:1.0.1"
+  checksum: 10c0/99f6bfe4a8e59cd0664d0e97706798a1e10d42b1b682da9b60778a4cb9a23362da01ea3d83a674ef426ed743bbab835e2e3d1acea5d2d4a9eabe33863237b014
+  languageName: node
+  linkType: hard
+
+"temporal-utils@npm:1.0.1":
+  version: 1.0.1
+  resolution: "temporal-utils@npm:1.0.1"
+  checksum: 10c0/cf229258c81f8283513ef7626f8089e23fb346d53b48d1c37581a11ca621ce4b65f3e0798565fa6f3c4fb48562202634adb343648350caad2e349eeae083d00b
   languageName: node
   linkType: hard
 

@@ -41,7 +41,7 @@ public class PublicChangeRequestConsentAppService :
     public virtual async Task<ChangeRequestConsentInfoDto> GetConsentInfoAsync(string token)
     {
         var match = await _consentManager.ResolveByRawTokenAsync(token);
-        return await BuildInfoAsync(match.Request, match.Side);
+        return await BuildInfoAsync(match);
     }
 
     [AllowAnonymous]
@@ -53,7 +53,7 @@ public class PublicChangeRequestConsentAppService :
         try
         {
             var match = await _consentManager.RecordDecisionAsync(token, input.Approved, respondedByEmail: null);
-            return await BuildInfoAsync(match.Request, match.Side);
+            return await BuildInfoAsync(match);
         }
         catch (BusinessException ex) when (
             ex.Code == CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded ||
@@ -63,25 +63,34 @@ public class PublicChangeRequestConsentAppService :
             // landing page instead of a hard error. (Expiry already recorded the
             // default-No inside RecordDecisionAsync.)
             var match = await _consentManager.ResolveByRawTokenAsync(token);
-            return await BuildInfoAsync(match.Request, match.Side);
+            return await BuildInfoAsync(match);
         }
     }
 
-    private async Task<ChangeRequestConsentInfoDto> BuildInfoAsync(AppointmentChangeRequest request, ChangeRequestSide side)
+    private async Task<ChangeRequestConsentInfoDto> BuildInfoAsync(ChangeRequestConsentMatch match)
     {
+        var request = match.Request;
         var appointment = await _appointmentRepository.FindAsync(request.AppointmentId);
 
+        // Phase 4c (2026-08-05): the date this page asks somebody to approve is the CONSENT
+        // ROUND's proposed slot, not the request's NewDoctorAvailabilityId. Reading that column
+        // alone was a latent blank-date bug -- 4b moved the staff slot off it, so the template's
+        // *ngIf would have hidden the date row and shown a consent page with no date on it.
+        // The fallback keeps cancellations and pre-4c reschedule tokens rendering as before.
         string? newDateTime = null;
-        if (request.ChangeRequestType == ChangeRequestType.Reschedule
-            && request.NewDoctorAvailabilityId.HasValue)
+        if (request.ChangeRequestType == ChangeRequestType.Reschedule)
         {
-            var slot = await _slotRepository.FindAsync(request.NewDoctorAvailabilityId.Value);
-            if (slot != null)
+            var slotId = match.Round?.ProposedDoctorAvailabilityId ?? request.NewDoctorAvailabilityId;
+            if (slotId.HasValue)
             {
-                var date = slot.AvailableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second)
-                    .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                newDateTime = $"{date} at {time}";
+                var slot = await _slotRepository.FindAsync(slotId.Value);
+                if (slot != null)
+                {
+                    var date = slot.AvailableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+                    var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second)
+                        .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+                    newDateTime = $"{date} at {time}";
+                }
             }
         }
 
@@ -93,7 +102,9 @@ public class PublicChangeRequestConsentAppService :
                 ? request.CancellationReason
                 : request.ReScheduleReason,
             RequestedNewDateTime = newDateTime,
-            ConsentStatus = request.SideConsentStatus(side),
+            // Reschedule consent lives on the round; cancellation consent on the request.
+            ConsentStatus = match.Round?.SideConsentStatus(match.Side)
+                ?? request.SideConsentStatus(match.Side),
         };
     }
 }

@@ -10,6 +10,7 @@ everything except the reconcile GET (§F) and failure visibility (§I2) - see se
 built/remaining split. It ships DISABLED behind the `CaseTrackerPushEnabled` setting.
 
 Decisions folded in (2026-07-23, all FINAL):
+
 - Intake waits for the packet set to settle, then pushes ONCE with packets + accepted docs (§H).
   REVISED 2026-07-30; it previously pushed immediately with an empty `documents` array.
 - Retention + soft-delete guarantee, scoped to appointment documents + packets (§C).
@@ -23,6 +24,7 @@ Decisions folded in (2026-07-23, all FINAL):
 - Ordering via `updatedAt` (§G); TLS required (§A, §I).
 
 REVISION 2026-07-28 (supersedes where it conflicts with the text below):
+
 - **Part 1 is MERGED** (PR #393 -> main `6208a0cd`): the outbound push, outbox, intake trigger and
   manual push all exist. Still DISABLED by default; never tested live.
 - **Parts 2 + 3 are MERGED** (PR #395 -> main `8a1568eb`): the document-update feed (accept /
@@ -45,6 +47,7 @@ REVISION 2026-07-28 (supersedes where it conflicts with the text below):
   screen with retry, plus a manual "Push to Case Tracker" action (§I, §I2).
 
 REVISION 2026-07-28 (Part 6 -- claim and party data):
+
 - **`data.injuries[]` added**, carrying date of injury, claim number, WCAB ADJ, cumulative flag, body
   parts and WCAB office per injury, PLUS normalised claim/ADJ variants for grouping. Added because the
   receiver's staff had only name and date of birth to choose between a patient's claims and were filing
@@ -57,6 +60,7 @@ REVISION 2026-07-28 (Part 6 -- claim and party data):
 - Every one of these appears in the reconcile GET (§F) too, since both share one payload builder.
 
 REVISION 2026-07-29 (reconcile hostname + rate limit -- BOTH CHANGE WHAT THE RECEIVER BUILDS):
+
 - **The reconcile GET host is `admin.api.<base>`, not `api.<base>`.** Full URL below in §F. The
   obvious guess does not work: the portal's reverse proxy routes `api.<base>` to the Angular
   container, because that host matches the catch-all `*.<base>` block and NOT `*.api.<base>` (an
@@ -72,12 +76,31 @@ REVISION 2026-07-29 (reconcile hostname + rate limit -- BOTH CHANGE WHAT THE REC
 - Portal-side only, no contract impact: the API now honours `X-Forwarded-For`, so per-IP limits
   partition on the real caller rather than on the portal's own proxy.
 
+REVISION 2026-08-06 (RESCHEDULE BECOMES TWO CASES -- the biggest semantic change in this document):
+
+- **A finalized reschedule no longer moves one appointment.** The original CLOSES to
+  `RescheduledNoBill` / `RescheduledLate` with its billing status, and a REPLACEMENT is pushed under
+  a NEW `appointmentId`. One claim, two cases. This REVERSES the §E2 statement that the portal
+  "never creates a second one" and the RESCHEDULE TRAP note that a reschedule is signalled by a
+  changed date rather than a status change -- both are now false and are struck through in place.
+- **No receiver code change is required.** The case key is `appointmentId` and you upsert on it
+  (§G), so a new id opens a second case by itself. Everything below is additive and ignorable.
+- **Four new link fields** (§A): `rescheduledFromAppointmentId` + `rescheduledFromConfirmationNumber`
+  on the replacement, `supersededByAppointmentId` + `supersededReason` on the appointment it
+  replaced. Deliberately SEPARATE from the re-eval `previous*` pair -- a re-evaluated appointment
+  happened and is followed up; a rescheduled one did not happen and is replaced.
+- **`RescheduledNoBill` / `RescheduledLate` moved out of "NEVER sent"** and into the received-status
+  table. They now arrive on every reschedule and carry the billing signal for the old date.
+- **One object can appear under two document ids** (§C): the replacement's document rows are copies
+  sharing the original's `objectKey`.
+
 Grounding: every field value maps to real portal source (branch `main` @ `100a617c`), cited inline;
 MinIO facts verified live. The JSON key NAMES/envelope were locked here first and the portal emitter
 was then built to match; as of `8a1568eb` the emitter exists and this document describes what it
 actually sends.
 
 Serialization conventions:
+
 - GUIDs: canonical dashed strings ("D" format).
 - Timestamps: ISO-8601 UTC with `Z` (e.g. `2026-07-22T18:30:00Z`).
 - Enums: serialized as their NAME string. Case Tracker stores enum-like fields verbatim (any casing).
@@ -98,45 +121,72 @@ build; the deployed integration base must be `https://...` (`:7272` = API, `:80`
 
 ### `data` (top level)
 
-| Key | Type | Format | Nullable | Source |
-|---|---|---|---|---|
-| `appointmentId` | string | GUID | No | `Appointment.Id` (`Domain/Appointments/Appointment.cs:21`) |
-| `confirmationNumber` | string | `A`+5 digits, e.g. `A00065` | No (per-office, mutable - NOT a key) | `Appointment.RequestConfirmationNumber` (`Appointment.cs:33`); format `AppointmentBookingValidators.cs:29` |
-| `status` | string | enum name; at intake `"Approved"` (later re-pushes may carry cancel/reschedule states, §E2) | No | `Appointment.AppointmentStatus` (`Appointment.cs:42`); `AppointmentStatusType` (`Domain.Shared/Enums/AppointmentStatusType.cs`) |
-| `approvedAtUtc` | string | ISO-8601 UTC `Z` | No at intake | `Appointment.AppointmentApproveDate` (`Appointment.cs:40`); `= DateTime.UtcNow` (`AppointmentManager.cs:344`) |
-| `submittedAtUtc` | string | ISO-8601 UTC `Z` | No | `Appointment.CreationTime` (ABP `FullAuditedAggregateRoot`, UTC) |
-| `updatedAt` | string | ISO-8601 UTC `Z` | No | appointment `LastModificationTime ?? CreationTime`. Monotonic per appointment; Case Tracker's skip-if-older guard (they are last-write-wins, no version column). |
-| `evaluationKind` | string | `"EVAL"` or `"RE_EVAL"` | No | NEW persisted column `Appointment.EvaluationKind` (DECIDED 2026-07-23), set at booking from the lifecycle flow (`AppointmentLifecycleFlow.Reval` -> `RE_EVAL`, else `EVAL`; `AppointmentsAppService.cs:686`). Persisted rather than derived from `OriginalAppointmentId` because that field is still documented as a reschedule-chain link, so a future change could silently mislabel; the dual-context EF migration is happening anyway for the outbox table, so this rides along. Backfill: all existing rows = `EVAL` (verified: 0 re-evals exist in production). |
-| `previousAppointmentId` | string | GUID | Yes (present only on re-eval) | `Appointment.OriginalAppointmentId`, set to the source appointment on a reval (`AppointmentsAppService.cs:882-884`). THE machine link from a re-eval to its original; null for first evaluations. |
-| `previousConfirmationNumber` | string | `A`+5 digits | Yes (present only on re-eval) | The SOURCE appointment's `RequestConfirmationNumber`. Human-readable aid for Case Tracker staff only - NOT a key (a re-eval gets its OWN fresh confirmation number, and the value is per-office sequential so it repeats across offices). Match on `previousAppointmentId`. |
+| Key                                 | Type   | Format                                                                                      | Nullable                                                  | Source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `appointmentId`                     | string | GUID                                                                                        | No                                                        | `Appointment.Id` (`Domain/Appointments/Appointment.cs:21`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `confirmationNumber`                | string | `A`+5 digits, e.g. `A00065`                                                                 | No (per-office, mutable - NOT a key)                      | `Appointment.RequestConfirmationNumber` (`Appointment.cs:33`); format `AppointmentBookingValidators.cs:29`                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `status`                            | string | enum name; at intake `"Approved"` (later re-pushes may carry cancel/reschedule states, §E2) | No                                                        | `Appointment.AppointmentStatus` (`Appointment.cs:42`); `AppointmentStatusType` (`Domain.Shared/Enums/AppointmentStatusType.cs`)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `billingStatus`                     | string | `"NO_BILL"`, `"LATE"` or `"NONE"`                                                           | No (ALWAYS present)                                       | ADDED 2026-07-31. Derived from `Appointment.AppointmentStatus` by `BillingStatusWire.ToWire` (`Domain/Integration/CaseTracker/Payload/BillingStatusWire.cs`): `Cancelled/RescheduledNoBill` -> `NO_BILL`, `Cancelled/RescheduledLate` -> `LATE`, everything else -> `NONE`. Explicit rather than implicit so you never string-match `status` to decide whether to bill; an enum rename cannot change the wire value. `status` remains authoritative for LIFECYCLE - this answers only "bill or not".                                                                  |
+| `cancellationReason`                | string | free text                                                                                   | Yes (present only when cancelled)                         | ADDED 2026-07-31. `Appointment.CancellationReason` (`Appointment.cs:165`), copied from the change request when a supervisor approves a cancellation, or set to a fixed sentence by the joint-declaration auto-cancel job (which has no change request). **USER-AUTHORED FREE TEXT, unbounded length, not validated beyond being non-empty at submit** - treat as untrusted display data, escape it before rendering, and do not log it. `null` (not `""`) when no reason was recorded, so absence is distinguishable from a blank reason.                             |
+| `approvedAtUtc`                     | string | ISO-8601 UTC `Z`                                                                            | No at intake                                              | `Appointment.AppointmentApproveDate` (`Appointment.cs:40`); `= DateTime.UtcNow` (`AppointmentManager.cs:344`)                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `submittedAtUtc`                    | string | ISO-8601 UTC `Z`                                                                            | No                                                        | `Appointment.CreationTime` (ABP `FullAuditedAggregateRoot`, UTC)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `updatedAt`                         | string | ISO-8601 UTC `Z`                                                                            | No                                                        | appointment `LastModificationTime ?? CreationTime`. Monotonic per appointment; Case Tracker's skip-if-older guard (they are last-write-wins, no version column).                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `evaluationKind`                    | string | `"EVAL"` or `"RE_EVAL"`                                                                     | No                                                        | NEW persisted column `Appointment.EvaluationKind` (DECIDED 2026-07-23), set at booking from the lifecycle flow (`AppointmentLifecycleFlow.Reval` -> `RE_EVAL`, else `EVAL`; `AppointmentsAppService.cs:686`). Persisted rather than derived from `OriginalAppointmentId` because that field is still documented as a reschedule-chain link, so a future change could silently mislabel; the dual-context EF migration is happening anyway for the outbox table, so this rides along. Backfill: all existing rows = `EVAL` (verified: 0 re-evals exist in production). |
+| `previousAppointmentId`             | string | GUID                                                                                        | Yes (present only on re-eval)                             | `Appointment.OriginalAppointmentId`, set to the source appointment on a reval (`AppointmentsAppService.cs:882-884`). THE machine link from a re-eval to its original; null for first evaluations.                                                                                                                                                                                                                                                                                                                                                                     |
+| `previousConfirmationNumber`        | string | `A`+5 digits                                                                                | Yes (present only on re-eval)                             | The SOURCE appointment's `RequestConfirmationNumber`. Human-readable aid for Case Tracker staff only - NOT a key (a re-eval gets its OWN fresh confirmation number, and the value is per-office sequential so it repeats across offices). Match on `previousAppointmentId`.                                                                                                                                                                                                                                                                                           |
+| `rescheduledFromAppointmentId`      | string | GUID                                                                                        | Yes (present only on a reschedule REPLACEMENT)            | ADDED 2026-08-06. `Appointment.RescheduledFromAppointmentId` (`Appointment.cs`), set when a reschedule is finalized. THE machine link from a replacement back to the appointment it replaced. **A SEPARATE FIELD FROM `previousAppointmentId` ON PURPOSE**: that one means RE-EVALUATION, and the two relationships differ -- a re-evaluated appointment HAPPENED and is followed up, a rescheduled one did NOT happen and is replaced. Conflating them is what `evaluationKind` was introduced to prevent.                                                           |
+| `rescheduledFromConfirmationNumber` | string | `A`+5 digits                                                                                | Yes (present only on a reschedule REPLACEMENT)            | ADDED 2026-08-06. The REPLACED appointment's `RequestConfirmationNumber`. Display aid only, exactly like `previousConfirmationNumber` - a replacement gets its own fresh number and the value is per-office sequential. Match on `rescheduledFromAppointmentId`.                                                                                                                                                                                                                                                                                                      |
+| `supersededByAppointmentId`         | string | GUID                                                                                        | Yes (present only on an appointment that WAS replaced)    | ADDED 2026-08-06. The forward half of the pair: the appointment that replaced this one. Resolved by looking up the appointment whose `rescheduledFromAppointmentId` is this one. Sent so a closed case is not a dead end - without it the old case says it was rescheduled but not to where.                                                                                                                                                                                                                                                                          |
+| `supersededReason`                  | string | `"RESCHEDULED"`                                                                             | Yes (present exactly when `supersededByAppointmentId` is) | ADDED 2026-08-06. WHY the case was superseded, derived from the terminal status by `SupersededReasonWire` (`Domain/Integration/CaseTracker/Payload/SupersededReasonWire.cs`). Explicit rather than inferred, because the id alone cannot say what kind of successor it is, and inferring it would require the successor's own message to have already arrived. Currently only `RESCHEDULED`; a future no-show replacement flow will add `NO_SHOW`, so treat this as an open value set and store it verbatim.                                                          |
 
 STATUS VALUES CASE TRACKER CAN RECEIVE (verified 2026-07-27 against the state machine
 `AppointmentManager.BuildMachine:380-419` and the change-request approval paths). A case only exists
 from `Approved` onward, so this is the reachable set from there:
 
-| `status` string | When | Notes |
-|---|---|---|
-| `Approved` | intake, AND after a reschedule is finalized | see the reschedule trap in §E2 |
-| `RescheduleRequested` | a reschedule was requested, awaiting staff decision | date/time still the OLD slot |
-| `CancellationRequested` | a cancellation was requested, awaiting staff decision | not yet cancelled |
-| `CancelledNoBill` | cancellation approved (terminal) | also set with NO staff action by `JointDeclarationAutoCancelJob:159` (AME joint-declaration cutoff auto-cancel) |
-| `CancelledLate` | cancellation approved, late/billable (terminal) | |
+| `status` string         | When                                                   | Notes                                                                                                           |
+| ----------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `Approved`              | intake, AND on the REPLACEMENT created by a reschedule | on a replacement it is a NEW `appointmentId`, i.e. a second case -- see §E2                                     |
+| `RescheduleRequested`   | a reschedule was requested, awaiting staff decision    | date/time still the OLD slot                                                                                    |
+| `RescheduledNoBill`     | reschedule finalized, old date not billable (terminal) | CHANGED 2026-08-06. Carries `supersededByAppointmentId` -- close the case, do not bill                          |
+| `RescheduledLate`       | reschedule finalized, old date billable (terminal)     | CHANGED 2026-08-06. Same, but `billingStatus` = `LATE`                                                          |
+| `CancellationRequested` | a cancellation was requested, awaiting staff decision  | not yet cancelled                                                                                               |
+| `CancelledNoBill`       | cancellation approved (terminal)                       | also set with NO staff action by `JointDeclarationAutoCancelJob:159` (AME joint-declaration cutoff auto-cancel) |
+| `CancelledLate`         | cancellation approved, late/billable (terminal)        |                                                                                                                 |
 
 NEVER sent (do not build logic for these):
+
 - `Rejected`, `InfoRequested` - reachable ONLY from `Pending` (i.e. BEFORE approval;
   `BuildMachine:386-396`). Since the portal pushes only at/after approval, an already-approved
   appointment can never become Rejected or InfoRequested. (This CORRECTS an earlier statement that
   rejection / info-requested would re-push.)
 - `Pending` - pre-approval only.
-- `NoShow`, `CheckedIn`, `CheckedOut`, `Billed` - present in the state machine but have NO API
-  surface today (verified: no app-service exposes those triggers), so unreachable. Tolerate the
-  string if the day-of-exam flow ships later; do not rely on them now.
-- `RescheduledNoBill`, `RescheduledLate` - NOT set on the appointment by the current in-place
-  reschedule; that outcome is recorded on the change-request row. Rows predating the 2026-07-01
-  redesign may still carry them, so tolerate but do not rely.
+- ~~`NoShow`, `CheckedIn`, `CheckedOut`, `Billed` - present in the state machine but have NO API
+  surface today (verified: no app-service exposes those triggers), so unreachable.~~
+  **CHANGED 2026-08-07 for `NoShow`; `NotSeen` (= 15) is new.** Both are now reachable, but the
+  REASON they are never SENT has changed: it is no longer "no API surface", it is that the portal
+  deliberately SUPPRESSES them. You author both (section K), so echoing them back would carry
+  nothing you did not already tell us. `CheckedIn` / `CheckedOut` / `Billed` remain unreachable
+  exactly as originally stated.
+
+  Accepted consequence, stated here so it is not discovered in production: once an appointment is
+  `NoShow` or `NotSeen`, **no further update about it reaches you at all** -- not a demographic
+  correction, not a document, not a packet. Its case is closed on both sides.
+
+- ~~`RescheduledNoBill`, `RescheduledLate` - NOT set on the appointment by the current in-place
+  reschedule; that outcome is recorded on the change-request row.~~ **MOVED INTO THE RECEIVED TABLE
+  ABOVE, 2026-08-06.** They are now the normal terminal statuses of a rescheduled appointment and
+  arrive on EVERY reschedule. Any logic built on their being unreachable is now wrong.
 
 Recommendation for Case Tracker: store the status string verbatim and treat only `CancelledNoBill` /
 `CancelledLate` as terminal-cancelled; treat `*Requested` as "change pending, still active".
+
+BILLING INTENT IS NOW EXPLICIT (ADDED 2026-07-31). Branch on the new `billingStatus` field rather
+than parsing the status string: `NO_BILL` / `LATE` / `NONE`. Both fields ship together and agree by
+construction (one is derived from the other), so nothing about the existing status handling has to
+change. Both additions are ADDITIVE and OPTIONAL on your side -- a receiver that ignores
+`billingStatus` and `cancellationReason` stays exactly as correct as it is today, so this needs no
+coordinated release. `billingStatus` is always present (`NONE` when there is nothing to bill), so it
+never requires a null check; `cancellationReason` is present only for a cancelled appointment.
 
 NO PATIENT IDENTIFIER IS SENT (DECIDED 2026-07-23). The portal is database-per-office, so the same
 human booking at two offices produces two unrelated `Patient` rows with different GUIDs - the portal
@@ -150,51 +200,51 @@ only the Cal-Med ID they enter can do that.
 
 ### `data.tenant`
 
-| Key | Type | Nullable | Source |
-|---|---|---|---|
-| `tenantId` | string (GUID) | No | `Appointment.TenantId` (`Appointment.cs:23`) |
+| Key          | Type           | Nullable                  | Source                                                                                                              |
+| ------------ | -------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `tenantId`   | string (GUID)  | No                        | `Appointment.TenantId` (`Appointment.cs:23`)                                                                        |
 | `facilityId` | string, max 50 | Can be `""` (legacy rows) | `Location.FacilityId` (`Domain/Locations/Location.cs:38-39`) via `Appointment.LocationId`; the clinic's external id |
-| `officeName` | string | Effectively no | SaaS `Tenant.Name` (Volo.Saas via `ITenantStore`; `DoctorProfileDataSeedContributor.cs:68`) |
+| `officeName` | string         | Effectively no            | SaaS `Tenant.Name` (Volo.Saas via `ITenantStore`; `DoctorProfileDataSeedContributor.cs:68`)                         |
 
 ### `data.location` (the clinic for this appointment)
 
-| Key | Type | Format | Nullable | Source |
-|---|---|---|---|---|
-| `name` | string | max 50 | No | `Location.Name` (`Location.cs:23`) |
-| `address` | string | max 100 | Yes | `Location.Address` (`Location.cs:26`) |
-| `city` | string | max 50 | Yes | `Location.City` (`Location.cs:29`) |
-| `zipCode` | string | max 15 | Yes | `Location.ZipCode` (`Location.cs:32`) |
+| Key       | Type   | Format  | Nullable | Source                                |
+| --------- | ------ | ------- | -------- | ------------------------------------- |
+| `name`    | string | max 50  | No       | `Location.Name` (`Location.cs:23`)    |
+| `address` | string | max 100 | Yes      | `Location.Address` (`Location.cs:26`) |
+| `city`    | string | max 50  | Yes      | `Location.City` (`Location.cs:29`)    |
+| `zipCode` | string | max 15  | Yes      | `Location.ZipCode` (`Location.cs:32`) |
 
 ### `data.appointmentType` + `panelNumber`
 
-| Key | Type | Nullable | Source |
-|---|---|---|---|
-| `appointmentType.id` | string (GUID) | No | `Appointment.AppointmentTypeId` (`Appointment.cs:48`) |
-| `appointmentType.name` | string (free text) | No | `AppointmentType.Name` (`AppointmentType.cs:21`); seeded AME/IME/PQME, admin-editable - branch on `id` |
-| `panelNumber` | string, max 50 | Yes | `Appointment.PanelNumber` (`Appointment.cs:26`) |
+| Key                    | Type               | Nullable | Source                                                                                                 |
+| ---------------------- | ------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| `appointmentType.id`   | string (GUID)      | No       | `Appointment.AppointmentTypeId` (`Appointment.cs:48`)                                                  |
+| `appointmentType.name` | string (free text) | No       | `AppointmentType.Name` (`AppointmentType.cs:21`); seeded AME/IME/PQME, admin-editable - branch on `id` |
+| `panelNumber`          | string, max 50     | Yes      | `Appointment.PanelNumber` (`Appointment.cs:26`)                                                        |
 
 ### Schedule
 
-| Key | Type | Format | Nullable | Source |
-|---|---|---|---|---|
-| `appointmentDateLocal` | string | `yyyy-MM-dd` | No | `DoctorAvailability.AvailableDate` (`DoctorAvailability.cs:18`) via `Appointment.DoctorAvailabilityId` |
-| `appointmentTimeLocal` | string | `HH:mm` (24h) | No | `DoctorAvailability.FromTime` (`DoctorAvailability.cs:20`, `TimeOnly`) |
-| `timeZone` | string | IANA, `America/Los_Angeles` | No | CONSTANT the emitter sets - no stored offset. |
-| `durationMinutes` | int | minutes | No | DERIVED = `ToTime - FromTime` (`DoctorAvailability.cs:20-22`). No stored duration. |
+| Key                    | Type   | Format                      | Nullable | Source                                                                                                 |
+| ---------------------- | ------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `appointmentDateLocal` | string | `yyyy-MM-dd`                | No       | `DoctorAvailability.AvailableDate` (`DoctorAvailability.cs:18`) via `Appointment.DoctorAvailabilityId` |
+| `appointmentTimeLocal` | string | `HH:mm` (24h)               | No       | `DoctorAvailability.FromTime` (`DoctorAvailability.cs:20`, `TimeOnly`)                                 |
+| `timeZone`             | string | IANA, `America/Los_Angeles` | No       | CONSTANT the emitter sets - no stored offset.                                                          |
+| `durationMinutes`      | int    | minutes                     | No       | DERIVED = `ToTime - FromTime` (`DoctorAvailability.cs:20-22`). No stored duration.                     |
 
 ### `data.patient`
 
-| Key | Type | Nullable | Source |
-|---|---|---|---|
-| `firstName` | string | No | `Patient.FirstName` (`Patient.cs:29`) |
-| `middleName` | string | Yes | `Patient.MiddleName` (`Patient.cs:35`) |
-| `lastName` | string | No | `Patient.LastName` (`Patient.cs:32`) |
-| `email` | string | No | `Patient.Email` (`Patient.cs:38`) |
-| `phoneNumber` | string | Yes | `Patient.PhoneNumber` (`Patient.cs:45`) |
-| `phoneNumberType` | string | No | enum name `Home` or `Work` (`Patient.cs:62`; `Work=28`, `Home=29`) |
-| `cellPhoneNumber` | string | Yes | `Patient.CellPhoneNumber` (`Patient.cs:60`) |
-| `dateOfBirth` | string | `yyyy-MM-dd` (date only) | No | `Patient.DateOfBirth` (`Patient.cs:42`, `DateTime`, not null). ADDED 2026-07-27 at Case Tracker's request - for STAFF EYEBALL CROSS-CHECK only (name + DOB, to catch a mistyped Cal-Med ID before it creates an orphan folder). Explicitly NOT a key and not for automated matching. |
-| `samePersonGroupKey` | string | No | 64-char lowercase hex. ADDED 2026-07-28 (Part 6). See below - read it before using this field. |
+| Key                  | Type   | Nullable                 | Source                                                                                         |
+| -------------------- | ------ | ------------------------ | ---------------------------------------------------------------------------------------------- |
+| `firstName`          | string | No                       | `Patient.FirstName` (`Patient.cs:29`)                                                          |
+| `middleName`         | string | Yes                      | `Patient.MiddleName` (`Patient.cs:35`)                                                         |
+| `lastName`           | string | No                       | `Patient.LastName` (`Patient.cs:32`)                                                           |
+| `email`              | string | No                       | `Patient.Email` (`Patient.cs:38`)                                                              |
+| `phoneNumber`        | string | Yes                      | `Patient.PhoneNumber` (`Patient.cs:45`)                                                        |
+| `phoneNumberType`    | string | No                       | enum name `Home` or `Work` (`Patient.cs:62`; `Work=28`, `Home=29`)                             |
+| `cellPhoneNumber`    | string | Yes                      | `Patient.CellPhoneNumber` (`Patient.cs:60`)                                                    |
+| `dateOfBirth`        | string | `yyyy-MM-dd` (date only) | No                                                                                             | `Patient.DateOfBirth` (`Patient.cs:42`, `DateTime`, not null). ADDED 2026-07-27 at Case Tracker's request - for STAFF EYEBALL CROSS-CHECK only (name + DOB, to catch a mistyped Cal-Med ID before it creates an orphan folder). Explicitly NOT a key and not for automated matching. |
+| `samePersonGroupKey` | string | No                       | 64-char lowercase hex. ADDED 2026-07-28 (Part 6). See below - read it before using this field. |
 
 **`samePersonGroupKey` - what it is and is not.** Two appointments carrying the SAME value belong to the
 same person as far as the portal's booking deduplication is concerned, so your staff can be shown "these
@@ -215,18 +265,29 @@ two claims are the same person". That is its only purpose: EQUALITY.
 
 ### `data.doctor`
 
-| Key | Type | Nullable | Source |
-|---|---|---|---|
-| `firstName` | string | Can be `""` | `Doctor.FirstName` (`Doctor.cs:19`) |
-| `lastName` | string | No | `Doctor.LastName` (`Doctor.cs:22`) |
+| Key         | Type   | Nullable                                      | Source                              |
+| ----------- | ------ | --------------------------------------------- | ----------------------------------- |
+| `id`        | GUID   | YES -- null when the office has no Doctor row | `Doctor.Id`                         |
+| `firstName` | string | Can be `""`                                   | `Doctor.FirstName` (`Doctor.cs:19`) |
+| `lastName`  | string | No                                            | `Doctor.LastName` (`Doctor.cs:22`)  |
 
 Office's single Doctor row (tenant = doctor; `IX_AppEntity_Doctors_TenantId_Unique`). Not an
 appointment field.
 
+ADDED 2026-07-31: `id`, at the Case Tracker team's request. Their matcher keyed on first + last name,
+which found no match on the first live push (A00005) and left staff selecting the doctor manually on
+every intake. MATCH ON `id`, NOT ON THE NAME -- two systems cannot be relied on to spell a name
+identically forever, and the name is admin-editable.
+
+`id` is the portal's OWN row key, stable for the life of that Doctor record. It is NOT a licence
+number and NOT an externally-minted identifier; do not expect it to correspond to anything outside the
+portal. It is null rather than an empty GUID when no Doctor row exists, so a missing doctor is
+distinguishable from a real one.
+
 ### `data.storage`
 
-| Key | Value | Source |
-|---|---|---|
+| Key      | Value                         | Source                            |
+| -------- | ----------------------------- | --------------------------------- |
 | `bucket` | `"case-evaluation-documents"` | verified live on the portal MinIO |
 
 Only `bucket` is sent. Case Tracker takes endpoint, region, credentials from ITS OWN config.
@@ -240,18 +301,18 @@ because an appointment genuinely supports several injuries -- a specific plus a 
 injury -- and there is no primary flag, so flattening would make the portal choose a primary claim with
 less information than your staff have.
 
-| Key | Nullable | Notes |
-|---|---|---|
-| `id` | No | The injury row's own stable id. Line entries up across pushes with it; NOT a claim key |
-| `dateOfInjury` | No | `yyyy-MM-dd`. Mandatory at booking |
-| `toDateOfInjury` | Yes | `yyyy-MM-dd`. END of the exposure period on a cumulative injury; null on a specific one |
-| `isCumulativeInjury` | No | True means the two dates are a PERIOD, not an incident date |
-| `claimNumber` | No | Exactly as typed. Mandatory at booking |
-| `claimNumberNormalized` | Yes | Uppercased alphanumerics only, for GROUPING. Null if nothing alphanumeric remains |
-| `wcabAdj` | No | WCAB ADJ number as typed. Mandatory at booking |
-| `wcabAdjNormalized` | Yes | Same rule as the claim number |
-| `bodyPartsSummary` | No | Free text as typed |
-| `wcabOffice` | Yes | `{ name, abbreviation }`. Genuinely per-injury. Never the id |
+| Key                     | Nullable | Notes                                                                                   |
+| ----------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `id`                    | No       | The injury row's own stable id. Line entries up across pushes with it; NOT a claim key  |
+| `dateOfInjury`          | No       | `yyyy-MM-dd`. Mandatory at booking                                                      |
+| `toDateOfInjury`        | Yes      | `yyyy-MM-dd`. END of the exposure period on a cumulative injury; null on a specific one |
+| `isCumulativeInjury`    | No       | True means the two dates are a PERIOD, not an incident date                             |
+| `claimNumber`           | No       | Exactly as typed. Mandatory at booking                                                  |
+| `claimNumberNormalized` | Yes      | Uppercased alphanumerics only, for GROUPING. Null if nothing alphanumeric remains       |
+| `wcabAdj`               | No       | WCAB ADJ number as typed. Mandatory at booking                                          |
+| `wcabAdjNormalized`     | Yes      | Same rule as the claim number                                                           |
+| `bodyPartsSummary`      | No       | Free text as typed                                                                      |
+| `wcabOffice`            | Yes      | `{ name, abbreviation }`. Genuinely per-injury. Never the id                            |
 
 Three things to build for:
 
@@ -294,20 +355,20 @@ Claim examiner keys: the same plus `email`. All nullable; `state` is a resolved 
 
 ## B. `documents[]` entry
 
-| Key | Type | Nullable | Source / notes |
-|---|---|---|---|
-| `id` | string (GUID) | No | `AppointmentDocument.Id` or `AppointmentPacket.Id`. Per-file dedup key. Every entry MUST have one. |
-| `source` | string | No | `"document"` (uploaded) or `"packet"` (generated). |
-| `kind` | string | packets only (null for docs) | `PacketKind`: `Patient` / `Doctor` / `AttorneyClaimExaminer` |
-| `documentName` | string | No | docs: `AppointmentDocument.DocumentName`. packets: emitter label (synthesized). |
-| `fileName` | string | No | docs: `AppointmentDocument.FileName` (original). packets: SYNTHESIZED, always `.pdf`. |
-| `contentType` | string | Yes | docs: `AppointmentDocument.ContentType` (nullable) - `application/pdf`, `image/jpeg`, `image/png` (§D). packets: ALWAYS `application/pdf`. |
-| `fileSize` | number (int64 bytes) | packets: YES (null) | docs: `AppointmentDocument.FileSize`. packets: NOT STORED - emitter stats MinIO or sends null. |
-| `status` | string | No | docs: `Uploaded` / `Accepted` / `Rejected` / `Pending`. packets: `Generating` / `Generated` / `Failed`. |
-| `objectKey` | string | No (omitted entries have none) | fully-qualified within `bucket` = `tenants/{tenantId}/` + row `BlobName`. OPAQUE - use verbatim. |
-| `createdAtUtc` | string (ISO-8601 UTC) | No | docs: `CreationTime`. packets: `AppointmentPacket.GeneratedAt`. |
-| `documentType` | string | uploaded docs only, Yes | DERIVED from `AppointmentDocumentTypeId` -> name, else `OtherDocumentTypeName`, else null. |
-| `updatedAt` | string (ISO-8601 UTC) | No | the row's `LastModificationTime ?? CreationTime`. Per-document skip-if-older guard. Also on deletion entries. |
+| Key            | Type                  | Nullable                       | Source / notes                                                                                                                             |
+| -------------- | --------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`           | string (GUID)         | No                             | `AppointmentDocument.Id` or `AppointmentPacket.Id`. Per-file dedup key. Every entry MUST have one.                                         |
+| `source`       | string                | No                             | `"document"` (uploaded) or `"packet"` (generated).                                                                                         |
+| `kind`         | string                | packets only (null for docs)   | `PacketKind`: `Patient` / `Doctor` / `AttorneyClaimExaminer`                                                                               |
+| `documentName` | string                | No                             | docs: `AppointmentDocument.DocumentName`. packets: emitter label (synthesized).                                                            |
+| `fileName`     | string                | No                             | docs: `AppointmentDocument.FileName` (original). packets: SYNTHESIZED, always `.pdf`.                                                      |
+| `contentType`  | string                | Yes                            | docs: `AppointmentDocument.ContentType` (nullable) - `application/pdf`, `image/jpeg`, `image/png` (§D). packets: ALWAYS `application/pdf`. |
+| `fileSize`     | number (int64 bytes)  | packets: YES (null)            | docs: `AppointmentDocument.FileSize`. packets: NOT STORED - emitter stats MinIO or sends null.                                             |
+| `status`       | string                | No                             | docs: `Uploaded` / `Accepted` / `Rejected` / `Pending`. packets: `Generating` / `Generated` / `Failed`.                                    |
+| `objectKey`    | string                | No (omitted entries have none) | fully-qualified within `bucket` = `tenants/{tenantId}/` + row `BlobName`. OPAQUE - use verbatim.                                           |
+| `createdAtUtc` | string (ISO-8601 UTC) | No                             | docs: `CreationTime`. packets: `AppointmentPacket.GeneratedAt`.                                                                            |
+| `documentType` | string                | uploaded docs only, Yes        | DERIVED from `AppointmentDocumentTypeId` -> name, else `OtherDocumentTypeName`, else null.                                                 |
+| `updatedAt`    | string (ISO-8601 UTC) | No                             | the row's `LastModificationTime ?? CreationTime`. Per-document skip-if-older guard. Also on deletion entries.                              |
 
 Confirmed: status enums as above (stored verbatim); non-fetchable entries OMITTED (`Pending` docs
 carry `(pending-upload)` and have no object; packets not `Generated` have no object); `objectKey`
@@ -318,6 +379,17 @@ emitter avoids); `fileSize` may be null for packets.
 ---
 
 ## C. Deletions + retention (DECIDED 2026-07-23)
+
+ONE OBJECT CAN NOW APPEAR UNDER TWO DOCUMENT IDs (ADDED 2026-08-06). Finalizing a reschedule copies
+the original appointment's document ROWS onto the replacement, and a copied row keeps the SAME
+`objectKey` -- the blob is shared, not duplicated. So the same file arrives on both cases with two
+different `id`s.
+
+This is deliberate and already safe under the §G rule you follow ("upsert by `id`; `objectKey` is
+mutable and is never an identity"): two rows pointing at one object is exactly that rule's premise.
+It is called out only so a reader auditing storage, or de-duplicating files across cases, does not
+read it as a fault. The retention guarantee below covers the shared object, so neither case can end
+up pointing at a deleted blob.
 
 Retention guarantee (portal commitment): the portal does NOT purge document blobs, and document
 deletion becomes SOFT-DELETE ONLY - the row is hidden (ABP `ISoftDelete`) but the MinIO object is
@@ -333,6 +405,7 @@ no value. Packets are included because a regenerated packet gets a NEW `objectKe
 Tracker reference would break if the previous object were removed.
 
 Delete propagation (BUILT, PR #395):
+
 - When a document is deleted on the portal, the document-update feed (§E) carries a removal entry
   `{ "id": "<guid>", "deleted": true, "updatedAt": "<iso-utc>" }` so Case Tracker drops it from the
   active view. The blob is retained on the portal side regardless.
@@ -388,24 +461,46 @@ change. The portal RE-PUSHES intake (`POST /api/intake/appointments`, same envel
 `appointmentId`) carrying the updated `status`, schedule, and `updatedAt`.
 
 Trigger set (DECIDED 2026-07-23, CORRECTED 2026-07-27 after verifying the state machine) - PUSHED:
+
 - Cancellation, both stages: `CancellationRequested` (awaiting decision) then `CancelledNoBill` /
   `CancelledLate` (terminal). Critical: a cancelled appointment must not sit in Case Tracker as an
   active case. Note a cancellation can also occur with NO staff action via
   `JointDeclarationAutoCancelJob:159`.
-- Reschedule, both stages: `RescheduleRequested` (old date/time) then back to `Approved` with the NEW
-  date/time. The portal moves the SAME appointment in place rather than cloning a row
-  (`AppointmentChangeRequestsAppService.Approval.cs:218-236`), so the `appointmentId` is unchanged and
-  this UPDATES the existing case - it never creates a second one.
+- Reschedule, both stages: `RescheduleRequested` (old date/time), then the appointment CLOSES to
+  `RescheduledNoBill` / `RescheduledLate` and a SECOND appointment is pushed for the agreed date.
+  ~~The portal moves the SAME appointment in place rather than cloning a row, so the `appointmentId`
+  is unchanged and this UPDATES the existing case - it never creates a second one.~~
+  **SUPERSEDED 2026-08-06 -- see "Reschedule is now two cases" below.**
 - REMOVED from this list: "rejection or info-requested after approval" - VERIFIED IMPOSSIBLE.
   `Rejected` and `InfoRequested` are reachable only from `Pending` (`AppointmentManager.BuildMachine:386-396`),
   i.e. before approval, and the portal only pushes at/after approval.
 
-RESCHEDULE TRAP (important for the receiver): when a reschedule is finalized the appointment status
-returns to `Approved` - it does NOT become a "Rescheduled" status
-(`RescheduleInPlacePolicy.ResolveFinalizedStatus`; the RescheduledNoBill/Late outcome goes on the
-change-request row, not the appointment). So the signal that an appointment MOVED is the changed
-`appointmentDateLocal` / `appointmentTimeLocal` + `updatedAt`, NOT a status change. A receiver that
-keys "case moved" off a status transition will miss every reschedule.
+### RESCHEDULE IS NOW TWO CASES (CHANGED 2026-08-06)
+
+Finalizing a reschedule no longer moves one appointment. It CLOSES the original and CREATES a
+replacement on the agreed date, so one claim produces TWO cases:
+
+- the ORIGINAL is pushed with `status` = `RescheduledNoBill` or `RescheduledLate`, its matching
+  `billingStatus` (`NO_BILL` / `LATE`), and `supersededByAppointmentId` + `supersededReason`
+  pointing at the replacement. This is the signal to close or bill the old date -- the thing the
+  in-place design had nowhere to put.
+- the REPLACEMENT arrives under a NEW `appointmentId`, carrying `rescheduledFromAppointmentId` +
+  `rescheduledFromConfirmationNumber` back to the original. Its `status` is `Approved`: both parties
+  consented to the date before it was booked, so there is no second approval to wait for.
+
+**NO RECEIVER CHANGE IS REQUIRED for this to work.** The case key is `appointmentId` and you upsert
+on it (§G), so a new id opens a second case by itself. The four link fields are additive and safely
+ignorable -- read them to join the two cases and to show your staff what happened.
+
+Why it changed: staff need to bill or close the old date while tracking the new one separately, and
+a single row moving in place cannot express that.
+
+~~RESCHEDULE TRAP: when a reschedule is finalized the appointment status returns to `Approved` - it
+does NOT become a "Rescheduled" status, so the signal that an appointment MOVED is the changed
+`appointmentDateLocal` / `appointmentTimeLocal` + `updatedAt`, NOT a status change.~~
+**REVERSED 2026-08-06 -- this is now exactly backwards.** A reschedule IS a status change, and the
+original appointment's date NEVER changes again. A receiver still keying "case moved" off a changed
+date will watch a case that never moves and will miss the close entirely.
 
 SUPERSEDED 2026-07-28 -- field edits ARE now pushed. The trigger is ANY change to an approved
 appointment, including patient / attorney / injury field edits. Re-pushing costs almost nothing
@@ -457,6 +552,7 @@ documents-only variant would cost the same to build while giving you less.
   Byte-identical in shape to what the push sends, so Case Tracker can reuse the SAME deserializer and
   upsert path for both push and pull. (The portal reuses the same payload builder, so exposing the
   full payload costs essentially nothing over a documents-only version.)
+
 - Returns CURRENT truth: latest appointment/patient/attorney/location fields + the fetchable document
   list (all packet kinds when generated; excludes soft-deleted and non-fetchable entries).
 - Recommended Case Tracker usage (REVISED 2026-07-28): call it on case-open, and otherwise only as a
@@ -466,6 +562,7 @@ documents-only variant would cost the same to build while giving you less.
   room for it), but it is no longer load-bearing.
 
 Answers to the receiver's reconcile questions (2026-07-28):
+
 - **Same clock as the push?** Yes, and stronger than that: reconcile runs the SAME
   `IIntakePayloadBuilder` over the same columns, so `updatedAt` is the same value from the same source
   (`LastModificationTime ?? CreationTime`, formatted by one helper). Reconcile can therefore never
@@ -524,7 +621,7 @@ Answers to the receiver's reconcile questions (2026-07-28):
     writes a new blob;
   - a document re-upload mutates the same row (`AppointmentDocumentsAppService.cs:617`,
     `document.BlobName = newBlobName`) and the superseded blob is deleted.
-  Always upsert by `id` and OVERWRITE the stored `objectKey`. Never treat the key as an identity.
+    Always upsert by `id` and OVERWRITE the stored `objectKey`. Never treat the key as an identity.
 - Ordering guard (AGREED): the portal sends `updatedAt` per appointment and per document (incl.
   deletions); Case Tracker skips stale writes. Correctness is independent of delivery order.
 
@@ -548,6 +645,24 @@ carrying the packets and every already-accepted uploaded document. This SUPERSED
   after the intake went -- arrive on the document-update feed (§E), not as another intake.
 - Appointment changes still re-push intake (§E2), but only once the packet set has settled; field
   edits are pulled (§F).
+
+A RESCHEDULE NOW COSTS TWO MESSAGES, not one (added 2026-08-06): the closing push for the original
+and the intake for the replacement, each waiting on its own packet set. The replacement's packets
+are REGENERATED (its date differs), so its intake arrives seconds-to-minutes after finalize, on the
+same settle rule as any approval. Nowhere near the cap below -- an office runs about a dozen slots a
+day and only a fraction are rescheduled.
+
+VOLUME CAP (added 2026-07-31): the portal sends at most 100 messages per office per rolling hour.
+Beyond that, delivery is HELD -- rows stay queued and resume automatically as the window slides. There
+is no trip state and nothing to reset.
+
+What this means for Case Tracker: a large burst arrives spread over hours rather than all at once, and
+a gap in delivery is not necessarily a fault. Normal traffic is nowhere near the cap -- an office runs
+about a dozen appointment slots a day, so organic approvals are single digits per hour. The cap exists
+because three paths could otherwise produce an unbounded burst: releasing an office's accumulated
+backlog the first time its switch is turned on, a patient edit fanning out across all of that
+patient's appointments, and any deliberate backfill. Since each intake becomes a case your staff must
+handle, we would rather deliver slowly than fill your queue with work to unpick.
 
 Why this reversed, measured rather than theorised: the first live approval (falkinstein A00004,
 2026-07-30) queued TWO intakes ten seconds apart. The first carried no packets; the second was
@@ -591,6 +706,7 @@ reaches the Case Tracker seconds-to-minutes later than it used to.
 A permanently failed push means a case silently never reaches Case Tracker - the worst failure mode of
 this integration, because nothing in either UI would show it. Combined with the fail-fast retry policy
 (§I), a failure surfaces to a human within minutes. STATUS: BUILT (Part 5). Phase 1 includes ALL of:
+
 - Email alert to internal staff when an outbox row reaches terminal `Failed` (reuses the portal's
   existing email infrastructure; note `OutboxDrainJob` today only logs counts, so this is new).
   **REVISED 2026-07-28 -- BATCHED, not one email per failure.** The most likely cause of a dead letter
@@ -622,6 +738,7 @@ Case Tracker side: intake + document-update + health BUILT + verified locally; N
 
 Portal side - BUILT and merged (as of `8a1568eb`, 2026-07-28). All of it ships DISABLED behind the
 `CaseTrackerPushEnabled` setting, and NONE of it has been exercised against a live Case Tracker:
+
 - Outbound push client + a NEW transactional outbox entity (`IntegrationOutboxItem`). PR #393.
   `NotificationOutboxItem` could not be reused - its fields are email-shaped - but its mechanics were
   mirrored: per-tenant, written in the same transaction as the state change, lease/visibility-timeout
@@ -655,6 +772,7 @@ Portal side - BUILT and merged (as of `8a1568eb`, 2026-07-28). All of it ships D
   the old row resolved. Part 5.
 
 Portal side - still NOT built:
+
 - TLS/mTLS on the transport (coordinate with Case Tracker). Note: if their service requires CLIENT
   certificates this becomes a small code change to the push client's handler; if it only needs us to
   trust their internal CA it is box configuration. They have not said which.
@@ -678,6 +796,96 @@ packet-generated events; byte retrieval by key; the MinIO store + ability to min
 
 ---
 
+## K. Attendance report POST (INBOUND -- you call us) (ADDED 2026-08-07, phase 5)
+
+The FIRST inbound write in this integration. Everything else is either a portal push or the portal
+answering a read (section F); this is the one channel where the Case Tracker changes portal state.
+
+**Why it exists.** Intake staff mark a patient as no-show or not-seen in the CASE TRACKER, so the
+portal has no way to learn it. Without this the portal keeps showing the appointment as `Approved`
+forever and a re-evaluation cannot be booked against it.
+
+- **NoShow** -- the patient did not arrive.
+- **NotSeen** -- the patient arrived but was not evaluated (missing or incorrect interpreter, the
+  patient leaving before being called, and similar).
+
+There is **NO replacement appointment.** The portal records the outcome and stops. If the client
+still wants an appointment they submit a new request; that applies to re-evaluations too.
+
+### Endpoint
+
+`POST https://admin.api.<portal-base-domain>/api/integration/offices/{tenantId}/appointments/{appointmentId}/attendance`
+
+The `admin.api.` prefix and the `{tenantId}` path segment work exactly as in section F, and for the
+same reasons -- the portal is database-per-office and this request carries no other tenant signal.
+`{tenantId}` is the same `tenant.tenantId` you receive in every push.
+
+### Auth
+
+Header `X-Integration-Token`, the SAME secret as the reconcile GET (section F), not the outbound
+`X-Intake-Token`. Checked before any database work, so a wrong token cannot be used to probe which
+offices or appointments exist.
+
+### Body
+
+```json
+{ "outcome": "NO_SHOW" }
+```
+
+`outcome` is required and must be exactly `NO_SHOW` or `NOT_SEEN`. Case-sensitive, untrimmed, and no
+other status is accepted -- deliberately, so this endpoint cannot become a general-purpose status
+setter. Anything else is a 400.
+
+### Status codes
+
+| Code  | Meaning                                                                                                   |
+| ----- | --------------------------------------------------------------------------------------------------------- |
+| `200` | Applied. ALSO returned when the appointment already carried this outcome -- see idempotency below.        |
+| `400` | `outcome` missing or not one of the two accepted values.                                                  |
+| `401` | Missing or incorrect `X-Integration-Token`.                                                               |
+| `404` | Unknown office, unknown appointment, or an office with the integration switched off -- indistinguishable. |
+| `409` | The appointment exists but cannot take this outcome from its current status.                              |
+
+No response body on success.
+
+### Idempotency
+
+Keyed on the appointment's CURRENT status, not on a request id. A retry carrying the same outcome
+for an appointment already in that status returns `200` and changes nothing -- no second status
+change, so no duplicate staff notification. Retry freely.
+
+### Conflicts (`409`)
+
+`409` means the portal will not apply this outcome and nothing changed. It is safe to log and stop;
+retrying will not help. Causes:
+
+- The appointment already carries the OTHER attendance outcome.
+- The appointment is not `Approved`. Only an `Approved` appointment can take an attendance outcome,
+  and that is a domain rule rather than a conservative default:
+  - A **Pending** appointment was never approved, so no case exists on your side to report against.
+  - A **RescheduleRequested** appointment has no agreed date yet, so the patient is not expected to
+    attend anything. Finalize the reschedule first; the NEW appointment is the one that can no-show.
+  - A **Cancelled** or **Rescheduled** appointment is already terminal.
+
+`409` is the one failure the portal reports distinguishably. Everything else collapses to `404` so a
+token holder cannot enumerate offices or appointments; by the time a `409` is possible you have
+already authenticated, and staying silent would defeat the log this endpoint exists to create.
+
+### Rate limit
+
+Shares the `/api/integration` allowance with the reconcile GET: 300 requests/hour, partitioned by
+client IP. Attendance reports are one call per appointment per day, so they are negligible beside a
+reconcile repair sweep -- but the budget is SHARED, so a sweep and a burst of reports draw on the
+same 300. Tell us if you ever see a `429` and the cap can be raised.
+
+### What comes back the other way
+
+Nothing. The portal does NOT push these statuses to you (section A, NEVER-sent) -- you authored
+them. Note the accepted consequence recorded there: once an appointment is `NoShow` or `NotSeen`, no
+further update about it reaches you at all.
+
+---
+
 ## Coordination
 
 Portal provides (pending): MinIO endpoint reachable from `192.168.101.35` over TLS; the
@@ -690,6 +898,7 @@ base at deploy `https://192.168.101.35:7272/evaluators-api-service` (TLS require
 out of band at deploy.
 
 Agreed decisions (2026-07-23), all FINAL:
+
 1. Documents are read IN PLACE from the shared portal MinIO - never copied app-to-app.
 2. The portal guarantees retention: no purge, and soft-delete-only (blob retained) for appointment
    documents + packets. So Case Tracker does NOT need a copy-into-own-bucket safety net for the
@@ -701,12 +910,20 @@ Agreed decisions (2026-07-23), all FINAL:
    included, so no periodic pull is needed for freshness. (Was: lifecycle-only, with field edits
    pulled. "Rejection+info-requested" was also dropped as impossible - both are reachable only
    pre-approval.) Excluded from the trigger: `Location`, `Doctor` and `AppointmentType` edits.
+   REVISED AGAIN 2026-08-06: a finalized reschedule now produces TWO messages -- the original
+   closing to `RescheduledNoBill` / `RescheduledLate`, and an intake for the replacement under a new
+   `appointmentId`. Both halves re-push on later edits like any other appointment.
 5. Reconcile GET returns the full appointment payload + documents (same shape as the push), now as a
    BACKSTOP for a dead-lettered push and for refreshing on case-open.
 6. Ordering: `updatedAt` per appointment + per document; Case Tracker skips stale writes.
 7. Re-eval linking: persisted `EvaluationKind` + `previousAppointmentId` (machine link) +
    `previousConfirmationNumber` (human aid). NO patient identifier is sent - patient identity and
    folder routing belong to CalMed + Case Tracker.
+   ADDED 2026-08-06 -- RESCHEDULE linking is a SEPARATE pair, not an extension of this one:
+   `rescheduledFromAppointmentId` + `rescheduledFromConfirmationNumber` on the replacement, and
+   `supersededByAppointmentId` + `supersededReason` on the appointment it replaced. Kept apart
+   because a re-evaluated appointment HAPPENED and is followed up, while a rescheduled one did NOT
+   happen and is replaced - the same distinction `evaluationKind` was introduced to protect.
 8. TLS required before real PHI flows. Delivery fails fast (few attempts, then dead-letter) and raises
    an email alert + an admin dead-letter screen with retry, plus a manual push action.
 9. Reconcile GET is authenticated by a portal-issued static `X-Integration-Token`.

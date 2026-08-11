@@ -31,7 +31,9 @@ public class PacketsCompleteHandlerTests
     private static readonly Guid AppointmentId = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly DateTime Now = new(2026, 7, 28, 12, 0, 0, DateTimeKind.Utc);
 
-    private static Appointment NewAppointment(AppointmentStatusType status = AppointmentStatusType.Approved) =>
+    private static Appointment NewAppointment(
+        AppointmentStatusType status = AppointmentStatusType.Approved,
+        Guid? rescheduledFromAppointmentId = null) =>
         new(
             AppointmentId,
             patientId: new Guid("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc"),
@@ -45,6 +47,7 @@ public class PacketsCompleteHandlerTests
             panelNumber: "PN-SAMPLE")
         {
             TenantId = TenantId,
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
 
     private static AppointmentPacket NewPacket(
@@ -77,9 +80,10 @@ public class PacketsCompleteHandlerTests
     private static (PacketsCompleteHandler Handler, ICaseTrackerDocumentQueue DocumentQueue, ICaseTrackerIntakeQueue IntakeQueue) Build(
         List<AppointmentPacket> packets,
         AppointmentStatusType status = AppointmentStatusType.Approved,
-        bool hasExistingIntake = false)
+        bool hasExistingIntake = false,
+        Guid? rescheduledFromAppointmentId = null)
     {
-        var appointment = NewAppointment(status);
+        var appointment = NewAppointment(status, rescheduledFromAppointmentId);
 
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.FindAsync(AppointmentId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -192,6 +196,48 @@ public class PacketsCompleteHandlerTests
             TenantId,
             Arg.Is<IReadOnlyList<IntakeDocumentEntry>>(list =>
                 list.Count == 3 && list.All(e => e.Source == DocumentEntryMapper.PacketSource)),
+            Arg.Any<CancellationToken>());
+        await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
+    }
+
+    /// <summary>
+    /// Phase 4e (2026-08-06) -- the REPLACEMENT's settling packet set becomes its intake, which is
+    /// how the second case is opened. 4d suppressed exactly this while the contract still told the
+    /// receiver a reschedule was one case with a changed date; 4e makes the two-case shape the
+    /// documented truth, so the first-contact branch runs normally.
+    /// </summary>
+    [Fact]
+    public async Task WhenTheReplacementHalfsPacketsSettle_TheSetBecomesItsIntake()
+    {
+        var (handler, documentQueue, intakeQueue) = Build(
+            AllThreeGenerated(),
+            rescheduledFromAppointmentId: new Guid("7a1b2c3d-4e5f-4061-8273-9a0b1c2d3e4f"));
+
+        await handler.HandleEventAsync(Event(PacketKind.AttorneyClaimExaminer));
+
+        await intakeQueue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+        await documentQueue.DidNotReceiveWithAnyArgs().EnqueueDocumentEntriesAsync(default, default, default!, default);
+    }
+
+    /// <summary>
+    /// Phase 4e (2026-08-06) -- the old half keeps its packets as a historical record and is not
+    /// regenerated, so this is the narrower case of one stalled kind finally rendering after the
+    /// close. It belongs on the DOCUMENT feed, not as another intake: the case already exists.
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.RescheduledLate)]
+    public async Task WhenTheOldHalfsPacketsSettleAgain_TheyGoOnTheDocumentFeed(AppointmentStatusType status)
+    {
+        var (handler, documentQueue, intakeQueue) = Build(
+            AllThreeGenerated(), status: status, hasExistingIntake: true);
+
+        await handler.HandleEventAsync(Event(PacketKind.AttorneyClaimExaminer));
+
+        await documentQueue.Received(1).EnqueueDocumentEntriesAsync(
+            AppointmentId,
+            TenantId,
+            Arg.Any<IReadOnlyList<IntakeDocumentEntry>>(),
             Arg.Any<CancellationToken>());
         await intakeQueue.DidNotReceiveWithAnyArgs().EnqueueIntakeAsync(default, default, default);
     }

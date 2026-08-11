@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -877,5 +878,114 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         }
 
         result.Any(x => x.Id == slotId).ShouldBeFalse();
+    }
+
+    // ---- Phase 3 (2026-07-31): the staff schedule ----
+    // What separates this from the booking picker above is that a slot appears even when it is NOT
+    // bookable. Slot1 is seeded with BookingStatus.Booked AND holds Appointment1 (Pending, A90001),
+    // so one read exercises both halves.
+
+    [Fact]
+    public async Task GetScheduleAsync_WhenLocationIdIsEmpty_Throws()
+    {
+        // Required rather than defaulting to every clinic: the result carries patient names.
+        await Should.ThrowAsync<AbpValidationException>(async () =>
+            await _appService.GetScheduleAsync(new GetScheduleInput
+            {
+                LocationId = Guid.Empty,
+                FromDate = DoctorAvailabilitiesTestData.Slot1AvailableDate,
+                ToDate = DoctorAvailabilitiesTestData.Slot1AvailableDate,
+            }));
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_ReturnsASlotThatIsNotBookable_UnlikeTheBookingPicker()
+    {
+        List<ScheduleSlotDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetScheduleAsync(new GetScheduleInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                FromDate = DoctorAvailabilitiesTestData.Slot1AvailableDate,
+                ToDate = DoctorAvailabilitiesTestData.Slot1AvailableDate,
+            });
+        }
+
+        var slot = result.ShouldHaveSingleItem();
+        slot.SlotId.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
+        slot.FromTime.ShouldBe(DoctorAvailabilitiesTestData.Slot1FromTime);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_CountsOccupancyAndReturnsTheAppointmentChip()
+    {
+        List<ScheduleSlotDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetScheduleAsync(new GetScheduleInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                FromDate = DoctorAvailabilitiesTestData.Slot1AvailableDate,
+                ToDate = DoctorAvailabilitiesTestData.Slot1AvailableDate,
+            });
+        }
+
+        var slot = result.ShouldHaveSingleItem();
+        slot.ActiveCount.ShouldBe(1);
+        slot.RemainingCapacity.ShouldBe(slot.Capacity - 1);
+
+        // The id is what makes the chip clickable; the status is what colours it.
+        var chip = slot.Appointments.ShouldHaveSingleItem();
+        chip.AppointmentId.ShouldBe(AppointmentsTestData.Appointment1Id);
+        chip.RequestConfirmationNumber.ShouldBe(AppointmentsTestData.Appointment1RequestConfirmationNumber);
+        chip.Status.ShouldBe(AppointmentsTestData.Appointment1Status);
+        chip.PatientName.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_ExcludesSlotsOutsideTheRequestedRange()
+    {
+        List<ScheduleSlotDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetScheduleAsync(new GetScheduleInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                FromDate = DoctorAvailabilitiesTestData.Slot1AvailableDate.AddDays(-3),
+                ToDate = DoctorAvailabilitiesTestData.Slot1AvailableDate.AddDays(-1),
+            });
+        }
+
+        result.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Task 7: the grid's own read now carries occupancy. Before this, RemainingCapacity was
+    /// null on GetListAsync and the grid fell back on BookingStatusId -- which no code sets to
+    /// Booked, so a fully booked slot rendered as available.
+    /// </summary>
+    [Fact]
+    public async Task GetListAsync_PopulatesRemainingCapacityFromRealOccupancy()
+    {
+        PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetListAsync(new GetDoctorAvailabilitiesInput
+            {
+                MaxResultCount = 100,
+            });
+        }
+
+        var slot1 = result.Items
+            .Select(x => x.DoctorAvailability)
+            .Single(x => x.Id == DoctorAvailabilitiesTestData.Slot1Id);
+
+        // Slot1 holds one non-terminal appointment (Appointment1).
+        slot1.RemainingCapacity.ShouldBe(slot1.Capacity - 1);
+
+        // Every returned slot must carry occupancy, not just the one with an appointment --
+        // a null would send the grid back to its BookingStatusId fallback.
+        result.Items.ShouldAllBe(x => x.DoctorAvailability.RemainingCapacity != null);
     }
 }

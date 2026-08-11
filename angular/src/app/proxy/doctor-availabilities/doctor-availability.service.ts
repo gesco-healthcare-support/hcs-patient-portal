@@ -1,4 +1,4 @@
-import type { DoctorAvailabilityBulkDeleteResultDto, DoctorAvailabilityCreateDto, DoctorAvailabilityCreateRangeResultDto, DoctorAvailabilityDeleteByDateInputDto, DoctorAvailabilityDeleteBySlotInputDto, DoctorAvailabilityDto, DoctorAvailabilityGenerateInputDto, DoctorAvailabilitySlotsPreviewDto, DoctorAvailabilityUpdateDto, DoctorAvailabilityWithNavigationPropertiesDto, GetDoctorAvailabilitiesInput, GetDoctorAvailabilityLookupInput, SlotPatientNamesDto } from './models';
+import type { DoctorAvailabilityBulkDeleteResultDto, DoctorAvailabilityCreateDto, DoctorAvailabilityCreateRangeResultDto, DoctorAvailabilityDeleteByDateInputDto, DoctorAvailabilityDeleteBySlotInputDto, DoctorAvailabilityDto, DoctorAvailabilityGenerateInputDto, DoctorAvailabilitySlotsPreviewDto, DoctorAvailabilityUpdateDto, DoctorAvailabilityWithNavigationPropertiesDto, GetDoctorAvailabilitiesInput, GetDoctorAvailabilityLookupInput, GetScheduleInput, ScheduleSlotDto, SlotPatientNamesDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -105,6 +105,15 @@ export class DoctorAvailabilityService {
       method: 'GET',
       url: '/api/app/doctor-availabilities/location-lookup',
       params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getSchedule = (input: GetScheduleInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, ScheduleSlotDto[]>({
+      method: 'GET',
+      url: '/api/app/doctor-availabilities/schedule',
+      params: { locationId: input.locationId, fromDate: input.fromDate, toDate: input.toDate },
     },
     { apiName: this.apiName,...config });
   

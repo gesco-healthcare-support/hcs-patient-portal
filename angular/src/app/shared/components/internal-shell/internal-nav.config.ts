@@ -120,6 +120,18 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
       },
       {
+        id: 'schedule',
+        label: 'Schedule',
+        // 'clock' rather than 'calendar': this is the time-grid read view, and the
+        // sibling slot-management grid above already owns the calendar icon.
+        icon: 'clock',
+        route: '/doctor-management/schedule',
+        // Same audience and policy as the availabilities grid it sits beside, so
+        // visibility equals access -- no dead nav item, no click-into-403.
+        roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
+      },
+      {
         id: 'locations',
         label: 'Locations',
         icon: 'map',
@@ -385,6 +397,17 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         route: '/admin/audit',
         roles: ['itadmin'],
         requiredPolicy: 'AuditLogging.AuditLogs',
+      },
+      {
+        // 2026-07-31 -- this screen had no sidebar entry for ANY role, so it was reachable
+        // only by typing the URL. Supervisor is included because operating Case Tracker
+        // delivery is an operator duty rather than a technical one.
+        id: 'integration-failures',
+        label: 'Case Tracker Delivery',
+        icon: 'alert',
+        route: '/admin/integration-failures',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.Appointments.ViewIntegrationDeadLetters',
       },
       {
         id: 'file-management',

@@ -1,14 +1,25 @@
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
+import type { ChangeRequestConsentStatus } from './change-request-consent-status.enum';
 import type { ChangeRequestType } from './change-request-type.enum';
 import type { RequestStatusType } from '../enums/request-status-type.enum';
 import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
-import type { ChangeRequestConsentStatus } from './change-request-consent-status.enum';
 import type { ChangeRequestSide } from './change-request-side.enum';
 
 export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string> {
   tenantId?: string | null;
   appointmentId?: string;
   appointmentConfirmationNumber?: string | null;
+  appointmentLocationId?: string | null;
+  appointmentTypeId?: string | null;
+  requestedSlotDate?: string | null;
+  requestedSlotFromTime?: string | null;
+  currentConsentRoundNumber?: number | null;
+  currentRoundProposedSlotId?: string | null;
+  currentRoundProposedDate?: string | null;
+  currentRoundProposedFromTime?: string | null;
+  currentRoundSideAStatus?: ChangeRequestConsentStatus | null;
+  currentRoundSideBStatus?: ChangeRequestConsentStatus | null;
+  currentRoundSendAttempts?: number | null;
   changeRequestType?: ChangeRequestType;
   cancellationReason?: string | null;
   reScheduleReason?: string | null;
@@ -33,8 +44,6 @@ export interface ApproveCancellationInput {
 
 export interface ApproveRescheduleInput {
   rescheduleOutcome: AppointmentStatusType;
-  overrideSlotId?: string | null;
-  adminReScheduleReason?: string | null;
   concurrencyStamp?: string | null;
 }
 
@@ -44,6 +53,12 @@ export interface ChangeRequestConsentInfoDto {
   reason?: string | null;
   requestedNewDateTime?: string | null;
   consentStatus?: ChangeRequestConsentStatus;
+}
+
+export interface ConfirmRescheduleDateInput {
+  doctorAvailabilityId: string;
+  adminReScheduleReason?: string | null;
+  concurrencyStamp?: string | null;
 }
 
 export interface GetChangeRequestsInput extends PagedAndSortedResultRequestDto {
@@ -64,7 +79,7 @@ export interface RequestCancellationDto {
 }
 
 export interface RequestRescheduleDto {
-  newDoctorAvailabilityId: string;
+  newDoctorAvailabilityId?: string | null;
   reScheduleReason: string;
   isBeyondLimit?: boolean;
 }

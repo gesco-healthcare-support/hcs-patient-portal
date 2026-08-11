@@ -30,5 +30,26 @@ public class ChangeRequestConsentRequestedEto
     /// <summary>Tenant-aware public consent landing URL carrying the raw token.</summary>
     public string ConsentUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Consent round this dispatch belongs to (phase 4c, 2026-08-05). 0 for CANCELLATION
+    /// consent, which has no rounds and keeps its original context tag untouched.
+    /// </summary>
+    public int RoundNumber { get; set; }
+
+    /// <summary>
+    /// Which send attempt within <see cref="RoundNumber"/> (1 = the confirm that opened it).
+    /// Load-bearing, not merely informational: the outbox idempotency key is
+    /// <c>SHA256(tenantId | recipientEmail | contextTag | packetKind)</c> and
+    /// <c>NotificationOutboxManager.EnqueueAsync</c> SILENTLY returns the existing row on a
+    /// match, so without round + attempt in the tag every resend would vanish with no error.
+    /// </summary>
+    public int SendAttempt { get; set; }
+
+    /// <summary>
+    /// The round's proposed slot (phase 4c). Null for cancellation and for legacy rows; the
+    /// email handler falls back to the request's <c>NewDoctorAvailabilityId</c> then.
+    /// </summary>
+    public Guid? ProposedDoctorAvailabilityId { get; set; }
+
     public DateTime OccurredAt { get; set; }
 }

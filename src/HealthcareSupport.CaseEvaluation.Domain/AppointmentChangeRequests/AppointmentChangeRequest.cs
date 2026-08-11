@@ -15,19 +15,22 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 /// 2026-05-01). Lifecycle:
 ///
 /// 1. External user (creator OR accessor with Edit access) submits a row
-///    with <see cref="RequestStatus"/> = Pending. For reschedule,
-///    <see cref="NewDoctorAvailabilityId"/> is the slot the user picked
-///    and the parent appointment transitions
-///    Approved -&gt; RescheduleRequested while the new slot is held in
-///    Reserved status. For cancel, the parent appointment stays in
-///    Approved while the change request is Pending.
+///    with <see cref="RequestStatus"/> = Pending. For reschedule the
+///    requestor supplies a REASON ONLY (phase 4b, 2026-08-04) and the
+///    parent appointment transitions Approved -&gt; RescheduleRequested;
+///    no slot is held, because none has been chosen yet. Internal staff
+///    filing a reschedule may still propose a slot up front, in which
+///    case <see cref="NewDoctorAvailabilityId"/> is set and that slot is
+///    held in Reserved status. For cancel, the parent appointment stays
+///    in Approved while the change request is Pending.
 ///
 /// 2. Staff Supervisor approves with a <see cref="CancellationOutcome"/>
 ///    (CancelledNoBill / CancelledLate for cancel; RescheduledNoBill /
-///    RescheduledLate for reschedule), optionally overriding the slot.
-///    On reschedule approve, a NEW Appointment row is created via
-///    cascade-copy and the old appointment moves to the chosen
-///    rescheduled outcome.
+///    RescheduledLate for reschedule), CHOOSING the new slot (or
+///    overriding a staff-proposed one) via
+///    <see cref="AdminOverrideSlotId"/>. On reschedule approve the SAME
+///    appointment moves to the chosen slot in place (B2, 2026-07-01);
+///    epic phase 4d replaces this with a new-appointment split.
 ///
 /// 3. Supervisor rejects with <see cref="RejectionNotes"/> and the
 ///    parent appointment reverts to Approved (with new slot released
@@ -50,7 +53,13 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     [CanBeNull]
     public virtual string? ReScheduleReason { get; set; }
 
-    /// <summary>The slot the user picked when submitting a reschedule. Null for cancel.</summary>
+    /// <summary>
+    /// A slot proposed at SUBMIT time. Null for cancel, and -- since phase 4b (2026-08-04) --
+    /// normally null for reschedule too: the requestor supplies a reason only and staff choose
+    /// the slot at approval (<see cref="AdminOverrideSlotId"/>). Retained because internal staff
+    /// filing a reschedule DO pick immediately, and so a future requestor-side "suggested date"
+    /// needs no migration.
+    /// </summary>
     public virtual Guid? NewDoctorAvailabilityId { get; set; }
 
     public virtual RequestStatusType RequestStatus { get; set; }
@@ -71,7 +80,13 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     [CanBeNull]
     public virtual string? AdminReScheduleReason { get; set; }
 
-    /// <summary>Slot the supervisor chose if it differs from the user's pick.</summary>
+    /// <summary>
+    /// The slot staff scheduled onto at approval. Phase 4b (2026-08-04) widened this from
+    /// "only when it differs from the requestor's pick" to "whenever staff chose a slot",
+    /// because staff are now the primary picker and the row would otherwise record no slot
+    /// at all. Compare with <see cref="NewDoctorAvailabilityId"/> to tell a genuine override
+    /// (both set and different) from a first-and-only choice (this set, the other null).
+    /// </summary>
     public virtual Guid? AdminOverrideSlotId { get; set; }
 
     /// <summary>
@@ -87,6 +102,20 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// RescheduledLate) and is written onto the parent / old appointment.
     /// </summary>
     public virtual AppointmentStatusType? CancellationOutcome { get; set; }
+
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- when staff DECIDED this request, stamped once as
+    /// <see cref="RequestStatus"/> becomes Accepted or Rejected, on all four decision paths.
+    ///
+    /// <para>Distinct from the consent timestamps: both sides can agree and staff still not get to
+    /// the request until later, so "when both parties agreed" and "when it was actually actioned"
+    /// are different moments and the history needs both.</para>
+    ///
+    /// <para>Why a column rather than the inherited <c>LastModificationTime</c>: that reflects the
+    /// LAST write of any kind, so any later edit silently relabels when the decision was made. A log
+    /// entry that quietly becomes wrong is worse than one that is absent.</para>
+    /// </summary>
+    public virtual DateTime? DecidedAt { get; set; }
 
     // ---- Consent (2026-07-01 redesign): two symmetric side-consent slots ----
     // Side A = Patient + Applicant Attorney; Side B = Defense Attorney + Claim Examiner.
@@ -153,8 +182,12 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
         }
         if (changeRequestType == ChangeRequestType.Reschedule)
         {
+            // Phase 4b (2026-08-04): the slot is NO LONGER required. Date selection moved from
+            // the requestor to internal staff, who supply it via ApproveRescheduleInput
+            // .OverrideSlotId at approval, so a submitted request legitimately carries only a
+            // reason. The reason therefore stays mandatory -- it is the only thing the requestor
+            // now provides.
             Check.NotNullOrWhiteSpace(reScheduleReason, nameof(reScheduleReason));
-            Check.NotNull(newDoctorAvailabilityId, nameof(newDoctorAvailabilityId));
         }
         Check.Length(cancellationReason, nameof(cancellationReason), AppointmentChangeRequestConsts.ReasonMaxLength);
         Check.Length(reScheduleReason, nameof(reScheduleReason), AppointmentChangeRequestConsts.ReasonMaxLength);

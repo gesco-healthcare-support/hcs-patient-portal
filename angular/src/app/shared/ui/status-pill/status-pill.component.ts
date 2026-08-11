@@ -1,13 +1,25 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 
-/** The 6-status model surfaced on lists/detail (semantic keys, not numeric ids). */
+/**
+ * The status model surfaced on lists/detail (semantic keys, not numeric ids).
+ *
+ * Phase 4c (2026-08-05) split the two REQUESTED states out of their terminal pills.
+ * `RescheduleRequested` used to render as `Rescheduled` and `CancellationRequested` as
+ * `Cancelled`, so an appointment that had not moved read as though it had -- Adrian: "that is
+ * misleading". They filter under the SAME chips as before (see `PILL_TO_SEGMENT`), so chip
+ * counts are unchanged; only the pill TEXT and tone become honest.
+ */
 export type AppointmentPillStatus =
   | 'Pending'
   | 'InfoRequested'
   | 'Approved'
   | 'Rejected'
   | 'Cancelled'
-  | 'Rescheduled';
+  | 'CancellationRequested'
+  | 'Rescheduled'
+  | 'RescheduleRequested'
+  | 'NoShow'
+  | 'NotSeen';
 
 type PillTone = 'pending' | 'purple' | 'approved' | 'rejected' | 'neutral' | 'info';
 
@@ -18,6 +30,15 @@ type PillTone = 'pending' | 'purple' | 'approved' | 'rejected' | 'neutral' | 'in
  * banner: in list/pill context Cancelled is `neutral` (grey), while the detail
  * status banner paints Cancelled red -- a deliberate, context-specific choice.
  * Rescheduled is `info` (blue); InfoRequested is `purple`.
+ *
+ * The two REQUESTED pills take `pending` (amber), which reads as in-progress. They cannot
+ * reuse their terminal pill's tone: `info` blue and `neutral` grey both read as DONE, which is
+ * exactly the false impression phase 4c exists to remove.
+ *
+ * Phase 5 (2026-08-07) adds `NoShow` and `NotSeen` on `neutral` -- the inverse of the 4c
+ * reasoning. These ARE done: the appointment happened and produced no evaluation, so grey is
+ * accurate rather than misleading. They share Cancelled's tone but never its LABEL, which is
+ * the whole point: NoShow used to render as "Cancelled" and the appointment was not cancelled.
  */
 const PILL_META: Record<AppointmentPillStatus, { tone: PillTone; label: string }> = {
   Pending: { tone: 'pending', label: 'Pending' },
@@ -25,7 +46,11 @@ const PILL_META: Record<AppointmentPillStatus, { tone: PillTone; label: string }
   Approved: { tone: 'approved', label: 'Approved' },
   Rejected: { tone: 'rejected', label: 'Rejected' },
   Cancelled: { tone: 'neutral', label: 'Cancelled' },
+  CancellationRequested: { tone: 'pending', label: 'Cancellation Requested' },
   Rescheduled: { tone: 'info', label: 'Rescheduled' },
+  RescheduleRequested: { tone: 'pending', label: 'Reschedule Requested' },
+  NoShow: { tone: 'neutral', label: 'No Show' },
+  NotSeen: { tone: 'neutral', label: 'Not Seen' },
 };
 
 /**

@@ -71,10 +71,14 @@ public class AppointmentChangedHandler :
             return;
         }
 
-        if (!CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
+        if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
         {
-            // Not yet a case on their side. The settle path pushes the current state in full once the
-            // appointment is published and its packets have finished rendering.
+            // Either not yet a case on their side -- the settle path pushes the current state in full
+            // once the appointment is published and its packets have rendered -- or closed by an
+            // attendance outcome THEY reported, which we never echo back (phase 5).
+            _logger.LogDebug(
+                "AppointmentChangedHandler: appointment {AppointmentId} is {Status}; nothing pushed.",
+                appointment.Id, appointment.AppointmentStatus);
             return;
         }
 
@@ -98,7 +102,7 @@ public class AppointmentChangedHandler :
 
             foreach (var appointment in appointments)
             {
-                if (CaseTrackerPublishPolicy.IsPublished(appointment.AppointmentStatus))
+                if (CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
                 {
                     await RePushAsync(appointment.Id, appointment.TenantId, nameof(Patient));
                 }

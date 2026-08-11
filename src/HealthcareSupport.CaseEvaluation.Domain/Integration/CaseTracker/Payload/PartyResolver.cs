@@ -71,6 +71,7 @@ public class PartyResolver : ITransientDependency
             ? new IntakeDoctorSection()
             : new IntakeDoctorSection
             {
+                Id = doctor.Id,
                 FirstName = doctor.FirstName,
                 LastName = doctor.LastName,
             };

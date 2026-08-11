@@ -56,4 +56,19 @@ public interface IDoctorAvailabilitiesAppService : IApplicationService
     /// appointment. Internal-only (gated on DoctorAvailabilities.Default).
     /// </summary>
     Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync(List<Guid> slotIds);
+
+    /// <summary>
+    /// Phase 3 (2026-07-31) -- the staff schedule for ONE location over a date range: every slot in
+    /// the range with its REAL occupancy, plus the appointments occupying it.
+    ///
+    /// <para>Distinct from <see cref="GetDoctorAvailabilityLookupAsync"/>, which is the BOOKING
+    /// picker: that hides full slots and non-<c>Available</c> ones, which are precisely the slots
+    /// staff need to see. Occupancy here is COUNTED from non-terminal appointments and never read
+    /// from <c>BookingStatusId</c>, which no code sets to <c>Booked</c>.</para>
+    ///
+    /// <para>Internal-only (gated on <c>DoctorAvailabilities.Default</c>) because the result carries
+    /// patient names. Deliberately view-agnostic -- no colours, labels or calendar-library
+    /// vocabulary -- so the frontend calendar can be swapped without touching this contract.</para>
+    /// </summary>
+    Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input);
 }

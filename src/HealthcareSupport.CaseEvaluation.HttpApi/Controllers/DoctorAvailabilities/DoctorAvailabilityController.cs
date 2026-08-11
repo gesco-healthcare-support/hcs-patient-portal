@@ -121,4 +121,13 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
     {
         return _doctorAvailabilitiesAppService.GetSlotPatientNamesAsync(slotIds);
     }
+
+    // Phase 3 (2026-07-31) -- staff schedule. GET rather than POST: the input is one location plus a
+    // date range, which fits a query string comfortably.
+    [HttpGet]
+    [Route("schedule")]
+    public virtual Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input)
+    {
+        return _doctorAvailabilitiesAppService.GetScheduleAsync(input);
+    }
 }

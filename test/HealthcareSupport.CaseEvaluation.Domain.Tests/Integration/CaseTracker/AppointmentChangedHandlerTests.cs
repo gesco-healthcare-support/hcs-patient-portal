@@ -36,7 +36,10 @@ public class AppointmentChangedHandlerTests
     private static readonly Guid SecondAppointmentId = new("3c9d1b77-2e40-4a51-8bb2-77f0a1c9d233");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
 
-    private static Appointment NewAppointment(Guid id, AppointmentStatusType status) =>
+    private static Appointment NewAppointment(
+        Guid id,
+        AppointmentStatusType status,
+        Guid? rescheduledFromAppointmentId = null) =>
         new(
             id,
             PatientId,
@@ -50,6 +53,7 @@ public class AppointmentChangedHandlerTests
             panelNumber: "PN-SAMPLE")
         {
             TenantId = TenantId,
+            RescheduledFromAppointmentId = rescheduledFromAppointmentId,
         };
 
     private static Patient NewPatient() =>
@@ -218,18 +222,73 @@ public class AppointmentChangedHandlerTests
 
     [Theory]
     [InlineData(AppointmentStatusType.CancelledLate)]
-    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.CancelledNoBill)]
     [InlineData(AppointmentStatusType.CancellationRequested)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    [InlineData(AppointmentStatusType.RescheduledLate)]
     public async Task LifecycleChangesAfterApprovalArePushed(AppointmentStatusType status)
     {
         // This is what subsumes the narrower cancel/reschedule trigger: any post-approval state change
         // is just another edit to an appointment their side already holds.
-        var (handler, queue) = Build();
+        //
+        // The two Rescheduled statuses left this theory in 4d and RETURNED in 4e (2026-08-06). 4d
+        // closed the old half of a split into them and held it off the wire while the contract still
+        // promised the portal never creates a second appointment; 4e makes that promise true instead,
+        // so the close is published like any other post-approval change -- carrying the NO_BILL/LATE
+        // billing status that lets Case Tracker close or bill the old date.
+        //
+        // The appointment is passed to Build so FindAsync answers with THIS status: the settle gate
+        // re-reads the row, and the stub used to hand back an Approved one regardless, so before 4d
+        // this theory never exercised its own parameter past the IsPublished check.
+        var appointment = NewAppointment(AppointmentId, status);
+        var (handler, queue) = Build(new List<Appointment> { appointment });
 
-        await handler.HandleEventAsync(
-            new EntityUpdatedEventData<Appointment>(NewAppointment(AppointmentId, status)));
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(appointment));
 
         await queue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Phase 4e (2026-08-06) -- the REPLACEMENT half is published like any other approved
+    /// appointment. 4d suppressed exactly this; the assertion is inverted rather than deleted,
+    /// because "an edit to the replacement reaches the wire" is the behaviour 4e exists to restore
+    /// and it deserves a test of its own rather than only being covered by the theory above.
+    /// </summary>
+    [Fact]
+    public async Task WhenTheReplacementHalfOfARescheduleSplitIsEdited_ItIsPushed()
+    {
+        var replacement = NewAppointment(
+            SecondAppointmentId,
+            AppointmentStatusType.Approved,
+            rescheduledFromAppointmentId: AppointmentId);
+        var (handler, queue) = Build(new List<Appointment> { replacement });
+
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Appointment>(replacement));
+
+        await queue.Received(1).EnqueueIntakeAsync(
+            SecondAppointmentId, TenantId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WhenAPatientIsEdited_BothHalvesOfARescheduleSplitArePushed()
+    {
+        // The demographic fan-out reaches both halves. Under 4d this asserted the opposite; a
+        // correction to the patient's name now updates the closed case AND the new one, which is
+        // what "no periodic sweep is needed to stay fresh" (contract section E2) promises.
+        var normal = NewAppointment(AppointmentId, AppointmentStatusType.Approved);
+        var closed = NewAppointment(
+            new Guid("7a1b2c3d-4e5f-4061-8273-9a0b1c2d3e4f"), AppointmentStatusType.RescheduledNoBill);
+        var replacement = NewAppointment(
+            SecondAppointmentId, AppointmentStatusType.Approved, rescheduledFromAppointmentId: closed.Id);
+
+        var (handler, queue) = Build(new List<Appointment> { normal, closed, replacement });
+
+        await handler.HandleEventAsync(new EntityUpdatedEventData<Patient>(NewPatient()));
+
+        await queue.Received(1).EnqueueIntakeAsync(AppointmentId, TenantId, Arg.Any<CancellationToken>());
+        await queue.Received(1).EnqueueIntakeAsync(closed.Id, TenantId, Arg.Any<CancellationToken>());
+        await queue.Received(1).EnqueueIntakeAsync(
+            SecondAppointmentId, TenantId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
