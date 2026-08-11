@@ -185,7 +185,7 @@ public class IntakePayloadBuilderTests
         return new IntakePayloadBuilder(
             appointmentRepo,
             new AppointmentCoreResolver(appointmentRepo, slotRepo, typeRepo),
-            new PartyResolver(patientRepo, doctorRepo),
+            new PartyResolver(patientRepo, doctorRepo, stateRepo),
             new TenantLocationResolver(locationRepo, tenantStore, configuration),
             new DocumentListResolver(documentRepo, packetRepo, documentTypeRepo),
             new InjuryResolver(injuryRepo),
