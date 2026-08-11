@@ -39,10 +39,10 @@ him these arrive "on our next deployment", so the caveat is now doing a lot of w
 
 | #   | Item                                                  | Why                                                                                                                                                              |
 | --- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1  | Who cancelled: party type at minimum, name where held | The one remaining gap of his three attribution asks. ORPHANED -- Phase 2 shipped and closed without it. Needed for his proof-of-service and billing attribution. |
-| N2  | Explicit AME auto-cancel flag                         | He has asked for a boolean rather than matching the reason constant. Small; pairs naturally with N1.                                                             |
-| N3  | Patient postal address on the intake payload          | The ONLY address gap. We already hold street/unit/city/state/zip; `IntakePatientSection` simply has no address fields. Blocks his proof-of-service document.     |
-| N4  | Requested-vs-finalized timestamps, UTC + local zone   | A notice period measured from the wrong end over-bills someone who gave timely notice.                                                                           |
+| N1  | Who cancelled: party type at minimum, name where held | **PARTLY DELIVERED, phase 6 (2026-08-08)** -- `changeRequestedBySide` gives the party TYPE (Side A / Side B). The NAME is still not sent. | The one remaining gap of his three attribution asks. ORPHANED -- Phase 2 shipped and closed without it. Needed for his proof-of-service and billing attribution. |
+| N2  | Explicit AME auto-cancel flag                         | **STILL OPEN** -- phase 6 did not touch it. | He has asked for a boolean rather than matching the reason constant. Small; pairs naturally with N1.                                                             |
+| N3  | Patient postal address on the intake payload          | **DELIVERED, phase 6 (2026-08-08)** -- `street` / `unit` / `city` / `state` / `zipCode`. NOTE this row was RIGHT that we already hold all five; the phase 6 draft plan wrongly claimed the columns were ambiguous with no unit field. | The ONLY address gap. We already hold street/unit/city/state/zip; `IntakePatientSection` simply has no address fields. Blocks his proof-of-service document.     |
+| N4  | Requested-vs-finalized timestamps, UTC + local zone   | **DELIVERED (UTC), phase 6 (2026-08-08)** -- `changeRequestedAtUtc` + `changeFinalizedAtUtc`. Local-zone variants were NOT added; the contract carries a single IANA `timeZone` for the appointment. | A notice period measured from the wrong end over-bills someone who gave timely notice.                                                                           |
 
 ## 3. CODE -- requested, NOT promised
 
@@ -54,10 +54,12 @@ him these arrive "on our next deployment", so the caveat is now doing a lot of w
 
 ## 4. DOCS
 
-- **D1.** Contract: a non-200 reconcile response carries NO document information and must never drive
+- **D1. STILL OPEN** -- phase 6 did not write this down; it remains inferred rather than stated.
+  Contract: a non-200 reconcile response carries NO document information and must never drive
   pruning. He has ACCEPTED this and is not asking us to weaken the 404 ambiguity, so it is the agreed
   fix -- write it down rather than leave it inferred.
-- **D2.** Contract: record that every push is a FULL SNAPSHOT and never slim. This is what makes his
+- **D2. DONE, phase 6 (2026-08-08)** -- now stated in contract section A. It had been assigned to 4e,
+  which shipped without it. Contract: record that every push is a FULL SNAPSHOT and never slim. This is what makes his
   null-writing upsert safe, and it is currently only true by construction rather than by statement.
 - **D3.** Contract: status list five -> seven when the `Rescheduled*` values become reachable (4e).
 - **D4.** Epic roadmap: the reschedule link is load-bearing for PATIENT FILING, not cosmetic -- because
