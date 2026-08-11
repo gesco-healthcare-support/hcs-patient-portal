@@ -441,6 +441,50 @@ Mutation checks (required):
 9. Book a re-eval against it: allowed when that appointment was a re-eval, rejected with the NEW
    message when it was a first evaluation.
 
+## Live gate RESULT (2026-08-08, Falkinstein office, local docker stack)
+
+Ran against `CaseEvaluation_falkinstein`, tenant `5B2581DA-...D75D72`, appointments A00031
+(first evaluation) and A00036 (re-evaluation).
+
+**Two blockers had to be cleared before step 1 could run, both PRE-EXISTING:**
+
+- `docker-compose.yml` had NO `CaseTracker__*` passthrough at all, so the token could never reach
+  the api container and `IntegrationTokenValidator` failed closed on every request. Prod compose
+  has it (`docker-compose.prod.yml:289-292`); dev never did. THIS IS WHY THE RECONCILE GET WAS
+  NEVER LIVE-GATED. Fixed by mirroring the prod block into the dev api service.
+- `CaseEvaluation.Integration.CaseTrackerPushEnabled` had no row in `AbpSettings` anywhere, so it
+  fell back to its FALSE default and every call would have answered 404. Enabled per-office.
+
+| Step | Result |
+| ---- | ------ |
+| 2 -- valid token, NO antiforgery cookie | **200.** SETTLED: `[IgnoreAntiforgeryToken]` is NOT required. It stays off; no S4502 hotspot. Status confirmed `4` in SQL. |
+| 3 -- retry same outcome | **200**, and the notification outbox still held exactly ONE fan-out (3 rows = 3 staff recipients, 0.27s apart, distinct idempotency keys). No second status change. |
+| 4 -- conflicting outcome | **409**, status still `4`. |
+| 5 -- wrong token / no token / unknown appointment | **401 / 401 / 404.** Also verified: unknown office **404**, malformed outcome **400**. |
+| 6 -- integration outbox | **PASS.** The only row predates the POST by twelve days (created 2026-07-29, never modified) -- it is the intake row from approval. The POST enqueued nothing. |
+| 7 -- staff email | **PASS.** Three rows, subject "Appointment A00031 marked No-Show", to stafsuper1 / clistaff1 / genevieveg. The already-built alert fired with no notification code in this phase. |
+| 8 -- UI | **PASS after a fix (below).** A00031 renders "No Show", A00036 "Not Seen", neither as "Cancelled". The Cancelled CHIP reads 4 = 2 real cancellations + these 2, confirming decision 2b: they filter under the existing chip and no seventh chip appeared. |
+| 9 -- re-eval gate | **NOT RUN.** Covered by mutation-verified unit tests, but the end-to-end booking path was not exercised. Still owed. |
+
+### Step 6's acceptance was WORDED WRONG in this plan
+
+It said `AppIntegrationOutboxItems` must have gained NO rows "for the appointment" -- read literally
+that is a count of ZERO, which can never hold: a published appointment legitimately carries the
+intake row from its approval. The correct assertion, and what was checked, is that no NEW row is
+enqueued by the attendance POST.
+
+### DEFECT FOUND AND FIXED BY THE GATE: the donut legend printed raw keys
+
+The dashboard status breakdown rendered **"NoShow"** and **"NotSeen"** run together, not the
+business names. `internal-dashboard.component.ts` keeps its own `PILL_LABEL` and `PILL_COLOR` maps
+keyed on plain strings, with `PILL_LABEL[pill] ?? pill` as the fallback -- so a missing entry is not
+a compile error and the raw key leaks to screen. `PILL_COLOR` fell back to `--n-300`, the same grey
+as Cancelled, giving three indistinguishable slices.
+
+No test could have caught this: the maps are `Record<string, string>`, so TypeScript does not
+require exhaustiveness over `AppointmentPillStatus`. THIS IS A THIRD LABEL SURFACE beyond the two
+T4 already fixed (`PILL_META` and `STATUS_LABELS`) -- a fourth would fail the same silent way.
+
 ## Risk / rollback
 
 Blast radius: a new inbound endpoint, one new status value, the re-eval gate, the status pill, and
