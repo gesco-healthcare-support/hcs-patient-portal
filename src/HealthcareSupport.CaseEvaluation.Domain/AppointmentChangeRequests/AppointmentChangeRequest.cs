@@ -62,15 +62,19 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// </summary>
     public virtual Guid? NewDoctorAvailabilityId { get; set; }
 
-    public virtual RequestStatusType RequestStatus { get; set; }
+    /// <summary>
+    /// Phase 6 (2026-08-08): settable only via <see cref="MarkDecided"/> or the constructor --
+    /// see the remarks there for why this and the three properties below are locked together.
+    /// </summary>
+    public virtual RequestStatusType RequestStatus { get; protected set; }
 
     /// <summary>Notes captured when supervisor rejects the request.</summary>
     [CanBeNull]
     public virtual string? RejectionNotes { get; set; }
 
-    public virtual Guid? RejectedById { get; set; }
+    public virtual Guid? RejectedById { get; protected set; }
 
-    public virtual Guid? ApprovedById { get; set; }
+    public virtual Guid? ApprovedById { get; protected set; }
 
     /// <summary>
     /// Set when the supervisor overrode the user-picked slot during
@@ -115,7 +119,7 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// LAST write of any kind, so any later edit silently relabels when the decision was made. A log
     /// entry that quietly becomes wrong is worse than one that is absent.</para>
     /// </summary>
-    public virtual DateTime? DecidedAt { get; set; }
+    public virtual DateTime? DecidedAt { get; protected set; }
 
     // ---- Consent (2026-07-01 redesign): two symmetric side-consent slots ----
     // Side A = Patient + Applicant Attorney; Side B = Defense Attorney + Claim Examiner.
@@ -196,6 +200,61 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
         NewDoctorAvailabilityId = newDoctorAvailabilityId;
         IsBeyondLimit = isBeyondLimit;
         RequestStatus = RequestStatusType.Pending;
+    }
+
+    /// <summary>
+    /// Records the staff decision on this request as ONE act: the outcome, who decided it, and when.
+    ///
+    /// <para>Phase 6 (2026-08-08). These three facts together ARE the legal record of a decision, so
+    /// the four properties they touch are <c>protected set</c> and this is the only way in. Before
+    /// this they were public and written in FIVE different places -- status and actor at the four
+    /// approve/reject call sites, the timestamp at a fifth in <c>PersistChangeRequestAsync</c> --
+    /// so nothing but convention stopped a future path recording "rejected" with no actor, or a
+    /// status change that never stamped a time. Adrian: "This is logs for proper legal processes, we
+    /// want them to be exact." Convention is not a guarantee; the type is.</para>
+    ///
+    /// <para>The timestamp is written ONCE. A re-decision updates the outcome and actor but leaves
+    /// the original <see cref="DecidedAt"/> standing, because the first decision is the one that
+    /// happened -- silently relabelling when it occurred is the exact failure this column was added
+    /// to prevent (see its remarks).</para>
+    /// </summary>
+    /// <param name="outcome">
+    /// <see cref="RequestStatusType.Accepted"/> or <see cref="RequestStatusType.Rejected"/>.
+    /// </param>
+    /// <param name="decidedById">The staff user who decided. Null only where no user context exists.</param>
+    /// <param name="nowUtc">Decision time. MUST be UTC.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="outcome"/> is not a decision.</exception>
+    /// <exception cref="ArgumentException"><paramref name="nowUtc"/> is not UTC.</exception>
+    public void MarkDecided(RequestStatusType outcome, Guid? decidedById, DateTime nowUtc)
+    {
+        if (outcome is not (RequestStatusType.Accepted or RequestStatusType.Rejected))
+        {
+            // Pending is not a decision. Coercing it would let this method UN-decide a request and
+            // erase who decided it and when.
+            throw new ArgumentOutOfRangeException(
+                nameof(outcome), outcome, "Only Accepted or Rejected is a decision.");
+        }
+
+        if (nowUtc.Kind != DateTimeKind.Utc)
+        {
+            // A local-kind timestamp on a legal record is ambiguous the moment it crosses a
+            // boundary, and AbpClockOptions.Kind is Unspecified here, so this cannot be assumed.
+            throw new ArgumentException("The decision time must be UTC.", nameof(nowUtc));
+        }
+
+        RequestStatus = outcome;
+        if (outcome == RequestStatusType.Accepted)
+        {
+            ApprovedById = decidedById;
+            RejectedById = null;
+        }
+        else
+        {
+            RejectedById = decidedById;
+            ApprovedById = null;
+        }
+
+        DecidedAt ??= nowUtc;
     }
 
     // ---- Two-sided consent transitions (pure domain logic) ----

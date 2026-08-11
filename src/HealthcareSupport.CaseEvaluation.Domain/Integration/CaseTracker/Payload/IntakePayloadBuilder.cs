@@ -22,6 +22,7 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
     private readonly DocumentListResolver _documentListResolver;
     private readonly InjuryResolver _injuryResolver;
     private readonly PartyDetailResolver _partyDetailResolver;
+    private readonly ChangeAttributionResolver _changeAttributionResolver;
     private readonly IGuidGenerator _guidGenerator;
 
     public IntakePayloadBuilder(
@@ -32,6 +33,7 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
         DocumentListResolver documentListResolver,
         InjuryResolver injuryResolver,
         PartyDetailResolver partyDetailResolver,
+        ChangeAttributionResolver changeAttributionResolver,
         IGuidGenerator guidGenerator)
     {
         _appointmentRepository = appointmentRepository;
@@ -41,6 +43,7 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
         _documentListResolver = documentListResolver;
         _injuryResolver = injuryResolver;
         _partyDetailResolver = partyDetailResolver;
+        _changeAttributionResolver = changeAttributionResolver;
         _guidGenerator = guidGenerator;
     }
 
@@ -66,6 +69,13 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
         payload.Doctor = await _partyResolver.ResolveDoctorAsync(cancellationToken);
         payload.Documents = await _documentListResolver.ResolveAsync(appointment, cancellationToken);
         payload.Injuries = await _injuryResolver.ResolveAsync(appointment.Id, cancellationToken);
+
+        // Phase 6 (2026-08-08): who asked for the latest change, and when it was asked and settled.
+        var attribution = await _changeAttributionResolver.ResolveAsync(appointment.Id, cancellationToken);
+        payload.ChangeRequestedBySide = attribution.RequestedBySide;
+        payload.ChangeRequestType = attribution.ChangeRequestType;
+        payload.ChangeRequestedAtUtc = attribution.RequestedAtUtc;
+        payload.ChangeFinalizedAtUtc = attribution.FinalizedAtUtc;
 
         return new IntakeEnvelope
         {

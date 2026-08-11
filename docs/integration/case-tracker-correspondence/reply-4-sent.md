@@ -1,4 +1,4 @@
-DRAFT - NOT SENT. Reply to Levon's cancel/reschedule email (31 questions, A-J).
+SENT. Reply to Levon's cancel/reschedule email (31 questions, A-J). The exact send date is not recorded anywhere; the filename is the evidence it went out, so no date is invented here.
 Drafted 2026-08-03. Every claim below verified against code, not memory.
 
 NOTE FOR ADRIAN: reply-3 (levon-reply-3-draft.md) was never sent. That is why he re-asks

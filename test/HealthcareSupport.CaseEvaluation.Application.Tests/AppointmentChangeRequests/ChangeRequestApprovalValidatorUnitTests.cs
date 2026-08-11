@@ -317,7 +317,14 @@ public class ChangeRequestApprovalValidatorUnitTests
             cancellationReason: "Patient cannot attend",
             reScheduleReason: null,
             newDoctorAvailabilityId: null);
-        request.RequestStatus = status;
+        // Phase 6 (2026-08-08): the status setter is protected, so reach the state the way
+        // production does. Pending is the constructor's own starting state; the other two are
+        // decisions. The fixture now exercises the real API instead of reaching past it.
+        if (status != RequestStatusType.Pending)
+        {
+            request.MarkDecided(status, Guid.NewGuid(), DateTime.UtcNow);
+        }
+
         return request;
     }
 }
