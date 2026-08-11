@@ -104,19 +104,33 @@ change and who decided it, when each happened, and which side of the matter requ
   SYSTEM SHALL fail to compile. WHEN the outcome is neither Accepted nor Rejected, THE SYSTEM SHALL
   throw rather than record a decision.
 
-### T2 -- exact `DecidedAt` backfill (both contexts)
+### T2 -- DROPPED 2026-08-08 (verified against production; no rows exist to backfill)
 
-- what: CREATE a NEW migration in BOTH sets (the 4d one is applied and cannot be edited) that fills
-  `DecidedAt` from the audit trail. FIRST verify the `EntityId` format against real rows, then join
-  `AbpEntityPropertyChanges` (`PropertyName = 'RequestStatus'`, `NewValue` in 26/27) to
-  `AbpEntityChanges` and take the LATEST matching `ChangeTime` per request.
-  Rows with no audit record stay NULL -- that is the point, not a shortfall.
-- pattern: 4d's paired migrations for the file layout; raw SQL via `migrationBuilder.Sql`.
-- approach: code
-- acceptance (EARS): WHEN a decided change request has an audit record of its status transition, THE
-  SYSTEM SHALL set `DecidedAt` to that transition's exact time. WHERE no audit record exists, THE
-  SYSTEM SHALL leave `DecidedAt` NULL. THE SYSTEM SHALL NOT derive `DecidedAt` from
-  `LastModificationTime` under any circumstance. THE SYSTEM SHALL NOT modify a non-NULL `DecidedAt`.
+**Adrian's call, on evidence gathered from the live box.** There is nothing to backfill, now or ever:
+
+| Production database | Appointments | Change requests |
+| -------------------- | ------------ | --------------- |
+| `CaseEvaluation` (host) | 0 | **0** |
+| `CaseEvaluation_falkinstein` | 5 | **0** |
+
+`DecidedAt` reached production on 2026-08-08 (deploy of `2c82c358`) while zero change requests
+existed. Every change request created from now on is therefore created AFTER the column existed and
+is stamped by `MarkDecided` at the moment of decision. The historical gap the backfill was designed
+to repair does not exist in this database and cannot appear later.
+
+Auditing itself is healthy in production -- 65 entity-change rows across other entity types and 536
+audit-log rows -- so the emptiness is specific to change requests, not a broken audit pipeline.
+
+ERRATUM worth keeping: the "an exact source exists" finding that justified this task was measured on
+the DEV database (24 change-request entity-change rows there), and treated as settled before
+production was checked. It was true locally and false where it mattered.
+
+Why DROP rather than ship it harmlessly: a migration that permanently matches zero rows is dead code
+in a legal-records path. It would imply a gap had been repaired when none existed, and a future
+reader would trust that implication.
+
+Consequence for T8: the contract does NOT need the caveat "`changeFinalizedAtUtc` is null for
+requests decided before this release". In production it is always populated on a decided request.
 
 ### T3 -- patient address on the payload DTO
 
