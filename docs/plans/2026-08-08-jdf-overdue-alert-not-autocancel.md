@@ -1,7 +1,7 @@
 ---
 feature: Replace the JDF auto-cancel with a staff alert
 date: 2026-08-08
-status: draft
+status: approved
 base-branch: main
 related-issues: []
 ---
@@ -22,7 +22,7 @@ uploaded Joint Declaration Form whose due date is at or past
 1. sets `AppointmentStatus = CancelledNoBill` **directly**, bypassing the state machine (a documented
    strict-parity exception -- there is no `Approved -> Cancelled*` edge);
 2. writes `CancellationReason = "The Joint Declaration Form was not uploaded before the required
-   deadline."`;
+deadline."`;
 3. publishes `AppointmentStatusChangedEto` (drives notifications + audit) and
    `AppointmentAutoCancelledEto` (drives `JdfAutoCancelledEmailHandler`, which mails stakeholders).
 
@@ -52,14 +52,14 @@ No human is involved at any point. That is what is being removed.
 
 ## All needed context
 
-| Need | Anchor |
-| ---- | ------ |
-| The job to rewrite | `Domain/Notifications/Jobs/JointDeclarationAutoCancelJob.cs` |
-| Cutoff predicate (already pure + unit-tested) | `Domain/AppointmentDocuments/JointDeclarationCutoff.IsAtOrPastCutoff` |
-| Existing stakeholder mail handler | `JdfAutoCancelledEmailHandler` (filters on `AutoCancelReason`, ordinal compare) |
-| Staff-email precedent | `StatusChangeEmailHandler` -- the no-show staff notice it already sends |
-| Dual-context migration pairing | 4d's `Added_ChangeRequestDecidedAt` in both migration sets |
-| Row + detail rendering | `internal-appointments.component.ts`, `internal-appointment-detail.component.ts` |
+| Need                                          | Anchor                                                                           |
+| --------------------------------------------- | -------------------------------------------------------------------------------- |
+| The job to rewrite                            | `Domain/Notifications/Jobs/JointDeclarationAutoCancelJob.cs`                     |
+| Cutoff predicate (already pure + unit-tested) | `Domain/AppointmentDocuments/JointDeclarationCutoff.IsAtOrPastCutoff`            |
+| Existing stakeholder mail handler             | `JdfAutoCancelledEmailHandler` (filters on `AutoCancelReason`, ordinal compare)  |
+| Staff-email precedent                         | `StatusChangeEmailHandler` -- the no-show staff notice it already sends          |
+| Dual-context migration pairing                | 4d's `Added_ChangeRequestDecidedAt` in both migration sets                       |
+| Row + detail rendering                        | `internal-appointments.component.ts`, `internal-appointment-detail.component.ts` |
 
 ### Gotchas
 
