@@ -103,6 +103,39 @@ public class IntakePayload
     /// </summary>
     public string? SupersededReason { get; set; }
 
+    // ---- Change attribution (phase 6, 2026-08-08) ----
+    // Who asked for the most recent change to this appointment, and when it was asked and settled.
+    // All four are null when the appointment has never had a change request, which is the common
+    // case -- absence here means "nothing was requested", not "we failed to look".
+
+    /// <summary>
+    /// Which side requested the change: <c>SIDE_A</c> (patient + applicant attorney) or
+    /// <c>SIDE_B</c> (defense attorney + claim examiner). See <see cref="ChangeRequestSideWire"/>.
+    ///
+    /// <para>Null when staff initiated the change themselves, because then no PARTY requested it.
+    /// Do not read null as "unknown".</para>
+    /// </summary>
+    public string? ChangeRequestedBySide { get; set; }
+
+    /// <summary>
+    /// What was asked for: <c>CANCEL</c> or <c>RESCHEDULE</c>, matching the portal's own two
+    /// change-request kinds.
+    /// </summary>
+    public string? ChangeRequestType { get; set; }
+
+    /// <summary>ISO-8601 UTC. When the change was REQUESTED.</summary>
+    public string? ChangeRequestedAtUtc { get; set; }
+
+    /// <summary>
+    /// ISO-8601 UTC. When staff DECIDED the change -- accepted or rejected.
+    ///
+    /// <para>Null while the request is still pending, which is a real state and not missing data.
+    /// Sourced from the appointment change request's own decision stamp, never from a
+    /// last-modified column: that reflects the last write of ANY kind, so a later edit would
+    /// silently relabel when the decision was made.</para>
+    /// </summary>
+    public string? ChangeFinalizedAtUtc { get; set; }
+
     public IntakeTenantSection Tenant { get; set; } = new();
 
     public IntakeLocationSection Location { get; set; } = new();
