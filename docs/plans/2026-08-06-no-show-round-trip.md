@@ -464,7 +464,28 @@ Ran against `CaseEvaluation_falkinstein`, tenant `5B2581DA-...D75D72`, appointme
 | 6 -- integration outbox | **PASS.** The only row predates the POST by twelve days (created 2026-07-29, never modified) -- it is the intake row from approval. The POST enqueued nothing. |
 | 7 -- staff email | **PASS.** Three rows, subject "Appointment A00031 marked No-Show", to stafsuper1 / clistaff1 / genevieveg. The already-built alert fired with no notification code in this phase. |
 | 8 -- UI | **PASS after a fix (below).** A00031 renders "No Show", A00036 "Not Seen", neither as "Cancelled". The Cancelled CHIP reads 4 = 2 real cancellations + these 2, confirming decision 2b: they filter under the existing chip and no seventh chip appeared. |
-| 9 -- re-eval gate | **NOT RUN.** Covered by mutation-verified unit tests, but the end-to-end booking path was not exercised. Still owed. |
+| 9 -- re-eval gate | **PASS (2026-08-08).** A00031 (no-showed FIRST evaluation) rejected with `CaseEvaluation:Appointment.RevalSourceIncompleteFirstEvaluation` -- the new code. A00036 (not-seen RE-EVALUATION) got PAST the gate and failed later on an unrelated slot/date mismatch, which is the proof it was allowed. Decision 1 confirmed end to end. |
+
+### OPEN ISSUE (logged, NOT fixed): reval rejections lose their localized message
+
+Found running step 9. `POST /api/app/appointments/create-reval/{cn}` returns the right error CODE
+but the body message is ABP's generic "An internal error occurred during your request!" instead of
+the localized text.
+
+**PRE-EXISTING, not introduced by phase 5.** Verified with a control: a Rejected source returns
+`CaseEvaluation:Appointment.RevalSourceNotApproved` -- code added long before this phase -- with the
+SAME generic message. The new `RevalSourceIncompleteFirstEvaluation` behaves identically to its
+established sibling, so phase 5 neither caused nor worsened it.
+
+Consequence: the carefully worded message ("that appointment was a first evaluation that was not
+completed -- please submit a new appointment request") never reaches the user on this path. The
+whole point of giving this rejection its OWN code was the distinct advice, so the value is
+currently unrealised. `AppointmentExceptionTranslator` maps the code to
+`Appointment:RevalSourceIncompleteFirstEvaluation` and `en.json` has the string, so the gap is in
+whether that translator runs on this path at all.
+
+NOT fixed here: it is pre-existing, it affects the older codes equally, and fixing it is a change to
+shared exception handling that deserves its own scope. Surfaced for Adrian to schedule.
 
 ### Step 6's acceptance was WORDED WRONG in this plan
 
