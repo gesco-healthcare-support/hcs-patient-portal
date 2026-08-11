@@ -625,6 +625,22 @@ Answers to the receiver's reconcile questions (2026-07-28):
 - The token is compared in constant time and is never logged. If the portal has no token configured the
   endpoint rejects EVERY request rather than allowing them through, so a misconfigured deploy fails
   closed rather than serving PHI.
+
+**A NON-200 RESPONSE CARRIES NO DOCUMENT INFORMATION -- NEVER PRUNE ON IT (D1, written down 2026-08-08).**
+Any response other than `200` -- `401`, `404`, a timeout, a `5xx` -- tells you NOTHING about which
+documents the appointment has. It must never be read as "this appointment has no documents" and must
+never drive deleting or hiding your copies.
+
+This matters because the `404` above is DELIBERATELY ambiguous: unknown appointment, unknown office and
+integration-switched-off all return the same `404`, so a token holder cannot probe what exists. That
+ambiguity is a security property we are keeping (you have already accepted this and are not asking us to
+weaken it) -- but the price is that a `404` cannot distinguish "gone" from "not visible to you right
+now". Only a `200` body is evidence about document state; its `documents` array is the complete,
+never-paginated set at that moment.
+
+Practical rule: on a non-200, leave your existing copy untouched and retry later. The endpoint is a
+BACKSTOP for a dead-lettered push, not a source of truth about deletion -- deletions arrive explicitly
+through the document-update channel (section C), never by inference from a failed read.
 - Rate limiting (CHANGED 2026-07-29 -- was "none, as agreed"): **300 requests per hour per source IP.**
   A 429 carries `Retry-After` in seconds, so back off for that long rather than retrying immediately.
   The value is `3600` -- the whole window, not the remaining time, which is what the fixed-window
