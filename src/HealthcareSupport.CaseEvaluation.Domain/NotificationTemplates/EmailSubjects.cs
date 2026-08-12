@@ -322,6 +322,13 @@ internal static class EmailSubjects
         "Appointment Portal - ##EmailSubjectIdentity## - Appointment cancelled (form not received by due date)";
 
     /// <summary>
+    /// 2026-08-08. Internal-staff notice. Says ACTION NEEDED rather than naming an outcome,
+    /// because nothing has happened to the appointment yet -- that is the point of the change.
+    /// </summary>
+    public const string AppointmentJointDeclarationOverdueInternal =
+        "Appointment Portal - ##EmailSubjectIdentity## - Action needed: form not received by due date";
+
+    /// <summary>
     /// Single source of truth for the per-code subject lookup. The seed
     /// contributor and any future migration walk this map; codes without
     /// an entry fall back to a stub subject.
@@ -393,5 +400,6 @@ internal static class EmailSubjects
             // password-setup link, so an invited party could not set a password.
             [NotificationTemplateConsts.Codes.AccessorAppointmentBooked] = AccessorAppointmentBooked,
             [NotificationTemplateConsts.Codes.AppointmentCancelledDueDate] = AppointmentCancelledDueDate,
+            [NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal] = AppointmentJointDeclarationOverdueInternal,
         };
 }
