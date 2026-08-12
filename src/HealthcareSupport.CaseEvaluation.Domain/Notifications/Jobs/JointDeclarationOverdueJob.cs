@@ -15,67 +15,54 @@ using Volo.Abp.EventBus.Local;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
-// AppointmentStatusChangedEto lives under HealthcareSupport.CaseEvaluation.Appointments.
-
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
 
 /// <summary>
-/// Phase 14 (2026-05-04) -- JDF auto-cancel recurring job. Daily run
-/// queries every tenant's Approved AME appointments, finds ones with
-/// no uploaded JDF document AND a due-date inside the
-/// <c>SystemParameter.JointDeclarationUploadCutoffDays</c> window,
-/// transitions each to <c>CancelledNoBill</c>, and publishes
-/// <see cref="AppointmentAutoCancelledEto"/> for the per-feature
-/// stakeholder-notification handler (Phase 14b).
+/// Daily sweep that FLAGS AME appointments whose Joint Declaration Form deadline has passed with
+/// no JDF uploaded, so office staff can decide what to do about them.
 ///
-/// <para>Mirrors OLD spec line 419: "In case if the document is
-/// pending as of specified number of days before the appointment due
-/// date, the appointment will be auto-cancelled and a notification
-/// email will be sent to all the stakeholders related to the
-/// appointment."</para>
+/// <para>Called <c>JointDeclarationAutoCancelJob</c> until 2026-08-08, when it did exactly that:
+/// set <c>CancelledNoBill</c>, wrote a cancellation reason and mailed every stakeholder, with no
+/// human involved at any point. Adrian: "auto-cancel without staff or anyone's involvement seems
+/// like a risky thing and we should not do that." It now stamps
+/// <see cref="Appointment.JointDeclarationOverdueAt"/> and raises
+/// <see cref="AppointmentJointDeclarationOverdueEto"/>; the appointment keeps its status.</para>
 ///
-/// <para>Cron: 06:00 PT daily -- earlier than the existing 07:00 PT
-/// AppointmentDayReminderJob so the auto-cancel happens before the
-/// reminder fans out (a cancelled appointment should not fire a
-/// reminder for an appointment-day visit that won't happen). Cutoff
-/// predicate is <see cref="JointDeclarationCutoff.IsAtOrPastCutoff"/>
-/// for unit-test coverage.</para>
+/// <para>Two consequences worth knowing. Nothing reaches the Case Tracker from this path any more,
+/// because no status changes. And these appointments now accumulate as Approved-but-overdue, which
+/// is the point -- the flag makes visible a backlog that used to be silently absorbed.</para>
+///
+/// <para>Cron: 06:00 PT daily, kept ahead of the 07:00 AppointmentDayReminderJob. That ordering
+/// mattered more when this cancelled things; it is retained so staff see the flag before the day's
+/// reminders go out. Cutoff predicate is
+/// <see cref="JointDeclarationCutoff.IsAtOrPastCutoff"/> for unit-test coverage.</para>
 /// </summary>
-public class JointDeclarationAutoCancelJob : ITransientDependency
+public class JointDeclarationOverdueJob : ITransientDependency
 {
+    /// <summary>
+    /// PERSISTED Hangfire recurring-job key. Deliberately still reads "auto-cancel" after the
+    /// 2026-08-08 rename: Hangfire keys registrations by this string, so changing it without
+    /// deleting the old registration leaves TWO jobs running against the same appointments. The
+    /// consolidated reminder job takes the same trade-off with "appt-duedate-approaching".
+    /// </summary>
     public const string RecurringJobId = "appt-jdf-auto-cancel";
+
     public const string CronExpression = "0 6 * * *";
-
-    /// <summary>
-    /// ROUTING DISCRIMINATOR published on both events, NOT a human message.
-    /// <c>JdfAutoCancelledEmailHandler</c> filters on this exact value with an ordinal compare,
-    /// so changing the string silently stops that email firing. Never render it to a user.
-    /// </summary>
-    public const string AutoCancelReason = "JDF-not-uploaded";
-
-    /// <summary>
-    /// Human-readable reason persisted on <c>Appointment.CancellationReason</c>. Kept separate
-    /// from <see cref="AutoCancelReason"/> deliberately: that column is rendered to patients and
-    /// attorneys by <c>PatientAppointmentCancelledNoBill</c> and forwarded to the Case Tracker,
-    /// so it must read as a sentence rather than as the machine token used for event routing.
-    /// </summary>
-    public const string AutoCancelReasonText =
-        "The Joint Declaration Form was not uploaded before the required deadline.";
 
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly ISettingProvider _settingProvider;
     private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly ILocalEventBus _localEventBus;
-    private readonly ILogger<JointDeclarationAutoCancelJob> _logger;
+    private readonly ILogger<JointDeclarationOverdueJob> _logger;
 
-    public JointDeclarationAutoCancelJob(
+    public JointDeclarationOverdueJob(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentDocument, Guid> documentRepository,
         ISettingProvider settingProvider,
         ITenantWorkRunner tenantWorkRunner,
         ILocalEventBus localEventBus,
-        ILogger<JointDeclarationAutoCancelJob> logger)
+        ILogger<JointDeclarationOverdueJob> logger)
     {
         _appointmentRepository = appointmentRepository;
         _documentRepository = documentRepository;
@@ -88,12 +75,12 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
     [UnitOfWork]
     public virtual async Task ExecuteAsync()
     {
-        _logger.LogInformation("JointDeclarationAutoCancelJob: starting daily run.");
+        _logger.LogInformation("JointDeclarationOverdueJob: starting daily run.");
         var nowUtc = DateTime.UtcNow;
 
         // Iterate every office from the tenant registry, processing each inside its
         // own database context. Per-office scope re-applies the IMultiTenant filter
-        // automatically for the candidate query and the auto-cancel update.
+        // automatically for the candidate query and the marker write.
         await _tenantWorkRunner.ForEachOfficeAsync(officeId =>
             ProcessTenantAsync(officeId, nowUtc));
     }

@@ -1367,14 +1367,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.Jobs.ChangeRequestConsentExpirySweepJob.CronExpression,
             options);
 
-        // Phase 14 (2026-05-04) -- JDF auto-cancel daily 06:00 PT.
-        // Earlier than the AppointmentDayReminderJob (07:00) so an
-        // auto-cancelled appointment does not also trigger a T-1
-        // appointment-day reminder for a visit that won't happen.
-        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob>(
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.RecurringJobId,
+        // Phase 14 (2026-05-04) -- JDF overdue sweep, daily 06:00 PT. Ahead of the
+        // AppointmentDayReminderJob (07:00) so staff see the flag before the day's
+        // reminders go out. Renamed 2026-08-08 from JointDeclarationAutoCancelJob
+        // when it stopped cancelling; RecurringJobId still reads "appt-jdf-auto-cancel"
+        // because Hangfire keys the persisted registration by that string.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationOverdueJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationOverdueJob.RecurringJobId,
             j => j.ExecuteAsync(),
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.CronExpression,
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationOverdueJob.CronExpression,
             options);
 
         // Group F (2026-06-09) -- ONE consolidated appointment-reminder job at

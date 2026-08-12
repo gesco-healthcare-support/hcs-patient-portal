@@ -130,19 +130,19 @@ public class JointDeclarationOverdueJobTests
 
             Bus = Substitute.For<ILocalEventBus>();
 
-            Job = new JointDeclarationAutoCancelJob(
+            Job = new JointDeclarationOverdueJob(
                 Appointments,
                 documents,
                 settings,
                 tenantRunner,
                 Bus,
-                NullLogger<JointDeclarationAutoCancelJob>.Instance);
+                NullLogger<JointDeclarationOverdueJob>.Instance);
         }
 
         public IRepository<Appointment, Guid> Appointments { get; }
 
         public ILocalEventBus Bus { get; }
 
-        public JointDeclarationAutoCancelJob Job { get; }
+        public JointDeclarationOverdueJob Job { get; }
     }
 }
