@@ -1,6 +1,12 @@
 DRAFT - NOT SENT. Update to Levon covering everything shipped since reply 4.
 Drafted 2026-08-08. Every claim below verified against code and against the live server, not memory.
 
+BEFORE SENDING - DEPLOYMENT GATE. The body opens with "Everything below is deployed to our server".
+That is true of sections 1, 2, 6 and 7. It is NOT yet true of section 3 (the new payload fields) or
+of the auto-cancel removal in section 8 -- both are merged but undeployed. Deploy first, or edit
+those two sections. Sent as-is, Levon would test for fields that are not live and conclude the
+integration is broken.
+
 DO NOT PASTE THE INTEGRATION TOKEN INTO THIS EMAIL. It is generated and stored on the portal server
 only. Send it to Levon through a separate channel he already trusts (password manager share, or the
 channel used for the intake token), and never in the same message as the URLs it unlocks.
@@ -137,10 +143,19 @@ Being honest about what you asked for that is not done:
 
 - Who cancelled, by NAME. You now get the party SIDE, which was the larger half of that ask, but not
   the individual's name.
-- The explicit AME auto-cancel flag. This one is changing shape rather than being built: we are
-  reconsidering whether appointments should auto-cancel without any human involvement at all. I will
-  come back to you on it, because if that behaviour goes away the flag is moot and you should not
-  build against it.
+- The explicit AME auto-cancel flag. Moot rather than built, and the reason matters: we removed the
+  auto-cancel itself. An appointment whose Joint Declaration Form never arrives is no longer
+  cancelled by the portal with nobody involved -- it is flagged for our staff, who decide. There will
+  be no auto-cancellations left for a flag to mark, so please do not build against it.
+
+  Nothing changes in the contract: no field added, none removed, no code change your side. What
+  changes in practice is that you will stop receiving these cancellations. Today an overdue form
+  eventually pushes you a `CancelledNoBill` carrying the reason "The Joint Declaration Form was not
+  uploaded before the required deadline." After this, nothing is pushed unless a person cancels the
+  appointment deliberately, and then it carries whatever reason that person wrote.
+
+  Worth saying plainly: this means fewer messages, not more. If you have anything that counts on
+  those automatic cancellations arriving, it will go quiet rather than error.
 
 Happy to jump on a call if anything here is easier to work through live.
 
