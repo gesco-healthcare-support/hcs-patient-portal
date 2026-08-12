@@ -56,7 +56,7 @@
                 </span>
               }
             </h1>
-            @if (fv('jointDeclarationOverdueAt')) {
+            @if (isJointDeclarationOverdue) {
               <!-- 2026-08-08: replaces a nightly auto-cancel. Sits ABOVE the meta grid so it is
                    the first thing read, and states plainly that nothing has happened yet. -->
               <div class="ad-jdf-overdue">
