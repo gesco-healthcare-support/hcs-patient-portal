@@ -105,7 +105,7 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
         if (cutoffDays <= 0)
         {
             _logger.LogInformation(
-                "JointDeclarationAutoCancelJob: tenant {TenantId} cutoff is {CutoffDays}; gate disabled, skipping.",
+                "JointDeclarationOverdueJob: tenant {TenantId} cutoff is {CutoffDays}; gate disabled, skipping.",
                 tenantId,
                 cutoffDays);
             return;
@@ -122,7 +122,7 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
             .Where(a => a.AppointmentStatus == AppointmentStatusType.Approved &&
                         a.AppointmentTypeId == ameId &&
                         a.DueDate.HasValue)
-            .Select(a => new { a.Id, a.DueDate, a.DoctorAvailabilityId })
+            .Select(a => new { a.Id, a.DueDate, a.DoctorAvailabilityId, a.JointDeclarationOverdueAt })
             .ToList();
 
         if (candidates.Count == 0)
@@ -138,6 +138,14 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
             {
                 continue;
             }
+
+            // Already flagged on an earlier run. Skip so the stamp keeps recording WHEN the
+            // deadline passed rather than when the job last looked, and so staff are told once
+            // rather than every morning for as long as the document is missing.
+            if (candidate.JointDeclarationOverdueAt.HasValue)
+            {
+                continue;
+            }
             var hasJdf = documentQueryable
                 .Where(d => d.AppointmentId == candidate.Id &&
                             d.IsJointDeclaration &&
@@ -150,56 +158,28 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
 
             try
             {
-                // Strict-parity exception: Phase 14 sets the status
-                // directly rather than going through Session A's
-                // private TransitionAsync. Reasons:
-                //   - Session B's directive: do NOT modify
-                //     AppointmentManager.cs.
-                //   - The state machine has no Approved -> Cancelled*
-                //     direct edge; an auto-cancel is conceptually
-                //     distinct from a user-initiated change request,
-                //     so threading through CancellationRequested ->
-                //     Confirm would be ceremony.
-                //   - Publishing AppointmentStatusChangedEto manually
-                //     fires the downstream notification + audit handlers
-                //     identically to the supervisor-cancel path. Slot
-                //     mutation no longer happens here; capacity-aware
-                //     booking (2026-05-15 slot rework plan 3) treats
-                //     the slot's BookingStatusId as a manual-close
-                //     override only, and SlotCascadeHandler is a
-                //     log-only stub.
-                // Phase 14b refines if Session A grows a public
-                // auto-cancel trigger.
+                // 2026-08-08: this block used to set AppointmentStatus = CancelledNoBill and
+                // publish AppointmentStatusChangedEto, cancelling the appointment with no human
+                // involved. That behaviour is REMOVED. The appointment keeps its status; we record
+                // that the deadline passed and let staff decide.
+                //
+                // A welcome side effect: the old code bypassed the state machine deliberately
+                // (there is no Approved -> Cancelled* edge) and carried a documented strict-parity
+                // exception for doing so. Not writing the status at all retires that exception.
                 var entity = await _appointmentRepository.GetAsync(candidate.Id);
-                var fromStatus = entity.AppointmentStatus;
-                entity.AppointmentStatus = AppointmentStatusType.CancelledNoBill;
-                // 2026-07-31 -- persist a reason too. This path has no change request to read one
-                // from, so without this an auto-cancelled appointment reached the Case Tracker with
-                // no explanation. Uses the human-readable text, NOT the event discriminator: this
-                // column is rendered to patients and attorneys.
-                entity.CancellationReason = AutoCancelReasonText;
+                entity.JointDeclarationOverdueAt = nowUtc;
                 await _appointmentRepository.UpdateAsync(entity, autoSave: true);
 
-                await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-                    appointmentId: entity.Id,
-                    tenantId: entity.TenantId,
-                    fromStatus: fromStatus,
-                    toStatus: entity.AppointmentStatus,
-                    actingUserId: null,
-                    reason: AutoCancelReason,
-                    occurredAt: DateTime.UtcNow,
-                    doctorAvailabilityId: entity.DoctorAvailabilityId));
-
-                await _localEventBus.PublishAsync(new AppointmentAutoCancelledEto
+                await _localEventBus.PublishAsync(new AppointmentJointDeclarationOverdueEto
                 {
                     AppointmentId = candidate.Id,
                     TenantId = tenantId,
-                    Reason = AutoCancelReason,
-                    OccurredAt = DateTime.UtcNow,
+                    DueDate = candidate.DueDate,
+                    OccurredAt = nowUtc,
                 });
 
                 _logger.LogInformation(
-                    "JointDeclarationAutoCancelJob: tenant {TenantId} auto-cancelled appointment {AppointmentId} (DueDate={DueDate}, cutoff={CutoffDays} days).",
+                    "JointDeclarationOverdueJob: tenant {TenantId} flagged appointment {AppointmentId} as JDF-overdue (DueDate={DueDate}, cutoff={CutoffDays} days). Status left unchanged.",
                     tenantId,
                     candidate.Id,
                     candidate.DueDate,
@@ -208,10 +188,10 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
             catch (Exception ex)
             {
                 // Per-row failure should not block the rest of the
-                // tenant's auto-cancel pass; log and continue.
+                // tenant's pass; log and continue.
                 _logger.LogWarning(
                     ex,
-                    "JointDeclarationAutoCancelJob: tenant {TenantId} failed to auto-cancel appointment {AppointmentId}; continuing.",
+                    "JointDeclarationOverdueJob: tenant {TenantId} failed to flag appointment {AppointmentId}; continuing.",
                     tenantId,
                     candidate.Id);
             }
