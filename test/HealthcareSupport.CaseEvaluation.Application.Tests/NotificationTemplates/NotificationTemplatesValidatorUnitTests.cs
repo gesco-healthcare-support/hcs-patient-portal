@@ -215,7 +215,9 @@ public class NotificationTemplatesValidatorUnitTests
         // accessor "you were added" notice (+1 -> 64).
         // Case Tracker Part 5 (2026-07-28) added CaseTrackerPushFailed, the dead-letter
         // alert to internal staff (+1 -> 65).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(65);
+        // JDF overdue (2026-08-08) added AppointmentJointDeclarationOverdueInternal, the
+        // staff notice replacing the auto-cancel mail to stakeholders (+1 -> 66).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(66);
     }
 
     [Fact]
