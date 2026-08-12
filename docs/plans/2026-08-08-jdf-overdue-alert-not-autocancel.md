@@ -161,6 +161,25 @@ Mutation checks (required):
 Needs a seeded AME appointment with no JDF past the cutoff. Assert: status still Approved, marker set,
 one staff email, the flag visible in list and detail, and NO integration outbox row.
 
+### Result -- RUN 2026-08-12 (local stack, office falkinstein, appointment A00038)
+
+Everything passed EXCEPT the last assertion, and two defects were found that nothing else caught.
+
+- **"NO integration outbox row" was WRONG as an assertion.** `AppointmentChangedHandler` subscribes to
+  ABP's `EntityUpdatedEventData<Appointment>`, so ANY write to an appointment enqueues a Case Tracker
+  push -- and stamping the marker is a write. Measured: exactly one extra row per overdue appointment,
+  none on the second run. It is not a leak (`JointDeclarationOverdueAt` is not in the payload) and not
+  a contract change (every push is a full snapshot per D2, so they upsert data identical to what they
+  hold). The old job wrote the appointment too, so it also pushed; the difference is that push carried
+  a real status change and this one carries nothing new. OPEN: accept and document, or suppress.
+- **The detail notice never rendered.** It was gated on `fv('jointDeclarationOverdueAt')`, but `fv`
+  reads a reactive form control and the marker exists only on the DTO, so it returned an empty string
+  every time and the block was unreachable. The list row was fine -- it reads the DTO directly. Fixed
+  by reading the DTO on the detail too. Neither `ng build` nor the specs can see a control name that
+  never resolves; only running it did.
+- The dev stack sends REAL email. The three internal recipients were temporarily repointed to
+  plus-addresses on Adrian's mailbox for the run, then restored and verified.
+
 ## Risk / rollback
 
 Blast radius: one recurring job, one new nullable column, one email, and two UI surfaces.
