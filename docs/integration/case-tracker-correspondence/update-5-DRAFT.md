@@ -157,6 +157,21 @@ Being honest about what you asked for that is not done:
   Worth saying plainly: this means fewer messages, not more. If you have anything that counts on
   those automatic cancellations arriving, it will go quiet rather than error.
 
+## 9. One question for you
+
+When we flag one of those overdue appointments, our system treats it as a change to the appointment,
+so you will receive a push for it. Every field in that push will be identical to what you already
+hold -- the flag itself is internal and is not part of what we send you. So it is a message that
+tells you nothing new.
+
+Since every push is a full snapshot (point 4), your upsert should absorb it harmlessly. But you know
+your receiver better than I do, so: is a push with no changed fields a problem on your side -- does it
+churn anything, trigger a notification, or show up as activity on a case? If so, say the word and we
+will stop sending it. If not, we will leave it alone rather than add machinery to suppress it.
+
+Volume is small: one when we flag the appointment, and one more if the form later arrives and the flag
+clears.
+
 Happy to jump on a call if anything here is easier to work through live.
 
 Adrian
