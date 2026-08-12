@@ -56,6 +56,15 @@
                 </span>
               }
             </h1>
+            @if (fv('jointDeclarationOverdueAt')) {
+              <!-- 2026-08-08: replaces a nightly auto-cancel. Sits ABOVE the meta grid so it is
+                   the first thing read, and states plainly that nothing has happened yet. -->
+              <div class="ad-jdf-overdue">
+                <strong>Joint Declaration Form overdue.</strong>
+                This appointment has NOT been cancelled. It is still active and needs a decision --
+                chase the form, reschedule, or cancel it.
+              </div>
+            }
             <div class="ad-banner__meta">
               <div class="it">
                 <div class="k">Confirmation</div>

@@ -17,6 +17,16 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
     public string RequestConfirmationNumber { get; set; } = null!;
     public DateTime? DueDate { get; set; }
 
+    /// <summary>
+    /// When this AME appointment passed its Joint Declaration Form deadline with no JDF uploaded.
+    /// Null means not overdue. Drives the overdue marker on the internal list and detail.
+    ///
+    /// <para>Added 2026-08-08 replacing an automatic cancellation: such an appointment used to be
+    /// cancelled outright by a nightly job. It now keeps its status and carries this instead, so a
+    /// person decides -- which means the marker is the ONLY thing making it visible.</para>
+    /// </summary>
+    public DateTime? JointDeclarationOverdueAt { get; set; }
+
     public string? InternalUserComments { get; set; }
 
     public DateTime? AppointmentApproveDate { get; set; }

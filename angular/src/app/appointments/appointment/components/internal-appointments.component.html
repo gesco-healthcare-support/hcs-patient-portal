@@ -261,6 +261,16 @@
               </td>
               <td>
                 <span class="ia-conf">{{ a.appointment?.requestConfirmationNumber }}</span>
+                @if (a.appointment?.jointDeclarationOverdueAt) {
+                  <!-- 2026-08-08: replaces a nightly auto-cancel. The appointment is still ACTIVE
+                       and needs a decision, so this reads as an action, not a status. -->
+                  <span
+                    class="ia-jdf-overdue"
+                    title="The Joint Declaration Form was not uploaded by the due date. This appointment has NOT been cancelled and needs a decision."
+                  >
+                    JDF overdue
+                  </span>
+                }
               </td>
               <td>
                 <span class="ia-pt">

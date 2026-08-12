@@ -316,6 +316,21 @@
   font-weight: 700;
   color: var(--blue-700);
 }
+// 2026-08-08: JDF-overdue marker. Amber, not red: the appointment is fine, a
+// DOCUMENT is late and someone has to decide. Red would read as a failed or
+// cancelled appointment, which is exactly the impression this change removes.
+.ia-jdf-overdue {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: help;
+}
 .ia-pt {
   display: flex;
   align-items: center;
