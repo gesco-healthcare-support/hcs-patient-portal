@@ -82,9 +82,12 @@ export const FLAGGABLE_FIELDS: FlaggableField[] = [
   },
   { key: 'street', label: 'Street', group: 'Patient Demographics', sendBackFlaggable: true },
   {
-    // 2026-07-10 QA (item 4a): the Patient "Unit #" address-line-2 (control `address`
-    // -> Patient.Address). Present on the booking form; wired here + in the backend
-    // InfoRequestFields registry so staff can request/correct it.
+    // 2026-07-10 QA (item 4a): the Patient "Unit #" address-line-2. Present on the
+    // booking form; wired here + in the backend InfoRequestFields registry so staff
+    // can request/correct it.
+    // 2026-08-13: the backend spec now writes Patient.ApptNumber, not Patient.Address --
+    // the unit was split across two columns and the Case Tracker only ever read the one
+    // staff never touch. The key stays `address` because historic rows persist it.
     key: 'address',
     label: 'Unit #',
     group: 'Patient Demographics',

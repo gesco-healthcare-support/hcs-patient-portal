@@ -1624,10 +1624,13 @@ export class AppointmentAddComponent {
       return;
     }
     this.restService
-      .request<
-        unknown,
-        { id: string; displayName: string }[]
-      >({ method: 'GET', url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}` }, { apiName: 'Default' })
+      .request<unknown, { id: string; displayName: string }[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}`,
+        },
+        { apiName: 'Default' },
+      )
       .subscribe({
         next: (options) => {
           this.documentTypeOptions = options ?? [];
@@ -1698,7 +1701,9 @@ export class AppointmentAddComponent {
         phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
         socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
         street: patient.street ?? null,
-        address: patient.address ?? null,
+        // "Unit #" -- apptNumber first, legacy address column as the fallback. See the submit
+        // mapping below for why the control keeps its old name.
+        address: patient.apptNumber ?? patient.address ?? null,
         city: patient.city ?? null,
         stateId: patient.stateId ?? null,
         zipCode: patient.zipCode ?? null,
@@ -2512,7 +2517,9 @@ export class AppointmentAddComponent {
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: patient.street ?? null,
-          address: patient.address ?? null,
+          // "Unit #". Prefer apptNumber (where every screen now writes it); fall back to the
+          // legacy address column so a unit booked before 2026-08-13 still shows.
+          address: patient.apptNumber ?? patient.address ?? null,
           city: patient.city ?? null,
           stateId: patient.stateId ?? null,
           zipCode: patient.zipCode ?? null,
@@ -2550,7 +2557,11 @@ export class AppointmentAddComponent {
       phoneNumberTypeId: Number(raw.phoneNumberTypeId ?? 1),
       phoneNumber: raw.phoneNumber ?? undefined,
       socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
-      address: raw.address ?? undefined,
+      // 2026-08-13: the "Unit #" control is still NAMED `address` -- renaming it would ripple
+      // through prefill, the address autocomplete (`suite: 'address'`), the review step and
+      // validation -- but its value now goes to apptNumber, the one column every screen writes.
+      // Sending `address` as well would keep the old split alive.
+      apptNumber: raw.address ?? undefined,
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
@@ -2629,7 +2640,8 @@ export class AppointmentAddComponent {
           phoneNumberTypeId: (profile.patient.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: profile.patient.street ?? null,
-          address: profile.patient.address ?? null,
+          // "Unit #" -- apptNumber first, legacy address column as the fallback.
+          address: profile.patient.apptNumber ?? profile.patient.address ?? null,
           city: profile.patient.city ?? null,
           stateId: profile.patient.stateId ?? null,
           zipCode: profile.patient.zipCode ?? null,
@@ -2762,7 +2774,9 @@ export class AppointmentAddComponent {
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: patient.street ?? null,
-          address: patient.address ?? null,
+          // "Unit #". Prefer apptNumber (where every screen now writes it); fall back to the
+          // legacy address column so a unit booked before 2026-08-13 still shows.
+          address: patient.apptNumber ?? patient.address ?? null,
           city: patient.city ?? null,
           stateId: patient.stateId ?? null,
           zipCode: patient.zipCode ?? null,
@@ -3276,7 +3290,11 @@ export class AppointmentAddComponent {
       dateOfBirth: raw.dateOfBirth ?? undefined,
       phoneNumber: raw.phoneNumber ?? undefined,
       socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
-      address: raw.address ?? undefined,
+      // 2026-08-13: the "Unit #" control is still NAMED `address` -- renaming it would ripple
+      // through prefill, the address autocomplete (`suite: 'address'`), the review step and
+      // validation -- but its value now goes to apptNumber, the one column every screen writes.
+      // Sending `address` as well would keep the old split alive.
+      apptNumber: raw.address ?? undefined,
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
@@ -3285,7 +3303,9 @@ export class AppointmentAddComponent {
       interpreterVendorName: needsInterpreter
         ? (raw.interpreterVendorName ?? undefined)
         : undefined,
-      apptNumber: existing.apptNumber ?? undefined,
+      // apptNumber is set ABOVE from the "Unit #" control. It used to be echoed back from the
+      // stored patient here, which -- now that the control feeds it -- would overwrite the edit
+      // with the old value and silently discard every unit change made in the wizard.
       othersLanguageName: existing.othersLanguageName ?? undefined,
       stateId: raw.stateId ?? undefined,
       appointmentLanguageId: raw.appointmentLanguageId ?? undefined,

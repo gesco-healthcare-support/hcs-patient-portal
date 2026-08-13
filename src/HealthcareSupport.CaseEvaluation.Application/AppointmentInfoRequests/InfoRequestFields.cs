@@ -107,10 +107,17 @@ internal static class InfoRequestFields
         specs.Add(P("phoneNumber", InfoRequestFieldKind.Phone, p => p.PhoneNumber, (p, v) => p.PhoneNumber = v));
         specs.Add(P("socialSecurityNumber", InfoRequestFieldKind.Ssn, p => MaskSsn(p.SocialSecurityNumber), (p, v) => p.SocialSecurityNumber = v));
         specs.Add(P("street", InfoRequestFieldKind.Text, p => p.Street, (p, v) => p.Street = v));
-        // 2026-07-10 QA (item 4a): Patient "Unit #" address-line-2 -- form control
-        // `address` -> Patient.Address. On the booking form with a real DB column but
-        // previously absent here, so staff could not request/correct it via send-back.
-        specs.Add(P("address", InfoRequestFieldKind.Text, p => p.Address, (p, v) => p.Address = v));
+        // 2026-07-10 QA (item 4a): Patient "Unit #" address-line-2, previously absent here so staff
+        // could not request/correct it via send-back.
+        //
+        // 2026-08-13: now reads and WRITES Patient.ApptNumber, not Patient.Address. The unit lived
+        // in two columns -- staff screens wrote ApptNumber, booking and this path wrote Address --
+        // and the Case Tracker payload read Address, so a correction made here never reached them.
+        // The key stays "address" because it is persisted on historic info-request rows; renaming it
+        // would orphan them. Reads fall back to the legacy column for rows never backfilled.
+        specs.Add(P("address", InfoRequestFieldKind.Text,
+            p => p.ApptNumber ?? p.Address,
+            (p, v) => p.ApptNumber = v));
         specs.Add(P("city", InfoRequestFieldKind.Text, p => p.City, (p, v) => p.City = v));
         specs.Add(P("stateId", InfoRequestFieldKind.StateId, p => p.StateId?.ToString(), (p, v) => { if (ParseGuid(v) is Guid g) p.StateId = g; }));
         specs.Add(P("zipCode", InfoRequestFieldKind.Zip, p => p.ZipCode, (p, v) => p.ZipCode = v));
