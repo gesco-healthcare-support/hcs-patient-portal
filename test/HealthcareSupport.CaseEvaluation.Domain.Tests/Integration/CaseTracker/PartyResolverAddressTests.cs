@@ -17,9 +17,15 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// Phase 6 T4 (2026-08-08) -- the patient's address on the outbound payload.
 ///
 /// <para>The load-bearing assertion is the MAPPING, not the plumbing: <c>Patient.Street</c> is
-/// street line 1 and <c>Patient.Address</c> is the UNIT number, despite the column names suggesting
-/// the reverse. Verified from the booking form, which labels them "Street" and "Unit #". Getting
-/// this backwards would publish a bare "4B" as a street address.</para>
+/// street line 1 and the unit number is NOT it. Getting this backwards would publish a bare "4B" as
+/// a street address.</para>
+///
+/// <para>CORRECTED 2026-08-13. This file used to state that <c>Patient.Address</c> is the unit,
+/// "verified from the booking form". That was true of the booking form and FALSE as a general
+/// claim: every staff-facing screen writes <c>ApptNumber</c> instead, so a staff correction never
+/// reached the Case Tracker while the stale booking value kept going out. Both writers now target
+/// <c>ApptNumber</c>; <c>Address</c> survives as a read-only fallback for rows booked before the
+/// change, which were deliberately not backfilled.</para>
 ///
 /// <para>All fixture data is synthetic.</para>
 /// </summary>
@@ -29,7 +35,7 @@ public class PartyResolverAddressTests
     private static readonly Guid TenantId = new("b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e");
     private static readonly Guid StateId = new("c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f");
 
-    private static Patient PatientWith(Guid? stateId, string? street, string? address)
+    private static Patient PatientWith(Guid? stateId, string? street, string? address, string? apptNumber)
         => new(
             id: PatientId,
             stateId: stateId,
@@ -45,17 +51,19 @@ public class PartyResolverAddressTests
             address: address,
             city: "Sample City",
             zipCode: "90210",
-            street: street);
+            street: street,
+            apptNumber: apptNumber);
 
     private static (PartyResolver Resolver, Appointment Appointment) Build(
         Guid? stateId = null,
         string? street = "1200 Sample Street",
         string? address = "4B",
+        string? apptNumber = null,
         string? stateName = "California")
     {
         var patientRepo = Substitute.For<IRepository<Patient, Guid>>();
         patientRepo.FindAsync(PatientId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Patient?>(PatientWith(stateId, street, address)));
+            .Returns(Task.FromResult<Patient?>(PatientWith(stateId, street, address, apptNumber)));
 
         var stateRepo = Substitute.For<IRepository<State, Guid>>();
         if (stateId is { } id && stateName != null)
@@ -134,6 +142,43 @@ public class PartyResolverAddressTests
 
         section.Unit.ShouldBeNull();
         section.Street.ShouldBe("1200 Sample Street");
+    }
+
+    [Fact]
+    public async Task TheUnitComesFromApptNumber_WhichIsWhereStaffCorrectionsLand()
+    {
+        // The defect this change exists for: staff type the unit into ApptNumber, and before
+        // 2026-08-13 the payload read only Address, so the correction never left the building.
+        var (resolver, appointment) = Build(address: null, apptNumber: "STE 900");
+
+        var section = await resolver.ResolvePatientAsync(appointment);
+
+        section.Unit.ShouldBe("STE 900");
+    }
+
+    [Fact]
+    public async Task AStaffCorrectionBeatsTheStaleBookingValue()
+    {
+        // Both columns populated means the patient booked with one unit and staff later corrected
+        // it. Sending the booking value would publish a number a human already rejected.
+        var (resolver, appointment) = Build(address: "4B", apptNumber: "STE 900");
+
+        var section = await resolver.ResolvePatientAsync(appointment);
+
+        section.Unit.ShouldBe("STE 900");
+        section.Unit.ShouldNotBe("4B");
+    }
+
+    [Fact]
+    public async Task ALegacyUnitStillReachesTheWire()
+    {
+        // Rows booked before the change were deliberately NOT backfilled, so the fallback is the
+        // only thing keeping their unit on the wire. Removing it silently drops them.
+        var (resolver, appointment) = Build(address: "4B", apptNumber: null);
+
+        var section = await resolver.ResolvePatientAsync(appointment);
+
+        section.Unit.ShouldBe("4B");
     }
 
     [Fact]
