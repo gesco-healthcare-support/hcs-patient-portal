@@ -120,8 +120,24 @@ Admin and Staff Supervisor.
 | 4c  | Consent rounds, both sides, after date pick | `feat/reschedule-consent-rounds`          | `docs/plans/2026-08-05-reschedule-consent-rounds.md`               | **DONE** - PR #428                    |
 | 4d  | Reschedule creates a new appointment        | `feat/reschedule-creates-new-appointment` | `docs/plans/2026-08-05-reschedule-creates-new-appointment.md`      | **DONE** - PR #430 -> main `daeedbb2` |
 | 4e  | CT two-case semantics + contract amendment  | `feat/case-tracker-two-case-reschedule`   | `docs/plans/2026-08-06-case-tracker-two-case-reschedule.md`        | **DONE** - PR #431 -> main `5114e780` |
-| 5   | No-show / not-seen round trip (INBOUND)     | `feat/no-show-not-seen-round-trip`        | `docs/plans/2026-08-06-no-show-round-trip.md`                      | BUILT T1-T9, PR pending               |
-| 6   | CT payload completeness                     | `feat/case-tracker-payload-completeness`  | plan lives ON THAT BRANCH, not on main                             | PLANNED ONLY - re-audit before build  |
+| 5   | No-show / not-seen round trip (INBOUND)     | `feat/no-show-not-seen-round-trip`        | `docs/plans/2026-08-06-no-show-round-trip.md`                      | **DONE** - PR #433 -> main `bcab1756` |
+| 6   | CT payload completeness                     | `feat/case-tracker-payload-completeness`  | `docs/plans/2026-08-08-case-tracker-payload-completeness.md`       | **DONE** - PR #437 -> main `86ab3e80` |
+
+### Deploy state (verified against git 2026-08-12, not from memory)
+
+`origin/development` is at `2c82c358` and that is exactly what the box runs -- no drift between the
+deployed commit and the branch tip.
+
+| What                                     | Merged to main     | Deployed                                      |
+| ---------------------------------------- | ------------------ | --------------------------------------------- |
+| Phases 1, 2, 3, 4a-4e, 5                 | yes                | **YES** -- deployed 2026-08-11                |
+| Phase 6 (`86ab3e80`)                     | yes                | **NO** -- the only commit on main, not on dev |
+| JDF overdue alert (not a numbered phase) | no -- PR #440 open | no                                            |
+
+Check it rather than trusting this table: `git log origin/development..origin/main --oneline`.
+
+**Do not trust the epic table in `docs/integration/case-tracker-open-items.md`.** It carries its own
+copy of this list and went stale; this file is the source of truth for phase status.
 
 **RELEASE TRAIN (Adrian, 2026-08-06): 4b + 4c + 4d + 4e DEPLOY TOGETHER as one release.** 4d holds
 the reschedule split off the Case Tracker wire behind three suppression gates and 4e removes them,
@@ -129,7 +145,7 @@ so shipping them together means the suppression window never exists in productio
 is ever created while suppressed, so there is nothing to backfill and no late burst to explain.
 Consequence worth stating: the suppression code is never active in production for a single
 reschedule. It earned its place anyway, by letting 4d merge and be live-gated without lying to
-Case Tracker. None of the four is deployed; the deploy needs a fresh explicit go.
+Case Tracker. All four DEPLOYED 2026-08-11 together with phase 5, as intended.
 
 Coordination note: Levon needs to be INFORMED, not deployed -- the receiver's case key is
 `appointmentId` and it upserts on it, so two cases work with no code change on their side
