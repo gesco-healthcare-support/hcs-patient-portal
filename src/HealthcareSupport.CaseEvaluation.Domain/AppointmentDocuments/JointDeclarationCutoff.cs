@@ -4,18 +4,20 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
 /// <summary>
 /// Phase 14 (2026-05-04) -- pure cutoff predicate for the JDF
-/// auto-cancel Hangfire job. An AME appointment with no uploaded JDF
-/// auto-cancels when the appointment's due date is within
+/// overdue Hangfire job. An AME appointment with no uploaded JDF is
+/// overdue when its due date is within
 /// <c>SystemParameter.JointDeclarationUploadCutoffDays</c> of today.
 ///
-/// <para>Mirrors OLD's spec line 419: "In case if the document is
-/// pending as of specified number of days before the appointment due
-/// date, the appointment will be auto-cancelled and a notification
-/// email will be sent to all the stakeholders related to the
-/// appointment."</para>
+/// <para>The predicate itself is unchanged since Phase 14; only the
+/// CONSEQUENCE changed. It came from OLD's spec line 419, which said
+/// such an appointment "will be auto-cancelled and a notification
+/// email will be sent to all the stakeholders". That is no longer what
+/// happens: since 2026-08-08 the appointment is flagged for staff and
+/// nothing is cancelled. Kept here as provenance for the WINDOW, not
+/// as a description of current behaviour.</para>
 ///
 /// <para><c>public static</c> -- lives in Domain alongside the
-/// runtime job (<c>JointDeclarationAutoCancelJob</c>). Pure: no DI,
+/// runtime job (<c>JointDeclarationOverdueJob</c>). Pure: no DI,
 /// no IO, deterministic by injected <c>nowUtc</c>. Domain's
 /// <c>InternalsVisibleTo</c> covers <c>Domain.Tests</c> +
 /// <c>TestBase</c> only, so this stays public for cross-project
@@ -38,7 +40,7 @@ public static class JointDeclarationCutoff
     /// The <c>SystemParameter.JointDeclarationUploadCutoffDays</c>
     /// value. A negative or zero value disables the gate (returns
     /// false) -- matches OLD's implicit "if cutoff is not configured,
-    /// don't auto-cancel" behavior.
+    /// do nothing" behavior.
     /// </param>
     /// <param name="nowUtc">
     /// Current UTC instant. Injected for deterministic tests.

@@ -61,11 +61,21 @@ public class PartyResolver : ITransientDependency
             PhoneNumberType = patient.PhoneNumberTypeId.ToString(),
             CellPhoneNumber = patient.CellPhoneNumber,
             // Phase 6 (2026-08-08). The column names are BACKWARDS relative to what they hold:
-            // Patient.Street is street line 1 and Patient.Address is the "Unit #" the booking form
-            // asks for. Mapped by MEANING, not by matching names, so the receiver never renders a
-            // bare unit number as a street.
+            // Patient.Street is street line 1, and the "Unit #" the forms ask for is NOT Street.
+            // Mapped by MEANING, not by matching names, so the receiver never renders a bare unit
+            // number as a street.
             Street = patient.Street,
-            Unit = patient.Address,
+            // 2026-08-13: the unit lived in TWO columns. Every staff screen writes ApptNumber; the
+            // booking wizard and send-back wrote Address. Sending Address alone meant a staff
+            // CORRECTION never reached the Case Tracker while the stale booking-time value kept
+            // going out -- found by the phase 6 live gate. Both writers now target ApptNumber.
+            //
+            // The fallback is for HISTORY, not for the split: existing rows were deliberately not
+            // backfilled (that data is a legal record and telling a real unit from a duplicated
+            // street line is guesswork), so units booked before this change still live in Address.
+            // ApptNumber wins because it is where corrections land. Drop the fallback once no row
+            // holds a unit in Address.
+            Unit = patient.ApptNumber ?? patient.Address,
             City = patient.City,
             State = await ResolveStateNameAsync(patient.StateId, cancellationToken),
             ZipCode = patient.ZipCode,

@@ -52,12 +52,23 @@ public class CaseTrackerIntakeQueue : ICaseTrackerIntakeQueue, ITransientDepende
         var envelope = await _payloadBuilder.BuildAsync(appointmentId, cancellationToken);
         var payloadJson = IntakePayloadSerializer.Serialize(envelope);
 
-        // Version the key by the appointment's own UpdatedAt: a replayed event for the SAME state
-        // collapses onto the existing row, while a genuinely newer version enqueues a fresh push.
+        // Version the key by the payload's CONTENT: a replayed event for the SAME state collapses
+        // onto the existing row, while any genuine change enqueues a fresh push.
+        //
+        // 2026-08-13: this used to version by the appointment's own UpdatedAt, which silently lost
+        // every correction made to something OTHER than the appointment row. A patient, attorney,
+        // employer, insurance or injury edit rebuilds the payload, produces the same key, and
+        // EnqueueAsync returns the existing row -- DISCARDING the corrected payload. If that row had
+        // already been sent, nothing was queued at all and the correction never left the building.
+        // Demonstrated live: editing the patient's unit changed nothing on the wire; editing an
+        // appointment field pushed the same correction immediately.
+        //
+        // Content is what "the same state" always meant; the timestamp was a proxy that only tracked
+        // one of the tables the payload is built from.
         var idempotencyKey = IntegrationOutboxManager.BuildIdempotencyKey(
             IntegrationMessageType.Intake,
             appointmentId,
-            envelope.Data.UpdatedAt);
+            IntakePayloadSerializer.SerializeDataForVersioning(envelope));
 
         var row = await _outboxManager.EnqueueAsync(
             tenantId,

@@ -9,40 +9,37 @@ session. Items below are either unphased or already shipped-pending-deploy.
 
 ## Epic status for context (not this file's work)
 
-| Phase                                  | Status                                                                                     |
-| -------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 1 Supervisor CT permissions            | DONE, PR #409, main `7b0d9c30`                                                             |
-| 2 Cancellation reason + billing status | DONE, PR #414, main `baa1fee6`                                                             |
-| 3 Staff schedule calendar              | DONE, PR #418, main `1784a6bb`                                                             |
-| 4a Extract availability calendar       | DONE, PR #420, main `86d76b54`                                                             |
-| 4b Staff pick reschedule date          | DONE, PR #423                                                                              |
-| 4c Consent rounds                      | plan being written (`docs/plans/2026-08-05-reschedule-consent-rounds.md`)                  |
-| 4d Reschedule creates new appointment  | TODO                                                                                       |
-| 4e CT two-case semantics + contract    | TODO -- owes `rescheduledFromAppointmentId`, the `Rescheduled*` statuses, contract rewrite |
-| 5 No-show round trip (INBOUND from CT) | TODO -- the inbound outcome endpoint                                                       |
+This file used to carry its own copy of the phase table and it went stale -- it still showed 4c as
+"plan being written" and 4d, 4e and 5 as TODO long after all three had merged. The copy is DELETED
+rather than corrected, because two tables drift and one does not.
 
-## 1. DEPLOY -- highest value, zero development
+**Source of truth: `docs/plans/2026-07-31-reschedule-cancel-calendar-integration-epic.md`.** As of
+2026-08-12 all six phases are merged; phases 1-5 are deployed and phase 6 is not.
 
-Four things Levon has asked for are BUILT and MERGED but invisible to him because nothing has been
-deployed since they landed:
+## 1. DEPLOY -- RESOLVED 2026-08-11
 
-- `data.doctor.id` (PR #413) -- his matcher fails on names, so his staff pick the doctor MANUALLY on
-  every appointment until this ships. This is a live cost, not a future one.
-- Volume cap, 100/office/hour (PR #413).
-- `cancellationReason` (PR #414).
-- `billingStatus` = `NO_BILL` / `LATE` / `NONE` (PR #414).
+The four things Levon had been waiting on are now LIVE, verified against git rather than assumed
+(each commit confirmed an ancestor of the deployed `2c82c358`):
 
-`main` is ahead of `development`; the box deploys from `development`. Two consecutive emails have told
-him these arrive "on our next deployment", so the caveat is now doing a lot of work.
+- `data.doctor.id` (PR #413, `d658382b`) -- DEPLOYED. His staff no longer have to pick the doctor by
+  hand, which was a live daily cost while it sat merged-but-undeployed.
+- Volume cap, 100/office/hour (PR #413, `d658382b`) -- DEPLOYED.
+- `cancellationReason` (PR #414, `baa1fee6`) -- DEPLOYED.
+- `billingStatus` = `NO_BILL` / `LATE` / `NONE` (PR #414, `baa1fee6`) -- DEPLOYED.
+
+Two consecutive emails promised these "on our next deployment" and that deployment happened. TELL HIM
+they are live: he has no way to know, and his staff are the ones absorbing the manual work.
+
+Still undeployed: phase 6 (`86ab3e80`), which is the only commit on `main` and not on `development`.
 
 ## 2. CODE -- new, small, in no epic phase
 
-| #   | Item                                                  | Why                                                                                                                                                              |
-| --- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1  | Who cancelled: party type at minimum, name where held | **PARTLY DELIVERED, phase 6 (2026-08-08)** -- `changeRequestedBySide` gives the party TYPE (Side A / Side B). The NAME is still not sent. | The one remaining gap of his three attribution asks. ORPHANED -- Phase 2 shipped and closed without it. Needed for his proof-of-service and billing attribution. |
-| N2  | Explicit AME auto-cancel flag                         | **STILL OPEN** -- phase 6 did not touch it. | He has asked for a boolean rather than matching the reason constant. Small; pairs naturally with N1.                                                             |
-| N3  | Patient postal address on the intake payload          | **DELIVERED, phase 6 (2026-08-08)** -- `street` / `unit` / `city` / `state` / `zipCode`. NOTE this row was RIGHT that we already hold all five; the phase 6 draft plan wrongly claimed the columns were ambiguous with no unit field. | The ONLY address gap. We already hold street/unit/city/state/zip; `IntakePatientSection` simply has no address fields. Blocks his proof-of-service document.     |
-| N4  | Requested-vs-finalized timestamps, UTC + local zone   | **DELIVERED (UTC), phase 6 (2026-08-08)** -- `changeRequestedAtUtc` + `changeFinalizedAtUtc`. Local-zone variants were NOT added; the contract carries a single IANA `timeZone` for the appointment. | A notice period measured from the wrong end over-bills someone who gave timely notice.                                                                           |
+| #   | Item                                                  | Why                                                                                                                                                                                                                                                                       |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1  | Who cancelled: party type at minimum, name where held | **PARTLY DELIVERED, phase 6 (2026-08-08)** -- `changeRequestedBySide` gives the party TYPE (Side A / Side B). The NAME is still not sent.                                                                                                                                 | The one remaining gap of his three attribution asks. ORPHANED -- Phase 2 shipped and closed without it. Needed for his proof-of-service and billing attribution. |
+| N2  | Explicit AME auto-cancel flag                         | **CLOSED BY REMOVAL 2026-08-08.** There will be no auto-cancels to flag: the nightly job no longer cancels anything. It stamps an overdue marker and emails internal staff, and a human decides. Levon must be told the flag is moot rather than pending -- see update-5. | He has asked for a boolean rather than matching the reason constant. Small; pairs naturally with N1.                                                             |
+| N3  | Patient postal address on the intake payload          | **DELIVERED, phase 6 (2026-08-08)** -- `street` / `unit` / `city` / `state` / `zipCode`. NOTE this row was RIGHT that we already hold all five; the phase 6 draft plan wrongly claimed the columns were ambiguous with no unit field.                                     | The ONLY address gap. We already hold street/unit/city/state/zip; `IntakePatientSection` simply has no address fields. Blocks his proof-of-service document.     |
+| N4  | Requested-vs-finalized timestamps, UTC + local zone   | **DELIVERED (UTC), phase 6 (2026-08-08)** -- `changeRequestedAtUtc` + `changeFinalizedAtUtc`. Local-zone variants were NOT added; the contract carries a single IANA `timeZone` for the appointment.                                                                      | A notice period measured from the wrong end over-bills someone who gave timely notice.                                                                           |
 
 ## 3. CODE -- requested, NOT promised
 

@@ -57,6 +57,17 @@
 .ad-banner--not-seen {
   background: linear-gradient(135deg, #2f3437, #464e52 66%, #5a6469);
 }
+// 2026-08-08: JDF-overdue notice inside the status banner. Sits on the banner's dark
+// gradient, so it needs its own light surface rather than the list page's amber pill.
+.ad-jdf-overdue {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+  line-height: 19px;
+}
 .ad-banner__in {
   max-width: 1560px;
   margin: 0 auto;

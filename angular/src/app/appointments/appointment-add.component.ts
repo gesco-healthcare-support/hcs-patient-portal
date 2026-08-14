@@ -29,6 +29,7 @@ import { firstValueFrom, Observable, of } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
+import { unitForForm, unitToDto } from './shared/patient-unit.mapper';
 import {
   AddressValidationProvider,
   AddressInput,
@@ -1624,10 +1625,13 @@ export class AppointmentAddComponent {
       return;
     }
     this.restService
-      .request<
-        unknown,
-        { id: string; displayName: string }[]
-      >({ method: 'GET', url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}` }, { apiName: 'Default' })
+      .request<unknown, { id: string; displayName: string }[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}`,
+        },
+        { apiName: 'Default' },
+      )
       .subscribe({
         next: (options) => {
           this.documentTypeOptions = options ?? [];
@@ -1698,7 +1702,8 @@ export class AppointmentAddComponent {
         phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
         socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
         street: patient.street ?? null,
-        address: patient.address ?? null,
+        // "Unit #" -- see patient-unit.mapper for why the control keeps its old name.
+        address: unitForForm(patient),
         city: patient.city ?? null,
         stateId: patient.stateId ?? null,
         zipCode: patient.zipCode ?? null,
@@ -2512,7 +2517,8 @@ export class AppointmentAddComponent {
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: patient.street ?? null,
-          address: patient.address ?? null,
+          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+          address: unitForForm(patient),
           city: patient.city ?? null,
           stateId: patient.stateId ?? null,
           zipCode: patient.zipCode ?? null,
@@ -2550,7 +2556,10 @@ export class AppointmentAddComponent {
       phoneNumberTypeId: Number(raw.phoneNumberTypeId ?? 1),
       phoneNumber: raw.phoneNumber ?? undefined,
       socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
-      address: raw.address ?? undefined,
+      // The "Unit #" control is still NAMED `address`; its value belongs in apptNumber. Decided and
+      // tested in patient-unit.mapper. Note there is deliberately no `address:` here -- sending it
+      // too would keep the old two-column split alive.
+      apptNumber: unitToDto(raw.address),
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
@@ -2629,7 +2638,8 @@ export class AppointmentAddComponent {
           phoneNumberTypeId: (profile.patient.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: profile.patient.street ?? null,
-          address: profile.patient.address ?? null,
+          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+          address: unitForForm(profile.patient),
           city: profile.patient.city ?? null,
           stateId: profile.patient.stateId ?? null,
           zipCode: profile.patient.zipCode ?? null,
@@ -2762,7 +2772,8 @@ export class AppointmentAddComponent {
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: patient.street ?? null,
-          address: patient.address ?? null,
+          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+          address: unitForForm(patient),
           city: patient.city ?? null,
           stateId: patient.stateId ?? null,
           zipCode: patient.zipCode ?? null,
@@ -3276,7 +3287,10 @@ export class AppointmentAddComponent {
       dateOfBirth: raw.dateOfBirth ?? undefined,
       phoneNumber: raw.phoneNumber ?? undefined,
       socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
-      address: raw.address ?? undefined,
+      // The "Unit #" control is still NAMED `address`; its value belongs in apptNumber. Decided and
+      // tested in patient-unit.mapper. Note there is deliberately no `address:` here -- sending it
+      // too would keep the old two-column split alive.
+      apptNumber: unitToDto(raw.address),
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
@@ -3285,7 +3299,9 @@ export class AppointmentAddComponent {
       interpreterVendorName: needsInterpreter
         ? (raw.interpreterVendorName ?? undefined)
         : undefined,
-      apptNumber: existing.apptNumber ?? undefined,
+      // apptNumber is set ABOVE from the "Unit #" control. It used to be echoed back from the
+      // stored patient here, which -- now that the control feeds it -- would overwrite the edit
+      // with the old value and silently discard every unit change made in the wizard.
       othersLanguageName: existing.othersLanguageName ?? undefined,
       stateId: raw.stateId ?? undefined,
       appointmentLanguageId: raw.appointmentLanguageId ?? undefined,

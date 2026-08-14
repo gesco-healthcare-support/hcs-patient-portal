@@ -26,6 +26,18 @@ public static class IntakePayloadSerializer
     }
 
     /// <summary>
+    /// Serializes ONLY the <c>data</c> section, for use as the outbox dedup version (2026-08-13).
+    ///
+    /// <para>Deliberately excludes <c>meta</c>: it carries a per-build <c>RequestId</c>, so hashing
+    /// the whole envelope would make every enqueue unique and defeat de-duplication entirely --
+    /// the opposite failure to the one this exists to fix.</para>
+    /// </summary>
+    public static string SerializeDataForVersioning(IntakeEnvelope envelope)
+    {
+        return JsonSerializer.Serialize(envelope.Data, Options);
+    }
+
+    /// <summary>
     /// Serializes a document-update body: a BARE JSON ARRAY, not the <c>{data,meta,errors}</c>
     /// envelope intake uses (contract section G). The asymmetry is the receiver's, not ours -- their
     /// document endpoint binds a list directly -- so it is enforced here rather than left to each

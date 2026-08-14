@@ -4,13 +4,19 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 
 /// <summary>
-/// QA item M (2026-06-29): two notification codes are wired to live triggers
+/// QA item M (2026-06-29): two notification codes were wired to live triggers
 /// (AccessorInvitedEmailHandler, JdfAutoCancelledEmailHandler) but shipped stub
 /// bodies/subjects. The accessor stub dropped the ##URL## password-setup link,
 /// so a newly-invited authorized party could not set a password. These tests pin
 /// both codes to real, resource-backed content so the wire-without-body
 /// regression cannot recur. Pure: reads the embedded body + curated subject via
 /// the public seed-default, no DB.
+///
+/// <para>2026-08-08: JdfAutoCancelledEmailHandler was DELETED with the auto-cancel
+/// behaviour, so AppointmentCancelledDueDate no longer has a sender. Its row is
+/// still seeded, so the case is kept to keep the shipped content well-formed --
+/// but it now guards a dormant template, not a live trigger. Whether that code
+/// should be retired at all is an open question, not something this test settles.</para>
 /// </summary>
 public class WiredStubEmailTemplateTests
 {

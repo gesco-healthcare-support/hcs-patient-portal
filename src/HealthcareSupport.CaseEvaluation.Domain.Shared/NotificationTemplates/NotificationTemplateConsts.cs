@@ -141,6 +141,15 @@ public static class NotificationTemplateConsts
         /// </summary>
         public const string AppointmentDueDateReminder = "AppointmentDueDateReminder";
         public const string AppointmentCancelledDueDate = "AppointmentCancelledDueDate";
+
+        /// <summary>
+        /// 2026-08-08. Internal-staff notice that an AME appointment passed its Joint Declaration
+        /// Form deadline with no JDF uploaded. REPLACES the stakeholder-facing
+        /// <see cref="AppointmentCancelledDueDate"/> flow: the portal no longer cancels such an
+        /// appointment by itself, so nobody is told it was cancelled -- staff are told it needs a
+        /// decision. Sent ONCE per appointment, not on every daily run.
+        /// </summary>
+        public const string AppointmentJointDeclarationOverdueInternal = "AppointmentJointDeclarationOverdueInternal";
         public const string AppointmentPendingNextDay = "AppointmentPendingNextDay";
 
         /// <summary>OLD-style local abbreviation (<c>Req</c>) preserved for naming consistency with the four <c>...RescheduleReq...</c> entries.</summary>
@@ -254,6 +263,7 @@ public static class NotificationTemplateConsts
             PatientDocumentAcceptedRemainingDocs, PatientDocumentRejectedRemainingDocs,
             AppointmentApproveRejectInternal, AppointmentDueDateReminder,
             AppointmentCancelledDueDate, AppointmentPendingNextDay,
+            AppointmentJointDeclarationOverdueInternal,
             PatientAppointmentRescheduleReqAdmin, PatientAppointmentRescheduleReqApproved,
             PatientAppointmentRescheduleReqRejected, PatientAppointmentCancellationApproved,
             PatientAppointmentRescheduleReq, JointAgreementLetterAccepted,

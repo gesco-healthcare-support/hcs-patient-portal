@@ -197,8 +197,8 @@ public class AppointmentReminderEmailHandler :
 
     /// <summary>
     /// True when this is an AME appointment with no Joint Declaration document on
-    /// file in a non-Rejected status -- the same predicate the JDF auto-cancel
-    /// job uses (<c>JointDeclarationAutoCancelJob</c>).
+    /// file in a non-Rejected status -- the same predicate the JDF overdue
+    /// job uses (<c>JointDeclarationOverdueJob</c>).
     /// </summary>
     private async Task<bool> IsJointDeclarationOutstandingAsync(Guid appointmentId)
     {

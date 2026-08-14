@@ -71,8 +71,13 @@ public class InfoRequestFieldsTests
     [Fact]
     public void Writes_the_patient_unit_number_address_line2()
     {
-        // 2026-07-10 QA (item 4a): the Patient "Unit #" (control `address` -> Patient.Address)
-        // must be requestable + correctable via the send-back / info-request flow.
+        // 2026-07-10 QA (item 4a): the Patient "Unit #" must be requestable + correctable via the
+        // send-back / info-request flow.
+        //
+        // 2026-08-13: this used to assert Patient.Address. The unit was split across two columns --
+        // staff screens wrote ApptNumber, booking and send-back wrote Address -- and the Case
+        // Tracker read only Address, so a correction made here never reached them. Both writers now
+        // target ApptNumber. The KEY stays "address" because historic info-request rows persist it.
         var bundle = FullBundle();
         var spec = InfoRequestFields.ByKey["address"];
 
@@ -81,7 +86,20 @@ public class InfoRequestFieldsTests
         spec.Write(bundle, "Suite 210");
 
         spec.Read(bundle).ShouldBe("Suite 210");
-        bundle.Patient!.Address.ShouldBe("Suite 210");
+        bundle.Patient!.ApptNumber.ShouldBe("Suite 210");
+        bundle.Patient!.Address.ShouldBeNull("the legacy column must not be written any more");
+    }
+
+    [Fact]
+    public void Reads_a_legacy_unit_from_the_old_column()
+    {
+        // Rows booked before 2026-08-13 keep their unit in Address and were deliberately not
+        // backfilled, so the send-back screen must still SHOW it or staff would think it was blank
+        // and retype it.
+        var bundle = FullBundle();
+        bundle.Patient!.Address = "4B";
+
+        InfoRequestFields.ByKey["address"].Read(bundle).ShouldBe("4B");
     }
 
     [Fact]
