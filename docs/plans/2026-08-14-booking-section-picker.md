@@ -1,6 +1,7 @@
 ---
-feature: Per-section "has this changed?" picker for prefilled bookings
+feature: Section picker for prefilled bookings, and a clearer attorney question
 date: 2026-08-14
+revised: 2026-08-14
 status: draft
 base-branch: main
 related-issues: []
@@ -10,8 +11,13 @@ related-issues: []
 
 ## Goal
 
-After a source appointment is retrieved, ask the booker which sections have changed, and prefill
-only the sections they leave marked as unchanged.
+After a source appointment is retrieved, ask the booker which sections have changed and prefill
+only the sections they leave marked as unchanged; and replace the ambiguous attorney "Include"
+checkbox with an explicit, role-aware yes/no question.
+
+Two asks, one plan, because both turn on what `applicantAttorneyEnabled` means and both edit
+`appointment-add-attorney-section.component.html`. Splitting them would put two PRs in the same
+file reasoning independently about a flag with documented sharp edges.
 
 ## Context & decisions
 
@@ -40,6 +46,28 @@ Resolved decisions:
    were edited, so two minutes of corrections are not lost to a mis-click.
 7. **Decision: attorney "changed" leaves the section ENABLED but empty.** Blank and absent are
    different claims -- disabling it would record "this appointment has no applicant attorney".
+
+Added 2026-08-14, folded in from a separate observation because it changes the same control:
+
+8. **Decision: replace the "Include" checkbox with an explicit question and a yes/no switch.**
+   "Include" conflates _"show me this section"_ with _"this appointment has an applicant
+   attorney"_, which is the same ambiguity decision 7 has to work around. Making the question
+   explicit removes it at the source.
+9. **Decision: the wording is role-aware.** For the APPLICANT section, a patient sees "Do you
+   have an attorney representing you?" and everyone else sees "Is the applicant represented?".
+   For the DEFENSE section, everyone sees "Is there a defense attorney?". Patients get the
+   jargon-free phrasing because they are the one audience who would not know what "applicant"
+   means; "applicant" is used for the rest because it matches the section's own name.
+10. **Decision: when the viewer IS that attorney type, the question is hidden and the answer is
+    forced to Yes, with the section still required.** An applicant attorney does not need asking
+    whether the applicant is represented. This holds even when a paralegal books under an
+    attorney's role account, because an attorney is still on the claim -- the question is about
+    representation, not about who is typing (Adrian, 2026-08-14). This is a DELIBERATE exception
+    to decision 11 below; do not file it as a missing validator.
+11. **Decision: the switch has no default -- the booker must answer before leaving the step.**
+    Today `applicantAttorneyEnabled` defaults to `true`, so a section nobody confirmed quietly
+    collects an attorney, and a defaulted-off one silently drops a party. Forcing the answer is
+    the point of the change.
 
 ## All needed context
 
@@ -159,6 +187,61 @@ changed.
 
 acceptance (EARS): WHEN a draft is resumed, THE SYSTEM SHALL restore the section selection as it
 was saved.
+
+### T7 -- replace the Include checkbox with a role-aware question
+
+approach: test-after
+
+MODIFY `angular/src/app/appointments/sections/appointment-add-attorney-section.component.html:18`
+and its component: replace the `Include` checkbox label with an explicit question and a yes/no
+switch bound to the same `applicantAttorneyEnabled` / `defenseAttorneyEnabled` control. Resolve
+the question text per decision 9 from the viewer's role, which the wizard already knows --
+`isInternalBooker` (`appointment-add.component.ts:1275`), `isApplicantAttorney` /
+`isDefenseAttorney` (`:1313`), and the primary role at `:1212` (defaults to `'Patient'`). Role
+names are `'Patient'`, `'Applicant Attorney'`, `'Defense Attorney'`, `'Claim Examiner'`.
+
+Per decision 10, hide the switch entirely and force the value to `true` when the viewer's role
+matches the section: applicant attorneys see no question on the applicant section, defense
+attorneys none on the defense section.
+
+Put the copy in a pure resolver (e.g. `attorney-question.util.ts`) so it unit-tests without a
+TestBed, mirroring `wizard-copy.util.ts`.
+
+acceptance (EARS):
+
+- WHERE the viewer is a patient, THE SYSTEM SHALL ask "Do you have an attorney representing
+  you?" on the applicant section.
+- WHERE the viewer is internal staff, a defense attorney or a claim examiner, THE SYSTEM SHALL
+  ask "Is the applicant represented?" on the applicant section.
+- WHERE the viewer is an applicant attorney, THE SYSTEM SHALL NOT ask the applicant-section
+  question AND SHALL treat the section as included.
+- WHERE the viewer is a defense attorney, THE SYSTEM SHALL NOT ask the defense-section question
+  AND SHALL treat the section as included.
+- WHEN any other viewer reaches the defense section, THE SYSTEM SHALL ask "Is there a defense
+  attorney?".
+
+### T8 -- require an answer before leaving the step
+
+approach: tdd
+
+MODIFY the attorney form controls so `applicantAttorneyEnabled` and `defenseAttorneyEnabled`
+start with NO value (`appointment-add.component.ts:596` and `:612` currently default to `[true]`)
+and the Continue gate blocks until answered, except where decision 10 forces the value.
+
+GOTCHA, documented in `angular/src/app/appointments/CLAUDE.md:115-117`: `form.reset()` nulls both
+flags and must be followed by `patchValue({ applicantAttorneyEnabled: ..., defenseAttorneyEnabled: ... })`
+or the required-validator state breaks. Removing the default makes that reset path more
+sensitive, not less -- re-read those lines before touching it.
+
+pattern: the per-step Continue gate driven by `WIZARD_STEP_CONTROLS` (`step-errors.util.ts:22`).
+
+acceptance (EARS):
+
+- WHILE the applicant-attorney question is unanswered, THE SYSTEM SHALL block Continue on that
+  step and name the unanswered question in the step error summary.
+- WHERE decision 10 hides the question, THE SYSTEM SHALL NOT block Continue.
+- WHEN the booker answers No, THE SYSTEM SHALL clear that section's validators so an empty
+  section submits.
 
 ## Validation loop
 
