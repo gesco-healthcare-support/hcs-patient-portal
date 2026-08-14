@@ -3501,16 +3501,26 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * 2026-06-11: informational modal shown when an external user selects a slot
-   * beyond the 60-day online booking horizon. Single OK button (hideCancelBtn);
-   * the message directs them to contact staff, who can schedule 60-90 days out.
+   * 2026-06-11: informational modal shown when the picked date exceeds the
+   * caller's online booking horizon. Single OK button (hideCancelBtn); the
+   * message directs them to the intake team.
+   *
+   * 2026-08-14: the horizon is interpolated from maxBookingDays rather than
+   * written into the message. The guard at the call site is role-aware
+   * (60 external / 90 internal), so a hardcoded 60 told internal bookers who
+   * exceeded 90 days the wrong limit. The copy also no longer promises that
+   * staff will schedule the appointment, only where to ask.
    */
   private showContactStaffForFurtherBooking(): void {
     this.confirmationService
       .info(
         '::Appointment:ContactStaffForFurtherBookingMessage',
         '::Appointment:ContactStaffForFurtherBookingTitle',
-        { hideCancelBtn: true, yesText: 'AbpUi::Ok' },
+        {
+          hideCancelBtn: true,
+          yesText: 'AbpUi::Ok',
+          messageLocalizationParams: [String(this.maxBookingDays)],
+        },
       )
       .subscribe();
   }
