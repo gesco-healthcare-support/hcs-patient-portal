@@ -30,6 +30,15 @@ bld/
 
 # Local audit scratch (screenshots, snapshots) - not for repo
 docs/audits/
+
+# 2026-08-14: feature plans are WORKING artefacts, not project documentation.
+# They still live here on disk so the RPE workflow and later sessions can read
+# them; they just never enter the repo. Once work has shipped, the code, its
+# comments and the PR are the record -- a merged plan is stale by definition and
+# only accumulates. Note .gitignore does not untrack what is already tracked, so
+# the plans committed before this date stay until pruned deliberately.
+docs/plans/
+
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
