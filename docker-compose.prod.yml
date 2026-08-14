@@ -81,7 +81,11 @@ services:
       - miniodata:/data
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:9000/minio/health/live || exit 1",
+        ]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -95,19 +99,24 @@ services:
     environment:
       MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
-      BUCKET_NAME: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      # Space-separated so a new bucket is one edit here rather than a hand-made
+      # artifact nobody can reproduce. The Case Tracker bucket (2026-08-13) holds
+      # what THEIR staff upload against a case; ours holds packets and uploads.
+      BUCKET_NAMES: "${MINIO_BUCKET_NAME:-case-evaluation-documents} ${MINIO_CASE_TRACKER_BUCKET_NAME:-case-tracker-documents}"
     entrypoint:
       - /bin/sh
       - -c
       - |
         set -e
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-        if ! mc ls "local/$$BUCKET_NAME" >/dev/null 2>&1; then
-          mc mb "local/$$BUCKET_NAME"
-          echo "Created bucket: $$BUCKET_NAME"
-        else
-          echo "Bucket exists: $$BUCKET_NAME"
-        fi
+        for bucket in $$BUCKET_NAMES; do
+          if ! mc ls "local/$$bucket" >/dev/null 2>&1; then
+            mc mb "local/$$bucket"
+            echo "Created bucket: $$bucket"
+          else
+            echo "Bucket exists: $$bucket"
+          fi
+        done
     restart: "no"
 
   packet-renderer:
@@ -222,7 +231,8 @@ services:
         condition: service_healthy
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -301,7 +311,8 @@ services:
         condition: service_healthy
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

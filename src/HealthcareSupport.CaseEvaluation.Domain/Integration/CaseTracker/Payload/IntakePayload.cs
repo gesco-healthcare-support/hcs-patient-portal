@@ -103,6 +103,39 @@ public class IntakePayload
     /// </summary>
     public string? SupersededReason { get; set; }
 
+    // ---- Change attribution (phase 6, 2026-08-08) ----
+    // Who asked for the most recent change to this appointment, and when it was asked and settled.
+    // All four are null when the appointment has never had a change request, which is the common
+    // case -- absence here means "nothing was requested", not "we failed to look".
+
+    /// <summary>
+    /// Which side requested the change: <c>SIDE_A</c> (patient + applicant attorney) or
+    /// <c>SIDE_B</c> (defense attorney + claim examiner). See <see cref="ChangeRequestSideWire"/>.
+    ///
+    /// <para>Null when staff initiated the change themselves, because then no PARTY requested it.
+    /// Do not read null as "unknown".</para>
+    /// </summary>
+    public string? ChangeRequestedBySide { get; set; }
+
+    /// <summary>
+    /// What was asked for: <c>CANCEL</c> or <c>RESCHEDULE</c>, matching the portal's own two
+    /// change-request kinds.
+    /// </summary>
+    public string? ChangeRequestType { get; set; }
+
+    /// <summary>ISO-8601 UTC. When the change was REQUESTED.</summary>
+    public string? ChangeRequestedAtUtc { get; set; }
+
+    /// <summary>
+    /// ISO-8601 UTC. When staff DECIDED the change -- accepted or rejected.
+    ///
+    /// <para>Null while the request is still pending, which is a real state and not missing data.
+    /// Sourced from the appointment change request's own decision stamp, never from a
+    /// last-modified column: that reflects the last write of ANY kind, so a later edit would
+    /// silently relabel when the decision was made.</para>
+    /// </summary>
+    public string? ChangeFinalizedAtUtc { get; set; }
+
     public IntakeTenantSection Tenant { get; set; } = new();
 
     public IntakeLocationSection Location { get; set; } = new();
@@ -213,6 +246,36 @@ public class IntakePatientSection
     public string PhoneNumberType { get; set; } = string.Empty;
 
     public string? CellPhoneNumber { get; set; }
+
+    /// <summary>
+    /// Street address, line 1.
+    ///
+    /// <para>Backed by <c>Patient.Street</c>, which the booking form labels "Street" and fills via
+    /// the address autocomplete. Do NOT confuse it with the column <c>Patient.Address</c>, whose
+    /// name is misleading -- see <see cref="Unit"/>.</para>
+    /// </summary>
+    public string? Street { get; set; }
+
+    /// <summary>
+    /// Apartment / suite number, when the patient supplied one.
+    ///
+    /// <para>Called <c>unit</c> on the wire even though it is backed by the column
+    /// <c>Patient.Address</c>, because "Unit #" is what the booking form asks for and what the value
+    /// actually holds. Publishing it as <c>address</c> would invite the receiver to render a bare
+    /// "4B" as a street address. The column name is a historical accident; this name is the truth.
+    /// </para>
+    /// </summary>
+    public string? Unit { get; set; }
+
+    public string? City { get; set; }
+
+    /// <summary>
+    /// State NAME (e.g. <c>California</c>), not the portal's lookup id -- matching how the attorney
+    /// and claim-examiner sections already publish state.
+    /// </summary>
+    public string? State { get; set; }
+
+    public string? ZipCode { get; set; }
 
     /// <summary>
     /// Opaque, office-scoped token that is EQUAL for two appointments belonging to the same patient, so

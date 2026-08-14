@@ -138,6 +138,10 @@ build; the deployed integration base must be `https://...` (`:7272` = API, `:80`
 | `rescheduledFromConfirmationNumber` | string | `A`+5 digits                                                                                | Yes (present only on a reschedule REPLACEMENT)            | ADDED 2026-08-06. The REPLACED appointment's `RequestConfirmationNumber`. Display aid only, exactly like `previousConfirmationNumber` - a replacement gets its own fresh number and the value is per-office sequential. Match on `rescheduledFromAppointmentId`.                                                                                                                                                                                                                                                                                                      |
 | `supersededByAppointmentId`         | string | GUID                                                                                        | Yes (present only on an appointment that WAS replaced)    | ADDED 2026-08-06. The forward half of the pair: the appointment that replaced this one. Resolved by looking up the appointment whose `rescheduledFromAppointmentId` is this one. Sent so a closed case is not a dead end - without it the old case says it was rescheduled but not to where.                                                                                                                                                                                                                                                                          |
 | `supersededReason`                  | string | `"RESCHEDULED"`                                                                             | Yes (present exactly when `supersededByAppointmentId` is) | ADDED 2026-08-06. WHY the case was superseded, derived from the terminal status by `SupersededReasonWire` (`Domain/Integration/CaseTracker/Payload/SupersededReasonWire.cs`). Explicit rather than inferred, because the id alone cannot say what kind of successor it is, and inferring it would require the successor's own message to have already arrived. Currently only `RESCHEDULED`; a future no-show replacement flow will add `NO_SHOW`, so treat this as an open value set and store it verbatim.                                                          |
+| `changeRequestedBySide`             | string | `"SIDE_A"` / `"SIDE_B"`                                                                      | Yes                                                       | ADDED 2026-08-08. Which side asked for the most recent change. Side A = patient + applicant attorney; Side B = defense attorney + claim examiner. NULL means STAFF initiated the change, so no party requested it -- do not read null as "unknown".                                                                                                                                                                        |
+| `changeRequestType`                 | string | `"CANCEL"` / `"RESCHEDULE"`                                                                  | Yes                                                       | ADDED 2026-08-08. What was asked for. Null only when the appointment has never had a change request.                                                                                                                                                                                                                                                                                                                      |
+| `changeRequestedAtUtc`              | string | ISO-8601 UTC                                                                                 | Yes                                                       | ADDED 2026-08-08. When the change was REQUESTED.                                                                                                                                                                                                                                                                                                                                                                          |
+| `changeFinalizedAtUtc`              | string | ISO-8601 UTC                                                                                 | Yes                                                       | ADDED 2026-08-08. When staff DECIDED it (accepted or rejected). Null while the request is still pending -- a real state, not missing data. Sourced from a dedicated decision column, never from last-modified, so a later edit to the row cannot silently relabel when the decision was made.                                                                                                                              |
 
 STATUS VALUES CASE TRACKER CAN RECEIVE (verified 2026-07-27 against the state machine
 `AppointmentManager.BuildMachine:380-419` and the change-request approval paths). A case only exists
@@ -152,6 +156,13 @@ from `Approved` onward, so this is the reachable set from there:
 | `CancellationRequested` | a cancellation was requested, awaiting staff decision  | not yet cancelled                                                                                               |
 | `CancelledNoBill`       | cancellation approved (terminal)                       | also set with NO staff action by `JointDeclarationAutoCancelJob:159` (AME joint-declaration cutoff auto-cancel) |
 | `CancelledLate`         | cancellation approved, late/billable (terminal)        |                                                                                                                 |
+
+**EVERY PUSH IS A FULL SNAPSHOT (stated explicitly 2026-08-08).** Each message carries the appointment's
+COMPLETE current state -- every field in this section, every party, every document -- not a delta of what
+changed. Two consequences for your receiver: you may overwrite your copy wholesale rather than merging
+field by field, and a field's ABSENCE means it is genuinely absent now, not that it was omitted because it
+did not change. This was always how the payload was built; it had simply never been written down, so
+nobody could rely on it.
 
 NEVER sent (do not build logic for these):
 
@@ -244,7 +255,25 @@ only the Cal-Med ID they enter can do that.
 | `phoneNumberType`    | string | No                       | enum name `Home` or `Work` (`Patient.cs:62`; `Work=28`, `Home=29`)                             |
 | `cellPhoneNumber`    | string | Yes                      | `Patient.CellPhoneNumber` (`Patient.cs:60`)                                                    |
 | `dateOfBirth`        | string | `yyyy-MM-dd` (date only) | No                                                                                             | `Patient.DateOfBirth` (`Patient.cs:42`, `DateTime`, not null). ADDED 2026-07-27 at Case Tracker's request - for STAFF EYEBALL CROSS-CHECK only (name + DOB, to catch a mistyped Cal-Med ID before it creates an orphan folder). Explicitly NOT a key and not for automated matching. |
+| `street`             | string | Yes                      | ADDED 2026-08-08. Street address LINE 1. `Patient.Street`.                                     |
+| `unit`               | string | Yes                      | ADDED 2026-08-08. Apartment / suite number. Backed by `Patient.Address` - see the note below.  |
+| `city`               | string | Yes                      | ADDED 2026-08-08. `Patient.City`.                                                              |
+| `state`              | string | Yes                      | ADDED 2026-08-08. State NAME (e.g. `California`), not an id - same as the attorney sections.   |
+| `zipCode`            | string | Yes                      | ADDED 2026-08-08. `Patient.ZipCode`.                                                           |
 | `samePersonGroupKey` | string | No                       | 64-char lowercase hex. ADDED 2026-07-28 (Part 6). See below - read it before using this field. |
+
+**Patient address - read this before mapping it.** The portal's column names are MISLEADING and the
+wire names are the truth:
+
+- `street` is street line 1. It is backed by `Patient.Street`, the field the booking form labels
+  "Street" and fills through address autocomplete.
+- `unit` is the apartment / suite number. It is backed by the column `Patient.Address`, which the
+  booking form labels **"Unit #"**.
+
+We publish these as `street` / `unit` rather than mirroring our column names precisely so that a bare
+`"4B"` cannot be mistaken for a street address. An earlier draft of this section described the two
+fields as ambiguous and claimed there was no unit field; both statements were WRONG and are corrected
+here. There is no line-2 field beyond the unit.
 
 **`samePersonGroupKey` - what it is and is not.** Two appointments carrying the SAME value belong to the
 same person as far as the portal's booking deduplication is concerned, so your staff can be shown "these

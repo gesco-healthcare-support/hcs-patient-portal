@@ -144,9 +144,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         }
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
-        // Mark the change request Accepted; persist outcome + approver.
-        changeRequest.RequestStatus = RequestStatusType.Accepted;
-        changeRequest.ApprovedById = CurrentUser.Id;
+        // Mark the change request Accepted. Outcome, approver and timestamp move together.
+        changeRequest.MarkDecided(
+            RequestStatusType.Accepted, CurrentUser.Id, Clock.Now.ToUniversalTime());
         changeRequest.CancellationOutcome = input.CancellationOutcome;
         await PersistChangeRequestAsync(changeRequest);
 
@@ -203,8 +203,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         // Cancel-reject: parent appointment stayed at Approved during
         // the Pending lifecycle (Phase 15 design), so no parent-side
         // status revert needed. Just flip the change request and emit.
-        changeRequest.RequestStatus = RequestStatusType.Rejected;
-        changeRequest.RejectedById = CurrentUser.Id;
+        // Outcome, rejector and timestamp move together.
+        changeRequest.MarkDecided(
+            RequestStatusType.Rejected, CurrentUser.Id, Clock.Now.ToUniversalTime());
         changeRequest.RejectionNotes = input.Reason.Trim();
         await PersistChangeRequestAsync(changeRequest);
 
@@ -582,9 +583,10 @@ public class AppointmentChangeRequestsApprovalAppService :
             }
         }
 
-        // Mark change request Accepted; record outcome + the staff slot choice + approver.
-        changeRequest.RequestStatus = RequestStatusType.Accepted;
-        changeRequest.ApprovedById = CurrentUser.Id;
+        // Mark change request Accepted. Outcome, approver and timestamp move together; the
+        // staff slot choice is recorded separately below.
+        changeRequest.MarkDecided(
+            RequestStatusType.Accepted, CurrentUser.Id, Clock.Now.ToUniversalTime());
         changeRequest.CancellationOutcome = input.RescheduleOutcome;
         // Phase 4b (2026-08-04): record the staff-chosen slot whenever staff chose one, NOT only
         // when it overrode a requestor proposal. Since 4b the external path has no proposal to
@@ -668,9 +670,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         sourceAppointment.AppointmentStatus = AppointmentStatusType.Approved;
         await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
 
-        // Mark change request Rejected.
-        changeRequest.RequestStatus = RequestStatusType.Rejected;
-        changeRequest.RejectedById = CurrentUser.Id;
+        // Mark change request Rejected. Outcome, rejector and timestamp move together.
+        changeRequest.MarkDecided(
+            RequestStatusType.Rejected, CurrentUser.Id, Clock.Now.ToUniversalTime());
         changeRequest.RejectionNotes = input.Reason.Trim();
         await PersistChangeRequestAsync(changeRequest);
 
@@ -893,22 +895,17 @@ public class AppointmentChangeRequestsApprovalAppService :
 
     /// <summary>
     /// Saves a DECIDED change request. All four decision paths -- cancel approve/reject and
-    /// reschedule finalize/reject -- and nothing else reach this method, which is why the
-    /// <see cref="AppointmentChangeRequest.DecidedAt"/> stamp belongs here rather than repeated at
-    /// each of them.
+    /// reschedule finalize/reject -- and nothing else reach this method.
+    ///
+    /// <para>Phase 6 (2026-08-08): the <c>DecidedAt</c> stamp that used to live here MOVED into
+    /// <see cref="AppointmentChangeRequest.MarkDecided"/>. Stamping here was the flaw -- it put the
+    /// timestamp in a different place from the status and actor, so the three could be written
+    /// apart. The clock idiom is unchanged: <c>Clock.Now.ToUniversalTime()</c> at each caller, to
+    /// match the consent timestamps and because <c>AbpClockOptions.Kind</c> is Unspecified.</para>
     /// </summary>
-    private async Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
+    private Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {
-        // Phase 4d (2026-08-05). Stamped once and never overwritten: "when was this decided" must
-        // not drift if a later write touches the row. Clock.Now.ToUniversalTime() rather than
-        // DateTime.UtcNow to match the consent timestamps this sits beside -- DateTime.UtcNow in
-        // this file is only ever a transient event OccurredAt, never a persisted column.
-        if (changeRequest.RequestStatus is RequestStatusType.Accepted or RequestStatusType.Rejected)
-        {
-            changeRequest.DecidedAt ??= Clock.Now.ToUniversalTime();
-        }
-
-        await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+        return _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
     }
 
 }

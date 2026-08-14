@@ -162,7 +162,12 @@ public class ChangeRequestListFilterUnitTests
             cancellationReason: type == ChangeRequestType.Cancel ? "patient unavailable" : null,
             reScheduleReason: type == ChangeRequestType.Reschedule ? "scheduling conflict" : null,
             newDoctorAvailabilityId: type == ChangeRequestType.Reschedule ? Guid.NewGuid() : null);
-        request.RequestStatus = status;
+        // Phase 6 (2026-08-08): status is protected; Pending is the constructor's starting state
+        // and the other two are decisions, so reach them the way production does.
+        if (status != RequestStatusType.Pending)
+        {
+            request.MarkDecided(status, Guid.NewGuid(), DateTime.UtcNow);
+        }
 
         // FullAuditedAggregateRoot's CreationTime has a protected setter;
         // reflect to set for in-memory test data. The filter only reads
