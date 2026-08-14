@@ -176,6 +176,22 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public virtual EvaluationKind EvaluationKind { get; set; } = EvaluationKind.Evaluation;
 
+    /// <summary>
+    /// When this AME appointment passed its Joint Declaration Form deadline with no JDF uploaded.
+    /// Null means not overdue.
+    ///
+    /// <para>Added 2026-08-08 REPLACING an automatic cancellation. The daily job used to set such an
+    /// appointment to <c>CancelledNoBill</c> outright, with no human involved -- Adrian: "auto-cancel
+    /// without staff or anyone's involvement seems like a risky thing and we should not do that."
+    /// The appointment now KEEPS its status and carries this marker instead, so a person decides.</para>
+    ///
+    /// <para>Stamped ONCE and not refreshed on later runs, so it records when the deadline actually
+    /// passed rather than when the job last looked. CLEARED if a JDF is uploaded afterwards, because
+    /// the flag describes the CURRENT state -- a latched marker would keep nagging about a document
+    /// that has since arrived.</para>
+    /// </summary>
+    public virtual DateTime? JointDeclarationOverdueAt { get; set; }
+
     [CanBeNull]
     public virtual string? ReScheduleReason { get; set; }
 

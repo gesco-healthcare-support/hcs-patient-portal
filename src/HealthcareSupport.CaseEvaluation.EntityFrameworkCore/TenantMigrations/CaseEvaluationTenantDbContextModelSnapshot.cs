@@ -2165,6 +2165,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("bit")
                         .HasColumnName("IsPatientAlreadyExist");
 
+                    b.Property<DateTime?>("JointDeclarationOverdueAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("JointDeclarationOverdueAt");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");

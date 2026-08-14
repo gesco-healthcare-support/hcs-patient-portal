@@ -556,6 +556,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.RescheduledFromAppointmentId).HasColumnName(nameof(Appointment.RescheduledFromAppointmentId));
             b.HasIndex(x => x.RescheduledFromAppointmentId);
             b.Property(x => x.EvaluationKind).HasColumnName(nameof(Appointment.EvaluationKind));
+            b.Property(x => x.JointDeclarationOverdueAt).HasColumnName(nameof(Appointment.JointDeclarationOverdueAt));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
             b.Property(x => x.ReScheduledById).HasColumnName(nameof(Appointment.ReScheduledById));
             b.Property(x => x.CancellationReason).HasColumnName(nameof(Appointment.CancellationReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);

@@ -57,6 +57,8 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   isPatientAlreadyExist?: boolean;
   requestConfirmationNumber?: string;
   dueDate?: string | null;
+  /** When the JDF deadline passed with no form uploaded. Null means not overdue. */
+  jointDeclarationOverdueAt?: string | null;
   internalUserComments?: string | null;
   appointmentApproveDate?: string | null;
   appointmentStatus?: AppointmentStatusType;

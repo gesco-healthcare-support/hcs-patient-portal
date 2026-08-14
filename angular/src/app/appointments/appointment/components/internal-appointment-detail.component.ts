@@ -204,6 +204,17 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   protected get modifiedOn(): string | Date | null | undefined {
     return this.appointment?.appointment?.lastModificationTime;
   }
+  /**
+   * Whether the Joint Declaration Form passed its deadline (2026-08-08).
+   *
+   * Read off the DTO, NOT through fv(). The marker is an internal stamp, never an editable
+   * field, so no form control by that name exists -- fv() returned '' every time and the
+   * notice below it was unreachable. Found by running the job against the local stack: the
+   * row badge rendered and the detail stayed blank. The list reads the same DTO field.
+   */
+  protected get isJointDeclarationOverdue(): boolean {
+    return !!this.appointment?.appointment?.jointDeclarationOverdueAt;
+  }
   protected get patientDisplayName(): string {
     return [this.fv('patientFirstName'), this.fv('patientLastName')]
       .filter(Boolean)
