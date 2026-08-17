@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -929,6 +929,82 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             row.ShouldNotBeNull();
             row!.AppointmentInjuryDetails.Count.ShouldBe(1);
             row.AppointmentInjuryDetails[0].AppointmentInjuryDetail.ClaimNumber.ShouldBe("CLM-T6-LIST");
+        }
+    }
+
+    // =====================================================================
+    // Item 4 (2026-08-17) -- the re-book gates. Both refusals run BEFORE any
+    // create work, so they are reachable in this harness even though the
+    // success path is not (the SQLite rig cannot seed per-tenant catalogs).
+    // =====================================================================
+
+    [Fact]
+    public async Task CreateReBookAsync_WhenSourceDidHappen_IsRefused()
+    {
+        // Appointment1 is seeded Pending: it is still expected to take place, so there is
+        // nothing to replace. Re-booking it would strand a live appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateReBookAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            // The default fake principal is the internal "admin" role, so the staff-facing
+            // variant is expected -- but it is still a refusal, not an override.
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligibleStaffHint);
+        }
+    }
+
+    [Fact]
+    public async Task CreateReBookAsync_WhenSourceWasAlreadyReBooked_IsRefused()
+    {
+        // Guards an invariant the Case Tracker payload depends on: it finds the successor by
+        // querying for appointments pointing back at this one and takes the first match, on
+        // the documented assumption that at most one exists. Two would make that choice
+        // arbitrary AND unstable between pushes.
+        var sourceId = new Guid("e1a2b3c4-d5e6-4f70-8a1b-2c3d4e5f6a70");
+        var existingReBookId = new Guid("e1a2b3c4-d5e6-4f70-8a1b-2c3d4e5f6a71");
+        const string sourceConfirmation = "A90777";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentRepository.InsertAsync(
+                new Appointment(
+                    id: sourceId,
+                    patientId: PatientsTestData.Patient1Id,
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    locationId: LocationsTestData.Location1Id,
+                    doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                    appointmentDate: new DateTime(2027, 3, 1, 9, 0, 0, DateTimeKind.Utc),
+                    requestConfirmationNumber: sourceConfirmation,
+                    appointmentStatus: AppointmentStatusType.NoShow),
+                autoSave: true);
+
+            var alreadyReBooked = new Appointment(
+                id: existingReBookId,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 4, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: "A90778",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                RescheduledFromAppointmentId = sourceId,
+            };
+            await _appointmentRepository.InsertAsync(alreadyReBooked, autoSave: true);
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateReBookAsync(
+                    sourceConfirmation,
+                    BuildValidCreateDto()));
+
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked);
         }
     }
 }
