@@ -28,10 +28,37 @@ public static class SupersededReasonWire
     /// <summary>The appointment was rescheduled: it did not happen, and a replacement was created.</summary>
     public const string Rescheduled = "RESCHEDULED";
 
+    /// <summary>The patient did not arrive, and the appointment was later booked again.</summary>
+    public const string NoShow = "NO_SHOW";
+
+    /// <summary>
+    /// The patient arrived but was not evaluated, and the appointment was later booked again.
+    /// </summary>
+    public const string NotSeen = "NOT_SEEN";
+
+    /// <summary>
+    /// The appointment was cancelled and later booked again. Both billing outcomes collapse to
+    /// one value: this field explains WHY a case closed, not what it cost, and the billing
+    /// split already travels on <c>billingStatus</c>. Mirrors how the two rescheduled statuses
+    /// collapse to <see cref="Rescheduled"/>.
+    /// </summary>
+    public const string Cancelled = "CANCELLED";
+
     public static string ToWire(AppointmentStatusType status) => status switch
     {
         AppointmentStatusType.RescheduledNoBill => Rescheduled,
         AppointmentStatusType.RescheduledLate => Rescheduled,
+        // Item 4 (2026-08-17) -- the re-book flow. A re-booked appointment gains a successor
+        // exactly as a rescheduled one does, so AppointmentCoreResolver calls this with the
+        // source's status. Before these four, every re-book-eligible status threw here.
+        // NoShow / NotSeen are never pushed (the Case Tracker authors them, so echoing them
+        // back tells them only what they already know), which made the defect latent for those
+        // two -- but a CANCELLED appointment IS pushed, so a re-book from one would have broken
+        // that appointment's push outright.
+        AppointmentStatusType.NoShow => NoShow,
+        AppointmentStatusType.NotSeen => NotSeen,
+        AppointmentStatusType.CancelledNoBill => Cancelled,
+        AppointmentStatusType.CancelledLate => Cancelled,
         _ => throw new ArgumentOutOfRangeException(
             nameof(status), status, "This status supersedes nothing, so it has no superseded-reason wire value."),
     };
