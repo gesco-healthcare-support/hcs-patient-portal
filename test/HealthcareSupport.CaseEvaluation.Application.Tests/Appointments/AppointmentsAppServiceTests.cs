@@ -9,13 +9,16 @@ using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Volo.Abp.Validation;
 using Xunit;
 
@@ -40,6 +43,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected AppointmentsAppServiceTests()
     {
@@ -48,6 +52,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // =====================================================================
@@ -469,6 +474,117 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // Current code sets it to `Booked` immediately, which conflates the
         // pending-review and confirmed-booking states.
         return Task.CompletedTask;
+    }
+
+    // =====================================================================
+    // T5 (2026-08-14) -- caller-linkage on the confirmation-number create
+    // flows. Confirmation numbers are sequential (A00005, A00036, A00065) and
+    // therefore guessable. Before this gate, ReSubmitAsync and CreateRevalAsync
+    // validated the source's STATUS only: the accessor/creator check lived
+    // solely in GetByConfirmationNumberAsync, the read the UI happens to call
+    // first, so a caller who skipped the UI could create against a stranger's
+    // appointment.
+    //
+    // These assert on EntityNotFoundException's EntityType + Id rather than the
+    // bare type, because an unseeded catalog FK also raises
+    // EntityNotFoundException further down the create path -- asserting the type
+    // alone would pass for the wrong reason.
+    // =====================================================================
+
+    private static readonly Guid UnlinkedCallerUserId =
+        Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddd10");
+
+    [Fact]
+    public async Task ReSubmitAsync_WhenCallerIsNotLinkedToSource_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var ex = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.ReSubmitAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.EntityType.ShouldBe(typeof(Appointment));
+            ex.Id.ShouldBe(AppointmentsTestData.Appointment1RequestConfirmationNumber);
+        }
+    }
+
+    // Appointment2 / A90002 is seeded in TENANT B (Approved, the only
+    // reval-eligible status). Running these in TenantA would make the lookup
+    // miss and raise EntityNotFoundException(Appointment, "A90002") from the
+    // manager's not-found branch -- indistinguishable from the gate's refusal,
+    // so the test would pass without the gate existing at all.
+    [Fact]
+    public async Task CreateRevalAsync_WhenCallerIsNotLinkedToSource_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var ex = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.EntityType.ShouldBe(typeof(Appointment));
+            ex.Id.ShouldBe(AppointmentsTestData.Appointment2RequestConfirmationNumber);
+        }
+    }
+
+    [Fact]
+    public async Task CreateRevalAsync_UnknownAndUnlinkedSources_AreIndistinguishable()
+    {
+        // The refusal must not reveal whether the confirmation number exists,
+        // otherwise the endpoint is an oracle for enumerating them.
+        const string unknownConfirmationNumber = "A99999";
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var unlinked = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            var unknown = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    unknownConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            unlinked.GetType().ShouldBe(unknown.GetType());
+            unlinked.EntityType.ShouldBe(unknown.EntityType);
+
+            // A90002 is seeded Approved; the refusal must not disclose that.
+            unlinked.Message.ShouldNotContain(
+                AppointmentsTestData.Appointment2Status.ToString());
+        }
+    }
+
+    [Fact]
+    public async Task ReSubmitAsync_WhenCallerIsInternal_StillReachesTheStatusGate()
+    {
+        // Regression guard against over-tightening: the default fake principal is
+        // the internal "admin" role, so linkage passes and the STATUS gate is what
+        // refuses -- Appointment1 is seeded Pending, not Rejected.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.ReSubmitAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected);
+        }
     }
 
     // =====================================================================

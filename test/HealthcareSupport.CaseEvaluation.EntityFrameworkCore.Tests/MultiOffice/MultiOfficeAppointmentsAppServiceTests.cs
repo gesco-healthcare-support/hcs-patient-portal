@@ -135,7 +135,20 @@ public class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMultiOfficeT
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(13).AddMinutes(15));
 
-            var created = await _appointmentsAppService.CreateRevalAsync(sourceConfirmation, input);
+            // T5 (2026-08-14): CreateRevalAsync now refuses a source the caller is
+            // not a party to. This module depends on AbpTestBaseModule rather than
+            // CaseEvaluationTestBaseModule, so FakeCurrentPrincipalAccessor is NOT
+            // registered and the ambient caller is anonymous with no roles -- a
+            // principal that cannot occur in production, where
+            // [Authorize(Appointments.Create)] guarantees an authenticated user.
+            // The rig only reached this endpoint at all because it registers
+            // AddAlwaysAllowAuthorization(). State the caller explicitly: staff
+            // booking a re-evaluation against an approved appointment.
+            AppointmentDto created;
+            using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId, "admin"))
+            {
+                created = await _appointmentsAppService.CreateRevalAsync(sourceConfirmation, input);
+            }
 
             created.Id.ShouldNotBe(sourceId);
             var persisted = await _appointmentRepository.FindAsync(created.Id);

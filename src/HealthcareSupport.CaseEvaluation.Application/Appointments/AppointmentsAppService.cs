@@ -30,6 +30,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.Identity;
@@ -671,10 +672,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Create)]
     public virtual async Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
     {
-        // Validate the source via the Manager so the BusinessException
-        // gate runs against the live entity (in case the source's status
-        // mutated between the UI's lookup and this call).
-        var source = await _appointmentManager.LoadResubmitSourceAsync(sourceConfirmationNumber);
+        // T5: linkage first, then status -- both against ONE freshly loaded
+        // entity, so the BusinessException gate still runs against live state
+        // (in case the status mutated since the UI's lookup) without reading
+        // the row twice.
+        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        _appointmentManager.EnsureResubmitSourceEligible(source);
         return await CreateAppointmentInternalAsync(
             input,
             lifecycleFlow: AppointmentLifecycleFlow.ReSubmit,
@@ -693,12 +696,52 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // membership through the validator so admin / non-admin callers
         // see distinct error messages.
         var callerIsItAdmin = CurrentUser.IsInRole("IT Admin");
-        var source = await _appointmentManager.LoadRevalSourceAsync(sourceConfirmationNumber, callerIsItAdmin);
+
+        // T5: linkage first, then status -- see ReSubmitAsync.
+        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        _appointmentManager.EnsureRevalSourceEligible(source, callerIsItAdmin);
         return await CreateAppointmentInternalAsync(
             input,
             lifecycleFlow: AppointmentLifecycleFlow.Reval,
             sourceConfirmationNumber: source.RequestConfirmationNumber,
             originalAppointmentId: source.Id);
+    }
+
+    /// <summary>
+    /// T5 (2026-08-14) -- caller-linkage gate for the create flows that take a
+    /// source confirmation number (re-submit, re-evaluate, and re-book once it
+    /// lands).
+    ///
+    /// <para>Confirmation numbers are sequential (A00005, A00036, A00065) and so
+    /// are trivially guessable. Until this gate, these endpoints validated only
+    /// the source's STATUS: the accessor/creator check lived solely in
+    /// <see cref="GetByConfirmationNumberAsync"/>, which is merely the read the
+    /// UI happens to call first. A caller who skipped the UI and posted directly
+    /// could therefore create against a stranger's appointment.</para>
+    ///
+    /// <para>"No such number" and "exists but you are not a party to it" raise the
+    /// SAME <see cref="EntityNotFoundException"/> deliberately. Distinguishable
+    /// responses would let this endpoint be used to enumerate which confirmation
+    /// numbers exist, which is the disclosure the gate is here to prevent. This
+    /// runs BEFORE the status gate for the same reason -- a status-specific
+    /// refusal would leak that the appointment is real.</para>
+    ///
+    /// <para>Internal callers short-circuit inside the guard, so staff keep the
+    /// tenant-wide reach they already had; ABP's tenant filter still scopes the
+    /// lookup.</para>
+    ///
+    /// <para>Returns the loaded entity so the caller can hand it straight to the
+    /// manager's status gate -- the source is read exactly once per request.</para>
+    /// </summary>
+    private async Task<Appointment> LoadReadableSourceAsync(string sourceConfirmationNumber)
+    {
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null || !await _readAccessGuard.CanReadAsync(source))
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        return source;
     }
 
     /// <summary>
