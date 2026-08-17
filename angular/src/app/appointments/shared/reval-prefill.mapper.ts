@@ -24,9 +24,25 @@ import type {
  * carry NO entity ids, so the existing submit cascade
  * (persistInjuryDraftsIfProvided / createAppointmentAccessorsIfProvided)
  * inserts fresh child rows against the newly-created appointment. The patient
- * row is reused (it is a standalone entity, not a child of the appointment),
- * and the attorney entity ids ARE carried so the upsert reuses the same
- * ApplicantAttorney / DefenseAttorney record and only creates a new join.
+ * row is reused (it is a standalone entity, not a child of the appointment).
+ *
+ * Item 3 (2026-08-17): the attorney entity ids and concurrency stamps USED to be
+ * carried here so the server's upsert would reuse the same ApplicantAttorney /
+ * DefenseAttorney record. They no longer are, because that reuse came at a price.
+ * Supplying the id sends the upsert down its id-present branch
+ * (AppointmentsAppService.cs:1392), which writes the submitted values
+ * UNCONDITIONALLY -- so any field the booker left blank was blanked on a master
+ * record that other appointments also point at.
+ *
+ * Reuse is not lost. With no id the server matches on email instead
+ * (AppointmentsAppService.cs:1412), which merges (`input.X ?? existing.X`) and so
+ * preserves what the booker did not fill in. Email is the authoritative identity
+ * for a party (R2-2, 2026-06-22), and the wizard requires an attorney email
+ * whenever the attorney section is included, so the match is reliable. A
+ * genuinely different attorney falls through to CreateAsync on its own.
+ *
+ * The attorney search / pick flows in appointment-add.component.ts still set the
+ * ids, and should: there the booker explicitly chose an existing master.
  *
  * Custom-field VALUES are intentionally NOT prefilled (decision 2026-06-02):
  * the read DTO does not carry them and there is no read path yet. Tracked as
@@ -51,11 +67,6 @@ export interface RevalPrefillResult {
   formPatch: Record<string, unknown>;
   injuryDrafts: AppointmentInjuryDraft[];
   authorizedUsers: AppointmentAuthorizedUserDraft[];
-  /** Carried so the attorney upsert reuses the existing entity (new join only). */
-  applicantAttorneyId: string | null;
-  applicantAttorneyConcurrencyStamp: string | null;
-  defenseAttorneyId: string | null;
-  defenseAttorneyConcurrencyStamp: string | null;
 }
 
 /** Employer detail row -> employer* form controls. */
@@ -203,9 +214,5 @@ export function buildRevalPrefill(sources: RevalPrefillSources): RevalPrefillRes
     authorizedUsers: (sources.accessors ?? [])
       .map((a) => mapAccessorToDraft(a, sources.authorizedUserOptions ?? []))
       .filter((d): d is AppointmentAuthorizedUserDraft => d !== null),
-    applicantAttorneyId: applicantAttorney?.applicantAttorneyId ?? null,
-    applicantAttorneyConcurrencyStamp: applicantAttorney?.concurrencyStamp ?? null,
-    defenseAttorneyId: defenseAttorney?.defenseAttorneyId ?? null,
-    defenseAttorneyConcurrencyStamp: defenseAttorney?.concurrencyStamp ?? null,
   };
 }

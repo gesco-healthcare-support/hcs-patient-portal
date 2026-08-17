@@ -61,3 +61,43 @@ describe('buildRevalPrefill -- accessor role fallback (#3)', () => {
     expect(result.authorizedUsers[0].userRole).toBe('');
   });
 });
+
+/**
+ * Item 3 (2026-08-17): the prefill must NOT carry attorney entity ids or concurrency
+ * stamps.
+ *
+ * Carrying the id sent the server's upsert down its id-present branch, which writes the
+ * submitted values UNCONDITIONALLY -- so a field the booker happened to leave blank was
+ * blanked on the shared attorney master that other appointments also point at. Without
+ * the id the server resolves the same attorney by email instead, on a branch that merges
+ * (`input.X ?? existing.X`) and therefore preserves what the booker did not fill in.
+ *
+ * Reuse is not lost: email is the authoritative identity for a party (R2-2), and the
+ * booking wizard requires an attorney email whenever the attorney section is included.
+ */
+describe('buildRevalPrefill -- attorney entity identity (item 3)', () => {
+  const carriedKeys = [
+    'applicantAttorneyId',
+    'applicantAttorneyConcurrencyStamp',
+    'defenseAttorneyId',
+    'defenseAttorneyConcurrencyStamp',
+  ];
+
+  it('returns no attorney entity id or concurrency stamp', () => {
+    const result = buildRevalPrefill(baseSources());
+
+    for (const key of carriedKeys) {
+      expect(Object.prototype.hasOwnProperty.call(result, key)).toBe(false);
+    }
+  });
+
+  it('returns only the three payload fields', () => {
+    // Pins the whole result shape, so re-adding an entity id later is a visible break
+    // rather than a silent regression. Patient identity is deliberately absent here and
+    // always was -- the patient is reused through the component's currentPatientProfile
+    // / isPatientAlreadyExist, not through this mapper.
+    const result = buildRevalPrefill(baseSources());
+
+    expect(Object.keys(result).sort()).toEqual(['authorizedUsers', 'formPatch', 'injuryDrafts']);
+  });
+});

@@ -1460,10 +1460,14 @@ export class AppointmentAddComponent {
     this.form.patchValue(prefill.formPatch as any, { emitEvent: false });
     this.injuryDrafts = prefill.injuryDrafts;
     this.appointmentAuthorizedUsers = prefill.authorizedUsers;
-    this.applicantAttorneyId = prefill.applicantAttorneyId;
-    this.applicantAttorneyConcurrencyStamp = prefill.applicantAttorneyConcurrencyStamp;
-    this.defenseAttorneyId = prefill.defenseAttorneyId;
-    this.defenseAttorneyConcurrencyStamp = prefill.defenseAttorneyConcurrencyStamp;
+    // Item 3 (2026-08-17): the attorney entity ids are deliberately NOT carried from a
+    // prefill. Submitting one sends the server's upsert down its id-present branch, which
+    // writes the posted values unconditionally and so blanks any field the booker left
+    // empty ON THE SHARED master record. With no id the server matches the same attorney
+    // by email and merges instead. See reval-prefill.mapper.ts for the full reasoning.
+    //
+    // The search / pick handlers below still set these ids, and must: there the booker
+    // explicitly chose an existing master and expects their edits to update it.
     this.applyAttorneyEnabledFromSource(!!applicantAttorney, 'applicantAttorney');
     this.applyAttorneyEnabledFromSource(!!defenseAttorney, 'defenseAttorney');
 
