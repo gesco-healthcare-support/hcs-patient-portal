@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -63,6 +63,9 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 {
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
+    // Item 5 (2026-08-14): generated documents are a legal record, so the demographics
+    // they render come from the booked-time snapshot rather than the live patient row.
+    private readonly AppointmentPatientSnapshotResolver _patientSnapshotResolver;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<Location, Guid> _locationRepository;
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
@@ -85,6 +88,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     public PacketTokenResolver(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
+        AppointmentPatientSnapshotResolver patientSnapshotResolver,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<Location, Guid> locationRepository,
         IRepository<AppointmentType, Guid> appointmentTypeRepository,
@@ -106,6 +110,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
+        _patientSnapshotResolver = patientSnapshotResolver;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _locationRepository = locationRepository;
         _appointmentTypeRepository = appointmentTypeRepository;
@@ -131,7 +136,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         var appointment = await _appointmentRepository.GetAsync(appointmentId, cancellationToken: cancellationToken);
         var ctx = new PacketTokenContext();
 
-        await PopulatePatientAsync(ctx, appointment.PatientId, cancellationToken);
+        await PopulatePatientAsync(ctx, appointment, cancellationToken);
         await PopulateAppointmentAsync(ctx, appointment, cancellationToken);
         await PopulateEmployerAsync(ctx, appointmentId, cancellationToken);
         await PopulatePatientAttorneyAsync(ctx, appointmentId, cancellationToken);
@@ -145,24 +150,45 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 
     // -- Patient ----------------------------------------------------------
 
-    private async Task PopulatePatientAsync(PacketTokenContext ctx, Guid patientId, CancellationToken ct)
+    private async Task PopulatePatientAsync(PacketTokenContext ctx, Appointment appointment, CancellationToken ct)
     {
-        var patient = await _patientRepository.FindAsync(patientId, cancellationToken: ct);
-        if (patient == null)
+        // Item 5 (2026-08-14): a generated packet is a legal record of what was served, so
+        // it renders the demographics AS BOOKED. Before this, regenerating a packet after a
+        // patient edit silently produced a different document for the same appointment.
+        // Appointments booked before the snapshot shipped fall back to the live row inside
+        // the resolver.
+        var snapshot = await _patientSnapshotResolver.ResolveAsync(appointment, ct);
+        if (snapshot == null)
         {
             return;
         }
 
-        ctx.PatientFirstName = Upper(patient.FirstName);
-        ctx.PatientLastName = Upper(patient.LastName);
-        ctx.PatientMiddleName = Upper(patient.MiddleName);
-        ctx.PatientDateOfBirth = FormatDate(patient.DateOfBirth);
-        ctx.PatientSocialSecurityNumber = Upper(patient.SocialSecurityNumber);
-        ctx.PatientStreet = Upper(patient.Street);
-        ctx.PatientCity = Upper(patient.City);
-        ctx.PatientZipCode = Upper(patient.ZipCode);
-        ctx.PatientPhoneNumber = Upper(patient.PhoneNumber);
-        ctx.PatientState = await ResolveStateNameAsync(patient.StateId, ct);
+        ctx.PatientFirstName = Upper(snapshot.FirstName);
+        ctx.PatientLastName = Upper(snapshot.LastName);
+        ctx.PatientMiddleName = Upper(snapshot.MiddleName);
+        // The token is non-nullable and defaults to empty; a snapshot always carries a date
+        // of birth because Patient.DateOfBirth is non-nullable on the source row.
+        ctx.PatientDateOfBirth = snapshot.DateOfBirth.HasValue
+            ? FormatDate(snapshot.DateOfBirth.Value)
+            : string.Empty;
+        ctx.PatientSocialSecurityNumber = Upper(snapshot.SocialSecurityNumber);
+        ctx.PatientStreet = Upper(snapshot.Street);
+        ctx.PatientCity = Upper(snapshot.City);
+        ctx.PatientZipCode = Upper(snapshot.ZipCode);
+        ctx.PatientPhoneNumber = Upper(snapshot.PhoneNumber);
+        ctx.PatientState = await ResolveStateNameAsync(snapshot.StateId, ct);
+
+        // KNOWN PARTIAL: the interpreter LANGUAGE is not snapshotted. It is derived from
+        // Patient.OthersLanguageName / Patient.AppointmentLanguageId, neither of which is in
+        // the snapshot column set, so it is still read live and a later language change does
+        // still alter a regenerated packet. The interpreter VENDOR name below is snapshotted.
+        // Left as-is rather than widened here because the column set was agreed up front;
+        // closing it means two more columns and a third migration pair.
+        var patient = await _patientRepository.FindAsync(appointment.PatientId, cancellationToken: ct);
+        if (patient == null)
+        {
+            return;
+        }
 
         // Interpreter pair (NEW PQME-notice tokens; no OLD parity). The "needs interpreter" Yes/No
         // is NOT a stored field -- the appointment form persists only the interpreter-vendor name
@@ -172,7 +198,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         // else the AppointmentLanguage lookup name; null for the English default.
         var languageName = await ResolveInterpreterLanguageAsync(patient, ct);
         var (interpreterRequired, interpreterLanguage) =
-            DeriveInterpreter(languageName, patient.InterpreterVendorName);
+            DeriveInterpreter(languageName, snapshot.InterpreterVendorName);
         ctx.PatientInterpreterRequired = interpreterRequired;
         ctx.PatientInterpreterLanguage = interpreterLanguage;
     }

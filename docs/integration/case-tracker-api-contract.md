@@ -245,6 +245,28 @@ only the Cal-Med ID they enter can do that.
 
 ### `data.patient`
 
+**BOOKED-TIME, not current (2026-08-14).** Every field in this section reflects the patient AS THEY
+WERE when the appointment was booked. Editing the patient record afterwards does NOT change what an
+already-pushed appointment reports, and does not generate a push.
+
+Before this change these fields were read live, so a single correction to a patient silently
+rewrote what every one of their PRIOR appointments reported -- a past appointment would start
+claiming an address that was not the one it was served at. Appointments are a legal trail, so they
+now carry their own copy.
+
+Two consequences worth planning around:
+
+- A demographic correction reaches you only on appointments booked AFTER it, or on an existing
+  appointment that our staff subsequently edit (editing the appointment refreshes its copy). It is
+  therefore normal and correct for two appointments for the same person to carry different
+  addresses.
+- Appointments booked before 2026-08-14 were deliberately NOT backfilled -- we cannot know what a
+  patient's details were at the time, and stamping today's values onto a legal record would assert
+  a history we cannot support. Those keep reading live, so they behave as they always have.
+
+`samePersonGroupKey` is deliberately NOT frozen: it must keep identifying the same person across
+claims, so it is still computed from the current patient identity.
+
 | Key                  | Type   | Nullable                 | Source                                                                                         |
 | -------------------- | ------ | ------------------------ | ---------------------------------------------------------------------------------------------- |
 | `firstName`          | string | No                       | `Patient.FirstName` (`Patient.cs:29`)                                                          |
