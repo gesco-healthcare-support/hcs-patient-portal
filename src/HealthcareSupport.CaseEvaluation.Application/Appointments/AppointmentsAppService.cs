@@ -744,6 +744,37 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
+    /// Item 4 (2026-08-17) -- Re-book endpoint. Starts a NEW appointment from a prior one
+    /// that did NOT happen: cancelled, no-showed or not-seen.
+    ///
+    /// <para>Distinct from Reval, which follows up an appointment that DID happen, and from
+    /// ReSubmit, which re-enters a rejected request under its original confirmation number.
+    /// A re-book mints a fresh number and is a first evaluation
+    /// (<c>EvaluationKind.Evaluation</c>) that finally takes place.</para>
+    ///
+    /// <para>The link back is the REPLACEMENT chain
+    /// (<c>RescheduledFromAppointmentId</c>), not the re-eval chain. The Case Tracker's
+    /// patient matching already keys on it, so a re-book joins up on their side with no
+    /// change.</para>
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual async Task<AppointmentDto> CreateReBookAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
+    {
+        var callerIsInternal = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+
+        // Linkage first, then eligibility -- same ordering as the two flows above, so a
+        // status-specific refusal never confirms that a guessed confirmation number is real.
+        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        await _appointmentManager.EnsureReBookSourceEligibleAsync(source, callerIsInternal);
+        return await CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.ReBook,
+            sourceConfirmationNumber: source.RequestConfirmationNumber,
+            rescheduledFromAppointmentId: source.Id);
+    }
+
+    /// <summary>
     /// T5 (2026-08-14) -- caller-linkage gate for the create flows that take a
     /// source confirmation number (re-submit, re-evaluate, and re-book once it
     /// lands).
@@ -813,7 +844,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         AppointmentCreateDto input,
         AppointmentLifecycleFlow? lifecycleFlow,
         string? sourceConfirmationNumber,
-        Guid? originalAppointmentId = null)
+        Guid? originalAppointmentId = null,
+        Guid? rescheduledFromAppointmentId = null)
     {
         ValidateCreateGuids(input);
 
@@ -979,6 +1011,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (originalAppointmentId.HasValue)
         {
             appointment.OriginalAppointmentId = originalAppointmentId.Value;
+        }
+
+        // Item 4 (2026-08-17): a re-book links back on the REPLACEMENT chain, not the
+        // re-eval chain above. Appointment.cs documents the distinction and says of
+        // OriginalAppointmentId "do NOT overload this one again": a re-evaluated appointment
+        // HAPPENED and is followed up, whereas a re-booked one did NOT happen and is
+        // replaced. Setting this column is sufficient for the Case Tracker -- it derives the
+        // backward half (rescheduledFromConfirmationNumber) by lookup and the forward half
+        // (supersededByAppointmentId / supersededReason) by querying for successors.
+        if (rescheduledFromAppointmentId.HasValue)
+        {
+            appointment.RescheduledFromAppointmentId = rescheduledFromAppointmentId.Value;
         }
 
         // Case Tracker integration (2026-07-27): stamp the evaluation kind from the lifecycle flow

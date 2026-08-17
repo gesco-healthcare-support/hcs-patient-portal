@@ -333,6 +333,40 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.RevalSourceIncompleteFirstEvaluation";
 
     /// <summary>
+    /// Item 4 (2026-08-17) -- raised by the re-book path when the source appointment is not
+    /// in a status that did NOT happen. Only cancelled, no-showed and not-seen appointments
+    /// may be re-booked; an Approved one is still expected to take place, and a Rejected
+    /// request never became an appointment (that is the ReSubmit flow).
+    /// Localization key <c>Appointment:ReBookSourceNotEligible</c>.
+    /// </summary>
+    public const string AppointmentReBookSourceNotEligible =
+        "CaseEvaluation:Appointment.ReBookSourceNotEligible";
+
+    /// <summary>
+    /// Item 4 (2026-08-17) -- internal-staff variant of
+    /// <see cref="AppointmentReBookSourceNotEligible"/>. Mirrors the
+    /// <see cref="AppointmentRevalSourceNotApprovedAdminHint"/> precedent: staff see wording
+    /// aimed at them, but the override is NOT a free pass -- both codes are refusals.
+    /// Localization key <c>Appointment:ReBookSourceNotEligibleStaffHint</c>.
+    /// </summary>
+    public const string AppointmentReBookSourceNotEligibleStaffHint =
+        "CaseEvaluation:Appointment.ReBookSourceNotEligibleStaffHint";
+
+    /// <summary>
+    /// Item 4 (2026-08-17) -- raised when the source appointment has ALREADY been re-booked.
+    ///
+    /// <para>Not merely tidiness. The Case Tracker payload derives the forward half of the
+    /// replacement chain by querying for appointments whose
+    /// <c>RescheduledFromAppointmentId</c> points at this one, and takes the first match on
+    /// the documented assumption that at most one can exist. A second re-book would make
+    /// that choice arbitrary AND unstable between pushes, which would look to the receiver
+    /// like the link moving on its own.</para>
+    /// Localization key <c>Appointment:ReBookSourceAlreadyReBooked</c>.
+    /// </summary>
+    public const string AppointmentReBookSourceAlreadyReBooked =
+        "CaseEvaluation:Appointment.ReBookSourceAlreadyReBooked";
+
+    /// <summary>
     /// Phase 12 (2026-05-04) -- raised by
     /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
     /// when <c>ApproveAppointmentInput.PrimaryResponsibleUserId</c>

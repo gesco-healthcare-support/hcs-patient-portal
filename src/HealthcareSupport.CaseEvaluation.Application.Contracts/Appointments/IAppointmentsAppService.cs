@@ -131,6 +131,25 @@ public interface IAppointmentsAppService : IApplicationService
     Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
 
     /// <summary>
+    /// Item 4 (2026-08-17) -- starts a NEW appointment from a prior one that did NOT happen
+    /// (cancelled, no-showed or not-seen). Mints a fresh confirmation number, persists
+    /// <c>EvaluationKind.Evaluation</c>, and links back on the REPLACEMENT chain
+    /// (<c>RescheduledFromAppointmentId</c>) rather than the re-evaluation chain.
+    /// </summary>
+    /// <exception cref="Volo.Abp.Domain.Entities.EntityNotFoundException">
+    /// When no appointment matches the confirmation number, OR when the caller is not a party
+    /// to the one that does -- deliberately indistinguishable, so the endpoint cannot be used
+    /// to discover which confirmation numbers exist.
+    /// </exception>
+    /// <exception cref="Volo.Abp.BusinessException">
+    /// With code <c>AppointmentReBookSourceNotEligible</c> (or the
+    /// <c>...StaffHint</c> variant for internal callers) when the source is in a status that
+    /// cannot be re-booked, and <c>AppointmentReBookSourceAlreadyReBooked</c> when it has
+    /// already been re-booked once.
+    /// </exception>
+    Task<AppointmentDto> CreateReBookAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
+
+    /// <summary>
     /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003): returns
     /// the count of appointments in the current tenant whose
     /// <c>AppointmentStatus</c> is <c>Pending</c> -- the work queue an

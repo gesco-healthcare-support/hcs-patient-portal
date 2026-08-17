@@ -210,6 +210,17 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     }
 
     /// <summary>
+    /// Item 4 (2026-08-17) -- Re-book: start a new appointment from a prior one that did NOT
+    /// happen (cancelled, no-showed or not-seen).
+    /// </summary>
+    [HttpPost]
+    [Route("create-rebook/{sourceConfirmationNumber}")]
+    public virtual Task<AppointmentDto> CreateReBookAsync(string sourceConfirmationNumber, [FromBody] AppointmentCreateDto input)
+    {
+        return _appointmentsAppService.CreateReBookAsync(sourceConfirmationNumber, input);
+    }
+
+    /// <summary>
     /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003) -- pending
     /// appointments count for the sidebar badge. Permission gate
     /// (<c>Appointments.Edit</c>) lives on the AppService method;

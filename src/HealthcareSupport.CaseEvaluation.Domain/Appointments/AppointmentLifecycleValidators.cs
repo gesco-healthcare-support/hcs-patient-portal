@@ -88,6 +88,39 @@ public static class AppointmentLifecycleValidators
     /// to OLD's distinct messages (line 168 vs line 172); phase 5 adds a third that
     /// is not about approval at all.
     /// </summary>
+    /// <summary>
+    /// Item 4 (2026-08-17) -- Re-book is allowed only when the source appointment did NOT
+    /// happen: cancelled (either billing outcome) or an attendance outcome.
+    ///
+    /// <para>Deliberately NOT <c>Rejected</c> -- a rejected request never became an
+    /// appointment, and re-submitting it is the existing ReSubmit flow, which reuses the
+    /// original confirmation number rather than minting a new one.</para>
+    ///
+    /// <para>Deliberately NOT <c>Approved</c> either: an approved appointment is still
+    /// expected to happen, so there is nothing to replace. Re-booking one would strand a
+    /// live appointment.</para>
+    /// </summary>
+    public static bool CanCreateReBook(AppointmentStatusType sourceStatus)
+    {
+        return sourceStatus is AppointmentStatusType.CancelledNoBill
+            or AppointmentStatusType.CancelledLate
+            || IsAttendanceOutcome(sourceStatus);
+    }
+
+    /// <summary>
+    /// Returns the error code for a re-book rejection. Mirrors
+    /// <see cref="ResolveRevalRejectionCode"/>: internal staff get a distinct message, but
+    /// the override is NOT a free pass -- both codes describe a refusal.
+    /// </summary>
+    public static string ResolveReBookRejectionCode(
+        AppointmentStatusType sourceStatus,
+        bool callerIsInternal)
+    {
+        return callerIsInternal
+            ? CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligibleStaffHint
+            : CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligible;
+    }
+
     public static string ResolveRevalRejectionCode(
         AppointmentStatusType sourceStatus,
         EvaluationKind sourceKind,
@@ -141,6 +174,11 @@ public static class AppointmentLifecycleValidators
         {
             AppointmentLifecycleFlow.ReSubmit => sourceConfirmationNumber,
             AppointmentLifecycleFlow.Reval => newlyGeneratedConfirmationNumber,
+            // Item 4 (2026-08-17): a re-book mints its own number. The source still exists
+            // as a cancelled / no-showed / not-seen record and keeps its number, so sharing
+            // one would make the two indistinguishable in our lists and in the Case
+            // Tracker's folder labels.
+            AppointmentLifecycleFlow.ReBook => newlyGeneratedConfirmationNumber,
             _ => throw new System.ArgumentOutOfRangeException(nameof(flow), flow, "Unknown AppointmentLifecycleFlow."),
         };
     }
@@ -148,13 +186,26 @@ public static class AppointmentLifecycleValidators
 
 /// <summary>
 /// Discriminator passed to <see cref="AppointmentLifecycleValidators.ResolveConfirmationNumber"/>
-/// so the helper does not need a boolean flag at the call site. The two
-/// flows differ only in whether the source confirmation number is carried
-/// forward (<see cref="ReSubmit"/>) or replaced with a freshly generated
-/// one (<see cref="Reval"/>).
+/// so the helper does not need a boolean flag at the call site. The flows differ in
+/// whether the source confirmation number is carried forward (<see cref="ReSubmit"/>) or
+/// replaced with a freshly generated one (<see cref="Reval"/>, <see cref="ReBook"/>).
 /// </summary>
 public enum AppointmentLifecycleFlow
 {
     ReSubmit = 1,
     Reval = 2,
+
+    /// <summary>
+    /// Item 4 (2026-08-17) -- book again after an appointment that did NOT happen
+    /// (cancelled, no-showed or not-seen).
+    ///
+    /// <para>Deliberately a third flow rather than a widened Reval gate. Reval means
+    /// "follow-up to an exam that happened"; this is "the exam never happened, book it
+    /// again". Conflating them would corrupt <c>EvaluationKind</c>, which the Case Tracker
+    /// uses to label a case folder. A re-book yields <c>EvaluationKind.Evaluation</c> --
+    /// a first evaluation that finally takes place -- which
+    /// <c>EvaluationKindPolicy.FromLifecycleFlow</c> already produces for anything that is
+    /// not <see cref="Reval"/>, so no change was needed there.</para>
+    /// </summary>
+    ReBook = 3,
 }
