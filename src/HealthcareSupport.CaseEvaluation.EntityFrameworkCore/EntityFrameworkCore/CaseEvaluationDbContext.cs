@@ -1,4 +1,4 @@
-using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+﻿using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
@@ -523,6 +523,25 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.AppointmentApproveDate).HasColumnName(nameof(Appointment.AppointmentApproveDate));
             b.Property(x => x.AppointmentStatus).HasColumnName(nameof(Appointment.AppointmentStatus));
             b.Property(x => x.PatientEmail).HasColumnName(nameof(Appointment.PatientEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            // Patient snapshot (item 5, 2026-08-14) -- booked-time copy of the patient's
+            // demographics, so editing the shared Patient row cannot rewrite what a prior
+            // appointment reports. Nullable throughout: null means "booked before this
+            // shipped", and AppointmentPatientSnapshotResolver falls back to the live row.
+            b.Property(x => x.PatientFirstName).HasColumnName(nameof(Appointment.PatientFirstName)).HasMaxLength(PatientConsts.FirstNameMaxLength);
+            b.Property(x => x.PatientMiddleName).HasColumnName(nameof(Appointment.PatientMiddleName)).HasMaxLength(PatientConsts.MiddleNameMaxLength);
+            b.Property(x => x.PatientLastName).HasColumnName(nameof(Appointment.PatientLastName)).HasMaxLength(PatientConsts.LastNameMaxLength);
+            b.Property(x => x.PatientDateOfBirth).HasColumnName(nameof(Appointment.PatientDateOfBirth));
+            b.Property(x => x.PatientSocialSecurityNumber).HasColumnName(nameof(Appointment.PatientSocialSecurityNumber)).HasMaxLength(PatientConsts.SocialSecurityNumberMaxLength);
+            b.Property(x => x.PatientPhoneNumber).HasColumnName(nameof(Appointment.PatientPhoneNumber)).HasMaxLength(PatientConsts.PhoneNumberMaxLength);
+            b.Property(x => x.PatientCellPhoneNumber).HasColumnName(nameof(Appointment.PatientCellPhoneNumber)).HasMaxLength(PatientConsts.CellPhoneNumberMaxLength);
+            b.Property(x => x.PatientPhoneNumberTypeId).HasColumnName(nameof(Appointment.PatientPhoneNumberTypeId));
+            b.Property(x => x.PatientStreet).HasColumnName(nameof(Appointment.PatientStreet)).HasMaxLength(PatientConsts.StreetMaxLength);
+            b.Property(x => x.PatientApptNumber).HasColumnName(nameof(Appointment.PatientApptNumber)).HasMaxLength(PatientConsts.ApptNumberMaxLength);
+            b.Property(x => x.PatientCity).HasColumnName(nameof(Appointment.PatientCity)).HasMaxLength(PatientConsts.CityMaxLength);
+            b.Property(x => x.PatientStateId).HasColumnName(nameof(Appointment.PatientStateId));
+            b.Property(x => x.PatientZipCode).HasColumnName(nameof(Appointment.PatientZipCode)).HasMaxLength(PatientConsts.ZipCodeMaxLength);
+            b.Property(x => x.PatientGenderId).HasColumnName(nameof(Appointment.PatientGenderId));
+            b.Property(x => x.PatientInterpreterVendorName).HasColumnName(nameof(Appointment.PatientInterpreterVendorName)).HasMaxLength(PatientConsts.InterpreterVendorNameMaxLength);
             b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);

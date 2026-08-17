@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -186,7 +186,7 @@ public class IntakePayloadBuilderTests
         return new IntakePayloadBuilder(
             appointmentRepo,
             new AppointmentCoreResolver(appointmentRepo, slotRepo, typeRepo),
-            new PartyResolver(patientRepo, doctorRepo, stateRepo),
+            new PartyResolver(new AppointmentPatientSnapshotResolver(patientRepo), doctorRepo, stateRepo),
             new TenantLocationResolver(locationRepo, tenantStore, configuration),
             new DocumentListResolver(documentRepo, packetRepo, documentTypeRepo),
             new InjuryResolver(injuryRepo),

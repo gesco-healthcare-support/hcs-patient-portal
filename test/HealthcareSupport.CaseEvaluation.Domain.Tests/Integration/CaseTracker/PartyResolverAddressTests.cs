@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -83,7 +83,7 @@ public class PartyResolverAddressTests
             requestConfirmationNumber: "A00099",
             appointmentStatus: AppointmentStatusType.Approved);
 
-        return (new PartyResolver(patientRepo, Substitute.For<IRepository<Doctor, Guid>>(), stateRepo),
+        return (new PartyResolver(new AppointmentPatientSnapshotResolver(patientRepo), Substitute.For<IRepository<Doctor, Guid>>(), stateRepo),
                 appointment);
     }
 

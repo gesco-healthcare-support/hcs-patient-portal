@@ -21,16 +21,16 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class PartyResolver : ITransientDependency
 {
-    private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly AppointmentPatientSnapshotResolver _patientSnapshotResolver;
     private readonly IRepository<Doctor, Guid> _doctorRepository;
     private readonly IRepository<State, Guid> _stateRepository;
 
     public PartyResolver(
-        IRepository<Patient, Guid> patientRepository,
+        AppointmentPatientSnapshotResolver patientSnapshotResolver,
         IRepository<Doctor, Guid> doctorRepository,
         IRepository<State, Guid> stateRepository)
     {
-        _patientRepository = patientRepository;
+        _patientSnapshotResolver = patientSnapshotResolver;
         _doctorRepository = doctorRepository;
         _stateRepository = stateRepository;
     }
@@ -44,7 +44,12 @@ public class PartyResolver : ITransientDependency
             throw new ArgumentNullException(nameof(appointment));
         }
 
-        var patient = await _patientRepository.FindAsync(appointment.PatientId, cancellationToken: cancellationToken);
+        // Item 5 (2026-08-14): the payload is the RECORD of what was served, so it reads the
+        // booked-time snapshot rather than the live patient. Before this, editing a patient
+        // silently rewrote what every one of their PRIOR appointments reported to the Case
+        // Tracker. Appointments booked before the snapshot shipped fall back to the live row
+        // inside the resolver -- they were deliberately not backfilled.
+        var patient = await _patientSnapshotResolver.ResolveAsync(appointment, cancellationToken);
         if (patient == null)
         {
             return new IntakePatientSection();
@@ -52,13 +57,20 @@ public class PartyResolver : ITransientDependency
 
         return new IntakePatientSection
         {
-            FirstName = patient.FirstName,
+            // The snapshot type is nullable throughout because the columns are; the WIRE
+            // contract keeps these five non-null, so they coalesce to the same empty-string
+            // default the section already declared. A snapshot written by ApplyPatientSnapshot
+            // always carries them -- Patient.FirstName / LastName / Email / DateOfBirth /
+            // PhoneNumberTypeId are all non-nullable on the source row.
+            FirstName = patient.FirstName ?? string.Empty,
             MiddleName = patient.MiddleName,
-            LastName = patient.LastName,
-            Email = patient.Email,
-            DateOfBirth = IntegrationTimestamp.ToDateOnly(patient.DateOfBirth),
+            LastName = patient.LastName ?? string.Empty,
+            Email = patient.Email ?? string.Empty,
+            DateOfBirth = patient.DateOfBirth.HasValue
+                ? IntegrationTimestamp.ToDateOnly(patient.DateOfBirth.Value)
+                : string.Empty,
             PhoneNumber = patient.PhoneNumber,
-            PhoneNumberType = patient.PhoneNumberTypeId.ToString(),
+            PhoneNumberType = patient.PhoneNumberTypeId?.ToString() ?? string.Empty,
             CellPhoneNumber = patient.CellPhoneNumber,
             // Phase 6 (2026-08-08). The column names are BACKWARDS relative to what they hold:
             // Patient.Street is street line 1, and the "Unit #" the forms ask for is NOT Street.
@@ -69,18 +81,16 @@ public class PartyResolver : ITransientDependency
             // booking wizard and send-back wrote Address. Sending Address alone meant a staff
             // CORRECTION never reached the Case Tracker while the stale booking-time value kept
             // going out -- found by the phase 6 live gate. Both writers now target ApptNumber.
-            //
-            // The fallback is for HISTORY, not for the split: existing rows were deliberately not
-            // backfilled (that data is a legal record and telling a real unit from a duplicated
-            // street line is guesswork), so units booked before this change still live in Address.
-            // ApptNumber wins because it is where corrections land. Drop the fallback once no row
-            // holds a unit in Address.
-            Unit = patient.ApptNumber ?? patient.Address,
+            // The ApptNumber-then-Address coalesce now lives in the snapshot resolver's live-read
+            // branch, so it still covers rows booked before either fix.
+            Unit = patient.Unit,
             City = patient.City,
             State = await ResolveStateNameAsync(patient.StateId, cancellationToken),
             ZipCode = patient.ZipCode,
             // Hashed and office-salted, never the raw Patient.Id -- see SamePersonGroupKey for why.
-            SamePersonGroupKey = SamePersonGroupKey.Compute(appointment.TenantId, patient.Id),
+            // Taken from the APPOINTMENT, not the snapshot: the group key must keep identifying the
+            // same person across claims, so it is deliberately not frozen with the demographics.
+            SamePersonGroupKey = SamePersonGroupKey.Compute(appointment.TenantId, appointment.PatientId),
         };
     }
 
