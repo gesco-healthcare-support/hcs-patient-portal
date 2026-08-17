@@ -914,16 +914,41 @@ change, so no duplicate staff notification. Retry freely.
 
 ### Conflicts (`409`)
 
-`409` means the portal will not apply this outcome and nothing changed. It is safe to log and stop;
-retrying will not help. Causes:
+**CORRECTED 2026-08-14.** This section previously said a `409` was safe to log and stop because
+retrying would not help. That is wrong for two of the causes, and it contradicted the separate
+MinIO reply which said to retry with backoff. **Retry with backoff is correct**; the paragraphs
+below replace both statements and are the position to build against.
+
+`409` means the portal did not apply the outcome and nothing changed. `Approved` is the ONLY status
+an attendance outcome may be recorded from, so a `409` always means the appointment was in some
+other status when you called. Whether retrying helps depends on which, and the response
+deliberately does not tell you which -- hence a bounded retry rather than a decision at the call
+site.
+
+**Transient -- a retry WILL eventually succeed:**
+
+- **Pending** -- not approved yet. Once our staff approve it, the same call succeeds.
+- **InfoRequested** -- our staff asked the requester for more information. It returns to `Pending`,
+  then to `Approved`.
+
+Both mean your report simply arrived ahead of our staff, which is a race rather than a data error.
+Under the old "log and stop" advice a no-show reported in that window was dropped silently and
+never reached us -- that is the defect this correction fixes.
+
+**Permanent -- a retry will NEVER succeed:**
 
 - The appointment already carries the OTHER attendance outcome.
-- The appointment is not `Approved`. Only an `Approved` appointment can take an attendance outcome,
-  and that is a domain rule rather than a conservative default:
-  - A **Pending** appointment was never approved, so no case exists on your side to report against.
-  - A **RescheduleRequested** appointment has no agreed date yet, so the patient is not expected to
-    attend anything. Finalize the reschedule first; the NEW appointment is the one that can no-show.
-  - A **Cancelled** or **Rescheduled** appointment is already terminal.
+- **RescheduleRequested** -- no agreed date yet, so the patient is not expected to attend anything.
+  It can only become `RescheduledNoBill` or `RescheduledLate`; there is no transition back to
+  `Approved`. Finalize the reschedule; the NEW appointment is the one that can no-show.
+- **CancellationRequested**, **Cancelled**, **Rescheduled**, **Rejected** -- terminal, or only able
+  to reach a terminal status.
+- **CheckedIn**, **CheckedOut**, **Billed** -- the patient did attend.
+
+**What to do.** Retry with backoff, bounded on ELAPSED TIME rather than attempt count, because the
+transient window is "until our staff approve" and that is wall-clock. Retrying costs nothing: the
+idempotency rule above makes a repeat of the same outcome a `200` no-op, and a permanent `409`
+simply keeps answering `409` until your bound expires. Log at that point, with the appointment id.
 
 `409` is the one failure the portal reports distinguishably. Everything else collapses to `404` so a
 token holder cannot enumerate offices or appointments; by the time a `409` is possible you have
