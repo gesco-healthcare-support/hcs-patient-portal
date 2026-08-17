@@ -158,15 +158,31 @@ public class AppointmentManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
         }
 
+        EnsureResubmitSourceEligible(source);
+        return source;
+    }
+
+    /// <summary>
+    /// Status half of <see cref="LoadResubmitSourceAsync"/>, split out by T5
+    /// (2026-08-14) so a caller that has ALREADY loaded the source can gate it
+    /// without a second lookup.
+    ///
+    /// <para>The app service needs the entity before this runs, because the
+    /// caller-linkage check has to refuse a source the caller is not a party to
+    /// BEFORE any status-specific message is produced -- such a message would
+    /// otherwise confirm that a guessed confirmation number is real.</para>
+    /// </summary>
+    public virtual void EnsureResubmitSourceEligible(Appointment source)
+    {
+        Check.NotNull(source, nameof(source));
+
         if (!AppointmentLifecycleValidators.CanResubmit(source.AppointmentStatus))
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected)
-                .WithData("confirmationNumber", sourceConfirmationNumber)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
                 .WithData("status", source.AppointmentStatus);
         }
-
-        return source;
     }
 
     /// <summary>
@@ -191,17 +207,30 @@ public class AppointmentManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
         }
 
+        EnsureRevalSourceEligible(source, callerIsItAdmin);
+        return source;
+    }
+
+    /// <summary>
+    /// Status half of <see cref="LoadRevalSourceAsync"/>, split out by T5
+    /// (2026-08-14) for the same reason as
+    /// <see cref="EnsureResubmitSourceEligible"/>: the caller-linkage check must
+    /// run against the loaded entity before any status-specific refusal is
+    /// produced, and re-loading to do so would read the row twice.
+    /// </summary>
+    public virtual void EnsureRevalSourceEligible(Appointment source, bool callerIsItAdmin)
+    {
+        Check.NotNull(source, nameof(source));
+
         if (!AppointmentLifecycleValidators.CanCreateReval(
                 source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin))
         {
             var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(
                 source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin);
             throw new BusinessException(errorCode)
-                .WithData("confirmationNumber", sourceConfirmationNumber)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
                 .WithData("status", source.AppointmentStatus);
         }
-
-        return source;
     }
 
     public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)
