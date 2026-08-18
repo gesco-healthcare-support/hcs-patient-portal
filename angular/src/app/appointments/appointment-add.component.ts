@@ -13,7 +13,7 @@ import {
 } from 'rxjs/operators';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
-import { attorneyQuestionText } from './shared/attorney-question.util';
+import { attorneyQuestionText, resolveAttorneyToggleAction } from './shared/attorney-question.util';
 import {
   clearPrefillSection,
   defaultPrefillSelection,
@@ -918,7 +918,18 @@ export class AppointmentAddComponent {
     // via setValue(true, { emitEvent: false }) so this subscriber does
     // not re-fire. Toggling ON has no modal -- the section just opens.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      if (!enabled) {
+      // Item 5 (2026-08-18): this used to test `!enabled`, which was safe while the control
+      // was only ever true or false. It now has a THIRD state -- null, meaning the booker has
+      // not answered yet -- and null is falsy, so a bare `!enabled` popped the "are you sure
+      // there is no attorney?" confirmation at booker over a form they had not touched.
+      // Unanswered is not a No: it asks nothing and simply leaves the section unrequired.
+      const action = resolveAttorneyToggleAction(enabled);
+      if (action === 'unanswered') {
+        this.applyConditionalEmailValidator('applicantAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'applicantAttorney', false);
+        return;
+      }
+      if (action === 'confirm-off') {
         this.confirmAaToggleOff();
         return;
       }
@@ -930,7 +941,15 @@ export class AppointmentAddComponent {
     // F4 (2026-05-29): DA toggle-off mirrors AA -- pop the confirmation modal
     // instead of silently dropping the section. Toggling ON has no modal.
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      if (!enabled) {
+      // Item 5 (2026-08-18): unanswered (null) is not the same as "no defense attorney".
+      // See the applicant subscriber above for why a bare `!enabled` is now wrong.
+      const action = resolveAttorneyToggleAction(enabled);
+      if (action === 'unanswered') {
+        this.applyConditionalEmailValidator('defenseAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'defenseAttorney', false);
+        return;
+      }
+      if (action === 'confirm-off') {
         this.confirmDaToggleOff();
         return;
       }

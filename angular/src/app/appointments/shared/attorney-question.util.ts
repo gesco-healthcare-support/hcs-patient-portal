@@ -41,6 +41,25 @@ export function shouldAskAttorneyQuestion(
 }
 
 /**
+ * What the enabled-flag subscriber should do for a given value.
+ *
+ * Exists because item 5 gave that flag a THIRD state and a bare `!enabled` could not see it.
+ * Before, the flag was only ever true or false, so `!enabled` meant "the booker turned this
+ * off" and popping an "are you sure there is no attorney?" confirmation was right. Now null
+ * means "not asked yet", null is falsy, and that same branch fired the confirmation over a
+ * form the booker had not touched -- a modal demanding they confirm a decision they had never
+ * made. Caught by a live check, not by the build.
+ */
+export type AttorneyToggleAction = 'unanswered' | 'confirm-off' | 'enable';
+
+export function resolveAttorneyToggleAction(enabled: unknown): AttorneyToggleAction {
+  if (enabled === null || enabled === undefined) {
+    return 'unanswered';
+  }
+  return enabled ? 'enable' : 'confirm-off';
+}
+
+/**
  * The question text.
  *
  * Patients get jargon-free wording on the applicant section because they are the one audience

@@ -1,5 +1,6 @@
 import {
   attorneyQuestionText,
+  resolveAttorneyToggleAction,
   shouldAskAttorneyQuestion,
   type AttorneyQuestionViewer,
 } from './attorney-question.util';
@@ -26,6 +27,25 @@ const STAFF: AttorneyQuestionViewer = {
 };
 
 describe('attorney-question.util', () => {
+  describe('resolveAttorneyToggleAction', () => {
+    // REGRESSION (2026-08-18, found live): removing the flag's `true` default gave it a third
+    // state, and the subscriber's `!enabled` test could not tell "not answered yet" from
+    // "answered No". A fresh booking therefore opened with a confirmation modal asking the
+    // booker to confirm removing an attorney they had never been asked about.
+    it('treats not-yet-answered as a question to leave alone, not a No', () => {
+      expect(resolveAttorneyToggleAction(null)).toBe('unanswered');
+      expect(resolveAttorneyToggleAction(undefined)).toBe('unanswered');
+    });
+
+    it('treats an explicit No as a toggle-off worth confirming', () => {
+      expect(resolveAttorneyToggleAction(false)).toBe('confirm-off');
+    });
+
+    it('treats Yes as enabling the section', () => {
+      expect(resolveAttorneyToggleAction(true)).toBe('enable');
+    });
+  });
+
   describe('shouldAskAttorneyQuestion', () => {
     it('does not ask an applicant attorney whether the applicant is represented', () => {
       expect(shouldAskAttorneyQuestion('applicantAttorney', APPLICANT_ATTORNEY)).toBe(false);
