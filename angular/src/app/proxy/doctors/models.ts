@@ -8,7 +8,7 @@ export interface CreatePracticeInput {
   doctorFirstName: string;
   doctorLastName: string;
   doctorEmail: string;
-  displayName?: string;
+  displayName?: string | null;
 }
 
 export interface DoctorCreateDto {

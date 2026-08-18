@@ -35,16 +35,45 @@ public class SupersededReasonWireTests
     }
 
     /// <summary>
-    /// Throws rather than returning a default, unlike <see cref="BillingStatusWire"/>. This is only
-    /// called once a successor is known to exist, so an unmapped status means the CALLER's guard is
-    /// wrong -- and a confidently wrong cause is worse for the receiver than no cause at all.
+    /// Item 4 (2026-08-17) -- the re-book flow gives a cancelled / no-showed / not-seen
+    /// appointment a successor, exactly as a reschedule does, so these four statuses now have a
+    /// cause to report.
+    ///
+    /// <para>Before this they threw, and three of them were reachable: a re-book from a CANCELLED
+    /// source would have broken that source's next push outright, because cancelled appointments
+    /// ARE pushed. NoShow and NotSeen were latent only because we never push them.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.NoShow, "NO_SHOW")]
+    [InlineData(AppointmentStatusType.NotSeen, "NOT_SEEN")]
+    [InlineData(AppointmentStatusType.CancelledNoBill, "CANCELLED")]
+    [InlineData(AppointmentStatusType.CancelledLate, "CANCELLED")]
+    public void Re_book_closures_report_why_the_appointment_did_not_happen(
+        AppointmentStatusType status,
+        string expected)
+    {
+        SupersededReasonWire.ToWire(status).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Both_cancellation_outcomes_collapse_to_one_cause()
+    {
+        // Same reasoning as the two reschedule statuses above: this field explains WHY a case
+        // closed, not what it cost. The billing split travels on billingStatus.
+        SupersededReasonWire.ToWire(AppointmentStatusType.CancelledNoBill)
+            .ShouldBe(SupersededReasonWire.ToWire(AppointmentStatusType.CancelledLate));
+    }
+
+    /// <summary>
+    /// Still throws for statuses that genuinely supersede nothing, unlike
+    /// <see cref="BillingStatusWire"/>. This is only called once a successor is known to exist, so
+    /// an unmapped status means the CALLER's guard is wrong -- and a confidently wrong cause is
+    /// worse for the receiver than no cause at all.
     /// </summary>
     [Theory]
     [InlineData(AppointmentStatusType.Approved)]
     [InlineData(AppointmentStatusType.Pending)]
-    [InlineData(AppointmentStatusType.CancelledNoBill)]
-    [InlineData(AppointmentStatusType.CancelledLate)]
-    [InlineData(AppointmentStatusType.NoShow)]
+    [InlineData(AppointmentStatusType.Rejected)]
     public void A_status_that_supersedes_nothing_throws(AppointmentStatusType status)
     {
         Should.Throw<ArgumentOutOfRangeException>(() => SupersededReasonWire.ToWire(status));

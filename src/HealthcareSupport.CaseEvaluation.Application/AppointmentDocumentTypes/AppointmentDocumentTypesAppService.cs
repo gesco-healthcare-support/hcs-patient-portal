@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,11 +19,17 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
     protected AppointmentDocumentTypeManager _appointmentDocumentTypeManager;
     protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
 
+    // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
+    // raw BusinessException reaches the SPA with no message and the toast falls back to
+    // ABP's generic "An internal error occurred during your request!".
+    protected DomainErrorTranslator _domainErrorTranslator;
     public AppointmentDocumentTypesAppService(
         IAppointmentDocumentTypeRepository appointmentDocumentTypeRepository,
         AppointmentDocumentTypeManager appointmentDocumentTypeManager,
-        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository,
+        DomainErrorTranslator domainErrorTranslator)
     {
+        _domainErrorTranslator = domainErrorTranslator;
         _appointmentDocumentTypeRepository = appointmentDocumentTypeRepository;
         _appointmentDocumentTypeManager = appointmentDocumentTypeManager;
         _appointmentDocumentRepository = appointmentDocumentRepository;
@@ -65,7 +71,16 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        await _appointmentDocumentTypeManager.DeleteAsync(id);
+        // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
+        // so the client gets the real reason instead of ABP's generic internal-error text.
+        try
+        {
+            await _appointmentDocumentTypeManager.DeleteAsync(id);
+        }
+        catch (BusinessException ex)
+        {
+            throw _domainErrorTranslator.Translate(ex);
+        }
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Create)]
@@ -92,7 +107,16 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
         // reserved rows, but a hand-crafted request must not delete one.
         foreach (var id in appointmentDocumentTypeIds)
         {
-            await _appointmentDocumentTypeManager.DeleteAsync(id);
+            // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
+            // so the client gets the real reason instead of ABP's generic internal-error text.
+            try
+            {
+                await _appointmentDocumentTypeManager.DeleteAsync(id);
+            }
+            catch (BusinessException ex)
+            {
+                throw _domainErrorTranslator.Translate(ex);
+            }
         }
     }
 

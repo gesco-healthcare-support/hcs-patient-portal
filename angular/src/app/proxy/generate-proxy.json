@@ -12982,6 +12982,31 @@
                   }
                 },
                 {
+                  "name": "CreateReBookAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "sourceConfirmationNumber",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+                  }
+                },
+                {
                   "name": "GetPendingCountAsync",
                   "parametersOnMethod": [],
                   "returnValue": {
@@ -14441,6 +14466,63 @@
               "name": "CreateRevalAsync",
               "httpMethod": "POST",
               "url": "api/app/appointments/create-reval/{sourceConfirmationNumber}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "sourceConfirmationNumber",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "sourceConfirmationNumber",
+                  "name": "sourceConfirmationNumber",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
+            },
+            "CreateReBookAsyncBySourceConfirmationNumberAndInput": {
+              "uniqueName": "CreateReBookAsyncBySourceConfirmationNumberAndInput",
+              "name": "CreateReBookAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointments/create-rebook/{sourceConfirmationNumber}",
               "supportedVersions": [],
               "parametersOnMethod": [
                 {
@@ -20962,6 +21044,102 @@
               },
               "allowAnonymous": false,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalUsers.ExternalUserController"
+            }
+          }
+        },
+        "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceController": {
+          "controllerName": "CaseTrackerAttendance",
+          "controllerGroupName": "CaseTrackerAttendance",
+          "isRemoteService": false,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceController",
+          "interfaces": [],
+          "actions": {
+            "RecordAttendanceAsyncByTenantIdAndAppointmentIdAndRequestAndCancellationToken": {
+              "uniqueName": "RecordAttendanceAsyncByTenantIdAndAppointmentIdAndRequestAndCancellationToken",
+              "name": "RecordAttendanceAsync",
+              "httpMethod": "POST",
+              "url": "api/integration/offices/{tenantId}/appointments/{appointmentId}/attendance",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "tenantId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "request",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceRequest, HealthcareSupport.CaseEvaluation.HttpApi.Host",
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceRequest",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceRequest",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "cancellationToken",
+                  "typeAsString": "System.Threading.CancellationToken, System.Private.CoreLib",
+                  "type": "System.Threading.CancellationToken",
+                  "typeSimple": "System.Threading.CancellationToken",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "tenantId",
+                  "name": "tenantId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "request",
+                  "name": "request",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceRequest",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceRequest",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Microsoft.AspNetCore.Mvc.IActionResult",
+                "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceController"
             }
           }
         },
@@ -52441,6 +52619,19 @@
           "isNullable": true
         },
         {
+          "name": "JointDeclarationOverdueAt",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "InternalUserComments",
           "jsonName": null,
           "type": "System.String",
@@ -55349,6 +55540,28 @@
           "maximum": null,
           "regex": null,
           "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Controllers.Integration.CaseTrackerAttendanceRequest": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Outcome",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
@@ -59955,7 +60168,8 @@
         "Billed",
         "RescheduleRequested",
         "CancellationRequested",
-        "InfoRequested"
+        "InfoRequested",
+        "NotSeen"
       ],
       "enumValues": [
         1,
@@ -59971,7 +60185,8 @@
         11,
         12,
         13,
-        14
+        14,
+        15
       ],
       "genericArguments": null,
       "properties": null

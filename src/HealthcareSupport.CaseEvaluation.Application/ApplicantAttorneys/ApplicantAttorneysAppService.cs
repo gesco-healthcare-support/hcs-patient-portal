@@ -1,4 +1,4 @@
-using HealthcareSupport.CaseEvaluation.Shared;
+﻿using HealthcareSupport.CaseEvaluation.Shared;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
@@ -32,8 +32,14 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
     protected IRepository<AppointmentApplicantAttorney, Guid> _appointmentApplicantAttorneyRepository;
 
-    public ApplicantAttorneysAppService(IApplicantAttorneyRepository applicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentApplicantAttorney, Guid> appointmentApplicantAttorneyRepository)
+    // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
+    // raw BusinessException reaches the SPA with no message and the toast falls back to
+    // ABP's generic "An internal error occurred during your request!".
+    protected DomainErrorTranslator _domainErrorTranslator;
+    public ApplicantAttorneysAppService(IApplicantAttorneyRepository applicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentApplicantAttorney, Guid> appointmentApplicantAttorneyRepository,
+        DomainErrorTranslator domainErrorTranslator)
     {
+        _domainErrorTranslator = domainErrorTranslator;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _stateRepository = stateRepository;
@@ -99,7 +105,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
         // this applicant attorney (AppointmentApplicantAttorney.ApplicantAttorneyId).
         if (await _appointmentApplicantAttorneyRepository.AnyAsync(x => x.ApplicantAttorneyId == id))
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.ApplicantAttorneyInUse);
+            throw _domainErrorTranslator.Refuse(CaseEvaluationDomainErrorCodes.ApplicantAttorneyInUse);
         }
         await _applicantAttorneyRepository.DeleteAsync(id);
     }

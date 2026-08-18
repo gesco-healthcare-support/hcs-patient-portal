@@ -54,6 +54,89 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? PatientEmail { get; set; }
 
+    // ---- Patient snapshot (item 5, 2026-08-14) --------------------------------
+    //
+    // WHY these are denormalised onto the appointment: an appointment is a legal
+    // trail of what was served on a given date, so editing the shared Patient row
+    // must not retroactively change what a PRIOR appointment reports. Attorneys,
+    // employers, insurers and claim examiners already had this property; the
+    // patient was the one party still read live, which meant a corrected address
+    // silently rewrote every past appointment's Case Tracker payload and every
+    // regenerated packet.
+    //
+    // NULL means "booked before this shipped" -- read the live patient instead.
+    // Existing rows were deliberately NOT backfilled: we cannot know what a
+    // patient's details were when a May appointment was booked, and stamping
+    // today's values onto a legal record would assert a history we cannot
+    // support. Resolve through AppointmentPatientSnapshotResolver so the fallback
+    // lives in exactly one place.
+    //
+    // Records freeze; CONTACT does not. Notification and recipient resolution keep
+    // reading the live patient, because a reminder must reach the address the
+    // patient has today. PatientEmail above predates this block and stays a
+    // contact-side value.
+    //
+    // Patient.Id is deliberately absent: SamePersonGroupKey is computed from it and
+    // is what tells the Case Tracker two claims belong to the same person.
+
+    [CanBeNull]
+    public virtual string? PatientFirstName { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientMiddleName { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientLastName { get; set; }
+
+    public virtual DateTime? PatientDateOfBirth { get; set; }
+
+    /// <summary>
+    /// Copied because <c>PacketTokenResolver</c> renders the SSN on generated
+    /// documents; without it a frozen packet still moves when the patient record is
+    /// corrected. This duplicates PHI into a table that already holds names, dates
+    /// of birth and addresses for the same person, under the same tenant isolation.
+    /// It must NOT become a second, unaudited read path -- the audited reveal
+    /// endpoint (<c>PatientsAppService.GetFullSsnAsync</c>) remains the only way to
+    /// read an unmasked SSN through the API.
+    /// </summary>
+    [CanBeNull]
+    public virtual string? PatientSocialSecurityNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientPhoneNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientCellPhoneNumber { get; set; }
+
+    public virtual PhoneNumberType? PatientPhoneNumberTypeId { get; set; }
+
+    /// <summary>Street line 1. See <see cref="PatientApptNumber"/> for the unit.</summary>
+    [CanBeNull]
+    public virtual string? PatientStreet { get; set; }
+
+    /// <summary>
+    /// The unit / suite number. Named after <c>Patient.ApptNumber</c>, which is where
+    /// every writer now puts it; the legacy <c>Patient.Address</c> column held units
+    /// on older rows and is not snapshotted, because no new booking writes it.
+    /// </summary>
+    [CanBeNull]
+    public virtual string? PatientApptNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientCity { get; set; }
+
+    public virtual Guid? PatientStateId { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientZipCode { get; set; }
+
+    public virtual Gender? PatientGenderId { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientInterpreterVendorName { get; set; }
+
+    // ---- end patient snapshot ------------------------------------------------
+
     [CanBeNull]
     public virtual string? ApplicantAttorneyEmail { get; set; }
 

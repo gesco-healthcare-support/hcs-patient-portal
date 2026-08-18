@@ -134,10 +134,10 @@ build; the deployed integration base must be `https://...` (`:7272` = API, `:80`
 | `evaluationKind`                    | string | `"EVAL"` or `"RE_EVAL"`                                                                     | No                                                        | NEW persisted column `Appointment.EvaluationKind` (DECIDED 2026-07-23), set at booking from the lifecycle flow (`AppointmentLifecycleFlow.Reval` -> `RE_EVAL`, else `EVAL`; `AppointmentsAppService.cs:686`). Persisted rather than derived from `OriginalAppointmentId` because that field is still documented as a reschedule-chain link, so a future change could silently mislabel; the dual-context EF migration is happening anyway for the outbox table, so this rides along. Backfill: all existing rows = `EVAL` (verified: 0 re-evals exist in production). |
 | `previousAppointmentId`             | string | GUID                                                                                        | Yes (present only on re-eval)                             | `Appointment.OriginalAppointmentId`, set to the source appointment on a reval (`AppointmentsAppService.cs:882-884`). THE machine link from a re-eval to its original; null for first evaluations.                                                                                                                                                                                                                                                                                                                                                                     |
 | `previousConfirmationNumber`        | string | `A`+5 digits                                                                                | Yes (present only on re-eval)                             | The SOURCE appointment's `RequestConfirmationNumber`. Human-readable aid for Case Tracker staff only - NOT a key (a re-eval gets its OWN fresh confirmation number, and the value is per-office sequential so it repeats across offices). Match on `previousAppointmentId`.                                                                                                                                                                                                                                                                                           |
-| `rescheduledFromAppointmentId`      | string | GUID                                                                                        | Yes (present only on a reschedule REPLACEMENT)            | ADDED 2026-08-06. `Appointment.RescheduledFromAppointmentId` (`Appointment.cs`), set when a reschedule is finalized. THE machine link from a replacement back to the appointment it replaced. **A SEPARATE FIELD FROM `previousAppointmentId` ON PURPOSE**: that one means RE-EVALUATION, and the two relationships differ -- a re-evaluated appointment HAPPENED and is followed up, a rescheduled one did NOT happen and is replaced. Conflating them is what `evaluationKind` was introduced to prevent.                                                           |
+| `rescheduledFromAppointmentId`      | string | GUID                                                                                        | Yes (present on a reschedule REPLACEMENT or a RE-BOOK)   | ADDED 2026-08-06, WIDENED 2026-08-17. `Appointment.RescheduledFromAppointmentId` (`Appointment.cs`), set when a reschedule is finalized. THE machine link from a replacement back to the appointment it replaced. **A SEPARATE FIELD FROM `previousAppointmentId` ON PURPOSE**: that one means RE-EVALUATION, and the two relationships differ -- a re-evaluated appointment HAPPENED and is followed up, a rescheduled one did NOT happen and is replaced. Conflating them is what `evaluationKind` was introduced to prevent. WIDENED 2026-08-17: the RE-BOOK flow (a new booking made from an appointment that was cancelled, no-showed or not-seen) also links back on this field, and deliberately so -- like a reschedule and unlike a re-evaluation, its source did NOT happen and IS being replaced. A re-book carries `evaluationKind: EVAL`, because it is a first evaluation that finally takes place. Nothing changes on your side: this is the field your patient matching already keys on.                                                           |
 | `rescheduledFromConfirmationNumber` | string | `A`+5 digits                                                                                | Yes (present only on a reschedule REPLACEMENT)            | ADDED 2026-08-06. The REPLACED appointment's `RequestConfirmationNumber`. Display aid only, exactly like `previousConfirmationNumber` - a replacement gets its own fresh number and the value is per-office sequential. Match on `rescheduledFromAppointmentId`.                                                                                                                                                                                                                                                                                                      |
 | `supersededByAppointmentId`         | string | GUID                                                                                        | Yes (present only on an appointment that WAS replaced)    | ADDED 2026-08-06. The forward half of the pair: the appointment that replaced this one. Resolved by looking up the appointment whose `rescheduledFromAppointmentId` is this one. Sent so a closed case is not a dead end - without it the old case says it was rescheduled but not to where.                                                                                                                                                                                                                                                                          |
-| `supersededReason`                  | string | `"RESCHEDULED"`                                                                             | Yes (present exactly when `supersededByAppointmentId` is) | ADDED 2026-08-06. WHY the case was superseded, derived from the terminal status by `SupersededReasonWire` (`Domain/Integration/CaseTracker/Payload/SupersededReasonWire.cs`). Explicit rather than inferred, because the id alone cannot say what kind of successor it is, and inferring it would require the successor's own message to have already arrived. Currently only `RESCHEDULED`; a future no-show replacement flow will add `NO_SHOW`, so treat this as an open value set and store it verbatim.                                                          |
+| `supersededReason`                  | string | `"RESCHEDULED"`                                                                             | Yes (present exactly when `supersededByAppointmentId` is) | ADDED 2026-08-06. WHY the case was superseded, derived from the terminal status by `SupersededReasonWire` (`Domain/Integration/CaseTracker/Payload/SupersededReasonWire.cs`). Explicit rather than inferred, because the id alone cannot say what kind of successor it is, and inferring it would require the successor's own message to have already arrived. EXTENDED 2026-08-17 by the re-book flow, which is the "future no-show replacement flow" this note anticipated. Values are now `RESCHEDULED` (the appointment was rescheduled), `NO_SHOW` (the patient did not arrive), `NOT_SEEN` (the patient arrived but was not evaluated) and `CANCELLED` (the appointment was cancelled), in each case followed by a NEW booking made from it. Both cancellation outcomes collapse to `CANCELLED` exactly as both reschedule outcomes collapse to `RESCHEDULED`: this field explains WHY a case closed, not what it cost -- the billing split travels on `billingStatus`. Still an open value set; store it verbatim.                                                          |
 | `changeRequestedBySide`             | string | `"SIDE_A"` / `"SIDE_B"`                                                                     | Yes                                                       | ADDED 2026-08-08. Which side asked for the most recent change. Side A = patient + applicant attorney; Side B = defense attorney + claim examiner. NULL means STAFF initiated the change, so no party requested it -- do not read null as "unknown".                                                                                                                                                                                                                                                                                                                   |
 | `changeRequestType`                 | string | `"CANCEL"` / `"RESCHEDULE"`                                                                 | Yes                                                       | ADDED 2026-08-08. What was asked for. Null only when the appointment has never had a change request.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `changeRequestedAtUtc`              | string | ISO-8601 UTC                                                                                | Yes                                                       | ADDED 2026-08-08. When the change was REQUESTED.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -244,6 +244,28 @@ only the Cal-Med ID they enter can do that.
 | `durationMinutes`      | int    | minutes                     | No       | DERIVED = `ToTime - FromTime` (`DoctorAvailability.cs:20-22`). No stored duration.                     |
 
 ### `data.patient`
+
+**BOOKED-TIME, not current (2026-08-14).** Every field in this section reflects the patient AS THEY
+WERE when the appointment was booked. Editing the patient record afterwards does NOT change what an
+already-pushed appointment reports, and does not generate a push.
+
+Before this change these fields were read live, so a single correction to a patient silently
+rewrote what every one of their PRIOR appointments reported -- a past appointment would start
+claiming an address that was not the one it was served at. Appointments are a legal trail, so they
+now carry their own copy.
+
+Two consequences worth planning around:
+
+- A demographic correction reaches you only on appointments booked AFTER it, or on an existing
+  appointment that our staff subsequently edit (editing the appointment refreshes its copy). It is
+  therefore normal and correct for two appointments for the same person to carry different
+  addresses.
+- Appointments booked before 2026-08-14 were deliberately NOT backfilled -- we cannot know what a
+  patient's details were at the time, and stamping today's values onto a legal record would assert
+  a history we cannot support. Those keep reading live, so they behave as they always have.
+
+`samePersonGroupKey` is deliberately NOT frozen: it must keep identifying the same person across
+claims, so it is still computed from the current patient identity.
 
 | Key                  | Type   | Nullable                 | Source                                                                                         |
 | -------------------- | ------ | ------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -914,16 +936,41 @@ change, so no duplicate staff notification. Retry freely.
 
 ### Conflicts (`409`)
 
-`409` means the portal will not apply this outcome and nothing changed. It is safe to log and stop;
-retrying will not help. Causes:
+**CORRECTED 2026-08-14.** This section previously said a `409` was safe to log and stop because
+retrying would not help. That is wrong for two of the causes, and it contradicted the separate
+MinIO reply which said to retry with backoff. **Retry with backoff is correct**; the paragraphs
+below replace both statements and are the position to build against.
+
+`409` means the portal did not apply the outcome and nothing changed. `Approved` is the ONLY status
+an attendance outcome may be recorded from, so a `409` always means the appointment was in some
+other status when you called. Whether retrying helps depends on which, and the response
+deliberately does not tell you which -- hence a bounded retry rather than a decision at the call
+site.
+
+**Transient -- a retry WILL eventually succeed:**
+
+- **Pending** -- not approved yet. Once our staff approve it, the same call succeeds.
+- **InfoRequested** -- our staff asked the requester for more information. It returns to `Pending`,
+  then to `Approved`.
+
+Both mean your report simply arrived ahead of our staff, which is a race rather than a data error.
+Under the old "log and stop" advice a no-show reported in that window was dropped silently and
+never reached us -- that is the defect this correction fixes.
+
+**Permanent -- a retry will NEVER succeed:**
 
 - The appointment already carries the OTHER attendance outcome.
-- The appointment is not `Approved`. Only an `Approved` appointment can take an attendance outcome,
-  and that is a domain rule rather than a conservative default:
-  - A **Pending** appointment was never approved, so no case exists on your side to report against.
-  - A **RescheduleRequested** appointment has no agreed date yet, so the patient is not expected to
-    attend anything. Finalize the reschedule first; the NEW appointment is the one that can no-show.
-  - A **Cancelled** or **Rescheduled** appointment is already terminal.
+- **RescheduleRequested** -- no agreed date yet, so the patient is not expected to attend anything.
+  It can only become `RescheduledNoBill` or `RescheduledLate`; there is no transition back to
+  `Approved`. Finalize the reschedule; the NEW appointment is the one that can no-show.
+- **CancellationRequested**, **Cancelled**, **Rescheduled**, **Rejected** -- terminal, or only able
+  to reach a terminal status.
+- **CheckedIn**, **CheckedOut**, **Billed** -- the patient did attend.
+
+**What to do.** Retry with backoff, bounded on ELAPSED TIME rather than attempt count, because the
+transient window is "until our staff approve" and that is wall-clock. Retrying costs nothing: the
+idempotency rule above makes a repeat of the same outcome a `200` no-op, and a permanent `409`
+simply keeps answering `409` until your bound expires. Log at that point, with the appointment id.
 
 `409` is the one failure the portal reports distinguishably. Everything else collapses to `404` so a
 token holder cannot enumerate offices or appointments; by the time a `409` is possible you have

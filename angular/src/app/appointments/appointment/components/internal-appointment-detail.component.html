@@ -163,6 +163,12 @@
                 Re-request
               </button>
             }
+            @if (canReBook) {
+              <button class="af-btn af-btn--glass" type="button" (click)="reBook()">
+                <app-icon name="refresh" [size]="15" />
+                Book again
+              </button>
+            }
             <button class="af-btn af-btn--glass" type="button" (click)="enterEdit()">
               <app-icon name="doc" [size]="15" />
               Edit details

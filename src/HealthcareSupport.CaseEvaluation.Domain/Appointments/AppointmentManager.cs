@@ -158,15 +158,31 @@ public class AppointmentManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
         }
 
+        EnsureResubmitSourceEligible(source);
+        return source;
+    }
+
+    /// <summary>
+    /// Status half of <see cref="LoadResubmitSourceAsync"/>, split out by T5
+    /// (2026-08-14) so a caller that has ALREADY loaded the source can gate it
+    /// without a second lookup.
+    ///
+    /// <para>The app service needs the entity before this runs, because the
+    /// caller-linkage check has to refuse a source the caller is not a party to
+    /// BEFORE any status-specific message is produced -- such a message would
+    /// otherwise confirm that a guessed confirmation number is real.</para>
+    /// </summary>
+    public virtual void EnsureResubmitSourceEligible(Appointment source)
+    {
+        Check.NotNull(source, nameof(source));
+
         if (!AppointmentLifecycleValidators.CanResubmit(source.AppointmentStatus))
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected)
-                .WithData("confirmationNumber", sourceConfirmationNumber)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
                 .WithData("status", source.AppointmentStatus);
         }
-
-        return source;
     }
 
     /// <summary>
@@ -191,17 +207,90 @@ public class AppointmentManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
         }
 
+        EnsureRevalSourceEligible(source, callerIsItAdmin);
+        return source;
+    }
+
+    /// <summary>
+    /// Status half of <see cref="LoadRevalSourceAsync"/>, split out by T5
+    /// (2026-08-14) for the same reason as
+    /// <see cref="EnsureResubmitSourceEligible"/>: the caller-linkage check must
+    /// run against the loaded entity before any status-specific refusal is
+    /// produced, and re-loading to do so would read the row twice.
+    /// </summary>
+    public virtual void EnsureRevalSourceEligible(Appointment source, bool callerIsItAdmin)
+    {
+        Check.NotNull(source, nameof(source));
+
         if (!AppointmentLifecycleValidators.CanCreateReval(
                 source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin))
         {
             var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(
                 source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin);
             throw new BusinessException(errorCode)
-                .WithData("confirmationNumber", sourceConfirmationNumber)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+    }
+
+    /// <summary>
+    /// Item 4 (2026-08-17) -- Re-book gate. Looks up the source by confirmation number and
+    /// validates it is one this flow may replace.
+    ///
+    /// <para>Mirrors the load / ensure split the other two flows use, so the caller can run
+    /// its linkage check against the loaded entity before any status-specific refusal is
+    /// produced -- a status message would otherwise confirm that a guessed confirmation
+    /// number is real.</para>
+    /// </summary>
+    public virtual async Task<Appointment> LoadReBookSourceAsync(
+        string sourceConfirmationNumber,
+        bool callerIsInternal)
+    {
+        Check.NotNullOrWhiteSpace(sourceConfirmationNumber, nameof(sourceConfirmationNumber));
+
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        await EnsureReBookSourceEligibleAsync(source, callerIsInternal);
+        return source;
+    }
+
+    /// <summary>
+    /// The two re-book gates: the source must be one that did NOT happen, and it must not
+    /// have been re-booked already.
+    ///
+    /// <para>Asynchronous, unlike its Reval and ReSubmit siblings, because the
+    /// already-re-booked check is a query rather than a property read. That check is not
+    /// tidiness: the Case Tracker payload derives the forward half of the replacement chain
+    /// by querying for appointments pointing back at this one and takes the first match, on
+    /// the documented assumption that at most one exists. A second re-book would make that
+    /// choice arbitrary and unstable between pushes.</para>
+    /// </summary>
+    public virtual async Task EnsureReBookSourceEligibleAsync(Appointment source, bool callerIsInternal)
+    {
+        Check.NotNull(source, nameof(source));
+
+        if (!AppointmentLifecycleValidators.CanCreateReBook(source.AppointmentStatus))
+        {
+            var errorCode = AppointmentLifecycleValidators.ResolveReBookRejectionCode(
+                source.AppointmentStatus, callerIsInternal);
+            throw new BusinessException(errorCode)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
                 .WithData("status", source.AppointmentStatus);
         }
 
-        return source;
+        var existingReBooks = await _appointmentRepository.GetListAsync(
+            a => a.RescheduledFromAppointmentId == source.Id);
+        if (existingReBooks.Count > 0)
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
     }
 
     public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)

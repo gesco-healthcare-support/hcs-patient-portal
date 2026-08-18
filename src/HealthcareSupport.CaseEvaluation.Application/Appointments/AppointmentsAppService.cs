@@ -30,6 +30,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.Identity;
@@ -318,6 +319,42 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// See <see cref="HealthcareSupport.CaseEvaluation.Patients.SsnVisibility"/>
     /// and docs/plans/2026-05-29-ssn-redact-on-type.md.
     /// </summary>
+    /// <summary>
+    /// Item 5 (2026-08-14) -- copies the patient's demographics onto the appointment so
+    /// it reports what was true AT BOOKING TIME rather than whatever the shared
+    /// <see cref="Patient"/> row says today.
+    ///
+    /// <para>Called on create AND on appointment update, mirroring how
+    /// <see cref="Appointment.PatientEmail"/> already behaves. Deliberately NOT called
+    /// when a patient is edited directly -- that is the entire point: a correction to
+    /// the patient master must not reach an appointment already on the record.</para>
+    ///
+    /// <para><see cref="Patient.Id"/> is not copied. <c>SamePersonGroupKey</c> is
+    /// computed from it and is what tells the Case Tracker that two claims belong to
+    /// the same person.</para>
+    /// </summary>
+    private static void ApplyPatientSnapshot(Appointment appointment, Patient patient)
+    {
+        appointment.PatientFirstName = patient.FirstName;
+        appointment.PatientMiddleName = patient.MiddleName;
+        appointment.PatientLastName = patient.LastName;
+        appointment.PatientDateOfBirth = patient.DateOfBirth;
+        appointment.PatientSocialSecurityNumber = patient.SocialSecurityNumber;
+        appointment.PatientPhoneNumber = patient.PhoneNumber;
+        appointment.PatientCellPhoneNumber = patient.CellPhoneNumber;
+        appointment.PatientPhoneNumberTypeId = patient.PhoneNumberTypeId;
+        appointment.PatientStreet = patient.Street;
+        // ApptNumber is the unit. The legacy Address column held units on older rows, so
+        // it is coalesced here for patients created before that fix; every current writer
+        // targets ApptNumber.
+        appointment.PatientApptNumber = patient.ApptNumber ?? patient.Address;
+        appointment.PatientCity = patient.City;
+        appointment.PatientStateId = patient.StateId;
+        appointment.PatientZipCode = patient.ZipCode;
+        appointment.PatientGenderId = patient.GenderId;
+        appointment.PatientInterpreterVendorName = patient.InterpreterVendorName;
+    }
+
     private static void ApplyPatientSsnVisibility(AppointmentWithNavigationPropertiesDto dto)
     {
         if (dto?.Patient == null)
@@ -671,10 +708,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Create)]
     public virtual async Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
     {
-        // Validate the source via the Manager so the BusinessException
-        // gate runs against the live entity (in case the source's status
-        // mutated between the UI's lookup and this call).
-        var source = await _appointmentManager.LoadResubmitSourceAsync(sourceConfirmationNumber);
+        // T5: linkage first, then status -- both against ONE freshly loaded
+        // entity, so the BusinessException gate still runs against live state
+        // (in case the status mutated since the UI's lookup) without reading
+        // the row twice.
+        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        _appointmentManager.EnsureResubmitSourceEligible(source);
         return await CreateAppointmentInternalAsync(
             input,
             lifecycleFlow: AppointmentLifecycleFlow.ReSubmit,
@@ -693,12 +732,83 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // membership through the validator so admin / non-admin callers
         // see distinct error messages.
         var callerIsItAdmin = CurrentUser.IsInRole("IT Admin");
-        var source = await _appointmentManager.LoadRevalSourceAsync(sourceConfirmationNumber, callerIsItAdmin);
+
+        // T5: linkage first, then status -- see ReSubmitAsync.
+        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        _appointmentManager.EnsureRevalSourceEligible(source, callerIsItAdmin);
         return await CreateAppointmentInternalAsync(
             input,
             lifecycleFlow: AppointmentLifecycleFlow.Reval,
             sourceConfirmationNumber: source.RequestConfirmationNumber,
             originalAppointmentId: source.Id);
+    }
+
+    /// <summary>
+    /// Item 4 (2026-08-17) -- Re-book endpoint. Starts a NEW appointment from a prior one
+    /// that did NOT happen: cancelled, no-showed or not-seen.
+    ///
+    /// <para>Distinct from Reval, which follows up an appointment that DID happen, and from
+    /// ReSubmit, which re-enters a rejected request under its original confirmation number.
+    /// A re-book mints a fresh number and is a first evaluation
+    /// (<c>EvaluationKind.Evaluation</c>) that finally takes place.</para>
+    ///
+    /// <para>The link back is the REPLACEMENT chain
+    /// (<c>RescheduledFromAppointmentId</c>), not the re-eval chain. The Case Tracker's
+    /// patient matching already keys on it, so a re-book joins up on their side with no
+    /// change.</para>
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual async Task<AppointmentDto> CreateReBookAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
+    {
+        var callerIsInternal = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+
+        // Linkage first, then eligibility -- same ordering as the two flows above, so a
+        // status-specific refusal never confirms that a guessed confirmation number is real.
+        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        await _appointmentManager.EnsureReBookSourceEligibleAsync(source, callerIsInternal);
+        return await CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.ReBook,
+            sourceConfirmationNumber: source.RequestConfirmationNumber,
+            rescheduledFromAppointmentId: source.Id);
+    }
+
+    /// <summary>
+    /// T5 (2026-08-14) -- caller-linkage gate for the create flows that take a
+    /// source confirmation number (re-submit, re-evaluate, and re-book once it
+    /// lands).
+    ///
+    /// <para>Confirmation numbers are sequential (A00005, A00036, A00065) and so
+    /// are trivially guessable. Until this gate, these endpoints validated only
+    /// the source's STATUS: the accessor/creator check lived solely in
+    /// <see cref="GetByConfirmationNumberAsync"/>, which is merely the read the
+    /// UI happens to call first. A caller who skipped the UI and posted directly
+    /// could therefore create against a stranger's appointment.</para>
+    ///
+    /// <para>"No such number" and "exists but you are not a party to it" raise the
+    /// SAME <see cref="EntityNotFoundException"/> deliberately. Distinguishable
+    /// responses would let this endpoint be used to enumerate which confirmation
+    /// numbers exist, which is the disclosure the gate is here to prevent. This
+    /// runs BEFORE the status gate for the same reason -- a status-specific
+    /// refusal would leak that the appointment is real.</para>
+    ///
+    /// <para>Internal callers short-circuit inside the guard, so staff keep the
+    /// tenant-wide reach they already had; ABP's tenant filter still scopes the
+    /// lookup.</para>
+    ///
+    /// <para>Returns the loaded entity so the caller can hand it straight to the
+    /// manager's status gate -- the source is read exactly once per request.</para>
+    /// </summary>
+    private async Task<Appointment> LoadReadableSourceAsync(string sourceConfirmationNumber)
+    {
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null || !await _readAccessGuard.CanReadAsync(source))
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        return source;
     }
 
     /// <summary>
@@ -734,7 +844,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         AppointmentCreateDto input,
         AppointmentLifecycleFlow? lifecycleFlow,
         string? sourceConfirmationNumber,
-        Guid? originalAppointmentId = null)
+        Guid? originalAppointmentId = null,
+        Guid? rescheduledFromAppointmentId = null)
     {
         ValidateCreateGuids(input);
 
@@ -885,6 +996,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
+        // Item 5 (2026-08-14): freeze the patient's demographics onto the appointment
+        // for the same reason the emails above are snapshotted -- the appointment is a
+        // legal record of what was served, so a later edit to the shared Patient row
+        // must not rewrite it. See AppointmentPatientSnapshotResolver.
+        ApplyPatientSnapshot(appointment, patient);
         // 2026-06-09: per-appointment Referred By (optional; not derived from the patient).
         appointment.RefferedBy = input.RefferedBy;
 
@@ -895,6 +1011,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (originalAppointmentId.HasValue)
         {
             appointment.OriginalAppointmentId = originalAppointmentId.Value;
+        }
+
+        // Item 4 (2026-08-17): a re-book links back on the REPLACEMENT chain, not the
+        // re-eval chain above. Appointment.cs documents the distinction and says of
+        // OriginalAppointmentId "do NOT overload this one again": a re-evaluated appointment
+        // HAPPENED and is followed up, whereas a re-booked one did NOT happen and is
+        // replaced. Setting this column is sufficient for the Case Tracker -- it derives the
+        // backward half (rescheduledFromConfirmationNumber) by lookup and the forward half
+        // (supersededByAppointmentId / supersededReason) by querying for successors.
+        if (rescheduledFromAppointmentId.HasValue)
+        {
+            appointment.RescheduledFromAppointmentId = rescheduledFromAppointmentId.Value;
         }
 
         // Case Tracker integration (2026-07-27): stamp the evaluation kind from the lifecycle flow
@@ -1117,6 +1245,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
         appointment.RefferedBy = input.RefferedBy;
+        // Item 5 (2026-08-14): refresh the snapshot here too. The property being
+        // protected is "an edit to the shared patient never reaches a PRIOR
+        // appointment", not immutability -- a typo caught while editing THIS booking
+        // should still be fixable on it. Mirrors how PatientEmail above already
+        // behaves. The patient is loaded here because the update path works from
+        // input.PatientId and never needed the row before.
+        var snapshotPatient = await _patientRepository.FindAsync(input.PatientId);
+        if (snapshotPatient != null)
+        {
+            ApplyPatientSnapshot(appointment, snapshotPatient);
+        }
+
         await _appointmentRepository.UpdateAsync(appointment);
 
         // B1 (2026-05-05) -- replace-all custom-field answers. OLD's edit path

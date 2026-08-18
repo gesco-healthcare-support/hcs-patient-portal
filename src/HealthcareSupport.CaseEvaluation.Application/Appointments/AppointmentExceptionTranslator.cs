@@ -91,6 +91,12 @@ public sealed class AppointmentExceptionTranslator : ITransientDependency
             => "Appointment:RevalSourceNotApprovedAdminHint",
         CaseEvaluationDomainErrorCodes.AppointmentRevalSourceIncompleteFirstEvaluation
             => "Appointment:RevalSourceIncompleteFirstEvaluation",
+        CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligible
+            => "Appointment:ReBookSourceNotEligible",
+        CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligibleStaffHint
+            => "Appointment:ReBookSourceNotEligibleStaffHint",
+        CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked
+            => "Appointment:ReBookSourceAlreadyReBooked",
         CaseEvaluationDomainErrorCodes.AppointmentAccessDenied
             => "Appointment:AccessDenied",
         CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded

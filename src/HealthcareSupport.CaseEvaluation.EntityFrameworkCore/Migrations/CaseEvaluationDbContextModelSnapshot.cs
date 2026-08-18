@@ -2191,13 +2191,84 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("PanelNumber");
 
+                    b.Property<string>("PatientApptNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("PatientApptNumber");
+
+                    b.Property<string>("PatientCellPhoneNumber")
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)")
+                        .HasColumnName("PatientCellPhoneNumber");
+
+                    b.Property<string>("PatientCity")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("PatientCity");
+
+                    b.Property<DateTime?>("PatientDateOfBirth")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("PatientDateOfBirth");
+
                     b.Property<string>("PatientEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("PatientEmail");
 
+                    b.Property<string>("PatientFirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("PatientFirstName");
+
+                    b.Property<int?>("PatientGenderId")
+                        .HasColumnType("int")
+                        .HasColumnName("PatientGenderId");
+
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PatientInterpreterVendorName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("PatientInterpreterVendorName");
+
+                    b.Property<string>("PatientLastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("PatientLastName");
+
+                    b.Property<string>("PatientMiddleName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("PatientMiddleName");
+
+                    b.Property<string>("PatientPhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PatientPhoneNumber");
+
+                    b.Property<int?>("PatientPhoneNumberTypeId")
+                        .HasColumnType("int")
+                        .HasColumnName("PatientPhoneNumberTypeId");
+
+                    b.Property<string>("PatientSocialSecurityNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PatientSocialSecurityNumber");
+
+                    b.Property<Guid?>("PatientStateId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PatientStateId");
+
+                    b.Property<string>("PatientStreet")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("PatientStreet");
+
+                    b.Property<string>("PatientZipCode")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)")
+                        .HasColumnName("PatientZipCode");
 
                     b.Property<Guid?>("PrimaryResponsibleUserId")
                         .HasColumnType("uniqueidentifier")

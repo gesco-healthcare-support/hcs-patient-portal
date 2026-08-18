@@ -76,10 +76,34 @@ public class AppointmentReadAccessGuard : ITransientDependency
     /// </summary>
     public async Task EnsureCanReadAsync(Appointment appointment)
     {
+        if (!await CanReadAsync(appointment))
+        {
+            // UserFriendlyException so the localized message reaches the client
+            // unchanged (BusinessException's MapCodeNamespace auto-localization is
+            // not resolving in this codebase).
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
+                message: _l["Appointment:AccessDenied"]);
+        }
+    }
+
+    /// <summary>
+    /// Non-throwing read predicate, mirroring the
+    /// <see cref="CanEditAsync(Appointment)"/> / <see cref="EnsureCanEditAsync"/>
+    /// pair below.
+    ///
+    /// <para>T5 (2026-08-14): added so the confirmation-number create flows can
+    /// turn "exists but is not yours" into the SAME not-found refusal they raise
+    /// for an unknown number. Calling the throwing overload and catching would
+    /// have worked, but a predicate keeps the refusal decision at the call site
+    /// where the indistinguishability requirement actually lives.</para>
+    /// </summary>
+    public async Task<bool> CanReadAsync(Appointment appointment)
+    {
         var callerRoles = _currentUser.Roles ?? Array.Empty<string>();
         if (BookingFlowRoles.IsInternalUserCaller(callerRoles))
         {
-            return;
+            return true;
         }
 
         // Phase 5 (#2 / Option A): hydrate only the two role-correct id-based
@@ -133,15 +157,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
             defenseAttorneyEmail: appointment.DefenseAttorneyEmail,
             claimExaminerEmail: appointment.ClaimExaminerEmail);
 
-        if (!byCoreRules && !byEmailRole)
-        {
-            // UserFriendlyException so the localized message reaches the client
-            // unchanged (BusinessException's MapCodeNamespace auto-localization is
-            // not resolving in this codebase).
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
-                message: _l["Appointment:AccessDenied"]);
-        }
+        return byCoreRules || byEmailRole;
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using HealthcareSupport.CaseEvaluation.Enums;
+﻿using HealthcareSupport.CaseEvaluation.Enums;
 using Shouldly;
 using Xunit;
 
@@ -166,5 +166,61 @@ public class AppointmentLifecycleValidatorsUnitTests
                 (AppointmentLifecycleFlow)99,
                 sourceConfirmationNumber: "A12345",
                 newlyGeneratedConfirmationNumber: "A99999"));
+    }
+
+    // =====================================================================
+    // Item 4 (2026-08-17) -- the Re-book flow: start a new appointment from a
+    // prior one that did NOT happen.
+    // =====================================================================
+
+    [Theory]
+    [InlineData(AppointmentStatusType.CancelledNoBill, true)]
+    [InlineData(AppointmentStatusType.CancelledLate, true)]
+    [InlineData(AppointmentStatusType.NoShow, true)]
+    [InlineData(AppointmentStatusType.NotSeen, true)]
+    // Approved is deliberately excluded: that appointment is still expected to happen, so
+    // re-booking it would strand a live appointment.
+    [InlineData(AppointmentStatusType.Approved, false)]
+    [InlineData(AppointmentStatusType.Pending, false)]
+    // Rejected is deliberately excluded too: a rejected request never became an appointment,
+    // and re-entering it is the existing ReSubmit flow, which REUSES the original
+    // confirmation number rather than minting a new one.
+    [InlineData(AppointmentStatusType.Rejected, false)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill, false)]
+    [InlineData(AppointmentStatusType.CheckedIn, false)]
+    [InlineData(AppointmentStatusType.Billed, false)]
+    public void CanCreateReBook_AllowsOnlyAppointmentsThatDidNotHappen(
+        AppointmentStatusType status,
+        bool expected)
+    {
+        AppointmentLifecycleValidators.CanCreateReBook(status).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void ResolveReBookRejectionCode_SplitsOnCallerRole()
+    {
+        // Mirrors the Reval precedent: staff see wording aimed at them, but the override is
+        // NOT a free pass -- both codes are refusals.
+        var staff = AppointmentLifecycleValidators.ResolveReBookRejectionCode(
+            AppointmentStatusType.Approved, callerIsInternal: true);
+        var external = AppointmentLifecycleValidators.ResolveReBookRejectionCode(
+            AppointmentStatusType.Approved, callerIsInternal: false);
+
+        staff.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligibleStaffHint);
+        external.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligible);
+        staff.ShouldNotBe(external);
+    }
+
+    [Fact]
+    public void ResolveConfirmationNumber_ReBook_MintsAFreshNumber()
+    {
+        // The source still exists as a cancelled / no-showed / not-seen record and keeps its
+        // own number. Sharing one would make the two indistinguishable in our lists and in the
+        // Case Tracker's folder labels.
+        AppointmentLifecycleValidators.ResolveConfirmationNumber(
+            AppointmentLifecycleFlow.ReBook,
+            sourceConfirmationNumber: "A12345",
+            newlyGeneratedConfirmationNumber: "A99999")
+            .ShouldBe("A99999");
     }
 }

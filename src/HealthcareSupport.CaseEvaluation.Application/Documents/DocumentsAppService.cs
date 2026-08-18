@@ -1,4 +1,4 @@
-using HealthcareSupport.CaseEvaluation.BlobContainers;
+﻿using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
@@ -41,12 +41,18 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
     private readonly IBlobContainer<MasterDocumentsContainer> _blobContainer;
     private readonly IGuidGenerator _guidGenerator;
 
+    // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
+    // raw BusinessException reaches the SPA with no message and the toast falls back to
+    // ABP's generic "An internal error occurred during your request!".
+    protected DomainErrorTranslator _domainErrorTranslator;
     public DocumentsAppService(
         IDocumentRepository documentRepository,
         IRepository<DocumentPackage> documentPackageRepository,
         IBlobContainer<MasterDocumentsContainer> blobContainer,
-        IGuidGenerator guidGenerator)
+        IGuidGenerator guidGenerator,
+        DomainErrorTranslator domainErrorTranslator)
     {
+        _domainErrorTranslator = domainErrorTranslator;
         _documentRepository = documentRepository;
         _documentPackageRepository = documentPackageRepository;
         _blobContainer = blobContainer;
@@ -149,7 +155,7 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
         var stillLinked = await _documentPackageRepository.AnyAsync(x => x.DocumentId == id && x.IsActive);
         if (stillLinked)
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.DocumentInUse);
+            throw _domainErrorTranslator.Refuse(CaseEvaluationDomainErrorCodes.DocumentInUse);
         }
 
         await _documentRepository.DeleteAsync(id, autoSave: true);

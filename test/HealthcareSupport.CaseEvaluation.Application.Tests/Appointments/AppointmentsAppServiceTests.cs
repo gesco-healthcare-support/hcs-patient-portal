@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -9,13 +9,16 @@ using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Volo.Abp.Validation;
 using Xunit;
 
@@ -40,6 +43,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected AppointmentsAppServiceTests()
     {
@@ -48,6 +52,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // =====================================================================
@@ -472,6 +477,117 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     }
 
     // =====================================================================
+    // T5 (2026-08-14) -- caller-linkage on the confirmation-number create
+    // flows. Confirmation numbers are sequential (A00005, A00036, A00065) and
+    // therefore guessable. Before this gate, ReSubmitAsync and CreateRevalAsync
+    // validated the source's STATUS only: the accessor/creator check lived
+    // solely in GetByConfirmationNumberAsync, the read the UI happens to call
+    // first, so a caller who skipped the UI could create against a stranger's
+    // appointment.
+    //
+    // These assert on EntityNotFoundException's EntityType + Id rather than the
+    // bare type, because an unseeded catalog FK also raises
+    // EntityNotFoundException further down the create path -- asserting the type
+    // alone would pass for the wrong reason.
+    // =====================================================================
+
+    private static readonly Guid UnlinkedCallerUserId =
+        Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddd10");
+
+    [Fact]
+    public async Task ReSubmitAsync_WhenCallerIsNotLinkedToSource_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var ex = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.ReSubmitAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.EntityType.ShouldBe(typeof(Appointment));
+            ex.Id.ShouldBe(AppointmentsTestData.Appointment1RequestConfirmationNumber);
+        }
+    }
+
+    // Appointment2 / A90002 is seeded in TENANT B (Approved, the only
+    // reval-eligible status). Running these in TenantA would make the lookup
+    // miss and raise EntityNotFoundException(Appointment, "A90002") from the
+    // manager's not-found branch -- indistinguishable from the gate's refusal,
+    // so the test would pass without the gate existing at all.
+    [Fact]
+    public async Task CreateRevalAsync_WhenCallerIsNotLinkedToSource_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var ex = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.EntityType.ShouldBe(typeof(Appointment));
+            ex.Id.ShouldBe(AppointmentsTestData.Appointment2RequestConfirmationNumber);
+        }
+    }
+
+    [Fact]
+    public async Task CreateRevalAsync_UnknownAndUnlinkedSources_AreIndistinguishable()
+    {
+        // The refusal must not reveal whether the confirmation number exists,
+        // otherwise the endpoint is an oracle for enumerating them.
+        const string unknownConfirmationNumber = "A99999";
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var unlinked = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            var unknown = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    unknownConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            unlinked.GetType().ShouldBe(unknown.GetType());
+            unlinked.EntityType.ShouldBe(unknown.EntityType);
+
+            // A90002 is seeded Approved; the refusal must not disclose that.
+            unlinked.Message.ShouldNotContain(
+                AppointmentsTestData.Appointment2Status.ToString());
+        }
+    }
+
+    [Fact]
+    public async Task ReSubmitAsync_WhenCallerIsInternal_StillReachesTheStatusGate()
+    {
+        // Regression guard against over-tightening: the default fake principal is
+        // the internal "admin" role, so linkage passes and the STATUS gate is what
+        // refuses -- Appointment1 is seeded Pending, not Rejected.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.ReSubmitAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected);
+        }
+    }
+
+    // =====================================================================
     // Helpers.
     // =====================================================================
 
@@ -813,6 +929,82 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             row.ShouldNotBeNull();
             row!.AppointmentInjuryDetails.Count.ShouldBe(1);
             row.AppointmentInjuryDetails[0].AppointmentInjuryDetail.ClaimNumber.ShouldBe("CLM-T6-LIST");
+        }
+    }
+
+    // =====================================================================
+    // Item 4 (2026-08-17) -- the re-book gates. Both refusals run BEFORE any
+    // create work, so they are reachable in this harness even though the
+    // success path is not (the SQLite rig cannot seed per-tenant catalogs).
+    // =====================================================================
+
+    [Fact]
+    public async Task CreateReBookAsync_WhenSourceDidHappen_IsRefused()
+    {
+        // Appointment1 is seeded Pending: it is still expected to take place, so there is
+        // nothing to replace. Re-booking it would strand a live appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateReBookAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            // The default fake principal is the internal "admin" role, so the staff-facing
+            // variant is expected -- but it is still a refusal, not an override.
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligibleStaffHint);
+        }
+    }
+
+    [Fact]
+    public async Task CreateReBookAsync_WhenSourceWasAlreadyReBooked_IsRefused()
+    {
+        // Guards an invariant the Case Tracker payload depends on: it finds the successor by
+        // querying for appointments pointing back at this one and takes the first match, on
+        // the documented assumption that at most one exists. Two would make that choice
+        // arbitrary AND unstable between pushes.
+        var sourceId = new Guid("e1a2b3c4-d5e6-4f70-8a1b-2c3d4e5f6a70");
+        var existingReBookId = new Guid("e1a2b3c4-d5e6-4f70-8a1b-2c3d4e5f6a71");
+        const string sourceConfirmation = "A90777";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentRepository.InsertAsync(
+                new Appointment(
+                    id: sourceId,
+                    patientId: PatientsTestData.Patient1Id,
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    locationId: LocationsTestData.Location1Id,
+                    doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                    appointmentDate: new DateTime(2027, 3, 1, 9, 0, 0, DateTimeKind.Utc),
+                    requestConfirmationNumber: sourceConfirmation,
+                    appointmentStatus: AppointmentStatusType.NoShow),
+                autoSave: true);
+
+            var alreadyReBooked = new Appointment(
+                id: existingReBookId,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 4, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: "A90778",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                RescheduledFromAppointmentId = sourceId,
+            };
+            await _appointmentRepository.InsertAsync(alreadyReBooked, autoSave: true);
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateReBookAsync(
+                    sourceConfirmation,
+                    BuildValidCreateDto()));
+
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked);
         }
     }
 }
