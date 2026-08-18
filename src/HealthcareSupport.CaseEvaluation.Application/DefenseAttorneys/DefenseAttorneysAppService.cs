@@ -1,4 +1,4 @@
-using HealthcareSupport.CaseEvaluation.Shared;
+﻿using HealthcareSupport.CaseEvaluation.Shared;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
@@ -28,8 +28,14 @@ public class DefenseAttorneysAppService : CaseEvaluationAppService, IDefenseAtto
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
     protected IRepository<AppointmentDefenseAttorney, Guid> _appointmentDefenseAttorneyRepository;
 
-    public DefenseAttorneysAppService(IDefenseAttorneyRepository defenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentDefenseAttorney, Guid> appointmentDefenseAttorneyRepository)
+    // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
+    // raw BusinessException reaches the SPA with no message and the toast falls back to
+    // ABP's generic "An internal error occurred during your request!".
+    protected DomainErrorTranslator _domainErrorTranslator;
+    public DefenseAttorneysAppService(IDefenseAttorneyRepository defenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentDefenseAttorney, Guid> appointmentDefenseAttorneyRepository,
+        DomainErrorTranslator domainErrorTranslator)
     {
+        _domainErrorTranslator = domainErrorTranslator;
         _defenseAttorneyRepository = defenseAttorneyRepository;
         _defenseAttorneyManager = defenseAttorneyManager;
         _stateRepository = stateRepository;
@@ -94,7 +100,7 @@ public class DefenseAttorneysAppService : CaseEvaluationAppService, IDefenseAtto
         // this defense attorney (AppointmentDefenseAttorney.DefenseAttorneyId).
         if (await _appointmentDefenseAttorneyRepository.AnyAsync(x => x.DefenseAttorneyId == id))
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.DefenseAttorneyInUse);
+            throw _domainErrorTranslator.Refuse(CaseEvaluationDomainErrorCodes.DefenseAttorneyInUse);
         }
         await _defenseAttorneyRepository.DeleteAsync(id);
     }
