@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -23,8 +23,14 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
     protected AppointmentTypeManager _appointmentTypeManager;
     protected IRepository<Appointment, Guid> _appointmentRepository;
 
-    public AppointmentTypesAppService(IAppointmentTypeRepository appointmentTypeRepository, AppointmentTypeManager appointmentTypeManager, IRepository<Appointment, Guid> appointmentRepository)
+    // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
+    // raw BusinessException reaches the SPA with no message and the toast falls back to
+    // ABP's generic "An internal error occurred during your request!".
+    protected DomainErrorTranslator _domainErrorTranslator;
+    public AppointmentTypesAppService(IAppointmentTypeRepository appointmentTypeRepository, AppointmentTypeManager appointmentTypeManager, IRepository<Appointment, Guid> appointmentRepository,
+        DomainErrorTranslator domainErrorTranslator)
     {
+        _domainErrorTranslator = domainErrorTranslator;
         _appointmentTypeRepository = appointmentTypeRepository;
         _appointmentTypeManager = appointmentTypeManager;
         _appointmentRepository = appointmentRepository;
@@ -56,7 +62,16 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
     public virtual async Task DeleteAsync(Guid id)
     {
         // Route through the manager so the system-row + in-use guards apply.
-        await _appointmentTypeManager.DeleteAsync(id);
+        // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
+        // so the client gets the real reason instead of ABP's generic internal-error text.
+        try
+        {
+            await _appointmentTypeManager.DeleteAsync(id);
+        }
+        catch (BusinessException ex)
+        {
+            throw _domainErrorTranslator.Translate(ex);
+        }
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentTypes.Create)]
