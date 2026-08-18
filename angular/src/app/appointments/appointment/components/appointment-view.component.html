@@ -83,11 +83,6 @@
               {{ '::Appointment:Action:ReRequest' | abpLocalization }}
             </button>
           }
-          @if (canReBook) {
-            <button type="button" class="btn btn-primary btn-sm" (click)="reBook()">
-              {{ '::Appointment:Action:ReBook' | abpLocalization }}
-            </button>
-          }
           @if (canRequestChange) {
             <button type="button" class="btn btn-warning btn-sm" (click)="openRescheduleRequest()">
               {{ '::Appointment:Action:Reschedule' | abpLocalization }}
