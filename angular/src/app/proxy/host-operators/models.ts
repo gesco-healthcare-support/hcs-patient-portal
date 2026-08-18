@@ -9,6 +9,12 @@ export interface GetIntakeAssignmentsInput extends PagedAndSortedResultRequestDt
   filter?: string | null;
 }
 
+export interface ImpersonatorInfoDto {
+  isImpersonating?: boolean;
+  name?: string;
+  roles?: string[];
+}
+
 export interface IntakeOfficeAssignmentDto {
   id?: string;
   operatorUserId?: string;
@@ -24,10 +30,4 @@ export interface IntakeOfficeMetricsDto {
   pendingRequests?: number;
   todayAppointments?: number;
   pendingChangeRequests?: number;
-}
-
-export interface ImpersonatorInfoDto {
-  isImpersonating?: boolean;
-  name?: string;
-  roles?: string[];
 }

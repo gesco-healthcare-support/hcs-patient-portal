@@ -59,6 +59,7 @@ import { changeRequestConsentView, type CrConsentView } from '../../change-reque
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
+import { isReBookEligibleStatus } from '../../shared/rebook-eligibility';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 
 type TransitionAction = 'approve' | 'reject';
@@ -835,6 +836,20 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
+   * Item 4 (2026-08-18): may this appointment be booked again? Status only -- deliberately
+   * NOT the creator-compare `canReRequest` uses.
+   *
+   * The server's gate is read access (`LoadReadableSourceAsync`: creator, accessors on the
+   * case, or any internal user), and read access has already been proved by the API call
+   * that loaded this page. Narrowing the button to the creator would hide it from an
+   * attorney on the case whose POST the server would accept, and send them to the phone
+   * instead. The server re-checks status and linkage on submit either way.
+   */
+  get canReBook(): boolean {
+    return isReBookEligibleStatus(this.currentStatus);
+  }
+
+  /**
    * A view-page caller is "internal" when they hold none of the four external
    * roles -- the same negation `canTakeOfficeAction` uses (isPatientUser covers
    * Patient / AA / DA / CE). Server permission attributes remain authoritative.
@@ -876,6 +891,22 @@ export class AppointmentViewComponent implements OnInit {
     }
     this.router.navigate(['/appointments/request'], {
       queryParams: { mode: 'rerequest', source: conf },
+    });
+  }
+
+  /**
+   * Item 4 (2026-08-18): navigate to the booking form in re-book mode, carrying the source
+   * confirmation number so it auto-loads. `type: 3` is the same key `?type=2` uses for a
+   * re-evaluation -- one mode key per flow -- and `source` is optional, so the form is
+   * equally reachable by typing the number in at a bare `?type=3`.
+   */
+  reBook(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    this.router.navigate(['/appointments/request'], {
+      queryParams: { type: 3, source: conf },
     });
   }
 

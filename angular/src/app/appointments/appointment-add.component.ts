@@ -28,6 +28,8 @@ import {
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
+import { BookingMode, resolveBookingModeFromType } from './shared/booking-mode';
+import { isReBookEligibleStatus } from './shared/rebook-eligibility';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
 import { unitForForm, unitToDto } from './shared/patient-unit.mapper';
 import {
@@ -304,7 +306,7 @@ export class AppointmentAddComponent {
   // + claim examiner) to a single appointment via the modal. injuryDrafts holds
   // the in-memory list rendered as a table; injuryEditing holds the row being
   // edited in the modal (or a fresh draft for "Add").
-  // G-01-07 (2026-06-02): the booking form serves three modes, decided from
+  // G-01-07 (2026-06-02): the booking form serves several modes, decided from
   // the route query params in the constructor:
   //   'new'       -- `?type=1` or no type. Plain create.
   //   'reval'     -- `?type=2` (Re-evaluation, OLD IsRevolutionForm). The
@@ -315,12 +317,25 @@ export class AppointmentAddComponent {
   //                  launched from a REJECTED appointment's view page. Auto-
   //                  loads + prefills from the source. Submits via reSubmit
   //                  (server reuses the source confirmation #).
-  bookingMode: 'new' | 'reval' | 'reRequest' = 'new';
+  //   'reBook'    -- item 4 (2026-08-18). `?type=3`, optionally with
+  //                  `&source=<conf#>` from the "Book again" button on an
+  //                  appointment that did NOT happen (cancelled / no-show /
+  //                  not-seen). Without `source` the booker types the number,
+  //                  exactly as reval does. Submits via createReBook (server
+  //                  generates a fresh confirmation # and links the source on
+  //                  the REPLACEMENT chain).
+  bookingMode: BookingMode = 'new';
   // The source confirmation number once a prior appointment has been loaded
   // for prefill. Null until loaded; gates the reval/re-request submit path.
   sourceConfirmationNumber: string | null = null;
   isLoadingSource = false;
   sourceLoadMessage = '';
+  /**
+   * True when the constructor kicked off a source load from a URL param (re-request
+   * always; re-book when it arrives from "Book again"). Gates the booker's own
+   * profile load, which would otherwise race that prefill.
+   */
+  private isAutoLoadingSource = false;
 
   /** Reval mode (`?type=2`). Keeps the existing lookup-filter + heading wiring. */
   get isReevaluation(): boolean {
@@ -330,6 +345,20 @@ export class AppointmentAddComponent {
   /** Re-request mode (launched from a rejected appointment's view page). */
   get isReRequest(): boolean {
     return this.bookingMode === 'reRequest';
+  }
+
+  /** Re-book mode (`?type=3`). Replaces an appointment that did not take place. */
+  get isReBook(): boolean {
+    return this.bookingMode === 'reBook';
+  }
+
+  /**
+   * Item 4 (2026-08-18): the two modes that ask the booker to identify a prior
+   * appointment by confirmation number. Re-request also has a source, but it arrives in
+   * the URL and auto-loads, so it never shows the lookup.
+   */
+  get showSourceLookup(): boolean {
+    return this.isReevaluation || this.isReBook;
   }
 
   /**
@@ -354,10 +383,17 @@ export class AppointmentAddComponent {
    * 0 = Normal, 1 = Re). Initial booking shows Normal+Both; reval shows Re+Both;
    * re-request resubmits the SAME appointment, so its source type (any
    * classification, prefilled) must stay selectable -> no filter (all types).
+   *
+   * Item 4 (2026-08-18): re-book takes no filter for the same reason as re-request. It
+   * prefills the source's appointment type, and a RE-EVALUATION can itself be no-showed,
+   * so a source may legitimately carry evaluation-type Re. Filtering to Normal would
+   * leave the prefilled value unselectable in its own dropdown. (The server persists
+   * EvaluationKind.Evaluation for a re-book regardless -- that is its call, not the
+   * dropdown's.)
    */
   get appointmentTypeEvaluationContext(): 0 | 1 | undefined {
     if (this.bookingMode === 'reval') return 1;
-    if (this.bookingMode === 'reRequest') return undefined;
+    if (this.bookingMode === 'reRequest' || this.bookingMode === 'reBook') return undefined;
     return 0;
   }
 
@@ -713,13 +749,27 @@ export class AppointmentAddComponent {
         // Re-request prefills from the source appointment, not the booker's own
         // profile, so the self-profile load is skipped (see the guard below).
         // Clear its loading flag here; loadSourceForPrefill owns the load state.
+        this.isAutoLoadingSource = true;
         this.isProfileLoading = false;
         const source = (params.get('source') ?? '').trim();
         if (source && this.sourceConfirmationNumber !== source) {
           void this.loadSourceForPrefill(source, 'reRequest');
         }
       } else {
-        this.bookingMode = params.get('type') === '2' ? 'reval' : 'new';
+        this.bookingMode = resolveBookingModeFromType(params.get('type'));
+        // Item 4 (2026-08-18): re-book reaches this form two ways. From the "Book again"
+        // button the confirmation number rides along as `source` and is auto-loaded, which
+        // makes it behave exactly like re-request -- including the profile-load race
+        // below. Typed in by hand at plain `?type=3` there is no source yet, so the
+        // booker's own profile SHOULD load, exactly as it does for reval.
+        if (this.bookingMode === 'reBook') {
+          const source = (params.get('source') ?? '').trim();
+          if (source && this.sourceConfirmationNumber !== source) {
+            this.isAutoLoadingSource = true;
+            this.isProfileLoading = false;
+            void this.loadSourceForPrefill(source, 'reBook');
+          }
+        }
       }
     });
 
@@ -760,12 +810,17 @@ export class AppointmentAddComponent {
       .get('appointmentTime')
       ?.valueChanges.subscribe((value) => this.onAppointmentTimeChanged(value));
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
-    // In re-request mode the form prefills from the SOURCE appointment, so
-    // loading the booker's own profile here would race the prefill and null
-    // out the patient + employer controls. Skip it -- the prefill sets the
-    // (reused) source patient instead. Reval is button-triggered after
-    // construction, so its profile load has already settled.
-    if (this.bookingMode !== 'reRequest') {
+    // When the form prefills from a SOURCE appointment resolved in the constructor,
+    // loading the booker's own profile here would race the prefill and null out the
+    // patient + employer controls. Skip it -- the prefill sets the (reused) source
+    // patient instead.
+    //
+    // The condition is "a source load is already in flight", NOT "the mode is
+    // re-request": item 4's re-book auto-loads the same way when it arrives from the
+    // "Book again" deep link, but at a bare `?type=3` it has no source and DOES need the
+    // profile. Reval is button-triggered after construction, so its profile load has
+    // already settled either way.
+    if (!this.isAutoLoadingSource) {
       this.loadCurrentPatientProfile();
     }
     this.prefillAppointmentClaimExaminerForRole();
@@ -1362,7 +1417,9 @@ export class AppointmentAddComponent {
       this.sourceLoadMessage = 'Enter the prior appointment confirmation number.';
       return;
     }
-    void this.loadSourceForPrefill(conf, 'reval');
+    // Item 4 (2026-08-18): the same lookup control serves re-book. The method keeps its
+    // reval name because the live template binds it; only the flow it requests differs.
+    void this.loadSourceForPrefill(conf, this.isReBook ? 'reBook' : 'reval');
   }
 
   /**
@@ -1375,7 +1432,7 @@ export class AppointmentAddComponent {
    */
   private async loadSourceForPrefill(
     confirmationNumber: string,
-    flow: 'reval' | 'reRequest',
+    flow: 'reval' | 'reRequest' | 'reBook',
   ): Promise<void> {
     if (this.isLoadingSource) return;
     this.isLoadingSource = true;
@@ -1411,16 +1468,30 @@ export class AppointmentAddComponent {
     }
   }
 
-  /** Defensive status gate: reval needs Approved, re-request needs Rejected. */
+  /**
+   * Defensive status gate: reval needs Approved, re-request needs Rejected, re-book needs
+   * an appointment that did not take place. The server re-checks all three on submit; this
+   * only spares the booker filling in a whole form for a source that will be refused.
+   *
+   * The re-book wording deliberately echoes the server's
+   * `Appointment:ReBookSourceNotEligible`, so the same refusal reads the same whether it
+   * came from here or from the POST.
+   */
   private checkSourceStatusForFlow(
     status: AppointmentStatusType | undefined,
-    flow: 'reval' | 'reRequest',
+    flow: 'reval' | 'reRequest' | 'reBook',
   ): string | null {
     if (flow === 'reval' && status !== AppointmentStatusType.Approved) {
       return 'You can re-evaluate only an approved appointment.';
     }
     if (flow === 'reRequest' && status !== AppointmentStatusType.Rejected) {
       return 'You can re-request only a rejected appointment.';
+    }
+    if (flow === 'reBook' && !isReBookEligibleStatus(status)) {
+      return (
+        'That appointment cannot be booked again. Only an appointment that was cancelled, ' +
+        'or that the patient did not attend, can be used to start a new booking.'
+      );
     }
     return null;
   }
@@ -1745,9 +1816,10 @@ export class AppointmentAddComponent {
   /**
    * Route the create call by mode: reval -> createReval (server generates a
    * fresh confirmation #); re-request -> reSubmit (server reuses the source
-   * confirmation #); otherwise the plain create. The post-create child
-   * cascade is identical for all three, so prefilled drafts persist as fresh
-   * rows on the new appointment.
+   * confirmation #); re-book -> createReBook (fresh confirmation #, and the
+   * server links the source on the replacement chain); otherwise the plain
+   * create. The post-create child cascade is identical for all of them, so
+   * prefilled drafts persist as fresh rows on the new appointment.
    */
   private createAppointmentForCurrentMode(payload: AppointmentCreateDto): Promise<any> {
     if (this.bookingMode === 'reval' && this.sourceConfirmationNumber) {
@@ -1758,6 +1830,11 @@ export class AppointmentAddComponent {
     if (this.bookingMode === 'reRequest' && this.sourceConfirmationNumber) {
       return firstValueFrom(
         this.appointmentProxyService.reSubmit(this.sourceConfirmationNumber, payload),
+      );
+    }
+    if (this.bookingMode === 'reBook' && this.sourceConfirmationNumber) {
+      return firstValueFrom(
+        this.appointmentProxyService.createReBook(this.sourceConfirmationNumber, payload),
       );
     }
     return firstValueFrom(
@@ -1845,6 +1922,9 @@ export class AppointmentAddComponent {
       if (this.bookingMode === 'reval') {
         this.sourceLoadMessage =
           'Look up the prior approved appointment by confirmation number before submitting.';
+      } else if (this.bookingMode === 'reBook') {
+        this.sourceLoadMessage =
+          'Look up the appointment you want to book again by confirmation number before submitting.';
       } else {
         this.sourceLoadMessage =
           'The prior appointment could not be loaded, so this re-request cannot be submitted.';

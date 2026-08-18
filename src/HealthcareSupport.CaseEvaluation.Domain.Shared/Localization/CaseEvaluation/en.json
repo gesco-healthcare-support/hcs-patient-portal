@@ -464,6 +464,7 @@
     "Appointment:Action:Approve": "Approve",
     "Appointment:Action:Reject": "Reject",
     "Appointment:Action:ReRequest": "Re-Request",
+    "Appointment:Action:ReBook": "Book Again",
     "Appointment:Action:SendBack": "Send Back for More Info",
     "Appointment:Action:SaveAndResubmit": "Save & Resubmit",
     "Appointment:Action:Review": "Review",

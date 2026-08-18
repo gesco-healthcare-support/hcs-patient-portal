@@ -2,9 +2,9 @@ import type { ApplicantAttorneyDetailsDto, AppointmentCreateDto, AppointmentDto,
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
+import type { CustomFieldValueDisplayDto } from '../custom-fields/models';
 import type { EvaluationType } from '../enums/evaluation-type.enum';
 import type { LookupDto, LookupRequestDto } from '../shared/models';
-import type { CustomFieldValueDisplayDto } from '../custom-fields/models';
 
 @Injectable({
   providedIn: 'root',
@@ -26,6 +26,15 @@ export class AppointmentService {
     this.restService.request<any, AppointmentDto>({
       method: 'POST',
       url: '/api/app/appointments',
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  createReBook = (sourceConfirmationNumber: string, input: AppointmentCreateDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDto>({
+      method: 'POST',
+      url: `/api/app/appointments/create-rebook/${sourceConfirmationNumber}`,
       body: input,
     },
     { apiName: this.apiName,...config });
@@ -71,7 +80,7 @@ export class AppointmentService {
       url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
     },
     { apiName: this.apiName,...config });
-
+  
 
   getAppointmentCustomFieldValues = (appointmentId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, CustomFieldValueDisplayDto[]>({
@@ -79,7 +88,7 @@ export class AppointmentService {
       url: `/api/app/appointments/${appointmentId}/custom-field-values`,
     },
     { apiName: this.apiName,...config });
-
+  
 
   getAppointmentDefenseAttorney = (appointmentId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, DefenseAttorneyDetailsDto>({

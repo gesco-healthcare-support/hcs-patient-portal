@@ -312,6 +312,21 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     });
   }
 
+  /**
+   * Item 4 (2026-08-18): same override rationale as reRequest above -- identical
+   * `?type=3&source=<conf#>` contract, shellRouter only because the parent's `router` is
+   * private. The `canReBook` eligibility getter is inherited unchanged.
+   */
+  override reBook(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    void this.shellRouter.navigate(['/appointments/request'], {
+      queryParams: { type: 3, source: conf },
+    });
+  }
+
   private loadNavName(): void {
     const u = this.shellConfig.getOne('currentUser') as {
       name?: string;

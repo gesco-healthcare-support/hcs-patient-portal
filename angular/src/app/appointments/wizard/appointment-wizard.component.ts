@@ -233,13 +233,17 @@ export class AppointmentWizardComponent
     return this.current === this.steps.length - 1;
   }
   protected get eyebrow(): string {
-    return wizardCopy.wizardEyebrow(this.isInternalBooker, this.isReevaluation);
+    return wizardCopy.wizardEyebrow(this.isInternalBooker, this.bookingMode);
   }
   protected get wizardTitle(): string {
-    return wizardCopy.wizardTitle(this.isInternalBooker, this.isReevaluation);
+    return wizardCopy.wizardTitle(this.isInternalBooker, this.bookingMode);
   }
   protected get wizardSubtitle(): string {
-    return wizardCopy.wizardSubtitle(this.isInternalBooker, this.isReevaluation);
+    return wizardCopy.wizardSubtitle(this.isInternalBooker, this.bookingMode);
+  }
+  /** Review-step warning when a source-anchored flow has no source loaded yet. */
+  protected get sourceLookupBanner(): string {
+    return wizardCopy.sourceLookupBanner(this.bookingMode);
   }
   // Review-step submit note; staff get edit-after copy instead of the
   // patient-voiced "contact staff" warning.
