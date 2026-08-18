@@ -1,22 +1,8 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Directive, inject } from '@angular/core';
+import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import {
-  ConfigStateService,
-  ListService,
-  LocalizationPipe,
-  PagedResultDto,
-  RestService,
-} from '@abp/ng.core';
-import {
-  Confirmation,
-  ConfirmationService,
-  DateAdapter,
-  TimeAdapter,
-  ToasterService,
-} from '@abp/ng.theme.shared';
-import { NgxValidateCoreModule } from '@ngx-validate/core';
+import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
+import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 import {
   catchError,
   debounceTime,
@@ -26,7 +12,6 @@ import {
   switchMap,
 } from 'rxjs/operators';
 import { firstValueFrom, Observable, of } from 'rxjs';
-import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
 import { BookingMode, resolveBookingModeFromType } from './shared/booking-mode';
 import { isReBookEligibleStatus } from './shared/rebook-eligibility';
@@ -39,12 +24,8 @@ import {
 } from '../shared/address/address-validation.provider';
 import { AddressFieldMap } from '../shared/address/address-autocomplete.component';
 import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
-import {
-  ConfirmAddressDialogComponent,
-  AddressChoice,
-  AddressDiffItem,
-} from '../shared/address/confirm-address-dialog.component';
-import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
+import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-address-dialog.component';
+import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto, AppointmentDto } from '../proxy/appointments/models';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
@@ -57,38 +38,26 @@ import type {
   PatientWithNavigationPropertiesDto,
 } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
-import { AppointmentViewService } from './appointment/services/appointment.service';
 import { DoctorAvailabilityService } from '../proxy/doctor-availabilities/doctor-availability.service';
 import type { DoctorAvailabilityDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
-// #121 (2026-05-13) -- 7 section components extracted from the
-// monolithic booker template (T1-T7). The parent retains the 55-field
-// reactive `form` FormGroup, every cascade subscription, every
-// lookup/HTTP roundtrip, and every role-based visibility gate; each
-// child binds [formGroup]="form" and renders template-only. Types
-// surfaced here (AppointmentAuthorizedUserDraft, ExternalAuthorizedUserOption,
-// AppointmentInjuryDraft, ClaimExaminerPrefill) live in the section
-// files because they describe section-owned data; the parent imports
-// them so submit-time + draft-list reads keep type-checking.
-import { AppointmentAddCustomFieldsComponent } from './sections/appointment-add-custom-fields.component';
+// #121 (2026-05-13) -- 7 section components extracted from the monolithic booker template
+// (T1-T7). This class retains the 55-field reactive `form` FormGroup, every cascade
+// subscription, every lookup/HTTP roundtrip, and every role-based visibility gate; each
+// section binds [formGroup]="form" and renders template-only.
+//
+// 2026-08-18: the section components themselves are no longer imported here -- this class
+// lost its template, so it declares no `imports`. The WIZARD imports them. Only the TYPES
+// remain, because they describe section-owned data that submit-time and draft-list reads
+// still type-check against.
 import {
-  AppointmentAddAuthorizedUsersComponent,
   type AppointmentAuthorizedUserDraft,
   type ExternalAuthorizedUserOption,
 } from './sections/appointment-add-authorized-users.component';
-import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-add-employer-details.component';
+import { type AppointmentInjuryDraft } from './sections/appointment-add-claim-information.component';
 import {
-  AppointmentAddClaimInformationComponent,
-  type AppointmentInjuryDraft,
-} from './sections/appointment-add-claim-information.component';
-import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
-import { AppointmentAddClaimPartiesSectionComponent } from './sections/appointment-add-claim-parties-section.component';
-import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
-import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
-import {
-  AppointmentAddDocumentsComponent,
   OTHER_DOCUMENT_TYPE_VALUE,
   type StagedDocumentUpload,
 } from './sections/appointment-add-documents.component';
@@ -109,35 +78,22 @@ type AppointmentTypeFieldConfigDto = {
   defaultValue?: string | null;
 };
 
-@Component({
-  selector: 'app-appointment-add',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    LocalizationPipe,
-    TopHeaderNavbarComponent,
-    NgxValidateCoreModule,
-    AppointmentAddCustomFieldsComponent,
-    AppointmentAddAuthorizedUsersComponent,
-    AppointmentAddEmployerDetailsComponent,
-    AppointmentAddClaimInformationComponent,
-    AppointmentAddAttorneySectionComponent,
-    AppointmentAddClaimPartiesSectionComponent,
-    AppointmentAddPatientDemographicsComponent,
-    AppointmentAddScheduleComponent,
-    AppointmentAddDocumentsComponent,
-    ConfirmAddressDialogComponent,
-  ],
-  providers: [
-    ListService,
-    AppointmentViewService,
-    { provide: NgbDateAdapter, useClass: DateAdapter },
-    { provide: NgbTimeAdapter, useClass: TimeAdapter },
-  ],
-  templateUrl: './appointment-add.component.html',
-  styleUrls: ['./appointment-add.component.scss'],
-})
+/**
+ * Base class for the booking form. NOT a rendered component -- it has no selector and no
+ * template, and nothing routes to it. `AppointmentWizardComponent` extends it and supplies
+ * the markup; this class owns the engine (the 55-field reactive form, every cascade
+ * subscription, prefill, and the multi-POST submit).
+ *
+ * 2026-08-18: its own template (`appointment-add.component.html`) and stylesheet were
+ * DELETED. They had been unreachable since 4a (2026-08-04) removed the `/appointments/add`
+ * route, and a QA round plus a live gate were each spent editing that dead markup and
+ * shipping no visible change. Angular's documented annotation for an inherited-but-never-
+ * instantiated class is a selector-less `@Directive()`; a plain undecorated class using
+ * Angular features is a compile error. The decorator's `imports` existed only to compile
+ * the deleted template, and its `providers` are re-declared identically by the wizard
+ * (decorator metadata is not inherited), so nothing here was load-bearing.
+ */
+@Directive()
 export class AppointmentAddComponent {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
