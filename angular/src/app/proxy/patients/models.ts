@@ -10,7 +10,7 @@ export interface CreatePatientForAppointmentBookingInput {
   firstName: string;
   lastName: string;
   middleName?: string | null;
-  email: string;
+  email?: string | null;
   genderId?: Gender;
   dateOfBirth?: string;
   phoneNumber?: string | null;

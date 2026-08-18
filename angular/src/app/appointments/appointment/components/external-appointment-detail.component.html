@@ -106,6 +106,12 @@
               Re-request
             </button>
           }
+          @if (canReBook) {
+            <button class="ap-btn ap-btn--primary" type="button" (click)="reBook()">
+              <app-icon name="refresh" [size]="15" />
+              Book again
+            </button>
+          }
           <button
             class="ap-btn ap-btn--primary"
             type="button"

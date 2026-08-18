@@ -21,7 +21,6 @@ export class AppointmentApprovalService {
     { apiName: this.apiName,...config });
   
 
-
   getInternalUserLookup = (input: LookupRequestDto, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<LookupDto<string>>>({
       method: 'GET',

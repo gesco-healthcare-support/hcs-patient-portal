@@ -37,8 +37,19 @@ export interface InfoRequestFieldDiffDto {
   changed?: boolean;
 }
 
+export interface InjuryDetailCorrectionDto {
+  dateOfInjury: string;
+  toDateOfInjury?: string | null;
+  claimNumber: string;
+  isCumulativeInjury?: boolean;
+  wcabAdj: string;
+  bodyPartsSummary: string;
+  wcabOfficeId?: string | null;
+}
+
 export interface SaveInfoRequestCorrectionsInput {
   corrections?: Record<string, string>;
+  injuryDetails?: InjuryDetailCorrectionDto[] | null;
 }
 
 export interface SendBackAppointmentInput {

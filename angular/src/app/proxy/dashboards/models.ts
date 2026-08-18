@@ -41,7 +41,6 @@ export interface DashboardDto {
   rejectedRequests?: DashboardKpiDto;
   totalTenants?: number;
   totalDoctors?: number;
-  // hand-added (QA item 6); abp generate-proxy reproduces it from DashboardDto.TotalLocations
   totalLocations?: number;
   totalAppointments?: number;
   pendingAcrossTenants?: number;

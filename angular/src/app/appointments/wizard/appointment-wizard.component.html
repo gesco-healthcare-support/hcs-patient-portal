@@ -93,10 +93,12 @@
 
       @switch (currentStep.key) {
         @case ('schedule') {
-          @if (isReevaluation) {
+          @if (showSourceLookup) {
             <div class="ra-reval">
               <div class="ra-field">
-                <label>Prior confirmation number</label>
+                <label>
+                  {{ isReBook ? 'Confirmation number to book again' : 'Prior confirmation number' }}
+                </label>
                 <input
                   #revalConf
                   class="ra-input"
@@ -111,7 +113,7 @@
                 [disabled]="isLoadingSource"
                 (click)="loadRevalSource(revalConf.value)"
               >
-                Load prior appointment
+                {{ isReBook ? 'Load appointment' : 'Load prior appointment' }}
               </button>
               @if (sourceLoadMessage) {
                 <div class="ra-reval__msg">{{ sourceLoadMessage }}</div>
@@ -244,11 +246,7 @@
               </div>
             </div>
             @if (isSourceLoadRequired) {
-              <div class="ra-reval__msg" role="alert">
-                Load the prior {{ isReevaluation ? 'approved ' : '' }}appointment by confirmation
-                number on the Schedule step before submitting this
-                {{ isReevaluation ? 're-evaluation' : 're-request' }}.
-              </div>
+              <div class="ra-reval__msg" role="alert">{{ sourceLookupBanner }}</div>
             }
             <div class="ra-card__body">
               <div class="ra-review">

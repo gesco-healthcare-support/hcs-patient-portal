@@ -35,12 +35,20 @@ export class IntakeAssignmentsService {
       url: '/api/app/intake-assignments/impersonator-info',
     },
     { apiName: this.apiName,...config });
-
+  
 
   getList = (config?: Partial<Rest.Config>) =>
     this.restService.request<any, ListResultDto<IntakeOfficeAssignmentDto>>({
       method: 'GET',
       url: '/api/app/intake-assignments',
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getMyOfficeMetrics = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, ListResultDto<IntakeOfficeMetricsDto>>({
+      method: 'GET',
+      url: '/api/app/intake-assignments/my-office-metrics',
     },
     { apiName: this.apiName,...config });
   
@@ -51,15 +59,7 @@ export class IntakeAssignmentsService {
       url: '/api/app/intake-assignments/my-offices',
     },
     { apiName: this.apiName,...config });
-
-
-  getMyOfficeMetrics = (config?: Partial<Rest.Config>) =>
-    this.restService.request<any, ListResultDto<IntakeOfficeMetricsDto>>({
-      method: 'GET',
-      url: '/api/app/intake-assignments/my-office-metrics',
-    },
-    { apiName: this.apiName,...config });
-
+  
 
   getOfficeOptions = (config?: Partial<Rest.Config>) =>
     this.restService.request<any, ListResultDto<LookupDto<string>>>({
