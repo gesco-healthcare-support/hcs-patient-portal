@@ -91,6 +91,35 @@
         </div>
       }
 
+      <!-- Item 5 (2026-08-18): re-openable from every step the answer governs. Someone
+           reaching the Defense step and not recognising the name should be able to say so
+           there, not restart the booking. -->
+      @if (usesPrefillPicker && prefillSelection && stepUsesPrefillSection) {
+        <div class="ra-reval__msg d-flex justify-content-between align-items-center">
+          <span>Filled in from {{ sourceConfirmationNumber }}.</span>
+          <button type="button" class="ap-btn" (click)="reopenPrefillPicker()">
+            Something changed
+          </button>
+        </div>
+      }
+
+      <!-- Item 5 (2026-08-18): the attorney question has no default, so an unanswered one
+           blocks Continue. Its own banner rather than a row in the summary above, because it
+           is a step-level gate with no invalid CONTROL to name. -->
+      @if (attorneyAnswerMissing) {
+        <div class="ra-errsum" role="alert">
+          <div class="ra-errsum__hd">
+            <app-icon name="alert" [size]="18" />
+            <span>
+              {{ attorneyQuestionFor(currentStep.key === 'applicant' ? 'applicant' : 'defense') }}
+            </span>
+          </div>
+          <ul>
+            <li>Choose Yes or No before continuing.</li>
+          </ul>
+        </div>
+      }
+
       @switch (currentStep.key) {
         @case ('schedule') {
           @if (showSourceLookup) {
@@ -159,6 +188,7 @@
               [form]="form"
               role="applicant"
               [mandatory]="isApplicantAttorney && !isItAdmin"
+              [questionText]="attorneyQuestionFor('applicant')"
               [getStateLookup]="getStateLookup"
               [isReadOnly]="false"
               [isFieldInvalid]="isFieldInvalidBound"
@@ -172,6 +202,7 @@
               [form]="form"
               role="defense"
               [mandatory]="isDefenseAttorney && !isItAdmin"
+              [questionText]="attorneyQuestionFor('defense')"
               [getStateLookup]="getStateLookup"
               [isReadOnly]="false"
               [isFieldInvalid]="isFieldInvalidBound"
@@ -591,6 +622,16 @@
   />
 }
 <app-submit-query-modal [(visible)]="submitQueryVisible" />
+
+<!-- Item 5 (2026-08-18): "what has changed?" for a booking prefilled from an older
+     appointment. Opens on arrival at the Patient step, and stays re-openable from any step
+     the answer governs. -->
+<app-prefill-picker-modal
+  [visible]="prefillPickerVisible"
+  [selection]="prefillSelection"
+  [sourceConfirmationNumber]="sourceConfirmationNumber"
+  (confirmed)="onPrefillSelectionConfirmed($event)"
+/>
 
 <!-- #15: CanDeactivate Save / Discard / Stay prompt when abandoning a dirty 'new' booking. -->
 @if (leavePromptVisible) {
