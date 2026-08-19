@@ -209,7 +209,30 @@ public class CaseTrackerAttendanceControllerTests
 
         var result = await ActAsync(h);
 
-        result.ShouldBeOfType<ConflictResult>();
+        // ConflictObjectResult, not ConflictResult: since 2026-08-18 the 409 carries the status and
+        // the retry verdict, agreed with the Case Tracker so they stop retrying conflicts that can
+        // never succeed. Asserting the BODY rather than just the status code is the point -- this is
+        // the only test that drives the flag through the controller, and Pending is a case where
+        // retrying genuinely does succeed once our staff approve.
+        var conflict = result.ShouldBeOfType<ConflictObjectResult>();
+        var body = conflict.Value.ShouldBeOfType<CaseTrackerAttendanceConflictResponse>();
+        body.Status.ShouldBe(nameof(AppointmentStatusType.Pending));
+        body.Retryable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task WhenTheConflictIsPermanent_TheFlagSaysSo()
+    {
+        // The other half of the flag, and the half that saves them the wasted retries: a checked-out
+        // appointment was attended, so no amount of calling again will let it take a no-show.
+        var h = Build(Token, currentStatus: AppointmentStatusType.CheckedOut, transitionRefused: true);
+
+        var result = await ActAsync(h);
+
+        var conflict = result.ShouldBeOfType<ConflictObjectResult>();
+        var body = conflict.Value.ShouldBeOfType<CaseTrackerAttendanceConflictResponse>();
+        body.Status.ShouldBe(nameof(AppointmentStatusType.CheckedOut));
+        body.Retryable.ShouldBeFalse();
     }
 
     [Fact]
