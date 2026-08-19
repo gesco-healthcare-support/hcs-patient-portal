@@ -90,4 +90,18 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     /// <summary>2026-06-09: optional per-appointment "Referred By".</summary>
     public string? RefferedBy { get; set; }
+
+    /// <summary>
+    /// Item 6 (2026-08-19) -- whether this is a first evaluation or a follow-up.
+    ///
+    /// <para>The column has been persisted, written on create and sent to the Case Tracker since
+    /// the integration landed, but was exposed on NO read DTO -- so the browser genuinely could
+    /// not tell the two apart, and the distinction the booking wizard makes ("Request a
+    /// Re-evaluation") vanished the moment the appointment was submitted.</para>
+    ///
+    /// <para>Read-only ON PURPOSE: deliberately absent from <c>AppointmentCreateDto</c>, because
+    /// the server derives the kind from the lifecycle flow. A client that could declare itself a
+    /// re-evaluation would bypass the Approved-source gate that governs them.</para>
+    /// </summary>
+    public EvaluationKind EvaluationKind { get; set; }
 }

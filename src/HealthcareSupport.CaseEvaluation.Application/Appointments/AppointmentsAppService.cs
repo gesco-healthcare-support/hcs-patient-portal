@@ -133,8 +133,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // another tenant's data.
         var visibleIds = await ComputeExternalPartyVisibilityAsync();
 
-        var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds, input.AppointmentStatuses, patientId: input.PatientId);
-        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds, input.AppointmentStatuses, patientId: input.PatientId);
+        var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds, input.AppointmentStatuses, patientId: input.PatientId, evaluationKind: input.EvaluationKind);
+        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds, input.AppointmentStatuses, patientId: input.PatientId, evaluationKind: input.EvaluationKind);
         var dtoItems = ObjectMapper.Map<List<AppointmentWithNavigationProperties>, List<AppointmentWithNavigationPropertiesDto>>(items);
         // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
         // to the last 4 for ALL callers. See docs/plans/2026-05-29-ssn-redact-on-type.md.

@@ -51,6 +51,13 @@ public class GetAppointmentsInput : PagedAndSortedResultRequestDto
     /// </summary>
     public List<AppointmentStatusType>? AppointmentStatuses { get; set; }
 
+    /// <summary>
+    /// Item 6 (2026-08-19): filter to first evaluations or follow-ups. Staff who handle
+    /// re-evaluations differently need to work with them as a SET, not recognise them one row at
+    /// a time -- which is why this filters the QUERY rather than an already-loaded page.
+    /// </summary>
+    public EvaluationKind? EvaluationKind { get; set; }
+
     public GetAppointmentsInput()
     {
     }
