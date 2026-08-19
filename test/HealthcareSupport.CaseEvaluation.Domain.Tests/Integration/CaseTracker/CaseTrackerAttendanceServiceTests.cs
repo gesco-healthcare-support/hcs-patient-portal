@@ -140,7 +140,7 @@ public class CaseTrackerAttendanceServiceTests
 
         var result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
 
-        result.ShouldBe(CaseTrackerAttendanceResult.Conflict);
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.Conflict);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class CaseTrackerAttendanceServiceTests
 
         var result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NotSeen);
 
-        result.ShouldBe(CaseTrackerAttendanceResult.Conflict);
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.Conflict);
     }
 
     [Fact]
@@ -161,8 +161,8 @@ public class CaseTrackerAttendanceServiceTests
         var missing = await Build(appointmentExists: false)
             .Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
 
-        conflict.ShouldBe(CaseTrackerAttendanceResult.Conflict);
-        missing.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+        conflict.Result.ShouldBe(CaseTrackerAttendanceResult.Conflict);
+        missing.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
         conflict.ShouldNotBe(missing);
     }
 
@@ -179,7 +179,7 @@ public class CaseTrackerAttendanceServiceTests
 
         var result = await h.Service.ApplyAsync(TenantId, AppointmentId, outcome);
 
-        result.ShouldBe(CaseTrackerAttendanceResult.Applied);
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.Applied);
         await h.Manager.DidNotReceiveWithAnyArgs()
             .MarkAttendanceOutcomeAsync(default, default, default, default);
     }
@@ -195,7 +195,7 @@ public class CaseTrackerAttendanceServiceTests
 
         var result = await h.Service.ApplyAsync(TenantId, AppointmentId, outcome);
 
-        result.ShouldBe(CaseTrackerAttendanceResult.Applied);
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.Applied);
         await h.Manager.Received(1).MarkAttendanceOutcomeAsync(AppointmentId, outcome, null, null);
     }
 
@@ -229,7 +229,7 @@ public class CaseTrackerAttendanceServiceTests
 
         var result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
 
-        result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
         // The id overload, NOT the predicate one: the predicate FindAsync is an EXTENSION method,
         // so NSubstitute cannot intercept it and the arrangement would silently do nothing.
         await h.Repository.DidNotReceive().FindAsync(
@@ -245,11 +245,11 @@ public class CaseTrackerAttendanceServiceTests
         // become a 500, because a 500 tells the caller it guessed a real office.
         var h = Build(repositoryThrows: new InvalidOperationException("no connection string for tenant"));
 
-        var result = CaseTrackerAttendanceResult.Applied;
+        var result = CaseTrackerAttendanceOutcome.Applied;
         await Should.NotThrowAsync(async () =>
             result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow));
 
-        result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
     }
 
     [Fact]
@@ -260,8 +260,8 @@ public class CaseTrackerAttendanceServiceTests
         var unknown = await Build(appointmentExists: false)
             .Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
 
-        disabled.ShouldBe(CaseTrackerAttendanceResult.NotFound);
-        unknown.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+        disabled.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+        unknown.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
         disabled.ShouldBe(unknown);
     }
 }

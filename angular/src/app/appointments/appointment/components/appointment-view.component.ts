@@ -1,17 +1,13 @@
-import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
+import { Directive, OnInit, inject } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ConfigStateService,
   EnvironmentService,
   ListResultDto,
-  LocalizationPipe,
   LocalizationService,
   PagedResultDto,
-  PermissionDirective,
   RestService,
 } from '@abp/ng.core';
 import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
@@ -36,28 +32,14 @@ import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import type { CustomFieldValueDisplayDto } from '../../../proxy/custom-fields/models';
 import { formatCustomFieldValue } from '../custom-field-display.util';
-import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
-import { UsDateAutoSlashDirective } from '../../../shared/us-date-auto-slash.directive';
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs/operators';
 import { firstValueFrom, Observable, of } from 'rxjs';
-import {
-  NgbDatepickerModule,
-  NgbDateStruct,
-  NgbTypeaheadModule,
-  NgbTypeaheadSelectItemEvent,
-} from '@ng-bootstrap/ng-bootstrap';
-import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
-import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
-import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
-import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
-import { RequestInfoModalComponent } from './request-info-modal.component';
+import { NgbDateStruct, NgbTypeaheadSelectItemEvent } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import { RequestStatusType } from '../../../proxy/enums/request-status-type.enum';
 import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
 import { changeRequestConsentView, type CrConsentView } from '../../change-requests/cr-inbox.util';
-import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
-import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 import { isReBookEligibleStatus } from '../../shared/rebook-eligibility';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
@@ -142,30 +124,20 @@ type ApplicantAttorneyLookupResult = {
   zipCode?: string;
 };
 
-@Component({
-  selector: 'app-appointment-view',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    RouterLink,
-    LocalizationPipe,
-    PermissionDirective,
-    AppLookupSelectComponent,
-    NgbDatepickerModule,
-    NgbTypeaheadModule,
-    UsDateAutoSlashDirective,
-    ApproveConfirmationModalComponent,
-    RejectAppointmentModalComponent,
-    RescheduleRequestModalComponent,
-    CancellationRequestModalComponent,
-    RequestInfoModalComponent,
-    AppointmentDocumentsComponent,
-    AppointmentPacketComponent,
-    SsnInputComponent,
-  ],
-  templateUrl: './appointment-view.component.html',
-})
+/**
+ * Base class for the appointment detail pages. NOT a rendered component -- no selector, no
+ * template, nothing routes to it. TWO subclasses supply their own markup and inherit this
+ * engine (load, change requests, document manager, authorized users):
+ * `InternalAppointmentDetailComponent` (staff, in-shell) and
+ * `ExternalAppointmentDetailComponent` (patients and attorneys).
+ *
+ * 2026-08-18: its own template was DELETED -- 1,285 lines unreachable since the redesign
+ * routed both audiences to the subclasses. See the sibling note on `AppointmentAddComponent`
+ * for why this is a selector-less `@Directive()` rather than an undecorated class: this one
+ * additionally declares `ngOnInit`, and an undecorated class using Angular features does not
+ * compile. The decorator carried no providers, so only the template-only `imports` were lost.
+ */
+@Directive()
 export class AppointmentViewComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);

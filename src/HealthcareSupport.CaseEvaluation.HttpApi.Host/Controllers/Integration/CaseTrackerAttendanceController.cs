@@ -17,6 +17,28 @@ public class CaseTrackerAttendanceRequest
 }
 
 /// <summary>
+/// Body of a <c>409</c>, so the Case Tracker can tell a conflict worth retrying from a final one
+/// (agreed with them 2026-08-18). Returned ONLY on a conflict; a <c>404</c> stays bodyless because
+/// its ambiguity is what stops a token holder enumerating offices and appointments.
+/// </summary>
+public class CaseTrackerAttendanceConflictResponse
+{
+    /// <summary>
+    /// The appointment's current <c>AppointmentStatusType</c> name, e.g. <c>RescheduleRequested</c>.
+    /// For their logs and for a human reading a stuck case -- NOT for deciding retryability, which
+    /// is what <see cref="Retryable"/> exists to stop them re-deriving.
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether the same call can succeed later. The single field they branch on: the rule lives in
+    /// <see cref="AttendanceConflictPolicy"/> beside the lifecycle it describes, so a change here
+    /// updates their behaviour without renegotiating the contract.
+    /// </summary>
+    public bool Retryable { get; set; }
+}
+
+/// <summary>
 /// The attendance report the Case Tracker POSTs when an appointment produced no evaluation (phase 5,
 /// 2026-08-07). Sits under <c>api/integration</c> beside the reconcile GET, for the same reason: it
 /// is machine-to-machine, with no portal user involved and a shared token rather than a signed-in
@@ -69,7 +91,7 @@ public class CaseTrackerAttendanceController : AbpController
     /// <response code="400">Missing or unrecognised <c>outcome</c>.</response>
     /// <response code="401">Missing or incorrect <c>X-Integration-Token</c>.</response>
     /// <response code="404">Unknown office or appointment, or an office with the integration off.</response>
-    /// <response code="409">The appointment cannot take this outcome from its current status.</response>
+    /// <response code="409">Cannot take this outcome now; body carries the status and a retryable flag.</response>
     [HttpPost]
     [Route("offices/{tenantId}/appointments/{appointmentId}/attendance")]
     public virtual async Task<IActionResult> RecordAttendanceAsync(
@@ -97,11 +119,18 @@ public class CaseTrackerAttendanceController : AbpController
         var result = await _attendanceService.ApplyAsync(
             tenantId, appointmentId, outcome, cancellationToken);
 
-        return result switch
+        return result.Result switch
         {
             CaseTrackerAttendanceResult.Applied => Ok(),
-            CaseTrackerAttendanceResult.Conflict => Conflict(),
-            // Deliberately indistinguishable from "unknown appointment" -- see the service.
+            // The status and the retry verdict travel together so the caller never has to re-derive
+            // one from the other. CurrentStatus is non-null on every conflict (see the outcome type).
+            CaseTrackerAttendanceResult.Conflict => Conflict(new CaseTrackerAttendanceConflictResponse
+            {
+                Status = result.CurrentStatus!.Value.ToString(),
+                Retryable = result.IsRetryable,
+            }),
+            // Deliberately indistinguishable from "unknown appointment", and deliberately BODYLESS
+            // -- see the service.
             _ => NotFound(),
         };
     }

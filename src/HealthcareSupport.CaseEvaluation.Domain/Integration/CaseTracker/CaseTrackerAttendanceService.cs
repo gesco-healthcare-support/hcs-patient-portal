@@ -63,7 +63,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
     /// value through <see cref="AttendanceOutcomeWire"/>, so anything else is a programming error and
     /// is allowed to surface rather than be quietly turned into a not-found.
     /// </param>
-    public virtual async Task<CaseTrackerAttendanceResult> ApplyAsync(
+    public virtual async Task<CaseTrackerAttendanceOutcome> ApplyAsync(
         Guid tenantId,
         Guid appointmentId,
         AppointmentStatusType outcome,
@@ -82,7 +82,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogDebug(
                         "CaseTrackerAttendanceService: office {TenantId} has the Case Tracker integration disabled; attendance report refused.",
                         tenantId);
-                    return CaseTrackerAttendanceResult.NotFound;
+                    return CaseTrackerAttendanceOutcome.NotFound;
                 }
 
                 var appointment = await _appointmentRepository.FindAsync(
@@ -92,7 +92,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogDebug(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} not found in office {TenantId}; answering not-found.",
                         appointmentId, tenantId);
-                    return CaseTrackerAttendanceResult.NotFound;
+                    return CaseTrackerAttendanceOutcome.NotFound;
                 }
 
                 // Idempotency (T6). A retry carrying the SAME outcome is a no-op success: returning
@@ -104,14 +104,14 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogDebug(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} already carries {Outcome}; no-op.",
                         appointmentId, outcome);
-                    return CaseTrackerAttendanceResult.Applied;
+                    return CaseTrackerAttendanceOutcome.Applied;
                 }
 
                 try
                 {
                     await _appointmentManager.MarkAttendanceOutcomeAsync(
                         appointmentId, outcome, reason: null, actingUserId: null);
-                    return CaseTrackerAttendanceResult.Applied;
+                    return CaseTrackerAttendanceOutcome.Applied;
                 }
                 catch (BusinessException ex)
                     when (ex.Code == CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition)
@@ -123,7 +123,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogInformation(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} in office {TenantId} cannot take {Outcome} from its current status; answering conflict.",
                         appointmentId, tenantId, outcome);
-                    return CaseTrackerAttendanceResult.Conflict;
+                    return CaseTrackerAttendanceOutcome.Conflict(appointment.AppointmentStatus);
                 }
             }
             catch (Exception ex)
@@ -135,7 +135,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     ex,
                     "CaseTrackerAttendanceService: could not apply {Outcome} to appointment {AppointmentId} for office {TenantId}; answering not-found.",
                     outcome, appointmentId, tenantId);
-                return CaseTrackerAttendanceResult.NotFound;
+                return CaseTrackerAttendanceOutcome.NotFound;
             }
         }
     }

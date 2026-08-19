@@ -48,6 +48,8 @@ import {
   WIZARD_STEP_CONTROLS,
   collectStepErrors,
 } from './step-errors.util';
+import { PrefillPickerModalComponent } from '../shared/prefill-picker-modal.component';
+import { PREFILL_SECTIONS, type PrefillSelection } from '../shared/prefill-sections';
 import { AppointmentDraftService } from '../../proxy/appointment-drafts/appointment-draft.service';
 import type { AppointmentDraftDto } from '../../proxy/appointment-drafts/models';
 
@@ -106,6 +108,7 @@ const STEPS: WizardStep[] = [
     AppointmentAddAuthorizedUsersComponent,
     AppointmentAddCustomFieldsComponent,
     ConfirmAddressDialogComponent,
+    PrefillPickerModalComponent,
     SsnMaskPipe,
     LocalizationPipe,
   ],
@@ -332,6 +335,13 @@ export class AppointmentWizardComponent
     this.stepErrorSummary = [];
     this.current = Math.min(this.current + 1, this.steps.length - 1);
     this.furthest = Math.max(this.furthest, this.current);
+    // Item 5 (2026-08-18): ask "what has changed?" on arrival at the first step the answer
+    // governs, rather than the moment the source loads. Two of the three entry paths auto-load
+    // during construction, so firing it there would put a modal over a half-rendered wizard,
+    // before the booker has seen any of the data they are being asked about.
+    if (this.currentStep.key === 'patient') {
+      this.openPrefillPickerIfDue();
+    }
     // #15: each Continue is a server checkpoint so the draft survives leaving.
     this.persistServerDraft();
   }
@@ -343,6 +353,7 @@ export class AppointmentWizardComponent
    */
   private validateCurrentStep(): boolean {
     const key = this.currentStep.key;
+    this.attorneyAnswerMissing = false;
     const fieldErrors = collectStepErrors(
       this.form,
       WIZARD_STEP_CONTROLS[key] ?? [],
@@ -353,6 +364,29 @@ export class AppointmentWizardComponent
     }
     this.stepErrorSummary = fieldErrors;
     let valid = fieldErrors.length === 0;
+
+    // Item 5 (2026-08-18): the attorney question has no default answer, so an unanswered
+    // section must block Continue. Without this the booker could walk past a question the
+    // whole change exists to force -- and submit with a null that means neither yes nor no.
+    //
+    // WHERE the viewer IS this attorney type the question is never shown (`mandatory`), so
+    // there is nothing to answer: assert the true the hidden control would have carried.
+    if (key === 'applicant' || key === 'defense') {
+      const isApplicant = key === 'applicant';
+      const control = this.form.get(
+        isApplicant ? 'applicantAttorneyEnabled' : 'defenseAttorneyEnabled',
+      );
+      const mandatory =
+        (isApplicant ? this.isApplicantAttorney : this.isDefenseAttorney) && !this.isItAdmin;
+      if (mandatory) {
+        if (control?.value !== true) {
+          control?.setValue(true, { emitEvent: false });
+        }
+      } else if (control && (control.value === null || control.value === undefined)) {
+        this.attorneyAnswerMissing = true;
+        valid = false;
+      }
+    }
 
     if (key === 'claim' && this.injuryDrafts.length === 0) {
       this.claimInformationMissing = true;
@@ -369,6 +403,47 @@ export class AppointmentWizardComponent
     }
     return valid;
   }
+  /** Does the current step render any section the picker governs? Drives the re-open control. */
+  protected get stepUsesPrefillSection(): boolean {
+    return ['patient', 'applicant', 'defense', 'insurance', 'examiner'].includes(
+      this.currentStep.key,
+    );
+  }
+
+  /**
+   * The picker's answer. Sections being newly marked changed are cleared, so warn first if the
+   * booker has already edited any of them -- otherwise a mis-click silently discards their work.
+   */
+  protected onPrefillSelectionConfirmed(selection: PrefillSelection): void {
+    const losingWork = PREFILL_SECTIONS.filter(
+      ({ key }) =>
+        selection[key] && !this.prefillSelection?.[key] && this.prefillSectionIsDirty(key),
+    ).map(({ label }) => label);
+
+    if (losingWork.length === 0) {
+      this.applyPrefillSelection(selection);
+      return;
+    }
+
+    this.confirmation
+      .warn(
+        `You have already edited ${losingWork.join(', ')}. Marking ${
+          losingWork.length === 1 ? 'it' : 'them'
+        } as changed will clear what you entered.`,
+        'Clear these sections?',
+        { hideCancelBtn: false, yesText: 'Clear them', cancelText: 'Keep my changes' },
+      )
+      .subscribe((status: Confirmation.Status) => {
+        if (status === Confirmation.Status.confirm) {
+          this.applyPrefillSelection(selection);
+        } else {
+          // Declined: leave both the data AND the selection untouched, and keep the picker
+          // open so the booker can change their answer rather than losing the dialog.
+          this.prefillPickerVisible = true;
+        }
+      });
+  }
+
   protected prevStep(): void {
     this.current = Math.max(0, this.current - 1);
     this.stepErrorSummary = [];

@@ -1,22 +1,8 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Directive, inject } from '@angular/core';
+import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import {
-  ConfigStateService,
-  ListService,
-  LocalizationPipe,
-  PagedResultDto,
-  RestService,
-} from '@abp/ng.core';
-import {
-  Confirmation,
-  ConfirmationService,
-  DateAdapter,
-  TimeAdapter,
-  ToasterService,
-} from '@abp/ng.theme.shared';
-import { NgxValidateCoreModule } from '@ngx-validate/core';
+import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
+import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 import {
   catchError,
   debounceTime,
@@ -26,8 +12,16 @@ import {
   switchMap,
 } from 'rxjs/operators';
 import { firstValueFrom, Observable, of } from 'rxjs';
-import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
+import { attorneyQuestionText, resolveAttorneyToggleAction } from './shared/attorney-question.util';
+import {
+  clearPrefillSection,
+  defaultPrefillSelection,
+  PREFILL_SECTIONS,
+  SECTION_CONTROLS,
+  type PrefillSection,
+  type PrefillSelection,
+} from './shared/prefill-sections';
 import { BookingMode, resolveBookingModeFromType } from './shared/booking-mode';
 import { isReBookEligibleStatus } from './shared/rebook-eligibility';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
@@ -39,12 +33,8 @@ import {
 } from '../shared/address/address-validation.provider';
 import { AddressFieldMap } from '../shared/address/address-autocomplete.component';
 import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
-import {
-  ConfirmAddressDialogComponent,
-  AddressChoice,
-  AddressDiffItem,
-} from '../shared/address/confirm-address-dialog.component';
-import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
+import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-address-dialog.component';
+import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto, AppointmentDto } from '../proxy/appointments/models';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
@@ -57,38 +47,26 @@ import type {
   PatientWithNavigationPropertiesDto,
 } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
-import { AppointmentViewService } from './appointment/services/appointment.service';
 import { DoctorAvailabilityService } from '../proxy/doctor-availabilities/doctor-availability.service';
 import type { DoctorAvailabilityDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
-// #121 (2026-05-13) -- 7 section components extracted from the
-// monolithic booker template (T1-T7). The parent retains the 55-field
-// reactive `form` FormGroup, every cascade subscription, every
-// lookup/HTTP roundtrip, and every role-based visibility gate; each
-// child binds [formGroup]="form" and renders template-only. Types
-// surfaced here (AppointmentAuthorizedUserDraft, ExternalAuthorizedUserOption,
-// AppointmentInjuryDraft, ClaimExaminerPrefill) live in the section
-// files because they describe section-owned data; the parent imports
-// them so submit-time + draft-list reads keep type-checking.
-import { AppointmentAddCustomFieldsComponent } from './sections/appointment-add-custom-fields.component';
+// #121 (2026-05-13) -- 7 section components extracted from the monolithic booker template
+// (T1-T7). This class retains the 55-field reactive `form` FormGroup, every cascade
+// subscription, every lookup/HTTP roundtrip, and every role-based visibility gate; each
+// section binds [formGroup]="form" and renders template-only.
+//
+// 2026-08-18: the section components themselves are no longer imported here -- this class
+// lost its template, so it declares no `imports`. The WIZARD imports them. Only the TYPES
+// remain, because they describe section-owned data that submit-time and draft-list reads
+// still type-check against.
 import {
-  AppointmentAddAuthorizedUsersComponent,
   type AppointmentAuthorizedUserDraft,
   type ExternalAuthorizedUserOption,
 } from './sections/appointment-add-authorized-users.component';
-import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-add-employer-details.component';
+import { type AppointmentInjuryDraft } from './sections/appointment-add-claim-information.component';
 import {
-  AppointmentAddClaimInformationComponent,
-  type AppointmentInjuryDraft,
-} from './sections/appointment-add-claim-information.component';
-import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
-import { AppointmentAddClaimPartiesSectionComponent } from './sections/appointment-add-claim-parties-section.component';
-import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
-import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
-import {
-  AppointmentAddDocumentsComponent,
   OTHER_DOCUMENT_TYPE_VALUE,
   type StagedDocumentUpload,
 } from './sections/appointment-add-documents.component';
@@ -109,35 +87,22 @@ type AppointmentTypeFieldConfigDto = {
   defaultValue?: string | null;
 };
 
-@Component({
-  selector: 'app-appointment-add',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    LocalizationPipe,
-    TopHeaderNavbarComponent,
-    NgxValidateCoreModule,
-    AppointmentAddCustomFieldsComponent,
-    AppointmentAddAuthorizedUsersComponent,
-    AppointmentAddEmployerDetailsComponent,
-    AppointmentAddClaimInformationComponent,
-    AppointmentAddAttorneySectionComponent,
-    AppointmentAddClaimPartiesSectionComponent,
-    AppointmentAddPatientDemographicsComponent,
-    AppointmentAddScheduleComponent,
-    AppointmentAddDocumentsComponent,
-    ConfirmAddressDialogComponent,
-  ],
-  providers: [
-    ListService,
-    AppointmentViewService,
-    { provide: NgbDateAdapter, useClass: DateAdapter },
-    { provide: NgbTimeAdapter, useClass: TimeAdapter },
-  ],
-  templateUrl: './appointment-add.component.html',
-  styleUrls: ['./appointment-add.component.scss'],
-})
+/**
+ * Base class for the booking form. NOT a rendered component -- it has no selector and no
+ * template, and nothing routes to it. `AppointmentWizardComponent` extends it and supplies
+ * the markup; this class owns the engine (the 55-field reactive form, every cascade
+ * subscription, prefill, and the multi-POST submit).
+ *
+ * 2026-08-18: its own template (`appointment-add.component.html`) and stylesheet were
+ * DELETED. They had been unreachable since 4a (2026-08-04) removed the `/appointments/add`
+ * route, and a QA round plus a live gate were each spent editing that dead markup and
+ * shipping no visible change. Angular's documented annotation for an inherited-but-never-
+ * instantiated class is a selector-less `@Directive()`; a plain undecorated class using
+ * Angular features is a compile error. The decorator's `imports` existed only to compile
+ * the deleted template, and its `providers` are re-declared identically by the wizard
+ * (decorator metadata is not inherited), so nothing here was load-bearing.
+ */
+@Directive()
 export class AppointmentAddComponent {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
@@ -409,6 +374,94 @@ export class AppointmentAddComponent {
   // to drive the inline message on the Claim Information card.
   claimInformationMissing = false;
 
+  // Item 5 (2026-08-18): set when Continue is pressed on an attorney step whose yes/no
+  // question has not been answered. A sibling of claimInformationMissing -- both are
+  // step-level gates that no single control's validator can express.
+  attorneyAnswerMissing = false;
+
+  // ===== Item 5 (2026-08-18): prefill section picker =====
+
+  /** Which sections the booker has declared changed. Null until they have been asked. */
+  prefillSelection: PrefillSelection | null = null;
+  prefillPickerVisible = false;
+  /**
+   * The source payload, retained after prefill so a section flipped back to "unchanged" can be
+   * restored without re-fetching. Null outside a prefilled booking.
+   */
+  private retainedPrefillPatch: Record<string, unknown> | null = null;
+
+  /**
+   * Does this booking ask "what has changed?" at all?
+   *
+   * Re-eval and re-book both start a NEW appointment from a source that can be months old,
+   * which is exactly where a stale attorney or insurer slips through unnoticed. A re-request is
+   * a correction of a request the office rejected -- usually hours old, with the problem fields
+   * already flagged -- so the question there would be noise in front of a task the booker
+   * already understands. (Adrian, 2026-08-18.)
+   */
+  get usesPrefillPicker(): boolean {
+    return this.bookingMode === 'reval' || this.bookingMode === 'reBook';
+  }
+
+  /** Open the picker if this booking uses one, a source is loaded, and it has not been asked. */
+  openPrefillPickerIfDue(): void {
+    if (this.usesPrefillPicker && this.sourceConfirmationNumber && this.prefillSelection === null) {
+      this.prefillPickerVisible = true;
+    }
+  }
+
+  /** Re-open on demand -- someone reaching the Defense step and not recognising the name
+   * should not have to restart the booking. */
+  reopenPrefillPicker(): void {
+    if (this.usesPrefillPicker && this.sourceConfirmationNumber) {
+      this.prefillPickerVisible = true;
+    }
+  }
+
+  /**
+   * Apply the booker's answer: clear every section they marked changed, and restore any they
+   * flipped back to unchanged.
+   *
+   * Restoring re-patches only that section's keys from the retained source, so flipping a
+   * section back does not resurrect values the booker has since edited elsewhere.
+   */
+  applyPrefillSelection(selection: PrefillSelection): void {
+    const previous = this.prefillSelection ?? defaultPrefillSelection();
+    for (const { key } of PREFILL_SECTIONS) {
+      if (selection[key] && !previous[key]) {
+        clearPrefillSection(this.form, key);
+      } else if (!selection[key] && previous[key]) {
+        this.restorePrefillSection(key);
+      }
+    }
+    this.prefillSelection = selection;
+    this.prefillPickerVisible = false;
+  }
+
+  /** Put a section's source values back, for a flip from "changed" to "unchanged". */
+  private restorePrefillSection(section: PrefillSection): void {
+    const patch = this.retainedPrefillPatch;
+    if (!patch) {
+      return;
+    }
+    const slice: Record<string, unknown> = {};
+    for (const control of SECTION_CONTROLS[section]) {
+      if (control in patch) {
+        slice[control] = patch[control];
+      }
+    }
+    this.form.patchValue(slice as any, { emitEvent: false });
+  }
+
+  /**
+   * Would flipping this section to "changed" throw away work? True when any control it owns has
+   * been edited since prefill. Drives the confirm prompt -- two minutes of corrections should
+   * not vanish to a mis-click.
+   */
+  prefillSectionIsDirty(section: PrefillSection): boolean {
+    return SECTION_CONTROLS[section].some((control) => this.form.get(control)?.dirty === true);
+  }
+
   /**
    * CI1/CI2 (2026-06-05): when a Claim Examiner books, pre-fill the
    * appointment-level Claim Examiner section with their own name + email.
@@ -629,7 +682,11 @@ export class AppointmentAddComponent {
     employerCity: [null as string | null, [Validators.maxLength(255)]],
     employerStateId: [null as string | null],
     employerZipCode: [null as string | null, [Validators.maxLength(10)]],
-    applicantAttorneyEnabled: [true],
+    // Item 5 (2026-08-18): NO default. Null means "the booker has not answered yet", and the
+    // wizard blocks Continue until they do. It used to default to true, so a section nobody
+    // confirmed quietly collected an attorney -- and a defaulted-off one silently dropped a
+    // party from the claim.
+    applicantAttorneyEnabled: [null as boolean | null],
     applicantAttorneyIdentityUserId: [null as string | null],
     applicantAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
@@ -645,7 +702,8 @@ export class AppointmentAddComponent {
     // OLD parity 2026-05-06: Defense Attorney section is enabled by default
     // (matching OLD's two-attorney row with both toggles ON). Booker can
     // turn it off explicitly if not needed. Same for Claim Examiner below.
-    defenseAttorneyEnabled: [true],
+    // Item 5 (2026-08-18): no default -- see applicantAttorneyEnabled above.
+    defenseAttorneyEnabled: [null as boolean | null],
     defenseAttorneyIdentityUserId: [null as string | null],
     defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
@@ -860,7 +918,18 @@ export class AppointmentAddComponent {
     // via setValue(true, { emitEvent: false }) so this subscriber does
     // not re-fire. Toggling ON has no modal -- the section just opens.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      if (!enabled) {
+      // Item 5 (2026-08-18): this used to test `!enabled`, which was safe while the control
+      // was only ever true or false. It now has a THIRD state -- null, meaning the booker has
+      // not answered yet -- and null is falsy, so a bare `!enabled` popped the "are you sure
+      // there is no attorney?" confirmation at booker over a form they had not touched.
+      // Unanswered is not a No: it asks nothing and simply leaves the section unrequired.
+      const action = resolveAttorneyToggleAction(enabled);
+      if (action === 'unanswered') {
+        this.applyConditionalEmailValidator('applicantAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'applicantAttorney', false);
+        return;
+      }
+      if (action === 'confirm-off') {
         this.confirmAaToggleOff();
         return;
       }
@@ -872,7 +941,15 @@ export class AppointmentAddComponent {
     // F4 (2026-05-29): DA toggle-off mirrors AA -- pop the confirmation modal
     // instead of silently dropping the section. Toggling ON has no modal.
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      if (!enabled) {
+      // Item 5 (2026-08-18): unanswered (null) is not the same as "no defense attorney".
+      // See the applicant subscriber above for why a bare `!enabled` is now wrong.
+      const action = resolveAttorneyToggleAction(enabled);
+      if (action === 'unanswered') {
+        this.applyConditionalEmailValidator('defenseAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'defenseAttorney', false);
+        return;
+      }
+      if (action === 'confirm-off') {
         this.confirmDaToggleOff();
         return;
       }
@@ -1529,6 +1606,9 @@ export class AppointmentAddComponent {
     // formPatch is a dynamic key/value bag (employer + attorney + panel/due);
     // cast to bypass the strongly-typed FormGroup value shape at this one site.
     this.form.patchValue(prefill.formPatch as any, { emitEvent: false });
+    // Item 5 (2026-08-18): keep the patch so a section the booker flips back to "unchanged"
+    // can be restored without another round trip to the server.
+    this.retainedPrefillPatch = prefill.formPatch as Record<string, unknown>;
     this.injuryDrafts = prefill.injuryDrafts;
     this.appointmentAuthorizedUsers = prefill.authorizedUsers;
     // Item 3 (2026-08-17): the attorney entity ids are deliberately NOT carried from a
@@ -2275,11 +2355,32 @@ export class AppointmentAddComponent {
 
   reset(): void {
     this.form.reset();
-    // BUG-044: both attorney sections are mandatory; form.reset() nulls the
-    // Enabled flags, so re-assert them to keep the required validators on.
-    this.form.patchValue({ applicantAttorneyEnabled: true, defenseAttorneyEnabled: true });
+    // BUG-044 restored these flags to true after a reset, because form.reset() nulls them and
+    // the required validators went stale. Item 5 (2026-08-18) removed their default, so null
+    // is now the CORRECT post-reset state: it means "unanswered", and the wizard blocks
+    // Continue until the booker says yes or no. Re-asserting true here would put back exactly
+    // the silent default the change removes -- a freshly reset form claiming both attorneys
+    // exist. The validators are re-applied when the answer arrives, via
+    // applyConditionalEmailValidator + applyAttorneySectionValidators.
     this.updateLocationSelection(null);
     this.clearTimeSlots();
+  }
+
+  /**
+   * The attorney question for a section, or '' when the viewer IS that attorney type (the
+   * wizard hides the question entirely in that case). Copy lives in a pure resolver so it
+   * unit-tests without a TestBed.
+   */
+  attorneyQuestionFor(role: 'applicant' | 'defense'): string {
+    const prefix = role === 'applicant' ? 'applicantAttorney' : 'defenseAttorney';
+    return attorneyQuestionText(prefix, {
+      // isExternalUserNonPatient is the established role test on this component and defaults
+      // to "not a patient" while roles are still loading -- which is the safe way round here
+      // too: the claim-language wording is correct for everyone except patients.
+      isPatient: !this.isExternalUserNonPatient,
+      isApplicantAttorney: this.isApplicantAttorney,
+      isDefenseAttorney: this.isDefenseAttorney,
+    });
   }
 
   /**
