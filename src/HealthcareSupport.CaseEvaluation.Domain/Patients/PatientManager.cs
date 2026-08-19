@@ -52,8 +52,43 @@ public class PatientManager : DomainService
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
         Check.Length(apptNumber, nameof(apptNumber), PatientConsts.ApptNumberMaxLength);
         Check.Length(othersLanguageName, nameof(othersLanguageName), PatientConsts.OthersLanguageNameMaxLength);
+        tenantId = ResolveOwningTenantId(tenantId);
         var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
         return await _patientRepository.InsertAsync(patient);
+    }
+
+    /// <summary>
+    /// The practice a new <see cref="Patient"/> belongs to.
+    ///
+    /// <para><b>Why this is not just the argument.</b> <see cref="Patient"/> is
+    /// <see cref="Volo.Abp.MultiTenancy.IMultiTenant"/>, but its TenantId comes from a CALLER
+    /// ARGUMENT rather than from ABP, so ABP's usual guarantee does not apply: whatever the caller
+    /// passes is what gets written, including null. One caller takes it straight off a client DTO
+    /// (<c>PatientsAppService.CreateAsync</c>), and the booking path passes
+    /// <c>CurrentTenant.Id</c>, which is null whenever the tenant did not resolve for that
+    /// request.</para>
+    ///
+    /// <para><b>What a null costs.</b> Nothing throws. The row is inserted and the appointment
+    /// points at it, but the multi-tenancy filter hides it from every tenant-scoped read: no
+    /// patient name in the appointment list, blank demographics on the detail view, no way for
+    /// staff to edit it, and -- worst -- the duplicate search cannot see it either, so the next
+    /// booking for the same person creates a second record. Two patients reached production this
+    /// way on 2026-08-19 before anyone noticed, and the damage is not repairable from the UI.</para>
+    ///
+    /// <para>Falls back to the ambient tenant when the caller supplied none, and refuses outright
+    /// when neither is available. Refusing is safe here because the product has no host-level
+    /// patients -- the host database contains none -- so a patient with no practice is always a
+    /// defect, and a visible failure is better than an invisible row.</para>
+    /// </summary>
+    protected virtual Guid? ResolveOwningTenantId(Guid? requestedTenantId)
+    {
+        var tenantId = requestedTenantId ?? CurrentTenant.Id;
+        if (tenantId == null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientTenantRequired);
+        }
+
+        return tenantId;
     }
 
     public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)

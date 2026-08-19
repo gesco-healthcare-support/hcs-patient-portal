@@ -1,6 +1,7 @@
 {
   "Culture": "en",
   "Texts": {
+    "Patient.TenantRequired": "This patient could not be created because no practice was selected. Reload the page, make sure you are working inside a practice, and try again.",
     "Account.ResetPasswordTokenInvalid": "This password reset link is no longer valid. Request a new one and try again.",
     "AppointmentDocument.InvalidFileFormat": "That file type is not accepted. Upload the document in one of the supported formats.",
     "AppointmentInvalidTransition": "This appointment cannot move to that status from the status it is in now.",

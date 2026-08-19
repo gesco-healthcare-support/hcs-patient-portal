@@ -1083,6 +1083,23 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Patient.InUse";
 
     /// <summary>
+    /// A <c>Patient</c> was about to be created with no owning practice.
+    ///
+    /// <para>Found live 2026-08-19: two patients booked through the wizard landed with
+    /// <c>TenantId = NULL</c> and nothing failed. The rows exist and their appointments point at
+    /// them, but the <c>IMultiTenant</c> filter hides them from every tenant-scoped read -- so the
+    /// appointment list shows no patient name, the detail view shows blank demographics, staff
+    /// cannot edit them, and the duplicate check cannot see them either, so the next booking for
+    /// the same person silently creates a SECOND record.</para>
+    ///
+    /// <para>The product has no host-level patients (the host database holds none), so a null
+    /// tenant here is always a defect. Failing loudly beats writing a row that is invisible to
+    /// the people who need it. Localization key <c>Patient.TenantRequired</c>.</para>
+    /// </summary>
+    public const string PatientTenantRequired =
+        "CaseEvaluation:Patient.TenantRequired";
+
+    /// <summary>
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>ApplicantAttorneysAppService.DeleteAsync</c> when the applicant
     /// attorney is still referenced by at least one
