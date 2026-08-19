@@ -359,6 +359,7 @@ tests/baseline/
 # Claude Code task-scheduler runtime state (machine-local, not project source)
 .claude/scheduled_tasks.json
 .claude/scheduled_tasks.lock
+
 # Working artefacts (plans, bug/task backlog) are local-only and never committed.
 docs/plans/
 docs/backlog.md
