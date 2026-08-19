@@ -7,16 +7,39 @@
 <div [formGroup]="form" class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center">
     <h5 class="card-title mb-0 fw-bold">{{ headingText }}</h5>
+    <!-- Item 5 (2026-08-18): an explicit question with no pre-selected answer, replacing a
+         checkbox labelled "Include". "Include" conflated "show me this section" with "this
+         appointment has an attorney", so a default answered a question nobody was asked.
+         Radios rather than a switch because the control now has THREE meanings -- yes, no, and
+         not-yet-answered -- and an unchecked switch cannot tell the last two apart.
+         Hidden entirely when `mandatory`: the viewer IS this attorney type, so there is
+         nothing to ask. -->
     @if (!mandatory) {
-      <div class="form-check form-switch">
-        <input
-          class="form-check-input"
-          type="checkbox"
-          [id]="checkboxId"
-          [formControlName]="prefix + 'Enabled'"
-        />
-        <label class="form-check-label" [for]="checkboxId">Include</label>
-      </div>
+      <fieldset class="d-flex align-items-center gap-3 mb-0">
+        <legend class="form-label fw-semibold mb-0 fs-6 float-none w-auto">
+          {{ questionText }}
+        </legend>
+        <div class="form-check form-check-inline mb-0">
+          <input
+            class="form-check-input"
+            type="radio"
+            [id]="checkboxId + '-yes'"
+            [formControlName]="prefix + 'Enabled'"
+            [value]="true"
+          />
+          <label class="form-check-label" [for]="checkboxId + '-yes'">Yes</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input
+            class="form-check-input"
+            type="radio"
+            [id]="checkboxId + '-no'"
+            [formControlName]="prefix + 'Enabled'"
+            [value]="false"
+          />
+          <label class="form-check-label" [for]="checkboxId + '-no'">No</label>
+        </div>
+      </fieldset>
     }
   </div>
   @if (mandatory || form.get(prefix + 'Enabled')?.value) {

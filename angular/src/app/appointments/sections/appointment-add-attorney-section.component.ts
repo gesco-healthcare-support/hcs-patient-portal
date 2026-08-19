@@ -69,10 +69,18 @@ export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDest
     input: LookupRequestDto,
   ) => Observable<PagedResultDto<LookupDto<string>>>;
   @Input() isReadOnly = false;
-  /** BUG-044: when true, the section is required -- the "Include" toggle is
-   * hidden and the body always renders. The parent keeps `{prefix}Enabled`
-   * locked to true so the required validators stay applied. */
+  /** BUG-044: when true, the section is required -- the question is hidden and the body
+   * always renders. The parent keeps `{prefix}Enabled` locked to true so the required
+   * validators stay applied. Item 5 (2026-08-18) reuses this for the "the viewer IS this
+   * attorney type" case: an applicant attorney is not asked whether the applicant is
+   * represented, because they are the representation. */
   @Input() mandatory = false;
+  /**
+   * The question put to the booker, resolved by the parent from the viewer's role via
+   * `attorney-question.util.ts`. Item 5 replaced a checkbox labelled "Include", which asked
+   * two different things at once and answered neither.
+   */
+  @Input() questionText = '';
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
 
   // 2026-05-28 -- when the parent reverts the AA toggle from the
