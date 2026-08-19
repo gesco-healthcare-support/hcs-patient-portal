@@ -941,6 +941,15 @@ retrying would not help. That is wrong for two of the causes, and it contradicte
 MinIO reply which said to retry with backoff. **Retry with backoff is correct**; the paragraphs
 below replace both statements and are the position to build against.
 
+**CORRECTED AGAIN 2026-08-18**, in the direction that strands a case, so re-read the two lists if
+you classified against the 14 August version. `RescheduleRequested` was listed as permanent on the
+grounds that it has no transition back to `Approved`. It has one: rejecting a reschedule request
+returns the appointment to `Approved`. The claim was read off our internal status graph, which
+genuinely has no such edge -- the rejection path sets the status directly rather than going through
+that graph, so the edge exists in behaviour but not in the diagram. `CancellationRequested` was also
+listed, and is unreachable: a pending cancellation request leaves the appointment at `Approved`, so
+it produces a `200` and not a `409`. Both entries are corrected below.
+
 `409` means the portal did not apply the outcome and nothing changed. `Approved` is the ONLY status
 an attendance outcome may be recorded from, so a `409` always means the appointment was in some
 other status when you called. Whether retrying helps depends on which, and the response
@@ -952,20 +961,25 @@ site.
 - **Pending** -- not approved yet. Once our staff approve it, the same call succeeds.
 - **InfoRequested** -- our staff asked the requester for more information. It returns to `Pending`,
   then to `Approved`.
+- **RescheduleRequested** -- a reschedule is in flight. If our staff REJECT it the appointment
+  returns to `Approved` and the same call succeeds; if they approve it, the appointment reaches
+  `RescheduledNoBill` / `RescheduledLate` and the entry below applies instead. You cannot tell which
+  way it will go at the time of the `409`, which is why this is transient rather than a special case.
 
-Both mean your report simply arrived ahead of our staff, which is a race rather than a data error.
-Under the old "log and stop" advice a no-show reported in that window was dropped silently and
-never reached us -- that is the defect this correction fixes.
+The first two mean your report simply arrived ahead of our staff, which is a race rather than a data
+error. Under the old "log and stop" advice a no-show reported in that window was dropped silently
+and never reached us -- that is the defect the first correction fixes.
 
 **Permanent -- a retry will NEVER succeed:**
 
 - The appointment already carries the OTHER attendance outcome.
-- **RescheduleRequested** -- no agreed date yet, so the patient is not expected to attend anything.
-  It can only become `RescheduledNoBill` or `RescheduledLate`; there is no transition back to
-  `Approved`. Finalize the reschedule; the NEW appointment is the one that can no-show.
-- **CancellationRequested**, **Cancelled**, **Rescheduled**, **Rejected** -- terminal, or only able
-  to reach a terminal status.
+- **Cancelled**, **Rescheduled**, **Rejected** -- terminal, or only able to reach a terminal status.
+  On a finalized reschedule, the NEW appointment is the one that can no-show.
 - **CheckedIn**, **CheckedOut**, **Billed** -- the patient did attend.
+
+`CancellationRequested` is deliberately absent: an appointment with a cancellation request still
+pending stays `Approved` on our side, so an attendance report against it applies and returns `200`.
+Do not model it as a conflict cause.
 
 **What to do.** Retry with backoff, bounded on ELAPSED TIME rather than attempt count, because the
 transient window is "until our staff approve" and that is wall-clock. Retrying costs nothing: the

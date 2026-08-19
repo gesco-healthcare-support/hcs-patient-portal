@@ -1,3 +1,8 @@
+SUPERSEDED 2026-08-18 - DO NOT SEND AS WRITTEN. Its `409` advice is wrong and was corrected to
+Levon in later correspondence; the contract's "Conflicts (`409`)" section is the current position.
+The original paragraph is left in place, flagged in prose, so the correction is traceable rather
+than silently rewritten. Kept only as a record of what was drafted.
+
 DRAFT - NOT SENT. Update to Levon covering everything shipped since reply 4.
 Drafted 2026-08-08. Every claim below verified against code and against the live server, not memory.
 
@@ -53,6 +58,10 @@ booked against it.
 Responses: `200` applied (a retry with the SAME outcome is also `200` and changes nothing, so retry
 freely); `400` if `outcome` is missing or is not one of those two exact strings; `401` wrong token;
 `404` unknown office or appointment; `409` the appointment cannot take that outcome right now.
+
+WRONG, SUPERSEDED -- do not reuse this paragraph. A `409` must be RETRIED with backoff, bounded on
+elapsed time, and `RescheduleRequested` is transient rather than permanent. See the contract's
+"Conflicts (`409`)" section for the current split. Original text follows:
 
 About the `409` -- it is safe to log and stop, retrying will not help. The most likely cause is that
 the appointment is not in Approved state. In particular an appointment with a reschedule in flight
