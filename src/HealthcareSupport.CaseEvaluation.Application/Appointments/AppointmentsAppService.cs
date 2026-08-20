@@ -1122,19 +1122,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // => TypeMismatch. Booked is treated as Available for backward
         // compatibility (the active-count probe is authoritative).
 
-        // Arm 1: explicit manual close.
-        // 2026-05-28 -- UserFriendlyException (not BusinessException) so the
-        // localized message reaches the client. ABP's BusinessException auto-
-        // localization via MapCodeNamespace is documented as not resolving
-        // in this codebase (see AppointmentReadAccessGuard.cs:162-167) and
-        // surfaces as "An internal error occurred during your request!".
-        // The error CODE is still carried so the SPA's plan-6 catch block in
-        // appointment-add.component.ts pattern-matches correctly.
+        // Arm 1: explicit manual close. The error CODE is load-bearing: the SPA's
+        // catch block in appointment-add.component.ts pattern-matches on it to refetch
+        // the slot picker, so it must survive to the client.
         if (doctorAvailability.BookingStatusId == BookingStatus.Reserved)
         {
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed,
-                message: L["Appointment:BookingSlotClosed"]);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed);
         }
 
         // Arm 2: capacity. Active-count is the authoritative measure;
@@ -1144,12 +1137,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .GetActiveCountForSlotAsync(doctorAvailability.Id);
         if (activeCount >= doctorAvailability.Capacity)
         {
-            // Carry the active-count + capacity on the exception data so
-            // logging + any structured consumer can read the numbers; the
-            // localized message already interpolates them for the SPA toast.
-            throw new UserFriendlyException(
-                    code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
-                    message: L["Appointment:BookingSlotFull", activeCount, doctorAvailability.Capacity])
+            // The data names must match the {activeCount} / {capacity} tokens in the
+            // message, because ABP substitutes placeholders BY NAME from this data.
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull)
                 .WithData("activeCount", activeCount)
                 .WithData("capacity", doctorAvailability.Capacity);
         }
@@ -1159,9 +1149,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (doctorAvailability.AppointmentTypes.Any() &&
             !doctorAvailability.AppointmentTypes.Any(at => at.AppointmentTypeId == input.AppointmentTypeId))
         {
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
-                message: L["Appointment:BookingSlotTypeMismatch"]);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch);
         }
 
         // Arms 4 / 5 / 6: location, date, and time-range parity checks
@@ -1414,7 +1402,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // EnsureAttorneyFirmNamePresent (private helper below). Same
         // UserFriendlyException semantics as ExternalSignupAppService's
         // ValidateRegistrationInput attorney check.
-        EnsureAttorneyFirmNamePresent(input.FirmName, "ApplicantAttorney", _localizer);
+        EnsureAttorneyFirmNamePresent(input.FirmName, "ApplicantAttorney");
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)
@@ -1526,19 +1514,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// <see cref="AppointmentDocuments.AppointmentDocumentsAppService.EnsureFileSizeWithinLimit"/>
     /// pattern from BUG-025.</para>
     /// </summary>
-    internal static void EnsureAttorneyFirmNamePresent(
-        string? firmName,
-        string attorneyRole,
-        IStringLocalizer<CaseEvaluationResource>? localizer = null)
+    internal static void EnsureAttorneyFirmNamePresent(string? firmName, string attorneyRole)
     {
         if (string.IsNullOrWhiteSpace(firmName))
         {
-            var message = localizer != null
-                ? localizer["Appointment:AttorneyFirmNameRequired"].Value
-                : "Firm Name is required for the attorney section.";
-            throw new UserFriendlyException(
-                    message: message,
-                    code: CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired)
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired)
                 .WithData("AttorneyRole", attorneyRole);
         }
     }
@@ -1666,7 +1646,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         // BUG-012 Sub-bug 2 (2026-05-22): FirmName guard extracted; see
         // the AA upsert above + EnsureAttorneyFirmNamePresent below.
-        EnsureAttorneyFirmNamePresent(input.FirmName, "DefenseAttorney", _localizer);
+        EnsureAttorneyFirmNamePresent(input.FirmName, "DefenseAttorney");
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)

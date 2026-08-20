@@ -26,11 +26,8 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
-    protected DomainErrorTranslator _domainErrorTranslator;
-    public AppointmentTypesAppService(IAppointmentTypeRepository appointmentTypeRepository, AppointmentTypeManager appointmentTypeManager, IRepository<Appointment, Guid> appointmentRepository,
-        DomainErrorTranslator domainErrorTranslator)
+    public AppointmentTypesAppService(IAppointmentTypeRepository appointmentTypeRepository, AppointmentTypeManager appointmentTypeManager, IRepository<Appointment, Guid> appointmentRepository)
     {
-        _domainErrorTranslator = domainErrorTranslator;
         _appointmentTypeRepository = appointmentTypeRepository;
         _appointmentTypeManager = appointmentTypeManager;
         _appointmentRepository = appointmentRepository;
@@ -64,14 +61,7 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
         // Route through the manager so the system-row + in-use guards apply.
         // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
         // so the client gets the real reason instead of ABP's generic internal-error text.
-        try
-        {
-            await _appointmentTypeManager.DeleteAsync(id);
-        }
-        catch (BusinessException ex)
-        {
-            throw _domainErrorTranslator.Translate(ex);
-        }
+        await _appointmentTypeManager.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentTypes.Create)]

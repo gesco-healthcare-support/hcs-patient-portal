@@ -36,7 +36,6 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
-    protected DomainErrorTranslator _domainErrorTranslator;
     public StatesAppService(
         IStateRepository stateRepository,
         StateManager stateManager,
@@ -45,10 +44,8 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
         IRepository<Patient, Guid> patientRepository,
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
         IRepository<DefenseAttorney, Guid> defenseAttorneyRepository,
-        IRepository<ClaimExaminer, Guid> claimExaminerRepository,
-        DomainErrorTranslator domainErrorTranslator)
+        IRepository<ClaimExaminer, Guid> claimExaminerRepository)
     {
-        _domainErrorTranslator = domainErrorTranslator;
         _stateRepository = stateRepository;
         _stateManager = stateManager;
         _locationRepository = locationRepository;
@@ -102,14 +99,7 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
         // Route through the manager so the system-row + in-use guards apply.
         // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
         // so the client gets the real reason instead of ABP's generic internal-error text.
-        try
-        {
-            await _stateManager.DeleteAsync(id);
-        }
-        catch (BusinessException ex)
-        {
-            throw _domainErrorTranslator.Translate(ex);
-        }
+        await _stateManager.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.States.Create)]

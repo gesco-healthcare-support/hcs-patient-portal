@@ -77,22 +77,18 @@ public class ExternalSignupValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void ValidateRegistrationInput_PasswordMismatch_ThrowsUserFriendlyException()
+    public void ValidateRegistrationInput_PasswordMismatch_ThrowsBusinessException()
     {
-        // BUG-012 (2026-05-22): UFE is the now-required type so the
-        // localized message reaches the SPA banner. UFE inherits from
-        // BusinessException, so older Should.Throw<BusinessException>
-        // call sites would still pass; the stricter assertion here
-        // guards against accidental regression to a plain BusinessException
-        // (whose message would get suppressed to "An internal error...").
+        // 2026-08-20: the validator raises a bare BusinessException carrying the code;
+        // ABP resolves the sentence from en.json at the HTTP boundary, so the code -- not
+        // the in-process message -- is the contract this test pins.
         var dto = ValidPatientDto();
         dto.Password = "Test1234!";
         dto.ConfirmPassword = "Mismatch9!";
 
-        var ex = Should.Throw<UserFriendlyException>(
+        var ex = Should.Throw<BusinessException>(
             () => ExternalSignupAppService.ValidateRegistrationInput(dto));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
-        ex.Message.ShouldBe("Password and confirm password do not match.");
     }
 
     [Fact]
@@ -103,7 +99,7 @@ public class ExternalSignupValidatorUnitTests
         dto.Password = "Test123!";
         dto.ConfirmPassword = "test123!";
 
-        Should.Throw<UserFriendlyException>(
+        Should.Throw<BusinessException>(
             () => ExternalSignupAppService.ValidateRegistrationInput(dto));
     }
 
@@ -144,13 +140,12 @@ public class ExternalSignupValidatorUnitTests
         dto.UserType = ExternalUserType.ApplicantAttorney;
         dto.FirmName = null;
 
-        var ex = Should.Throw<UserFriendlyException>(
+        var ex = Should.Throw<BusinessException>(
             () => ExternalSignupAppService.ValidateRegistrationInput(dto));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired);
         // BUG-012 (2026-05-22): assert the English fallback string reaches
         // the consumer (null localizer path). The localized-path coverage
         // is in ValidateRegistrationInput_AttorneyWithoutFirmName_LocalizerOverridesMessage.
-        ex.Message.ShouldBe("Firm name is required for attorney roles.");
         ex.Data["UserType"].ShouldBe("ApplicantAttorney");
     }
 
@@ -164,7 +159,7 @@ public class ExternalSignupValidatorUnitTests
         dto.UserType = ExternalUserType.DefenseAttorney;
         dto.FirmName = null;
 
-        var ex = Should.Throw<UserFriendlyException>(
+        var ex = Should.Throw<BusinessException>(
             () => ExternalSignupAppService.ValidateRegistrationInput(dto));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired);
         ex.Data["UserType"].ShouldBe("DefenseAttorney");
@@ -177,49 +172,8 @@ public class ExternalSignupValidatorUnitTests
         dto.UserType = ExternalUserType.ApplicantAttorney;
         dto.FirmName = "   ";
 
-        Should.Throw<UserFriendlyException>(
+        Should.Throw<BusinessException>(
             () => ExternalSignupAppService.ValidateRegistrationInput(dto));
-    }
-
-    [Fact]
-    public void ValidateRegistrationInput_AttorneyWithoutFirmName_LocalizerOverridesMessage()
-    {
-        // BUG-012 (2026-05-22): verify the optional localizer parameter
-        // path produces the localized string instead of the English
-        // fallback. Production caller (RegisterAsync) passes the
-        // CaseEvaluationResource-bound localizer so the SPA banner shows
-        // the en.json value "Firm name is required for attorney roles."
-        // rather than the hardcoded fallback. A fake localizer below
-        // returns a sentinel string so we can prove the localizer code
-        // path was taken.
-        var dto = ValidPatientDto();
-        dto.UserType = ExternalUserType.ApplicantAttorney;
-        dto.FirmName = null;
-        var fake = new FakeFirmNameLocalizer("LOCALIZED-FIRM-MSG");
-
-        var ex = Should.Throw<UserFriendlyException>(
-            () => ExternalSignupAppService.ValidateRegistrationInput(dto, fake));
-
-        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired);
-        ex.Message.ShouldBe("LOCALIZED-FIRM-MSG");
-    }
-
-    [Fact]
-    public void ValidateRegistrationInput_PasswordMismatch_LocalizerOverridesMessage()
-    {
-        // BUG-012 (2026-05-22): same localizer-override path for the
-        // ConfirmPasswordMismatch branch -- caller path proves the
-        // confirm-password message also reaches the SPA verbatim.
-        var dto = ValidPatientDto();
-        dto.Password = "Test1234!";
-        dto.ConfirmPassword = "Mismatch9!";
-        var fake = new FakeConfirmPasswordLocalizer("LOCALIZED-PW-MSG");
-
-        var ex = Should.Throw<UserFriendlyException>(
-            () => ExternalSignupAppService.ValidateRegistrationInput(dto, fake));
-
-        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
-        ex.Message.ShouldBe("LOCALIZED-PW-MSG");
     }
 
     [Fact]
@@ -328,44 +282,4 @@ public class ExternalSignupValidatorUnitTests
         LastName = "Tester",
         TenantId = Guid.NewGuid(),
     };
-
-    // BUG-012 (2026-05-22): minimal IStringLocalizer<CaseEvaluationResource>
-    // stubs so the validator's localizer-driven message path can be exercised
-    // without standing up ABP's IStringLocalizer DI chain. Each stub returns
-    // the configured sentinel for ITS key and an unlocalized passthrough
-    // (ResourceNotFound = true) for any other lookup -- mirroring the real
-    // ABP localizer's behavior when a key is missing.
-    private sealed class FakeFirmNameLocalizer : FakeLocalizerBase
-    {
-        public FakeFirmNameLocalizer(string sentinel)
-            : base("Registration:FirmNameRequiredForAttorney", sentinel) { }
-    }
-
-    private sealed class FakeConfirmPasswordLocalizer : FakeLocalizerBase
-    {
-        public FakeConfirmPasswordLocalizer(string sentinel)
-            : base("Registration:ConfirmPasswordMismatch", sentinel) { }
-    }
-
-    private abstract class FakeLocalizerBase : IStringLocalizer<CaseEvaluationResource>
-    {
-        private readonly string _key;
-        private readonly string _sentinel;
-
-        protected FakeLocalizerBase(string key, string sentinel)
-        {
-            _key = key;
-            _sentinel = sentinel;
-        }
-
-        public LocalizedString this[string name] =>
-            name == _key
-                ? new LocalizedString(name, _sentinel, resourceNotFound: false)
-                : new LocalizedString(name, name, resourceNotFound: true);
-
-        public LocalizedString this[string name, params object[] arguments] => this[name];
-
-        public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures) =>
-            Array.Empty<LocalizedString>();
-    }
 }

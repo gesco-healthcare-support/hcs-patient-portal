@@ -44,15 +44,12 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
-    protected DomainErrorTranslator _domainErrorTranslator;
     public DocumentsAppService(
         IDocumentRepository documentRepository,
         IRepository<DocumentPackage> documentPackageRepository,
         IBlobContainer<MasterDocumentsContainer> blobContainer,
-        IGuidGenerator guidGenerator,
-        DomainErrorTranslator domainErrorTranslator)
+        IGuidGenerator guidGenerator)
     {
-        _domainErrorTranslator = domainErrorTranslator;
         _documentRepository = documentRepository;
         _documentPackageRepository = documentPackageRepository;
         _blobContainer = blobContainer;
@@ -155,7 +152,7 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
         var stillLinked = await _documentPackageRepository.AnyAsync(x => x.DocumentId == id && x.IsActive);
         if (stillLinked)
         {
-            throw _domainErrorTranslator.Refuse(CaseEvaluationDomainErrorCodes.DocumentInUse);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.DocumentInUse);
         }
 
         await _documentRepository.DeleteAsync(id, autoSave: true);

@@ -311,7 +311,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
-        EnsureFileSizeWithinLimit(fileSize, _localizer);
+        EnsureFileSizeWithinLimit(fileSize);
 
         // Issue #114 (2026-05-13): gate before any blob save so the
         // user can't trigger a write at all if they're not a party.
@@ -473,7 +473,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
-        EnsureFileSizeWithinLimit(fileSize, _localizer);
+        EnsureFileSizeWithinLimit(fileSize);
 
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
 
@@ -591,7 +591,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
-        EnsureFileSizeWithinLimit(fileSize, _localizer);
+        EnsureFileSizeWithinLimit(fileSize);
 
         EnsureValidFileFormat(content, fileName);
 
@@ -906,25 +906,11 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// <c>CaseEvaluationHttpApiHostModule</c>'s
     /// <c>AbpExceptionHttpStatusCodeOptions</c>.
     /// </summary>
-    public static void EnsureFileSizeWithinLimit(
-        long fileSize,
-        IStringLocalizer<CaseEvaluationResource>? localizer = null)
+    public static void EnsureFileSizeWithinLimit(long fileSize)
     {
         if (fileSize > MaxFileSizeBytes)
         {
-            // UserFriendlyException (not BusinessException) is used because
-            // ABP only sends UserFriendlyException messages to clients by
-            // default; BusinessException messages get replaced with the
-            // generic "An internal error occurred" fallback unless
-            // SendExceptionsDetailsToClients=true (which would also leak
-            // unrelated internal exception details). Same pattern as
-            // UserSignatureAppService.
-            var message = localizer != null
-                ? localizer["AppointmentDocument:FileTooLarge"].Value
-                : "File is too large.";
-            throw new UserFriendlyException(
-                    message: message,
-                    code: CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge)
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge)
                 .WithData("MaxBytes", MaxFileSizeBytes)
                 .WithData("ActualBytes", fileSize);
         }
