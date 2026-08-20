@@ -49,7 +49,7 @@ public abstract class AppointmentDocumentsAppServiceTests<TStartupModule>
         const long elevenMb = 11L * 1024 * 1024;
         using var content = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 }); // %PDF
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(() =>
+        var ex = await Should.ThrowAsync<BusinessException>(() =>
             _appService.UploadStreamAsync(
                 appointmentId: Guid.NewGuid(),
                 documentName: "BUG-025 over-limit",
@@ -92,7 +92,7 @@ public abstract class AppointmentDocumentsAppServiceTests<TStartupModule>
         const long elevenMb = 11L * 1024 * 1024;
         using var content = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 });
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(() =>
+        var ex = await Should.ThrowAsync<BusinessException>(() =>
             _appService.UploadJointDeclarationAsync(
                 appointmentId: Guid.NewGuid(),
                 documentName: "BUG-025 JDF over-limit",

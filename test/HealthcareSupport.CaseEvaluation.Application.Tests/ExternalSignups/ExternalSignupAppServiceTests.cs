@@ -69,15 +69,13 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
             TenantId = Guid.NewGuid(),
         };
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-08-20: the validator now raises a bare BusinessException carrying the code.
+        // ABP resolves the sentence from en.json at the HTTP boundary, so the message is not
+        // populated in-process; ErrorCodeLocalizationTests proves the code resolves to text.
+        var ex = await Should.ThrowAsync<BusinessException>(
             () => _appService.RegisterAsync(dto));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
-        // The localized message reached the consumer via the DI'd
-        // IStringLocalizer -- the proof that line 489's
-        // ValidateRegistrationInput(input, _localizer) call wired
-        // through correctly.
-        ex.Message.ShouldBe("Password and confirm password do not match.");
     }
 
     // =====================================================================
@@ -216,7 +214,7 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
         });
 
         // Inviting the same email is refused up front (before IssueAsync).
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        var ex = await Should.ThrowAsync<BusinessException>(
             () => _appService.InviteExternalUserAsync(new InviteExternalUserDto
             {
                 Email = email,
@@ -225,8 +223,6 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
             }));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
-        ex.Message.ShouldBe(
-            "This email already has an account in this office. Ask them to sign in or reset their password.");
 
         // No dead-end invitation row was created.
         using (_currentTenant.Change(TenantsTestData.TenantARef))

@@ -763,7 +763,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         //   - FirmName required for ApplicantAttorney AND DefenseAttorney
         //     (OLD-bug-fix on UserDomain.cs:272 which checked PatientAttorney
         //     twice; intent was both attorney roles)
-        ValidateRegistrationInput(input, _localizer);
+        ValidateRegistrationInput(input);
 
         var tenantId = ResolveTenantId(input.TenantId);
         var roleName = ToRoleName(input.UserType);
@@ -789,7 +789,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 throw new UserFriendlyException(
                     message: acceptedInvitation != null
                         ? L["Registration:DuplicateEmailInvited"]
-                        : L["Registration:DuplicateEmail"],
+                        : L[CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail],
                     code: CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail);
             }
 
@@ -1390,9 +1390,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             var existingUser = await _userManager.FindByEmailAsync(normalizedEmail);
             if (existingUser != null)
             {
-                throw new UserFriendlyException(
-                    message: L["Invite:EmailAlreadyRegistered"],
-                    code: CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
             }
 
             var (invitation, rawToken) = await _invitationManager.IssueAsync(
@@ -1768,9 +1766,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     /// localized text rather than the generic "An internal error occurred"
     /// ABP fallback (BUG-012, mirrors the BUG-014 / BUG-025 fix pattern).
     /// </summary>
-    internal static void ValidateRegistrationInput(
-        ExternalUserSignUpDto input,
-        IStringLocalizer<CaseEvaluationResource>? localizer = null)
+    internal static void ValidateRegistrationInput(ExternalUserSignUpDto input)
     {
         Check.NotNull(input, nameof(input));
         Check.NotNullOrWhiteSpace(input.Email, nameof(input.Email));
@@ -1788,12 +1784,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // inherits from BusinessException, so the HTTP-status mapping
             // for the code still applies (400 BadRequest via
             // CaseEvaluationHttpApiHostModule + CaseEvaluationAuthServerModule).
-            var mismatchMessage = localizer != null
-                ? localizer["Registration:ConfirmPasswordMismatch"].Value
-                : "Password and confirm password do not match.";
-            throw new UserFriendlyException(
-                message: mismatchMessage,
-                code: CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
         }
 
         if (IsAttorneyRole(input.UserType) && string.IsNullOrWhiteSpace(input.FirmName))
@@ -1801,12 +1792,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // BUG-012 (2026-05-22): same UFE pattern as above. WithData
             // carries the UserType so a future per-role-tailored banner can
             // be added in the SPA without parsing the message string.
-            var firmRequiredMessage = localizer != null
-                ? localizer["Registration:FirmNameRequiredForAttorney"].Value
-                : "Firm name is required for attorney roles.";
-            throw new UserFriendlyException(
-                    message: firmRequiredMessage,
-                    code: CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired)
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired)
                 .WithData("UserType", input.UserType.ToString());
         }
     }

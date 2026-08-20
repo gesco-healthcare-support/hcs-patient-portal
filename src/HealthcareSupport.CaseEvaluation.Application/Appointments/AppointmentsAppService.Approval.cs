@@ -73,22 +73,19 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
     // 2026-05-28 -- centralised BusinessException -> UserFriendlyException
     // translator so the SPA toast shows the localized message instead of
     // ABP's generic "internal error" fallback.
-    private readonly AppointmentExceptionTranslator _exceptionTranslator;
 
     public AppointmentApprovalAppService(
         IAppointmentRepository appointmentRepository,
         AppointmentManager appointmentManager,
         ILocalEventBus localEventBus,
         ILogger<AppointmentApprovalAppService> logger,
-        IdentityUserManager identityUserManager,
-        AppointmentExceptionTranslator exceptionTranslator)
+        IdentityUserManager identityUserManager)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _localEventBus = localEventBus;
         _logger = logger;
         _identityUserManager = identityUserManager;
-        _exceptionTranslator = exceptionTranslator;
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
@@ -97,8 +94,7 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         Check.NotNull(input, nameof(input));
 
         var appointment = await _appointmentRepository.GetAsync(id);
-        try { AppointmentApprovalValidator.EnsureApprovable(appointment, input); }
-        catch (BusinessException ex) { throw _exceptionTranslator.Translate(ex); }
+        AppointmentApprovalValidator.EnsureApprovable(appointment, input);
 
         appointment.PrimaryResponsibleUserId = input.PrimaryResponsibleUserId;
         // A1 (2026-05-05) -- OLD-parity: persist optional approver comments
@@ -123,8 +119,7 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         // transitions / missing injury details; translate to a localized
         // UserFriendlyException so the SPA shows the actionable message.
         Appointment approved;
-        try { approved = await _appointmentManager.ApproveAsync(id, CurrentUser.Id); }
-        catch (BusinessException ex) { throw _exceptionTranslator.Translate(ex); }
+        approved = await _appointmentManager.ApproveAsync(id, CurrentUser.Id);
 
         await _localEventBus.PublishAsync(new AppointmentApprovedEto
         {
@@ -151,16 +146,14 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         Check.NotNull(input, nameof(input));
 
         var appointment = await _appointmentRepository.GetAsync(id);
-        try { AppointmentApprovalValidator.EnsureRejectable(appointment, input); }
-        catch (BusinessException ex) { throw _exceptionTranslator.Translate(ex); }
+        AppointmentApprovalValidator.EnsureRejectable(appointment, input);
 
         appointment.RejectionNotes = input.Reason;
         appointment.RejectedById = CurrentUser.Id;
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
         Appointment rejected;
-        try { rejected = await _appointmentManager.RejectAsync(id, input.Reason, CurrentUser.Id); }
-        catch (BusinessException ex) { throw _exceptionTranslator.Translate(ex); }
+        rejected = await _appointmentManager.RejectAsync(id, input.Reason, CurrentUser.Id);
 
         await _localEventBus.PublishAsync(new AppointmentRejectedEto
         {

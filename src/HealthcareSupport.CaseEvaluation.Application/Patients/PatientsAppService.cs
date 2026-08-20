@@ -53,11 +53,8 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
-    protected DomainErrorTranslator _domainErrorTranslator;
-    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IRepository<Appointment, Guid> appointmentRepository, IDataFilter<IMultiTenant> dataFilter,
-        DomainErrorTranslator domainErrorTranslator)
+    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IRepository<Appointment, Guid> appointmentRepository, IDataFilter<IMultiTenant> dataFilter)
     {
-        _domainErrorTranslator = domainErrorTranslator;
         _patientRepository = patientRepository;
         _patientManager = patientManager;
         _stateRepository = stateRepository;
@@ -461,7 +458,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         // office's context where the filter already scopes it to that office.
         if (await _appointmentRepository.AnyAsync(a => a.PatientId == id))
         {
-            throw _domainErrorTranslator.Refuse(CaseEvaluationDomainErrorCodes.PatientInUse);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientInUse);
         }
         await _patientRepository.DeleteAsync(id);
     }
