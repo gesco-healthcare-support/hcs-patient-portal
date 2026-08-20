@@ -52,8 +52,43 @@ public class PatientManager : DomainService
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
         Check.Length(apptNumber, nameof(apptNumber), PatientConsts.ApptNumberMaxLength);
         Check.Length(othersLanguageName, nameof(othersLanguageName), PatientConsts.OthersLanguageNameMaxLength);
+        EnsureOwningTenant(tenantId);
         var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
         return await _patientRepository.InsertAsync(patient);
+    }
+
+    /// <summary>
+    /// Refuses to create a <see cref="Patient"/> that belongs to no practice.
+    ///
+    /// <para><b>Why this needs a guard at all.</b> <see cref="Patient"/> is
+    /// <see cref="Volo.Abp.MultiTenancy.IMultiTenant"/>, but its TenantId arrives as a CALLER
+    /// ARGUMENT rather than from ABP, so ABP's usual guarantee does not apply -- whatever the
+    /// caller passes is what gets written, including null.</para>
+    ///
+    /// <para><b>What a null costs.</b> Nothing throws. The row is inserted and the appointment
+    /// points at it, but the multi-tenancy filter then hides it from every tenant-scoped read: no
+    /// patient name in the appointment list, blank demographics on the detail view, no way for
+    /// staff to edit it, and -- worst -- the duplicate search cannot see it either, so the next
+    /// booking for the same person creates a SECOND record. Two patients reached production this
+    /// way on 2026-08-19, and the rows had to be repaired in the database because the UI cannot
+    /// reach them.</para>
+    ///
+    /// <para><b>Why it refuses rather than inferring.</b> An earlier version fell back to
+    /// <c>CurrentTenant.Id</c> when the caller passed nothing. That was convenience nobody asked
+    /// for: every caller already passes a value explicitly -- the two seed contributors pass a
+    /// real practice, <c>ExternalSignupAppService</c> passes <c>CurrentTenant.Id</c>, and
+    /// <c>PatientsAppService.CreateAsync</c> passes the client DTO's value. Inferring a practice
+    /// from request context would only ever mask the caller's bug, and could attach a patient to
+    /// whichever practice happened to be in scope. Refusing is safe because the product has no
+    /// host-level patients: the host database contains none, so a patient with no practice is
+    /// always a defect, and a visible failure beats an invisible row.</para>
+    /// </summary>
+    protected virtual void EnsureOwningTenant(Guid? tenantId)
+    {
+        if (tenantId == null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientTenantRequired);
+        }
     }
 
     public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
