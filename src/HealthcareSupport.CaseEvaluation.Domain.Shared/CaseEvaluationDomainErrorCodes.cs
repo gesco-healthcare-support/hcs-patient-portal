@@ -1083,6 +1083,14 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Patient.InUse";
 
     /// <summary>
+    /// Raised by <c>PatientManager.CreateAsync</c> when no owning practice was supplied. A
+    /// patient with no practice is invisible to every tenant-scoped read -- including the
+    /// duplicate search -- so the row cannot be seen or repaired from the UI.
+    /// </summary>
+    public const string PatientTenantRequired =
+        "CaseEvaluation:Patient.TenantRequired";
+
+    /// <summary>
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>ApplicantAttorneysAppService.DeleteAsync</c> when the applicant
     /// attorney is still referenced by at least one
