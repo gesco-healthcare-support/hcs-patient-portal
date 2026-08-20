@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
-using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Patients;
-using Microsoft.Extensions.Localization;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -42,22 +40,19 @@ public class AppointmentReadAccessGuard : ITransientDependency
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
-    private readonly IStringLocalizer<CaseEvaluationResource> _l;
 
     public AppointmentReadAccessGuard(
         IAppointmentRepository appointmentRepository,
         IRepository<AppointmentAccessor, Guid> accessorRepository,
         IRepository<Patient, Guid> patientRepository,
         ICurrentUser currentUser,
-        IAsyncQueryableExecuter asyncExecuter,
-        IStringLocalizer<CaseEvaluationResource> localizer)
+        IAsyncQueryableExecuter asyncExecuter)
     {
         _appointmentRepository = appointmentRepository;
         _accessorRepository = accessorRepository;
         _patientRepository = patientRepository;
         _currentUser = currentUser;
         _asyncExecuter = asyncExecuter;
-        _l = localizer;
     }
 
     /// <summary>
@@ -78,12 +73,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
     {
         if (!await CanReadAsync(appointment))
         {
-            // UserFriendlyException so the localized message reaches the client
-            // unchanged (BusinessException's MapCodeNamespace auto-localization is
-            // not resolving in this codebase).
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
-                message: _l["Appointment:AccessDenied"]);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
         }
     }
 
@@ -272,9 +262,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
     {
         if (!await CanEditAsync(appointmentId))
         {
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
-                message: _l["Appointment:AccessDenied"]);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
         }
     }
 
@@ -315,9 +303,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
     {
         if (!await CanManageAccessorsAsync(appointmentId))
         {
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
-                message: _l["Appointment:AccessDenied"]);
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
         }
     }
 }

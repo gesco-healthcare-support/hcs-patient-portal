@@ -117,7 +117,7 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
                 AccessTypeId = AccessType.View
             };
 
-            await Should.ThrowAsync<UserFriendlyException>(
+            await Should.ThrowAsync<BusinessException>(
                 async () => await _accessorsAppService.CreateAsync(input));
         }
     }

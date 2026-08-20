@@ -40,27 +40,6 @@ public abstract class ErrorCodeLocalizationTests<TStartupModule> : CaseEvaluatio
     }
 
     /// <summary>
-    /// Codes still served by a hand-written translator rather than by ABP. Those classes look up
-    /// their own short keys and fill placeholders POSITIONALLY, so their entries deliberately
-    /// keep the old shape -- re-keying them would break messages that work today.
-    ///
-    /// <para>This list is the remaining debt, not a design. When the translators are retired,
-    /// these entries move to the full-code shape and this exclusion disappears.</para>
-    /// </summary>
-    private static bool IsServedByATranslator(string code) =>
-        code.EndsWith(".InUse")
-        || code.StartsWith("CaseEvaluation:Appointment.")
-        || code == CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition
-
-        // Partially covered, and worth knowing about: AppointmentExceptionTranslator maps this
-        // one, so it reads correctly on the booking path. It is ALSO thrown plainly from
-        // SystemParametersAppService and AppointmentChangeRequestManager, where nothing
-        // translates it and the user still gets the generic dialog. Re-keying it would fix
-        // those paths but break the booking one, so it stays with the translator set until
-        // they are retired together.
-        || code == CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded;
-
-    /// <summary>
     /// Codes that legitimately have no localization entry, each for a checked reason. Anything
     /// else without a message is a bug: the user gets the generic dialog.
     /// </summary>
@@ -86,7 +65,7 @@ public abstract class ErrorCodeLocalizationTests<TStartupModule> : CaseEvaluatio
             .Select(f => (string)f.GetRawConstantValue()!)
             .Where(c => c.StartsWith("CaseEvaluation:"))
             .Distinct()
-            .Where(c => !IsServedByATranslator(c) && !NoEntryExpected.Contains(c))
+            .Where(c => !NoEntryExpected.Contains(c))
             .OrderBy(c => c);
 
     /// <summary>

@@ -29,11 +29,8 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
-    protected DomainErrorTranslator _domainErrorTranslator;
-    public LocationsAppService(ILocationRepository locationRepository, LocationManager locationManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository,
-        DomainErrorTranslator domainErrorTranslator)
+    public LocationsAppService(ILocationRepository locationRepository, LocationManager locationManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository)
     {
-        _domainErrorTranslator = domainErrorTranslator;
         _locationRepository = locationRepository;
         _locationManager = locationManager;
         _stateRepository = stateRepository;
@@ -108,14 +105,7 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
         // raw DB FK error.
         // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
         // so the client gets the real reason instead of ABP's generic internal-error text.
-        try
-        {
-            await _locationManager.EnsureCanDeleteAsync(id);
-        }
-        catch (BusinessException ex)
-        {
-            throw _domainErrorTranslator.Translate(ex);
-        }
+        await _locationManager.EnsureCanDeleteAsync(id);
         await _locationRepository.DeleteAsync(id);
     }
 
@@ -141,14 +131,7 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
         {
             // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
             // so the client gets the real reason instead of ABP's generic internal-error text.
-            try
-            {
-                await _locationManager.EnsureCanDeleteAsync(id);
-            }
-            catch (BusinessException ex)
-            {
-                throw _domainErrorTranslator.Translate(ex);
-            }
+            await _locationManager.EnsureCanDeleteAsync(id);
         }
         await _locationRepository.DeleteManyAsync(locationIds);
     }
@@ -163,16 +146,9 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
         // bulk delete blocked by one referenced location reports ABP's generic internal-error
         // text -- the least useful place to get it, since the user cannot tell which row
         // blocked them or why.
-        try
+        foreach (var match in matches)
         {
-            foreach (var match in matches)
-            {
-                await _locationManager.EnsureCanDeleteAsync(match.Location.Id);
-            }
-        }
-        catch (BusinessException ex)
-        {
-            throw _domainErrorTranslator.Translate(ex);
+            await _locationManager.EnsureCanDeleteAsync(match.Location.Id);
         }
         await _locationRepository.DeleteAllAsync(input.FilterText, input.Name, input.City, input.ZipCode, input.ParkingFeeMin, input.ParkingFeeMax, input.IsActive, input.StateId, input.AppointmentTypeId);
     }
