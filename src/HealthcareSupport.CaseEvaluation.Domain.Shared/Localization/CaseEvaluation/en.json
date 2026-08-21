@@ -269,6 +269,7 @@
     "CaseEvaluation:State.SystemReadOnly": "This is a built-in state and cannot be edited or deleted.",
     "CaseEvaluation:State.InUse": "This state is in use by one or more records and cannot be deleted.",
     "CaseEvaluation:Patient.InUse": "This patient cannot be deleted because they are referenced by one or more appointments.",
+    "CaseEvaluation:Patient.TenantRequired": "This patient could not be saved because no practice was selected. Reload the page and try again; if it keeps happening, report it with the time it occurred.",
     "CaseEvaluation:ApplicantAttorney.InUse": "This applicant attorney cannot be deleted because they are referenced by one or more appointments.",
     "CaseEvaluation:DefenseAttorney.InUse": "This defense attorney cannot be deleted because they are referenced by one or more appointments.",
     "CaseEvaluation:Doctor.OnePerTenantViolated": "This clinic already has a doctor profile. The system supports one doctor per clinic. Edit the existing profile instead, or contact the IT administrator if the clinic needs a different doctor.",

@@ -494,11 +494,19 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
         };
 
-        var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+        // 2026-08-20: runs inside a practice, because this is the CREATE branch and a patient
+        // must belong to one. Production always reaches here in a resolved tenant context (see
+        // the isHost comment in GetOrCreatePatientForAppointmentBookingAsync); the host-context
+        // form of this test only passed while a null practice was silently accepted, which is
+        // the defect PatientTenantAssignmentTests now guards.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
 
-        result.ShouldNotBeNull();
-        result.Patient.FirstName.ShouldBe("NoEmail");
-        result.Patient.Email.ShouldBe(string.Empty);
+            result.ShouldNotBeNull();
+            result.Patient.FirstName.ShouldBe("NoEmail");
+            result.Patient.Email.ShouldBe(string.Empty);
+        }
     }
 
     // R2 (Phase 9, 2026-05-04): IsExisting=true on the email-fast-path branch.
