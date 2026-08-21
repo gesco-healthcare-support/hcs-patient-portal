@@ -130,7 +130,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             // Default '' keeps existing rows + non-app construction valid; the filtered unique
             // index enforces uniqueness only over real (non-empty) values.
             b.Property(x => x.FacilityId).HasColumnName(nameof(Location.FacilityId)).IsRequired().HasMaxLength(LocationConsts.FacilityIdMaxLength).HasDefaultValue(string.Empty);
-            b.HasIndex(x => x.FacilityId).IsUnique().HasFilter("[FacilityId] <> ''");
+            b.HasIndex(x => x.FacilityId).IsUnique().HasFilter("[FacilityId] <> '' AND [IsDeleted] = 0");
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -487,6 +487,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.OfficeId).HasColumnName(nameof(IntakeOfficeAssignment.OfficeId)).IsRequired();
                 b.HasIndex(x => new { x.OperatorUserId, x.OfficeId })
                     .IsUnique()
+                    .HasFilter("[IsDeleted] = 0")
                     .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office");
             });
 
@@ -505,6 +506,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.LogoContentType).HasColumnName(nameof(OfficeBranding.LogoContentType)).HasMaxLength(OfficeBranding.LogoContentTypeMaxLength);
                 b.HasIndex(x => x.OfficeId)
                     .IsUnique()
+                    .HasFilter("[IsDeleted] = 0")
                     .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office");
             });
         }
@@ -597,8 +599,12 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             // longer slip past the MAX(...) read because the unique
             // index forces SaveChangesAsync to fail on the loser, who
             // then re-reads MAX and retries.
+            // The filter also excludes soft-deleted rows: the generator reads
+            // MAX through ABP's soft-delete filter, so a deleted row that still
+            // held the number made every later booking fail (2026-08-19).
             b.HasIndex(x => new { x.TenantId, x.RequestConfirmationNumber })
                 .IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
                 .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber");
         });
 
@@ -831,7 +837,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.BodySms).HasColumnName(nameof(NotificationTemplate.BodySms)).IsRequired();
             b.Property(x => x.Description).HasColumnName(nameof(NotificationTemplate.Description)).HasMaxLength(NotificationTemplateConsts.DescriptionMaxLength);
             b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplate.IsActive));
-            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasOne<NotificationTemplateType>().WithMany().HasForeignKey(x => x.TemplateTypeId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
 
@@ -867,7 +873,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ReminderCutoffTime).HasColumnName(nameof(SystemParameter.ReminderCutoffTime));
             b.Property(x => x.IsCustomField).HasColumnName(nameof(SystemParameter.IsCustomField));
             b.Property(x => x.CcEmailIds).HasColumnName(nameof(SystemParameter.CcEmailIds)).HasMaxLength(SystemParameterConsts.CcEmailIdsMaxLength);
-            b.HasIndex(x => x.TenantId).IsUnique();
+            b.HasIndex(x => x.TenantId).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
         });
 
         // AppointmentPacket -- per-(appointment, kind) generated packet metadata row.
@@ -905,7 +911,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Hidden).HasColumnName(nameof(AppointmentTypeFieldConfig.Hidden));
             b.Property(x => x.ReadOnly).HasColumnName(nameof(AppointmentTypeFieldConfig.ReadOnly));
             b.Property(x => x.DefaultValue).HasColumnName(nameof(AppointmentTypeFieldConfig.DefaultValue)).HasMaxLength(AppointmentTypeFieldConfigConsts.DefaultValueMaxLength);
-            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -964,7 +970,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
             // null-email record-only masters are still allowed.
-            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
         });
         builder.Entity<ClaimExaminer>(b =>
         {
@@ -983,7 +989,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
             // null-email record-only masters are still allowed.
-            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
         });
         builder.Entity<AppointmentApplicantAttorney>(b =>
         {
@@ -1014,7 +1020,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
             // null-email record-only masters are still allowed.
-            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
         });
         builder.Entity<AppointmentDefenseAttorney>(b =>
         {
@@ -1110,7 +1116,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.AcceptedAt);
             b.Property(x => x.AcceptedByUserId);
             b.Property(x => x.InvitedByUserId).IsRequired();
-            b.HasIndex(x => x.TokenHash).IsUnique();
+            b.HasIndex(x => x.TokenHash).IsUnique().HasFilter("[IsDeleted] = 0");
         });
     }
 }

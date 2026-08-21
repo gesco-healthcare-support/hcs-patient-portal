@@ -136,7 +136,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Hidden).HasColumnName(nameof(AppointmentTypeFieldConfig.Hidden));
             b.Property(x => x.ReadOnly).HasColumnName(nameof(AppointmentTypeFieldConfig.ReadOnly));
             b.Property(x => x.DefaultValue).HasColumnName(nameof(AppointmentTypeFieldConfig.DefaultValue)).HasMaxLength(AppointmentTypeFieldConfigConsts.DefaultValueMaxLength);
-            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<AppointmentStatus>(b =>
@@ -297,7 +297,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             // Default '' keeps existing rows + non-app construction valid; the filtered unique
             // index enforces uniqueness only over real (non-empty) values.
             b.Property(x => x.FacilityId).HasColumnName(nameof(Location.FacilityId)).IsRequired().HasMaxLength(LocationConsts.FacilityIdMaxLength).HasDefaultValue(string.Empty);
-            b.HasIndex(x => x.FacilityId).IsUnique().HasFilter("[FacilityId] <> ''");
+            b.HasIndex(x => x.FacilityId).IsUnique().HasFilter("[FacilityId] <> '' AND [IsDeleted] = 0");
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -548,6 +548,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             // consistent across host vs tenant migrations.
             b.HasIndex(x => new { x.TenantId, x.RequestConfirmationNumber })
                 .IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
                 .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber");
         });
         builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>(b =>
@@ -759,7 +760,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.BodySms).HasColumnName(nameof(NotificationTemplate.BodySms)).IsRequired();
             b.Property(x => x.Description).HasColumnName(nameof(NotificationTemplate.Description)).HasMaxLength(NotificationTemplateConsts.DescriptionMaxLength);
             b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplate.IsActive));
-            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasOne<NotificationTemplateType>().WithMany().HasForeignKey(x => x.TemplateTypeId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<NotificationTemplateType>(b =>
@@ -789,7 +790,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.ReminderCutoffTime).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.ReminderCutoffTime));
             b.Property(x => x.IsCustomField).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.IsCustomField));
             b.Property(x => x.CcEmailIds).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.CcEmailIds)).HasMaxLength(SystemParameterConsts.CcEmailIdsMaxLength);
-            b.HasIndex(x => x.TenantId).IsUnique();
+            b.HasIndex(x => x.TenantId).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
         });
         // AppointmentPacket -- per-(appointment, kind) generated packet metadata row.
         // Phase 1A.1: Kind discriminator + composite uniqueness so a single
@@ -857,7 +858,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
             // null-email record-only masters are still allowed.
-            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
         });
         builder.Entity<ClaimExaminer>(b =>
         {
@@ -876,7 +877,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
             // null-email record-only masters are still allowed.
-            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
         });
         builder.Entity<AppointmentApplicantAttorney>(b =>
         {
@@ -907,7 +908,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
             // null-email record-only masters are still allowed.
-            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
         });
         builder.Entity<AppointmentDefenseAttorney>(b =>
         {
@@ -999,7 +1000,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.AcceptedAt);
             b.Property(x => x.AcceptedByUserId);
             b.Property(x => x.InvitedByUserId).IsRequired();
-            b.HasIndex(x => x.TokenHash).IsUnique();
+            b.HasIndex(x => x.TokenHash).IsUnique().HasFilter("[IsDeleted] = 0");
         });
     }
 }
