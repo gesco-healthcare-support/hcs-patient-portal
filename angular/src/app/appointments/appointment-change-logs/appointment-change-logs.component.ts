@@ -1,42 +1,63 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { LocalizationPipe } from '@abp/ng.core';
 import {
-  AuditLogsService,
-  EntityChangeWithUsernameDto,
-  EntityChangeType,
-} from '@volo/abp.ng.audit-logging/proxy';
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  inject,
+} from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import {
+  AppointmentChangeLogService,
+  AppointmentChangeLogDto,
+} from '../../proxy/appointment-change-logs';
+import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { ChangeLogTimelineComponent } from '../../appointment-change-logs/change-log-timeline.component';
+import { AppointmentInfoRequestService } from '../../proxy/appointment-info-requests/appointment-info-request.service';
+import type { AppointmentInfoRequestRoundDto } from '../../proxy/appointment-info-requests/models';
+import { InfoRequestHistoryComponent } from '../appointment/components/info-request-history.component';
 
 /**
- * W2-4: per-appointment change-log viewer. Reads the appointment id from the
- * route param, calls the existing ABP audit-logging proxy to fetch entity
- * changes for that Appointment row, and renders a flat table of property
- * diffs (oldValue / newValue / propertyName / changeType / changeTime / user).
+ * Per-appointment change-log viewer. Group K (G-02-02) repoints this from ABP's
+ * raw single-FQN audit endpoint to the feature endpoint
+ * (`/api/app/appointment-change-logs/by-appointment/{id}`), which aggregates the
+ * appointment AND its child entities (injury / body part / claim examiner /
+ * insurance) and returns PHI-redacted, per-field rows. Sensitive values arrive
+ * already masked (valueRedacted = true), so the template never sees raw PHI.
  *
- * The cap intentionally lives outside the appointment-view tab so the
- * permission guard (CaseEvaluation.AppointmentChangeLogs) can hide the link
- * without affecting the rest of the view page.
+ * #14: that audit projection scans only those 5 entity types, so booker resubmit
+ * edits (Patient / DefenseAttorney) leave it near-empty. We augment the page with
+ * the Send Back / request-info rounds (GetHistoryAsync) in a separate section
+ * above the audit, so the meaningful resubmit history is visible here too. The two
+ * sources load independently -- one failing does not blank the other.
+ *
+ * The link is gated by CaseEvaluation.AppointmentChangeLogs (internal only).
  */
 @Component({
   selector: 'app-appointment-change-logs',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, LocalizationPipe],
+  imports: [CommonModule, IconComponent, ChangeLogTimelineComponent, InfoRequestHistoryComponent],
   templateUrl: './appointment-change-logs.component.html',
+  styleUrl: './appointment-change-logs.component.scss',
 })
 export class AppointmentChangeLogsComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly auditLogsService = inject(AuditLogsService);
+  private readonly changeLogService = inject(AppointmentChangeLogService);
+  private readonly infoRequestService = inject(AppointmentInfoRequestService);
+  // OnPush: the HTTP callbacks below assign imperatively, so they must
+  // markForCheck to re-render (mirrors the global AppointmentChangeLogList).
+  private readonly cdr = inject(ChangeDetectorRef);
 
   appointmentId: string | null = null;
   isLoading = true;
   errorMessage = '';
-  entries: EntityChangeWithUsernameDto[] = [];
+  entries: AppointmentChangeLogDto[] = [];
 
-  // Full type name as ABP records it; matches the [Audited] entity FQN.
-  private readonly entityTypeFullName = 'HealthcareSupport.CaseEvaluation.Appointments.Appointment';
+  /** Send Back / request-info rounds (newest-first); loaded independently. */
+  rounds: AppointmentInfoRequestRoundDto[] = [];
+  roundsError = false;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -46,34 +67,30 @@ export class AppointmentChangeLogsComponent implements OnInit {
       return;
     }
     this.appointmentId = id;
-    this.auditLogsService
-      .getEntityChangesWithUsername({
-        entityId: id,
-        entityTypeFullName: this.entityTypeFullName,
-      })
-      .subscribe({
-        next: (rows) => {
-          this.entries = rows ?? [];
-          this.isLoading = false;
-        },
-        error: () => {
-          this.errorMessage = 'Failed to load change log.';
-          this.isLoading = false;
-        },
-      });
-  }
-
-  changeTypeLabel(type: EntityChangeType): string {
-    switch (type) {
-      case EntityChangeType.Created:
-        return 'Created';
-      case EntityChangeType.Updated:
-        return 'Updated';
-      case EntityChangeType.Deleted:
-        return 'Deleted';
-      default:
-        return 'Unknown';
-    }
+    this.changeLogService.getByAppointment(id).subscribe({
+      next: (rows) => {
+        this.entries = rows ?? [];
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.errorMessage = 'Failed to load change log.';
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      },
+    });
+    // Independent of the audit call: a failure here surfaces an inline note in
+    // the history section but leaves the audit timeline below intact.
+    this.infoRequestService.getHistory(id).subscribe({
+      next: (rows) => {
+        this.rounds = rows ?? [];
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.roundsError = true;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   back(): void {

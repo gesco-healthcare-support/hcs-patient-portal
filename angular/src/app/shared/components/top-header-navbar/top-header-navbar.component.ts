@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { BrandingService } from '../../branding/branding.service';
 
 @Component({
   selector: 'app-top-header-navbar',
@@ -9,6 +10,8 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
   styleUrl: './top-header-navbar.component.scss',
 })
 export class TopHeaderNavbarComponent {
+  /** Per-office branding (logo + display name); overrides the static logo when present. */
+  protected readonly branding = inject(BrandingService);
   @Input() tenantName = '';
   @Input() userName = '';
   @Input() roleName = '';

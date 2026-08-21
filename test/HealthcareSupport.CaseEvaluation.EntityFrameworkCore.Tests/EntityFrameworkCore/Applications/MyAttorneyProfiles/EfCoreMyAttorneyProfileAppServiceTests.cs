@@ -1,0 +1,9 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using Xunit;
+
+namespace HealthcareSupport.CaseEvaluation.MyAttorneyProfiles;
+
+[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
+public class EfCoreMyAttorneyProfileAppServiceTests : MyAttorneyProfileAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

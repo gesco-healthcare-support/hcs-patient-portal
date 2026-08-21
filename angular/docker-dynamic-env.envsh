@@ -1,0 +1,37 @@
+# Sourced by nginx's /docker-entrypoint.sh at container start (file ends in
+# .envsh, so nginx sources it -- no executable bit needed, which keeps it robust
+# over Windows bind mounts). Regenerates dynamic-env.json from this stack's port
+# env vars so the same lean nginx image can be re-pointed per worktree, exactly
+# like angular/dev-entrypoint.sh did for the old dev image (BUG-015). The SPA
+# fetches dynamic-env.json at boot and merges it over the baked environment.ts.
+NG_PORT_VALUE="${NG_PORT:-4200}"
+AUTH_PORT_VALUE="${AUTH_PORT:-44368}"
+API_PORT_VALUE="${API_PORT:-44327}"
+cat > /usr/share/nginx/html/dynamic-env.json <<EOF
+{
+  "production": false,
+  "application": {
+    "baseUrl": "http://localhost:${NG_PORT_VALUE}",
+    "name": "CaseEvaluation",
+    "logoUrl": ""
+  },
+  "oAuthConfig": {
+    "issuer": "http://localhost:${AUTH_PORT_VALUE}/",
+    "redirectUri": "http://localhost:${NG_PORT_VALUE}",
+    "clientId": "CaseEvaluation_App",
+    "responseType": "code",
+    "scope": "offline_access openid profile email phone CaseEvaluation",
+    "requireHttps": false
+  },
+  "apis": {
+    "default": {
+      "url": "http://localhost:${API_PORT_VALUE}",
+      "rootNamespace": "HealthcareSupport.CaseEvaluation"
+    },
+    "AbpAccountPublic": {
+      "url": "http://localhost:${AUTH_PORT_VALUE}",
+      "rootNamespace": "AbpAccountPublic"
+    }
+  }
+}
+EOF

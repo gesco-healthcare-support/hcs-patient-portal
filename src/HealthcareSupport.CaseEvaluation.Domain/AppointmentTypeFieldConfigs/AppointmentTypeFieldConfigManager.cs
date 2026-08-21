@@ -27,7 +27,8 @@ public class AppointmentTypeFieldConfigManager : DomainService
         string fieldName,
         bool hidden,
         bool readOnly,
-        string? defaultValue)
+        string? defaultValue,
+        bool required = false)
     {
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
         Check.NotNullOrWhiteSpace(fieldName, nameof(fieldName));
@@ -39,7 +40,8 @@ public class AppointmentTypeFieldConfigManager : DomainService
             fieldName,
             hidden,
             readOnly,
-            defaultValue);
+            defaultValue,
+            required);
         return await _repository.InsertAsync(entity);
     }
 
@@ -48,11 +50,13 @@ public class AppointmentTypeFieldConfigManager : DomainService
         bool hidden,
         bool readOnly,
         string? defaultValue,
-        string? concurrencyStamp = null)
+        string? concurrencyStamp = null,
+        bool required = false)
     {
         var entity = await _repository.GetAsync(id);
         entity.Hidden = hidden;
         entity.ReadOnly = readOnly;
+        entity.Required = required;
         entity.DefaultValue = defaultValue;
         entity.SetConcurrencyStampIfNotNull(concurrencyStamp);
         return await _repository.UpdateAsync(entity);

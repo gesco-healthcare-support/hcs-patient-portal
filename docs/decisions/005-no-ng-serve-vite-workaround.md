@@ -1,6 +1,8 @@
 # ADR-005: Static Serve Workaround for Angular 20 Vite Bug
 
-**Status:** Accepted
+**Status:** Accepted (re-validated 2026-06-22: still in force -- ABP is pinned at
+10.0.2, so the "revisit at ABP 10.1+" trigger below has not been reached; re-check
+whether `ng serve` works when ABP is next bumped to 10.1+.)
 **Date:** 2026-04-10
 **Verified by:** code-inspect
 

@@ -1,0 +1,78 @@
+<!-- #121 phase T7 (2026-05-13) -- Appointment Details / Schedule card.
+     Parent owns the 5 FormControls (appointmentTypeId, panelNumber,
+     locationId, appointmentDate, appointmentTime) + the hidden
+     doctorAvailabilityId. The Date/Time UI block renders only when
+     checkForAppointmentTypeSelected (= location + type both
+     selected). The ngbDatepicker's [markDisabled] callback and the
+     day-template's available-date highlight read from the parent-
+     owned availableDateKeys cache via the two arrow Inputs. -->
+<div [formGroup]="form" class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0 fw-bold">Appointment Details</h5>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::AppointmentType' | abpLocalization }} *</label>
+        <app-lookup-select
+          cid="appointment-appointment-type-id"
+          formControlName="appointmentTypeId"
+          [getFn]="getAppointmentTypeLookup"
+          [class.is-invalid]="isFieldInvalid('appointmentTypeId')"
+        ></app-lookup-select>
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">
+          {{ '::PanelNumber' | abpLocalization }}
+          @if (isPqmeType) {
+            <span>*</span>
+          }
+        </label>
+        <input
+          formControlName="panelNumber"
+          class="form-control"
+          maxlength="50"
+          [class.is-invalid]="isFieldInvalid('panelNumber')"
+        />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::Location' | abpLocalization }} *</label>
+        <app-lookup-select
+          cid="appointment-location-id"
+          formControlName="locationId"
+          [getFn]="getLocationLookup"
+          (valueChange)="locationSelected.emit($event)"
+          [class.is-invalid]="isFieldInvalid('locationId')"
+        ></app-lookup-select>
+      </div>
+
+      <!--
+        Phase 4a (2026-08-03): the date + time columns became
+        <app-availability-calendar>. They moved together because choosing a date is what yields the
+        time options and the doctorAvailabilityId, so splitting them would put one half in a
+        component and the other here. The form contract is unchanged: this still patches
+        appointmentDate / appointmentTime / doctorAvailabilityId. appointmentDate is patched WITH
+        events so the parent's existing role-horizon interception (contact-staff notice beyond 60
+        days for external users) still fires -- that rule is role-aware and stays in the parent.
+      -->
+      @if (checkForAppointmentTypeSelected) {
+        <div class="col-md-6 mb-3">
+          <app-availability-calendar
+            [locationId]="form.get('locationId')?.value ?? null"
+            [appointmentTypeId]="form.get('appointmentTypeId')?.value ?? null"
+            [typeChosen]="checkForAppointmentTypeSelected"
+            [selectedDate]="selectedDateKey"
+            [selectedTime]="form.get('appointmentTime')?.value ?? null"
+            [dateInvalid]="isFieldInvalid('appointmentDate')"
+            [timeInvalid]="isFieldInvalid('appointmentTime')"
+            [minimumBookingRuleMessage]="minimumBookingRuleMessage"
+            [dateLabel]="'::AppointmentDate' | abpLocalization"
+            [noSlotsMessage]="'Appointment:NoSlotsRemaining' | abpLocalization"
+            (slotSelected)="onSlotSelected($event)"
+            (dateCleared)="appointmentDateCleared.emit()"
+          />
+        </div>
+      }
+    </div>
+  </div>
+</div>

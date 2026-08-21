@@ -1,11 +1,14 @@
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
 using Stateless;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.EventBus.Local;
@@ -16,23 +19,34 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class AppointmentManager : DomainService
 {
     protected IAppointmentRepository _appointmentRepository;
-    protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     protected ILocalEventBus _localEventBus;
+    // BUG-043 / T8 (2026-05-27) -- counts Claim Information rows to gate the
+    // Pending->Approved transition (see ApplyTransitionAsync).
+    protected IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
+    // CI1 (2026-06-05) -- counts active Claim Examiner rows to gate the
+    // Pending->Approved transition (CE is a required party; see ApplyTransitionAsync).
+    protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
+    // I15/I16 (2026-06-08) -- counts panel-strike-list documents to gate the
+    // Pending->Approved transition for PQME appointments (see ApplyTransitionAsync).
+    protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
 
     public AppointmentManager(
         IAppointmentRepository appointmentRepository,
-        IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository,
-        ILocalEventBus localEventBus)
+        ILocalEventBus localEventBus,
+        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
+        IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
     {
         _appointmentRepository = appointmentRepository;
-        _sendBackInfoRepository = sendBackInfoRepository;
         _localEventBus = localEventBus;
+        _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
+        _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
-    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
+    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null, Guid? bookedByUserId = null)
     {
         Check.NotNull(patientId, nameof(patientId));
-        Check.NotNull(identityUserId, nameof(identityUserId));
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
         Check.NotNull(locationId, nameof(locationId));
         Check.NotNull(doctorAvailabilityId, nameof(doctorAvailabilityId));
@@ -41,20 +55,263 @@ public class AppointmentManager : DomainService
         Check.Length(requestConfirmationNumber, nameof(requestConfirmationNumber), AppointmentConsts.RequestConfirmationNumberMaxLength);
         Check.NotNull(appointmentStatus, nameof(appointmentStatus));
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
+        EnsurePanelNumberMatchesType(appointmentTypeId, panelNumber);
+        EnsureAppointmentDateNotInPast(appointmentDate);
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
+        if (bookedByUserId.HasValue)
+        {
+            // R2-2: stamp the logged-in booker so the appointment is always
+            // visible to whoever booked it, even when the audit CreatorId is null.
+            appointment.RecordBookedBy(bookedByUserId.Value);
+        }
+        if (appointmentStatus == AppointmentStatusType.Approved)
+        {
+            // Companion-field stamp when an aggregate is created already
+            // in Approved state (internal-user fast-path -- office-side
+            // booker is implicitly the approver). Symmetric with the
+            // transition-time stamp in ApplyTransitionAsync's Approve
+            // branch.
+            appointment.AppointmentApproveDate = DateTime.UtcNow;
+        }
         return await _appointmentRepository.InsertAsync(appointment);
     }
 
-    public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)
+    /// <summary>
+    /// Issue #115 (2026-05-13) -- domain-layer invariant. Rejects any
+    /// AppointmentDate strictly earlier than today (date-only compare).
+    /// Defense-in-depth: BookingPolicyValidator already runs this check
+    /// on the Create path at the AppService layer, but the Update path
+    /// previously skipped it entirely. Putting the guard here closes
+    /// every path through the domain regardless of which AppService
+    /// happens to call it.
+    ///
+    /// Re-uses <see cref="CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime"/>
+    /// with <c>leadTimeDays=0</c> so the existing localized message
+    /// chain renders. "Today" is local server time per
+    /// <see cref="DateTime.Today"/>; this matches the Create-path
+    /// comparison anchor in BookingPolicyValidator.
+    /// </summary>
+    private static void EnsureAppointmentDateNotInPast(DateTime appointmentDate)
+    {
+        if (appointmentDate.Date < DateTime.Today)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime)
+                .WithData("leadTimeDays", 0);
+        }
+    }
+
+    /// <summary>
+    /// AF3 + AF4 (2026-06-04) -- couples Panel Number to the appointment type.
+    /// Only a PQME carries a state-issued panel number, so:
+    ///   - PQME with a blank panel number is rejected (the number is required).
+    ///   - any non-PQME type (AME / IME) with a panel number present is rejected
+    ///     -- a value there means the wrong type was chosen or the number was
+    ///     fabricated, so the submission is blocked rather than silently cleared.
+    /// The Angular add + view/edit forms disable + clear the field for non-PQME
+    /// and require it for PQME, so legitimate submissions never violate this;
+    /// this domain check is the authoritative guard (and the defense-in-depth
+    /// backstop for a tampered/bypassed client -- closes the OBS-24 gap for this
+    /// field). Keyed off the seeded PQME identity, not a type-name substring, so
+    /// it survives the AF1 label renames.
+    /// </summary>
+    private static void EnsurePanelNumberMatchesType(Guid appointmentTypeId, string? panelNumber)
+    {
+        var isPqme = appointmentTypeId == CaseEvaluationSeedIds.AppointmentTypes.PanelQme;
+        var hasPanelNumber = !string.IsNullOrWhiteSpace(panelNumber);
+
+        if (isPqme && !hasPanelNumber)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentPanelNumberRequiredForPqme);
+        }
+
+        if (!isPqme && hasPanelNumber)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentPanelNumberNotAllowedForType)
+                .WithData("appointmentTypeId", appointmentTypeId);
+        }
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit (OLD <c>IsReRequestForm</c>) gate.
+    /// Looks up the source by confirmation number, validates it is in
+    /// status <see cref="AppointmentStatusType.Rejected"/>, and returns
+    /// the source for the caller to thread through the standard create
+    /// pipeline. The new appointment must reuse the source's confirmation
+    /// number (per OLD <c>AppointmentDomain.cs:262-266</c>); the caller
+    /// is responsible for that copy because the conf# is part of the
+    /// <see cref="Appointment"/> ctor signature.
+    /// </summary>
+    /// <exception cref="EntityNotFoundException">When no source row matches.</exception>
+    /// <exception cref="BusinessException">
+    /// With code <c>AppointmentReSubmitSourceNotRejected</c> when the
+    /// source is in any status other than <c>Rejected</c>. Carries the
+    /// source <c>RequestConfirmationNumber</c> + <c>AppointmentStatus</c>
+    /// as <c>WithData</c>.
+    /// </exception>
+    public virtual async Task<Appointment> LoadResubmitSourceAsync(string sourceConfirmationNumber)
+    {
+        Check.NotNullOrWhiteSpace(sourceConfirmationNumber, nameof(sourceConfirmationNumber));
+
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        EnsureResubmitSourceEligible(source);
+        return source;
+    }
+
+    /// <summary>
+    /// Status half of <see cref="LoadResubmitSourceAsync"/>, split out by T5
+    /// (2026-08-14) so a caller that has ALREADY loaded the source can gate it
+    /// without a second lookup.
+    ///
+    /// <para>The app service needs the entity before this runs, because the
+    /// caller-linkage check has to refuse a source the caller is not a party to
+    /// BEFORE any status-specific message is produced -- such a message would
+    /// otherwise confirm that a guessed confirmation number is real.</para>
+    /// </summary>
+    public virtual void EnsureResubmitSourceEligible(Appointment source)
+    {
+        Check.NotNull(source, nameof(source));
+
+        if (!AppointmentLifecycleValidators.CanResubmit(source.AppointmentStatus))
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval (OLD <c>IsRevolutionForm</c>) gate.
+    /// Looks up the source by confirmation number; validates it is in
+    /// status <see cref="AppointmentStatusType.Approved"/>; surfaces a
+    /// distinct error code when the caller is IT Admin (verbatim OLD
+    /// hint message) versus a non-admin caller (verbatim OLD
+    /// patient-facing message). Per OLD <c>AppointmentDomain.cs:171-173</c>
+    /// the admin override is hint-only -- it does NOT bypass the
+    /// "must be Approved" gate. Returns the source for the caller to
+    /// thread through the standard create pipeline; the new appointment
+    /// gets a freshly generated confirmation number (OLD line 268).
+    /// </summary>
+    public virtual async Task<Appointment> LoadRevalSourceAsync(string sourceConfirmationNumber, bool callerIsItAdmin)
+    {
+        Check.NotNullOrWhiteSpace(sourceConfirmationNumber, nameof(sourceConfirmationNumber));
+
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        EnsureRevalSourceEligible(source, callerIsItAdmin);
+        return source;
+    }
+
+    /// <summary>
+    /// Status half of <see cref="LoadRevalSourceAsync"/>, split out by T5
+    /// (2026-08-14) for the same reason as
+    /// <see cref="EnsureResubmitSourceEligible"/>: the caller-linkage check must
+    /// run against the loaded entity before any status-specific refusal is
+    /// produced, and re-loading to do so would read the row twice.
+    /// </summary>
+    public virtual void EnsureRevalSourceEligible(Appointment source, bool callerIsItAdmin)
+    {
+        Check.NotNull(source, nameof(source));
+
+        if (!AppointmentLifecycleValidators.CanCreateReval(
+                source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin))
+        {
+            var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(
+                source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin);
+            throw new BusinessException(errorCode)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+    }
+
+    /// <summary>
+    /// Item 4 (2026-08-17) -- Re-book gate. Looks up the source by confirmation number and
+    /// validates it is one this flow may replace.
+    ///
+    /// <para>Mirrors the load / ensure split the other two flows use, so the caller can run
+    /// its linkage check against the loaded entity before any status-specific refusal is
+    /// produced -- a status message would otherwise confirm that a guessed confirmation
+    /// number is real.</para>
+    /// </summary>
+    public virtual async Task<Appointment> LoadReBookSourceAsync(
+        string sourceConfirmationNumber,
+        bool callerIsInternal)
+    {
+        Check.NotNullOrWhiteSpace(sourceConfirmationNumber, nameof(sourceConfirmationNumber));
+
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        await EnsureReBookSourceEligibleAsync(source, callerIsInternal);
+        return source;
+    }
+
+    /// <summary>
+    /// The two re-book gates: the source must be one that did NOT happen, and it must not
+    /// have been re-booked already.
+    ///
+    /// <para>Asynchronous, unlike its Reval and ReSubmit siblings, because the
+    /// already-re-booked check is a query rather than a property read. That check is not
+    /// tidiness: the Case Tracker payload derives the forward half of the replacement chain
+    /// by querying for appointments pointing back at this one and takes the first match, on
+    /// the documented assumption that at most one exists. A second re-book would make that
+    /// choice arbitrary and unstable between pushes.</para>
+    /// </summary>
+    public virtual async Task EnsureReBookSourceEligibleAsync(Appointment source, bool callerIsInternal)
+    {
+        Check.NotNull(source, nameof(source));
+
+        if (!AppointmentLifecycleValidators.CanCreateReBook(source.AppointmentStatus))
+        {
+            var errorCode = AppointmentLifecycleValidators.ResolveReBookRejectionCode(
+                source.AppointmentStatus, callerIsInternal);
+            throw new BusinessException(errorCode)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+
+        var existingReBooks = await _appointmentRepository.GetListAsync(
+            a => a.RescheduledFromAppointmentId == source.Id);
+        if (existingReBooks.Count > 0)
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked)
+                .WithData("confirmationNumber", source.RequestConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+    }
+
+    public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)
     {
         Check.NotNull(patientId, nameof(patientId));
-        Check.NotNull(identityUserId, nameof(identityUserId));
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
         Check.NotNull(locationId, nameof(locationId));
         Check.NotNull(doctorAvailabilityId, nameof(doctorAvailabilityId));
         Check.NotNull(appointmentDate, nameof(appointmentDate));
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
+        EnsurePanelNumberMatchesType(appointmentTypeId, panelNumber);
         var appointment = await _appointmentRepository.GetAsync(id);
+        // Issue #115 (2026-05-13): only enforce the not-in-past rule
+        // when the date is actually changing. Completed appointments
+        // (CheckedIn / CheckedOut / Billed) legitimately have past
+        // dates; editing PanelNumber or PatientId on them must still
+        // work. Moving an appointment TO a past date is the attack.
+        if (appointment.AppointmentDate.Date != appointmentDate.Date)
+        {
+            EnsureAppointmentDateNotInPast(appointmentDate);
+        }
         appointment.PatientId = patientId;
         appointment.IdentityUserId = identityUserId;
         appointment.AppointmentTypeId = appointmentTypeId;
@@ -68,60 +325,102 @@ public class AppointmentManager : DomainService
     }
 
     /// <summary>
-    /// W1-1 transition: Pending|AwaitingMoreInfo -> Approved.
-    /// Stamps <c>AppointmentApproveDate</c> on entry; publishes
+    /// Pending -> Approved. Stamps <c>AppointmentApproveDate</c> on entry; publishes
     /// <see cref="AppointmentStatusChangedEto"/> for slot-cascade + email subscribers.
     /// </summary>
     public virtual Task<Appointment> ApproveAsync(Guid id, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.Approve, reason: null, actingUserId);
 
-    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Rejected.</summary>
+    /// <summary>Pending -> Rejected.</summary>
     public virtual Task<Appointment> RejectAsync(Guid id, string? reason, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.Reject, reason, actingUserId);
 
     /// <summary>
-    /// W1-1 transition: Pending -> AwaitingMoreInfo. Persists an
-    /// <see cref="AppointmentSendBackInfo"/> row capturing the office's flagged
-    /// fields + freeform note before firing the trigger.
+    /// Phase 16 (2026-05-04) -- Approved -> RescheduleRequested. Used
+    /// when an external user submits a reschedule request through
+    /// <see cref="AppointmentChangeRequests.AppointmentChangeRequestManager.SubmitRescheduleAsync"/>.
+    /// The state machine permits the trigger from Approved only (per
+    /// <see cref="BuildMachine"/>); other source states surface the
+    /// generic invalid-transition error.
     /// </summary>
-    public virtual async Task<Appointment> SendBackAsync(Guid id, IEnumerable<string> flaggedFields, string? note, Guid? actingUserId)
-    {
-        var appointment = await _appointmentRepository.GetAsync(id);
-
-        var sendBackRow = new AppointmentSendBackInfo(
-            GuidGenerator.Create(),
-            appointment.TenantId,
-            appointment.Id,
-            flaggedFields ?? Enumerable.Empty<string>(),
-            note,
-            actingUserId);
-        await _sendBackInfoRepository.InsertAsync(sendBackRow, autoSave: true);
-
-        return await ApplyTransitionAsync(appointment, AppointmentTransitionTrigger.SendBack, note, actingUserId);
-    }
+    public virtual Task<Appointment> RequestRescheduleAsync(Guid id, string? reason, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.RequestReschedule, reason, actingUserId);
 
     /// <summary>
-    /// W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker
-    /// re-submits the booking form. Marks the latest unresolved
-    /// <see cref="AppointmentSendBackInfo"/> row as resolved.
+    /// Send Back (2026-06-14) -- Pending -> InfoRequested. Fired when staff
+    /// request more information; the AppointmentInfoRequest row (note + flagged
+    /// fields) is created by the Application layer alongside this transition.
+    /// Permitted from Pending only.
     /// </summary>
-    public virtual async Task<Appointment> SaveAndResubmitAsync(Guid id, Guid? actingUserId)
+    public virtual Task<Appointment> SendBackAsync(Guid id, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.SendBack, reason: null, actingUserId);
+
+    /// <summary>
+    /// Resubmit (2026-06-14) -- InfoRequested -> Pending. Fired when the external
+    /// user resubmits their corrections; the open AppointmentInfoRequest row is
+    /// marked Resolved by the Application layer. Permitted from InfoRequested only.
+    /// </summary>
+    public virtual Task<Appointment> ResubmitInfoAsync(Guid id, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
+
+    /// <summary>
+    /// Phase 4d (2026-08-05) -- RescheduleRequested -> RescheduledNoBill / RescheduledLate. Closes
+    /// the OLD appointment when a reschedule is finalized and a NEW appointment takes its place.
+    ///
+    /// <para>Both triggers have been defined in <see cref="BuildMachine"/> since the state machine
+    /// was written but were UNREACHABLE: B2/4c kept the single appointment and recorded the outcome
+    /// on the change-request row instead, so nothing ever fired them. The caller supplies the
+    /// trigger from <c>RescheduleSplitPolicy</c>, which is the one place the billing outcome is
+    /// mapped -- passing it in keeps that mapping out of the state machine.</para>
+    /// </summary>
+    public virtual Task<Appointment> CloseForRescheduleAsync(
+        Guid id,
+        AppointmentTransitionTrigger trigger,
+        string? reason,
+        Guid? actingUserId)
+        => TransitionAsync(id, trigger, reason, actingUserId);
+
+    /// <summary>
+    /// Phase 5 (2026-08-07) -- Approved -> NoShow / NotSeen. Records that an
+    /// appointment produced no evaluation, as reported by the Case Tracker.
+    ///
+    /// <para>Takes the OUTCOME STATUS rather than a trigger, unlike
+    /// <see cref="CloseForRescheduleAsync"/>: the caller is the inbound integration
+    /// endpoint, which speaks in outcomes off the wire and has no business knowing
+    /// the state machine's trigger vocabulary. The mapping is one throwing switch
+    /// here instead of a second one at the boundary.</para>
+    ///
+    /// <para>Publishing the status change is what makes the ALREADY-BUILT staff
+    /// no-show email fire, so this phase adds no notification code.</para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="outcome"/> is not an attendance outcome.
+    /// </exception>
+    public virtual Task<Appointment> MarkAttendanceOutcomeAsync(
+        Guid id,
+        AppointmentStatusType outcome,
+        string? reason,
+        Guid? actingUserId)
+        => TransitionAsync(id, ToAttendanceTrigger(outcome), reason, actingUserId);
+
+    /// <summary>
+    /// Maps an attendance outcome to its trigger, THROWING on anything else.
+    ///
+    /// <para>Throws rather than returning a nullable or coercing to a default: this
+    /// method is the only guard between an inbound wire value and the state machine,
+    /// and a caller free to pass any status could otherwise drive an arbitrary
+    /// transition through <see cref="MarkAttendanceOutcomeAsync"/>. Mirrors the
+    /// throwing switch in the integration's wire enums.</para>
+    /// </summary>
+    private static AppointmentTransitionTrigger ToAttendanceTrigger(AppointmentStatusType outcome) => outcome switch
     {
-        var appointment = await _appointmentRepository.GetAsync(id);
-
-        var sendBackQueryable = await _sendBackInfoRepository.GetQueryableAsync();
-        var latestUnresolved = sendBackQueryable
-            .Where(x => x.AppointmentId == id && !x.IsResolved)
-            .OrderByDescending(x => x.SentBackAt)
-            .FirstOrDefault();
-        if (latestUnresolved != null)
-        {
-            latestUnresolved.MarkResolved();
-            await _sendBackInfoRepository.UpdateAsync(latestUnresolved, autoSave: true);
-        }
-
-        return await ApplyTransitionAsync(appointment, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
-    }
+        AppointmentStatusType.NoShow => AppointmentTransitionTrigger.MarkNoShow,
+        AppointmentStatusType.NotSeen => AppointmentTransitionTrigger.MarkNotSeen,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(outcome),
+            outcome,
+            "Only NoShow and NotSeen are attendance outcomes."),
+    };
 
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
@@ -136,9 +435,56 @@ public class AppointmentManager : DomainService
 
         if (!machine.CanFire(trigger))
         {
-            throw new BusinessException("CaseEvaluation:AppointmentInvalidTransition")
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition)
                 .WithData("from", fromStatus)
                 .WithData("trigger", trigger);
+        }
+
+        if (trigger == AppointmentTransitionTrigger.Approve)
+        {
+            // BUG-043 / T8 (2026-05-27) -- defense-in-depth behind the
+            // client-side guard (T7): an appointment cannot be approved
+            // without at least one Claim Information (injury detail) row.
+            // Checked BEFORE the state machine fires so a failed gate
+            // leaves the status unchanged. Only the Pending->Approved
+            // transition is gated; the create-as-Approved internal
+            // fast-path attaches injuries after creation and is out of
+            // scope (see CreateAsync above + the T8 plan).
+            var injuryCount = await _appointmentInjuryDetailRepository.GetCountAsync(appointmentId: appointment.Id);
+            if (injuryCount < 1)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail)
+                    .WithData("appointmentId", appointment.Id);
+            }
+
+            // CI1 (2026-06-05) -- CE became a required first-class party. Mirror
+            // the injury-detail gate: Pending->Approved requires at least one
+            // active Claim Examiner. Server backstop behind the client-side
+            // CE-section gate; the create-as-Approved fast-path is out of scope
+            // (attaches parties after creation), same as the injury guard.
+            var claimExaminerCount = await _appointmentClaimExaminerRepository.CountAsync(
+                ce => ce.AppointmentId == appointment.Id && ce.IsActive);
+            if (claimExaminerCount < 1)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer)
+                    .WithData("appointmentId", appointment.Id);
+            }
+
+            // I15/I16 (2026-06-08) -- a PQME cannot be approved until a panel
+            // strike list document is on file (a doc flagged IsPanelStrikeList,
+            // set when uploaded under the "Panel Strike List" category). A PQME
+            // may be BOOKED without it (uploaded later); only approval is gated.
+            // Same defense-in-depth pattern as the injury + CE gates above.
+            if (appointment.AppointmentTypeId == CaseEvaluationSeedIds.AppointmentTypes.PanelQme)
+            {
+                var strikeListCount = await _appointmentDocumentRepository.CountAsync(
+                    d => d.AppointmentId == appointment.Id && d.IsPanelStrikeList);
+                if (strikeListCount < 1)
+                {
+                    throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList)
+                        .WithData("appointmentId", appointment.Id);
+                }
+            }
         }
 
         machine.Fire(trigger);
@@ -147,11 +493,19 @@ public class AppointmentManager : DomainService
         {
             appointment.AppointmentApproveDate = DateTime.UtcNow;
         }
+        else if (trigger == AppointmentTransitionTrigger.Reject)
+        {
+            // Symmetric companion-field write for Reject -- mirrors the
+            // Approve branch's stamp. Without this the reason flows in
+            // via the parameter and emits on the StatusChangedEto but
+            // never reaches the entity, leaving RejectionNotes NULL in
+            // the database after a /reject call.
+            appointment.RejectionNotes = reason;
+            appointment.RejectedById = actingUserId;
+        }
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
-        // W2-3: snapshot the slot ID on the ETO so SlotCascadeHandler doesn't
-        // re-fetch the appointment for the common single-slot transition path.
         await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
             appointment.Id,
             appointment.TenantId,
@@ -166,11 +520,12 @@ public class AppointmentManager : DomainService
     }
 
     /// <summary>
-    /// Builds the appointment status state machine. All 14 transitions are
-    /// configured declaratively; W1-1 only exposes endpoints for Approve /
-    /// Reject / SendBack / SaveAndResubmit. Cancel / Reschedule / day-of-exam triggers
-    /// are reachable in the graph but unreachable through the API surface
-    /// until Wave 3 (appointment-change-requests).
+    /// Builds the appointment status state machine. Per OLD spec
+    /// (Phase 0.2, 2026-05-01) Pending transitions only to Approved or Rejected;
+    /// there is no SendBack / AwaitingMoreInfo / SaveAndResubmit path. Cancel /
+    /// Reschedule / day-of-exam triggers are reachable in the graph but
+    /// unreachable through the API surface until Wave 3
+    /// (appointment-change-requests).
     /// </summary>
     private static StateMachine<AppointmentStatusType, AppointmentTransitionTrigger> BuildMachine(Appointment appointment)
     {
@@ -181,17 +536,33 @@ public class AppointmentManager : DomainService
         machine.Configure(AppointmentStatusType.Pending)
             .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected)
-            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.AwaitingMoreInfo);
+            // Send Back (2026-06-14): staff request more information.
+            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.InfoRequested)
+            // Phase 4d (2026-08-05): a PENDING appointment can be rescheduled too. B1 (2026-07-01)
+            // lets internal staff file a reschedule against a not-yet-approved appointment, and
+            // SubmitRescheduleAsync skips the Approved -> RescheduleRequested step for that source
+            // because no such transition exists -- so it arrives at finalize still Pending. Without
+            // these two, finalizing that reschedule throws an invalid transition and the whole
+            // Pending-source path is dead.
+            .Permit(AppointmentTransitionTrigger.ConfirmReschedule, AppointmentStatusType.RescheduledNoBill)
+            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate);
 
-        machine.Configure(AppointmentStatusType.AwaitingMoreInfo)
-            .Permit(AppointmentTransitionTrigger.SaveAndResubmit, AppointmentStatusType.Pending)
-            .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
-            .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected);
+        // Info Requested is transient: the external user resubmits their fixes
+        // and the appointment returns to Pending for staff review. The slot
+        // stays Reserved throughout (InfoRequested is not a terminal status).
+        machine.Configure(AppointmentStatusType.InfoRequested)
+            .Permit(AppointmentTransitionTrigger.SaveAndResubmit, AppointmentStatusType.Pending);
 
         machine.Configure(AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.RequestCancellation, AppointmentStatusType.CancellationRequested)
             .Permit(AppointmentTransitionTrigger.RequestReschedule, AppointmentStatusType.RescheduleRequested)
             .Permit(AppointmentTransitionTrigger.MarkNoShow, AppointmentStatusType.NoShow)
+            // Phase 5 (2026-08-07): the not-seen companion to MarkNoShow. Approved is
+            // the ONLY source for both, and deliberately so -- filing a change request
+            // against an Approved appointment moves it to RescheduleRequested /
+            // CancellationRequested, so an appointment that can still take an attendance
+            // outcome has no open request that the (terminal) outcome could strand.
+            .Permit(AppointmentTransitionTrigger.MarkNotSeen, AppointmentStatusType.NotSeen)
             .Permit(AppointmentTransitionTrigger.CheckIn, AppointmentStatusType.CheckedIn);
 
         machine.Configure(AppointmentStatusType.CancellationRequested)

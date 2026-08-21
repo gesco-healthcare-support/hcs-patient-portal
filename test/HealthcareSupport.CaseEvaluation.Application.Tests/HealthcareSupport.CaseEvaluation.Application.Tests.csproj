@@ -4,15 +4,33 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>HealthcareSupport.CaseEvaluation</RootNamespace>
+    <!-- BUG-025 (2026-05-21): adding the HttpApi.Host ProjectReference
+         below pulls in Microsoft.AspNetCore.DataProtection 10.0.0
+         transitively, which has open CVE GHSA-9mv3-2cwr-p262 (NU1904).
+         The vulnerable code path is not exercised by these tests; the
+         broader fix is to bump DataProtection across all consumers,
+         tracked separately. Scoped suppression keeps this PR's blast
+         radius minimal. -->
+    <NoWarn>$(NoWarn);NU1904</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\HealthcareSupport.CaseEvaluation.Application\HealthcareSupport.CaseEvaluation.Application.csproj" />
+    <!-- BUG-025 (2026-05-21): host-module unit tests for the two
+         internal static helpers (MapAppointmentDocumentErrorCodes,
+         ConfigureUploadLimits) need the HttpApi.Host assembly so
+         InternalsVisibleTo works. Test only references the types;
+         doesn't boot the module. -->
+    <ProjectReference Include="..\..\src\HealthcareSupport.CaseEvaluation.HttpApi.Host\HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj" />
     <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Domain.Tests\HealthcareSupport.CaseEvaluation.Domain.Tests.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <!-- Issue 2.8 (2026-05-12) — FluentValidation main package brings
+         in the TestHelper namespace (TestValidate / ShouldHaveValidationErrorFor)
+         since 11.x; no separate TestHelper package needed. -->
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
   </ItemGroup>
 
 </Project>

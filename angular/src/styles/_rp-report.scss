@@ -1,0 +1,83 @@
+// Reports (redesign, Prompt 13). Ported from the design handoff
+// (design_handoff_appointment_portal/styles/in-work.css, .rp-* block) onto the
+// global tokens. Status summary cards + a column picker; the grid + toolbar reuse
+// ia-* from _in-appts.scss.
+
+.rp-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.rp-stat {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 11px 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  box-shadow: var(--sh-xs);
+}
+.rp-stat .n {
+  font-size: 21px;
+  font-weight: 800;
+  font-family: var(--font-num);
+  color: var(--n-900);
+}
+.rp-stat .l {
+  font-size: 12px;
+  color: var(--n-500);
+  font-weight: 600;
+}
+.rp-stat .sw {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  align-self: center;
+}
+.rp-cols {
+  position: relative;
+}
+.rp-colmenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 210px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--sh-lg);
+  padding: 8px;
+  z-index: 60;
+  animation: rpPop 0.14s ease both;
+}
+.rp-colmenu label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--n-700);
+  cursor: pointer;
+}
+.rp-colmenu label:hover {
+  background: var(--blue-50);
+}
+.rp-colmenu input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--blue-700);
+}
+
+@keyframes rpPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

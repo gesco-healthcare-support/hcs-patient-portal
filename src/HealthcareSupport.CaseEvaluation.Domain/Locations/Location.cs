@@ -13,8 +13,12 @@ using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.Locations;
 
-public class Location : FullAuditedAggregateRoot<Guid>
+public class Location : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    // Office-owned list (db-per-office): clinic locations are specific to each
+    // office. No seeded defaults; the office creates its own.
+    public virtual Guid? TenantId { get; protected set; }
+
     [NotNull]
     public virtual string Name { get; set; } = null!;
 
@@ -27,20 +31,29 @@ public class Location : FullAuditedAggregateRoot<Guid>
     [CanBeNull]
     public virtual string? ZipCode { get; set; }
 
+    // #11 (task_59b8c23a): external integration identifier (CalMed / Case Tracker), required +
+    // unique per office. Defaults to "" so existing rows and non-app construction (tests / seeds)
+    // stay valid; the app path (LocationManager + [Required] DTOs) enforces a non-empty, unique
+    // value, and the DB carries a filtered unique index over non-empty values.
+    [NotNull]
+    public virtual string FacilityId { get; set; } = string.Empty;
+
     public virtual decimal ParkingFee { get; set; }
 
     public virtual bool IsActive { get; set; }
 
     public Guid? StateId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    // I3 (2026-06-08): a Location offers MULTIPLE appointment types (M2M) instead
+    // of a single AppointmentTypeId. Empty set = no types configured.
+    public virtual ICollection<LocationAppointmentType> AppointmentTypes { get; set; } = new Collection<LocationAppointmentType>();
     public virtual ICollection<DoctorLocation> DoctorLocations { get; set; } = new Collection<DoctorLocation>();
 
     protected Location()
     {
     }
 
-    public Location(Guid id, Guid? stateId, Guid? appointmentTypeId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
+    public Location(Guid id, Guid? stateId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, string facilityId = "")
     {
         Id = id;
         Check.NotNull(name, nameof(name));
@@ -48,13 +61,41 @@ public class Location : FullAuditedAggregateRoot<Guid>
         Check.Length(address, nameof(address), LocationConsts.AddressMaxLength, 0);
         Check.Length(city, nameof(city), LocationConsts.CityMaxLength, 0);
         Check.Length(zipCode, nameof(zipCode), LocationConsts.ZipCodeMaxLength, 0);
+        Check.Length(facilityId, nameof(facilityId), LocationConsts.FacilityIdMaxLength, 0);
         Name = name;
         ParkingFee = parkingFee;
         IsActive = isActive;
         Address = address;
         City = city;
         ZipCode = zipCode;
+        FacilityId = facilityId ?? string.Empty;
         StateId = stateId;
-        AppointmentTypeId = appointmentTypeId;
+        AppointmentTypes = new Collection<LocationAppointmentType>();
+    }
+
+    // I3 (2026-06-08): M2M appointment-type management, mirroring
+    // DoctorAvailability's AddAppointmentType / RemoveAllAppointmentTypesExceptGivenIds.
+    public virtual void AddAppointmentType(Guid appointmentTypeId)
+    {
+        if (AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId))
+        {
+            return;
+        }
+        AppointmentTypes.Add(new LocationAppointmentType(Id, appointmentTypeId));
+    }
+
+    public virtual void SetAppointmentTypes(List<Guid> appointmentTypeIds)
+    {
+        Check.NotNull(appointmentTypeIds, nameof(appointmentTypeIds));
+        var distinct = appointmentTypeIds.Distinct().ToList();
+        var toRemove = AppointmentTypes.Where(x => !distinct.Contains(x.AppointmentTypeId)).ToList();
+        foreach (var item in toRemove)
+        {
+            AppointmentTypes.Remove(item);
+        }
+        foreach (var id in distinct)
+        {
+            AddAppointmentType(id);
+        }
     }
 }

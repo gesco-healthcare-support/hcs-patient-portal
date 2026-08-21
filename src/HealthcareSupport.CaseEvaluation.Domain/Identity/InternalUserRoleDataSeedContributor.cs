@@ -16,15 +16,22 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 ///                       Grants every CaseEvaluation.* permission EXCEPT Dashboard.Tenant
 ///                       (which is MultiTenancySides.Tenant only and cannot be granted in
 ///                       host scope).
-///  - Staff Supervisor : TENANT-scoped (per-tenant copy). Grants Dashboard.Tenant + every
-///                       operational entity Default+Create+Edit (no Delete; hard-delete
-///                       is IT Admin only).
-///  - Clinic Staff     : TENANT-scoped. Grants Dashboard.Tenant + Appointments + Patients
+///  - Staff Supervisor : TENANT-scoped (per-tenant copy) and the TOP tenant role (IR1,
+///                       2026-06-03). Grants Dashboard.Tenant + every operational entity
+///                       Default+Create+Edit+Delete. Deletes are SOFT (all tenant entities
+///                       are FullAudited/ISoftDelete, so removals are recoverable + audited;
+///                       no hard purge exists). Also creates internal users
+///                       (InternalUsers.Create) within its own tenant.
+///  - Intake Staff     : TENANT-scoped. Grants Dashboard.Tenant + Appointments + Patients
 ///                       (.Default/.Create/.Edit), DoctorAvailabilities.Default (read-only).
 ///
-/// External role permission grants are deferred -- the existing
-/// ExternalUserRoleDataSeedContributor seeds the role names per tenant; admins assign
-/// permissions on first use.
+/// External role permission grants are wired through the sister
+/// <see cref="ExternalUserRoleDataSeedContributor"/> (Phase 1A,
+/// 2026-05-06): the four external roles -- Patient, Claim Examiner,
+/// Applicant Attorney, Defense Attorney -- get the same
+/// <c>BookingBaselineGrants</c> set at seed time. Per-record ownership
+/// filtering at the AppService layer is the only protection between
+/// the four roles (audit D-18 tracks the follow-up review).
 ///
 /// NOTE: Permission strings are hardcoded as literals (mirroring the constants in
 /// `Application.Contracts/Permissions/CaseEvaluationPermissions.cs`) because the Domain
@@ -35,12 +42,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 {
     public const string ItAdminRoleName = "IT Admin";
     public const string StaffSupervisorRoleName = "Staff Supervisor";
-    public const string ClinicStaffRoleName = "Clinic Staff";
-    // D.1 / W-I-3 (2026-04-30): Doctor role at tenant scope. One tenant = one
-    // doctor's office / medical examiner's office; the office may host multiple
-    // doctor accounts. Read-mostly + edit-own-availability scope; the row-level
-    // "own appointments only" filter is a separate domain concern (W-DOC-1).
-    public const string DoctorRoleName = "Doctor";
+    public const string IntakeStaffRoleName = "Intake Staff";
 
     // Matches Volo.Abp.PermissionManagement.RolePermissionValueProvider.ProviderName ("R").
     private const string RoleProviderName = "R";
@@ -65,25 +67,54 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     {
         if (context?.TenantId == null)
         {
-            // HOST pass: seed IT Admin (host-scoped) + grant host-side permissions.
+            // HOST pass: seed the three host operator roles + grant host-side permissions.
+            //  - IT Admin         : technical platform admin (full host tree).
+            //  - Staff Supervisor : host operator that switches into ANY office as that
+            //                       office's admin (stock tenant impersonation). Phase D
+            //                       (2026-06-25, O-D1) moved it host-side; the per-tenant
+            //                       Staff Supervisor role is no longer seeded.
+            //  - Intake Staff     : thin host operator whose only office power is the gated
+            //                       impersonation into its per-office shadow Intake user.
             using (_currentTenant.Change(null))
             {
                 await EnsureRoleAsync(ItAdminRoleName, tenantId: null);
                 await GrantAllAsync(ItAdminRoleName, ItAdminGrants());
+
+                await EnsureRoleAsync(StaffSupervisorRoleName, tenantId: null);
+                await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorHostGrants());
+
+                await EnsureRoleAsync(IntakeStaffRoleName, tenantId: null);
+                await GrantAllAsync(IntakeStaffRoleName, IntakeOperatorHostGrants());
             }
         }
         else
         {
-            // PER-TENANT pass: seed Staff Supervisor + Clinic Staff + Doctor per tenant + grant tenant-side permissions.
+            // PER-TENANT pass: seed the per-office roles the auto-provisioned shadow
+            // users hold when a host operator switches in. Intake Staff (F-7a): the
+            // LIMITED front-desk identity. Staff Supervisor (task_2e8e4dc2, 2026-07-21):
+            // RE-INTRODUCED -- Phase D had dropped it in favor of "switch in as the office
+            // admin", but a host Supervisor now lands as their OWN shadow holding this
+            // per-office role (acting as themselves, not the shared admin account). The
+            // tenant `admin` role stays ABP-auto-granted and is the role an IT-Admin's
+            // shadow holds.
             using (_currentTenant.Change(context.TenantId))
             {
-                await EnsureRoleAsync(StaffSupervisorRoleName, context.TenantId);
-                await EnsureRoleAsync(ClinicStaffRoleName, context.TenantId);
-                await EnsureRoleAsync(DoctorRoleName, context.TenantId);
+                await EnsureRoleAsync(IntakeStaffRoleName, context.TenantId);
+                await GrantAllAsync(IntakeStaffRoleName, IntakeStaffGrants());
 
-                await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorGrants());
-                await GrantAllAsync(ClinicStaffRoleName, ClinicStaffGrants());
-                await GrantAllAsync(DoctorRoleName, DoctorGrants());
+                await EnsureRoleAsync(StaffSupervisorRoleName, context.TenantId);
+                await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorTenantGrants());
+
+                // 2026-05-19 -- tenant `admin` (Volo SaaS static admin) gets
+                // CaseEvaluation.InternalUsers + .Create implicitly because
+                // ABP auto-grants every tenant-side permission (including
+                // MultiTenancySides.Both) to the static admin role. An
+                // explicit GrantAllAsync(TenantAdminRoleName, ...) here
+                // collides with the auto-grant on second-run (unique-index
+                // violation on AbpPermissionGrants). If we ever need to
+                // grant tenant-admin a permission that ABP does NOT
+                // auto-grant, add an idempotent guard around SetAsync
+                // rather than reintroducing the unconditional call.
             }
         }
     }
@@ -119,13 +150,27 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     // Both internal roles need these for the office workflow per the W-I findings.
     private static string Approve(string entity) => $"{Group}.{entity}.Approve";
     private static string Regenerate(string entity) => $"{Group}.{entity}.Regenerate";
+    // Phase 2.5 (2026-05-01): per-action permission helpers for the
+    // approval / change-request lifecycle. RequestCancellation +
+    // RequestReschedule are external-user actions; permission strings exist
+    // so AppService [Authorize(...)] attributes can reference them, but
+    // INTERNAL roles do NOT receive these grants -- external roles are
+    // seeded separately in <c>ExternalUserRoleDataSeedContributor</c>.
+    private static string Reject(string entity) => $"{Group}.{entity}.Reject";
 
     private static readonly string[] AllEntities =
     {
-        "Books",
+        // QA item 10 (2026-06-30): the ABP-template Books sample permission was
+        // removed from the definition provider; dropping it here keeps seeding
+        // from granting an undefined permission.
         "States",
         "AppointmentTypes",
         "AppointmentStatuses",
+        // G-03-01 (2026-06-03): per-appointment-type document-category master.
+        // IT Admin gets full CRUD here; Staff Supervisor gets Default/Create/Edit
+        // via an explicit block (kept out of OperationalEntities so Intake Staff
+        // does not inherit read access in PR1). Delete stays IT-Admin-only.
+        "AppointmentDocumentTypes",
         "AppointmentLanguages",
         "Locations",
         "WcabOffices",
@@ -152,6 +197,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // also yielded explicitly per role.
         "AppointmentDocuments",
         "CustomFields",
+        // Phase 5 (2026-05-03): IT Admin master Document catalog + per-
+        // AppointmentType package templates. PackageDetails has an extra
+        // ManageDocuments action yielded explicitly below.
+        "Documents",
+        "PackageDetails",
     };
 
     private static readonly string[] OperationalEntities =
@@ -184,7 +234,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// <summary>
     /// IT Admin (HOST scope): full CaseEvaluation.* tree. Excludes Dashboard.Tenant
     /// because it is MultiTenancySides.Tenant only -- ABP rejects host-scoped grants
-    /// for tenant-side permissions. Tenant admins (Staff Supervisor / Clinic Staff)
+    /// for tenant-side permissions. Tenant admins (Staff Supervisor / Intake Staff)
     /// hold Dashboard.Tenant inside their tenant scope.
     ///
     /// D.1 (2026-04-30): two custom actions (AppointmentDocuments.Approve,
@@ -194,7 +244,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// entity will be invalid permission strings if it were in AllEntities,
     /// so it is yielded as a one-off Default below.
     /// </summary>
-    private static IEnumerable<string> ItAdminGrants()
+    internal static IEnumerable<string> ItAdminGrants()
     {
         yield return $"{Group}.Dashboard.Host";
 
@@ -206,61 +256,206 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             yield return Delete(entity);
         }
 
+        // F1 / Design B (2026-05-29) -- SSN reveal endpoint. Not part of the
+        // standard CRUD loop, so yielded explicitly. Internal staff may reveal
+        // any patient's SSN (verification during intake / review).
+        yield return $"{Group}.Patients.RevealSsn";
+
         yield return Approve("AppointmentDocuments");
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
+
+        // G-08-01 (2026-06-06) -- Appointment Request Report (read-only internal
+        // worklist) + G-08-03 (2026-06-06) its PDF export.
+        yield return Default("Reports");
+        yield return $"{Group}.Reports.Export";
+
+        // Phase 2.5 (2026-05-01) -- approval + change-request lifecycle.
+        yield return Approve("Appointments");
+        yield return Reject("Appointments");
+        yield return Default("AppointmentChangeRequests");
+        yield return Approve("AppointmentChangeRequests");
+        yield return Reject("AppointmentChangeRequests");
+        yield return Default("NotificationTemplates");
+        yield return Edit("NotificationTemplates");
+        yield return Default("SystemParameters");
+        yield return Edit("SystemParameters");
+
+        // Phase 5 (2026-05-03) -- PackageDetails has a custom ManageDocuments
+        // action that gates Link / Unlink endpoints. AllEntities yields the
+        // standard CRUD; this yields the extra action explicitly.
+        yield return $"{Group}.PackageDetails.ManageDocuments";
+
+        // Phase A (2026-05-05) -- per-user signature upload, internal-only.
+        // Default lets IT Admin see the feature in the admin UI; ManageOwn
+        // gates the upload of their own signature for stamping on the
+        // Patient Packet PDF.
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
+
+        // Phase E (2026-06-25) -- per-office branding (name + logo). Default gates
+        // the host-side central manager list; Edit gates set-name / upload / remove.
+        yield return Default("Branding");
+        yield return Edit("Branding");
+
+        // 2026-05-15 -- admin-issued invitation for new external users.
+        // Default parent gates menu visibility; InviteExternalUser gates
+        // the create-invite endpoint itself.
+        yield return Default("UserManagement");
+        yield return $"{Group}.UserManagement.InviteExternalUser";
+
+        // 2026-05-15 -- IT Admin (host-scoped) creates new internal users
+        // (Intake Staff / Staff Supervisor). 2026-05-19: the permission is
+        // now MultiTenancySides.Both because the per-tenant `admin` role
+        // also creates internal users in its own tenant (granted in the
+        // per-tenant pass). 2026-06-03 (IR1): Staff Supervisor ALSO receives
+        // this grant (top tenant role -- see StaffSupervisorGrants). Intake
+        // Staff still does NOT -- creating users stays a supervisor/admin power.
+        yield return Default("InternalUsers");
+        yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
+
+        // 2026-07-31 -- Case Tracker integration. Two custom actions the epic added without
+        // yielding them here, so the role documented as holding the full CaseEvaluation.* tree
+        // silently lacked both: the per-office push toggle returned 403 and the failures screen at
+        // /admin/integration-failures was hidden from its own navigation. It could not be fixed in
+        // the UI either, because the role permission editor renders IT Admin read-only as the
+        // all-granted system role, leaving both checkboxes disabled and unticked. The first grant
+        // gates the per-office switch and the manual re-push, the second gates the failures screen
+        // that those actions are operated from.
+        yield return $"{Group}.Appointments.PushToCaseTracker";
+        yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
+
+        // 2026-06-26 -- the internal-users hub LISTS staff via UserExtendedAppService
+        // (extends Volo IdentityUserAppService), whose endpoints are gated by the
+        // framework AbpIdentity.Users policy, NOT CaseEvaluation.InternalUsers. Without
+        // it /users/internal 403s on GET user-extended even for IT Admin. Grant read
+        // (list/get) + Update (the activate/deactivate toggle); create/reset still flow
+        // through CaseEvaluation.InternalUsers.
+        yield return "AbpIdentity.Users";
+        yield return "AbpIdentity.Users.Update";
+
+        // 2026-05-19 -- IT Admin can create new tenants from the Volo
+        // SaaS Tenants page (/saas/tenants). Host Admin (admin@abp.io)
+        // already gets this implicitly as the ABP superuser. The Volo
+        // permission name "Saas.Tenants[.Create]" is fixed by the Volo
+        // SaaS module; we just opt IT Admin in. Tenant admin does NOT
+        // receive this grant -- tenant creation stays a host-side power.
+        yield return "Saas.Tenants";
+        yield return "Saas.Tenants.Create";
+
+        // Phase D (2026-06-25) -- IT Admin co-owns intake office-assignment
+        // management with the host Staff Supervisor (assign/unassign operators).
+        yield return $"{Group}.IntakeAssignments";
+        yield return $"{Group}.IntakeAssignments.Manage";
+
+        // Roles & access matrix (2026-06-16): IT Admin is the technical platform admin and
+        // holds the ABP framework powers the custom seed previously omitted -- this is what
+        // makes Roles / Audit / File / Language management + the clinic-switch reachable.
+        // (Framework permission strings verified against ABP 10.0.2 source, spike
+        // wf_3bdc4d2a-5e0.) All are Host- or Both-sided, so valid for this host-scoped role.
+        yield return "Saas.Tenants.Impersonation";
+        yield return "AbpIdentity.Roles";
+        yield return "AbpIdentity.Roles.ManagePermissions";
+        yield return "AuditLogging.AuditLogs";
+        // Full File + Language management (parents + action children) -- the File
+        // Management page lists DIRECTORIES first, so the DirectoryDescriptor grant is
+        // required or the explorer 403s; the Languages page needs the Languages action
+        // children for create/edit/delete/set-default.
+        yield return "FileManagement.DirectoryDescriptor";
+        yield return "FileManagement.DirectoryDescriptor.Create";
+        yield return "FileManagement.DirectoryDescriptor.Update";
+        yield return "FileManagement.DirectoryDescriptor.Delete";
+        yield return "FileManagement.FileDescriptor";
+        yield return "FileManagement.FileDescriptor.Create";
+        yield return "FileManagement.FileDescriptor.Update";
+        yield return "FileManagement.FileDescriptor.Delete";
+        yield return "LanguageManagement.Languages";
+        yield return "LanguageManagement.Languages.Create";
+        yield return "LanguageManagement.Languages.Edit";
+        yield return "LanguageManagement.Languages.Delete";
+        yield return "LanguageManagement.Languages.ChangeDefault";
+        yield return "LanguageManagement.LanguageTexts";
+        yield return "LanguageManagement.LanguageTexts.Edit";
     }
 
     /// <summary>
-    /// Staff Supervisor (TENANT scope): Dashboard.Tenant + every operational entity
-    /// .Default/.Create/.Edit (no .Delete; hard-delete is IT-Admin-only). All lookup
-    /// reads. Locations.Edit/.Create so the supervisor can manage their clinic's
-    /// location list.
-    ///
-    /// D.1 / W-I-2 (2026-04-30): added the previously-missing supervisory powers
-    /// flagged in the Wave 2 demo-lifecycle review. The supervisor must be able
-    /// to approve uploaded documents, regenerate the IME packet, view the
-    /// audit log, and read the per-AppointmentType field configuration.
+    /// Staff Supervisor (HOST scope, Phase D 2026-06-25): the cross-office
+    /// operator. A single host login that lists offices (<c>Saas.Tenants</c>),
+    /// switches into ANY office as that office's <c>admin</c> via stock tenant
+    /// impersonation (<c>Saas.Tenants.Impersonation</c>) -- so all supervisory
+    /// work happens with the office admin's full powers once switched in (RD4:
+    /// slightly broader than the old per-tenant Supervisor, accepted) -- sees a
+    /// host overview (<c>Dashboard.Host</c> + the Phase C cross-office
+    /// aggregation seam), assigns Intake operators to offices
+    /// (<c>IntakeAssignments.Manage</c>), and creates host operators
+    /// (<c>InternalUsers.Create/.Edit</c>). Deliberately does NOT hold the
+    /// technical/framework powers (AbpIdentity.Roles, File/Language management,
+    /// Saas.Tenants.Create) -- those stay IT-Admin-only. All grants are Host- or
+    /// Both-sided, valid for this host-scoped role.
     /// </summary>
-    private static IEnumerable<string> StaffSupervisorGrants()
+    internal static IEnumerable<string> StaffSupervisorHostGrants()
     {
-        yield return $"{Group}.Dashboard.Tenant";
+        // Host overview dashboard (cross-office aggregation via ITenantWorkRunner).
+        yield return $"{Group}.Dashboard.Host";
 
-        foreach (var entity in LookupReadEntities)
-        {
-            yield return Default(entity);
-        }
-        yield return Create("Locations");
-        yield return Edit("Locations");
+        // See the offices list + switch into any office as its admin.
+        yield return "Saas.Tenants";
+        yield return "Saas.Tenants.Impersonation";
 
-        foreach (var entity in OperationalEntities)
-        {
-            yield return Default(entity);
-            yield return Create(entity);
-            yield return Edit(entity);
-        }
+        // Phase D -- assign / unassign Intake operators to offices (also
+        // provisions / revokes the per-office shadow Intake user).
+        yield return $"{Group}.IntakeAssignments";
+        yield return $"{Group}.IntakeAssignments.Manage";
 
-        // D.1 / W-I-2: AppointmentDocuments full CRUD + Approve (no Delete --
-        // hard-delete remains IT-Admin-only).
-        yield return Default("AppointmentDocuments");
-        yield return Create("AppointmentDocuments");
-        yield return Edit("AppointmentDocuments");
-        yield return Approve("AppointmentDocuments");
+        // Phase E (2026-06-25) -- manage every office's branding from the host-side
+        // central manager (Both-sided permission, valid at host scope).
+        yield return $"{Group}.Branding";
+        yield return $"{Group}.Branding.Edit";
 
-        // D.1 / W-I-2: AppointmentPackets read + regenerate.
-        yield return Default("AppointmentPackets");
-        yield return Regenerate("AppointmentPackets");
+        // Create host operators (Intake Staff + Staff Supervisor). InternalUsers
+        // is MultiTenancySides.Both; CreatableRoleNames bounds the creatable set.
+        yield return Default("InternalUsers");
+        yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
 
-        // D.1 / W-I-2: read-only audit log access.
-        yield return Default("AppointmentChangeLogs");
+        // 2026-06-26 (near-full host admin, Adrian) -- the internal-users hub lists +
+        // toggles staff via UserExtendedAppService (Volo IdentityUserAppService), gated
+        // by AbpIdentity.Users. Grant read + Update so the Supervisor's /users/internal
+        // loads and the activate toggle works. Still WITHOUT AbpIdentity.Roles,
+        // File/Language management, or Saas.Tenants.Create -- those stay IT-Admin-only.
+        yield return "AbpIdentity.Users";
+        yield return "AbpIdentity.Users.Update";
 
-        // D.1 / W-I-2: read-only field-config access (the booker form fetches
-        // these to render per-AppointmentType field state). Edit stays admin-only.
-        yield return Default("CustomFields");
+        // 2026-07-31 -- Case Tracker integration, the Supervisor half of the gap #406 fixed
+        // for IT Admin. The permission definitions always intended both roles to hold these,
+        // but only ItAdminGrants yielded them, so the Supervisor's own navigation hid
+        // /admin/integration-failures and the retry action 403'd. Granted HOST-side only:
+        // that screen aggregates every office through ITenantWorkRunner, so a tenant-side
+        // grant would gate nothing it reads.
+        yield return $"{Group}.Appointments.PushToCaseTracker";
+        yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
     }
 
     /// <summary>
-    /// Clinic Staff (TENANT scope): front-desk receptionist tier. Tightly scoped to
+    /// Intake Staff -- HOST operator grants (Phase D 2026-06-25). The thin host
+    /// login holds ONLY the office-switch capability
+    /// (<c>IntakeImpersonation</c>): it lets the operator read its assigned
+    /// offices and impersonate into each as the LIMITED per-office shadow Intake
+    /// user (which holds the per-tenant Intake Staff role -- see
+    /// <see cref="IntakeStaffGrants"/>). The per-office assignment gate
+    /// (deny-by-default, enforced server-side in the impersonation grant) is the
+    /// actual office boundary. NOT granted <c>Saas.Tenants.Impersonation</c>
+    /// (cannot do a full admin tenant-switch) nor any tenant-side operational
+    /// permission (those belong to the shadow user, not the host shell).
+    /// </summary>
+    internal static IEnumerable<string> IntakeOperatorHostGrants()
+    {
+        yield return $"{Group}.IntakeImpersonation";
+    }
+
+    /// <summary>
+    /// Intake Staff (TENANT scope): front-desk receptionist tier. Tightly scoped to
     /// booking-flow inputs: Appointments + Patients (CRUD-minus-Delete), read-only
     /// DoctorAvailabilities + lookups.
     ///
@@ -271,19 +466,97 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// may upload (the upload happens via the Appointments.Edit path) and
     /// approve/reject; structural edits to a document row stay supervisor-tier.
     /// </summary>
-    private static IEnumerable<string> ClinicStaffGrants()
+    internal static IEnumerable<string> IntakeStaffGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 
-        yield return Default("Appointments");
+        // 2026-05-13: read access to every operational entity under the
+        // tenant. Mirrors Staff Supervisor's loop but read-only -- the
+        // appointment-view page fans out to per-entity endpoints
+        // (AppointmentInjuryDetails, AppointmentEmployerDetails,
+        // ApplicantAttorneys, etc.), each gated by [Authorize(...Default)].
+        // Intake Staff is the front-line reviewer for every appointment in
+        // their tenant, so they need read on the full operational set.
+        // Mutation rights stay scoped explicitly below to Appointments +
+        // Patients (and AppointmentDocuments.Approve / AppointmentPackets.
+        // Regenerate per the existing receptionist-tier scope).
+        foreach (var entity in OperationalEntities)
+        {
+            yield return Default(entity);
+        }
+
         yield return Create("Appointments");
         yield return Edit("Appointments");
 
-        yield return Default("Patients");
         yield return Create("Patients");
         yield return Edit("Patients");
 
-        yield return Default("DoctorAvailabilities");
+        // F1 / Design B (2026-05-29) -- SSN reveal endpoint (intake staff
+        // reveal any patient's SSN during phone-in intake / review).
+        yield return $"{Group}.Patients.RevealSsn";
+
+        // 2026-06-11 -- Intake Staff manages doctor availability slots
+        // (create/edit/delete schedules). The OperationalEntities loop above
+        // grants only DoctorAvailabilities.Default (read); the slot-management
+        // page's Add/Edit/Delete actions hit CreateAsync / UpdateAsync /
+        // DeleteAsync, each gated by its own child permission. Front-desk
+        // intake staff is responsible for keeping the bookable slot grid
+        // current, so it gets full slot CRUD (Adrian, 2026-06-11).
+        yield return Create("DoctorAvailabilities");
+        yield return Edit("DoctorAvailabilities");
+        yield return Delete("DoctorAvailabilities");
+
+        // W2-8 -- the booking-add SPA fires a separate POST per injury
+        // draft (multi-injury support per OLD parity, see
+        // angular/src/app/appointments/appointment-add.component.ts:2438).
+        // Intake Staff is the canonical phone-in booker so it needs the
+        // mutation grant alongside the existing Appointments / Patients
+        // mutations. Without this, the booking-add flow succeeds on the
+        // main appointment row but returns 403 on every auxiliary
+        // injury POST -- silently breaking multi-injury bookings.
+        yield return Create("AppointmentInjuryDetails");
+
+        // 2026-06-08 (F-1) -- same per-child-POST 403 class as the injury
+        // grant above. The booking-add submit also POSTs the Claim Examiner
+        // (required, every booking) and, when filled, a Primary Insurance,
+        // each to its own permission-gated standalone AppService
+        // (appointment-add.component.ts: createClaimExaminer / primary
+        // insurance). Without these Creates, Intake Staff (the canonical
+        // phone-in booker) gets 403 on the CE attach, which aborts the rest
+        // of the submit (injuries + auto-approve never run) -- a half-built
+        // Pending appointment. CI1 makes a Claim Examiner mandatory, so a
+        // booker who cannot create one cannot complete any booking. (AA/DA
+        // links do NOT need a grant here -- the client attaches them via the
+        // bare-[Authorize] appointment-scoped upsert routes, not the
+        // standalone .Create AppServices.)
+        yield return Create("AppointmentClaimExaminers");
+        yield return Create("AppointmentPrimaryInsurances");
+        // Same per-child-POST class: every injury posts >=1 structured body
+        // part (POST /appointment-body-parts, OBS-41) and the optional
+        // Authorized Users step posts accessors (POST /appointment-accessors).
+        // Both go through permission-gated standalone AppServices, so the
+        // canonical booker needs their Creates too -- otherwise the body-part
+        // POST 403s mid-submit (after CE + injury succeed) and aborts the
+        // auto-approve, leaving a half-built Pending appointment.
+        yield return Create("AppointmentBodyParts");
+        yield return Create("AppointmentAccessors");
+        // Parity fix (2026-07-16): the booking submit also POSTs employer details to
+        // the standalone Employer AppService, which now gates CreateAsync on
+        // AppointmentEmployerDetails.Create (was bare [Authorize]). The
+        // OperationalEntities loop above grants only Default (read); without this
+        // Create, Intake Staff's booking submit 403s on the employer POST -- the same
+        // per-child-POST 403 class as the injury / CE / insurance / body-part grants
+        // above. ~~Create only (no Edit), matching the sibling child grants at this tier.~~
+        yield return Create("AppointmentEmployerDetails");
+        // 2026-08-06: Edit was the missing HALF of that same parity fix, and its absence made the
+        // appointment edit form unusable for this role. The form's save calls
+        // upsertEmployerDetails whenever ANY employer field has a VALUE -- hasEmployerData(), not a
+        // dirty check -- so EVERY "Edit details" save on an appointment carrying employer data hit
+        // the PUT and 403'd, leaving a partial save (appointment + patient committed, employer not).
+        // Granted rather than hidden from the form because Intake Staff already CREATE this record
+        // at booking and already hold Appointments.Edit + Patients.Edit; being unable to correct
+        // what they typed was a gap in the tier, not a safeguard.
+        yield return Edit("AppointmentEmployerDetails");
 
         foreach (var entity in LookupReadEntities)
         {
@@ -297,23 +570,51 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
         yield return Default("CustomFields");
+
+        // G-08-01 (2026-06-06): Appointment Request Report (read-only) + G-08-03 PDF
+        // export. Intake Staff is a primary report audience (the front-desk worklist).
+        yield return Default("Reports");
+        yield return $"{Group}.Reports.Export";
+
+        // Phase 2.5 (2026-05-01) -- intake staff is the front-line approver
+        // for new bookings. QA #15 item 4 (2026-07-06, Adrian) REVERSED the
+        // original read-only change-request tier: intake now also finalizes
+        // cancel / reschedule outcomes in its assigned offices. The opposing-
+        // consent gate (OpposingConsentValidator) still blocks non-consented
+        // approvals at this tier exactly as it does for supervisors.
+        yield return Approve("Appointments");
+        yield return Reject("Appointments");
+        yield return Default("AppointmentChangeRequests");
+        yield return Approve("AppointmentChangeRequests");
+        yield return Reject("AppointmentChangeRequests");
+        yield return Default("SystemParameters");
+
+        // Phase A (2026-05-05) -- intake staff uploads a signature so OLD
+        // packets they are responsible for include a stamped image. Mirrors
+        // OLD, where the receptionist, IT-admin, and supervisor tiers were
+        // the three roles that could upload via the My-Profile page.
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
+
+        // 2026-05-15 -- front-desk intake staff is the most common
+        // inviter (intake phone calls from prospective patients).
+        // Same grant shape as the other two internal roles -- the
+        // server gate is the same permission for all three.
+        yield return Default("UserManagement");
+        yield return $"{Group}.UserManagement.InviteExternalUser";
     }
 
     /// <summary>
-    /// D.1 / W-I-3 (2026-04-30): Doctor (TENANT scope). Read-mostly persona;
-    /// the doctor needs to inspect appointments + patients on their own
-    /// schedule, manage their availability slots, and regenerate the packet
-    /// for an appointment they own. Specifically NOT granted:
-    ///   - .Create / .Edit on Appointments (booking is office workflow)
-    ///   - .Create / .Edit on Patients (intake is receptionist workflow)
-    ///   - .Approve on documents (sign-off lives with office staff)
-    ///   - .Delete on anything
-    /// Row-level "own appointments only" filtering is a separate domain
-    /// concern (W-DOC-1) and is NOT enforced by this seeder; today a Doctor
-    /// reads every appointment in their tenant. Tightening to per-doctor
-    /// visibility is a follow-up.
+    /// Staff Supervisor (TENANT scope) -- the top per-office role a host Supervisor's own
+    /// shadow user holds on switch-in (task_2e8e4dc2, 2026-07-21). Restored verbatim from the
+    /// pre-Phase-D definition (git 75fa6294^ StaffSupervisorGrants): Dashboard.Tenant + lookup
+    /// masters + full operational CRUD (soft-delete) + document/packet/change-request/reports +
+    /// system-params + notification-template editing + tenant-side internal-user create/edit.
+    /// Deliberately NARROWER than the tenant `admin` role (which an IT-Admin's shadow holds):
+    /// no framework powers (roles/file/language management), no hard-delete. All grants are
+    /// Tenant- or Both-sided, valid at this role's tenant scope.
     /// </summary>
-    private static IEnumerable<string> DoctorGrants()
+    internal static IEnumerable<string> StaffSupervisorTenantGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 
@@ -321,33 +622,95 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         {
             yield return Default(entity);
         }
+        yield return Create("Locations");
+        yield return Edit("Locations");
+        yield return Delete("Locations");
 
-        yield return Default("Appointments");
-        yield return Default("Patients");
+        // Staff Supervisor manages the lookup masters (read via LookupReadEntities above;
+        // write + soft-delete here).
+        yield return Create("AppointmentTypes");
+        yield return Edit("AppointmentTypes");
+        yield return Delete("AppointmentTypes");
 
-        // Edit-own-availability: doctors self-manage their schedule.
-        yield return Default("DoctorAvailabilities");
-        yield return Create("DoctorAvailabilities");
-        yield return Edit("DoctorAvailabilities");
+        yield return Create("AppointmentLanguages");
+        yield return Edit("AppointmentLanguages");
+        yield return Delete("AppointmentLanguages");
 
-        // Read-only across the per-injury / per-employer / attorney sub-entities.
-        yield return Default("AppointmentInjuryDetails");
-        yield return Default("AppointmentEmployerDetails");
-        yield return Default("AppointmentApplicantAttorneys");
-        yield return Default("AppointmentDefenseAttorneys");
-        yield return Default("AppointmentClaimExaminers");
-        yield return Default("AppointmentBodyParts");
-        yield return Default("AppointmentPrimaryInsurances");
+        yield return Create("WcabOffices");
+        yield return Edit("WcabOffices");
+        yield return Delete("WcabOffices");
 
-        // Read documents; regenerate the packet PDF.
+        // AppointmentStatus lookup is enum-driven reference data -- VIEW only.
+        yield return Default("AppointmentStatuses");
+
+        foreach (var entity in OperationalEntities)
+        {
+            yield return Default(entity);
+            yield return Create(entity);
+            yield return Edit(entity);
+            // Top tenant role may soft-delete operational rows (FullAudited/ISoftDelete --
+            // recoverable + audited, not a hard purge).
+            yield return Delete(entity);
+        }
+
+        // SSN reveal endpoint (internal staff may reveal any patient's SSN).
+        yield return $"{Group}.Patients.RevealSsn";
+
+        // AppointmentDocuments full CRUD + Approve (no Delete -- hard-delete is IT-Admin-only).
         yield return Default("AppointmentDocuments");
+        yield return Create("AppointmentDocuments");
+        yield return Edit("AppointmentDocuments");
+        yield return Delete("AppointmentDocuments");
+        yield return Approve("AppointmentDocuments");
+
+        // AppointmentPackets read + regenerate.
         yield return Default("AppointmentPackets");
         yield return Regenerate("AppointmentPackets");
 
-        // Audit visibility for own appointments + field-config read for the
-        // booking-form lookups (booker form is closed to Doctor today, but
-        // Default lookups must succeed for any appointment-detail render).
+        // Read-only audit log access.
         yield return Default("AppointmentChangeLogs");
+
+        // Appointment Request Report (read-only) + PDF export.
+        yield return Default("Reports");
+        yield return $"{Group}.Reports.Export";
+
+        // Field-config access; the supervisor manages per-type field rules.
         yield return Default("CustomFields");
+        yield return Create("CustomFields");
+        yield return Edit("CustomFields");
+
+        // Approval surface for booking approval + cancel / reschedule requests;
+        // tenant-side notification-template editing.
+        yield return Approve("Appointments");
+        yield return Reject("Appointments");
+        yield return Default("AppointmentChangeRequests");
+        yield return Approve("AppointmentChangeRequests");
+        yield return Reject("AppointmentChangeRequests");
+        yield return Default("NotificationTemplates");
+        yield return Edit("NotificationTemplates");
+        yield return Default("SystemParameters");
+        yield return Edit("SystemParameters");
+        yield return "AuditLogging.AuditLogs";
+
+        // Document-category master: Default/Create/Edit (retire is soft IsActive=false;
+        // hard-delete stays IT-Admin-only).
+        yield return Default("AppointmentDocumentTypes");
+        yield return Create("AppointmentDocumentTypes");
+        yield return Edit("AppointmentDocumentTypes");
+
+        // Signature upload (stamped on packets the supervisor is responsible for).
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
+
+        // Invite external users (Patient / AA / DA / CE) to self-register on the tenant portal.
+        yield return Default("UserManagement");
+        yield return $"{Group}.UserManagement.InviteExternalUser";
+
+        // Top tenant role creates internal users within its tenant; .Edit also gates the
+        // admin password-reset action. CreatableRoleNames bounds the creatable set.
+        yield return Default("InternalUsers");
+        yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
     }
+
 }

@@ -1,0 +1,112 @@
+/* ============================================================
+   File Management (Prompt 16, Part B) -- blob-storage explorer. Ported from
+   the design handoff (design_handoff_part_B/styles/in-files.css). Reuses
+   ia-*, ra-rowbtn, af-btn. Breadcrumb navigation (sidebar tree deferred).
+   ============================================================ */
+
+/* breadcrumb bar */
+.fm-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-sm);
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.fm-crumbs button {
+  border: 0;
+  background: transparent;
+  color: var(--blue-700);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.fm-crumbs button:hover {
+  background: var(--blue-50);
+}
+.fm-crumbs .sep {
+  color: var(--n-300);
+  display: inline-flex;
+}
+.fm-crumbs .cur {
+  color: var(--n-700);
+  font-weight: 700;
+}
+
+/* file/folder cells */
+.fm-folderrow {
+  cursor: pointer;
+}
+.fm-fname {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-weight: 600;
+  color: var(--n-900);
+}
+.fm-fname .fi {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fm-fname .fi.folder {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.fm-fname .fi.file {
+  background: var(--n-100);
+  color: var(--n-500);
+}
+.fm-type {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 7px;
+  background: var(--n-100);
+  color: var(--n-600);
+  text-transform: uppercase;
+  font-family: var(--font-num);
+}
+.fm-num {
+  font-family: var(--font-num);
+}
+.fm-open {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fm-rowacts {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.fm-uplabel {
+  cursor: pointer;
+}
+.fm-warn {
+  margin: 0;
+  font-size: 14px;
+  color: var(--n-600);
+  line-height: 1.55;
+}
+.fm-danger {
+  background: var(--st-rejected-fg);
+}
+
+@media (max-width: 860px) {
+  .ia-table {
+    min-width: 640px;
+  }
+}

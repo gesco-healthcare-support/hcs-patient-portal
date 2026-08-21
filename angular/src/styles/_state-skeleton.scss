@@ -1,0 +1,63 @@
+// Shared skeleton (shimmer) styles, ported from the design handoff
+// (design_handoff_appointment_portal/styles/st-states.css). `.sk` backs the
+// <app-skeleton> primitive; `.st-skel-row` composes the external-home
+// appointment-list loading state. The shimmer stops at one off-token white
+// highlight (kept verbatim from the design); the rest use tokens.
+
+.sk {
+  background: linear-gradient(100deg, var(--n-100) 28%, #f6f8fb 50%, var(--n-100) 72%);
+  background-size: 220% 100%;
+  animation: sksh 1.3s ease-in-out infinite;
+  border-radius: 7px;
+  display: block;
+}
+
+@keyframes sksh {
+  0% {
+    background-position: 220% 0;
+  }
+  100% {
+    background-position: -220% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk {
+    animation: none;
+  }
+}
+
+.sk--circle {
+  border-radius: 50%;
+}
+
+// external-home appointment-list loading rows (app-skeleton uses display:contents,
+// so the .sk spans are the direct flex children here).
+.st-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  margin-bottom: 11px;
+
+  > .sk {
+    flex: none;
+  }
+}
+
+.st-skel-row__meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// generic vertical skeleton stack (detail + wizard loading blocks)
+.st-skel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

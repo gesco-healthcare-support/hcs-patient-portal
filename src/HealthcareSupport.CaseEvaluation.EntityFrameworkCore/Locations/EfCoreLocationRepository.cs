@@ -30,7 +30,7 @@ public class EfCoreLocationRepository : EfCoreRepository<CaseEvaluationDbContext
     public virtual async Task<LocationWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(location => new LocationWithNavigationProperties { Location = location, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == location.StateId), AppointmentType = dbContext.Set<AppointmentType>().FirstOrDefault(c => c.Id == location.AppointmentTypeId) }).FirstOrDefaultAsync(cancellationToken);
+        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(location => new LocationWithNavigationProperties { Location = location, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == location.StateId), AppointmentTypes = location.AppointmentTypes.Select(j => j.AppointmentType).ToList() }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<LocationWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? name = null, string? city = null, string? zipCode = null, decimal? parkingFeeMin = null, decimal? parkingFeeMax = null, bool? isActive = null, Guid? stateId = null, Guid? appointmentTypeId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -46,19 +46,17 @@ public class EfCoreLocationRepository : EfCoreRepository<CaseEvaluationDbContext
         return from location in (await GetDbSetAsync())
                join state in (await GetDbContextAsync()).Set<State>() on location.StateId equals state.Id into states
                from state in states.DefaultIfEmpty()
-               join appointmentType in (await GetDbContextAsync()).Set<AppointmentType>() on location.AppointmentTypeId equals appointmentType.Id into appointmentTypes
-               from appointmentType in appointmentTypes.DefaultIfEmpty()
                select new LocationWithNavigationProperties
                {
                    Location = location,
                    State = state,
-                   AppointmentType = appointmentType
+                   AppointmentTypes = location.AppointmentTypes.Select(j => j.AppointmentType).ToList()
                };
     }
 
     protected virtual IQueryable<LocationWithNavigationProperties> ApplyFilter(IQueryable<LocationWithNavigationProperties> query, string? filterText, string? name = null, string? city = null, string? zipCode = null, decimal? parkingFeeMin = null, decimal? parkingFeeMax = null, bool? isActive = null, Guid? stateId = null, Guid? appointmentTypeId = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Location.Name!.Contains(filterText!) || e.Location.City!.Contains(filterText!) || e.Location.ZipCode!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Location.Name!.Contains(name!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.Location.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.Location.ZipCode!.Contains(zipCode!)).WhereIf(parkingFeeMin.HasValue, e => e.Location.ParkingFee >= parkingFeeMin!.Value).WhereIf(parkingFeeMax.HasValue, e => e.Location.ParkingFee <= parkingFeeMax!.Value).WhereIf(isActive.HasValue, e => e.Location.IsActive == isActive).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.AppointmentType != null && e.AppointmentType.Id == appointmentTypeId);
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Location.Name!.Contains(filterText!) || e.Location.City!.Contains(filterText!) || e.Location.ZipCode!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Location.Name!.Contains(name!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.Location.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.Location.ZipCode!.Contains(zipCode!)).WhereIf(parkingFeeMin.HasValue, e => e.Location.ParkingFee >= parkingFeeMin!.Value).WhereIf(parkingFeeMax.HasValue, e => e.Location.ParkingFee <= parkingFeeMax!.Value).WhereIf(isActive.HasValue, e => e.Location.IsActive == isActive).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Location.AppointmentTypes.Any(t => t.AppointmentTypeId == appointmentTypeId));
     }
 
     protected virtual IQueryable<Location> ApplyFilter(IQueryable<Location> query, string? filterText = null, string? name = null, string? city = null, string? zipCode = null, decimal? parkingFeeMin = null, decimal? parkingFeeMax = null, bool? isActive = null)

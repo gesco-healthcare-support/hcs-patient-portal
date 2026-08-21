@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using System;
@@ -8,7 +9,11 @@ using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.PermissionManagement.Identity;
 using Volo.Abp.SettingManagement;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.BlobStoring.Database;
+using Volo.Abp.BlobStoring.Minio;
+using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using Volo.Abp.Caching;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.PermissionManagement.OpenIddict;
@@ -16,6 +21,8 @@ using Volo.Abp.AuditLogging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Emailing;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.MailKit;
+using MailKit.Security;
 using Volo.Abp.Identity;
 using Volo.Abp.Commercial.SuiteTemplates;
 using Volo.Abp.LanguageManagement;
@@ -36,6 +43,7 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpPermissionManagementDomainOpenIddictModule),
     typeof(AbpSettingManagementDomainModule),
     typeof(AbpEmailingModule),
+    typeof(AbpMailKitModule),
     typeof(AbpIdentityProDomainModule),
     typeof(AbpOpenIddictProDomainModule),
     typeof(SaasDomainModule),
@@ -44,7 +52,8 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(FileManagementDomainModule),
     typeof(VoloAbpCommercialSuiteTemplatesModule),
     typeof(AbpGdprDomainModule),
-    typeof(BlobStoringDatabaseDomainModule)
+    typeof(BlobStoringDatabaseDomainModule),
+    typeof(AbpBlobStoringMinioModule)
     )]
 public class CaseEvaluationDomainModule : AbpModule
 {
@@ -54,6 +63,47 @@ public class CaseEvaluationDomainModule : AbpModule
         {
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
         });
+
+        ConfigureBlobStoring(context);
+
+        // 2026-05-11: MailKit replaces the legacy System.Net.Mail.SmtpClient via
+        // Volo.Abp.MailKit. ABP MailKit defaults SecureSocketOption based on
+        // Abp.Mailing.Smtp.EnableSsl (true => SslOnConnect, false => StartTlsWhenAvailable),
+        // but SslOnConnect targets implicit-TLS port 465 -- our provider uses STARTTLS on
+        // port 587. Explicitly pin StartTls so the upgrade negotiation matches the server.
+        Configure<AbpMailKitOptions>(options =>
+        {
+            options.SecureSocketOption = SecureSocketOptions.StartTls;
+        });
+
+        // Phase 1 (2026-05-05): QuestPDF community-license registration.
+        // Required before any QuestPDF render call -- the library throws on
+        // first use otherwise. Community license is free for our scale (Gesco
+        // is well below QuestPDF's 1M ARR / 10-employee threshold). License
+        // text: https://www.questpdf.com/license/community.html
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        // packet-renderer sidecar typed HttpClient for the packet pipeline's
+        // HTML -> fillable PDF conversion (WeasyPrint). URL from configuration
+        // (env var `PacketRenderer__Url` in docker-compose); the fallback
+        // hostname matches the packet-renderer compose service so dev stacks
+        // work without explicit env-var setup. This is the sole packet
+        // renderer -- the DOCX -> Gotenberg path was removed 2026-06-10.
+        //
+        // T6: the client timeout is aligned with the sidecar's gunicorn
+        // --timeout (120s, see docker/packet-renderer/Dockerfile). Keeping the
+        // client >= the server timeout stops the client aborting at 60s while
+        // gunicorn keeps rendering to 120s -- which orphaned the request and
+        // wasted one of only two worker slots under concurrent load.
+        var pdfConfiguration = context.Services.GetConfiguration();
+        var packetRendererUrl = pdfConfiguration["PacketRenderer:Url"] ?? "http://packet-renderer:3001";
+        context.Services.AddHttpClient<IHtmlPacketRenderer, WeasyPrintPacketRenderer>(client =>
+        {
+            client.BaseAddress = new Uri(packetRendererUrl);
+            client.Timeout = TimeSpan.FromSeconds(120);
+        });
+
+        ConfigureCaseTrackerClient(context);
 
 
 
@@ -88,6 +138,91 @@ public class CaseEvaluationDomainModule : AbpModule
                     ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
             }
         }
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- Route the seven document-bearing blob containers to
+    /// MinIO via the official MinIO .NET client (Volo.Abp.BlobStoring.Minio).
+    /// Other ABP-internal containers (audit logs, etc.) keep using the
+    /// default <c>BlobStoringDatabase</c> provider, so this is a
+    /// per-container swap, not a global default swap.
+    ///
+    /// MinIO config comes from <c>BlobStoring:Minio:*</c> with sensible
+    /// dev defaults that match the docker-compose <c>minio</c> service.
+    /// Production swaps the endpoint to a managed MinIO host (self-hosted
+    /// or BYO) -- AWS / S3 are explicitly out of scope per Adrian's
+    /// 2026-05-13 directive (no AWS dependency in this stack).
+    /// </summary>
+    private void ConfigureBlobStoring(ServiceConfigurationContext context)
+    {
+        var configuration = context.Services.GetConfiguration();
+        var minioSection = configuration.GetSection("BlobStoring:Minio");
+        // MinIO client wants host:port (no scheme); WithSSL controls http
+        // vs https. A scheme-prefixed value would throw InvalidEndpointException.
+        var endpoint = minioSection["Endpoint"] ?? "minio:9000";
+        var accessKey = minioSection["AccessKey"] ?? "minioadmin";
+        var secretKey = minioSection["SecretKey"] ?? "minioadmin";
+        var bucketName = minioSection["BucketName"] ?? "case-evaluation-documents";
+        var withSsl = bool.TryParse(minioSection["WithSsl"], out var sslFlag) && sslFlag;
+        var createBucketIfNotExists = !bool.TryParse(minioSection["CreateBucketIfNotExists"], out var createFlag) || createFlag;
+
+        Configure<AbpBlobStoringOptions>(options =>
+        {
+            void UseMinio<TContainer>()
+            {
+                options.Containers.Configure<TContainer>(container =>
+                {
+                    container.UseMinio(minio =>
+                    {
+                        minio.EndPoint = endpoint;
+                        minio.AccessKey = accessKey;
+                        minio.SecretKey = secretKey;
+                        minio.BucketName = bucketName;
+                        minio.WithSSL = withSsl;
+                        minio.CreateBucketIfNotExists = createBucketIfNotExists;
+                    });
+                });
+            }
+
+            UseMinio<AppointmentDocumentsContainer>();
+            UseMinio<AnonymousUploadsContainer>();
+            UseMinio<DocumentPackagesContainer>();
+            UseMinio<MasterDocumentsContainer>();
+            UseMinio<JointDeclarationsContainer>();
+            UseMinio<AppointmentPacketsContainer>();
+            UseMinio<UserSignaturesContainer>();
+            UseMinio<OfficeLogosContainer>();
+        });
+    }
+
+    /// <summary>
+    /// 2026-07-27 -- typed HttpClient for the Case Tracker intake API (integration Part 1).
+    ///
+    /// <para>The base address is set ONLY when <c>CaseTracker:BaseUrl</c> is configured. Leaving it
+    /// unset is deliberate rather than defaulting to a guessed host: the push is gated off by
+    /// default (<c>CaseTrackerPushEnabled</c>), and if it were ever enabled without a URL the
+    /// resulting request fails as a transport error, which the outbox records and surfaces --
+    /// whereas a wrong-but-plausible default could POST PHI at the wrong host.</para>
+    ///
+    /// <para>The token is NOT captured here; the client reads it per request so rotating the secret
+    /// does not need a restart.</para>
+    /// </summary>
+    private static void ConfigureCaseTrackerClient(ServiceConfigurationContext context)
+    {
+        var configuration = context.Services.GetConfiguration();
+        var baseUrl = configuration["CaseTracker:BaseUrl"];
+        var timeoutSeconds = int.TryParse(configuration["CaseTracker:TimeoutSeconds"], out var parsed) && parsed > 0
+            ? parsed
+            : 30;
+
+        context.Services.AddHttpClient<ICaseTrackerClient, CaseTrackerClient>(client =>
+        {
+            if (!string.IsNullOrWhiteSpace(baseUrl))
+            {
+                client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+            }
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        });
     }
 
     private static bool HasPlaceholderSmtpCredentials(string? userName, string? password)

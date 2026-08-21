@@ -1,0 +1,156 @@
+namespace HealthcareSupport.CaseEvaluation.Appointments;
+
+/// <summary>
+/// Phase 11h (2026-05-04) -- pure role-driven decisions for the
+/// booking flow. Mirrors OLD
+/// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>
+/// lines 221-240 (UserType.InternalUser fast-path) and 358-380
+/// (Adjuster auto-fill of ClaimExaminerEmail).
+///
+/// Extracted as <c>internal static</c> for unit-testability via the
+/// existing <c>InternalsVisibleTo</c> wiring (matches the Phase 3 / 5
+/// / 6 / 11a / 11b / 11e / 11f / 11i pattern).
+/// </summary>
+internal static class BookingFlowRoles
+{
+    /// <summary>
+    /// Internal-user roles that flip the booking flow into the
+    /// "auto-approved" fast-path: the three internal Gesco-side roles
+    /// (Intake Staff / Staff Supervisor / IT Admin) plus the Volo SaaS
+    /// tenant <c>admin</c>. ("Doctor" was removed 2026-06-03 / IR1 -- it is
+    /// a reference entity, never a seeded user role, so it never matched.)
+    /// External callers (Patient, AA, DA, CE) always land at
+    /// <c>Pending</c> so only the office side can self-approve.
+    /// </summary>
+    internal static readonly System.Collections.Generic.IReadOnlyList<string> InternalUserRoles = new[]
+    {
+        "admin",
+        "Intake Staff",
+        "Staff Supervisor",
+        "IT Admin",
+    };
+
+    /// <summary>
+    /// Returns <c>true</c> when the calling user holds at least one
+    /// internal role. The Manager.CreateAsync caller threads this
+    /// through to choose Pending (external) vs Approved (internal)
+    /// status at booking time.
+    /// </summary>
+    internal static bool IsInternalUserCaller(System.Collections.Generic.IEnumerable<string?>? callerRoles)
+    {
+        if (callerRoles == null)
+        {
+            return false;
+        }
+        foreach (var role in callerRoles)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                continue;
+            }
+            var trimmed = role.Trim();
+            foreach (var internalRole in InternalUserRoles)
+            {
+                if (string.Equals(trimmed, internalRole, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// External roles permitted to manage (add / edit / remove) appointment
+    /// accessors -- but only on an appointment they created (the creator check
+    /// lives in <see cref="AppointmentAccessRules.CanManageAccessors"/>). Today:
+    /// Applicant Attorney + Defense Attorney. The paralegal-on-behalf-of-attorney
+    /// feature appends "Paralegal" here as a one-line extension; the Domain rule
+    /// and the guard need no change. Names mirror the external roles seeded by
+    /// <c>ExternalUserRoleDataSeedContributor</c> /
+    /// <c>AppointmentAccessorRules.RecognizedExternalRoles</c>.
+    /// </summary>
+    internal static readonly System.Collections.Generic.IReadOnlyList<string> ExternalAccessorManagerRoles = new[]
+    {
+        "Applicant Attorney",
+        "Defense Attorney",
+    };
+
+    /// <summary>
+    /// Returns <c>true</c> when the calling user holds at least one role in
+    /// <see cref="ExternalAccessorManagerRoles"/> (case-insensitive, trimmed).
+    /// Symmetric with <see cref="IsInternalUserCaller"/>; the read-access guard
+    /// threads the result into
+    /// <see cref="AppointmentAccessRules.CanManageAccessors"/> as the
+    /// <c>callerIsAuthorizedExternalAccessorManager</c> bool.
+    /// </summary>
+    internal static bool IsExternalAccessorManager(System.Collections.Generic.IEnumerable<string?>? callerRoles)
+    {
+        if (callerRoles == null)
+        {
+            return false;
+        }
+        foreach (var role in callerRoles)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                continue;
+            }
+            var trimmed = role.Trim();
+            foreach (var managerRole in ExternalAccessorManagerRoles)
+            {
+                if (string.Equals(trimmed, managerRole, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Claim-examiner auto-fill: when the booker is the claim-examiner
+    /// (OLD's <c>Adjuster</c> role, NEW's <c>Claim Examiner</c> role --
+    /// same role under different names per OLD
+    /// <c>P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs</c>:15
+    /// (<c>Adjuster = 5</c>) renamed to "Claim Examiner" in NEW),
+    /// the claim-examiner email field is forced to the booker's own
+    /// email regardless of what the DTO carried. The UI rendered this
+    /// field readonly for the role; the server-side override is the
+    /// belt-and-suspenders so a hand-crafted API call cannot bypass.
+    ///
+    /// Returns the DTO value untouched when the caller is NOT in the
+    /// Claim Examiner role, so non-CE callers keep authority over the
+    /// field.
+    ///
+    /// Note: OLD's <c>AppointmentDomain.cs</c> does not have an active
+    /// auto-fill block today (the relevant <c>AdjusterEmail</c> handler
+    /// is commented out at lines 706-708). The audit-doc's claim that
+    /// OLD ran this rule live was based on the readonly UI behaviour;
+    /// NEW preserves the UI's intent at the API layer rather than
+    /// faithfully porting OLD's commented-out C#. Documented as a
+    /// defensive NEW-side override consistent with OLD's UI contract.
+    /// </summary>
+    internal static string? ResolveClaimExaminerEmail(
+        System.Collections.Generic.IEnumerable<string?>? callerRoles,
+        string? currentUserEmail,
+        string? dtoClaimExaminerEmail)
+    {
+        if (callerRoles == null || string.IsNullOrWhiteSpace(currentUserEmail))
+        {
+            return dtoClaimExaminerEmail;
+        }
+        foreach (var role in callerRoles)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                continue;
+            }
+            if (string.Equals(role.Trim(), "Claim Examiner", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return currentUserEmail;
+            }
+        }
+        return dtoClaimExaminerEmail;
+    }
+}

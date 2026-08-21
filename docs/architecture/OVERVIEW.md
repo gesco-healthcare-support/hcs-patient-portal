@@ -2,6 +2,8 @@
 
 # System Overview
 
+> Purpose: High-level architecture reference for the HCS Case Evaluation Portal. Audience: developers. Last verified: 2026-06-01 vs main.
+
 The HCS Case Evaluation Portal is a workers' compensation Independent Medical Examination (IME) scheduling application. It follows a DDD layered monolith architecture with multi-tenancy support, where each doctor operates within an isolated tenant.
 
 ## Technology Stack
@@ -174,8 +176,8 @@ Access control is enforced through ABP's permission system. Permissions are defi
 
 ## Related Documentation
 
-- [DDD Layers](DDD-LAYERS.md)
+- [DDD Layers](OVERVIEW.md#layer-stack-diagram)
 - [Multi-Tenancy](MULTI-TENANCY.md)
-- [Solution Structure](SOLUTION-STRUCTURE.md)
+- [Solution Structure](OVERVIEW.md#solution-projects)
 - [ABP Framework](ABP-FRAMEWORK.md)
 - [API Architecture](../api/API-ARCHITECTURE.md)

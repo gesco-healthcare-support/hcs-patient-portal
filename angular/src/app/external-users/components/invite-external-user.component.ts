@@ -6,27 +6,27 @@ import { firstValueFrom } from 'rxjs';
 
 import { LocalizationPipe } from '@abp/ng.core';
 import { RestService } from '@abp/ng.core';
+import { ToasterService } from '@abp/ng.theme.shared';
 
 /**
- * D.2 (2026-04-30): admin-side invite form for external users (Patient,
- * Applicant Attorney, Defense Attorney, Claim Examiner). Backend constrains
- * the role to those four; internal roles never appear in this dropdown.
+ * Admin-side invite form for external users (Patient, Applicant Attorney,
+ * Defense Attorney, Claim Examiner). Backend constrains the role to those
+ * four; internal roles never appear in this dropdown. Gated server-side
+ * by the CaseEvaluation.UserManagement.InviteExternalUser permission;
+ * granted to IT Admin, Staff Supervisor, and Intake Staff.
  *
- * Submission flow:
- *   1. Admin (tenant `admin`, Staff Supervisor, or host IT Admin) submits.
- *   2. POST /api/app/external-users/invite returns the constructed register
- *      URL plus an `emailEnqueued` flag. The Hangfire pipeline writes the
- *      email body via the same `SendAppointmentEmailJob` used by the 6.1
- *      fan-out, so when SMTP credentials are real, the recipient gets the
- *      invite via email.
- *   3. The UI ALWAYS displays the URL with a "Copy link" button so the
- *      admin can share it manually -- the dev stack swallows email silently
- *      until ACS credentials land (S-5.7), and Mailtrap-class sandboxes
- *      do not deliver to real inboxes either.
- *
- * Visual gate: a yellow banner explicitly labels the page as DEV-ONLY so the
- * mechanism is not confused with production-grade invite tracking (no token,
- * no expiry, no acceptance state machine).
+ * 2026-05-15 -- now a tokenized flow:
+ *   1. POST /api/app/external-users/invite -> returns inviteUrl
+ *      (`{authServerBaseUrl}/Account/Register?inviteToken=<raw>`),
+ *      email, roleName, tenantName, expiresAt.
+ *   2. The recipient receives the same URL via the InviteExternalUser
+ *      NotificationTemplate (delivered through INotificationDispatcher
+ *      + Hangfire, the same path as ResetPassword / PasswordChange).
+ *   3. Clicking the link opens AuthServer Razor /Account/Register; the
+ *      JS overlay validates the token, prefills + locks email + role,
+ *      and atomically marks the invitation accepted on submit.
+ *   4. The UI still shows the URL with a "Copy link" button so the
+ *      admin can share manually when SMTP delivery is degraded.
  */
 @Component({
   selector: 'app-invite-external-user',
@@ -38,6 +38,7 @@ export class InviteExternalUserComponent {
   private readonly fb = inject(FormBuilder);
   private readonly restService = inject(RestService);
   private readonly router = inject(Router);
+  private readonly toaster = inject(ToasterService);
 
   // ExternalUserType enum values: Patient=1, ClaimExaminer=2,
   // ApplicantAttorney=3, DefenseAttorney=4. Order kept stable with the
@@ -50,6 +51,8 @@ export class InviteExternalUserComponent {
   ];
 
   readonly form = this.fb.group({
+    firstName: ['', [Validators.maxLength(128)]],
+    lastName: ['', [Validators.maxLength(128)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
     userType: [1 as number | null, [Validators.required]],
   });
@@ -61,7 +64,7 @@ export class InviteExternalUserComponent {
     email: string;
     roleName: string;
     tenantName: string;
-    emailEnqueued: boolean;
+    expiresAt: string;
   } | null>(null);
   readonly copyConfirmation = signal<string | null>(null);
 
@@ -78,6 +81,9 @@ export class InviteExternalUserComponent {
     const payload = {
       email: (value.email ?? '').trim(),
       userType: Number(value.userType ?? 1),
+      // UM1: optional names -- send null when blank so the server stores null.
+      firstName: (value.firstName ?? '').trim() || null,
+      lastName: (value.lastName ?? '').trim() || null,
     };
 
     this.isSubmitting.set(true);
@@ -91,10 +97,10 @@ export class InviteExternalUserComponent {
           any,
           {
             inviteUrl: string;
-            emailEnqueued: boolean;
             email: string;
             roleName: string;
             tenantName: string;
+            expiresAt: string;
           }
         >(
           {
@@ -110,8 +116,10 @@ export class InviteExternalUserComponent {
         email: response.email,
         roleName: response.roleName,
         tenantName: response.tenantName,
-        emailEnqueued: response.emailEnqueued,
+        expiresAt: response.expiresAt,
       });
+      // OBS-28: success toast in addition to the inline result card.
+      this.toaster.success('Invitation sent to ' + response.email + '.', 'Invite sent');
     } catch (err: any) {
       const message =
         err?.error?.error?.message ??
