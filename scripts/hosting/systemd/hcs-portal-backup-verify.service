@@ -1,0 +1,13 @@
+# Weekly run that additionally RESTORES a dump into a scratch database and drops it.
+# An untested backup is not a backup; this is what turns the nightly copy into a proven one.
+[Unit]
+Description=Patient Portal off-box backup WITH restore proof (weekly)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/home/apadmin/hcs-patient-portal/scripts/hosting/backup-offbox.sh --verify-restore
+TimeoutStartSec=3600
