@@ -593,18 +593,52 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected);
     }
 
-    // NO happy-path ReSubmit test here, and that is deliberate.
-    //
-    // ReSubmit CARRIES THE SOURCE CONFIRMATION NUMBER FORWARD (AppointmentLifecycleFlow's own
-    // docstring; AppointmentsAppService.cs:1277-1292), while the unique index on
-    // (TenantId, RequestConfirmationNumber) filtered on IsDeleted = 0 is still satisfied by the
-    // source row. So a successful re-submit is impossible while its source exists undeleted -- it
-    // dies on that constraint. Measured 2026-08-22; the first test ever to attempt the round trip.
-    //
-    // This is PRE-EXISTING and not caused by PR2: every prior ReSubmit test asserts a REFUSAL, so
-    // the happy path was never covered. Writing a test that asserts the constraint violation would
-    // just encode the bug, so the wiring is proven by the refusal test above and the defect is
-    // logged in docs/backlog.md for its own decision.
+    /// <summary>
+    /// The first test to drive a re-submit end to end. It could not pass before 2026-08-22: ReSubmit
+    /// carried the source's confirmation number forward, and the unique index on
+    /// (TenantId, RequestConfirmationNumber) is still satisfied by the rejected source row, so every
+    /// re-submit died on that constraint. Adrian's call was to mint a fresh number and carry the
+    /// link on a column instead -- which is what this asserts.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_ReSubmitMode_MintsAFreshNumberAndLinksTheRejectedSource()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(38), new TimeOnly(9, 0),
+            AppointmentStatusType.Rejected, dayOffset: 380);
+
+        var date = DateTime.Today.AddDays(39);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 390);
+            input.Mode = BookingSubmitMode.ReSubmit;
+            input.SourceConfirmationNumber = source.Number;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        result!.RequestConfirmationNumber.ShouldNotBe(
+            source.Number, "two live appointments cannot share a confirmation number");
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result.AppointmentId);
+            created.RescheduledFromAppointmentId.ShouldBe(
+                source.Id, "a re-submit replaces the rejected request");
+
+            // The rejected original must still be there, keeping its own number -- that audit trail
+            // is the reason re-submit exists.
+            var original = await _appointmentRepository.GetAsync(source.Id);
+            original.RequestConfirmationNumber.ShouldBe(source.Number);
+            original.AppointmentStatus.ShouldBe(AppointmentStatusType.Rejected);
+        });
+    }
 
     /// <summary>
     /// Books an appointment through the plain-create path, then forces it into the status a

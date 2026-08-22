@@ -172,7 +172,17 @@ public static class AppointmentLifecycleValidators
 
         return flow switch
         {
-            AppointmentLifecycleFlow.ReSubmit => sourceConfirmationNumber,
+            // CHANGED 2026-08-22 (Adrian, via modal). Re-submit used to carry the source's number
+            // forward, for OLD parity. It could not: the unique index on
+            // (TenantId, RequestConfirmationNumber) filtered on IsDeleted = 0 is still satisfied by
+            // the rejected source row, so every re-submit died on that constraint. No test ever
+            // caught it because they all assert refusals.
+            //
+            // A fresh number is also the answer this file already gives for re-book, for the same
+            // stated reason: the source still exists and keeps its number, so sharing one makes the
+            // two indistinguishable in our lists and in the Case Tracker's folder labels. The link
+            // back is carried on RescheduledFromAppointmentId instead.
+            AppointmentLifecycleFlow.ReSubmit => newlyGeneratedConfirmationNumber,
             AppointmentLifecycleFlow.Reval => newlyGeneratedConfirmationNumber,
             // Item 4 (2026-08-17): a re-book mints its own number. The source still exists
             // as a cancelled / no-showed / not-seen record and keeps its number, so sharing
@@ -186,9 +196,12 @@ public static class AppointmentLifecycleValidators
 
 /// <summary>
 /// Discriminator passed to <see cref="AppointmentLifecycleValidators.ResolveConfirmationNumber"/>
-/// so the helper does not need a boolean flag at the call site. The flows differ in
-/// whether the source confirmation number is carried forward (<see cref="ReSubmit"/>) or
-/// replaced with a freshly generated one (<see cref="Reval"/>, <see cref="ReBook"/>).
+/// so the helper does not need a boolean flag at the call site.
+///
+/// <para>As of 2026-08-22 ALL THREE flows mint a freshly generated confirmation number. ReSubmit
+/// used to carry the source's forward; it could not, because the unique index on
+/// (TenantId, RequestConfirmationNumber) is still satisfied by the source row. The flows now differ
+/// only in which link column records the source, and in which eligibility gate applies.</para>
 /// </summary>
 public enum AppointmentLifecycleFlow
 {

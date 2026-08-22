@@ -113,15 +113,25 @@ public class AppointmentLifecycleValidatorsUnitTests
             .ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApproved);
     }
 
+    /// <summary>
+    /// CHANGED 2026-08-22: re-submit mints a FRESH number; it used to reuse the source's.
+    ///
+    /// <para>Reuse was impossible in practice. The unique index on
+    /// (TenantId, RequestConfirmationNumber), filtered on IsDeleted = 0, is still satisfied by the
+    /// rejected source row, so a re-submit that carried the number forward died on that constraint
+    /// every time. This test previously asserted the number was reused, which is why the defect
+    /// survived: the unit test agreed with the code and no integration test ever attempted the
+    /// round trip.</para>
+    /// </summary>
     [Fact]
-    public void ResolveConfirmationNumber_ReSubmit_ReusesSourceNumber()
+    public void ResolveConfirmationNumber_ReSubmit_MintsAFreshNumber()
     {
         var result = AppointmentLifecycleValidators.ResolveConfirmationNumber(
             AppointmentLifecycleFlow.ReSubmit,
             sourceConfirmationNumber: "A12345",
             newlyGeneratedConfirmationNumber: "A99999");
 
-        result.ShouldBe("A12345");
+        result.ShouldBe("A99999", "the source keeps A12345; two live rows cannot share it");
     }
 
     [Fact]

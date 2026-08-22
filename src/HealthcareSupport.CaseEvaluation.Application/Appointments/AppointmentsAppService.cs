@@ -894,8 +894,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             case BookingSubmitMode.ReSubmit:
                 _appointmentManager.EnsureResubmitSourceEligible(source);
+                // Replacement chain, matching the standalone endpoint -- see the comment there for
+                // why it is safe to share the column with re-book.
                 return new SubmitLifecycle(
-                    AppointmentLifecycleFlow.ReSubmit, source.RequestConfirmationNumber, null, null);
+                    AppointmentLifecycleFlow.ReSubmit,
+                    source.RequestConfirmationNumber,
+                    null,
+                    source.Id);
 
             case BookingSubmitMode.Reval:
                 // The role is read at gate time, not request time -- mirrors CreateRevalAsync, which
@@ -1030,7 +1035,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         return await CreateAppointmentInternalAsync(
             input,
             lifecycleFlow: AppointmentLifecycleFlow.ReSubmit,
-            sourceConfirmationNumber: source.RequestConfirmationNumber);
+            sourceConfirmationNumber: source.RequestConfirmationNumber,
+            // 2026-08-22: the number is now freshly minted, so the link has to be a column. The
+            // REPLACEMENT chain, not the re-eval chain -- a re-submit replaces a rejected request
+            // rather than following up an evaluation that happened. Safe to share the column with
+            // re-book: their eligible source statuses are disjoint (Rejected vs
+            // cancelled/no-show/not-seen), so re-book's "already re-booked" check cannot collide.
+            rescheduledFromAppointmentId: source.Id);
     }
 
     /// <summary>
