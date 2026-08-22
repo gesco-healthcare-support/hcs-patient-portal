@@ -1110,4 +1110,24 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string DefenseAttorneyInUse =
         "CaseEvaluation:DefenseAttorney.InUse";
+
+    /// <summary>
+    /// Item B (2026-08-21) -- raised by <c>AppointmentsAppService.SubmitAsync</c> when the request
+    /// carries neither <c>PatientId</c> nor <c>Patient</c>. The submit path resolves the patient
+    /// itself, so one of the two is required and the caller cannot be defaulted safely: guessing a
+    /// patient is how an appointment ends up attached to the wrong person.
+    /// </summary>
+    public const string AppointmentSubmitPatientRequired =
+        "CaseEvaluation:AppointmentSubmit.PatientRequired";
+
+    /// <summary>
+    /// Item B (2026-08-21) -- raised by <c>AppointmentsAppService.SubmitAsync</c> when a write
+    /// inside the submit transaction fails for a reason that carries no error code of its own. The
+    /// transaction is rolled back, so nothing was saved; this code exists so the booker is told
+    /// that plainly instead of seeing ABP's generic dialog. A failure that DOES carry its own code
+    /// (a taken slot, a duplicate party email) propagates unwrapped, because the specific reason is
+    /// more useful to both the booker and the client than a generic one.
+    /// </summary>
+    public const string AppointmentSubmitFailed =
+        "CaseEvaluation:AppointmentSubmit.Failed";
 }

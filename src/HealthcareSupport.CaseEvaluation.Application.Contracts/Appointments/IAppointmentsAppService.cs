@@ -60,6 +60,18 @@ public interface IAppointmentsAppService : IApplicationService
     /// <summary>
     /// Creates or updates applicant attorney and links to appointment.
     /// </summary>
+    /// <summary>
+    /// Item B (2026-08-21) -- creates a whole booking in ONE transaction: the patient, the
+    /// appointment, and every child group. Either all of it commits or none of it does.
+    ///
+    /// <para>Prefer this over <c>CreateAsync</c> plus the individual child endpoints. Those remain
+    /// for the reschedule and re-book callers, but a client driving them in sequence cannot make a
+    /// booking atomic -- a failure part-way leaves a half-booking, which is what this replaces.</para>
+    ///
+    /// <para>Staged documents are NOT part of this call; upload them once it succeeds.</para>
+    /// </summary>
+    Task<AppointmentSubmitResultDto> SubmitAsync(AppointmentSubmitDto input);
+
     Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input);
 
     /// <summary>

@@ -106,6 +106,17 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.CreateAsync(input);
     }
 
+    /// <summary>
+    /// Item B (2026-08-21) -- the whole booking in one transaction. Prefer this to CreateAsync
+    /// followed by the individual child endpoints, which cannot be made atomic from the client.
+    /// </summary>
+    [HttpPost]
+    [Route("submit")]
+    public virtual Task<AppointmentSubmitResultDto> SubmitAsync([FromBody] AppointmentSubmitDto input)
+    {
+        return _appointmentsAppService.SubmitAsync(input);
+    }
+
     [HttpPut]
     [Route("{id}")]
     public virtual Task<AppointmentDto> UpdateAsync(Guid id, AppointmentUpdateDto input)
