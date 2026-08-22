@@ -53233,6 +53233,32 @@
       "genericArguments": null,
       "properties": [
         {
+          "name": "Mode",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.BookingSubmitMode",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "SourceConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "PatientId",
           "jsonName": null,
           "type": "System.Guid?",
@@ -60804,6 +60830,24 @@
         8,
         9,
         10
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.Enums.BookingSubmitMode": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "Create",
+        "ReSubmit",
+        "Reval",
+        "ReBook"
+      ],
+      "enumValues": [
+        0,
+        1,
+        2,
+        3
       ],
       "genericArguments": null,
       "properties": null

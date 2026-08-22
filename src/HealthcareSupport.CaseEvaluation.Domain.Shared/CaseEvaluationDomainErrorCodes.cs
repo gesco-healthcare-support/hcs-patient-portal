@@ -1143,4 +1143,16 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentSubmitPatientUpdateConflict =
         "CaseEvaluation:AppointmentSubmit.PatientUpdateConflict";
+
+    /// <summary>
+    /// Item B PR2 (2026-08-22) -- raised when a submit names a booking mode other than
+    /// <c>Create</c> but carries no source confirmation number.
+    ///
+    /// <para>Refused rather than silently downgraded to a plain booking. A reval, re-submit or
+    /// re-book that quietly became a first evaluation would lose its link to the source appointment,
+    /// and <c>EvaluationKind</c> is what the Case Tracker labels a case folder from -- so the damage
+    /// would show up downstream, in their data, long after the booking looked fine here.</para>
+    /// </summary>
+    public const string AppointmentSubmitSourceRequired =
+        "CaseEvaluation:AppointmentSubmit.SourceRequired";
 }

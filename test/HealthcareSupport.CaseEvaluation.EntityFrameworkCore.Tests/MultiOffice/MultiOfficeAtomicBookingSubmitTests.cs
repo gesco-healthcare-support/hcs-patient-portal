@@ -443,6 +443,197 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         });
     }
 
+    // ------------------------------------------------------------------ PR2: the four booking modes
+    //
+    // /submit now covers all four flows, not just a first booking. Each non-Create mode must chain
+    // off its source through the SAME eligibility gate the standalone endpoint uses, and must put
+    // the source in the correct link column -- reval on the re-eval chain, re-book on the
+    // replacement chain. Those two are not interchangeable; the Case Tracker reads them differently.
+
+    [Fact]
+    public async Task SubmitAsync_WithANonCreateModeButNoSource_ThrowsTheCodedError()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = DateTime.Today.AddDays(29);
+        var slotId = Guid.Empty;
+
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 290);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = null;
+
+        var thrown = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(input)));
+
+        // Refused, not quietly downgraded to a first booking -- a reval that lost its chain would
+        // mislabel the case folder on the Case Tracker side.
+        thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentSubmitSourceRequired);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalModeWithAnIneligibleSource_IsRefusedByTheGate()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        // Left Pending. Reval requires Approved, so the gate must refuse -- this is the test that
+        // proves /submit did not become a way around the eligibility checks.
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(30), new TimeOnly(9, 0),
+            AppointmentStatusType.Pending, dayOffset: 300);
+
+        var date = DateTime.Today.AddDays(31);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 310);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = source.Number;
+
+        await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(input)));
+
+        await InOfficeAsync(office, async () =>
+            (await _appointmentRepository.CountAsync(x => x.DoctorAvailabilityId == slotId))
+                .ShouldBe(0, "a refused gate must leave no appointment behind"));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalMode_LinksTheSourceOnTheReEvalChain()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(32), new TimeOnly(9, 0),
+            AppointmentStatusType.Approved, dayOffset: 320);
+
+        var date = DateTime.Today.AddDays(33);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 330);
+            input.Mode = BookingSubmitMode.Reval;
+            input.SourceConfirmationNumber = source.Number;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.OriginalAppointmentId.ShouldBe(source.Id, "reval links on the re-eval chain");
+            created.RescheduledFromAppointmentId.ShouldBeNull("...and NOT the replacement chain");
+            created.RequestConfirmationNumber.ShouldNotBe(
+                source.Number, "a reval mints a fresh confirmation number");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ReBookMode_LinksTheSourceOnTheReplacementChain()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        // CanCreateReBook accepts CancelledNoBill / CancelledLate / an attendance outcome. There is
+        // no plain "Cancelled" status in this product.
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(34), new TimeOnly(9, 0),
+            AppointmentStatusType.CancelledNoBill, dayOffset: 340);
+
+        var date = DateTime.Today.AddDays(35);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 350);
+            input.Mode = BookingSubmitMode.ReBook;
+            input.SourceConfirmationNumber = source.Number;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.RescheduledFromAppointmentId.ShouldBe(
+                source.Id, "a re-book links on the replacement chain");
+            created.OriginalAppointmentId.ShouldBeNull("...and NOT the re-eval chain");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ReSubmitModeWithANonRejectedSource_IsRefusedByTheGate()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        // Approved, and ReSubmit requires Rejected -- so the gate must refuse.
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(36), new TimeOnly(9, 0),
+            AppointmentStatusType.Approved, dayOffset: 360);
+
+        var date = DateTime.Today.AddDays(37);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 370);
+        input.Mode = BookingSubmitMode.ReSubmit;
+        input.SourceConfirmationNumber = source.Number;
+
+        var thrown = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(input)));
+
+        thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected);
+    }
+
+    // NO happy-path ReSubmit test here, and that is deliberate.
+    //
+    // ReSubmit CARRIES THE SOURCE CONFIRMATION NUMBER FORWARD (AppointmentLifecycleFlow's own
+    // docstring; AppointmentsAppService.cs:1277-1292), while the unique index on
+    // (TenantId, RequestConfirmationNumber) filtered on IsDeleted = 0 is still satisfied by the
+    // source row. So a successful re-submit is impossible while its source exists undeleted -- it
+    // dies on that constraint. Measured 2026-08-22; the first test ever to attempt the round trip.
+    //
+    // This is PRE-EXISTING and not caused by PR2: every prior ReSubmit test asserts a REFUSAL, so
+    // the happy path was never covered. Writing a test that asserts the constraint violation would
+    // just encode the bug, so the wiring is proven by the refusal test above and the defect is
+    // logged in docs/backlog.md for its own decision.
+
+    /// <summary>
+    /// Books an appointment through the plain-create path, then forces it into the status a
+    /// downstream flow's gate requires. The status is set directly rather than driven through the
+    /// state machine because what is under test here is the SUBMIT path's mode handling, not the
+    /// transition rules -- those have their own tests.
+    /// </summary>
+    private async Task<(Guid Id, string Number)> CreateSourceAppointmentAsync(
+        SeededOffice office, DateTime date, TimeOnly from, AppointmentStatusType status, int dayOffset)
+    {
+        AppointmentSubmitResultDto? created = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, from, from.AddHours(1));
+            created = await _appointments.SubmitAsync(
+                BuildSubmitDto(office, slotId, date.AddHours(from.Hour).AddMinutes(15), dayOffset));
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(created!.AppointmentId);
+            appointment.AppointmentStatus = status;
+            await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
+
+        return (created!.AppointmentId, created.RequestConfirmationNumber);
+    }
+
     /// <summary>
     /// A patient with known, deliberately distinctive demographics, so a test can tell "the update
     /// was applied" apart from "the update was ignored" without ambiguity.

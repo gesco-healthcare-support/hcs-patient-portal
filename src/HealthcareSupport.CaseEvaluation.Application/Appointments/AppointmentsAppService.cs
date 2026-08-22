@@ -743,10 +743,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
             await ApplyPatientUpdateForSubmitAsync(input, result);
 
+            var lifecycle = await ResolveSubmitLifecycleAsync(input);
+
             var created = await CreateAppointmentInternalAsync(
                 MapSubmitToCreate(input, result),
-                lifecycleFlow: null,
-                sourceConfirmationNumber: null,
+                lifecycleFlow: lifecycle.Flow,
+                sourceConfirmationNumber: lifecycle.SourceConfirmationNumber,
+                originalAppointmentId: lifecycle.OriginalAppointmentId,
+                rescheduledFromAppointmentId: lifecycle.RescheduledFromAppointmentId,
                 publishSubmittedEvent: false);
 
             result.AppointmentId = created.Id;
@@ -843,6 +847,75 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var patient = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input.Patient);
         result.PatientId = patient.Patient.Id;
         result.PatientAlreadyExisted = patient.IsExisting;
+    }
+
+    /// <summary>
+    /// The lifecycle arguments a submit implies: which flow, the source it chains from, and which of
+    /// the two link columns that source belongs in. Reval links on the re-eval chain
+    /// (<c>OriginalAppointmentId</c>), re-book on the replacement chain
+    /// (<c>RescheduledFromAppointmentId</c>) -- they are NOT interchangeable, because the Case
+    /// Tracker reads them differently.
+    /// </summary>
+    private sealed record SubmitLifecycle(
+        AppointmentLifecycleFlow? Flow,
+        string? SourceConfirmationNumber,
+        Guid? OriginalAppointmentId,
+        Guid? RescheduledFromAppointmentId);
+
+    /// <summary>
+    /// Resolves a submit's booking mode into the same lifecycle arguments the three standalone
+    /// endpoints pass, running that flow's eligibility gate on the way.
+    ///
+    /// <para><b>The gates are the point.</b> <c>ReSubmitAsync</c>, <c>CreateRevalAsync</c> and
+    /// <c>CreateReBookAsync</c> each refuse an ineligible source, and two of them vary by the
+    /// caller's role. If the submit path skipped them it would be a way to chain off an appointment
+    /// the caller may not chain off -- so they run here too, against a source loaded through the same
+    /// read-access guard, and BEFORE anything is written.</para>
+    ///
+    /// <para>The mode-to-flow mapping is spelled out per case on purpose. Both enums happen to
+    /// number their shared members identically today; a cast would silently redirect a flow the
+    /// moment either one is renumbered.</para>
+    /// </summary>
+    private async Task<SubmitLifecycle> ResolveSubmitLifecycleAsync(AppointmentSubmitDto input)
+    {
+        if (input.Mode == BookingSubmitMode.Create)
+        {
+            return new SubmitLifecycle(null, null, null, null);
+        }
+
+        if (string.IsNullOrWhiteSpace(input.SourceConfirmationNumber))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentSubmitSourceRequired);
+        }
+
+        var source = await LoadReadableSourceAsync(input.SourceConfirmationNumber);
+
+        switch (input.Mode)
+        {
+            case BookingSubmitMode.ReSubmit:
+                _appointmentManager.EnsureResubmitSourceEligible(source);
+                return new SubmitLifecycle(
+                    AppointmentLifecycleFlow.ReSubmit, source.RequestConfirmationNumber, null, null);
+
+            case BookingSubmitMode.Reval:
+                // The role is read at gate time, not request time -- mirrors CreateRevalAsync, which
+                // mirrors OLD AppointmentDomain.cs, so admin and non-admin callers get distinct
+                // refusals.
+                _appointmentManager.EnsureRevalSourceEligible(source, CurrentUser.IsInRole("IT Admin"));
+                return new SubmitLifecycle(
+                    AppointmentLifecycleFlow.Reval, source.RequestConfirmationNumber, source.Id, null);
+
+            case BookingSubmitMode.ReBook:
+                await _appointmentManager.EnsureReBookSourceEligibleAsync(
+                    source, BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles));
+                return new SubmitLifecycle(
+                    AppointmentLifecycleFlow.ReBook, source.RequestConfirmationNumber, null, source.Id);
+
+            default:
+                // Fail loudly rather than fall through to a plain booking: an unmapped mode is a bug
+                // here, and silently dropping the chain link is the expensive kind of wrong.
+                throw new AbpException($"Unhandled {nameof(BookingSubmitMode)}: {input.Mode}.");
+        }
     }
 
     /// <summary>

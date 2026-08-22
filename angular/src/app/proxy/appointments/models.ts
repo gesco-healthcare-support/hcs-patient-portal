@@ -3,6 +3,7 @@ import type { CustomFieldValueInputDto } from '../custom-fields/models';
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { AppointmentInjuryDetailCreateDto, AppointmentInjuryDetailWithNavigationPropertiesDto } from '../appointment-injury-details/models';
 import type { AppointmentBodyPartCreateDto } from '../appointment-body-parts/models';
+import type { BookingSubmitMode } from '../enums/booking-submit-mode.enum';
 import type { CreatePatientForAppointmentBookingInput, PatientDto, PatientUpdateDto } from '../patients/models';
 import type { AppointmentEmployerDetailCreateDto, AppointmentEmployerDetailWithNavigationPropertiesDto } from '../appointment-employer-details/models';
 import type { AppointmentPrimaryInsuranceCreateDto, AppointmentPrimaryInsuranceDto } from '../appointment-primary-insurances/models';
@@ -108,6 +109,8 @@ export interface AppointmentStatusCountDto {
 }
 
 export interface AppointmentSubmitDto {
+  mode?: BookingSubmitMode;
+  sourceConfirmationNumber?: string | null;
   patientId?: string | null;
   patient?: CreatePatientForAppointmentBookingInput | null;
   patientUpdate?: PatientUpdateDto | null;
