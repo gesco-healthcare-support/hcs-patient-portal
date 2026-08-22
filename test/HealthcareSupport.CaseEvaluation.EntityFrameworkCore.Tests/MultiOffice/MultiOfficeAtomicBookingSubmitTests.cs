@@ -285,6 +285,433 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     /// now runs after the commit, that failure no longer rolls the booking back, but it would still
     /// surface as a failed unit-of-work completion and mask what these tests are actually about.</para>
     /// </summary>
+    // ------------------------------------------------------------------ PR2: the patient update
+    //
+    // The product has TWO patient-update paths and they are not interchangeable. The booking path
+    // coalesces (input.X ?? current.X) and structurally cannot change gender, date of birth or
+    // phone-number type; the self-service path overwrites and can. The next two tests pin each
+    // behaviour separately, because a single shared test would pass while one door silently broke.
+
+    [Fact]
+    public async Task SubmitAsync_PatientUpdateFromANonPatientBooker_CoalescesAndCannotChangeGenderDobOrPhoneType()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = DateTime.Today.AddDays(25);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        Patient? seeded = null;
+
+        // identityUserId null => this patient is NOT the caller, so staff-booking semantics apply.
+        await InOfficeAsync(office, async () =>
+            seeded = await InsertPatientAsync(office, identityUserId: null, suffix));
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 250);
+            input.Patient = null;
+            input.PatientId = seeded!.Id;
+            input.PatientUpdate = BuildPatientUpdate(seeded, firstName: "Edited", city: "New City");
+
+            await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var after = await _patientRepository.GetAsync(seeded!.Id);
+            after.FirstName.ShouldBe("Edited", "a supplied field must be applied");
+            after.City.ShouldBe("New City");
+            after.GenderId.ShouldBe(Gender.Female, "the booking path must not change gender");
+            after.DateOfBirth.Date.ShouldBe(new DateTime(1979, 3, 3), "...nor date of birth");
+            after.PhoneNumberTypeId.ShouldBe(PhoneNumberType.Home, "...nor phone-number type");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_PatientUpdateForTheCallersOwnRecord_OverwritesIncludingGenderDobAndPhoneType()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = DateTime.Today.AddDays(26);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        Patient? seeded = null;
+
+        // The patient's login IS the caller, which is what selects self-service semantics.
+        await InOfficeAsync(office, async () =>
+            seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(10).AddMinutes(15), dayOffset: 260);
+            input.Patient = null;
+            input.PatientId = seeded!.Id;
+            input.PatientUpdate = BuildPatientUpdate(seeded, firstName: "SelfEdited", city: "Own City");
+
+            await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var after = await _patientRepository.GetAsync(seeded!.Id);
+            after.FirstName.ShouldBe("SelfEdited");
+            after.GenderId.ShouldBe(Gender.Other, "self-service overwrites gender");
+            after.DateOfBirth.Date.ShouldBe(new DateTime(1999, 12, 31), "...and date of birth");
+            after.PhoneNumberTypeId.ShouldBe(PhoneNumberType.Work, "...and phone-number type");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_WhenTheProfileEditIsStale_ThrowsTheConflictCodeAndSavesNothing()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = DateTime.Today.AddDays(27);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        Patient? seeded = null;
+        var slotId = Guid.Empty;
+        BusinessException? thrown = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            seeded = await InsertPatientAsync(office, identityUserId: null, suffix);
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(12, 0), new TimeOnly(13, 0));
+        });
+
+        var stale = BuildSubmitDto(office, slotId, date.AddHours(12).AddMinutes(15), dayOffset: 270);
+        stale.Patient = null;
+        stale.PatientId = seeded!.Id;
+        stale.PatientUpdate = BuildPatientUpdate(seeded, firstName: "Loser", city: "Nowhere");
+        // Somebody else saved this patient after the wizard loaded it.
+        stale.PatientUpdate.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+
+        // The throw must escape InOfficeAsync, NOT be caught inside it. Catching it within the unit
+        // of work leaves the failed work in the change tracker, and the UoW then tries to commit it
+        // on the way out -- which is a different failure entirely (a duplicate confirmation number),
+        // and it would mask whether the rollback actually happened.
+        thrown = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(stale)));
+
+        // A distinct code, not AppointmentSubmitFailed: "safe to try again" is the one piece of
+        // advice that cannot work here, because the same stale stamp fails identically.
+        thrown!.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentSubmitPatientUpdateConflict);
+
+        await InOfficeAsync(office, async () =>
+        {
+            (await _appointmentRepository.CountAsync(x => x.DoctorAvailabilityId == slotId))
+                .ShouldBe(0, "a rejected profile edit must take the whole booking with it");
+            (await _patientRepository.GetAsync(seeded!.Id)).FirstName
+                .ShouldBe("Original", "the losing edit must not have been applied");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_WhenAChildWriteFails_AlsoRollsBackTheProfileEdit()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = DateTime.Today.AddDays(28);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        Patient? seeded = null;
+        var slotId = Guid.Empty;
+
+        await InOfficeAsync(office, async () =>
+        {
+            seeded = await InsertPatientAsync(office, identityUserId: null, suffix);
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(14, 0), new TimeOnly(15, 0));
+        });
+
+        var doomed = BuildSubmitDto(office, slotId, date.AddHours(14).AddMinutes(15), dayOffset: 280);
+        doomed.Patient = null;
+        doomed.PatientId = seeded!.Id;
+        doomed.PatientUpdate = BuildPatientUpdate(seeded, firstName: "ShouldVanish", city: "Gone");
+        // Body parts are written last, so the profile edit is long since applied when this blows.
+        doomed.InjuryDetails[0].BodyParts[0].BodyPartDescription = new string('x', 5000);
+
+        // Same reason as the stale-stamp test: the throw has to escape the unit of work so it is
+        // disposed without completing, which is what makes this a rollback test at all.
+        await Should.ThrowAsync<Exception>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(doomed)));
+
+        await InOfficeAsync(office, async () =>
+        {
+            // This is the assertion the whole "fold the update into the transaction" decision exists
+            // for. Before PR2 the wizard PUT the profile before the appointment POST, so a booking
+            // that failed here left the edit applied.
+            (await _patientRepository.GetAsync(seeded!.Id)).FirstName
+                .ShouldBe("Original", "a failed booking must not leave the profile edit behind");
+        });
+    }
+
+    // ------------------------------------------------------------------ PR2: the four booking modes
+    //
+    // /submit now covers all four flows, not just a first booking. Each non-Create mode must chain
+    // off its source through the SAME eligibility gate the standalone endpoint uses, and must put
+    // the source in the correct link column -- reval on the re-eval chain, re-book on the
+    // replacement chain. Those two are not interchangeable; the Case Tracker reads them differently.
+
+    [Fact]
+    public async Task SubmitAsync_WithANonCreateModeButNoSource_ThrowsTheCodedError()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = DateTime.Today.AddDays(29);
+        var slotId = Guid.Empty;
+
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 290);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = null;
+
+        var thrown = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(input)));
+
+        // Refused, not quietly downgraded to a first booking -- a reval that lost its chain would
+        // mislabel the case folder on the Case Tracker side.
+        thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentSubmitSourceRequired);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalModeWithAnIneligibleSource_IsRefusedByTheGate()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        // Left Pending. Reval requires Approved, so the gate must refuse -- this is the test that
+        // proves /submit did not become a way around the eligibility checks.
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(30), new TimeOnly(9, 0),
+            AppointmentStatusType.Pending, dayOffset: 300);
+
+        var date = DateTime.Today.AddDays(31);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 310);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = source.Number;
+
+        await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(input)));
+
+        await InOfficeAsync(office, async () =>
+            (await _appointmentRepository.CountAsync(x => x.DoctorAvailabilityId == slotId))
+                .ShouldBe(0, "a refused gate must leave no appointment behind"));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalMode_LinksTheSourceOnTheReEvalChain()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(32), new TimeOnly(9, 0),
+            AppointmentStatusType.Approved, dayOffset: 320);
+
+        var date = DateTime.Today.AddDays(33);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 330);
+            input.Mode = BookingSubmitMode.Reval;
+            input.SourceConfirmationNumber = source.Number;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.OriginalAppointmentId.ShouldBe(source.Id, "reval links on the re-eval chain");
+            created.RescheduledFromAppointmentId.ShouldBeNull("...and NOT the replacement chain");
+            created.RequestConfirmationNumber.ShouldNotBe(
+                source.Number, "a reval mints a fresh confirmation number");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ReBookMode_LinksTheSourceOnTheReplacementChain()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        // CanCreateReBook accepts CancelledNoBill / CancelledLate / an attendance outcome. There is
+        // no plain "Cancelled" status in this product.
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(34), new TimeOnly(9, 0),
+            AppointmentStatusType.CancelledNoBill, dayOffset: 340);
+
+        var date = DateTime.Today.AddDays(35);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 350);
+            input.Mode = BookingSubmitMode.ReBook;
+            input.SourceConfirmationNumber = source.Number;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.RescheduledFromAppointmentId.ShouldBe(
+                source.Id, "a re-book links on the replacement chain");
+            created.OriginalAppointmentId.ShouldBeNull("...and NOT the re-eval chain");
+        });
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ReSubmitModeWithANonRejectedSource_IsRefusedByTheGate()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        // Approved, and ReSubmit requires Rejected -- so the gate must refuse.
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(36), new TimeOnly(9, 0),
+            AppointmentStatusType.Approved, dayOffset: 360);
+
+        var date = DateTime.Today.AddDays(37);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 370);
+        input.Mode = BookingSubmitMode.ReSubmit;
+        input.SourceConfirmationNumber = source.Number;
+
+        var thrown = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsync(office, () => _appointments.SubmitAsync(input)));
+
+        thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected);
+    }
+
+    /// <summary>
+    /// The first test to drive a re-submit end to end. It could not pass before 2026-08-22: ReSubmit
+    /// carried the source's confirmation number forward, and the unique index on
+    /// (TenantId, RequestConfirmationNumber) is still satisfied by the rejected source row, so every
+    /// re-submit died on that constraint. Adrian's call was to mint a fresh number and carry the
+    /// link on a column instead -- which is what this asserts.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_ReSubmitMode_MintsAFreshNumberAndLinksTheRejectedSource()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        var source = await CreateSourceAppointmentAsync(
+            office, DateTime.Today.AddDays(38), new TimeOnly(9, 0),
+            AppointmentStatusType.Rejected, dayOffset: 380);
+
+        var date = DateTime.Today.AddDays(39);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 390);
+            input.Mode = BookingSubmitMode.ReSubmit;
+            input.SourceConfirmationNumber = source.Number;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        result!.RequestConfirmationNumber.ShouldNotBe(
+            source.Number, "two live appointments cannot share a confirmation number");
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result.AppointmentId);
+            created.RescheduledFromAppointmentId.ShouldBe(
+                source.Id, "a re-submit replaces the rejected request");
+
+            // The rejected original must still be there, keeping its own number -- that audit trail
+            // is the reason re-submit exists.
+            var original = await _appointmentRepository.GetAsync(source.Id);
+            original.RequestConfirmationNumber.ShouldBe(source.Number);
+            original.AppointmentStatus.ShouldBe(AppointmentStatusType.Rejected);
+        });
+    }
+
+    /// <summary>
+    /// Books an appointment through the plain-create path, then forces it into the status a
+    /// downstream flow's gate requires. The status is set directly rather than driven through the
+    /// state machine because what is under test here is the SUBMIT path's mode handling, not the
+    /// transition rules -- those have their own tests.
+    /// </summary>
+    private async Task<(Guid Id, string Number)> CreateSourceAppointmentAsync(
+        SeededOffice office, DateTime date, TimeOnly from, AppointmentStatusType status, int dayOffset)
+    {
+        AppointmentSubmitResultDto? created = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, from, from.AddHours(1));
+            created = await _appointments.SubmitAsync(
+                BuildSubmitDto(office, slotId, date.AddHours(from.Hour).AddMinutes(15), dayOffset));
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(created!.AppointmentId);
+            appointment.AppointmentStatus = status;
+            await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
+
+        return (created!.AppointmentId, created.RequestConfirmationNumber);
+    }
+
+    /// <summary>
+    /// A patient with known, deliberately distinctive demographics, so a test can tell "the update
+    /// was applied" apart from "the update was ignored" without ambiguity.
+    /// </summary>
+    private async Task<Patient> InsertPatientAsync(
+        SeededOffice office, Guid? identityUserId, string suffix)
+    {
+        var patient = new Patient(
+            id: Guid.NewGuid(),
+            stateId: null,
+            appointmentLanguageId: null,
+            identityUserId: identityUserId,
+            tenantId: office.OfficeId,
+            firstName: "Original",
+            lastName: $"Holder{suffix}",
+            email: $"holder-{suffix}@example.test",
+            genderId: Gender.Female,
+            dateOfBirth: new DateTime(1979, 3, 3),
+            phoneNumberTypeId: PhoneNumberType.Home,
+            phoneNumber: "5550000001",
+            city: "Old City");
+
+        await _patientRepository.InsertAsync(patient, autoSave: true);
+        return patient;
+    }
+
+    /// <summary>
+    /// The three fields the two update paths disagree about (gender, DOB, phone-number type) are
+    /// ALWAYS set here, and always to something different from the seeded values. That is what makes
+    /// the coalescing test meaningful: it asserts they did NOT take effect even though they were sent.
+    /// </summary>
+    private static PatientUpdateDto BuildPatientUpdate(Patient seeded, string firstName, string city) =>
+        new()
+        {
+            FirstName = firstName,
+            LastName = seeded.LastName,
+            Email = seeded.Email,
+            City = city,
+            GenderId = Gender.Other,
+            DateOfBirth = new DateTime(1999, 12, 31),
+            PhoneNumberTypeId = PhoneNumberType.Work,
+            ConcurrencyStamp = seeded.ConcurrencyStamp,
+        };
+
     private async Task SeedNotificationTemplatesAsync(SeededOffice office)
     {
         await WithUnitOfWorkAsync(async () =>

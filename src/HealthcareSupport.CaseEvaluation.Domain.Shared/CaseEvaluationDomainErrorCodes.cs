@@ -1130,4 +1130,29 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentSubmitFailed =
         "CaseEvaluation:AppointmentSubmit.Failed";
+
+    /// <summary>
+    /// Item B PR2 (2026-08-22) -- raised when the <c>PatientUpdate</c> carried by a submit has a
+    /// stale <c>ConcurrencyStamp</c>, meaning the patient record changed after the wizard loaded it.
+    ///
+    /// <para>Distinct from <see cref="AppointmentSubmitFailed"/> on purpose. "Nothing was saved, try
+    /// again" is the right advice for a transient failure but the wrong advice here: retrying with
+    /// the same stale stamp fails identically. The booker has to reload so they can see the other
+    /// edit before deciding, which is the whole point of having a stamp rather than last-write-wins.
+    /// </para>
+    /// </summary>
+    public const string AppointmentSubmitPatientUpdateConflict =
+        "CaseEvaluation:AppointmentSubmit.PatientUpdateConflict";
+
+    /// <summary>
+    /// Item B PR2 (2026-08-22) -- raised when a submit names a booking mode other than
+    /// <c>Create</c> but carries no source confirmation number.
+    ///
+    /// <para>Refused rather than silently downgraded to a plain booking. A reval, re-submit or
+    /// re-book that quietly became a first evaluation would lose its link to the source appointment,
+    /// and <c>EvaluationKind</c> is what the Case Tracker labels a case folder from -- so the damage
+    /// would show up downstream, in their data, long after the booking looked fine here.</para>
+    /// </summary>
+    public const string AppointmentSubmitSourceRequired =
+        "CaseEvaluation:AppointmentSubmit.SourceRequired";
 }

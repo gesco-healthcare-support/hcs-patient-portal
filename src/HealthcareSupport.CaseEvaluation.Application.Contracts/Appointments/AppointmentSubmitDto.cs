@@ -27,6 +27,26 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class AppointmentSubmitDto
 {
     /// <summary>
+    /// Which booking flow this is. Defaults to <see cref="BookingSubmitMode.Create"/>, so a caller
+    /// that omits it gets a plain first booking.
+    ///
+    /// <para>Anything other than Create also requires <see cref="SourceConfirmationNumber"/>, and
+    /// runs that flow's eligibility gate against the source appointment before anything is written.
+    /// </para>
+    /// </summary>
+    public BookingSubmitMode Mode { get; set; } = BookingSubmitMode.Create;
+
+    /// <summary>
+    /// The confirmation number of the appointment this one follows from. Required when
+    /// <see cref="Mode"/> is not <see cref="BookingSubmitMode.Create"/>, ignored when it is.
+    ///
+    /// <para>Resolved server-side through the same read-access guard the standalone endpoints use,
+    /// so a caller cannot chain off an appointment they are not allowed to see.</para>
+    /// </summary>
+    [StringLength(AppointmentConsts.RequestConfirmationNumberMaxLength)]
+    public string? SourceConfirmationNumber { get; set; }
+
+    /// <summary>
     /// An already-resolved patient. Supply this OR <see cref="Patient"/>. When both are present
     /// this wins and no dedup runs, which is the path an internal booker takes after picking an
     /// existing patient from the lookup.
@@ -39,6 +59,26 @@ public class AppointmentSubmitDto
     /// matched to their existing record rather than duplicated.
     /// </summary>
     public CreatePatientForAppointmentBookingInput? Patient { get; set; }
+
+    /// <summary>
+    /// Edits the booker made to an EXISTING patient's profile, applied inside the submit
+    /// transaction. Optional: omit it when nothing on the patient changed.
+    ///
+    /// <para>This is separate from <see cref="Patient"/> because the two are different operations.
+    /// <see cref="Patient"/> resolves-or-creates and runs deduplication; this updates a record that
+    /// already exists and carries a <c>ConcurrencyStamp</c> so a stale edit is rejected rather than
+    /// silently clobbering a concurrent one. Folding it in is what makes "atomic booking" true: the
+    /// wizard used to PUT the profile before the appointment POST, so a booking that failed
+    /// afterwards left the edit applied.</para>
+    ///
+    /// <para><c>IdentityUserId</c> and <c>TenantId</c> on this object are IGNORED -- both update
+    /// paths read them off the stored patient, and honouring a caller's values would let a booking
+    /// reassign a patient's login or office.</para>
+    ///
+    /// <para>Requires <see cref="PatientId"/> or <see cref="Patient"/>; on its own there is no
+    /// record to update.</para>
+    /// </summary>
+    public PatientUpdateDto? PatientUpdate { get; set; }
 
     [StringLength(AppointmentConsts.PanelNumberMaxLength)]
     public string? PanelNumber { get; set; }

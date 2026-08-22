@@ -1,18 +1,20 @@
 import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
 import type { CustomFieldValueInputDto } from '../custom-fields/models';
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
-import type { PatientDto } from '../patients/models';
+import type { AppointmentInjuryDetailCreateDto, AppointmentInjuryDetailWithNavigationPropertiesDto } from '../appointment-injury-details/models';
+import type { AppointmentBodyPartCreateDto } from '../appointment-body-parts/models';
+import type { BookingSubmitMode } from '../enums/booking-submit-mode.enum';
+import type { CreatePatientForAppointmentBookingInput, PatientDto, PatientUpdateDto } from '../patients/models';
+import type { AppointmentEmployerDetailCreateDto, AppointmentEmployerDetailWithNavigationPropertiesDto } from '../appointment-employer-details/models';
+import type { AppointmentPrimaryInsuranceCreateDto, AppointmentPrimaryInsuranceDto } from '../appointment-primary-insurances/models';
+import type { AppointmentClaimExaminerCreateDto, AppointmentClaimExaminerDto } from '../appointment-claim-examiners/models';
+import type { AppointmentAccessorCreateDto, AppointmentAccessorDto } from '../appointment-accessors/models';
 import type { IdentityUserDto } from '../volo/abp/identity/models';
 import type { AppointmentTypeDto } from '../appointment-types/models';
 import type { LocationDto } from '../locations/models';
 import type { DoctorAvailabilityDto } from '../doctor-availabilities/models';
 import type { AppointmentApplicantAttorneyWithNavigationPropertiesDto } from '../appointment-applicant-attorneys/models';
 import type { AppointmentDefenseAttorneyWithNavigationPropertiesDto } from '../appointment-defense-attorneys/models';
-import type { AppointmentEmployerDetailWithNavigationPropertiesDto } from '../appointment-employer-details/models';
-import type { AppointmentInjuryDetailWithNavigationPropertiesDto } from '../appointment-injury-details/models';
-import type { AppointmentAccessorDto } from '../appointment-accessors/models';
-import type { AppointmentClaimExaminerDto } from '../appointment-claim-examiners/models';
-import type { AppointmentPrimaryInsuranceDto } from '../appointment-primary-insurances/models';
 
 export interface ApplicantAttorneyDetailsDto {
   applicantAttorneyId?: string | null;
@@ -96,9 +98,60 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   refferedBy?: string | null;
 }
 
+export interface AppointmentInjurySubmitDto {
+  injury?: AppointmentInjuryDetailCreateDto;
+  bodyParts?: AppointmentBodyPartCreateDto[];
+}
+
 export interface AppointmentStatusCountDto {
   status?: AppointmentStatusType;
   count?: number;
+}
+
+export interface AppointmentSubmitDto {
+  mode?: BookingSubmitMode;
+  sourceConfirmationNumber?: string | null;
+  patientId?: string | null;
+  patient?: CreatePatientForAppointmentBookingInput | null;
+  patientUpdate?: PatientUpdateDto | null;
+  panelNumber?: string | null;
+  appointmentDate?: string;
+  dueDate?: string | null;
+  appointmentStatus?: AppointmentStatusType;
+  identityUserId?: string | null;
+  appointmentTypeId?: string;
+  locationId?: string;
+  doctorAvailabilityId?: string;
+  patientEmail?: string | null;
+  applicantAttorneyEmail?: string | null;
+  defenseAttorneyEmail?: string | null;
+  claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
+  customFieldValues?: CustomFieldValueInputDto[];
+  employerDetail?: AppointmentEmployerDetailCreateDto | null;
+  applicantAttorney?: ApplicantAttorneyDetailsDto | null;
+  defenseAttorney?: DefenseAttorneyDetailsDto | null;
+  primaryInsurance?: AppointmentPrimaryInsuranceCreateDto | null;
+  claimExaminer?: AppointmentClaimExaminerCreateDto | null;
+  injuryDetails?: AppointmentInjurySubmitDto[];
+  accessors?: AppointmentAccessorCreateDto[];
+}
+
+export interface AppointmentSubmitResultDto {
+  appointmentId?: string;
+  requestConfirmationNumber?: string;
+  patientId?: string;
+  patientAlreadyExisted?: boolean;
+  employerDetails?: number;
+  applicantAttorneys?: number;
+  defenseAttorneys?: number;
+  primaryInsurances?: number;
+  claimExaminers?: number;
+  injuryDetails?: number;
+  bodyParts?: number;
+  accessors?: number;
+  customFieldValues?: number;
+  total?: number;
 }
 
 export interface AppointmentUpdateDto {
