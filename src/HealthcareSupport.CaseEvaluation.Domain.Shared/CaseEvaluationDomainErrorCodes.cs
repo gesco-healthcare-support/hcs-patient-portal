@@ -6,7 +6,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Raised by <c>SystemParametersAppService.GetAsync / UpdateAsync</c>
     /// when the per-tenant singleton row is missing for the calling tenant
     /// scope. ABP's BusinessException maps this code to the localization
-    /// key <c>SystemParameter:NotSeeded</c>.
+    /// key <c>CaseEvaluation:SystemParameter.NotSeeded</c>.
     /// </summary>
     public const string SystemParameterNotSeeded = "CaseEvaluation:SystemParameter.NotSeeded";
 
@@ -15,7 +15,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// when an active <c>PackageDetail</c> already exists for the same
     /// <c>AppointmentTypeId</c>. Mirrors OLD's verbatim validation (see
     /// <c>P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\PackageDetailDomain.cs</c>:48-53).
-    /// Localization key: <c>PackageDetail:OneActivePerAppointmentType</c>.
+    /// Localization key: <c>CaseEvaluation:PackageDetail.OneActivePerAppointmentType</c>.
     /// </summary>
     public const string OneActivePackageDetailPerAppointmentType =
         "CaseEvaluation:PackageDetail.OneActivePerAppointmentType";
@@ -35,7 +35,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// corrected from OLD's buggy global <c>== 10</c> check
     /// (CustomFieldDomain.cs:38-42) to a per-AppointmentTypeId
     /// <c>&gt;= 10</c> check. Localization key
-    /// <c>CustomField:Max10ActivePerAppointmentType</c>.
+    /// <c>CaseEvaluation:CustomField.Max10ActivePerAppointmentType</c>.
     /// </summary>
     public const string CustomFieldMax10ActivePerAppointmentType =
         "CaseEvaluation:CustomField.Max10ActivePerAppointmentType";
@@ -54,7 +54,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// being updated is currently <c>Reserved</c> or <c>Booked</c>.
     /// Mirrors OLD <c>DoctorsAvailabilityDomain.cs:126-130</c> -- protects
     /// in-flight appointments from having their underlying slot mutated.
-    /// Localization key <c>DoctorAvailability:CannotUpdateBookedOrReserved</c>.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotUpdateBookedOrReserved</c>.
     /// </summary>
     public const string DoctorAvailabilityCannotUpdateBookedOrReserved =
         "CaseEvaluation:DoctorAvailability.CannotUpdateBookedOrReserved";
@@ -65,7 +65,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// slot at the given date + location is <c>Reserved</c> or <c>Booked</c>.
     /// Mirrors OLD <c>DoctorsAvailabilityDomain.cs:143-150</c>. Bulk-delete
     /// must NOT silently drop slots that have appointments tied to them.
-    /// Localization key <c>DoctorAvailability:CannotBulkDeleteWithBookedSlots</c>.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotBulkDeleteWithBookedSlots</c>.
     /// </summary>
     public const string DoctorAvailabilityCannotBulkDeleteWithBookedSlots =
         "CaseEvaluation:DoctorAvailability.CannotBulkDeleteWithBookedSlots";
@@ -78,7 +78,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>DoctorsAvailabilityDomain.cs:151-154</c>. Prevents historic-data
     /// FK orphans even if the slot's <c>BookingStatus</c> was somehow
     /// reset to <c>Available</c> by a manual data fix.
-    /// Localization key <c>DoctorAvailability:CannotDeleteReferenced</c>.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotDeleteReferenced</c>.
     /// </summary>
     public const string DoctorAvailabilityCannotDeleteReferenced =
         "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced";
@@ -89,7 +89,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// the target user has not yet confirmed their email address. Mirrors
     /// OLD <c>UserAuthenticationDomain.cs:166-169</c>'s "verified-only
     /// password reset" rule (Adrian's Q1 lock 2026-05-01: strict OLD parity).
-    /// Localization key <c>Account:EmailNotConfirmedForPasswordReset</c>.
+    /// Localization key <c>CaseEvaluation:Account.EmailNotConfirmedForPasswordReset</c>.
     /// </summary>
     public const string EmailNotConfirmedForPasswordReset =
         "CaseEvaluation:Account.EmailNotConfirmedForPasswordReset";
@@ -99,7 +99,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>ExternalAccountAppService.SendPasswordResetCodeAsync</c> when
     /// the target user is inactive (<c>IsActive == false</c>). Mirrors OLD
     /// <c>UserAuthenticationDomain.cs:170-173</c>. Localization key
-    /// <c>Account:UserInactiveForPasswordReset</c>.
+    /// <c>CaseEvaluation:Account.UserInactiveForPasswordReset</c>.
     /// </summary>
     public const string UserInactiveForPasswordReset =
         "CaseEvaluation:Account.UserInactiveForPasswordReset";
@@ -110,7 +110,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// token is invalid or already-consumed (mirrors OLD's silent no-op
     /// at <c>UserAuthenticationDomain.cs:244-255</c>; NEW returns a
     /// generic error to avoid info leak). Localization key
-    /// <c>Account:ResetPasswordTokenInvalid</c>.
+    /// <c>CaseEvaluation:Account.ResetPasswordTokenInvalid</c>.
     /// </summary>
     public const string ResetPasswordTokenInvalid =
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
@@ -135,7 +135,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
     /// terminal so a tampered URL does not leak whether the token shape
     /// is valid. Localization key
-    /// <c>Invitation:InviteInvalid</c>.
+    /// <c>CaseEvaluation:Invitation.InviteInvalid</c>.
     /// </summary>
     public const string InviteInvalid = "CaseEvaluation:Invitation.InviteInvalid";
 
@@ -143,7 +143,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
     /// when the invitation row exists but its <c>ExpiresAt</c> is in
     /// the past. Recipient is shown a friendly "request a new link"
-    /// message. Localization key <c>Invitation:InviteExpired</c>.
+    /// message. Localization key <c>CaseEvaluation:Invitation.InviteExpired</c>.
     /// </summary>
     public const string InviteExpired = "CaseEvaluation:Invitation.InviteExpired";
 
@@ -153,7 +153,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// enforcement). The friendly UX prompts the recipient to sign in
     /// if it was them, otherwise to contact the clinic in case the
     /// link was intercepted. Localization key
-    /// <c>Invitation:InviteAlreadyAccepted</c>.
+    /// <c>CaseEvaluation:Invitation.InviteAlreadyAccepted</c>.
     /// </summary>
     public const string InviteAlreadyAccepted =
         "CaseEvaluation:Invitation.InviteAlreadyAccepted";
@@ -165,7 +165,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// the SPA form's dropdown only lists the two creatable roles, but a
     /// tampered request body could try any role name; this gate forbids
     /// the request before any DB write. Localization key
-    /// <c>Invitation</c>-style: <c>InternalUser:InvalidRole</c>.
+    /// <c>Invitation</c>-style: <c>CaseEvaluation:InternalUser.InvalidRole</c>.
     /// </summary>
     public const string InternalUserInvalidRole =
         "CaseEvaluation:InternalUser.InvalidRole";
@@ -176,7 +176,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// seeded into the tenant's <c>AbpRoles</c> table. Operationally a
     /// data-seed bug (the role seeder should have run for every tenant);
     /// surfaces as a 400 so the operator can re-seed instead of seeing a
-    /// raw 500. Localization key <c>InternalUser:RoleMissing</c>.
+    /// raw 500. Localization key <c>CaseEvaluation:InternalUser.RoleMissing</c>.
     /// </summary>
     public const string InternalUserRoleMissing =
         "CaseEvaluation:InternalUser.RoleMissing";
@@ -187,7 +187,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// the target tenant. Message is intentionally generic (no email
     /// echo) so the response does not leak which addresses are
     /// registered (HIPAA pattern, same as ExternalSignup). Localization
-    /// key <c>InternalUser:DuplicateEmail</c>.
+    /// key <c>CaseEvaluation:InternalUser.DuplicateEmail</c>.
     /// </summary>
     public const string InternalUserDuplicateEmail =
         "CaseEvaluation:InternalUser.DuplicateEmail";
@@ -198,7 +198,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// policy violation (the auto-generated password is built to satisfy
     /// the defaults, so this is exceptional). Joined error descriptions
     /// surface via <c>BusinessException.WithData("Errors", ...)</c>.
-    /// Localization key <c>InternalUser:CreateFailed</c>.
+    /// Localization key <c>CaseEvaluation:InternalUser.CreateFailed</c>.
     /// </summary>
     public const string InternalUserCreateFailed =
         "CaseEvaluation:InternalUser.CreateFailed";
@@ -208,7 +208,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// returns a failed <c>IdentityResult</c> AFTER the user row was
     /// created. The AppService deletes the newly-created user before
     /// throwing so we do not leave an orphan account with no role.
-    /// Localization key <c>InternalUser:RoleAssignFailed</c>.
+    /// Localization key <c>CaseEvaluation:InternalUser.RoleAssignFailed</c>.
     /// </summary>
     public const string InternalUserRoleAssignFailed =
         "CaseEvaluation:InternalUser.RoleAssignFailed";
@@ -219,7 +219,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// scoped (admin.localhost), so <c>CurrentTenant.Id</c> is null at
     /// call time; the form's tenant picker is the source of truth for
     /// which tenant the new user belongs to. Localization key
-    /// <c>InternalUser:TenantRequired</c>.
+    /// <c>CaseEvaluation:InternalUser.TenantRequired</c>.
     /// </summary>
     public const string InternalUserTenantRequired =
         "CaseEvaluation:InternalUser.TenantRequired";
@@ -230,7 +230,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// non-empty <c>input.TenantId</c> that does not match their own
     /// tenant. Prevents a tenant admin from creating users inside
     /// another tenant by hand-crafting an API call. Localization key
-    /// <c>InternalUser:TenantMismatch</c>.
+    /// <c>CaseEvaluation:InternalUser.TenantMismatch</c>.
     /// </summary>
     public const string InternalUserTenantMismatch =
         "CaseEvaluation:InternalUser.TenantMismatch";
@@ -239,7 +239,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// 2026-06-16 (Prompt 16, A-B3) -- raised by
     /// <c>InternalUsersAppService.SendPasswordResetEmailAsync</c> when no
     /// IdentityUser exists for the supplied id in the caller's tenant scope.
-    /// Localization key <c>InternalUser:NotFound</c>.
+    /// Localization key <c>CaseEvaluation:InternalUser.NotFound</c>.
     /// </summary>
     public const string InternalUserNotFound =
         "CaseEvaluation:InternalUser.NotFound";
@@ -252,7 +252,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>AppointmentDomain.cs</c> Add path's lead-time gate
     /// (<c>ValidationFailedCode.AppointmentBookingDateNotAvailable</c>).
     /// Localization key
-    /// <c>Appointment:BookingDateInsideLeadTime</c>.
+    /// <c>CaseEvaluation:Appointment.BookingDateInsideLeadTime</c>.
     /// </summary>
     public const string AppointmentBookingDateInsideLeadTime =
         "CaseEvaluation:Appointment.BookingDateInsideLeadTime";
@@ -265,7 +265,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// AppointmentMaxTimeOTHER</c>). Mirrors OLD <c>AppointmentDomain.cs</c>
     /// Add path's max-time gate.
     /// Localization key
-    /// <c>Appointment:BookingDatePastMaxHorizon</c>.
+    /// <c>CaseEvaluation:Appointment.BookingDatePastMaxHorizon</c>.
     /// </summary>
     public const string AppointmentBookingDatePastMaxHorizon =
         "CaseEvaluation:Appointment.BookingDatePastMaxHorizon";
@@ -278,7 +278,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// a runtime fallback (per Phase 18 audit decision -- missing
     /// templates should surface loudly so the gap is fixed in seed,
     /// not papered over with hardcoded strings). Localization key
-    /// <c>NotificationTemplate:NotFound</c>.
+    /// <c>CaseEvaluation:NotificationTemplate.NotFound</c>.
     /// </summary>
     public const string NotificationTemplateNotFound =
         "CaseEvaluation:NotificationTemplate.NotFound";
@@ -288,7 +288,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// source appointment is not in status <c>Rejected</c>. Mirrors OLD
     /// <c>AppointmentDomain.cs:181</c> ("You not allowed to re apply
     /// appointment"). Localization key
-    /// <c>Appointment:ReSubmitSourceNotRejected</c>.
+    /// <c>CaseEvaluation:Appointment.ReSubmitSourceNotRejected</c>.
     /// </summary>
     public const string AppointmentReSubmitSourceNotRejected =
         "CaseEvaluation:Appointment.ReSubmitSourceNotRejected";
@@ -300,7 +300,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// ("You can not Re-eval this appointment request because it's not
     /// yet approved. Once it gets approved, You will be able to Re-eval
     /// this appointment request.").
-    /// Localization key <c>Appointment:RevalSourceNotApproved</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.RevalSourceNotApproved</c>.
     /// </summary>
     public const string AppointmentRevalSourceNotApproved =
         "CaseEvaluation:Appointment.RevalSourceNotApproved";
@@ -314,7 +314,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// hint to "approve an appointment and try again" is verbatim OLD;
     /// admin-only because non-admin callers see the patient-facing
     /// variant.
-    /// Localization key <c>Appointment:RevalSourceNotApprovedAdminHint</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.RevalSourceNotApprovedAdminHint</c>.
     /// </summary>
     public const string AppointmentRevalSourceNotApprovedAdminHint =
         "CaseEvaluation:Appointment.RevalSourceNotApprovedAdminHint";
@@ -327,7 +327,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// both impossible here -- the source can never return to <c>Approved</c>,
     /// so the only way forward is a new appointment request. Applies to admin
     /// and non-admin callers alike.
-    /// Localization key <c>Appointment:RevalSourceIncompleteFirstEvaluation</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.RevalSourceIncompleteFirstEvaluation</c>.
     /// </summary>
     public const string AppointmentRevalSourceIncompleteFirstEvaluation =
         "CaseEvaluation:Appointment.RevalSourceIncompleteFirstEvaluation";
@@ -337,7 +337,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// in a status that did NOT happen. Only cancelled, no-showed and not-seen appointments
     /// may be re-booked; an Approved one is still expected to take place, and a Rejected
     /// request never became an appointment (that is the ReSubmit flow).
-    /// Localization key <c>Appointment:ReBookSourceNotEligible</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.ReBookSourceNotEligible</c>.
     /// </summary>
     public const string AppointmentReBookSourceNotEligible =
         "CaseEvaluation:Appointment.ReBookSourceNotEligible";
@@ -347,7 +347,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <see cref="AppointmentReBookSourceNotEligible"/>. Mirrors the
     /// <see cref="AppointmentRevalSourceNotApprovedAdminHint"/> precedent: staff see wording
     /// aimed at them, but the override is NOT a free pass -- both codes are refusals.
-    /// Localization key <c>Appointment:ReBookSourceNotEligibleStaffHint</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.ReBookSourceNotEligibleStaffHint</c>.
     /// </summary>
     public const string AppointmentReBookSourceNotEligibleStaffHint =
         "CaseEvaluation:Appointment.ReBookSourceNotEligibleStaffHint";
@@ -361,7 +361,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// the documented assumption that at most one can exist. A second re-book would make
     /// that choice arbitrary AND unstable between pushes, which would look to the receiver
     /// like the link moving on its own.</para>
-    /// Localization key <c>Appointment:ReBookSourceAlreadyReBooked</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.ReBookSourceAlreadyReBooked</c>.
     /// </summary>
     public const string AppointmentReBookSourceAlreadyReBooked =
         "CaseEvaluation:Appointment.ReBookSourceAlreadyReBooked";
@@ -374,7 +374,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// disabled the Approve button until a responsible user was
     /// selected (no equivalent inline error message in OLD source --
     /// the gate was UI-only). Localization key
-    /// <c>Appointment:ApprovalRequiresResponsibleUser</c>.
+    /// <c>CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser</c>.
     /// </summary>
     public const string AppointmentApprovalRequiresResponsibleUser =
         "CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser";
@@ -387,7 +387,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:319-325
     /// -- "Appointment Already Approved" / "Appointment Already
     /// Rejected" surface verbatim through this code's localization
-    /// value. Localization key <c>Appointment:NotPendingForApproval</c>.
+    /// value. Localization key <c>CaseEvaluation:Appointment.NotPendingForApproval</c>.
     /// </summary>
     public const string AppointmentNotPendingForApproval =
         "CaseEvaluation:Appointment.NotPendingForApproval";
@@ -396,7 +396,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Phase 12 (2026-05-04) -- raised by
     /// <c>AppointmentApprovalAppService.RejectAppointmentAsync</c>
     /// when the appointment is not in status <c>Pending</c>.
-    /// Localization key <c>Appointment:NotPendingForRejection</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.NotPendingForRejection</c>.
     /// </summary>
     public const string AppointmentNotPendingForRejection =
         "CaseEvaluation:Appointment.NotPendingForRejection";
@@ -407,7 +407,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// when <c>RejectAppointmentInput.Reason</c> is null or
     /// whitespace. OLD UI required the rejection-notes textarea before
     /// enabling the Reject button. Localization key
-    /// <c>Appointment:RejectionRequiresNotes</c>.
+    /// <c>CaseEvaluation:Appointment.RejectionRequiresNotes</c>.
     /// </summary>
     public const string AppointmentRejectionRequiresNotes =
         "CaseEvaluation:Appointment.RejectionRequiresNotes";
@@ -421,7 +421,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// rejected here so the requirement cannot be bypassed. Gated only on
     /// the Pending->Approved transition (the create-as-Approved internal
     /// fast-path attaches injuries after creation and is out of scope).
-    /// Localization key <c>Appointment:ApprovalRequiresInjuryDetail</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail</c>.
     /// </summary>
     public const string AppointmentApprovalRequiresInjuryDetail =
         "CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail";
@@ -434,7 +434,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// client-side CE-section gate. Gated only on Pending->Approved (the
     /// create-as-Approved internal fast-path attaches parties after creation
     /// and is out of scope, same as the injury-detail guard). Localization key
-    /// <c>Appointment:ApprovalRequiresClaimExaminer</c>.
+    /// <c>CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer</c>.
     /// </summary>
     public const string AppointmentApprovalRequiresClaimExaminer =
         "CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer";
@@ -448,7 +448,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// "Your added accessor '&lt;email&gt;' is already registered in our
     /// system with different user type. Please select proper Accessor
     /// user's type and try again". Localization key
-    /// <c>Appointment:AccessorRoleMismatch</c> (with <c>{0}</c> replaced
+    /// <c>CaseEvaluation:Appointment.AccessorRoleMismatch</c> (with <c>{0}</c> replaced
     /// at render time by the offending email).
     /// </summary>
     public const string AppointmentAccessorRoleMismatch =
@@ -464,7 +464,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// appointment lookups land here as the equivalent gate. Internal
     /// users (admin / Intake Staff / etc.) bypass this check; ABP's
     /// IMultiTenant filter still scopes them to their own tenant.
-    /// Localization key <c>Appointment:AccessDenied</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.AccessDenied</c>.
     /// </summary>
     public const string AppointmentAccessDenied =
         "CaseEvaluation:Appointment.AccessDenied";
@@ -476,7 +476,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// RescheduleRequested. Mirrors OLD verbatim "Please upload
     /// documents after appointment is approved."
     /// (<c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:104).
-    /// Localization key <c>Document:UploadAfterApproval</c>.
+    /// Localization key <c>CaseEvaluation:Document.UploadAfterApproval</c>.
     /// </summary>
     public const string DocumentUploadAfterApproval =
         "CaseEvaluation:Document.UploadAfterApproval";
@@ -487,7 +487,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// when the appointment is past its <c>DueDate</c>. Mirrors OLD
     /// verbatim "You can not upload document after specified due
     /// date." (<c>AppointmentDocumentDomain.cs</c>:99). Localization
-    /// key <c>Document:UploadAfterDueDate</c>.
+    /// key <c>CaseEvaluation:Document.UploadAfterDueDate</c>.
     /// </summary>
     public const string DocumentUploadAfterDueDate =
         "CaseEvaluation:Document.UploadAfterDueDate";
@@ -498,7 +498,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// attempted against a non-AME appointment. Mirrors OLD verbatim
     /// "Appointment type is not valid. Please upload appropriate
     /// document." Localization key
-    /// <c>Document:JdfRequiresAmeAppointment</c>.
+    /// <c>CaseEvaluation:Document.JdfRequiresAmeAppointment</c>.
     /// </summary>
     public const string JdfRequiresAmeAppointment =
         "CaseEvaluation:Document.JdfRequiresAmeAppointment";
@@ -509,7 +509,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// upload is attempted by anyone other than the booking attorney
     /// (or when that user is not in an Applicant/Defense Attorney
     /// role). Localization key
-    /// <c>Document:JdfUploaderMustBeBookingAttorney</c>.
+    /// <c>CaseEvaluation:Document.JdfUploaderMustBeBookingAttorney</c>.
     /// </summary>
     public const string JdfUploaderMustBeBookingAttorney =
         "CaseEvaluation:Document.JdfUploaderMustBeBookingAttorney";
@@ -519,7 +519,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>DocumentUploadGate.EnsureNotImmutable</c> when an external
     /// user attempts to mutate an Accepted document. Mirrors OLD's
     /// "approved docs are read-only for external users" rule.
-    /// Localization key <c>Document:ImmutableForExternalUser</c>.
+    /// Localization key <c>CaseEvaluation:Document.ImmutableForExternalUser</c>.
     /// </summary>
     public const string DocumentImmutableForExternalUser =
         "CaseEvaluation:Document.ImmutableForExternalUser";
@@ -532,7 +532,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// "Un unauthorized user"
     /// (<c>AppointmentDocumentDomain.cs</c>:71). NEW preserves the
     /// OLD wording. Localization key
-    /// <c>Document:UnauthorizedVerificationCode</c>.
+    /// <c>CaseEvaluation:Document.UnauthorizedVerificationCode</c>.
     /// </summary>
     public const string DocumentUnauthorizedVerificationCode =
         "CaseEvaluation:Document.UnauthorizedVerificationCode";
@@ -544,7 +544,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// appointment is not in status <c>Approved</c>. Mirrors OLD
     /// <c>AppointmentChangeRequestDomain.cs:73-75</c>'s
     /// <c>NoChangeAllowedinAppointment</c>. Localization key
-    /// <c>AppointmentChangeRequest:AppointmentNotApproved</c>.
+    /// <c>CaseEvaluation:AppointmentChangeRequest.AppointmentNotApproved</c>.
     /// </summary>
     public const string ChangeRequestAppointmentNotApproved =
         "CaseEvaluation:AppointmentChangeRequest.AppointmentNotApproved";
@@ -555,7 +555,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// window (slot date is closer than the threshold). Mirrors OLD
     /// <c>AppointmentChangeRequestDomain.cs:87-90</c>'s
     /// <c>CannotCancelOrRescheduleAppointment</c>. Localization key
-    /// <c>AppointmentChangeRequest:CancelTimeWindow</c>.
+    /// <c>CaseEvaluation:AppointmentChangeRequest.CancelTimeWindow</c>.
     /// </summary>
     public const string ChangeRequestCancelTimeWindow =
         "CaseEvaluation:AppointmentChangeRequest.CancelTimeWindow";
@@ -565,7 +565,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// appointment creator nor an Edit accessor. Mirrors OLD's intent
     /// per spec line 431; OLD's owner-only check is commented out at
     /// <c>AppointmentChangeRequestDomain.cs:78-81</c>. Localization
-    /// key <c>AppointmentChangeRequest:EditAccessRequired</c>.
+    /// key <c>CaseEvaluation:AppointmentChangeRequest.EditAccessRequired</c>.
     /// </summary>
     public const string ChangeRequestEditAccessRequired =
         "CaseEvaluation:AppointmentChangeRequest.EditAccessRequired";
@@ -577,7 +577,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <see cref="HealthcareSupport.CaseEvaluation.Enums.BookingStatus.Available"/>.
     /// Mirrors OLD <c>AppointmentChangeRequestDomain.cs:107-110</c>
     /// (<c>AppointmentBookingDateNotAvailable</c>). Localization key
-    /// <c>AppointmentChangeRequest:NewSlotNotAvailable</c>.
+    /// <c>CaseEvaluation:AppointmentChangeRequest.NewSlotNotAvailable</c>.
     /// </summary>
     public const string ChangeRequestNewSlotNotAvailable =
         "CaseEvaluation:AppointmentChangeRequest.NewSlotNotAvailable";
@@ -587,7 +587,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// submitted without a new slot id (NewDoctorAvailabilityId is
     /// empty). Mirrors OLD <c>AppointmentChangeRequestDomain.cs:103-106</c>
     /// (<c>ProvideNewAppointmentDateTime</c>). Localization key
-    /// <c>AppointmentChangeRequest:NewSlotRequired</c>.
+    /// <c>CaseEvaluation:AppointmentChangeRequest.NewSlotRequired</c>.
     /// </summary>
     public const string ChangeRequestNewSlotRequired =
         "CaseEvaluation:AppointmentChangeRequest.NewSlotRequired";
@@ -597,7 +597,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// submitted without a reschedule reason. Mirrors OLD
     /// <c>AppointmentChangeRequestDomain.cs:99-102</c>
     /// (<c>ProvideRescheduleReason</c>). Localization key
-    /// <c>AppointmentChangeRequest:RescheduleReasonRequired</c>.
+    /// <c>CaseEvaluation:AppointmentChangeRequest.RescheduleReasonRequired</c>.
     /// </summary>
     public const string ChangeRequestRescheduleReasonRequired =
         "CaseEvaluation:AppointmentChangeRequest.RescheduleReasonRequired";
@@ -608,7 +608,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// optimistic-concurrency gate fires (two supervisors handling the
     /// same row simultaneously). OLD-verbatim wording: "This change
     /// request has already been processed". Localization key
-    /// <c>ChangeRequest:AlreadyHandled</c>.
+    /// <c>CaseEvaluation:ChangeRequest.AlreadyHandled</c>.
     /// </summary>
     public const string ChangeRequestAlreadyHandled =
         "CaseEvaluation:ChangeRequest.AlreadyHandled";
@@ -616,7 +616,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// Phase 17 (2026-05-04) -- raised when the cancellation-approval
     /// outcome is not <c>CancelledNoBill</c> or <c>CancelledLate</c>.
-    /// Localization key <c>ChangeRequest:InvalidCancellationOutcome</c>.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.InvalidCancellationOutcome</c>.
     /// </summary>
     public const string ChangeRequestInvalidCancellationOutcome =
         "CaseEvaluation:ChangeRequest.InvalidCancellationOutcome";
@@ -624,7 +624,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// Phase 17 (2026-05-04) -- raised when the reschedule-approval
     /// outcome is not <c>RescheduledNoBill</c> or <c>RescheduledLate</c>.
-    /// Localization key <c>ChangeRequest:InvalidRescheduleOutcome</c>.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.InvalidRescheduleOutcome</c>.
     /// </summary>
     public const string ChangeRequestInvalidRescheduleOutcome =
         "CaseEvaluation:ChangeRequest.InvalidRescheduleOutcome";
@@ -633,7 +633,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Phase 17 (2026-05-04) -- raised when the supervisor overrides
     /// the user-picked slot during reschedule approval but does not
     /// supply <c>AdminReScheduleReason</c>. Mirrors OLD's UI gate.
-    /// Localization key <c>ChangeRequest:AdminReasonRequired</c>.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.AdminReasonRequired</c>.
     /// </summary>
     public const string ChangeRequestAdminReasonRequired =
         "CaseEvaluation:ChangeRequest.AdminReasonRequired";
@@ -643,7 +643,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// change request without rejection notes. Mirrors OLD's
     /// <c>CancellationRejectionReason</c> /
     /// <c>ReScheduleRejectionReason</c> required-field gates.
-    /// Localization key <c>ChangeRequest:RejectionRequiresNotes</c>.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.RejectionRequiresNotes</c>.
     /// </summary>
     public const string ChangeRequestRejectionRequiresNotes =
         "CaseEvaluation:ChangeRequest.RejectionRequiresNotes";
@@ -653,7 +653,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>ExternalSignupAppService.RegisterAsync</c> when
     /// <c>ConfirmPassword</c> does not equal <c>Password</c>. Mirrors OLD
     /// <c>UserDomain.cs:88</c> (<c>ValidationFailedCode.ConfirmPasswordValidation</c>).
-    /// Localization key <c>Registration:ConfirmPasswordMismatch</c>.
+    /// Localization key <c>CaseEvaluation:Registration.ConfirmPasswordMismatch</c>.
     /// </summary>
     public const string RegistrationConfirmPasswordMismatch =
         "CaseEvaluation:Registration.ConfirmPasswordMismatch";
@@ -666,7 +666,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>UserDomain.cs:272</c> (<c>FirmNameValidation</c>) -- with the
     /// OLD-bug-fix that the check now covers BOTH attorney roles, not
     /// just <c>PatientAttorney</c> twice as in the OLD source.
-    /// Localization key <c>Registration:FirmNameRequiredForAttorney</c>.
+    /// Localization key <c>CaseEvaluation:Registration.FirmNameRequiredForAttorney</c>.
     /// </summary>
     public const string RegistrationFirmNameRequired =
         "CaseEvaluation:Registration.FirmNameRequiredForAttorney";
@@ -687,7 +687,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>WithData("AttorneyRole", "ApplicantAttorney" or "DefenseAttorney")</c>
     /// so the SPA can branch the field-highlight without parsing the
     /// message. Localization key
-    /// <c>Appointment:AttorneyFirmNameRequired</c>.
+    /// <c>CaseEvaluation:Appointment.AttorneyFirmNameRequired</c>.
     /// </summary>
     public const string AppointmentAttorneyFirmNameRequired =
         "CaseEvaluation:Appointment.AttorneyFirmNameRequired";
@@ -704,7 +704,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>AbpExceptionHttpStatusCodeOptions</c> -- ABP's default 403 for
     /// <c>BusinessException</c> would be semantically wrong (validation
     /// failure, not authorization). Localization key
-    /// <c>Registration:DuplicateEmail</c>.
+    /// <c>CaseEvaluation:Registration.DuplicateEmail</c>.
     /// </summary>
     public const string RegistrationDuplicateEmail =
         "CaseEvaluation:Registration.DuplicateEmail";
@@ -719,7 +719,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// the inviter is an authenticated staff member who chose the email, so the
     /// message is explicit (no account-enumeration concern). Mapped to HTTP 400 via
     /// <c>CaseEvaluationExceptionStatusCodeMappings</c>. Localization key
-    /// <c>Invite:EmailAlreadyRegistered</c>.
+    /// <c>CaseEvaluation:Invite.EmailAlreadyRegistered</c>.
     /// </summary>
     public const string InviteEmailAlreadyRegistered =
         "CaseEvaluation:Invite.EmailAlreadyRegistered";
@@ -737,7 +737,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// canonical status for size-exceeded; ABP's default 403 for
     /// <c>BusinessException</c> would be semantically wrong (size, not
     /// authorization, is the issue). Localization key
-    /// <c>AppointmentDocument:FileTooLarge</c>.
+    /// <c>CaseEvaluation:AppointmentDocument.FileTooLarge</c>.
     /// </summary>
     public const string AppointmentDocumentFileTooLarge =
         "CaseEvaluation:AppointmentDocument.FileTooLarge";
@@ -751,7 +751,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// distinct from <see cref="AppointmentDocumentFileTooLarge"/>
     /// (which is 413) so the SPA can branch the user-facing message
     /// without parsing the body. Localization key
-    /// <c>AppointmentDocument:FileEmpty</c>.
+    /// <c>CaseEvaluation:AppointmentDocument.FileEmpty</c>.
     /// </summary>
     public const string AppointmentDocumentFileEmpty =
         "CaseEvaluation:AppointmentDocument.FileEmpty";
@@ -784,7 +784,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 for
     /// <c>BusinessException</c> would make the SPA treat it as a
     /// permission failure). Localization key
-    /// <c>Doctor:OnePerTenantViolated</c>.
+    /// <c>CaseEvaluation:Doctor.OnePerTenantViolated</c>.
     /// </summary>
     public const string DoctorOnePerTenantViolated =
         "CaseEvaluation:Doctor.OnePerTenantViolated";
@@ -798,7 +798,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// removing the Doctor profile. Carries <c>entity</c> + <c>count</c>
     /// via <c>WithData</c> so the SPA can render which bucket is
     /// non-empty. Mapped to HTTP 400 Bad Request. Localization key
-    /// <c>Doctor:CannotDeleteWithDependents</c>.
+    /// <c>CaseEvaluation:Doctor.CannotDeleteWithDependents</c>.
     /// </summary>
     public const string DoctorCannotDeleteWithDependents =
         "CaseEvaluation:Doctor.CannotDeleteWithDependents";
@@ -809,7 +809,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// when the slot's active-appointment count has reached or exceeded
     /// its <c>Capacity</c>. Carries <c>capacity</c> + <c>activeCount</c>
     /// via <c>WithData</c>. Mapped to HTTP 400 Bad Request. Localization
-    /// key <c>Appointment:BookingSlotFull</c>.
+    /// key <c>CaseEvaluation:Appointment.BookingSlotFull</c>.
     /// </summary>
     public const string AppointmentBookingSlotFull =
         "CaseEvaluation:Appointment.BookingSlotFull";
@@ -820,7 +820,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// when the slot's <c>BookingStatusId</c> is <c>Reserved</c>
     /// (manually closed by the doctor's-admin -- never bookable
     /// regardless of capacity). Mapped to HTTP 400 Bad Request.
-    /// Localization key <c>Appointment:BookingSlotClosed</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.BookingSlotClosed</c>.
     /// </summary>
     public const string AppointmentBookingSlotClosed =
         "CaseEvaluation:Appointment.BookingSlotClosed";
@@ -833,7 +833,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// "any type accepted" and never raises this. Carries <c>requested</c>
     /// + <c>permitted</c> ids via <c>WithData</c>. Mapped to HTTP 400
     /// Bad Request. Localization key
-    /// <c>Appointment:BookingSlotTypeMismatch</c>.
+    /// <c>CaseEvaluation:Appointment.BookingSlotTypeMismatch</c>.
     /// </summary>
     public const string AppointmentBookingSlotTypeMismatch =
         "CaseEvaluation:Appointment.BookingSlotTypeMismatch";
@@ -848,7 +848,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 for
     /// <c>BusinessException</c> would make the SPA treat it as a permission
     /// failure rather than the input-validation failure it is). Localization
-    /// key <c>AppointmentDocumentType:SystemReadOnly</c>.
+    /// key <c>CaseEvaluation:AppointmentDocumentType.SystemReadOnly</c>.
     /// </summary>
     public const string AppointmentDocumentTypeSystemReadOnly =
         "CaseEvaluation:AppointmentDocumentType.SystemReadOnly";
@@ -860,7 +860,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>AppointmentTypeId</c> scope (case-insensitive). Restores the name
     /// uniqueness the legacy CRUD never enforced. Mapped to HTTP 400 Bad
     /// Request in <c>CaseEvaluationHttpApiHostModule</c>. Localization key
-    /// <c>AppointmentDocumentType:NameAlreadyExists</c>.
+    /// <c>CaseEvaluation:AppointmentDocumentType.NameAlreadyExists</c>.
     /// </summary>
     public const string AppointmentDocumentTypeNameAlreadyExists =
         "CaseEvaluation:AppointmentDocumentType.NameAlreadyExists";
@@ -874,7 +874,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// documents, preserving the type label on historical rows. Mapped to
     /// HTTP 409 Conflict in <c>CaseEvaluationHttpApiHostModule</c> (the request
     /// is well-formed and authorized; it conflicts with current state).
-    /// Localization key <c>AppointmentDocumentType:InUse</c>.
+    /// Localization key <c>CaseEvaluation:AppointmentDocumentType.InUse</c>.
     /// </summary>
     public const string AppointmentDocumentTypeInUse =
         "CaseEvaluation:AppointmentDocumentType.InUse";
@@ -886,7 +886,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// attach a conditional <c>Validators.required</c> for immediate feedback;
     /// this domain check is the authoritative guard. Mapped to HTTP 400 in
     /// <c>CaseEvaluationHttpApiHostModule</c>. Localization key
-    /// <c>Appointment:PanelNumberRequiredForPqme</c>.
+    /// <c>CaseEvaluation:Appointment.PanelNumberRequiredForPqme</c>.
     /// </summary>
     public const string AppointmentPanelNumberRequiredForPqme =
         "CaseEvaluation:Appointment.PanelNumberRequiredForPqme";
@@ -901,7 +901,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// submissions never carry one; this is the defense-in-depth backstop for a
     /// tampered/bypassed client (closes the OBS-24 UI-only-enforcement gap for
     /// this field). Mapped to HTTP 400 in <c>CaseEvaluationHttpApiHostModule</c>.
-    /// Localization key <c>Appointment:PanelNumberNotAllowedForType</c>.
+    /// Localization key <c>CaseEvaluation:Appointment.PanelNumberNotAllowedForType</c>.
     /// </summary>
     public const string AppointmentPanelNumberNotAllowedForType =
         "CaseEvaluation:Appointment.PanelNumberNotAllowedForType";
@@ -913,7 +913,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// so the uniqueness check is global. Mapped to HTTP 400 in
     /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 would read as a permission
     /// failure). Carries <c>WithData("name", name)</c>. Localization key
-    /// <c>Location:DuplicateName</c>.
+    /// <c>CaseEvaluation:Location.DuplicateName</c>.
     /// </summary>
     public const string LocationDuplicateName =
         "CaseEvaluation:Location.DuplicateName";
@@ -922,7 +922,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// #11 (task_59b8c23a) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when
     /// another Location in the office already carries the same (non-empty) Facility ID -- the
     /// clinic's external unique identifier (CalMed / Case Tracker). Mapped to HTTP 400. Carries
-    /// <c>WithData("facilityId", facilityId)</c>. Localization key <c>Location:DuplicateFacilityId</c>.
+    /// <c>WithData("facilityId", facilityId)</c>. Localization key <c>CaseEvaluation:Location.DuplicateFacilityId</c>.
     /// </summary>
     public const string LocationDuplicateFacilityId =
         "CaseEvaluation:Location.DuplicateFacilityId";
@@ -931,7 +931,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when the
     /// supplied ParkingFee is negative. Defense-in-depth behind the DTO <c>[Range]</c> + the
     /// Angular <c>Validators.min(0)</c> mirror. Mapped to HTTP 400. Localization key
-    /// <c>Location:ParkingFeeNegative</c>.
+    /// <c>CaseEvaluation:Location.ParkingFeeNegative</c>.
     /// </summary>
     public const string LocationParkingFeeNegative =
         "CaseEvaluation:Location.ParkingFeeNegative";
@@ -940,7 +940,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when a
     /// non-blank ZipCode does not match US 5-digit or ZIP+4 format. Defense-in-depth behind the
     /// DTO <c>[RegularExpression]</c> + the Angular <c>Validators.pattern</c> mirror. Mapped to
-    /// HTTP 400. Localization key <c>Location:ZipCodeInvalid</c>.
+    /// HTTP 400. Localization key <c>CaseEvaluation:Location.ZipCodeInvalid</c>.
     /// </summary>
     public const string LocationZipCodeInvalid =
         "CaseEvaluation:Location.ZipCodeInvalid";
@@ -951,7 +951,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Appointment or DoctorAvailability slot. The reference count disables the IMultiTenant
     /// filter so a cross-tenant reference still blocks deletion of the host-scoped Location.
     /// Carries <c>WithData("entity", ...)</c> + <c>WithData("count", ...)</c> for a friendly
-    /// message. Mapped to HTTP 400. Localization key <c>Location:InUse</c>.
+    /// message. Mapped to HTTP 400. Localization key <c>CaseEvaluation:Location.InUse</c>.
     /// </summary>
     public const string LocationInUse =
         "CaseEvaluation:Location.InUse";
@@ -963,7 +963,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// (uploaded later) but cannot be approved until the strike list is on file.
     /// Mapped to HTTP 409 Conflict in <c>CaseEvaluationHttpApiHostModule</c>, like the
     /// injury-detail and claim-examiner approval gates. Localization key
-    /// <c>Appointment:ApprovalRequiresPanelStrikeList</c>.
+    /// <c>CaseEvaluation:Appointment.ApprovalRequiresPanelStrikeList</c>.
     /// </summary>
     public const string AppointmentApprovalRequiresPanelStrikeList =
         "CaseEvaluation:Appointment.ApprovalRequiresPanelStrikeList";
@@ -972,7 +972,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Group D (2026-06-09) -- raised by the change-request approval AppService
     /// gate when the opposing side has not granted consent (ConsentStatus is not
     /// Approved). Blocks the Staff Supervisor finalize until the other side
-    /// agrees. Localization key <c>ChangeRequest:ConsentNotGranted</c>.
+    /// agrees. Localization key <c>CaseEvaluation:ChangeRequest.ConsentNotGranted</c>.
     /// </summary>
     public const string ChangeRequestConsentNotGranted =
         "CaseEvaluation:ChangeRequest.ConsentNotGranted";
@@ -981,7 +981,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Group D (2026-06-09) -- raised by <c>ChangeRequestConsentManager</c> when
     /// the supplied consent token does not hash to any change request. Generic
     /// terminal so a tampered link does not leak token validity. Localization
-    /// key <c>ChangeRequest:ConsentTokenInvalid</c>.
+    /// key <c>CaseEvaluation:ChangeRequest.ConsentTokenInvalid</c>.
     /// </summary>
     public const string ChangeRequestConsentTokenInvalid =
         "CaseEvaluation:ChangeRequest.ConsentTokenInvalid";
@@ -990,7 +990,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Group D (2026-06-09) -- raised when a consent decision is submitted for a
     /// request whose ConsentStatus is no longer Pending (double-click / replay).
     /// The public landing page renders the existing decision instead of erroring.
-    /// Localization key <c>ChangeRequest:ConsentAlreadyResponded</c>.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.ConsentAlreadyResponded</c>.
     /// </summary>
     public const string ChangeRequestConsentAlreadyResponded =
         "CaseEvaluation:ChangeRequest.ConsentAlreadyResponded";
@@ -998,7 +998,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// Group D (2026-06-09) -- raised when the consent token has passed its
     /// 7-day expiry. The request defaults to a No (Expired) and staff are
-    /// notified. Localization key <c>ChangeRequest:ConsentExpired</c>.
+    /// notified. Localization key <c>CaseEvaluation:ChangeRequest.ConsentExpired</c>.
     /// </summary>
     public const string ChangeRequestConsentExpired =
         "CaseEvaluation:ChangeRequest.ConsentExpired";
@@ -1009,7 +1009,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// row is a reserved <c>IsSystem</c> appointment type. System rows are not
     /// editable or deletable by admins; mirrors the AppointmentDocumentType
     /// system-lock pattern. Localization key
-    /// <c>AppointmentType:SystemReadOnly</c>.
+    /// <c>CaseEvaluation:AppointmentType.SystemReadOnly</c>.
     /// </summary>
     public const string AppointmentTypeSystemReadOnly =
         "CaseEvaluation:AppointmentType.SystemReadOnly";
@@ -1020,7 +1020,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// referenced by at least one <c>Appointment</c> (via
     /// <c>Appointment.AppointmentTypeId</c>). Retire it rather than delete it
     /// out from under existing appointments. Localization key
-    /// <c>AppointmentType:InUse</c>.
+    /// <c>CaseEvaluation:AppointmentType.InUse</c>.
     /// </summary>
     public const string AppointmentTypeInUse =
         "CaseEvaluation:AppointmentType.InUse";
@@ -1030,7 +1030,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>AppointmentStatusManager.UpdateAsync / DeleteAsync</c> when the
     /// targeted row is a reserved <c>IsSystem</c> appointment status. The five
     /// canonical statuses are system rows and are not editable or deletable by
-    /// admins. Localization key <c>AppointmentStatus:SystemReadOnly</c>.
+    /// admins. Localization key <c>CaseEvaluation:AppointmentStatus.SystemReadOnly</c>.
     /// </summary>
     public const string AppointmentStatusSystemReadOnly =
         "CaseEvaluation:AppointmentStatus.SystemReadOnly";
@@ -1039,7 +1039,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>AppointmentLanguageManager.UpdateAsync / DeleteAsync</c> when the
     /// targeted row is a reserved <c>IsSystem</c> language (e.g. seeded
-    /// "English"). Localization key <c>AppointmentLanguage:SystemReadOnly</c>.
+    /// "English"). Localization key <c>CaseEvaluation:AppointmentLanguage.SystemReadOnly</c>.
     /// </summary>
     public const string AppointmentLanguageSystemReadOnly =
         "CaseEvaluation:AppointmentLanguage.SystemReadOnly";
@@ -1049,7 +1049,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>AppointmentLanguageManager.DeleteAsync</c> when the language is still
     /// referenced by at least one <c>Patient</c> (via
     /// <c>Patient.AppointmentLanguageId</c>). Localization key
-    /// <c>AppointmentLanguage:InUse</c>.
+    /// <c>CaseEvaluation:AppointmentLanguage.InUse</c>.
     /// </summary>
     public const string AppointmentLanguageInUse =
         "CaseEvaluation:AppointmentLanguage.InUse";
@@ -1058,7 +1058,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>StateManager.UpdateAsync / DeleteAsync</c> when the targeted row is a
     /// reserved <c>IsSystem</c> state (e.g. seeded "California"). Localization
-    /// key <c>State:SystemReadOnly</c>.
+    /// key <c>CaseEvaluation:State.SystemReadOnly</c>.
     /// </summary>
     public const string StateSystemReadOnly =
         "CaseEvaluation:State.SystemReadOnly";
@@ -1068,7 +1068,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>StateManager.DeleteAsync</c> when the state is still referenced by any
     /// of Location / WcabOffice / Patient / ApplicantAttorney / DefenseAttorney
     /// / ClaimExaminer (via their <c>StateId</c>). Localization key
-    /// <c>State:InUse</c>.
+    /// <c>CaseEvaluation:State.InUse</c>.
     /// </summary>
     public const string StateInUse =
         "CaseEvaluation:State.InUse";
@@ -1077,7 +1077,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>PatientsAppService.DeleteAsync</c> when the patient is still
     /// referenced by at least one <c>Appointment</c> (via
-    /// <c>Appointment.PatientId</c>). Localization key <c>Patient:InUse</c>.
+    /// <c>Appointment.PatientId</c>). Localization key <c>CaseEvaluation:Patient.InUse</c>.
     /// </summary>
     public const string PatientInUse =
         "CaseEvaluation:Patient.InUse";
@@ -1096,7 +1096,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// attorney is still referenced by at least one
     /// <c>AppointmentApplicantAttorney</c> (via
     /// <c>AppointmentApplicantAttorney.ApplicantAttorneyId</c>). Localization
-    /// key <c>ApplicantAttorney:InUse</c>.
+    /// key <c>CaseEvaluation:ApplicantAttorney.InUse</c>.
     /// </summary>
     public const string ApplicantAttorneyInUse =
         "CaseEvaluation:ApplicantAttorney.InUse";
@@ -1106,8 +1106,28 @@ public static class CaseEvaluationDomainErrorCodes
     /// <c>DefenseAttorneysAppService.DeleteAsync</c> when the defense attorney
     /// is still referenced by at least one <c>AppointmentDefenseAttorney</c>
     /// (via <c>AppointmentDefenseAttorney.DefenseAttorneyId</c>). Localization
-    /// key <c>DefenseAttorney:InUse</c>.
+    /// key <c>CaseEvaluation:DefenseAttorney.InUse</c>.
     /// </summary>
     public const string DefenseAttorneyInUse =
         "CaseEvaluation:DefenseAttorney.InUse";
+
+    /// <summary>
+    /// Item B (2026-08-21) -- raised by <c>AppointmentsAppService.SubmitAsync</c> when the request
+    /// carries neither <c>PatientId</c> nor <c>Patient</c>. The submit path resolves the patient
+    /// itself, so one of the two is required and the caller cannot be defaulted safely: guessing a
+    /// patient is how an appointment ends up attached to the wrong person.
+    /// </summary>
+    public const string AppointmentSubmitPatientRequired =
+        "CaseEvaluation:AppointmentSubmit.PatientRequired";
+
+    /// <summary>
+    /// Item B (2026-08-21) -- raised by <c>AppointmentsAppService.SubmitAsync</c> when a write
+    /// inside the submit transaction fails for a reason that carries no error code of its own. The
+    /// transaction is rolled back, so nothing was saved; this code exists so the booker is told
+    /// that plainly instead of seeing ABP's generic dialog. A failure that DOES carry its own code
+    /// (a taken slot, a duplicate party email) propagates unwrapped, because the specific reason is
+    /// more useful to both the booker and the client than a generic one.
+    /// </summary>
+    public const string AppointmentSubmitFailed =
+        "CaseEvaluation:AppointmentSubmit.Failed";
 }

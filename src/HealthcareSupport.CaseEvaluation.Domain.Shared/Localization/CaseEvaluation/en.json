@@ -256,6 +256,8 @@
     "Branding:UnsupportedFormat": "Only PNG, JPG, and JPEG logo images are accepted.",
     "Branding:LogoNotFound": "No logo has been uploaded for this office.",
     "Branding:NoTargetOffice": "Select an office to edit its branding.",
+    "CaseEvaluation:AppointmentSubmit.PatientRequired": "This booking could not be saved because no patient was selected. Reload the page and try again; if it keeps happening, report it with the time it occurred.",
+    "CaseEvaluation:AppointmentSubmit.Failed": "This booking was not saved. Nothing was created, so it is safe to try again. If it keeps happening, report it with the time it occurred.",
     "CaseEvaluation:AppointmentDocument.FileEmpty": "The selected file is empty.",
     "CaseEvaluation:AppointmentDocument.FileTooLarge": "File is too large. Maximum allowed size is 10 MB.",
     "CaseEvaluation:AppointmentDocumentType.SystemReadOnly": "This is a built-in category and cannot be edited or deleted.",
