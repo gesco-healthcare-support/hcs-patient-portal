@@ -741,6 +741,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             await ResolvePatientForSubmitAsync(input, result);
 
+            await ApplyPatientUpdateForSubmitAsync(input, result);
+
             var created = await CreateAppointmentInternalAsync(
                 MapSubmitToCreate(input, result),
                 lifecycleFlow: null,
@@ -757,6 +759,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // pushes the INSERT into the open transaction so the children can see it; the
             // transaction itself still commits once, at the end of this unit of work, so a later
             // failure rolls the whole graph back.
+            // The null-forgiving operator stays. Sonar flags it as redundant ("the compiler already
+            // knows this expression"), but that is wrong: ABP types CurrentUnitOfWork as nullable,
+            // and removing the ! produces CS8602, which -warnaserror turns into a build failure.
+            // Verified 2026-08-22. Do not "clean this up".
             await CurrentUnitOfWork!.SaveChangesAsync();
 
             // The attorney upserts live on this service and carry their own party-dedup rules, so
@@ -790,6 +796,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             CurrentUnitOfWork!.OnCompleted(() => PublishAppointmentSubmittedAsync(appointment));
 
             return result;
+        }
+        catch (AbpDbConcurrencyException ex)
+        {
+            // MUST precede the generic catch below. AbpDbConcurrencyException carries no error code,
+            // so it would otherwise be flattened into AppointmentSubmitFailed, whose message tells
+            // the booker it is safe to try again -- the one piece of advice that cannot work here,
+            // because a retry with the same stale stamp fails identically.
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentSubmitPatientUpdateConflict,
+                innerException: ex);
         }
         catch (Exception ex) when (ex is not IHasErrorCode)
         {
@@ -827,6 +843,73 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var patient = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input.Patient);
         result.PatientId = patient.Patient.Id;
         result.PatientAlreadyExisted = patient.IsExisting;
+    }
+
+    /// <summary>
+    /// Applies the booker's edits to the resolved patient's profile, inside the submit transaction.
+    ///
+    /// <para><b>Why this branches at all.</b> The product has two patient-update paths and they are
+    /// NOT interchangeable. The self-service path overwrites every field, gender, date of birth and
+    /// phone-number type included. The booking path coalesces (<c>input.X ?? current.X</c>) and so
+    /// deliberately cannot change those same three. Collapsing both into one call would either start
+    /// nulling fields for staff bookers or start silently discarding a patient's own edits, and no
+    /// existing test would catch either, because today the two behaviours live in separate methods.
+    /// Both are therefore preserved and delegated to, never reimplemented.</para>
+    ///
+    /// <para><b>Why the SERVER picks which one.</b> The wizard picks by role today
+    /// (<c>isExternalUserNonPatient</c>, i.e. "not in the Patient role"). Here it is derived from
+    /// whether the resolved patient's login IS the caller. That agrees with the role test on every
+    /// reachable path -- a patient booking for themselves satisfies both, a staff or attorney booker
+    /// satisfies neither -- and it is safer in the one case where they diverge, because it edits the
+    /// patient being booked rather than the caller's own row. A client-supplied "which semantics"
+    /// flag is deliberately not accepted: it would let a Patient-role caller aim overwrite semantics
+    /// at somebody else's record.</para>
+    /// </summary>
+    private async Task ApplyPatientUpdateForSubmitAsync(
+        AppointmentSubmitDto input,
+        AppointmentSubmitResultDto result)
+    {
+        if (input.PatientUpdate is null)
+        {
+            return;
+        }
+
+        var patient = await _patientRepository.GetAsync(result.PatientId);
+
+        // Check the stamp HERE, before anything is written, rather than letting EF discover it
+        // during the flush.
+        //
+        // Not defensive duplication -- it changes the failure regime. This method runs BEFORE the
+        // appointment is created, so a conflict detected here means no appointment ever existed. Left
+        // to the flush, the conflict surfaces from inside SaveChanges once the appointment INSERT has
+        // already gone to the database, and rollback of a mid-batch failure is provider-dependent:
+        // measured 2026-08-22 on the SQLite harness, the appointment SURVIVED. Failing early keeps
+        // this in the regime where rollback is actually proven, and tells the booker sooner.
+        if (!string.IsNullOrEmpty(input.PatientUpdate.ConcurrencyStamp)
+            && !string.Equals(
+                input.PatientUpdate.ConcurrencyStamp,
+                patient.ConcurrencyStamp,
+                StringComparison.Ordinal))
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentSubmitPatientUpdateConflict);
+        }
+
+        var isOwnRecord = CurrentUser.Id.HasValue
+            && patient.IdentityUserId.HasValue
+            && patient.IdentityUserId.Value == CurrentUser.Id.Value;
+
+        if (isOwnRecord)
+        {
+            // Resolves the row by CurrentUser.Id, which isOwnRecord has just established is this
+            // same patient, so passing the id would be redundant rather than safer.
+            await _patientsAppService.UpdateMyProfileAsync(input.PatientUpdate);
+            return;
+        }
+
+        await _patientsAppService.UpdatePatientForAppointmentBookingAsync(
+            result.PatientId,
+            input.PatientUpdate);
     }
 
     /// <summary>

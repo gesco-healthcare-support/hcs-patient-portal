@@ -1,4 +1,4 @@
-import type { ApplicantAttorneyDetailsDto, AppointmentCreateDto, AppointmentDto, AppointmentStatusCountDto, AppointmentUpdateDto, AppointmentWithNavigationPropertiesDto, DefenseAttorneyDetailsDto, GetAppointmentsInput, RejectAppointmentInput } from './models';
+import type { ApplicantAttorneyDetailsDto, AppointmentCreateDto, AppointmentDto, AppointmentStatusCountDto, AppointmentSubmitDto, AppointmentSubmitResultDto, AppointmentUpdateDto, AppointmentWithNavigationPropertiesDto, DefenseAttorneyDetailsDto, GetAppointmentsInput, RejectAppointmentInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -207,6 +207,15 @@ export class AppointmentService {
     this.restService.request<any, AppointmentDto>({
       method: 'POST',
       url: `/api/app/appointments/${id}/reject`,
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  submit = (input: AppointmentSubmitDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentSubmitResultDto>({
+      method: 'POST',
+      url: '/api/app/appointments/submit',
       body: input,
     },
     { apiName: this.apiName,...config });

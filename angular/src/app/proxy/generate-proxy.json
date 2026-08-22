@@ -12781,6 +12781,23 @@
                   }
                 },
                 {
+                  "name": "SubmitAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitResultDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitResultDto"
+                  }
+                },
+                {
                   "name": "UpsertApplicantAttorneyForAppointmentAsync",
                   "parametersOnMethod": [
                     {
@@ -13873,6 +13890,43 @@
               "returnValue": {
                 "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
                 "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
+            },
+            "SubmitAsyncByInput": {
+              "uniqueName": "SubmitAsyncByInput",
+              "name": "SubmitAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointments/submit",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitResultDto"
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
@@ -53101,6 +53155,41 @@
         }
       ]
     },
+    "HealthcareSupport.CaseEvaluation.Appointments.AppointmentInjurySubmitDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Injury",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetailCreateDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetailCreateDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "BodyParts",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentBodyParts.AppointmentBodyPartCreateDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentBodyParts.AppointmentBodyPartCreateDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
     "HealthcareSupport.CaseEvaluation.Appointments.AppointmentStatusCountDto": {
       "baseType": null,
       "isEnum": false,
@@ -53123,6 +53212,518 @@
         },
         {
           "name": "Count",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "PatientId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "Patient",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Patients.CreatePatientForAppointmentBookingInput",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Patients.CreatePatientForAppointmentBookingInput",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "PatientUpdate",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Patients.PatientUpdateDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Patients.PatientUpdateDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "PanelNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDate",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "DueDate",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "IdentityUserId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "LocationId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "DoctorAvailabilityId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientEmail",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ApplicantAttorneyEmail",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "DefenseAttorneyEmail",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ClaimExaminerEmail",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "RefferedBy",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CustomFieldValues",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "EmployerDetail",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails.AppointmentEmployerDetailCreateDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails.AppointmentEmployerDetailCreateDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ApplicantAttorney",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Appointments.ApplicantAttorneyDetailsDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ApplicantAttorneyDetailsDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "DefenseAttorney",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Appointments.DefenseAttorneyDetailsDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.DefenseAttorneyDetailsDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "PrimaryInsurance",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances.AppointmentPrimaryInsuranceCreateDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances.AppointmentPrimaryInsuranceCreateDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ClaimExaminer",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers.AppointmentClaimExaminerCreateDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers.AppointmentClaimExaminerCreateDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "InjuryDetails",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.Appointments.AppointmentInjurySubmitDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.Appointments.AppointmentInjurySubmitDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Accessors",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessorCreateDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessorCreateDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.AppointmentSubmitResultDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RequestConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientAlreadyExisted",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "EmployerDetails",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ApplicantAttorneys",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "DefenseAttorneys",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PrimaryInsurances",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ClaimExaminers",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "InjuryDetails",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "BodyParts",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Accessors",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "CustomFieldValues",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Total",
           "jsonName": null,
           "type": "System.Int32",
           "typeSimple": "number",

@@ -40,6 +40,26 @@ public class AppointmentSubmitDto
     /// </summary>
     public CreatePatientForAppointmentBookingInput? Patient { get; set; }
 
+    /// <summary>
+    /// Edits the booker made to an EXISTING patient's profile, applied inside the submit
+    /// transaction. Optional: omit it when nothing on the patient changed.
+    ///
+    /// <para>This is separate from <see cref="Patient"/> because the two are different operations.
+    /// <see cref="Patient"/> resolves-or-creates and runs deduplication; this updates a record that
+    /// already exists and carries a <c>ConcurrencyStamp</c> so a stale edit is rejected rather than
+    /// silently clobbering a concurrent one. Folding it in is what makes "atomic booking" true: the
+    /// wizard used to PUT the profile before the appointment POST, so a booking that failed
+    /// afterwards left the edit applied.</para>
+    ///
+    /// <para><c>IdentityUserId</c> and <c>TenantId</c> on this object are IGNORED -- both update
+    /// paths read them off the stored patient, and honouring a caller's values would let a booking
+    /// reassign a patient's login or office.</para>
+    ///
+    /// <para>Requires <see cref="PatientId"/> or <see cref="Patient"/>; on its own there is no
+    /// record to update.</para>
+    /// </summary>
+    public PatientUpdateDto? PatientUpdate { get; set; }
+
     [StringLength(AppointmentConsts.PanelNumberMaxLength)]
     public string? PanelNumber { get; set; }
 

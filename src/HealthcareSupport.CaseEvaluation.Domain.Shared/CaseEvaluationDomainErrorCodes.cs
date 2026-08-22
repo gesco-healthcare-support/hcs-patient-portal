@@ -1130,4 +1130,17 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentSubmitFailed =
         "CaseEvaluation:AppointmentSubmit.Failed";
+
+    /// <summary>
+    /// Item B PR2 (2026-08-22) -- raised when the <c>PatientUpdate</c> carried by a submit has a
+    /// stale <c>ConcurrencyStamp</c>, meaning the patient record changed after the wizard loaded it.
+    ///
+    /// <para>Distinct from <see cref="AppointmentSubmitFailed"/> on purpose. "Nothing was saved, try
+    /// again" is the right advice for a transient failure but the wrong advice here: retrying with
+    /// the same stale stamp fails identically. The booker has to reload so they can see the other
+    /// edit before deciding, which is the whole point of having a stamp rather than last-write-wins.
+    /// </para>
+    /// </summary>
+    public const string AppointmentSubmitPatientUpdateConflict =
+        "CaseEvaluation:AppointmentSubmit.PatientUpdateConflict";
 }
