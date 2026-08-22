@@ -33,7 +33,9 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
+using Volo.Abp.ExceptionHandling;
 using Volo.Abp.Identity;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -88,8 +90,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected RequestConfirmationNumberGenerator _confirmationNumberGenerator;
     // Phase 4d (2026-08-05): the "rescheduled from" chain for the detail reads.
     protected RescheduleChainResolver _rescheduleChainResolver;
+    // Item B (2026-08-21): the atomic submit resolves the patient through the SAME app service the
+    // wizard used to call directly, so the email fast-path and 3-of-6 deduplication behave
+    // identically. Reimplementing that matching is how a repeat booker gets a duplicate record.
+    protected IPatientsAppService _patientsAppService;
+    // Item B (2026-08-21): writes the child groups by delegating to their existing app services.
+    protected AppointmentChildGroupWriter _childGroupWriter;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter)
     {
         _rescheduleChainResolver = rescheduleChainResolver;
         _appointmentRepository = appointmentRepository;
@@ -119,6 +127,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _localizer = localizer;
         _appointmentVisibilityService = appointmentVisibilityService;
         _confirmationNumberGenerator = confirmationNumberGenerator;
+        _patientsAppService = patientsAppService;
+        _childGroupWriter = childGroupWriter;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -702,6 +712,153 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
+    /// Item B (2026-08-21) -- one booking, one transaction. Resolves the patient, creates the
+    /// appointment, writes every child group, and only then publishes the submission event.
+    ///
+    /// <para><b>Why this exists.</b> The wizard used to make up to eleven sequential calls, each
+    /// committing on its own. One failure part-way left a half-booking: production appointments
+    /// A00010 and A00011 carry full attorney columns with zero join rows, so the Case Tracker was
+    /// told about two attorneys the UI could not show. Correctness cannot depend on a browser
+    /// finishing a loop.</para>
+    ///
+    /// <para><b>What makes it atomic.</b> <c>[UnitOfWork]</c> plus the fact that every collaborator
+    /// enlists in the ambient unit of work rather than opening its own. One commit at the end; any
+    /// throw rolls back the patient, the appointment and every child row together.</para>
+    ///
+    /// <para>Documents are deliberately NOT here -- a blob upload cannot join a database
+    /// transaction. They upload after this returns and keep their retry affordance.</para>
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    [UnitOfWork]
+    public virtual async Task<AppointmentSubmitResultDto> SubmitAsync(AppointmentSubmitDto input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        var result = new AppointmentSubmitResultDto();
+
+        try
+        {
+            await ResolvePatientForSubmitAsync(input, result);
+
+            var created = await CreateAppointmentInternalAsync(
+                MapSubmitToCreate(input, result),
+                lifecycleFlow: null,
+                sourceConfirmationNumber: null,
+                publishSubmittedEvent: false);
+
+            result.AppointmentId = created.Id;
+            result.RequestConfirmationNumber = created.RequestConfirmationNumber;
+            result.CustomFieldValues = input.CustomFieldValues.Count;
+
+            // Flush, do NOT commit. Every child write below looks its parent appointment up by id,
+            // and those lookups are database queries -- an insert that is still pending in the
+            // change tracker is invisible to them, which surfaces as "Appointment not found". This
+            // pushes the INSERT into the open transaction so the children can see it; the
+            // transaction itself still commits once, at the end of this unit of work, so a later
+            // failure rolls the whole graph back.
+            await CurrentUnitOfWork!.SaveChangesAsync();
+
+            // The attorney upserts live on this service and carry their own party-dedup rules, so
+            // they are called rather than reimplemented, exactly like the child groups.
+            if (input.ApplicantAttorney != null)
+            {
+                await UpsertApplicantAttorneyForAppointmentAsync(created.Id, input.ApplicantAttorney);
+                result.ApplicantAttorneys = 1;
+            }
+
+            if (input.DefenseAttorney != null)
+            {
+                await UpsertDefenseAttorneyForAppointmentAsync(created.Id, input.DefenseAttorney);
+                result.DefenseAttorneys = 1;
+            }
+
+            await _childGroupWriter.WriteAllAsync(created.Id, input, result);
+
+            // Last, and only AFTER the commit.
+            //
+            // The plan assumed local events inside a unit of work are dispatched on completion.
+            // Measured on 2026-08-21, they are not: the handler runs inline at the publish call, so
+            // publishing here directly put the whole email cascade inside the transaction. That is
+            // wrong twice over -- the office would be emailed about a booking that had not
+            // committed yet, and worse, a missing notification template threw and rolled the entire
+            // booking back. An email problem must never undo a booking that succeeded.
+            //
+            // OnCompleted runs after the transaction commits, which gives both properties: the
+            // cascade describes committed data, and it cannot roll anything back.
+            var appointment = await _appointmentRepository.GetAsync(created.Id);
+            CurrentUnitOfWork!.OnCompleted(() => PublishAppointmentSubmittedAsync(appointment));
+
+            return result;
+        }
+        catch (Exception ex) when (ex is not IHasErrorCode)
+        {
+            // A failure that already carries a code (a taken slot, a duplicate party email) is
+            // more useful to the booker unwrapped, so those propagate untouched. Anything else
+            // would reach the user as ABP's generic dialog, which does not tell them the thing
+            // that matters: nothing was saved, so retrying is safe.
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentSubmitFailed,
+                innerException: ex);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the submit's patient, either from a supplied id or by running the same
+    /// resolve-or-create the wizard used to call on its own. Recorded on
+    /// <paramref name="result"/> so the caller learns which patient the booking landed on.
+    /// </summary>
+    private async Task ResolvePatientForSubmitAsync(
+        AppointmentSubmitDto input,
+        AppointmentSubmitResultDto result)
+    {
+        if (input.PatientId.HasValue && input.PatientId.Value != Guid.Empty)
+        {
+            result.PatientId = input.PatientId.Value;
+            result.PatientAlreadyExisted = true;
+            return;
+        }
+
+        if (input.Patient is null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentSubmitPatientRequired);
+        }
+
+        var patient = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input.Patient);
+        result.PatientId = patient.Patient.Id;
+        result.PatientAlreadyExisted = patient.IsExisting;
+    }
+
+    /// <summary>
+    /// Projects the submit request onto the existing create contract. The three server-derived
+    /// fields are filled here rather than trusted from the caller: the confirmation number is
+    /// allocated downstream, the patient id comes from resolution, and
+    /// <c>IsPatientAlreadyExist</c> reflects what deduplication actually decided.
+    /// </summary>
+    private static AppointmentCreateDto MapSubmitToCreate(
+        AppointmentSubmitDto input,
+        AppointmentSubmitResultDto result) => new()
+        {
+            PanelNumber = input.PanelNumber,
+            AppointmentDate = input.AppointmentDate,
+            DueDate = input.DueDate,
+            AppointmentStatus = input.AppointmentStatus,
+            PatientId = result.PatientId,
+            IdentityUserId = input.IdentityUserId,
+            AppointmentTypeId = input.AppointmentTypeId,
+            LocationId = input.LocationId,
+            DoctorAvailabilityId = input.DoctorAvailabilityId,
+            PatientEmail = input.PatientEmail,
+            ApplicantAttorneyEmail = input.ApplicantAttorneyEmail,
+            DefenseAttorneyEmail = input.DefenseAttorneyEmail,
+            ClaimExaminerEmail = input.ClaimExaminerEmail,
+            RefferedBy = input.RefferedBy,
+            IsPatientAlreadyExist = result.PatientAlreadyExisted,
+            CustomFieldValues = input.CustomFieldValues,
+            RequestConfirmationNumber = string.Empty,
+        };
+
+    /// <summary>
     /// Phase 11g (2026-05-04) -- Re-Submit endpoint.
     /// </summary>
     [Authorize]
@@ -840,12 +997,20 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// only in confirmation-number resolution (per OLD's branching at
     /// <c>AppointmentDomain.cs:262-271</c>).
     /// </summary>
+    /// <param name="publishSubmittedEvent">
+    /// False only for the atomic submit path (item B, 2026-08-21). That path writes the child
+    /// groups after the appointment and publishes the event itself at the very end, so the booking
+    /// email cascade describes a booking that is actually complete. Publishing here as well would
+    /// send the office two notices for one booking, the first of them describing attorney and
+    /// injury data that had not been written yet.
+    /// </param>
     private async Task<AppointmentDto> CreateAppointmentInternalAsync(
         AppointmentCreateDto input,
         AppointmentLifecycleFlow? lifecycleFlow,
         string? sourceConfirmationNumber,
         Guid? originalAppointmentId = null,
-        Guid? rescheduledFromAppointmentId = null)
+        Guid? rescheduledFromAppointmentId = null,
+        bool publishSubmittedEvent = true)
     {
         ValidateCreateGuids(input);
 
@@ -1068,7 +1233,21 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // dispatches the office "new request" email + the booker "request received"
         // confirmation. Distinct from AppointmentStatusChangedEto (which fires only
         // on transitions, not on initial creation).
-        await _localEventBus.PublishAsync(new AppointmentSubmittedEto(
+        if (publishSubmittedEvent)
+        {
+            await PublishAppointmentSubmittedAsync(appointment);
+        }
+
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    /// <summary>
+    /// Publishes the booking submission event. Extracted so the atomic submit path can fire it
+    /// after its child writes rather than mid-creation.
+    /// </summary>
+    private Task PublishAppointmentSubmittedAsync(Appointment appointment)
+    {
+        return _localEventBus.PublishAsync(new AppointmentSubmittedEto(
             appointmentId: appointment.Id,
             tenantId: appointment.TenantId,
             // IP6 (2026-06-05): null identity (unclaimed patient) maps to the
@@ -1080,8 +1259,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             requestConfirmationNumber: appointment.RequestConfirmationNumber,
             appointmentDate: appointment.AppointmentDate,
             submittedAt: DateTime.UtcNow));
-
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
     private void ValidateCreateGuids(AppointmentCreateDto input)
