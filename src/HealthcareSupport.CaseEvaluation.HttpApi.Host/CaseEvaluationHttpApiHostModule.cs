@@ -197,6 +197,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
                 System.Net.HttpStatusCode.BadRequest);
 
+            // Item D (2026-08-22) -- the in-AppService password-reset throttle. 429 rather than the
+            // default: an unmapped BusinessException becomes 403, which the SPA reads as a
+            // permissions failure and shows no message at all. "Too many requests" is both the
+            // accurate status and the one a client can act on.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.PasswordResetThrottled,
+                System.Net.HttpStatusCode.TooManyRequests);
+
             // F-3 (2026-06-08) -- the two Pending->Approved gates in
             // AppointmentManager.ApplyTransitionAsync (requires >=1 injury;
             // requires >=1 active Claim Examiner). The request is well-formed
@@ -649,7 +657,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                             partitionKey: $"pwd-reset-email:{key}",
                             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                             {
-                                PermitLimit = 5,
+                                // Item D (2026-08-22): raised 5 -> 10 to match the AppService throttle
+                                // that now guards BOTH entry paths. This middleware only ever saw the
+                                // API path (the AuthServer page calls the service in-process, so no
+                                // middleware runs), and a stricter limit here than in the shared choke
+                                // point would refuse API callers the page would have allowed.
+                                PermitLimit = 10,
                                 Window = TimeSpan.FromHours(1),
                                 QueueLimit = 0,
                                 QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,

@@ -260,6 +260,7 @@
     "CaseEvaluation:AppointmentSubmit.Failed": "This booking was not saved. Nothing was created, so it is safe to try again. If it keeps happening, report it with the time it occurred.",
     "CaseEvaluation:AppointmentSubmit.PatientUpdateConflict": "This patient's details were changed by someone else while you were booking, so nothing was saved. Reload the page to see the current details, then book again.",
     "CaseEvaluation:AppointmentSubmit.SourceRequired": "This booking follows on from an earlier appointment, but that appointment was not identified, so nothing was saved. Start again from the original appointment.",
+    "CaseEvaluation:Account.PasswordResetThrottled": "A reset link was already requested for this email address very recently. Please wait a minute and try again, or check your inbox and spam folder for the message already on its way.",
     "CaseEvaluation:AppointmentDocument.FileEmpty": "The selected file is empty.",
     "CaseEvaluation:AppointmentDocument.FileTooLarge": "File is too large. Maximum allowed size is 10 MB.",
     "CaseEvaluation:AppointmentDocumentType.SystemReadOnly": "This is a built-in category and cannot be edited or deleted.",
