@@ -27,6 +27,10 @@ import { isReBookEligibleStatus } from './shared/rebook-eligibility';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
 import { unitForForm, unitToDto } from './shared/patient-unit.mapper';
 import {
+  AUTO_APPROVE_FALLBACK_MESSAGE,
+  classifyAutoApproveFailure,
+} from './shared/auto-approve-outcome';
+import {
   AddressValidationProvider,
   AddressInput,
   StandardizedAddress,
@@ -2324,24 +2328,62 @@ export class AppointmentAddComponent {
    * swallowed with a warning -- the booking already exists and can be approved
    * from the appointment view, so navigation is never blocked.
    */
+  /**
+   * Approves an internal booker's appointment, as a separate call AFTER the atomic submit and after
+   * staged documents upload.
+   *
+   * <p><b>Why it stays separate</b> (checked 2026-08-22): a PQME cannot be approved until a panel
+   * strike list document is on file (`AppointmentManager.cs:478-487`), and a blob upload cannot join
+   * a database transaction. So submit -> upload -> approve is a required ordering, not the workaround
+   * the F1/F2 comment implied. What PR1/PR2 removed is the RACE behind it -- the child rows are now
+   * guaranteed committed before the approval gates query for them.</p>
+   *
+   * <p><b>Item B PR3 (2026-08-22) -- idempotent and reportable.</b> This used to be a bare
+   * `catch {}` with one generic warning, which swallowed the reason, called an already-approved
+   * appointment a failure, and told a booker to go approve it manually even when the real problem was
+   * a missing strike list they could fix immediately.</p>
+   */
   private async autoApproveIfInternalBooker(appointmentId: string | undefined): Promise<void> {
     if (!appointmentId || !this.isInternalBooker) {
       return;
     }
+
     const responsibleUserId = this.currentUser?.id;
     if (!responsibleUserId) {
+      // Was a silent return. An internal booking with no resolvable responsible user can never be
+      // auto-approved, so it must not be left Pending with no explanation.
+      this.toaster.warn(AUTO_APPROVE_FALLBACK_MESSAGE);
       return;
     }
-    try {
-      await firstValueFrom(
-        this.appointmentApprovalService.approveAppointment(appointmentId, {
-          primaryResponsibleUserId: responsibleUserId,
-        }),
-      );
-    } catch {
-      this.toaster.warn(
-        'Appointment booked. Auto-approval did not complete -- approve it from the appointment view.',
-      );
+
+    // At most one retry, and only for an unclassified failure: a refused gate cannot succeed on a
+    // second identical attempt, so retrying it would just delay the message the booker needs.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await firstValueFrom(
+          this.appointmentApprovalService.approveAppointment(appointmentId, {
+            primaryResponsibleUserId: responsibleUserId,
+          }),
+        );
+        return;
+      } catch (err: unknown) {
+        const outcome = classifyAutoApproveFailure(err);
+
+        if (outcome.kind === 'alreadyApproved') {
+          // Idempotent: a previous attempt, or a double submit, already reached Approved.
+          return;
+        }
+
+        if (outcome.kind === 'blocked') {
+          // The server's message names the missing thing; ours could not.
+          this.toaster.warn(outcome.message);
+          return;
+        }
+
+        if (attempt === 2) {
+          this.toaster.warn(outcome.message);
+        }
+      }
     }
   }
 
