@@ -30,6 +30,17 @@ public static class CaseEvaluationModuleExtensionConfigurator
     public const string IsAccessorPropertyName = "IsAccessor";
     public const string UserSignatureBlobNamePropertyName = "UserSignatureBlobName";
 
+    /// <summary>
+    /// Item D (2026-08-22) -- how many times this user has been locked out since their last
+    /// successful sign-in or password reset. Drives the progressive backoff ladder
+    /// (<c>LockoutBackoff.DurationForCycle</c>).
+    ///
+    /// <para>A separate counter is needed because ABP's own <c>AccessFailedCount</c> is RESET to 0
+    /// by the base <c>AccessFailedAsync</c> the moment the threshold is reached, so it cannot
+    /// distinguish a first lockout from a fifth.</para>
+    /// </summary>
+    public const string LockoutCyclePropertyName = "LockoutCycle";
+
     public const int FirmNameMaxLength = 256;
     public const int FirmEmailMaxLength = 256;
     public const int UserSignatureBlobNameMaxLength = 256;
@@ -80,6 +91,18 @@ public static class CaseEvaluationModuleExtensionConfigurator
                         property =>
                         {
                             property.Attributes.Add(new StringLengthAttribute(UserSignatureBlobNameMaxLength));
+                        });
+
+                    // Item D (2026-08-22). Deliberately NOT MapEfCoreProperty: without it the value
+                    // lives in the existing AbpUsers.ExtraProperties JSON column, so this needs no
+                    // migration in either migration set. Read it through
+                    // ExtraPropertyConverters.GetIntOrDefault, never GetProperty<int>, which throws
+                    // on a JsonElement after a reload.
+                    user.AddOrUpdateProperty<int>(
+                        LockoutCyclePropertyName,
+                        property =>
+                        {
+                            property.DefaultValue = 0;
                         });
                 });
             });

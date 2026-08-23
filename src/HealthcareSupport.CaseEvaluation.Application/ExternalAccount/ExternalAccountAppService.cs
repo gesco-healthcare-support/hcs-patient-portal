@@ -173,6 +173,27 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 string.Join(", ", resetResult.Errors.Select(e => e.Description)));
         }
 
+        // Item D (2026-08-22) -- a completed reset RESTORES ACCESS.
+        //
+        // Nothing used to clear the lockout. A grep across src/ finds no call to
+        // SetLockoutEndDateAsync or ResetAccessFailedCountAsync anywhere, and Identity's
+        // ResetPasswordAsync contract is password-only. Only a successful sign-in resets the failure
+        // count, and that cannot happen while PreSignInCheck short-circuits on the lockout -- so a
+        // locked-out user who did exactly what the system told them to do stayed locked out anyway,
+        // for the rest of the lockout window.
+        //
+        // Clearing it here is safe on a STRONGER signal than the one that caused the lockout:
+        // possession of a valid single-use reset token proves control of the registered mailbox,
+        // whereas the failed password attempts prove nothing about who made them. This is OWASP's
+        // named mitigation for lockout-as-denial-of-service (Forgot Password Cheat Sheet), which also
+        // advises that a forgotten-password flow restore access even when the account is locked.
+        //
+        // The ResetAccessFailedCountAsync override that item D adds to IdentityUserManager also
+        // zeroes the escalation counter, so this user's next first lockout is one minute again rather
+        // than resuming at the top of the ladder.
+        await _userManager.ResetAccessFailedCountAsync(user);
+        await _userManager.SetLockoutEndDateAsync(user, null);
+
         // Phase 1.C (Category 1, 2026-05-08): security-receipt confirmation
         // email after a successful password reset. ABP 10.0.2 has no
         // UserPasswordChangedEto distributed event we can subscribe to

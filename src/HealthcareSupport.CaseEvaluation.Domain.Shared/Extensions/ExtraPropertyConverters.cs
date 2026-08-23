@@ -93,4 +93,67 @@ public static class ExtraPropertyConverters
         }
         return bool.TryParse(raw.ToString(), out var parsedFallback) && parsedFallback;
     }
+
+    /// <summary>
+    /// Reads an <see cref="int"/> extension property tolerantly. Item D (2026-08-22): added for the
+    /// progressive-lockout cycle counter, which lives in <c>AbpUsers.ExtraProperties</c> so it needs
+    /// no migration.
+    ///
+    /// <para>Returns <paramref name="defaultValue"/> when the property is missing, null, or holds
+    /// something that cannot be read as a whole number. Recognizes native <see cref="int"/> and
+    /// <see cref="long"/>, a <see cref="JsonElement"/> of kind <c>Number</c> or a numeric
+    /// <c>String</c>, a numeric string, and anything else whose <c>ToString()</c> parses.</para>
+    /// </summary>
+    public static int GetIntOrDefault(
+        IHasExtraProperties? source,
+        string propertyName,
+        int defaultValue = 0)
+    {
+        if (source == null || string.IsNullOrEmpty(propertyName))
+        {
+            return defaultValue;
+        }
+        var raw = source.GetProperty(propertyName);
+        return CoerceInt(raw, defaultValue);
+    }
+
+    /// <summary>
+    /// Coerces an arbitrary boxed value into an int. Public for the same reason as
+    /// <see cref="CoerceBool"/>: callers holding a raw <c>object?</c> can reuse the ladder.
+    ///
+    /// <para><c>long</c> is handled explicitly because a JSON round-trip widens small integers, and
+    /// a value outside int range is treated as absent rather than wrapped -- a silently truncated
+    /// lockout cycle would pick the wrong backoff rung.</para>
+    /// </summary>
+    public static int CoerceInt(object? raw, int defaultValue = 0)
+    {
+        if (raw is null)
+        {
+            return defaultValue;
+        }
+        if (raw is int i)
+        {
+            return i;
+        }
+        if (raw is long l)
+        {
+            return l >= int.MinValue && l <= int.MaxValue ? (int)l : defaultValue;
+        }
+        if (raw is JsonElement json)
+        {
+            return json.ValueKind switch
+            {
+                JsonValueKind.Number => json.TryGetInt32(out var fromNumber) ? fromNumber : defaultValue,
+                JsonValueKind.String => int.TryParse(json.GetString(), out var fromString)
+                    ? fromString
+                    : defaultValue,
+                _ => defaultValue,
+            };
+        }
+        if (raw is string s)
+        {
+            return int.TryParse(s, out var parsed) ? parsed : defaultValue;
+        }
+        return int.TryParse(raw.ToString(), out var parsedFallback) ? parsedFallback : defaultValue;
+    }
 }
