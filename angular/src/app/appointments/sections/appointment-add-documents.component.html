@@ -13,17 +13,29 @@
     <!-- 2026-06-28: styled trigger (label-wrapped hidden input) replaces the raw
          "Choose File" native control so it matches the app's button styling.
          Picked files render in the staged-documents list below. -->
-    <label class="btn btn-outline-primary btn-sm mb-3" [class.disabled]="disabled">
-      Choose files
-      <input
-        type="file"
-        class="d-none"
-        multiple
-        accept=".pdf,.jpg,.jpeg,.png,.docx"
-        [disabled]="disabled"
-        (change)="onFilesSelected($event)"
-      />
-    </label>
+    <!--
+      Item H (2026-08-22): the button is still the primary action; the surrounding zone just accepts
+      a drop as well. Same handler either way, so the two routes cannot behave differently.
+    -->
+    <div
+      class="file-drop-zone mb-3"
+      appFileDropZone
+      [dropDisabled]="disabled"
+      (filesDropped)="onFilesDropped($event)"
+    >
+      <label class="btn btn-outline-primary btn-sm mb-0" [class.disabled]="disabled">
+        Choose files
+        <input
+          type="file"
+          class="d-none"
+          multiple
+          accept=".pdf,.jpg,.jpeg,.png,.docx"
+          [disabled]="disabled"
+          (change)="onFilesSelected($event)"
+        />
+      </label>
+      <p class="file-drop-zone__hint">or drop files here</p>
+    </div>
 
     @if (isPqme) {
       <div class="form-check mb-3">

@@ -13,12 +13,21 @@
     } @else {
       <p class="hint">Choose the document to upload (PDF, Word .docx, JPG, or PNG, up to 10 MB).</p>
 
-      <input
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.docx"
-        (change)="onFileSelected($event)"
-        [disabled]="state === 'uploading'"
-      />
+      <!-- Item H (2026-08-22): drop is an alternative to the picker, never a replacement. -->
+      <div
+        class="file-drop-zone"
+        appFileDropZone
+        [dropDisabled]="state === 'uploading'"
+        (filesDropped)="onFilesDropped($event)"
+      >
+        <input
+          type="file"
+          [accept]="acceptAttribute"
+          (change)="onFileSelected($event)"
+          [disabled]="state === 'uploading'"
+        />
+        <p class="file-drop-zone__hint">or drop the file here</p>
+      </div>
 
       @if (errorMessage) {
         <p class="msg error">{{ errorMessage }}</p>
