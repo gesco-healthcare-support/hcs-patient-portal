@@ -33,7 +33,7 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
 
         using (CurrentTenant.Change(officeId))
         {
-            var existing = await _userManager.FindByEmailAsync(email);
+            var existing = await FindShadowAsync(email);
             if (existing != null)
             {
                 // Idempotent: re-activate (a prior unassign may have disabled it)
@@ -81,7 +81,7 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
 
         using (CurrentTenant.Change(officeId))
         {
-            var shadow = await _userManager.FindByEmailAsync(email);
+            var shadow = await FindShadowAsync(email);
             if (shadow == null || !shadow.IsActive)
             {
                 return;
@@ -90,6 +90,25 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
             (await _userManager.UpdateAsync(shadow)).CheckErrors();
         }
     }
+
+    /// <summary>
+    /// Finds this operator's shadow in the CURRENT office, by USERNAME first and email second.
+    ///
+    /// <para>Username is the key that actually identifies a shadow. <see cref="EnsureShadowUserAsync"/>
+    /// creates it with the operator's host email in BOTH fields, and username is what Identity enforces
+    /// as unique, so it is the one field guaranteed to still match. Looking up by email alone was the
+    /// defect: an office carrying a shadow whose email had diverged from its username -- which the
+    /// pre-Phase-D per-tenant seed produced, username <c>name@gesco.com</c> against email
+    /// <c>name@example.test</c> -- was invisible to this lookup, so the caller fell through to create a
+    /// user whose username was already taken and got <c>DuplicateUserName</c> back. That surfaced as a
+    /// 403 from the token endpoint and locked the operator out of the office entirely.</para>
+    ///
+    /// <para>The email fallback is deliberate rather than defensive: it keeps any shadow created before
+    /// this change findable no matter which of the two fields still carries the host address.</para>
+    /// </summary>
+    private async Task<IdentityUser?> FindShadowAsync(string email) =>
+        await _userManager.FindByNameAsync(email)
+        ?? await _userManager.FindByEmailAsync(email);
 
     private async Task<(string Email, string? Name, string? Surname)> ResolveOperatorAsync(Guid operatorUserId)
     {
