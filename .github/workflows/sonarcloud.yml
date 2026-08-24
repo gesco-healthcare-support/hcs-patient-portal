@@ -96,7 +96,7 @@ jobs:
           /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts,design_handoff_*/**"
           /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,**/TenantMigrations/**,angular/src/app/proxy/**,**/*.module.ts,angular/src/**/*.ts,angular/src/**/*.html"
-          /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml,abpDiAppServiceParams,abpDiManagerParams,abpDiRepoParams,abpPermissionStrings,abpAppServiceI18nKeys,abpHostModuleConfigKeys,abpDavailComplexity,bootstrapModalDialogRole,emailDoctype,emailTitle,emailLang,emailTableHeader,emailMouseKeyboard
+          /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml,abpDiAppServiceParams,abpDiManagerParams,abpDiRepoParams,abpPermissionStrings,abpAppServiceI18nKeys,abpHostModuleConfigKeys,abpDavailComplexity,bootstrapModalDialogRole,emailDoctype,emailTitle,emailLang,emailTableHeader,emailMouseKeyboard,emailDeprecatedAttrs,emailLayoutTable
           /d:sonar.issue.ignore.multicriteria.abpModelState.ruleKey=csharpsquid:S6967
           /d:sonar.issue.ignore.multicriteria.abpModelState.resourceKey=**/*.cs
           /d:sonar.issue.ignore.multicriteria.abpLookupLabel.ruleKey=Web:S6853
@@ -129,6 +129,10 @@ jobs:
           /d:sonar.issue.ignore.multicriteria.emailTableHeader.resourceKey=**/NotificationTemplates/EmailBodies/*.html
           /d:sonar.issue.ignore.multicriteria.emailMouseKeyboard.ruleKey=Web:MouseEventWithoutKeyboardEquivalentCheck
           /d:sonar.issue.ignore.multicriteria.emailMouseKeyboard.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailDeprecatedAttrs.ruleKey=Web:S1827
+          /d:sonar.issue.ignore.multicriteria.emailDeprecatedAttrs.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailLayoutTable.ruleKey=Web:S5257
+          /d:sonar.issue.ignore.multicriteria.emailLayoutTable.resourceKey=**/NotificationTemplates/EmailBodies/*.html
           /d:sonar.qualitygate.wait=false
 
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
