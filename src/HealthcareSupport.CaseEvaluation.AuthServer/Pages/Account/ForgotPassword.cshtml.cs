@@ -104,9 +104,17 @@ public class ForgotPasswordModel : AbpPageModel
             // And necessary to surface: reset is now the way back in from a lockout, so a silent
             // refusal would leave a locked-out user waiting for mail that was never sent -- the worst
             // possible moment to be reassuring and wrong.
-            _logger.LogInformation(
-                "ForgotPasswordModel.OnPostAsync: reset throttled for email-key {EmailKey}.",
-                Email);
+            //
+            // Logged WITH the exception even though the code is the whole story: a throttle rejection
+            // that turns out to be something else wearing the same error code is exactly the case that
+            // needs a stack trace, and a bare message would hide it.
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    ex,
+                    "ForgotPasswordModel.OnPostAsync: reset throttled for email-key {EmailKey}.",
+                    Email);
+            }
 
             IsThrottled = true;
             return Page();
