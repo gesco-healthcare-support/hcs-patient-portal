@@ -74,9 +74,27 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     // Silent reject (no thrown exception, no leak): the user-visible response
     // is identical to user-not-found / already-confirmed paths, which keeps
     // the endpoint enumeration-safe.
+    private const string ResendVerificationKeyPrefix = "resend-verify";
     private const int ResendVerificationMaxPerHour = 3;
     private static readonly TimeSpan ResendVerificationCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan ResendVerificationHourlyWindow = TimeSpan.FromHours(1);
+
+    // Item D (2026-08-22) -- the password-reset flow was COMPLETELY UNTHROTTLED for real users.
+    //
+    // The reset limiter that existed was ASP.NET middleware in HttpApi.Host, keyed on
+    // ExternalAccountController's path prefix. But the AuthServer registers no rate limiter at all,
+    // and its ForgotPassword page calls this service IN-PROCESS through DI -- no HTTP hop, so no
+    // middleware. Nothing in the Angular app calls the API endpoint either (its /account/* routes
+    // were deleted in PR #201), so the limiter guarded a path nothing used while the page users
+    // actually reach had no cap. That left an anonymous form able to send unlimited real email
+    // through our SMTP relay: mailbox flooding for any known address, plus sender-reputation damage
+    // on a relay that has already had deliverability trouble.
+    //
+    // The throttle therefore belongs HERE, in the AppService both entry paths share. 10/hour is well
+    // above any legitimate use; the 60-second cooldown is the part a real user will meet.
+    private const string PasswordResetKeyPrefix = "password-reset";
+    private const int PasswordResetMaxPerHour = 10;
+    private static readonly TimeSpan PasswordResetCooldown = TimeSpan.FromSeconds(60);
 
     [AllowAnonymous]
     public virtual async Task SendPasswordResetCodeAsync(SendPasswordResetCodeInput input)
@@ -87,6 +105,25 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             return;
         }
+
+        // Item D (2026-08-22): throttle BEFORE the user lookup, and stamp unconditionally.
+        //
+        // Both choices are about enumeration, not just flooding. If only REGISTERED addresses were
+        // throttled, an attacker could tell registered from unregistered by probing until one of them
+        // started refusing -- the throttle itself would become the oracle that the rest of this flow
+        // is carefully built to avoid (see PasswordResetGate's silent-return-on-null). Checking and
+        // stamping ahead of the lookup makes every address behave identically.
+        //
+        // This is a deliberate deviation from the plan's "stamp after the dispatch attempt": stamping
+        // early costs a legitimate user one attempt out of ten if they mistype their address, and buys
+        // a uniformity guarantee that is hard to get any other way.
+        if (await IsPasswordResetRateLimitedAsync(normalizedEmail))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PasswordResetThrottled)
+                .WithData("retryAfterSeconds", (int)PasswordResetCooldown.TotalSeconds);
+        }
+
+        await StampPasswordResetRateLimitAsync(normalizedEmail);
 
         var user = await _userManager.FindByEmailAsync(normalizedEmail);
         PasswordResetGate.EnsureUserCanRequestReset(user);
@@ -172,6 +209,27 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             throw new UserFriendlyException(
                 string.Join(", ", resetResult.Errors.Select(e => e.Description)));
         }
+
+        // Item D (2026-08-22) -- a completed reset RESTORES ACCESS.
+        //
+        // Nothing used to clear the lockout. A grep across src/ finds no call to
+        // SetLockoutEndDateAsync or ResetAccessFailedCountAsync anywhere, and Identity's
+        // ResetPasswordAsync contract is password-only. Only a successful sign-in resets the failure
+        // count, and that cannot happen while PreSignInCheck short-circuits on the lockout -- so a
+        // locked-out user who did exactly what the system told them to do stayed locked out anyway,
+        // for the rest of the lockout window.
+        //
+        // Clearing it here is safe on a STRONGER signal than the one that caused the lockout:
+        // possession of a valid single-use reset token proves control of the registered mailbox,
+        // whereas the failed password attempts prove nothing about who made them. This is OWASP's
+        // named mitigation for lockout-as-denial-of-service (Forgot Password Cheat Sheet), which also
+        // advises that a forgotten-password flow restore access even when the account is locked.
+        //
+        // The ResetAccessFailedCountAsync override that item D adds to IdentityUserManager also
+        // zeroes the escalation counter, so this user's next first lockout is one minute again rather
+        // than resuming at the top of the ladder.
+        await _userManager.ResetAccessFailedCountAsync(user);
+        await _userManager.SetLockoutEndDateAsync(user, null);
 
         // Phase 1.C (Category 1, 2026-05-08): security-receipt confirmation
         // email after a successful password reset. ABP 10.0.2 has no
@@ -301,17 +359,23 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     }
 
     /// <summary>
-    /// Phase 1.D rate-limit gate. True when the email-key is either (a)
-    /// inside the 60-second cooldown OR (b) at/over the 3-per-hour cap.
-    /// Cache-backed (Redis in dev/prod, in-memory in tests via
-    /// <c>MemoryDistributedCache</c>). Failure to read the cache returns
-    /// false (open) -- a Redis outage shouldn't lock all users out of
-    /// resend-verification; better to fail-open for this UX gate.
+    /// Phase 1.D rate-limit gate, GENERALISED by item D (2026-08-22) so the password-reset flow shares
+    /// one implementation instead of a second copy that would drift. True when the email key is either
+    /// inside its cooldown OR at/over its hourly cap.
+    ///
+    /// <para>Cache-backed (Redis in dev/prod, in-memory in tests via <c>MemoryDistributedCache</c>). A
+    /// cache read failure returns FALSE -- fail OPEN. That mattered for resend-verification and matters
+    /// more for password reset, because reset is now the documented way back in from a lockout: a Redis
+    /// outage must not be able to strand a locked-out user.</para>
     /// </summary>
-    private async Task<bool> IsResendVerificationRateLimitedAsync(string normalizedEmail)
+    private async Task<bool> IsRateLimitedAsync(
+        string keyPrefix,
+        string normalizedEmail,
+        int maxPerHour,
+        string purpose)
     {
-        var cooldownKey = $"resend-verify:cooldown:{normalizedEmail}";
-        var hourlyKey = $"resend-verify:hourly:{normalizedEmail}";
+        var cooldownKey = $"{keyPrefix}:cooldown:{normalizedEmail}";
+        var hourlyKey = $"{keyPrefix}:hourly:{normalizedEmail}";
 
         try
         {
@@ -320,7 +384,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 return true;
             }
             var countStr = await _cache.GetStringAsync(hourlyKey);
-            if (countStr != null && int.TryParse(countStr, out var count) && count >= ResendVerificationMaxPerHour)
+            if (countStr != null && int.TryParse(countStr, out var count) && count >= maxPerHour)
             {
                 return true;
             }
@@ -329,10 +393,25 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             _logger.LogWarning(
                 ex,
-                "ExternalAccountAppService: rate-limit cache read failed; failing open for resend-verification.");
+                "ExternalAccountAppService: rate-limit cache read failed; failing open for {Purpose}.",
+                purpose);
         }
         return false;
     }
+
+    private Task<bool> IsResendVerificationRateLimitedAsync(string normalizedEmail) =>
+        IsRateLimitedAsync(
+            ResendVerificationKeyPrefix,
+            normalizedEmail,
+            ResendVerificationMaxPerHour,
+            "resend-verification");
+
+    private Task<bool> IsPasswordResetRateLimitedAsync(string normalizedEmail) =>
+        IsRateLimitedAsync(
+            PasswordResetKeyPrefix,
+            normalizedEmail,
+            PasswordResetMaxPerHour,
+            "password-reset");
 
     /// <summary>
     /// Stamps the cooldown + increments the hourly counter for the given
@@ -341,16 +420,19 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     /// request landed (not a rolling window -- counter resets to 0 once
     /// the TTL expires). Cache write failure is logged but not propagated.
     /// </summary>
-    private async Task StampResendVerificationRateLimitAsync(string normalizedEmail)
+    private async Task StampRateLimitAsync(
+        string keyPrefix,
+        string normalizedEmail,
+        TimeSpan cooldown)
     {
-        var cooldownKey = $"resend-verify:cooldown:{normalizedEmail}";
-        var hourlyKey = $"resend-verify:hourly:{normalizedEmail}";
+        var cooldownKey = $"{keyPrefix}:cooldown:{normalizedEmail}";
+        var hourlyKey = $"{keyPrefix}:hourly:{normalizedEmail}";
 
         try
         {
             await _cache.SetStringAsync(cooldownKey, "1", new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = ResendVerificationCooldown,
+                AbsoluteExpirationRelativeToNow = cooldown,
             });
 
             var existing = await _cache.GetStringAsync(hourlyKey);
@@ -375,6 +457,18 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 normalizedEmail);
         }
     }
+
+    private Task StampResendVerificationRateLimitAsync(string normalizedEmail) =>
+        StampRateLimitAsync(
+            ResendVerificationKeyPrefix,
+            normalizedEmail,
+            ResendVerificationCooldown);
+
+    private Task StampPasswordResetRateLimitAsync(string normalizedEmail) =>
+        StampRateLimitAsync(
+            PasswordResetKeyPrefix,
+            normalizedEmail,
+            PasswordResetCooldown);
 
     // BUG-029 v3 fix (2026-05-21): BuildEmailConfirmationUrl static helper
     // moved into IAccountUrlBuilder. The Service now owns this shape.

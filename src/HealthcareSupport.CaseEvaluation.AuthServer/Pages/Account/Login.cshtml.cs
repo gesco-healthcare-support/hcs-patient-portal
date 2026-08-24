@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,7 @@ using Volo.Abp.Account.Security.Recaptcha;
 using Volo.Abp.Account.Web.Pages.Account;
 using Volo.Abp.AspNetCore.Mvc.UI.Alerts;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Identity;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.Security.Claims;
 
@@ -144,6 +146,20 @@ public class LoginModel : OpenIddictSupportedLoginModel
             return Page();
         }
 
+        // Item D (2026-08-22): tell the LockedOut page how long the wait actually is.
+        //
+        // That page cannot work it out for itself -- the framework's redirect carries no user id,
+        // which is exactly why its text was hard-coded to "1 hour". With a progressive ladder that
+        // sentence is wrong for most lockouts (a first offence is one minute), and overstating the
+        // wait by 59 minutes makes people phone the clinic about something already expired. Here the
+        // submitted identifier is still in hand, so the real remainder can be computed and handed
+        // over in TempData. Matched by URL substring for the same reason as the ConfirmUser
+        // interception above: the Pro DLL is obfuscated, so the result subtype varies.
+        if (IsLockedOutRedirect(result))
+        {
+            TempData[LockoutRemainingTempDataKey] = await DescribeLockoutRemainingAsync();
+        }
+
         // Normalize credential-failure Page() results (wrong password /
         // non-existent email) into the same generic banner -- but do
         // NOT set IsUnverifiedEmailFailure, so the Resend link stays
@@ -184,5 +200,68 @@ public class LoginModel : OpenIddictSupportedLoginModel
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// TempData key carrying the human-readable remaining lockout time to the LockedOut page.
+    /// Public so <c>LockedOutModel</c> reads the same constant rather than a duplicated literal.
+    /// </summary>
+    public const string LockoutRemainingTempDataKey = "LockoutRemaining";
+
+    /// <summary>
+    /// Mirrors <see cref="IsConfirmUserRedirect"/> for the lockout redirect: the Pro DLL is
+    /// obfuscated, so the result may be any of three redirect subtypes and matching by URL is the only
+    /// reliable test.
+    /// </summary>
+    private static bool IsLockedOutRedirect(IActionResult result)
+    {
+        switch (result)
+        {
+            case RedirectToPageResult rtpr:
+                return !string.IsNullOrEmpty(rtpr.PageName)
+                    && rtpr.PageName.Contains("LockedOut", System.StringComparison.OrdinalIgnoreCase);
+
+            case RedirectResult rr:
+                return !string.IsNullOrEmpty(rr.Url)
+                    && rr.Url.Contains("/Account/LockedOut", System.StringComparison.OrdinalIgnoreCase);
+
+            case LocalRedirectResult lrr:
+                return !string.IsNullOrEmpty(lrr.Url)
+                    && lrr.Url.Contains("/Account/LockedOut", System.StringComparison.OrdinalIgnoreCase);
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Resolves the locked-out user's actual remaining lockout time as a phrase.
+    ///
+    /// <para>Best-effort by design: an unresolvable identifier or a null <c>LockoutEnd</c> yields the
+    /// generic wording rather than blocking the redirect. This is informational text on a page the
+    /// user is being sent to regardless, so it must never be the reason a response fails. Neither
+    /// lookup throws for an unknown identifier, so no catch is needed to get that behaviour.</para>
+    ///
+    /// <para>Tries username first, then email, matching how the sign-in form accepts either.</para>
+    /// </summary>
+    private async Task<string> DescribeLockoutRemainingAsync()
+    {
+        var identifier = LoginInput?.UserNameOrEmailAddress;
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return LockoutRemainingText.Unknown;
+        }
+
+        var userManager = LazyServiceProvider.LazyGetRequiredService<IdentityUserManager>();
+
+        var user = await userManager.FindByNameAsync(identifier)
+                   ?? await userManager.FindByEmailAsync(identifier);
+
+        if (user?.LockoutEnd == null)
+        {
+            return LockoutRemainingText.Unknown;
+        }
+
+        return LockoutRemainingText.Describe(user.LockoutEnd.Value - System.DateTimeOffset.UtcNow);
     }
 }

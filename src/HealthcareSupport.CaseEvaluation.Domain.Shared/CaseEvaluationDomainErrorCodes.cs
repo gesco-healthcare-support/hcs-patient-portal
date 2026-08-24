@@ -1155,4 +1155,19 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentSubmitSourceRequired =
         "CaseEvaluation:AppointmentSubmit.SourceRequired";
+
+    /// <summary>
+    /// Item D (2026-08-22) -- too many password-reset requests for one email address.
+    ///
+    /// <para>Coded rather than silent, which departs from this flow's usual anti-enumeration silence,
+    /// and deliberately so: the throttle partitions on the SUBMITTED address, so a requester learns
+    /// only their own request rate and nothing about whether an account exists. With reset now the
+    /// primary way back in from a lockout, silence there would strand a locked-out user staring at a
+    /// success message while nothing arrived.</para>
+    ///
+    /// <para>Carries <c>retryAfterSeconds</c> so the page can say how long to wait, and is mapped to
+    /// HTTP 429 for the API surface.</para>
+    /// </summary>
+    public const string PasswordResetThrottled =
+        "CaseEvaluation:Account.PasswordResetThrottled";
 }

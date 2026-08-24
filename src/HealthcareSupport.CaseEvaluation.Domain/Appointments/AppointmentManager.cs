@@ -428,6 +428,62 @@ public class AppointmentManager : DomainService
         return await ApplyTransitionAsync(appointment, trigger, reason, actingUserId);
     }
 
+    /// <summary>
+    /// Returns the error code of the FIRST approval gate this appointment does not satisfy, or
+    /// <c>null</c> when it can be approved.
+    ///
+    /// <para>Split out of <see cref="ApplyTransitionAsync"/> (2026-08-22) so the same three checks can
+    /// be ASKED as a question instead of only enforced as a throw. The atomic submit path needs to
+    /// decide whether to approve within its own transaction, and a thrown gate there would roll the
+    /// entire booking back -- so it needs the answer, not the exception. Enforcement is unchanged:
+    /// <c>ApplyTransitionAsync</c> still throws on the first unmet gate.</para>
+    ///
+    /// <para>Order is preserved and load-bearing -- injury detail, then claim examiner, then the PQME
+    /// strike list -- because a caller that throws surfaces the first unmet gate, which is the one the
+    /// user should deal with first.</para>
+    /// </summary>
+    protected virtual async Task<string?> FindUnmetApprovalGateAsync(Appointment appointment)
+    {
+        // BUG-043 / T8 (2026-05-27) -- defense-in-depth behind the client-side
+        // guard (T7): an appointment cannot be approved without at least one
+        // Claim Information (injury detail) row. Evaluated BEFORE the state
+        // machine fires so an unmet gate leaves the status unchanged.
+        var injuryCount = await _appointmentInjuryDetailRepository.GetCountAsync(appointmentId: appointment.Id);
+        if (injuryCount < 1)
+        {
+            return CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail;
+        }
+
+        // CI1 (2026-06-05) -- CE became a required first-class party. Mirrors the
+        // injury-detail gate: Pending->Approved requires at least one active
+        // Claim Examiner. Server backstop behind the client-side CE-section gate.
+        var claimExaminerCount = await _appointmentClaimExaminerRepository.CountAsync(
+            ce => ce.AppointmentId == appointment.Id && ce.IsActive);
+        if (claimExaminerCount < 1)
+        {
+            return CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer;
+        }
+
+        // I15/I16 (2026-06-08) -- a PQME cannot be approved until a panel strike
+        // list document is on file (a doc flagged IsPanelStrikeList, set when
+        // uploaded under the "Panel Strike List" category). A PQME may be BOOKED
+        // without it (uploaded later); only approval is gated. This is precisely
+        // why the submit path must ASK rather than assume: at submit time a PQME's
+        // strike list does not exist yet, because documents upload after the
+        // transaction commits.
+        if (appointment.AppointmentTypeId == CaseEvaluationSeedIds.AppointmentTypes.PanelQme)
+        {
+            var strikeListCount = await _appointmentDocumentRepository.CountAsync(
+                d => d.AppointmentId == appointment.Id && d.IsPanelStrikeList);
+            if (strikeListCount < 1)
+            {
+                return CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList;
+            }
+        }
+
+        return null;
+    }
+
     private async Task<Appointment> ApplyTransitionAsync(Appointment appointment, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
         var fromStatus = appointment.AppointmentStatus;
@@ -442,48 +498,11 @@ public class AppointmentManager : DomainService
 
         if (trigger == AppointmentTransitionTrigger.Approve)
         {
-            // BUG-043 / T8 (2026-05-27) -- defense-in-depth behind the
-            // client-side guard (T7): an appointment cannot be approved
-            // without at least one Claim Information (injury detail) row.
-            // Checked BEFORE the state machine fires so a failed gate
-            // leaves the status unchanged. Only the Pending->Approved
-            // transition is gated; the create-as-Approved internal
-            // fast-path attaches injuries after creation and is out of
-            // scope (see CreateAsync above + the T8 plan).
-            var injuryCount = await _appointmentInjuryDetailRepository.GetCountAsync(appointmentId: appointment.Id);
-            if (injuryCount < 1)
+            var unmetGate = await FindUnmetApprovalGateAsync(appointment);
+            if (unmetGate != null)
             {
-                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail)
+                throw new BusinessException(unmetGate)
                     .WithData("appointmentId", appointment.Id);
-            }
-
-            // CI1 (2026-06-05) -- CE became a required first-class party. Mirror
-            // the injury-detail gate: Pending->Approved requires at least one
-            // active Claim Examiner. Server backstop behind the client-side
-            // CE-section gate; the create-as-Approved fast-path is out of scope
-            // (attaches parties after creation), same as the injury guard.
-            var claimExaminerCount = await _appointmentClaimExaminerRepository.CountAsync(
-                ce => ce.AppointmentId == appointment.Id && ce.IsActive);
-            if (claimExaminerCount < 1)
-            {
-                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer)
-                    .WithData("appointmentId", appointment.Id);
-            }
-
-            // I15/I16 (2026-06-08) -- a PQME cannot be approved until a panel
-            // strike list document is on file (a doc flagged IsPanelStrikeList,
-            // set when uploaded under the "Panel Strike List" category). A PQME
-            // may be BOOKED without it (uploaded later); only approval is gated.
-            // Same defense-in-depth pattern as the injury + CE gates above.
-            if (appointment.AppointmentTypeId == CaseEvaluationSeedIds.AppointmentTypes.PanelQme)
-            {
-                var strikeListCount = await _appointmentDocumentRepository.CountAsync(
-                    d => d.AppointmentId == appointment.Id && d.IsPanelStrikeList);
-                if (strikeListCount < 1)
-                {
-                    throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList)
-                        .WithData("appointmentId", appointment.Id);
-                }
             }
         }
 
