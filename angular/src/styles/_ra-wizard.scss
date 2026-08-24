@@ -378,6 +378,29 @@
 .col-12 {
   grid-column: span 12;
 }
+
+// Bootstrap defines these SAME class names as flex-grid columns -- `.col-3 { flex: 0 0 auto;
+// width: 25% }` -- and both stylesheets are global, so both rule sets apply to any element
+// carrying `col-3`. They do not fight over one property, which is why this went unnoticed: the
+// span above places the item across 3 tracks, and then Bootstrap's width shrinks it to 25% OF
+// THAT AREA. A 12-column .ra-grid 1369px wide gives a `col-3` field a 328.6px slot and then
+// renders it 82px, which is how the edit page ended up with inputs too narrow to show a date of
+// birth.
+//
+// Scoping to a direct child of .ra-grid keeps this override off real Bootstrap rows, which still
+// need their percentage widths. `width: auto` simply restores the grid item to its default
+// stretch behaviour.
+.ra-grid > .col-2,
+.ra-grid > .col-3,
+.ra-grid > .col-4,
+.ra-grid > .col-5,
+.ra-grid > .col-6,
+.ra-grid > .col-8,
+.ra-grid > .col-9,
+.ra-grid > .col-12 {
+  width: auto;
+}
+
 .ra-field > label {
   font-size: 12.5px;
   font-weight: 600;
