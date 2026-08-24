@@ -169,6 +169,84 @@ public class AccountUrlBuilderTests
     }
 
     // ------------------------------------------------------------------
+    // Item C (2026-08-22): the host-vs-tenant branch now lives HERE, not at each call site.
+    //
+    // Asserted as equivalence to the overload each case should delegate to, rather than by restating
+    // the expected URL. Restating it would duplicate the very expectation these tests exist to pin,
+    // and would drift from the four tests above the moment a path or encoding rule changed.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public async Task BuildPasswordResetUrlForUserAsync_NullTenant_MatchesTheHostOverload()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var viaForUser = await sut.BuildPasswordResetUrlForUserAsync(null, userId, "token /+=");
+        var viaHost = await sut.BuildHostPasswordResetUrlAsync(userId, "token /+=");
+
+        viaForUser.ShouldBe(viaHost);
+        viaForUser.ShouldStartWith("http://admin.");
+    }
+
+    [Fact]
+    public async Task BuildPasswordResetUrlForUserAsync_KnownTenant_MatchesTheTenantOverload()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var viaForUser = await sut.BuildPasswordResetUrlForUserAsync(
+            FalkinsteinTenantId, userId, "token /+=");
+        var viaTenant = await sut.BuildPasswordResetUrlAsync(
+            FalkinsteinTenantId, userId, "token /+=");
+
+        viaForUser.ShouldBe(viaTenant);
+        viaForUser.ShouldStartWith("http://falkinstein.");
+    }
+
+    [Fact]
+    public async Task BuildEmailConfirmationUrlForUserAsync_NullTenant_MatchesTheHostOverload()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var viaForUser = await sut.BuildEmailConfirmationUrlForUserAsync(null, userId, "raw token /+=");
+        var viaHost = await sut.BuildHostEmailConfirmationUrlAsync(userId, "raw token /+=");
+
+        viaForUser.ShouldBe(viaHost);
+        viaForUser.ShouldStartWith("http://admin.");
+    }
+
+    [Fact]
+    public async Task BuildEmailConfirmationUrlForUserAsync_KnownTenant_MatchesTheTenantOverload()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var viaForUser = await sut.BuildEmailConfirmationUrlForUserAsync(
+            FalkinsteinTenantId, userId, "raw token /+=");
+        var viaTenant = await sut.BuildEmailConfirmationUrlAsync(
+            FalkinsteinTenantId, userId, "raw token /+=");
+
+        viaForUser.ShouldBe(viaTenant);
+        viaForUser.ShouldStartWith("http://falkinstein.");
+    }
+
+    [Fact]
+    public async Task BuildUrlForUserAsync_HostAndTenantResultsDiffer()
+    {
+        // The equivalence assertions above would both pass if the branch collapsed and every call
+        // returned the same thing. This is the test that would catch that.
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var host = await sut.BuildPasswordResetUrlForUserAsync(null, userId, "tok");
+        var tenant = await sut.BuildPasswordResetUrlForUserAsync(FalkinsteinTenantId, userId, "tok");
+
+        host.ShouldNotBe(tenant);
+    }
+
+    // ------------------------------------------------------------------
     // Hard-fail paths
     // ------------------------------------------------------------------
 

@@ -78,6 +78,23 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
             ("userId", userId.ToString()),
             ("resetToken", WebUtility.UrlEncode(token)));
 
+    // Item C (2026-08-22) -- ONE place decides host vs tenant per URL kind.
+    //
+    // This ternary was duplicated at each call site, which is exactly how two of them were missed
+    // when Phase D made internal operators host logins: the AccountEmailer was updated and
+    // ExternalAccountAppService was not, so internal staff silently could not self-serve for a month.
+    // Callers now pass the nullable tenant id and this class owns the branch.
+
+    public Task<string> BuildEmailConfirmationUrlForUserAsync(Guid? tenantId, Guid userId, string token) =>
+        tenantId.HasValue
+            ? BuildEmailConfirmationUrlAsync(tenantId.Value, userId, token)
+            : BuildHostEmailConfirmationUrlAsync(userId, token);
+
+    public Task<string> BuildPasswordResetUrlForUserAsync(Guid? tenantId, Guid userId, string token) =>
+        tenantId.HasValue
+            ? BuildPasswordResetUrlAsync(tenantId.Value, userId, token)
+            : BuildHostPasswordResetUrlAsync(userId, token);
+
     public async Task<string> BuildInviteUrlAsync(Guid tenantId, string rawToken)
     {
         var baseUrl = await ResolveAuthServerBaseUrlInternalAsync(tenantId);

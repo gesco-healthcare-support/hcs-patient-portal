@@ -63,4 +63,39 @@ internal static class PasswordResetGate
                 CaseEvaluationDomainErrorCodes.UserInactiveForPasswordReset);
         }
     }
+
+    /// <summary>
+    /// Item C (2026-08-22) -- whether a user with NO tenant may be served an account email.
+    ///
+    /// <para><b>Why the old guard has to go.</b> Both account-email flows returned early for any
+    /// null-tenant user, with the comment "External user without a tenant is a code bug". That was
+    /// true when written; Phase D made internal operators HOST logins and invalidated the premise, so
+    /// internal staff silently could not self-reset at all. The AccountEmailer was updated the same
+    /// day and this path was missed.</para>
+    ///
+    /// <para><b>Why not simply allow every null-tenant user.</b> The risk is not disclosure, it is
+    /// PRIVILEGE. A host row carrying an EXTERNAL role is unreachable through the product -- both the
+    /// registration and invite paths throw without a tenant -- so it can only be hand-made via SQL or
+    /// a dev seeder. Enabling reset on such a row would make it usable on the staff portal, which
+    /// today's broken guard prevents by accident. This gate does it on purpose.</para>
+    ///
+    /// <para>So the rule is a positive allow-list on ROLE, which fails CLOSED, plus the
+    /// <c>IsExternalUser</c> flag as defence in depth on a security path. Roles do not live on
+    /// <see cref="IdentityUser"/>, so the caller fetches them and passes them in -- which also keeps
+    /// this pure and unit-testable without ABP DI.</para>
+    /// </summary>
+    public static bool IsHostAccountEligible(
+        System.Collections.Generic.IEnumerable<string?>? roles,
+        bool isExternalFlag)
+    {
+        if (isExternalFlag)
+        {
+            return false;
+        }
+
+        // Reuses the product's single definition of "internal role" instead of restating the list, so
+        // the two cannot drift apart. It already trims, compares case-insensitively, and returns false
+        // for a null or empty set -- exactly the fail-closed behaviour this gate needs.
+        return Appointments.BookingFlowRoles.IsInternalUserCaller(roles);
+    }
 }
