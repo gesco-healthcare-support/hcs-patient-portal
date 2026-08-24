@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Extensions;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -138,16 +139,30 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         // user's TenantId (source of truth), then append returnUrl
         // separately because IAccountUrlBuilder owns base + 3 standard
         // params; per-flow extras (returnUrl) layer on top.
-        if (!user.TenantId.HasValue)
+        // Item C (2026-08-22): a null tenant is a HOST OPERATOR, not a code bug.
+        //
+        // The old comment here said "External user without a tenant is a code bug", which was true
+        // when it was written. Phase D made internal operators host logins and invalidated the
+        // premise: this early return meant internal staff silently could not self-reset at all, and
+        // the page shows generic success either way, so the whole flow no-opped. The AccountEmailer
+        // was fixed the same day; this service was missed.
+        //
+        // The fence comes down, but not all the way. See PasswordResetGate.IsHostAccountEligible: the
+        // risk is PRIVILEGE, not disclosure, so a null-tenant user is served only when they hold a
+        // recognised internal role and do not carry the external marker.
+        if (!user.TenantId.HasValue && !await IsHostAccountEligibleAsync(user))
         {
-            // External user without a tenant is a code bug.
-            _logger.LogWarning(
-                "ExternalAccountAppService.SendPasswordResetCodeAsync: user {UserId} has no TenantId; skipping send.",
+            // Error, not Warning: reaching here means a host row exists that the product cannot
+            // create, so somebody hand-made it. That is worth noticing, and Warning is the level this
+            // bug hid at for a month.
+            _logger.LogError(
+                "ExternalAccountAppService.SendPasswordResetCodeAsync: user {UserId} has no TenantId and is not host-eligible; refusing.",
                 user.Id);
             return;
         }
-        var resetUrl = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
-            user.TenantId.Value, user.Id, token);
+
+        var resetUrl = await _accountUrlBuilder.BuildPasswordResetUrlForUserAsync(
+            user.TenantId, user.Id, token);
         if (!string.IsNullOrWhiteSpace(input.ReturnUrl))
         {
             resetUrl += "&returnUrl=" + WebUtility.UrlEncode(input.ReturnUrl);
@@ -171,8 +186,23 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 variables: BuildPasswordTokenVariables(user, resetUrl),
                 contextTag: $"PasswordReset/RequestLink/{user.Id}");
         }
+        catch (BusinessException ex)
+            when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+        {
+            // Item C (2026-08-22): Error, not Warning. Anti-enumeration governs the RESPONSE, not the
+            // logs -- the caller still sees generic success. A missing template is a deployment or
+            // seeding fault that affects EVERY user of this flow, and swallowing it at Warning is
+            // precisely why the host-scope bug survived a month unnoticed.
+            _logger.LogError(
+                ex,
+                "ExternalAccountAppService.SendPasswordResetCodeAsync: the {TemplateCode} template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
+                NotificationTemplateConsts.Codes.ResetPassword,
+                user.Id);
+        }
         catch (Exception ex)
         {
+            // Transport and other failures stay at Warning and stay swallowed: they are per-attempt,
+            // not a misconfiguration, and the password has not changed.
             _logger.LogWarning(
                 ex,
                 "ExternalAccountAppService.SendPasswordResetCodeAsync: dispatch failed for user {UserId}. Returning generic success to caller.",
@@ -260,6 +290,19 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 variables: BuildPasswordTokenVariables(user, url: null),
                 contextTag: $"PasswordChange/PostReset/{user.Id}");
         }
+        catch (BusinessException ex)
+            when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+        {
+            // Item C (2026-08-22): the plan named two catches; this is a THIRD with the same defect.
+            // Leaving one of three at Warning would mean a missing PasswordChange template stayed
+            // invisible while the other two shouted, which is the inconsistency that hid the original
+            // bug. The password HAS already changed here, so the caller still gets success.
+            _logger.LogError(
+                ex,
+                "ExternalAccountAppService.ResetPasswordAsync: the {TemplateCode} template is MISSING for user {UserId}; the password WAS changed but no confirmation was sent.",
+                NotificationTemplateConsts.Codes.PasswordChange,
+                user.Id);
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(
@@ -318,15 +361,20 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         // BUG-029 v3 fix (2026-05-21): tenant-aware verify URL via the
         // user's TenantId.
-        if (!user.TenantId.HasValue)
+        // Item C (2026-08-22): same fix as the reset path above, and it matters just as much -- an
+        // unverified operator hits resend BEFORE they ever reach forgot-password, so this guard is the
+        // first one they run into. UserRegistered is seeded host-scope exactly like ResetPassword, so
+        // resend was broken identically.
+        if (!user.TenantId.HasValue && !await IsHostAccountEligibleAsync(user))
         {
-            _logger.LogWarning(
-                "ExternalAccountAppService.ResendEmailVerificationAsync: user {UserId} has no TenantId; skipping send.",
+            _logger.LogError(
+                "ExternalAccountAppService.ResendEmailVerificationAsync: user {UserId} has no TenantId and is not host-eligible; refusing.",
                 user.Id);
             return;
         }
-        var verifyUrl = await _accountUrlBuilder.BuildEmailConfirmationUrlAsync(
-            user.TenantId.Value, user.Id, token);
+
+        var verifyUrl = await _accountUrlBuilder.BuildEmailConfirmationUrlForUserAsync(
+            user.TenantId, user.Id, token);
 
         try
         {
@@ -342,6 +390,17 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 variables: BuildPasswordTokenVariables(user, verifyUrl),
                 contextTag: $"UserRegistered/Resend/{user.Id}");
         }
+        catch (BusinessException ex)
+            when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+        {
+            // See the reset path: a missing template is a deployment fault, loud in the logs, still
+            // generic in the response.
+            _logger.LogError(
+                ex,
+                "ExternalAccountAppService.ResendEmailVerificationAsync: the {TemplateCode} template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
+                NotificationTemplateConsts.Codes.UserRegistered,
+                user.Id);
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(
@@ -356,6 +415,27 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         // sends and failed-but-attempted sends -- failures still consume an
         // SMTP attempt slot, so we tick on every reach-the-dispatch path.
         await StampResendVerificationRateLimitAsync(normalizedEmail);
+    }
+
+    /// <summary>
+    /// Item C (2026-08-22) -- whether a null-tenant user is a genuine host operator.
+    ///
+    /// <para>Roles do not live on <see cref="IdentityUser"/>, so they are fetched here and passed into
+    /// the pure gate, which keeps the eligibility RULE unit-testable without ABP DI while the fetching
+    /// stays where the DI is.</para>
+    ///
+    /// <para>The flag is read via <c>ExtraPropertyConverters</c>, never <c>GetProperty&lt;bool&gt;</c>:
+    /// the typed overload throws on a freshly reloaded entity because ABP cannot coerce the
+    /// <c>JsonElement</c> that comes back out of the JSON column.</para>
+    /// </summary>
+    private async Task<bool> IsHostAccountEligibleAsync(IdentityUser user)
+    {
+        var roles = await _userManager.GetRolesAsync(user);
+        var isExternal = ExtraPropertyConverters.GetBoolOrDefault(
+            user,
+            CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName);
+
+        return PasswordResetGate.IsHostAccountEligible(roles, isExternal);
     }
 
     /// <summary>

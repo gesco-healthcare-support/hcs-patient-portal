@@ -80,6 +80,24 @@ public interface IAccountUrlBuilder
     Task<string> BuildHostEmailConfirmationUrlAsync(Guid userId, string token);
 
     /// <summary>
+    /// Item C (2026-08-22) -- composes a password-reset URL for a user whose tenant may or may not be
+    /// set, branching to the tenant or host overload internally.
+    ///
+    /// <para>Exists so the host-vs-tenant decision lives in ONE place per URL kind. The same ternary
+    /// used to be repeated at every call site, and that is precisely how two of them were missed when
+    /// Phase D turned internal operators into host logins: the AccountEmailer was updated, the
+    /// ExternalAccountAppService was not, and internal staff silently could not self-serve. The four
+    /// explicit overloads remain for callers that are unconditionally host or tenant scoped.</para>
+    /// </summary>
+    Task<string> BuildPasswordResetUrlForUserAsync(Guid? tenantId, Guid userId, string token);
+
+    /// <summary>
+    /// Item C (2026-08-22) -- the email-confirmation counterpart of
+    /// <see cref="BuildPasswordResetUrlForUserAsync"/>. Same reasoning.
+    /// </summary>
+    Task<string> BuildEmailConfirmationUrlForUserAsync(Guid? tenantId, Guid userId, string token);
+
+    /// <summary>
     /// Builds the AuthServer-hosted invite-acceptance URL the
     /// IT-Admin invite flow emails to the prospective external user.
     /// Format:

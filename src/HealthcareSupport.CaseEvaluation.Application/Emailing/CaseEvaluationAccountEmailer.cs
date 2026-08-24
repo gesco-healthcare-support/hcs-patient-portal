@@ -145,15 +145,15 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     // / email-confirmation on the admin subdomain. A null tenant is therefore a
     // valid host user -- build against the host AuthServer root -- not the
     // "external user missing its tenant" bug the prior hard-throw guarded.
-    private async Task<string> BuildConfirmationUrlAsync(IdentityUser user, string token) =>
-        user.TenantId.HasValue
-            ? await _accountUrlBuilder.BuildEmailConfirmationUrlAsync(user.TenantId.Value, user.Id, token)
-            : await _accountUrlBuilder.BuildHostEmailConfirmationUrlAsync(user.Id, token);
+    // Item C (2026-08-22): the host-vs-tenant ternary moved INTO IAccountUrlBuilder. It used to be
+    // repeated per call site, which is how the same branch was missed in ExternalAccountAppService
+    // when Phase D made internal operators host logins -- this class was updated that day and that
+    // one was not. One branch per URL kind, in the class that composes URLs.
+    private Task<string> BuildConfirmationUrlAsync(IdentityUser user, string token) =>
+        _accountUrlBuilder.BuildEmailConfirmationUrlForUserAsync(user.TenantId, user.Id, token);
 
-    private async Task<string> BuildResetUrlAsync(IdentityUser user, string token) =>
-        user.TenantId.HasValue
-            ? await _accountUrlBuilder.BuildPasswordResetUrlAsync(user.TenantId.Value, user.Id, token)
-            : await _accountUrlBuilder.BuildHostPasswordResetUrlAsync(user.Id, token);
+    private Task<string> BuildResetUrlAsync(IdentityUser user, string token) =>
+        _accountUrlBuilder.BuildPasswordResetUrlForUserAsync(user.TenantId, user.Id, token);
 
     public virtual async Task SendEmailSecurityCodeAsync(IdentityUser user, string code)
     {
