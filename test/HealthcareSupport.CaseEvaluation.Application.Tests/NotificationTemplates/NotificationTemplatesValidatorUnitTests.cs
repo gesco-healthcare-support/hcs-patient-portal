@@ -217,7 +217,9 @@ public class NotificationTemplatesValidatorUnitTests
         // alert to internal staff (+1 -> 65).
         // JDF overdue (2026-08-08) added AppointmentJointDeclarationOverdueInternal, the
         // staff notice replacing the auto-cancel mail to stakeholders (+1 -> 66).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(66);
+        // Item F (2026-08-22) added ExternalUserPortalLink, the sign-in link staff can send when
+        // the email they tried to invite already has an account (+1 -> 67).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(67);
     }
 
     [Fact]

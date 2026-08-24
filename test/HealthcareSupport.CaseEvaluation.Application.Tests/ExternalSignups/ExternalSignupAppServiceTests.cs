@@ -196,8 +196,20 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
     // anonymised self-signup wording).
     // =====================================================================
 
+    /// <summary>
+    /// Item F (2026-08-22) -- this used to assert a thrown
+    /// <c>InviteEmailAlreadyRegistered</c>. It now asserts the replacement behaviour: still no
+    /// invitation, but reported as a RESULT so the staff UI can offer to email a sign-in link
+    /// instead of showing an error that leaves the caller stuck.
+    ///
+    /// <para>Note the roles differ on purpose -- the existing account is a Patient and the invite is
+    /// for an Applicant Attorney. Adrian's decision (2026-08-22) was that a role mismatch gets the
+    /// same treatment as an exact match, because registration rejects the duplicate email either
+    /// way, so an error would help nobody. The existing role is reported so staff can see which
+    /// case they are in.</para>
+    /// </summary>
     [Fact]
-    public async Task InviteExternalUserAsync_EmailAlreadyRegistered_ThrowsAndIssuesNoInvitation()
+    public async Task InviteExternalUserAsync_EmailAlreadyRegistered_ReportsItAndIssuesNoInvitation()
     {
         const string email = "invite-guard.existing@test.example";
 
@@ -213,16 +225,22 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
             TenantId = TenantsTestData.TenantARef,
         });
 
-        // Inviting the same email is refused up front (before IssueAsync).
-        var ex = await Should.ThrowAsync<BusinessException>(
-            () => _appService.InviteExternalUserAsync(new InviteExternalUserDto
-            {
-                Email = email,
-                UserType = ExternalUserType.ApplicantAttorney,
-                TenantId = TenantsTestData.TenantARef,
-            }));
+        var result = await _appService.InviteExternalUserAsync(new InviteExternalUserDto
+        {
+            Email = email,
+            UserType = ExternalUserType.ApplicantAttorney,
+            TenantId = TenantsTestData.TenantARef,
+        });
 
-        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
+        result.AlreadyRegistered.ShouldBeTrue();
+        result.Email.ShouldBe(email);
+
+        // The role INVITED, and separately the role the account actually holds.
+        result.RoleName.ShouldBe("Applicant Attorney");
+        result.ExistingRoleName.ShouldBe("Patient");
+
+        // Nothing to copy, because nothing was issued.
+        result.InviteUrl.ShouldBeNull();
 
         // No dead-end invitation row was created.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
