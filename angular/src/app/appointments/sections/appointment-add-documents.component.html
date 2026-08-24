@@ -5,8 +5,8 @@
   <div class="card-header bg-white">
     <h4 class="mb-0 text-primary fw-bold">Documents</h4>
     <small class="text-muted">
-      Optional. Attach files now and they will upload after the appointment is created. PDF, JPG, or
-      PNG, up to 10 MB each.
+      Optional. Attach files now and they will upload after the appointment is created. PDF, Word
+      (.docx), JPG, or PNG, up to 10 MB each.
     </small>
   </div>
   <div class="card-body">
@@ -19,7 +19,7 @@
         type="file"
         class="d-none"
         multiple
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.docx"
         [disabled]="disabled"
         (change)="onFilesSelected($event)"
       />

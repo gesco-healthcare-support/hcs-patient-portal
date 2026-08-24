@@ -11,11 +11,11 @@
         Thank you. Your document has been uploaded and is now awaiting review.
       </p>
     } @else {
-      <p class="hint">Choose the document to upload (PDF, JPG, or PNG, up to 10 MB).</p>
+      <p class="hint">Choose the document to upload (PDF, Word .docx, JPG, or PNG, up to 10 MB).</p>
 
       <input
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.docx"
         (change)="onFileSelected($event)"
         [disabled]="state === 'uploading'"
       />

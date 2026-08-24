@@ -89,6 +89,7 @@
           id="document-file-input"
           type="file"
           class="form-control form-control-sm"
+          [accept]="acceptAttribute"
           (change)="onFileSelected($event)"
         />
       </div>

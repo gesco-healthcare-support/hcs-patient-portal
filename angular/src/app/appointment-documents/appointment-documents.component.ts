@@ -23,7 +23,10 @@ import { RequiredDocumentState } from '../proxy/appointment-documents/required-d
 import { LookupDto } from '../proxy/shared/models';
 import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
 import { AppointmentDocumentUrls } from './appointment-document-urls';
-import { MAX_DOCUMENT_UPLOAD_BYTES } from './document-upload.constants';
+import {
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  MAX_DOCUMENT_UPLOAD_BYTES,
+} from './document-upload.constants';
 
 /**
  * Mirrors the backend AppointmentDocumentTypeConsts.PanelStrikeListName. Used to
@@ -145,6 +148,13 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   // AF7 / BUG-025: align the client cap to the authoritative 10 MB server cap.
   readonly maxBytes = MAX_DOCUMENT_UPLOAD_BYTES;
+
+  /**
+   * Item G (2026-08-22): this picker had no `accept` at all, so it offered every file on the disk
+   * and only found out at the server. Derived from the shared list so it cannot drift from the
+   * other two upload surfaces.
+   */
+  readonly acceptAttribute = ALLOWED_DOCUMENT_EXTENSIONS.join(',');
   readonly DocumentStatus = DocumentStatus;
 
   get canApprove(): boolean {
