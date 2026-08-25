@@ -11,8 +11,6 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
-using System.Text;
 using Volo.Abp;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
@@ -345,9 +343,18 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         // bypass by varying case / whitespace.
         if (await IsResendVerificationRateLimitedAsync(normalizedEmail))
         {
+            // 2026-08-25: no identifier logged, not even a digest of one.
+            //
+            // This first said "email-key {EmailKey}" while passing the raw address. A SHA-256 digest
+            // was tried next and CodeQL still flagged it -- correctly. An UNSALTED digest of an email
+            // is reversible in practice, because the address space is enumerable: anyone holding the
+            // logs and a candidate list can confirm a match. Salting it per process would break the
+            // cross-request correlation the digest existed for, which left nothing worth keeping.
+            //
+            // What the line is actually for is knowing that resend throttling is firing, and how
+            // often. That survives without naming anyone.
             _logger.LogInformation(
-                "ExternalAccountAppService.ResendEmailVerificationAsync: rate-limited for email-key {EmailKey}. Silent reject.",
-                EmailLogKey(normalizedEmail));
+                "ExternalAccountAppService.ResendEmailVerificationAsync: rate-limited. Silent reject.");
             return;
         }
 
@@ -542,10 +549,14 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
         catch (Exception ex)
         {
+            // Logs the LIMITER, not the person. keyPrefix is "resend-verify" or "password-reset",
+            // which is the question an operator actually has here -- whose cache writes are failing
+            // -- and it carries no identifier. See the note at the resend rate-limit log for why not
+            // even a digest of the address is used.
             _logger.LogWarning(
                 ex,
-                "ExternalAccountAppService: rate-limit cache write failed for email-key {EmailKey}; rate-limit may not enforce on this request.",
-                EmailLogKey(normalizedEmail));
+                "ExternalAccountAppService: rate-limit cache write failed for limiter {Limiter}; rate-limit may not enforce on this request.",
+                keyPrefix);
         }
     }
 
@@ -675,31 +686,5 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             }
         }
         return false;
-    }
-
-    /// <summary>
-    /// A short, non-reversible key standing in for an email address in log lines.
-    ///
-    /// <para>2026-08-25 -- these messages already said "email-key {EmailKey}" but passed the RAW
-    /// address, so the name was a promise the code did not keep and every rate-limit warning wrote a
-    /// live identifier into the log. CodeQL flagged one of the two sites
-    /// (cs/exposure-of-sensitive-information); the second had the identical defect and was not
-    /// flagged, which is a good reminder that a clean scan is not a proof.</para>
-    ///
-    /// <para>Twelve hex characters of SHA-256 is plenty to correlate repeated attempts from one
-    /// address within a log window, while not being an address. It is deliberately NOT salted: a
-    /// per-process salt would break exactly the correlation the log line exists for. That is an
-    /// accepted trade -- a short unsalted digest of a known-format value is not strong
-    /// pseudonymisation, so treat it as reducing incidental exposure in logs, not as anonymisation.
-    /// The full address is never written.</para>
-    /// </summary>
-    private static string EmailLogKey(string? normalizedEmail)
-    {
-        if (string.IsNullOrEmpty(normalizedEmail))
-        {
-            return "(none)";
-        }
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedEmail));
-        return Convert.ToHexString(digest)[..12].ToLowerInvariant();
     }
 }
