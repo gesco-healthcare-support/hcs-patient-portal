@@ -105,9 +105,13 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
     /// the office at all.
     ///
     /// <para>Cause: the office already held a shadow whose USERNAME was the operator's host address but
-    /// whose EMAIL was not -- the shape the pre-Phase-D per-tenant seed left behind
-    /// (<c>name@gesco.com</c> against <c>name@example.test</c>). The provisioner looked the shadow up by
-    /// email only, missed it, and fell through to create a user whose username was already taken.</para>
+    /// whose EMAIL was not. The provisioner looked the shadow up by email only, missed it, and fell
+    /// through to create a user whose username was already taken.</para>
+    ///
+    /// <para><b>Correction (2026-08-22).</b> This docstring originally blamed the pre-Phase-D per-tenant
+    /// seed for that divergence. It did not cause it -- the seed writes the same value to both fields.
+    /// The rows in question had been repointed by hand in a local database. The defect the test pins is
+    /// real either way, and the revoke half of it (below) is the dangerous one.</para>
     ///
     /// <para>This test reproduces that divergence exactly, then asserts the provisioner ADOPTS the
     /// existing row rather than throwing. If the lookup regresses to email-only, the
