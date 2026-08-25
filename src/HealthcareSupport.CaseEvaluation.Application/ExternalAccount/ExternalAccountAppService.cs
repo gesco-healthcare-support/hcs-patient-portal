@@ -11,6 +11,8 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 using Volo.Abp;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
@@ -193,10 +195,19 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             // logs -- the caller still sees generic success. A missing template is a deployment or
             // seeding fault that affects EVERY user of this flow, and swallowing it at Warning is
             // precisely why the host-scope bug survived a month unnoticed.
+            // 2026-08-25: the template code is NAMED in the message rather than passed as an
+            // argument. CodeQL reads `NotificationTemplateConsts.Codes.ResetPassword` and
+            // `.PasswordChange` as sensitive by identifier name and raised
+            // cs/cleartext-storage-of-sensitive-information (2 high) for logging them. They are
+            // template CODES -- the literal strings "ResetPassword" and "PasswordChange" -- so the
+            // alerts were false positives. The fix is deliberately NOT to silence the rule: it is the
+            // one rule you most want armed on a file whose job includes handling real passwords, so
+            // suppressing it here would trade a cosmetic win for a real blind spot. Dropping the
+            // constant from the argument list removes the flow instead. All three catches are written
+            // the same way so they cannot drift apart again.
             _logger.LogError(
                 ex,
-                "ExternalAccountAppService.SendPasswordResetCodeAsync: the {TemplateCode} template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
-                NotificationTemplateConsts.Codes.ResetPassword,
+                "ExternalAccountAppService.SendPasswordResetCodeAsync: the ResetPassword template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
                 user.Id);
         }
         catch (Exception ex)
@@ -299,8 +310,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             // bug. The password HAS already changed here, so the caller still gets success.
             _logger.LogError(
                 ex,
-                "ExternalAccountAppService.ResetPasswordAsync: the {TemplateCode} template is MISSING for user {UserId}; the password WAS changed but no confirmation was sent.",
-                NotificationTemplateConsts.Codes.PasswordChange,
+                "ExternalAccountAppService.ResetPasswordAsync: the PasswordChange template is MISSING for user {UserId}; the password WAS changed but no confirmation was sent.",
                 user.Id);
         }
         catch (Exception ex)
@@ -337,7 +347,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             _logger.LogInformation(
                 "ExternalAccountAppService.ResendEmailVerificationAsync: rate-limited for email-key {EmailKey}. Silent reject.",
-                normalizedEmail);
+                EmailLogKey(normalizedEmail));
             return;
         }
 
@@ -395,10 +405,11 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             // See the reset path: a missing template is a deployment fault, loud in the logs, still
             // generic in the response.
+            // Not flagged by CodeQL (UserRegistered does not trip the name heuristic), but written
+            // like its two siblings above so the three catches stay uniform.
             _logger.LogError(
                 ex,
-                "ExternalAccountAppService.ResendEmailVerificationAsync: the {TemplateCode} template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
-                NotificationTemplateConsts.Codes.UserRegistered,
+                "ExternalAccountAppService.ResendEmailVerificationAsync: the UserRegistered template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
                 user.Id);
         }
         catch (Exception ex)
@@ -534,7 +545,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             _logger.LogWarning(
                 ex,
                 "ExternalAccountAppService: rate-limit cache write failed for email-key {EmailKey}; rate-limit may not enforce on this request.",
-                normalizedEmail);
+                EmailLogKey(normalizedEmail));
         }
     }
 
@@ -664,5 +675,31 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// A short, non-reversible key standing in for an email address in log lines.
+    ///
+    /// <para>2026-08-25 -- these messages already said "email-key {EmailKey}" but passed the RAW
+    /// address, so the name was a promise the code did not keep and every rate-limit warning wrote a
+    /// live identifier into the log. CodeQL flagged one of the two sites
+    /// (cs/exposure-of-sensitive-information); the second had the identical defect and was not
+    /// flagged, which is a good reminder that a clean scan is not a proof.</para>
+    ///
+    /// <para>Twelve hex characters of SHA-256 is plenty to correlate repeated attempts from one
+    /// address within a log window, while not being an address. It is deliberately NOT salted: a
+    /// per-process salt would break exactly the correlation the log line exists for. That is an
+    /// accepted trade -- a short unsalted digest of a known-format value is not strong
+    /// pseudonymisation, so treat it as reducing incidental exposure in logs, not as anonymisation.
+    /// The full address is never written.</para>
+    /// </summary>
+    private static string EmailLogKey(string? normalizedEmail)
+    {
+        if (string.IsNullOrEmpty(normalizedEmail))
+        {
+            return "(none)";
+        }
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedEmail));
+        return Convert.ToHexString(digest)[..12].ToLowerInvariant();
     }
 }
