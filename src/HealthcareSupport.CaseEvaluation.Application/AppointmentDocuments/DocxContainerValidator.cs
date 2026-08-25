@@ -87,45 +87,7 @@ public static class DocxContainerValidator
                 return DocxContainerVerdict.TooManyEntries;
             }
 
-            long declaredTotal = 0;
-            var hasContentTypes = false;
-            var hasMainDocumentPart = false;
-
-            foreach (var entry in archive.Entries)
-            {
-                // Zip paths are '/'-separated by spec, but hostile archives do as they please.
-                var name = entry.FullName.Replace('\\', '/');
-
-                // Checked on the ENTRY NAME, wherever it sits in the package. A macro-enabled file
-                // renamed to .docx is caught here, which is the whole reason for opening it.
-                if (name.EndsWith(VbaProjectEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return DocxContainerVerdict.MacroEnabled;
-                }
-
-                // entry.Length is the DECLARED uncompressed size from the central directory. Reading
-                // it decompresses nothing.
-                declaredTotal += entry.Length;
-                if (declaredTotal > MaxDeclaredBytes)
-                {
-                    return DocxContainerVerdict.TooLarge;
-                }
-
-                if (string.Equals(name, ContentTypesEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    hasContentTypes = true;
-                }
-                else if (string.Equals(name, MainDocumentEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    hasMainDocumentPart = true;
-                }
-            }
-
-            // Both are mandatory in a WordprocessingML package. Missing either means this is some
-            // other archive wearing a .docx name -- a renamed .xlsx, or a plain zip of anything.
-            return hasContentTypes && hasMainDocumentPart
-                ? DocxContainerVerdict.Valid
-                : DocxContainerVerdict.NotWordDocument;
+            return InspectEntries(archive);
         }
         catch (InvalidDataException)
         {
@@ -133,10 +95,58 @@ public static class DocxContainerValidator
         }
         finally
         {
-            if (stream != null && stream.CanSeek)
+            // No null check: a null stream returned above, before the try.
+            if (stream.CanSeek)
             {
                 stream.Seek(0, SeekOrigin.Begin);
             }
         }
+    }
+
+    /// <summary>
+    /// The per-entry pass, split out of <see cref="Inspect"/> so neither method exceeds the
+    /// project's cognitive-complexity ceiling. Returns on the first disqualifying entry.
+    /// </summary>
+    private static DocxContainerVerdict InspectEntries(ZipArchive archive)
+    {
+        long declaredTotal = 0;
+        var hasContentTypes = false;
+        var hasMainDocumentPart = false;
+
+        foreach (var entry in archive.Entries)
+        {
+            // Zip paths are '/'-separated by spec, but hostile archives do as they please.
+            var name = entry.FullName.Replace('\\', '/');
+
+            // Checked on the ENTRY NAME, wherever it sits in the package. A macro-enabled file
+            // renamed to .docx is caught here, which is the whole reason for opening it.
+            if (name.EndsWith(VbaProjectEntryName, StringComparison.OrdinalIgnoreCase))
+            {
+                return DocxContainerVerdict.MacroEnabled;
+            }
+
+            // entry.Length is the DECLARED uncompressed size from the central directory. Reading it
+            // decompresses nothing.
+            declaredTotal += entry.Length;
+            if (declaredTotal > MaxDeclaredBytes)
+            {
+                return DocxContainerVerdict.TooLarge;
+            }
+
+            if (string.Equals(name, ContentTypesEntryName, StringComparison.OrdinalIgnoreCase))
+            {
+                hasContentTypes = true;
+            }
+            else if (string.Equals(name, MainDocumentEntryName, StringComparison.OrdinalIgnoreCase))
+            {
+                hasMainDocumentPart = true;
+            }
+        }
+
+        // Both are mandatory in a WordprocessingML package. Missing either means this is some other
+        // archive wearing a .docx name -- a renamed .xlsx, or a plain zip of anything.
+        return hasContentTypes && hasMainDocumentPart
+            ? DocxContainerVerdict.Valid
+            : DocxContainerVerdict.NotWordDocument;
     }
 }
