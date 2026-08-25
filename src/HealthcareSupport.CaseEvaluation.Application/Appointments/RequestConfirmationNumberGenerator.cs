@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Volo.Abp;
+using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Linq;
 using Microsoft.Extensions.Localization;
@@ -32,47 +34,69 @@ public class RequestConfirmationNumberGenerator : ITransientDependency
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
+    private readonly IDataFilter _dataFilter;
 
     public RequestConfirmationNumberGenerator(
         IRepository<Appointment, Guid> appointmentRepository,
         IAsyncQueryableExecuter asyncExecuter,
-        IStringLocalizer<CaseEvaluationResource> localizer)
+        IStringLocalizer<CaseEvaluationResource> localizer,
+        IDataFilter dataFilter)
     {
         _appointmentRepository = appointmentRepository;
         _asyncExecuter = asyncExecuter;
         _localizer = localizer;
+        _dataFilter = dataFilter;
     }
 
     /// <summary>
     /// The next number in sequence for the current tenant. Only rows whose number matches the
     /// exact prefix + width are considered, so a hand-entered or legacy value cannot skew the max.
     /// </summary>
+    /// <remarks>
+    /// <para>The soft-delete filter is disabled for the max read, so a deleted appointment's
+    /// number is never handed out a second time. The number is not private to us -- it is in sent
+    /// email, in the Case Tracker payload and in <c>create-rebook/{sourceConfirmationNumber}</c>
+    /// URLs -- so two appointments answering to one number is unsupportable. Numbering is
+    /// therefore strictly monotonic per office and shows gaps where appointments were deleted;
+    /// a gap is correct, a reused number is not.</para>
+    ///
+    /// <para>This is also what makes <see cref="ConfirmationNumberRetryPolicy"/> able to
+    /// converge. Reading through the filter, a soft-deleted row holding the number returned the
+    /// SAME value on every retry, so all attempts burned and the booking 500'd (2026-08-19).
+    /// The IMultiTenant filter is deliberately left ON, so each office numbers independently.</para>
+    /// </remarks>
     public virtual async Task<string> GenerateAsync()
     {
         var requiredLength = Prefix.Length + Digits;
-        var query = await _appointmentRepository.GetQueryableAsync();
 
-        var latestNumber = await _asyncExecuter.FirstOrDefaultAsync(
-            query
-                .Where(x => x.RequestConfirmationNumber != null
-                    && x.RequestConfirmationNumber.StartsWith(Prefix)
-                    && x.RequestConfirmationNumber.Length == requiredLength)
-                .OrderByDescending(x => x.RequestConfirmationNumber)
-                .Select(x => x.RequestConfirmationNumber));
-
-        var nextValue = 1;
-        if (!string.IsNullOrWhiteSpace(latestNumber)
-            && int.TryParse(latestNumber.Substring(Prefix.Length), out var currentValue))
+        // The queryable must be obtained AND executed inside the scope; the filter is
+        // otherwise re-applied when the query runs.
+        using (_dataFilter.Disable<ISoftDelete>())
         {
-            nextValue = currentValue + 1;
-        }
+            var query = await _appointmentRepository.GetQueryableAsync();
 
-        var maxValue = (int)Math.Pow(10, Digits) - 1;
-        if (nextValue > maxValue)
-        {
-            throw new UserFriendlyException(_localizer["Request confirmation number limit reached."]);
-        }
+            var latestNumber = await _asyncExecuter.FirstOrDefaultAsync(
+                query
+                    .Where(x => x.RequestConfirmationNumber != null
+                        && x.RequestConfirmationNumber.StartsWith(Prefix)
+                        && x.RequestConfirmationNumber.Length == requiredLength)
+                    .OrderByDescending(x => x.RequestConfirmationNumber)
+                    .Select(x => x.RequestConfirmationNumber));
 
-        return $"{Prefix}{nextValue:D5}";
+            var nextValue = 1;
+            if (!string.IsNullOrWhiteSpace(latestNumber)
+                && int.TryParse(latestNumber.Substring(Prefix.Length), out var currentValue))
+            {
+                nextValue = currentValue + 1;
+            }
+
+            var maxValue = (int)Math.Pow(10, Digits) - 1;
+            if (nextValue > maxValue)
+            {
+                throw new UserFriendlyException(_localizer["Request confirmation number limit reached."]);
+            }
+
+            return $"{Prefix}{nextValue:D5}";
+        }
     }
 }

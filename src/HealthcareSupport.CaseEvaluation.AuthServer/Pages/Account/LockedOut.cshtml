@@ -11,13 +11,23 @@
 
     Behaviour: shows a plain-language "account locked" message picking
     the failed-attempts cause (the only path that reaches this redirect
-    today; admin-locks would route differently if ever surfaced). The
-    duration matches the configured lockout policy
-    (CaseEvaluationSettingDefinitionProvider: 10 attempts / 1 hour).
-    A precise unlock timestamp is intentionally omitted -- the framework
-    redirect does not carry userId so we cannot look up the per-user
-    LockoutEnd from AspNetUsers without an extra round-trip; the duration
-    is enough for the user to know when to try again.
+    today; admin-locks would route differently if ever surfaced).
+
+    Item D (2026-08-22): the duration is NO LONGER hard-coded. Lockout is
+    progressive (1 -> 5 -> 15 minutes -> the configured maximum), so a
+    fixed "1 hour" was wrong for most lockouts and overstated the wait by
+    up to 59 minutes -- which sends people to the phone over something
+    that has already expired.
+
+    This page still cannot look the user up: the framework redirect
+    carries no userId. LoginModel computes the real remainder, where the
+    submitted identifier is still in hand, and passes it via TempData;
+    absent that, Model.RemainingText degrades to "shortly" rather than
+    inventing a number.
+
+    The password-reset line is new and load-bearing: completing a reset
+    now CLEARS the lockout (it previously did not), so it is the fastest
+    way back in rather than a dead end.
 *@
 
 <div class="account-card">
@@ -26,7 +36,12 @@
         <h1 class="text-center mt-4 mb-3">Account locked</h1>
 
         <p class="text-center mt-3" role="alert">
-            Too many failed sign-in attempts. Try again in 1 hour.
+            Too many failed sign-in attempts. Try again @Model.RemainingText.
+        </p>
+
+        <p class="text-center mt-2">
+            In a hurry? <a href="~/Account/ForgotPassword">Reset your password</a> to regain access
+            straight away.
         </p>
 
         <p class="text-center mt-2">

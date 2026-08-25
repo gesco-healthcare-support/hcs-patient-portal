@@ -1,5 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
+import { FileDropZoneDirective } from '../../appointment-documents/file-drop-zone.directive';
+
 export type StagedDocumentStatus = 'staged' | 'uploading' | 'uploaded' | 'failed';
 
 /**
@@ -43,7 +45,7 @@ export interface StagedDocumentUpload {
 @Component({
   selector: 'app-appointment-add-documents',
   standalone: true,
-  imports: [],
+  imports: [FileDropZoneDirective],
   templateUrl: './appointment-add-documents.component.html',
 })
 export class AppointmentAddDocumentsComponent {
@@ -97,6 +99,17 @@ export class AppointmentAddDocumentsComponent {
     this.filesSelected.emit(Array.from(input.files));
     // Clear the native input so re-selecting the same file fires change again.
     input.value = '';
+  }
+
+  /**
+   * Item H (2026-08-22): dropped files go through the SAME output as picked ones, so the parent's
+   * validation and staging run identically whichever route the booker used.
+   */
+  onFilesDropped(files: File[]): void {
+    if (this.disabled || files.length === 0) {
+      return;
+    }
+    this.filesSelected.emit(files);
   }
 
   formatBytes(bytes: number): string {

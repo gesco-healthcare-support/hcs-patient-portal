@@ -13,6 +13,8 @@
 @use 'styles/ap-utilities';
 // Shared button system (af-btn) reused by the redesigned surfaces.
 @use 'styles/af-buttons';
+// Item H (2026-08-22): shared drop-zone affordance for the three document uploaders.
+@use 'styles/file-drop-zone';
 @use 'styles/ra-wizard';
 @use 'styles/ad-detail';
 @use 'styles/mp-profile';

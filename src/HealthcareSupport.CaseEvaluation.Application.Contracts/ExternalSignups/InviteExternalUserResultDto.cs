@@ -17,9 +17,34 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// </summary>
 public class InviteExternalUserResultDto
 {
-    public string InviteUrl { get; set; } = null!;
+    /// <summary>
+    /// Null when <see cref="AlreadyRegistered"/> is true: no invitation was issued, so there is no
+    /// link to copy.
+    /// </summary>
+    public string? InviteUrl { get; set; }
+
     public string Email { get; set; } = null!;
     public string RoleName { get; set; } = null!;
     public string TenantName { get; set; } = null!;
+
+    /// <summary>Default when <see cref="AlreadyRegistered"/> is true -- nothing expires.</summary>
     public DateTime ExpiresAt { get; set; }
+
+    /// <summary>
+    /// Item F (2026-08-22) -- true when the email already has an account in this office, in which
+    /// case NO invitation was issued.
+    ///
+    /// <para>This used to throw <c>InviteEmailAlreadyRegistered</c>. It is not an error: the person
+    /// simply has an account already, and staff usually want to send them a sign-in link rather than
+    /// be told off. Returning it as a result also lets the UI offer that action instead of rendering
+    /// a red box that leaves the caller stuck on the phone.</para>
+    /// </summary>
+    public bool AlreadyRegistered { get; set; }
+
+    /// <summary>
+    /// The role the EXISTING account holds, which may differ from the role being invited. Populated
+    /// only when <see cref="AlreadyRegistered"/> is true. Naming it is the useful part: it tells
+    /// staff at a glance whether they have the wrong person or merely the wrong role.
+    /// </summary>
+    public string? ExistingRoleName { get; set; }
 }

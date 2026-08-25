@@ -232,7 +232,16 @@ public static class NotificationTemplateConsts
         public const string CaseTrackerPushFailed = "CaseTrackerPushFailed";
 
         /// <summary>
-        /// All 65 codes in seed order (count asserted by
+        /// Item F (2026-08-22) -- sent when staff try to invite an email that already has an account
+        /// in the office. The invite is a dead end (registration rejects the duplicate), so instead of
+        /// an error the staff surface offers to email the person a sign-in link. Tenant-scoped, NOT in
+        /// <see cref="HostScoped"/>: it is addressed to an external user and dispatched inside the
+        /// target office's scope, so it resolves that office's template and branding.
+        /// </summary>
+        public const string ExternalUserPortalLink = "ExternalUserPortalLink";
+
+        /// <summary>
+        /// All 66 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -288,6 +297,10 @@ public static class NotificationTemplateConsts
 
             // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
             AccessorAppointmentAdded,
+
+            // Item F (2026-08-22) -- sign-in link for an email staff tried to invite that is
+            // already registered in the office.
+            ExternalUserPortalLink,
         };
 
         /// <summary>

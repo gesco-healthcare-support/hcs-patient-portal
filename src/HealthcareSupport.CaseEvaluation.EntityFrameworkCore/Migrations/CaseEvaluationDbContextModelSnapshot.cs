@@ -146,7 +146,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId", "Email")
                         .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppApplicantAttorneys", (string)null);
                 });
@@ -1890,7 +1890,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId", "AppointmentTypeId", "FieldName")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppAppointmentTypeFieldConfigs", (string)null);
                 });
@@ -2328,7 +2328,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasIndex("TenantId", "RequestConfirmationNumber")
                         .IsUnique()
                         .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber")
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppAppointments", (string)null);
                 });
@@ -2403,7 +2403,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("OfficeId")
                         .IsUnique()
-                        .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office");
+                        .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AppOfficeBrandings", (string)null);
                 });
@@ -2513,7 +2514,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId", "Email")
                         .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppClaimExaminers", (string)null);
                 });
@@ -2798,7 +2799,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId", "Email")
                         .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppDefenseAttorneys", (string)null);
                 });
@@ -3217,7 +3218,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("OperatorUserId", "OfficeId")
                         .IsUnique()
-                        .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office");
+                        .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AppIntakeOfficeAssignments", (string)null);
                 });
@@ -3439,7 +3441,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TokenHash")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AppInvitations", (string)null);
                 });
@@ -3540,7 +3543,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("FacilityId")
                         .IsUnique()
-                        .HasFilter("[FacilityId] <> ''");
+                        .HasFilter("[FacilityId] <> '' AND [IsDeleted] = 0");
 
                     b.HasIndex("StateId");
 
@@ -3653,7 +3656,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId", "TemplateCode")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppNotificationTemplates", (string)null);
                 });
@@ -4368,7 +4371,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppSystemParameters", (string)null);
                 });

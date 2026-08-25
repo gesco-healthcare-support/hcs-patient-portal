@@ -23,7 +23,11 @@ import { RequiredDocumentState } from '../proxy/appointment-documents/required-d
 import { LookupDto } from '../proxy/shared/models';
 import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
 import { AppointmentDocumentUrls } from './appointment-document-urls';
-import { MAX_DOCUMENT_UPLOAD_BYTES } from './document-upload.constants';
+import { FileDropZoneDirective } from './file-drop-zone.directive';
+import {
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  MAX_DOCUMENT_UPLOAD_BYTES,
+} from './document-upload.constants';
 
 /**
  * Mirrors the backend AppointmentDocumentTypeConsts.PanelStrikeListName. Used to
@@ -43,7 +47,7 @@ const PANEL_STRIKE_LIST_LABEL = 'Panel Strike List';
   selector: 'app-appointment-documents',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Default,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, FileDropZoneDirective],
   templateUrl: './appointment-documents.component.html',
   styles: [
     `
@@ -145,6 +149,13 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   // AF7 / BUG-025: align the client cap to the authoritative 10 MB server cap.
   readonly maxBytes = MAX_DOCUMENT_UPLOAD_BYTES;
+
+  /**
+   * Item G (2026-08-22): this picker had no `accept` at all, so it offered every file on the disk
+   * and only found out at the server. Derived from the shared list so it cannot drift from the
+   * other two upload surfaces.
+   */
+  readonly acceptAttribute = ALLOWED_DOCUMENT_EXTENSIONS.join(',');
   readonly DocumentStatus = DocumentStatus;
 
   get canApprove(): boolean {
@@ -282,6 +293,21 @@ export class AppointmentDocumentsComponent implements OnChanges {
     const input = event.target as HTMLInputElement;
     this.selectedFile = input.files?.[0] ?? null;
     if (this.selectedFile && !this.documentName.trim()) {
+      this.documentName = this.selectedFile.name.replace(/\.[^.]+$/, '');
+    }
+  }
+
+  /**
+   * Item H (2026-08-22): dropping a file does exactly what picking one does, including deriving the
+   * document name, so the two routes cannot behave differently.
+   */
+  onFilesDropped(files: File[]): void {
+    if (this.isUploading || files.length === 0) {
+      return;
+    }
+    // One document per upload here, so a multi-file drop takes the first.
+    this.selectedFile = files[0];
+    if (!this.documentName.trim()) {
       this.documentName = this.selectedFile.name.replace(/\.[^.]+$/, '');
     }
   }

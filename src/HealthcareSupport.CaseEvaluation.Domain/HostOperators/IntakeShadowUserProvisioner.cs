@@ -33,7 +33,7 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
 
         using (CurrentTenant.Change(officeId))
         {
-            var existing = await _userManager.FindByEmailAsync(email);
+            var existing = await FindShadowAsync(email);
             if (existing != null)
             {
                 // Idempotent: re-activate (a prior unassign may have disabled it)
@@ -81,7 +81,7 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
 
         using (CurrentTenant.Change(officeId))
         {
-            var shadow = await _userManager.FindByEmailAsync(email);
+            var shadow = await FindShadowAsync(email);
             if (shadow == null || !shadow.IsActive)
             {
                 return;
@@ -90,6 +90,32 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
             (await _userManager.UpdateAsync(shadow)).CheckErrors();
         }
     }
+
+    /// <summary>
+    /// Finds this operator's shadow in the CURRENT office, by USERNAME first and email second.
+    ///
+    /// <para>Username is the key that actually identifies a shadow. <see cref="EnsureShadowUserAsync"/>
+    /// creates it with the operator's host email in BOTH fields, and username is what Identity enforces
+    /// as unique. Looking up by email alone was the defect: a shadow whose email had diverged from its
+    /// username was invisible here, so the caller fell through to create a user whose username was
+    /// already taken and got <c>DuplicateUserName</c> back, which surfaced as a 403 from the token
+    /// endpoint and locked the operator out of the office. The revoke path had the same defect and
+    /// failed SILENTLY, leaving an unassigned operator's shadow active.</para>
+    ///
+    /// <para><b>Correction (2026-08-22).</b> An earlier version of this comment blamed the pre-Phase-D
+    /// per-tenant seed for producing that divergence. That was wrong. The rows that exposed it had been
+    /// repointed by hand in a local database (emails moved to <c>@example.test</c> so a dev stack would
+    /// stop mailing real colleagues); the seed itself writes the same value to both fields.</para>
+    ///
+    /// <para><b>The case this does NOT fix.</b> If an operator CHANGES their host email, this method is
+    /// asked for the new address while their existing shadow still carries the old one in both fields,
+    /// so it misses, and the caller creates a SECOND shadow. Revoke then silently leaves the first one
+    /// active. Keying the shadow on the operator's user id rather than any address is the real fix;
+    /// see <c>docs/backlog.md</c>.</para>
+    /// </summary>
+    private async Task<IdentityUser?> FindShadowAsync(string email) =>
+        await _userManager.FindByNameAsync(email)
+        ?? await _userManager.FindByEmailAsync(email);
 
     private async Task<(string Email, string? Name, string? Surname)> ResolveOperatorAsync(Guid operatorUserId)
     {

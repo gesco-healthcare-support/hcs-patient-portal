@@ -89,6 +89,13 @@ export interface InviteExternalUserResultDto {
   roleName?: string;
   tenantName?: string;
   expiresAt?: string;
+  alreadyRegistered?: boolean;
+  existingRoleName?: string;
+}
+
+export interface SendPortalLinkInput {
+  email: string;
+  tenantId?: string;
 }
 
 export interface MarkEmailConfirmedDto {

@@ -1,6 +1,7 @@
 export * from './access-type.enum';
 export * from './appointment-status-type.enum';
 export * from './booking-status.enum';
+export * from './booking-submit-mode.enum';
 export * from './custom-field-type.enum';
 export * from './evaluation-type.enum';
 export * from './gender.enum';

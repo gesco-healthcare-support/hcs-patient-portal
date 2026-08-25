@@ -27,6 +27,10 @@ import { isReBookEligibleStatus } from './shared/rebook-eligibility';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
 import { unitForForm, unitToDto } from './shared/patient-unit.mapper';
 import {
+  AUTO_APPROVE_FALLBACK_MESSAGE,
+  classifyAutoApproveFailure,
+} from './shared/auto-approve-outcome';
+import {
   AddressValidationProvider,
   AddressInput,
   StandardizedAddress,
@@ -35,17 +39,18 @@ import { AddressFieldMap } from '../shared/address/address-autocomplete.componen
 import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
 import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-address-dialog.component';
 import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
-import type { AppointmentCreateDto, AppointmentDto } from '../proxy/appointments/models';
+import type {
+  AppointmentDto,
+  AppointmentInjurySubmitDto,
+  AppointmentSubmitDto,
+} from '../proxy/appointments/models';
+import { BookingSubmitMode } from '../proxy/enums/booking-submit-mode.enum';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
 import { AppointmentApprovalService } from '../proxy/appointments/appointment-approval.service';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
-import type {
-  PatientDto,
-  PatientUpdateDto,
-  PatientWithNavigationPropertiesDto,
-} from '../proxy/patients/models';
+import type { PatientDto, PatientWithNavigationPropertiesDto } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { DoctorAvailabilityService } from '../proxy/doctor-availabilities/doctor-availability.service';
 import type { DoctorAvailabilityDto } from '../proxy/doctor-availabilities/models';
@@ -72,6 +77,13 @@ import {
 } from './sections/appointment-add-documents.component';
 import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
 import { isStrikeListGateBlocked } from '../appointment-documents/strike-list-gate';
+
+/**
+ * Placeholder for a child row's `appointmentId` in a submit request. The appointment does not exist
+ * when the payload is built; the server assigns the real id after creating it. Sent explicitly
+ * rather than omitted so the intent is visible where it is used.
+ */
+const UNASSIGNED_APPOINTMENT_ID = '00000000-0000-0000-0000-000000000000';
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -1901,28 +1913,121 @@ export class AppointmentAddComponent {
    * create. The post-create child cascade is identical for all of them, so
    * prefilled drafts persist as fresh rows on the new appointment.
    */
-  private createAppointmentForCurrentMode(payload: AppointmentCreateDto): Promise<any> {
-    if (this.bookingMode === 'reval' && this.sourceConfirmationNumber) {
-      return firstValueFrom(
-        this.appointmentProxyService.createReval(this.sourceConfirmationNumber, payload),
-      );
+  private resolveSubmitMode(): BookingSubmitMode {
+    // Deliberately keeps the old routing's guard: without a source confirmation number the special
+    // modes previously fell through to a plain create, so they still do. Removing that guard here
+    // would turn a broken navigation state into a hard refusal, which is a behaviour change this PR
+    // has no reason to make. The server refuses a modeless source independently, for other callers.
+    if (!this.sourceConfirmationNumber) {
+      return BookingSubmitMode.Create;
     }
-    if (this.bookingMode === 'reRequest' && this.sourceConfirmationNumber) {
-      return firstValueFrom(
-        this.appointmentProxyService.reSubmit(this.sourceConfirmationNumber, payload),
-      );
+    if (this.bookingMode === 'reval') return BookingSubmitMode.Reval;
+    if (this.bookingMode === 'reRequest') return BookingSubmitMode.ReSubmit;
+    if (this.bookingMode === 'reBook') return BookingSubmitMode.ReBook;
+    return BookingSubmitMode.Create;
+  }
+
+  /**
+   * The patient portion of a submit: which record to attach to, and what to change about it.
+   *
+   * `patientId` and `patient` are mutually exclusive by design -- an id means "use this record and
+   * skip deduplication", which is the path an internal booker takes after picking someone from the
+   * lookup. Without one, the server resolves-or-creates, running the same email fast-path and
+   * 3-of-6 deduplication the wizard used to trigger with its own POST.
+   */
+  private buildSubmitPatient(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): Pick<AppointmentSubmitDto, 'patientId' | 'patient' | 'patientUpdate'> {
+    const existing = this.currentPatientProfile?.patient;
+    const patientId = raw.patientId || undefined;
+
+    return {
+      patientId,
+      patient: patientId ? undefined : this.buildPatientCreateInput(raw),
+      // Only an existing record can be updated -- mirrors the old updatePatientProfile, which
+      // returned early when there was no id.
+      patientUpdate: existing?.id ? this.buildPatientUpdateInput(raw, existing) : undefined,
+    };
+  }
+
+  /** Field-for-field port of the old get-or-create POST body. */
+  private buildPatientCreateInput(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): AppointmentSubmitDto['patient'] {
+    const dateOfBirth = this.formatDateOfBirthForApi(raw.dateOfBirth);
+    if (!dateOfBirth) {
+      throw new Error('Date of birth is required for new patient.');
     }
-    if (this.bookingMode === 'reBook' && this.sourceConfirmationNumber) {
-      return firstValueFrom(
-        this.appointmentProxyService.createReBook(this.sourceConfirmationNumber, payload),
-      );
-    }
-    return firstValueFrom(
-      this.restService.request<any, any>(
-        { method: 'POST', url: '/api/app/appointments', body: payload },
-        { apiName: 'Default' },
-      ),
-    );
+
+    return {
+      firstName: raw.firstName || '',
+      lastName: raw.lastName || '',
+      middleName: raw.middleName ?? undefined,
+      // task_d5407b22 (2026-07-21): patient email is optional. Send null (not "") when blank -- the
+      // DTO's [EmailAddress] rejects an empty string but allows null.
+      email: raw.email?.trim() || null,
+      genderId: (raw.genderId as any) ?? undefined,
+      dateOfBirth,
+      phoneNumberTypeId: (raw.phoneNumberTypeId as any) ?? undefined,
+      phoneNumber: raw.phoneNumber ?? undefined,
+      socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
+      // The "Unit #" control is still NAMED `address`; its value belongs in apptNumber. Decided and
+      // tested in patient-unit.mapper. There is deliberately no `address:` here -- sending it too
+      // would keep the old two-column split alive.
+      apptNumber: unitToDto(raw.address),
+      city: raw.city ?? undefined,
+      zipCode: raw.zipCode ?? undefined,
+      cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
+      street: raw.street ?? undefined,
+      interpreterVendorName: raw.needsInterpreter
+        ? (raw.interpreterVendorName ?? undefined)
+        : undefined,
+      stateId: raw.stateId ?? undefined,
+      appointmentLanguageId: raw.appointmentLanguageId ?? undefined,
+    };
+  }
+
+  /**
+   * Field-for-field port of the old updatePatientProfile body. The endpoint choice it used to make
+   * (`/patients/me` for a Patient-role booker, `/patients/for-appointment-booking/{id}` for everyone
+   * else) is now the SERVER's decision, derived from whether the record's login is the caller -- a
+   * client-supplied choice would let a patient aim self-service overwrite semantics at someone
+   * else's record.
+   */
+  private buildPatientUpdateInput(
+    raw: ReturnType<typeof this.form.getRawValue>,
+    existing: NonNullable<PatientWithNavigationPropertiesDto['patient']>,
+  ): AppointmentSubmitDto['patientUpdate'] {
+    const needsInterpreter = raw.needsInterpreter === true || `${raw.needsInterpreter}` === 'true';
+
+    return {
+      firstName: raw.firstName || '',
+      lastName: raw.lastName || '',
+      middleName: raw.middleName ?? undefined,
+      email: raw.email || '',
+      genderId: (raw.genderId as any) ?? undefined,
+      dateOfBirth: raw.dateOfBirth ?? undefined,
+      phoneNumber: raw.phoneNumber ?? undefined,
+      socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
+      // As above: the "Unit #" control feeds apptNumber, and `address` is deliberately absent.
+      apptNumber: unitToDto(raw.address),
+      city: raw.city ?? undefined,
+      zipCode: raw.zipCode ?? undefined,
+      cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
+      phoneNumberTypeId: (raw.phoneNumberTypeId as any) ?? undefined,
+      street: raw.street ?? undefined,
+      interpreterVendorName: needsInterpreter
+        ? (raw.interpreterVendorName ?? undefined)
+        : undefined,
+      othersLanguageName: existing.othersLanguageName ?? undefined,
+      stateId: raw.stateId ?? undefined,
+      appointmentLanguageId: raw.appointmentLanguageId ?? undefined,
+      identityUserId: raw.identityUserId ?? existing.identityUserId ?? undefined,
+      tenantId: existing.tenantId ?? undefined,
+      // Carried so a concurrent edit is refused instead of silently clobbered. The server compares
+      // it before writing anything.
+      concurrencyStamp: existing.concurrencyStamp,
+    };
   }
 
   /**
@@ -2087,34 +2192,31 @@ export class AppointmentAddComponent {
       // any provider error so submission is never blocked.
       await this.standardizeAddressesBeforeSubmit();
 
-      const rawSubmit = this.form.getRawValue();
-
-      if (this.isExternalUserNonPatient && !rawSubmit.patientId) {
-        const patientProfile = await this.getOrCreatePatientForAppointment(rawSubmit);
-        if (patientProfile?.patient?.id) {
-          this.currentPatientProfile = patientProfile;
-          this.form.patchValue({ patientId: patientProfile.patient.id }, { emitEvent: false });
-        } else {
-          throw new Error('Failed to get or create patient.');
-        }
-      }
-
-      await this.updatePatientProfile();
-
+      // Item B PR2 (2026-08-22): the two patient calls that used to run HERE -- a get-or-create
+      // POST and a profile PUT -- now travel inside the submit payload instead, so a booking that
+      // fails afterwards cannot leave an orphan patient or an applied profile edit behind. That is
+      // the whole reason they were folded in: Patient is soft-deleted and tenant-filtered, so an
+      // orphan row is precisely what the next duplicate search finds.
       const rawAfter = this.form.getRawValue();
-      const payload: AppointmentCreateDto = {
+      const payload: AppointmentSubmitDto = {
+        // Which flow this is, and what it chains from. The server runs that flow's eligibility gate
+        // against the source before writing anything, so this is not merely a label.
+        mode: this.resolveSubmitMode(),
+        sourceConfirmationNumber: this.sourceConfirmationNumber ?? undefined,
+
+        // The patient, resolved or created inside the same transaction. See buildSubmitPatient for
+        // why an id and a create-input are mutually exclusive here.
+        ...this.buildSubmitPatient(rawAfter),
+
         panelNumber: rawAfter.panelNumber ?? undefined,
         appointmentDate:
           this.combineAppointmentDateAndTime(rawAfter.appointmentDate, rawAfter.appointmentTime) ??
           undefined,
-        requestConfirmationNumber: rawAfter.requestConfirmationNumber || 'A',
+        // requestConfirmationNumber and isPatientAlreadyExist are deliberately NOT sent: the server
+        // allocates the number and derives the returning-patient flag from what deduplication
+        // actually decided. A client value could disagree with what happened.
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
-        patientId: rawAfter.patientId ?? '',
-        // G-01-03 / OLD parity (AppointmentDomain.cs:203-218): persist the
-        // returning-patient result the dedup already computed. The server reads
-        // this flag verbatim; without it every booking records a "new" patient.
-        isPatientAlreadyExist: this.currentPatientProfile?.isExisting ?? false,
         identityUserId: rawAfter.identityUserId ?? null,
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
@@ -2146,36 +2248,46 @@ export class AppointmentAddComponent {
         // Empty / whitespace values are dropped to match OLD's "no answer"
         // semantics; the backend AppService also drops them defensively.
         customFieldValues: this.serializeCustomFieldValues(),
+
+        // Every child group the seven POSTs used to carry. One builder per group, each returning
+        // undefined when the group is absent, so a group that stops being sent shows up as an
+        // obviously missing line rather than a silently dropped property -- which is how Bug F18
+        // hid a cascade dropping 2 of 8 groups while reporting success.
+        employerDetail: this.buildSubmitEmployerDetail(rawAfter),
+        applicantAttorney: this.buildSubmitApplicantAttorney(rawAfter),
+        defenseAttorney: this.buildSubmitDefenseAttorney(rawAfter),
+        primaryInsurance: this.buildSubmitPrimaryInsurance(rawAfter),
+        claimExaminer: this.buildSubmitClaimExaminer(rawAfter),
+        injuryDetails: this.buildSubmitInjuryDetails(),
+        accessors: this.buildSubmitAccessors(),
       };
 
-      const createdAppointment = await this.createAppointmentForCurrentMode(payload);
+      // ONE call, for all four booking modes.
+      //
+      // This replaced an appointment POST followed by seven further child POSTs, each committing on
+      // its own. A failure part-way through left a half-booking: production appointments A00010 and
+      // A00011 carry full attorney columns with ZERO join rows, so the Case Tracker was told about
+      // two attorneys the UI could not show. Correctness cannot depend on a browser finishing a
+      // loop, so the server now commits the patient, the appointment and every child group in one
+      // transaction.
+      const submitted = await firstValueFrom(this.appointmentProxyService.submit(payload));
 
-      await this.createEmployerDetailsIfProvided(createdAppointment?.id);
-      await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
-      await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
-      await this.createAppointmentPrimaryInsuranceIfProvided(createdAppointment?.id);
-      await this.createAppointmentClaimExaminerIfProvided(createdAppointment?.id);
-      await this.persistInjuryDraftsIfProvided(createdAppointment?.id);
-      await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
-
-      // AF7: upload staged documents to the now-created appointment. On a
-      // partial failure keep the booker on the page (the appointment stays
-      // Pending) so they can retry against the existing id -- no rollback,
-      // matching the non-atomic child-POST behavior above.
-      this.createdAppointmentIdForRetry = createdAppointment?.id;
-      if (!(await this.uploadStagedDocuments(createdAppointment?.id))) {
+      // AF7: documents stay OUTSIDE that transaction on purpose -- a blob upload cannot join a
+      // database transaction. Unchanged keep-and-retry behaviour, now keyed off the submit result.
+      this.createdAppointmentIdForRetry = submitted?.appointmentId;
+      if (!(await this.uploadStagedDocuments(submitted?.appointmentId))) {
         this.toaster.warn(
           'Appointment created, but some documents failed to upload. Retry from the Documents section.',
         );
         return;
       }
 
-      // F1/F2 fix (2026-06-07): internal bookings are created Pending so the
-      // party/injury attach calls above do not race the approval side-effects
-      // (which previously 409'd the attaches and bypassed the gates). Now that
-      // the appointment is fully populated, auto-approve it for internal
-      // bookers in a single transaction whose gates run on complete data.
-      await this.autoApproveIfInternalBooker(createdAppointment?.id);
+      // F1/F2 fix (2026-06-07): internal bookings are created Pending, then approved separately,
+      // because the child attaches used to race the approval side-effects (which 409'd the attaches
+      // and bypassed the gates). PR2 removes the race rather than the workaround -- the child rows
+      // are now guaranteed committed before this runs. PR3 folds the approval into the same
+      // transaction and deletes this call.
+      await this.autoApproveIfInternalBooker(submitted?.appointmentId);
 
       this.navigateAfterBooking();
     } catch (err: unknown) {
@@ -2216,24 +2328,62 @@ export class AppointmentAddComponent {
    * swallowed with a warning -- the booking already exists and can be approved
    * from the appointment view, so navigation is never blocked.
    */
+  /**
+   * Approves an internal booker's appointment, as a separate call AFTER the atomic submit and after
+   * staged documents upload.
+   *
+   * <p><b>Why it stays separate</b> (checked 2026-08-22): a PQME cannot be approved until a panel
+   * strike list document is on file (`AppointmentManager.cs:478-487`), and a blob upload cannot join
+   * a database transaction. So submit -> upload -> approve is a required ordering, not the workaround
+   * the F1/F2 comment implied. What PR1/PR2 removed is the RACE behind it -- the child rows are now
+   * guaranteed committed before the approval gates query for them.</p>
+   *
+   * <p><b>Item B PR3 (2026-08-22) -- idempotent and reportable.</b> This used to be a bare
+   * `catch {}` with one generic warning, which swallowed the reason, called an already-approved
+   * appointment a failure, and told a booker to go approve it manually even when the real problem was
+   * a missing strike list they could fix immediately.</p>
+   */
   private async autoApproveIfInternalBooker(appointmentId: string | undefined): Promise<void> {
     if (!appointmentId || !this.isInternalBooker) {
       return;
     }
+
     const responsibleUserId = this.currentUser?.id;
     if (!responsibleUserId) {
+      // Was a silent return. An internal booking with no resolvable responsible user can never be
+      // auto-approved, so it must not be left Pending with no explanation.
+      this.toaster.warn(AUTO_APPROVE_FALLBACK_MESSAGE);
       return;
     }
-    try {
-      await firstValueFrom(
-        this.appointmentApprovalService.approveAppointment(appointmentId, {
-          primaryResponsibleUserId: responsibleUserId,
-        }),
-      );
-    } catch {
-      this.toaster.warn(
-        'Appointment booked. Auto-approval did not complete -- approve it from the appointment view.',
-      );
+
+    // At most one retry, and only for an unclassified failure: a refused gate cannot succeed on a
+    // second identical attempt, so retrying it would just delay the message the booker needs.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await firstValueFrom(
+          this.appointmentApprovalService.approveAppointment(appointmentId, {
+            primaryResponsibleUserId: responsibleUserId,
+          }),
+        );
+        return;
+      } catch (err: unknown) {
+        const outcome = classifyAutoApproveFailure(err);
+
+        if (outcome.kind === 'alreadyApproved') {
+          // Idempotent: a previous attempt, or a double submit, already reached Approved.
+          return;
+        }
+
+        if (outcome.kind === 'blocked') {
+          // The server's message names the missing thing; ours could not.
+          this.toaster.warn(outcome.message);
+          return;
+        }
+
+        if (attempt === 2) {
+          this.toaster.warn(outcome.message);
+        }
+      }
     }
   }
 
@@ -2722,66 +2872,11 @@ export class AppointmentAddComponent {
       });
   }
 
-  private async getOrCreatePatientForAppointment(
-    raw: ReturnType<typeof this.form.getRawValue>,
-  ): Promise<PatientWithNavigationPropertiesDto | null> {
-    const dateOfBirth = this.formatDateOfBirthForApi(raw.dateOfBirth);
-    if (!dateOfBirth) {
-      throw new Error('Date of birth is required for new patient.');
-    }
-    const body = {
-      firstName: raw.firstName || '',
-      lastName: raw.lastName || '',
-      middleName: raw.middleName ?? undefined,
-      // task_d5407b22 (2026-07-21): patient email is optional. Send null (not "") when blank --
-      // the DTO's [EmailAddress] rejects an empty string but allows null; the server stores "".
-      email: raw.email?.trim() || null,
-      genderId: Number(raw.genderId ?? 0),
-      dateOfBirth,
-      phoneNumberTypeId: Number(raw.phoneNumberTypeId ?? 1),
-      phoneNumber: raw.phoneNumber ?? undefined,
-      socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
-      // The "Unit #" control is still NAMED `address`; its value belongs in apptNumber. Decided and
-      // tested in patient-unit.mapper. Note there is deliberately no `address:` here -- sending it
-      // too would keep the old two-column split alive.
-      apptNumber: unitToDto(raw.address),
-      city: raw.city ?? undefined,
-      zipCode: raw.zipCode ?? undefined,
-      cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
-      street: raw.street ?? undefined,
-      interpreterVendorName: raw.needsInterpreter
-        ? (raw.interpreterVendorName ?? undefined)
-        : undefined,
-      stateId: raw.stateId ?? undefined,
-      appointmentLanguageId: raw.appointmentLanguageId ?? undefined,
-    };
-    const created = await firstValueFrom(
-      this.restService.request<any, PatientWithNavigationPropertiesDto | null>(
-        {
-          method: 'POST',
-          url: '/api/app/patients/for-appointment-booking/get-or-create',
-          body,
-        },
-        { apiName: 'Default' },
-      ),
-    );
-
-    if (created?.patient?.id) {
-      return created;
-    }
-
-    // Some backend flows may return 204 without body; fetch by email as fallback.
-    return firstValueFrom(
-      this.restService.request<any, PatientWithNavigationPropertiesDto | null>(
-        {
-          method: 'GET',
-          url: '/api/app/patients/for-appointment-booking/by-email',
-          params: { email: raw.email || '' },
-        },
-        { apiName: 'Default' },
-      ),
-    );
-  }
+  // getOrCreatePatientForAppointment and updatePatientProfile were DELETED here (Item B PR2,
+  // 2026-08-22). Their bodies live on as buildPatientCreateInput / buildPatientUpdateInput, which
+  // return the payload instead of sending it, so the patient write joins the booking's transaction
+  // instead of committing ahead of it. The by-email fallback the get-or-create had for a 204 with no
+  // body went with it: the submit response always carries the resolved patientId.
 
   async loadPatientByEmail(): Promise<void> {
     const email = this.form.get('email')?.value?.trim();
@@ -3001,35 +3096,31 @@ export class AppointmentAddComponent {
     );
   }
 
-  private async createEmployerDetailsIfProvided(appointmentId?: string): Promise<void> {
-    const raw = this.form.getRawValue();
-    if (!appointmentId || !this.hasEmployerDetails(raw)) {
-      return;
+  /**
+   * Port of the old employer-details POST. Same guards, same fields -- it returns the body instead
+   * of sending it.
+   *
+   * Every child builder below sends UNASSIGNED_APPOINTMENT_ID for `appointmentId`: the appointment
+   * does not exist when the request is built, and the server overwrites it after creating one. It is
+   * sent explicitly rather than omitted so that intent is visible at the call site.
+   */
+  private buildSubmitEmployerDetail(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): AppointmentSubmitDto['employerDetail'] {
+    if (!this.hasEmployerDetails(raw) || !raw.employerName || !raw.employerOccupation) {
+      return undefined;
     }
 
-    if (!raw.employerName || !raw.employerOccupation) {
-      return;
-    }
-
-    await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'POST',
-          url: '/api/app/appointment-employer-details',
-          body: {
-            appointmentId,
-            employerName: raw.employerName,
-            occupation: raw.employerOccupation,
-            phoneNumber: raw.employerPhoneNumber ?? undefined,
-            street: raw.employerStreet ?? undefined,
-            city: raw.employerCity ?? undefined,
-            stateId: raw.employerStateId ?? undefined,
-            zipCode: raw.employerZipCode ?? undefined,
-          },
-        },
-        { apiName: 'Default' },
-      ),
-    );
+    return {
+      appointmentId: UNASSIGNED_APPOINTMENT_ID,
+      employerName: raw.employerName,
+      occupation: raw.employerOccupation,
+      phoneNumber: raw.employerPhoneNumber ?? undefined,
+      street: raw.employerStreet ?? undefined,
+      city: raw.employerCity ?? undefined,
+      stateId: raw.employerStateId ?? undefined,
+      zipCode: raw.employerZipCode ?? undefined,
+    };
   }
 
   // #121 phase T2 (2026-05-13) -- modal + table helpers all moved to
@@ -3213,24 +3304,26 @@ export class AppointmentAddComponent {
       });
   }
 
-  private async upsertApplicantAttorneyForAppointmentIfProvided(
-    appointmentId?: string,
-  ): Promise<void> {
-    const raw = this.form.getRawValue();
-    // Bonus issue (2026-05-07): drop the IdentityUserId precondition. Send
-    // the upsert whenever the AA section is enabled AND the booker typed at
-    // least an email; the backend resolves IdentityUser by email or stores
-    // the row with a null IdentityUserId, which the registration linkback
-    // contributor patches when the AA later registers.
-    if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyEmail) {
-      return;
+  /**
+   * Port of the old applicant-attorney upsert POST.
+   *
+   * Bonus issue (2026-05-07): there is deliberately no IdentityUserId precondition. Send the upsert
+   * whenever the AA section is enabled AND the booker typed at least an email; the backend resolves
+   * IdentityUser by email or stores the row with a null IdentityUserId, which the registration
+   * linkback contributor patches when the AA later registers.
+   */
+  private buildSubmitApplicantAttorney(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): AppointmentSubmitDto['applicantAttorney'] {
+    if (!raw.applicantAttorneyEnabled || !raw.applicantAttorneyEmail) {
+      return undefined;
     }
-    const body = {
+
+    return {
       applicantAttorneyId: this.applicantAttorneyId ?? undefined,
-      // Send Guid.Empty so the backend's ResolveIdentityUserIdForBookingAsync
-      // helper falls through to the email-based lookup when no existing
-      // IdentityUser was matched at search time.
-      identityUserId: raw.applicantAttorneyIdentityUserId ?? '00000000-0000-0000-0000-000000000000',
+      // Guid.Empty so the backend's ResolveIdentityUserIdForBookingAsync helper falls through to the
+      // email-based lookup when no existing IdentityUser was matched at search time.
+      identityUserId: raw.applicantAttorneyIdentityUserId ?? UNASSIGNED_APPOINTMENT_ID,
       firstName: raw.applicantAttorneyFirstName ?? '',
       lastName: raw.applicantAttorneyLastName ?? '',
       email: raw.applicantAttorneyEmail ?? '',
@@ -3244,16 +3337,6 @@ export class AppointmentAddComponent {
       zipCode: raw.applicantAttorneyZipCode ?? undefined,
       concurrencyStamp: this.applicantAttorneyConcurrencyStamp ?? undefined,
     };
-    await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'POST',
-          url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
-          body,
-        },
-        { apiName: 'Default' },
-      ),
-    );
   }
 
   // W2-7: defense-attorney section parallel to applicant-attorney. Booker can
@@ -3391,19 +3474,17 @@ export class AppointmentAddComponent {
       });
   }
 
-  private async upsertDefenseAttorneyForAppointmentIfProvided(
-    appointmentId?: string,
-  ): Promise<void> {
-    const raw = this.form.getRawValue();
-    // Bonus issue (2026-05-07): mirror the AA upsert above. Submit whenever
-    // the DA section is enabled AND the booker typed an email; backend
-    // resolves IdentityUser by email or persists with null + linkback.
-    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyEmail) {
-      return;
+  /** Port of the old defense-attorney upsert POST. Mirrors the applicant-attorney builder above. */
+  private buildSubmitDefenseAttorney(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): AppointmentSubmitDto['defenseAttorney'] {
+    if (!raw.defenseAttorneyEnabled || !raw.defenseAttorneyEmail) {
+      return undefined;
     }
-    const body = {
+
+    return {
       defenseAttorneyId: this.defenseAttorneyId ?? undefined,
-      identityUserId: raw.defenseAttorneyIdentityUserId ?? '00000000-0000-0000-0000-000000000000',
+      identityUserId: raw.defenseAttorneyIdentityUserId ?? UNASSIGNED_APPOINTMENT_ID,
       firstName: raw.defenseAttorneyFirstName ?? '',
       lastName: raw.defenseAttorneyLastName ?? '',
       email: raw.defenseAttorneyEmail ?? '',
@@ -3417,104 +3498,18 @@ export class AppointmentAddComponent {
       zipCode: raw.defenseAttorneyZipCode ?? undefined,
       concurrencyStamp: this.defenseAttorneyConcurrencyStamp ?? undefined,
     };
-    await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'POST',
-          url: `/api/app/appointments/${appointmentId}/defense-attorney`,
-          body,
-        },
-        { apiName: 'Default' },
-      ),
-    );
   }
 
-  private async createAppointmentAccessorsIfProvided(appointmentId?: string): Promise<void> {
-    if (!appointmentId || this.appointmentAuthorizedUsers.length === 0) {
-      return;
-    }
-
-    for (const item of this.appointmentAuthorizedUsers) {
-      await firstValueFrom(
-        this.restService.request<any, any>(
-          {
-            method: 'POST',
-            url: '/api/app/appointment-accessors',
-            body: {
-              appointmentId,
-              email: item.email,
-              firstName: item.firstName || undefined,
-              lastName: item.lastName || undefined,
-              role: item.userRole,
-              accessTypeId: item.accessTypeId,
-            },
-          },
-          { apiName: 'Default' },
-        ),
-      );
-    }
-  }
-
-  private async updatePatientProfile(): Promise<void> {
-    const raw = this.form.getRawValue();
-    const existing = this.currentPatientProfile?.patient;
-    if (!existing?.id) {
-      return;
-    }
-    const needsInterpreter = raw.needsInterpreter === true || `${raw.needsInterpreter}` === 'true';
-
-    const payload: PatientUpdateDto = {
-      firstName: raw.firstName || '',
-      lastName: raw.lastName || '',
-      middleName: raw.middleName ?? undefined,
-      email: raw.email || '',
-      genderId: (raw.genderId as any) ?? undefined,
-      dateOfBirth: raw.dateOfBirth ?? undefined,
-      phoneNumber: raw.phoneNumber ?? undefined,
-      socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
-      // The "Unit #" control is still NAMED `address`; its value belongs in apptNumber. Decided and
-      // tested in patient-unit.mapper. Note there is deliberately no `address:` here -- sending it
-      // too would keep the old two-column split alive.
-      apptNumber: unitToDto(raw.address),
-      city: raw.city ?? undefined,
-      zipCode: raw.zipCode ?? undefined,
-      cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
-      phoneNumberTypeId: (raw.phoneNumberTypeId as any) ?? undefined,
-      street: raw.street ?? undefined,
-      interpreterVendorName: needsInterpreter
-        ? (raw.interpreterVendorName ?? undefined)
-        : undefined,
-      // apptNumber is set ABOVE from the "Unit #" control. It used to be echoed back from the
-      // stored patient here, which -- now that the control feeds it -- would overwrite the edit
-      // with the old value and silently discard every unit change made in the wizard.
-      othersLanguageName: existing.othersLanguageName ?? undefined,
-      stateId: raw.stateId ?? undefined,
-      appointmentLanguageId: raw.appointmentLanguageId ?? undefined,
-      identityUserId: raw.identityUserId ?? existing.identityUserId ?? undefined,
-      tenantId: existing.tenantId ?? undefined,
-      concurrencyStamp: existing.concurrencyStamp,
-    };
-
-    const updateUrl = this.isExternalUserNonPatient
-      ? `/api/app/patients/for-appointment-booking/${existing.id}`
-      : '/api/app/patients/me';
-    const updated = await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'PUT',
-          url: updateUrl,
-          body: payload,
-        },
-        { apiName: 'Default' },
-      ),
-    );
-
-    if (this.currentPatientProfile?.patient) {
-      this.currentPatientProfile.patient = {
-        ...this.currentPatientProfile.patient,
-        ...updated,
-      };
-    }
+  /** Port of the old per-accessor POST loop -- one array instead of N requests. */
+  private buildSubmitAccessors(): AppointmentSubmitDto['accessors'] {
+    return this.appointmentAuthorizedUsers.map((item) => ({
+      appointmentId: UNASSIGNED_APPOINTMENT_ID,
+      email: item.email,
+      firstName: item.firstName || undefined,
+      lastName: item.lastName || undefined,
+      role: item.userRole,
+      accessTypeId: item.accessTypeId,
+    }));
   }
 
   private get currentUser(): {
@@ -3857,121 +3852,90 @@ export class AppointmentAddComponent {
   // CI1 (2026-06-05): one Claim Examiner per appointment (required). Posted
   // after create; Name + Email are guaranteed present by the parent
   // Validators.required gate, so this always inserts when an appointment exists.
-  private async createAppointmentClaimExaminerIfProvided(appointmentId?: string): Promise<void> {
-    if (!appointmentId) {
-      return;
-    }
-    const raw = this.form.getRawValue();
-    await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'POST',
-          url: '/api/app/appointment-claim-examiners',
-          body: {
-            appointmentId,
-            isActive: true,
-            name: raw.appointmentClaimExaminerName,
-            email: raw.appointmentClaimExaminerEmail,
-            suite: raw.appointmentClaimExaminerSuite,
-            phoneNumber: raw.appointmentClaimExaminerPhoneNumber,
-            fax: raw.appointmentClaimExaminerFax,
-            street: raw.appointmentClaimExaminerStreet,
-            city: raw.appointmentClaimExaminerCity,
-            zip: raw.appointmentClaimExaminerZip,
-            stateId: raw.appointmentClaimExaminerStateId,
-          },
-        },
-        { apiName: 'Default' },
-      ),
-    );
+  /**
+   * Port of the old claim-examiner POST. CI1 (2026-06-05): one Claim Examiner per appointment, and
+   * required -- Name + Email are guaranteed present by the parent's Validators.required gate, which
+   * is why this has no "if provided" guard and always returns a value.
+   */
+  private buildSubmitClaimExaminer(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): AppointmentSubmitDto['claimExaminer'] {
+    return {
+      appointmentId: UNASSIGNED_APPOINTMENT_ID,
+      isActive: true,
+      name: raw.appointmentClaimExaminerName,
+      email: raw.appointmentClaimExaminerEmail,
+      suite: raw.appointmentClaimExaminerSuite,
+      phoneNumber: raw.appointmentClaimExaminerPhoneNumber,
+      fax: raw.appointmentClaimExaminerFax,
+      street: raw.appointmentClaimExaminerStreet,
+      city: raw.appointmentClaimExaminerCity,
+      zip: raw.appointmentClaimExaminerZip,
+      stateId: raw.appointmentClaimExaminerStateId,
+    };
   }
 
   // CI1 (2026-06-05): one optional Primary Insurance per appointment. Posted
   // after create only when a company name was entered.
-  private async createAppointmentPrimaryInsuranceIfProvided(appointmentId?: string): Promise<void> {
-    if (!appointmentId) {
-      return;
+  /**
+   * Port of the old primary-insurance POST. CI1 (2026-06-05): one optional Primary Insurance per
+   * appointment, sent only when a company name was actually entered.
+   */
+  private buildSubmitPrimaryInsurance(
+    raw: ReturnType<typeof this.form.getRawValue>,
+  ): AppointmentSubmitDto['primaryInsurance'] {
+    if (!(raw.appointmentInsuranceName ?? '').trim()) {
+      return undefined;
     }
-    const raw = this.form.getRawValue();
-    const name = (raw.appointmentInsuranceName ?? '').trim();
-    if (!name) {
-      return;
-    }
-    await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'POST',
-          url: '/api/app/appointment-primary-insurances',
-          body: {
-            appointmentId,
-            isActive: true,
-            name: raw.appointmentInsuranceName,
-            suite: raw.appointmentInsuranceSuite,
-            phoneNumber: raw.appointmentInsurancePhoneNumber,
-            faxNumber: raw.appointmentInsuranceFaxNumber,
-            street: raw.appointmentInsuranceStreet,
-            city: raw.appointmentInsuranceCity,
-            zip: raw.appointmentInsuranceZip,
-            stateId: raw.appointmentInsuranceStateId,
-          },
-        },
-        { apiName: 'Default' },
-      ),
-    );
+
+    return {
+      appointmentId: UNASSIGNED_APPOINTMENT_ID,
+      isActive: true,
+      name: raw.appointmentInsuranceName,
+      suite: raw.appointmentInsuranceSuite,
+      phoneNumber: raw.appointmentInsurancePhoneNumber,
+      faxNumber: raw.appointmentInsuranceFaxNumber,
+      street: raw.appointmentInsuranceStreet,
+      city: raw.appointmentInsuranceCity,
+      zip: raw.appointmentInsuranceZip,
+      stateId: raw.appointmentInsuranceStateId,
+    };
   }
 
-  private async persistInjuryDraftsIfProvided(appointmentId?: string): Promise<void> {
-    if (!appointmentId || this.injuryDrafts.length === 0) {
-      return;
-    }
-    for (const draft of this.injuryDrafts) {
-      const created = await firstValueFrom(
-        this.restService.request<any, { id: string }>(
-          {
-            method: 'POST',
-            url: '/api/app/appointment-injury-details',
-            body: {
-              appointmentId,
-              dateOfInjury: draft.dateOfInjury,
-              toDateOfInjury: draft.toDateOfInjury,
-              claimNumber: draft.claimNumber,
-              isCumulativeInjury: draft.isCumulativeInjury,
-              wcabAdj: draft.wcabAdj,
-              bodyPartsSummary: draft.bodyPartsSummary,
-              wcabOfficeId: draft.wcabOfficeId,
-            },
+  /**
+   * Port of the old injury + body-part POST loop, which needed a round trip PER INJURY to learn the
+   * injury id before its body parts could be sent.
+   *
+   * Body parts are NESTED inside their injury rather than flat, because a body part points at the
+   * INJURY, not the appointment. The server writes the injury, takes its id, then writes its parts --
+   * a flat list could not express which injury a part belonged to.
+   *
+   * CI1 (2026-06-05): per-injury insurance/CE are gone; both are single appointment-level records.
+   */
+  private buildSubmitInjuryDetails(): AppointmentSubmitDto['injuryDetails'] {
+    return this.injuryDrafts.map(
+      (draft) =>
+        ({
+          injury: {
+            appointmentId: UNASSIGNED_APPOINTMENT_ID,
+            dateOfInjury: draft.dateOfInjury,
+            toDateOfInjury: draft.toDateOfInjury,
+            claimNumber: draft.claimNumber,
+            isCumulativeInjury: draft.isCumulativeInjury,
+            wcabAdj: draft.wcabAdj,
+            // OBS-41 (2026-05-27): the derived comma-join is still sent alongside the structured
+            // rows so legacy readers (view fallback, repo filter-text) keep working.
+            bodyPartsSummary: draft.bodyPartsSummary,
+            wcabOfficeId: draft.wcabOfficeId,
           },
-          { apiName: 'Default' },
-        ),
-      );
-      const injuryId = created?.id;
-      if (!injuryId) continue;
-
-      // OBS-41 (2026-05-27): persist structured body-part rows
-      // (description-only) to the existing CRUD endpoint. The injury's
-      // BodyPartsSummary (derived comma-join) was already sent above so
-      // legacy readers (view fallback, repo filter-text) keep working.
-      for (const description of draft.bodyParts ?? []) {
-        const trimmed = (description ?? '').trim();
-        if (!trimmed) continue;
-        await firstValueFrom(
-          this.restService.request<any, any>(
-            {
-              method: 'POST',
-              url: '/api/app/appointment-body-parts',
-              body: {
-                appointmentInjuryDetailId: injuryId,
-                bodyPartDescription: trimmed,
-              },
-            },
-            { apiName: 'Default' },
-          ),
-        );
-      }
-
-      // CI1 (2026-06-05): per-injury insurance/CE POSTs removed -- insurance +
-      // CE are now single appointment-level records posted once after create
-      // (createAppointmentPrimaryInsuranceIfProvided / ...ClaimExaminer...).
-    }
+          bodyParts: (draft.bodyParts ?? [])
+            .map((description) => (description ?? '').trim())
+            .filter((description) => !!description)
+            .map((description) => ({
+              appointmentInjuryDetailId: UNASSIGNED_APPOINTMENT_ID,
+              bodyPartDescription: description,
+            })),
+        }) as AppointmentInjurySubmitDto,
+    );
   }
 }

@@ -85,12 +85,22 @@
       }
       <div>
         <label class="form-label small text-muted" for="document-file-input">File</label>
-        <input
-          id="document-file-input"
-          type="file"
-          class="form-control form-control-sm"
-          (change)="onFileSelected($event)"
-        />
+        <!-- Item H (2026-08-22): drop is an alternative to the picker, never a replacement. -->
+        <div
+          class="file-drop-zone"
+          appFileDropZone
+          [dropDisabled]="isUploading"
+          (filesDropped)="onFilesDropped($event)"
+        >
+          <input
+            id="document-file-input"
+            type="file"
+            class="form-control form-control-sm"
+            [accept]="acceptAttribute"
+            (change)="onFileSelected($event)"
+          />
+          <p class="file-drop-zone__hint">or drop a file here</p>
+        </div>
       </div>
       <button
         type="button"
