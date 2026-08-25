@@ -193,10 +193,19 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             // logs -- the caller still sees generic success. A missing template is a deployment or
             // seeding fault that affects EVERY user of this flow, and swallowing it at Warning is
             // precisely why the host-scope bug survived a month unnoticed.
+            // 2026-08-25: the template code is NAMED in the message rather than passed as an
+            // argument. CodeQL reads `NotificationTemplateConsts.Codes.ResetPassword` and
+            // `.PasswordChange` as sensitive by identifier name and raised
+            // cs/cleartext-storage-of-sensitive-information (2 high) for logging them. They are
+            // template CODES -- the literal strings "ResetPassword" and "PasswordChange" -- so the
+            // alerts were false positives. The fix is deliberately NOT to silence the rule: it is the
+            // one rule you most want armed on a file whose job includes handling real passwords, so
+            // suppressing it here would trade a cosmetic win for a real blind spot. Dropping the
+            // constant from the argument list removes the flow instead. All three catches are written
+            // the same way so they cannot drift apart again.
             _logger.LogError(
                 ex,
-                "ExternalAccountAppService.SendPasswordResetCodeAsync: the {TemplateCode} template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
-                NotificationTemplateConsts.Codes.ResetPassword,
+                "ExternalAccountAppService.SendPasswordResetCodeAsync: the ResetPassword template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
                 user.Id);
         }
         catch (Exception ex)
@@ -299,8 +308,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             // bug. The password HAS already changed here, so the caller still gets success.
             _logger.LogError(
                 ex,
-                "ExternalAccountAppService.ResetPasswordAsync: the {TemplateCode} template is MISSING for user {UserId}; the password WAS changed but no confirmation was sent.",
-                NotificationTemplateConsts.Codes.PasswordChange,
+                "ExternalAccountAppService.ResetPasswordAsync: the PasswordChange template is MISSING for user {UserId}; the password WAS changed but no confirmation was sent.",
                 user.Id);
         }
         catch (Exception ex)
@@ -335,9 +343,18 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         // bypass by varying case / whitespace.
         if (await IsResendVerificationRateLimitedAsync(normalizedEmail))
         {
+            // 2026-08-25: no identifier logged, not even a digest of one.
+            //
+            // This first said "email-key {EmailKey}" while passing the raw address. A SHA-256 digest
+            // was tried next and CodeQL still flagged it -- correctly. An UNSALTED digest of an email
+            // is reversible in practice, because the address space is enumerable: anyone holding the
+            // logs and a candidate list can confirm a match. Salting it per process would break the
+            // cross-request correlation the digest existed for, which left nothing worth keeping.
+            //
+            // What the line is actually for is knowing that resend throttling is firing, and how
+            // often. That survives without naming anyone.
             _logger.LogInformation(
-                "ExternalAccountAppService.ResendEmailVerificationAsync: rate-limited for email-key {EmailKey}. Silent reject.",
-                normalizedEmail);
+                "ExternalAccountAppService.ResendEmailVerificationAsync: rate-limited. Silent reject.");
             return;
         }
 
@@ -395,10 +412,11 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             // See the reset path: a missing template is a deployment fault, loud in the logs, still
             // generic in the response.
+            // Not flagged by CodeQL (UserRegistered does not trip the name heuristic), but written
+            // like its two siblings above so the three catches stay uniform.
             _logger.LogError(
                 ex,
-                "ExternalAccountAppService.ResendEmailVerificationAsync: the {TemplateCode} template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
-                NotificationTemplateConsts.Codes.UserRegistered,
+                "ExternalAccountAppService.ResendEmailVerificationAsync: the UserRegistered template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
                 user.Id);
         }
         catch (Exception ex)
@@ -500,10 +518,20 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     /// request landed (not a rolling window -- counter resets to 0 once
     /// the TTL expires). Cache write failure is logged but not propagated.
     /// </summary>
+    /// <param name="purpose">
+    /// A caller-supplied LITERAL naming the limiter, for the failure log. It exists rather than
+    /// logging <paramref name="keyPrefix"/> because that argument flows from the constant
+    /// <c>PasswordResetKeyPrefix</c>, whose NAME contains "Password" -- enough for CodeQL to read it
+    /// as a secret and raise cs/cleartext-storage-of-sensitive-information (it did: alert 286). The
+    /// value is only "password-reset". A literal is not a tracked source, which is why the sibling
+    /// <see cref="IsRateLimitedAsync"/> has always logged its own purpose parameter without
+    /// tripping the same rule. The two methods now match.
+    /// </param>
     private async Task StampRateLimitAsync(
         string keyPrefix,
         string normalizedEmail,
-        TimeSpan cooldown)
+        TimeSpan cooldown,
+        string purpose)
     {
         var cooldownKey = $"{keyPrefix}:cooldown:{normalizedEmail}";
         var hourlyKey = $"{keyPrefix}:hourly:{normalizedEmail}";
@@ -531,10 +559,15 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
         catch (Exception ex)
         {
+            // Names the LIMITER, not the person: "resend-verification" or "password-reset", which is
+            // the question an operator actually has here -- whose cache writes are failing -- and it
+            // carries no identifier. See the note at the resend rate-limit log for why not even a
+            // digest of the address is used, and the purpose parameter's docs for why this logs a
+            // caller-supplied literal rather than the keyPrefix constant.
             _logger.LogWarning(
                 ex,
-                "ExternalAccountAppService: rate-limit cache write failed for email-key {EmailKey}; rate-limit may not enforce on this request.",
-                normalizedEmail);
+                "ExternalAccountAppService: rate-limit cache write failed for {Purpose}; rate-limit may not enforce on this request.",
+                purpose);
         }
     }
 
@@ -542,13 +575,15 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         StampRateLimitAsync(
             ResendVerificationKeyPrefix,
             normalizedEmail,
-            ResendVerificationCooldown);
+            ResendVerificationCooldown,
+            "resend-verification");
 
     private Task StampPasswordResetRateLimitAsync(string normalizedEmail) =>
         StampRateLimitAsync(
             PasswordResetKeyPrefix,
             normalizedEmail,
-            PasswordResetCooldown);
+            PasswordResetCooldown,
+            "password-reset");
 
     // BUG-029 v3 fix (2026-05-21): BuildEmailConfirmationUrl static helper
     // moved into IAccountUrlBuilder. The Service now owns this shape.
