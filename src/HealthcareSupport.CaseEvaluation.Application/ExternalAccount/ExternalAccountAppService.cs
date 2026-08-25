@@ -518,10 +518,20 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     /// request landed (not a rolling window -- counter resets to 0 once
     /// the TTL expires). Cache write failure is logged but not propagated.
     /// </summary>
+    /// <param name="purpose">
+    /// A caller-supplied LITERAL naming the limiter, for the failure log. It exists rather than
+    /// logging <paramref name="keyPrefix"/> because that argument flows from the constant
+    /// <c>PasswordResetKeyPrefix</c>, whose NAME contains "Password" -- enough for CodeQL to read it
+    /// as a secret and raise cs/cleartext-storage-of-sensitive-information (it did: alert 286). The
+    /// value is only "password-reset". A literal is not a tracked source, which is why the sibling
+    /// <see cref="IsRateLimitedAsync"/> has always logged its own purpose parameter without
+    /// tripping the same rule. The two methods now match.
+    /// </param>
     private async Task StampRateLimitAsync(
         string keyPrefix,
         string normalizedEmail,
-        TimeSpan cooldown)
+        TimeSpan cooldown,
+        string purpose)
     {
         var cooldownKey = $"{keyPrefix}:cooldown:{normalizedEmail}";
         var hourlyKey = $"{keyPrefix}:hourly:{normalizedEmail}";
@@ -549,14 +559,15 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
         catch (Exception ex)
         {
-            // Logs the LIMITER, not the person. keyPrefix is "resend-verify" or "password-reset",
-            // which is the question an operator actually has here -- whose cache writes are failing
-            // -- and it carries no identifier. See the note at the resend rate-limit log for why not
-            // even a digest of the address is used.
+            // Names the LIMITER, not the person: "resend-verification" or "password-reset", which is
+            // the question an operator actually has here -- whose cache writes are failing -- and it
+            // carries no identifier. See the note at the resend rate-limit log for why not even a
+            // digest of the address is used, and the purpose parameter's docs for why this logs a
+            // caller-supplied literal rather than the keyPrefix constant.
             _logger.LogWarning(
                 ex,
-                "ExternalAccountAppService: rate-limit cache write failed for limiter {Limiter}; rate-limit may not enforce on this request.",
-                keyPrefix);
+                "ExternalAccountAppService: rate-limit cache write failed for {Purpose}; rate-limit may not enforce on this request.",
+                purpose);
         }
     }
 
@@ -564,13 +575,15 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         StampRateLimitAsync(
             ResendVerificationKeyPrefix,
             normalizedEmail,
-            ResendVerificationCooldown);
+            ResendVerificationCooldown,
+            "resend-verification");
 
     private Task StampPasswordResetRateLimitAsync(string normalizedEmail) =>
         StampRateLimitAsync(
             PasswordResetKeyPrefix,
             normalizedEmail,
-            PasswordResetCooldown);
+            PasswordResetCooldown,
+            "password-reset");
 
     // BUG-029 v3 fix (2026-05-21): BuildEmailConfirmationUrl static helper
     // moved into IAccountUrlBuilder. The Service now owns this shape.
