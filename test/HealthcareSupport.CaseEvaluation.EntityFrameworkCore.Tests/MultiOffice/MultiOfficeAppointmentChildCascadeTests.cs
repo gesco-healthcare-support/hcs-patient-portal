@@ -311,7 +311,18 @@ public class MultiOfficeAppointmentChildCascadeTests : CaseEvaluationMultiOffice
             locationId: office.LocationId,
             doctorAvailabilityId: office.DoctorAvailabilityId,
             appointmentDate: DateTime.Today.AddDays(30),
-            requestConfirmationNumber: $"RCN-CASCADE-{label}-{appointmentId:N}".Substring(0, 20),
+            // The Substring(0, 20) this used to carry kept only FOUR hex characters of the GUID,
+            // because "RCN-CASCADE-SRC-" is already 16 characters. That left 65,536 possible values
+            // shared by every appointment this collection seeds into one tenant, which made the
+            // unique index on (TenantId, RequestConfirmationNumber) an intermittent CI failure:
+            // ~0.4% for this class alone, but several percent once the whole MultiOfficeCollection
+            // has accumulated its rows. It failed exactly that way on cascade PR #467 while passing
+            // on the individual PRs and 3/3 locally in isolation.
+            //
+            // The column allows 50 characters (AppointmentConsts.RequestConfirmationNumberMaxLength),
+            // and the untruncated value is 48, so the truncation was never needed. Keeping the whole
+            // GUID makes the collision impossible rather than merely unlikely.
+            requestConfirmationNumber: $"RCN-CASCADE-{label}-{appointmentId:N}",
             appointmentStatus: AppointmentStatusType.Approved), autoSave: true);
     }
 
