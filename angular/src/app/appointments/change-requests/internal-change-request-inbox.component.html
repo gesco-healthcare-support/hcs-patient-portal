@@ -118,9 +118,20 @@
             <app-icon name="eye" [size]="14" />
             View
           </button>
-          <button class="af-btn af-btn--green af-btn--sm" type="button" (click)="openApprove(row)">
-            <app-icon name="check" [size]="14" />
-            Approve
+          <!--
+            Item K (2026-08-22): the label follows the stage. On a reschedule, the first click sets a
+            date and asks both parties to consent -- calling that "Approve" described step 3 of 3.
+            Green is reserved for the click that genuinely approves.
+          -->
+          <button
+            class="af-btn af-btn--sm"
+            [class.af-btn--green]="rowActionIsFinal(row)"
+            [class.af-btn--ghost]="!rowActionIsFinal(row)"
+            type="button"
+            (click)="openApprove(row)"
+          >
+            <app-icon [name]="rowActionIcon(row)" [size]="14" />
+            {{ rowActionLabel(row) }}
           </button>
           <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="openReject(row)">
             <app-icon name="x" [size]="14" />
@@ -266,6 +277,23 @@
                 <b>{{ sideAConsentLabel(m.row) }}</b>
                 &middot; Defense / claim-examiner side:
                 <b>{{ sideBConsentLabel(m.row) }}</b>
+              </span>
+            </div>
+          }
+
+          <!--
+            Item K (2026-08-22): the one place where clicking Approve really does approve. Both
+            sides have agreed, so this states plainly what the click will do before it is made --
+            the earlier stages never showed anything like this, which is part of why "Approve" read
+            as the same action at every stage.
+          -->
+          @if (isReschedule(m.row) && stage(m.row) === 'granted') {
+            <div class="ra-note" style="margin-bottom: 14px">
+              <span class="i"><app-icon name="check" [size]="15" /></span>
+              <span>
+                Both sides have agreed. Approving now moves the appointment to
+                <b>{{ confirmedSlotLabel(m.row) ?? 'the confirmed date' }}</b>
+                and notifies everyone. This is the step that actually reschedules it.
               </span>
             </div>
           }
