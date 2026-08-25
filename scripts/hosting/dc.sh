@@ -37,19 +37,19 @@ cd -- "$ROOT_DIR"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-secrets/env.prod}"
 
-if [ $# -eq 0 ]; then
+if [[ $# -eq 0 ]]; then
   echo "usage: $(basename "$0") <docker compose args...>" >&2
   echo "example: $(basename "$0") up -d" >&2
   exit 64
 fi
 
-[ -f "$COMPOSE_FILE" ] || {
+[[ -f "$COMPOSE_FILE" ]] || {
   echo "ERROR: compose file '${COMPOSE_FILE}' not found in ${ROOT_DIR}." >&2
   exit 1
 }
 
 # Fail fast rather than let compose blank every secret. This is the whole point of the script.
-[ -f "$ENV_FILE" ] || {
+[[ -f "$ENV_FILE" ]] || {
   echo "ERROR: env file '${ENV_FILE}' not found in ${ROOT_DIR}." >&2
   echo "Refusing to run: without it compose resolves every secret to an empty string and would" >&2
   echo "recreate the stack with no DB password, no TLS paths and no BASE_DOMAIN." >&2
@@ -57,7 +57,7 @@ fi
   echo "  cp env.prod.example ${ENV_FILE} && chmod 600 ${ENV_FILE}   # then fill in the values" >&2
   exit 1
 }
-[ -r "$ENV_FILE" ] || {
+[[ -r "$ENV_FILE" ]] || {
   echo "ERROR: env file '${ENV_FILE}' exists but is not readable by $(id -un)." >&2
   echo "It is mode 600 by design; run as the owner (apadmin on the server), not via sudo -u." >&2
   exit 1
