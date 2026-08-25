@@ -16,6 +16,7 @@ import type { AppointmentChangeRequestDto } from '../../proxy/appointment-change
 import { ChangeRequestType } from '../../proxy/appointment-change-requests/change-request-type.enum';
 import { AppointmentStatusType } from '../../proxy/enums/appointment-status-type.enum';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { IconName } from '../../shared/ui/icon/icon.registry';
 import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 import { makeComparator, type SortModel, type SortValue } from '../../shared/sort/sort-state';
 import {
@@ -29,6 +30,9 @@ import {
   formatSlotLabel,
   requiresAdminReason,
   rescheduleStage,
+  // Aliased: the component exposes same-named template helpers that delegate here.
+  rowActionLabel as rowActionLabelFor,
+  rowActionIsFinal as rowActionIsFinalFor,
   type ConsentRoundStage,
 } from './cr-approve.util';
 import {
@@ -336,6 +340,37 @@ export class InternalChangeRequestInboxComponent implements OnInit {
    */
   protected stage(row: AppointmentChangeRequestDto): ConsentRoundStage {
     return rescheduleStage(row);
+  }
+
+  /**
+   * Item K (2026-08-22) -- what the row button actually does at this point in the flow.
+   *
+   * <p>It said "Approve" at every stage, but on a reschedule approving is step 3 of 3: the first
+   * click opens a modal whose real job is to pick a date and email both sides for consent. Staff
+   * reasonably read the label as "this approves the request", which it does not.</p>
+   *
+   * <p>Driven off the stage the component already computes from the row's own fields, so the label
+   * survives a reload and always matches what the server believes. Cancellations have no consent
+   * round, so they keep saying Approve -- for them it is accurate.</p>
+   */
+  protected rowActionLabel(row: AppointmentChangeRequestDto): string {
+    return rowActionLabelFor(this.isReschedule(row), this.stage(row));
+  }
+
+  /**
+   * Item K: only the genuine approve step gets the green, final-looking treatment. The earlier
+   * stages open the same modal but are not approvals, so they should not look like one.
+   */
+  protected rowActionIsFinal(row: AppointmentChangeRequestDto): boolean {
+    return rowActionIsFinalFor(this.isReschedule(row), this.stage(row));
+  }
+
+  /** Item K: matches the label, so the icon does not promise an approval either. */
+  protected rowActionIcon(row: AppointmentChangeRequestDto): IconName {
+    if (this.rowActionIsFinal(row)) {
+      return 'check';
+    }
+    return this.stage(row) === 'needs-date' ? 'calendar' : 'clock';
   }
 
   /** Whether "Confirm date & request consent" may fire. */

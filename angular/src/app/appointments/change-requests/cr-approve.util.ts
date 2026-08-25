@@ -189,3 +189,36 @@ export function canFinalizeReschedule(state: {
 }): boolean {
   return state.stage === 'granted' && !!state.outcome;
 }
+
+/**
+ * Item K (2026-08-22) -- what the inbox ROW button should say.
+ *
+ * <p>It read "Approve" at every stage. On a reschedule that is wrong twice over: the first click
+ * opens a modal whose real job is to pick a date and email both sides for consent, and approving is
+ * step 3 of 3. Staff reasonably read the label as "this approves the request".</p>
+ *
+ * <p>A pure function of the two things that decide it, so the wording is testable without standing
+ * up the component. Cancellations have no consent round, so "Approve" is accurate for them and is
+ * returned unchanged.</p>
+ */
+export function rowActionLabel(isReschedule: boolean, stage: ConsentRoundStage): string {
+  if (!isReschedule) {
+    return 'Approve';
+  }
+  switch (stage) {
+    case 'needs-date':
+      return 'Set date';
+    case 'awaiting-consent':
+      return 'Awaiting consent';
+    default:
+      return 'Approve';
+  }
+}
+
+/**
+ * Item K -- whether this click is the one that genuinely approves. Drives the green, final-looking
+ * treatment, so the earlier stages stop looking like an approval they are not.
+ */
+export function rowActionIsFinal(isReschedule: boolean, stage: ConsentRoundStage): boolean {
+  return !isReschedule || stage === 'granted';
+}

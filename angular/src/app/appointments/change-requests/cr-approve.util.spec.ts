@@ -4,6 +4,8 @@ import {
   canFinalizeReschedule,
   requiresAdminReason,
   rescheduleStage,
+  rowActionIsFinal,
+  rowActionLabel,
 } from './cr-approve.util';
 
 /**
@@ -231,6 +233,46 @@ describe('cr-approve.util', () => {
     it('still needs a billing outcome once the round is granted', () => {
       expect(canFinalizeReschedule({ stage: 'granted', outcome: null })).toBe(false);
       expect(canFinalizeReschedule({ stage: 'granted', outcome: 21 })).toBe(true);
+    });
+  });
+
+  /**
+   * Item K (2026-08-22) -- the inbox row button said "Approve" at every stage, but on a reschedule
+   * the first click only sets a date and asks both parties for consent. These pin the wording so it
+   * cannot silently revert to describing step 3 of 3 at step 1 of 3.
+   */
+  describe('rowActionLabel', () => {
+    it('says Set date before a date is chosen -- that is all the click does', () => {
+      expect(rowActionLabel(true, 'needs-date')).toBe('Set date');
+    });
+
+    it('says Awaiting consent while both sides are being asked, because staff cannot approve yet', () => {
+      expect(rowActionLabel(true, 'awaiting-consent')).toBe('Awaiting consent');
+    });
+
+    it('says Approve only once consent is granted, which is the click that reschedules', () => {
+      expect(rowActionLabel(true, 'granted')).toBe('Approve');
+    });
+
+    it('always says Approve for a cancellation, which has no consent round', () => {
+      expect(rowActionLabel(false, 'needs-date')).toBe('Approve');
+      expect(rowActionLabel(false, 'awaiting-consent')).toBe('Approve');
+      expect(rowActionLabel(false, 'granted')).toBe('Approve');
+    });
+  });
+
+  describe('rowActionIsFinal', () => {
+    it('is false at the stages that are not approvals, so they do not look green and final', () => {
+      expect(rowActionIsFinal(true, 'needs-date')).toBeFalse();
+      expect(rowActionIsFinal(true, 'awaiting-consent')).toBeFalse();
+    });
+
+    it('is true at the genuine approve step', () => {
+      expect(rowActionIsFinal(true, 'granted')).toBeTrue();
+    });
+
+    it('is true for every cancellation stage', () => {
+      expect(rowActionIsFinal(false, 'needs-date')).toBeTrue();
     });
   });
 });
