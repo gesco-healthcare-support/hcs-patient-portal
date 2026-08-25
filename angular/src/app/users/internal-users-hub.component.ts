@@ -113,6 +113,12 @@ export class InternalUsersHubComponent {
   // Invite External
   protected readonly invite = signal<InviteDraft>(this.emptyInvite());
   protected readonly inviteResult = signal<InviteExternalUserResultDto | null>(null);
+
+  /**
+   * Item F follow-up (2026-08-22): true once the sign-in link has been emailed for the current
+   * already-registered result, so the button does not invite a second send.
+   */
+  protected readonly portalLinkSent = signal(false);
   protected readonly showFirm = computed(() => isAttorneyType(this.invite().userType));
   // QA item C: offices the invitee can be invited into. Non-empty only at host
   // scope; a non-empty list means the office picker is shown + required.
@@ -248,6 +254,31 @@ export class InternalUsersHubComponent {
   protected resetInvite(): void {
     this.invite.set(this.emptyInvite());
     this.inviteResult.set(null);
+    this.portalLinkSent.set(false);
+  }
+
+  /**
+   * Item F follow-up (2026-08-22): emails an existing external user a link to their own office
+   * portal. The URL is composed server-side from the office subdomain, never assembled here -- a
+   * hand-built URL is how tenant users have twice been sent to the host portal.
+   */
+  protected sendPortalLink(email: string | null | undefined): void {
+    if (!email || this.isBusy()) {
+      return;
+    }
+    this.isBusy.set(true);
+    // Host-scope callers picked the office on the invite form; in-office callers leave it undefined
+    // and the backend uses their ambient tenant, exactly as the invite does.
+    this.gateway
+      .sendPortalLink(email, this.invite().tenantId || undefined)
+      .pipe(finalize(() => this.isBusy.set(false)))
+      .subscribe({
+        next: () => {
+          this.portalLinkSent.set(true);
+          this.toaster.success('Sign-in link sent to ' + email + '.');
+        },
+        error: () => undefined,
+      });
   }
   /** QA item C: load the host-scope office picker source (empty in-office). */
   private loadInviteTenantOptions(): void {
@@ -291,6 +322,14 @@ export class InternalUsersHubComponent {
       .subscribe({
         next: (r) => {
           this.inviteResult.set(r);
+          // Item F follow-up (2026-08-22): a 200 no longer always means an invitation was issued.
+          // When the address already has an account the server deliberately issues NOTHING and says
+          // so, and there is no link or expiry to show. Announcing "Invite sent" there would be a
+          // false success on the exact support call this feature exists to help with.
+          if (r.alreadyRegistered) {
+            this.toaster.info('That email already has an account. No invitation was sent.');
+            return;
+          }
           this.toaster.success('Invite sent.');
         },
         error: () => undefined,

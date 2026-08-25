@@ -69,6 +69,15 @@ export class UsersSectionGateway {
     return this.externalUsers.inviteExternalUser(input);
   }
   /**
+   * Item F follow-up (2026-08-22): emails an existing external user a sign-in link for their own
+   * office. Goes through ExternalSignupService, not ExternalUserService: the endpoint lives on the
+   * auto-exposed app service at /api/app/external-signup/send-portal-link, and there is no custom
+   * external-users controller route for it.
+   */
+  sendPortalLink(email: string, tenantId?: string): Observable<void> {
+    return this.externalSignup.sendPortalLink({ email, tenantId });
+  }
+  /**
    * QA item C: offices an external user can be invited into. Populated only at
    * HOST scope (the backend returns an empty list inside an office, where the
    * tenant is implicit), so a non-empty result means "show the office picker".
