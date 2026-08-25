@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { RestService } from '@abp/ng.core';
+import { ALLOWED_DOCUMENT_EXTENSIONS } from '../appointment-documents/document-upload.constants';
+import { FileDropZoneDirective } from '../appointment-documents/file-drop-zone.directive';
 
 type UploadState = 'idle' | 'uploading' | 'success' | 'error';
 
@@ -20,7 +22,7 @@ type UploadState = 'idle' | 'uploading' | 'success' | 'error';
   selector: 'app-public-document-upload',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Default,
-  imports: [CommonModule],
+  imports: [CommonModule, FileDropZoneDirective],
   templateUrl: './public-document-upload.component.html',
   styles: [
     `
@@ -92,7 +94,16 @@ export class PublicDocumentUploadComponent {
   private readonly verificationCode = this.route.snapshot.paramMap.get('verificationCode') ?? '';
 
   readonly maxBytes = 10 * 1024 * 1024; // matches the server app-layer cap
-  private readonly acceptedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+  /**
+   * Item G (2026-08-22): derived from the shared allow-list rather than restated. This local copy
+   * had already drifted once -- it is the reason a format widened elsewhere would still be rejected
+   * here, client-side, before the request was ever made.
+   */
+  private readonly acceptedExtensions = ALLOWED_DOCUMENT_EXTENSIONS.map((e) =>
+    e.replace(/^\./, ''),
+  );
+
+  readonly acceptAttribute = ALLOWED_DOCUMENT_EXTENSIONS.join(',');
 
   state: UploadState = 'idle';
   errorMessage = '';
@@ -108,6 +119,19 @@ export class PublicDocumentUploadComponent {
     this.errorMessage = '';
   }
 
+  /**
+   * Item H (2026-08-22): dropping selects the file, exactly as picking it does. Validation still
+   * happens in upload(), so both routes are checked identically.
+   */
+  onFilesDropped(files: File[]): void {
+    if (this.state === 'uploading' || files.length === 0) {
+      return;
+    }
+    // This surface uploads one document per link, so a multi-file drop takes the first.
+    this.selectedFile = files[0];
+    this.errorMessage = '';
+  }
+
   upload(): void {
     if (!this.hasValidLink || !this.selectedFile || this.state === 'uploading') {
       return;
@@ -115,7 +139,7 @@ export class PublicDocumentUploadComponent {
 
     const extension = this.selectedFile.name.split('.').pop()?.toLowerCase() ?? '';
     if (!this.acceptedExtensions.includes(extension)) {
-      this.fail('Please choose a PDF, JPG, or PNG file.');
+      this.fail('Please choose a PDF, Word (.docx), JPG, or PNG file.');
       return;
     }
     if (this.selectedFile.size > this.maxBytes) {

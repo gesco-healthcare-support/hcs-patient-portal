@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
@@ -916,13 +917,22 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         }
     }
 
+    /// <summary>
+    /// Item G (2026-08-22) -- Word is allowed as <c>.docx</c> ONLY.
+    ///
+    /// <para><c>.docm</c> is macro-enabled by definition and <c>.doc</c> is the legacy OLE compound
+    /// binary with the worst macro and parser history, so neither is on the list. A valid
+    /// <c>.docx</c> cannot carry a VBA project and remain a valid <c>.docx</c>.</para>
+    /// </summary>
+    private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".docx" };
+
     private static void EnsureValidFileFormat(Stream stream, string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        if (!new[] { ".pdf", ".jpg", ".jpeg", ".png" }.Contains(extension))
+        if (!AllowedExtensions.Contains(extension))
         {
             throw new UserFriendlyException(
-                "Only PDF and image formats (JPG, PNG) are accepted.",
+                "Only PDF, Word (.docx) and image formats (JPG, PNG) are accepted.",
                 code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
         }
 
@@ -947,11 +957,56 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         bool isJpeg = magic[0] == 0xFF && magic[1] == 0xD8 && magic[2] == 0xFF;
         bool isPng = magic[0] == 0x89 && magic[1] == 0x50 && magic[2] == 0x4E && magic[3] == 0x47;
 
+        // OOXML is a ZIP container, so the header is PK\x03\x04 -- identical to any other archive.
+        // Four bytes therefore prove nothing here, which is exactly why .docx gets a container check
+        // instead of a magic-byte check.
+        bool isZip = magic[0] == 0x50 && magic[1] == 0x4B && magic[2] == 0x03 && magic[3] == 0x04;
+
+        if (extension == ".docx")
+        {
+            if (!isZip)
+            {
+                throw new UserFriendlyException(
+                    "That file is not a valid Word document.",
+                    code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
+            }
+            EnsureValidDocxContainer(stream);
+            return;
+        }
+
         if (!(isPdf || isJpeg || isPng))
         {
             throw new UserFriendlyException(
-                "File format is not supported. Please upload a valid PDF or image file.",
+                "File format is not supported. Please upload a valid PDF, Word or image file.",
                 code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
         }
+    }
+
+    /// <summary>
+    /// Item G (2026-08-22) -- maps <see cref="DocxContainerValidator"/>'s verdict onto the message
+    /// the uploader sees. The rule itself lives in that class so it can be tested without ABP DI.
+    /// </summary>
+    private static void EnsureValidDocxContainer(Stream stream)
+    {
+        var verdict = DocxContainerValidator.Inspect(stream);
+        if (verdict == DocxContainerVerdict.Valid)
+        {
+            return;
+        }
+
+        var message = verdict switch
+        {
+            DocxContainerVerdict.MacroEnabled =>
+                "That Word document contains macros and was not accepted. Save it as a .docx without macros and try again.",
+            DocxContainerVerdict.TooManyEntries =>
+                "That Word document has an unusual internal structure and was not accepted.",
+            DocxContainerVerdict.TooLarge =>
+                "That Word document expands to an unreasonable size and was not accepted.",
+            _ => "That file is not a valid Word document.",
+        };
+
+        throw new UserFriendlyException(
+            message,
+            code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
     }
 }
