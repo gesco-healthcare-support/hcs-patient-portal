@@ -135,42 +135,102 @@
         </div>
       </div>
 
+      <!--
+        Item F follow-up (2026-08-22): this panel used to render "Invite sent" unconditionally. The
+        server now answers 200 with alreadyRegistered=true and NO invitation for an address that
+        already has an account, so the old markup showed a false success with an empty link and an
+        "expiry" of Jan 1, 1. Split into the two outcomes it actually has.
+      -->
       @if (inviteResult(); as res) {
-        <div class="ux-result">
-          <div class="ux-result__head">
-            <app-icon name="check" [size]="16" />
-            Invite sent
-          </div>
-          <div class="ux-result__body">
-            <div class="ux-result__grid">
-              <div>
-                <!-- UI label: 'Practice' (code: tenant, field res.tenantName) -->
-                <div class="k">Practice</div>
-                <div class="v">{{ res.tenantName }}</div>
-              </div>
-              <div>
-                <div class="k">Email</div>
-                <div class="v">{{ res.email }}</div>
-              </div>
-              <div>
-                <div class="k">Role</div>
-                <div class="v">{{ res.roleName }}</div>
-              </div>
-              <div>
-                <div class="k">Expires</div>
-                <div class="v">{{ res.expiresAt | date: 'mediumDate' }}</div>
-              </div>
+        @if (res.alreadyRegistered) {
+          <div class="ux-result">
+            <div class="ux-result__head">
+              <app-icon name="user" [size]="16" />
+              This person already has an account
             </div>
-            <div class="ux-link">
-              <code>{{ res.inviteUrl }}</code>
-              <button class="af-btn af-btn--ghost af-btn--sm" (click)="copy(res.inviteUrl)">
-                <app-icon name="doc" [size]="14" />
-                Copy link
-              </button>
+            <div class="ux-result__body">
+              <div class="ux-result__grid">
+                <div>
+                  <div class="k">Practice</div>
+                  <div class="v">{{ res.tenantName }}</div>
+                </div>
+                <div>
+                  <div class="k">Email</div>
+                  <div class="v">{{ res.email }}</div>
+                </div>
+                <div>
+                  <div class="k">Existing role</div>
+                  <div class="v">{{ res.existingRoleName ?? 'Not assigned' }}</div>
+                </div>
+              </div>
+
+              @if (res.existingRoleName && res.existingRoleName !== res.roleName) {
+                <p class="ra-hint">
+                  You invited them as
+                  <b>{{ res.roleName }}</b>
+                  , but the existing account is
+                  <b>{{ res.existingRoleName }}</b>
+                  . Changing a role is a separate step; sending the sign-in link does not change it.
+                </p>
+              }
+
+              <p class="ra-hint">
+                No invitation was sent, and none can be - they already have an account. You can
+                email them a link to sign in to this practice instead.
+              </p>
+
+              @if (portalLinkSent()) {
+                <p class="ra-hint">Sign-in link sent to {{ res.email }}.</p>
+              } @else {
+                <button
+                  class="af-btn af-btn--green af-btn--sm"
+                  type="button"
+                  [disabled]="isBusy()"
+                  (click)="sendPortalLink(res.email)"
+                >
+                  <app-icon name="bell" [size]="14" />
+                  Send sign-in link
+                </button>
+              }
             </div>
-            <p class="ra-hint">Share the link manually if email delivery is delayed.</p>
           </div>
-        </div>
+        } @else {
+          <div class="ux-result">
+            <div class="ux-result__head">
+              <app-icon name="check" [size]="16" />
+              Invite sent
+            </div>
+            <div class="ux-result__body">
+              <div class="ux-result__grid">
+                <div>
+                  <!-- UI label: 'Practice' (code: tenant, field res.tenantName) -->
+                  <div class="k">Practice</div>
+                  <div class="v">{{ res.tenantName }}</div>
+                </div>
+                <div>
+                  <div class="k">Email</div>
+                  <div class="v">{{ res.email }}</div>
+                </div>
+                <div>
+                  <div class="k">Role</div>
+                  <div class="v">{{ res.roleName }}</div>
+                </div>
+                <div>
+                  <div class="k">Expires</div>
+                  <div class="v">{{ res.expiresAt | date: 'mediumDate' }}</div>
+                </div>
+              </div>
+              <div class="ux-link">
+                <code>{{ res.inviteUrl }}</code>
+                <button class="af-btn af-btn--ghost af-btn--sm" (click)="copy(res.inviteUrl)">
+                  <app-icon name="doc" [size]="14" />
+                  Copy link
+                </button>
+              </div>
+              <p class="ra-hint">Share the link manually if email delivery is delayed.</p>
+            </div>
+          </div>
+        }
       }
     }
 
