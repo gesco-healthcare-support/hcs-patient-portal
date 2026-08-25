@@ -111,6 +111,69 @@
     </div>
   </div>
 
+  <!--
+    Item F (2026-08-22): the email already has an account here, so no invite was issued. Styled as
+    information, not failure -- nothing went wrong, and the useful next step is a sign-in link
+    rather than an error the staff member has to explain over the phone.
+  -->
+  @if (alreadyRegistered(); as a) {
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-info-subtle">
+        <h4 class="mb-0 fw-bold">This person already has an account</h4>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="text-muted small">Email</div>
+            <div class="fw-semibold">{{ a.email }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Existing role</div>
+            <div class="fw-semibold">{{ a.existingRoleName ?? 'Not assigned' }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Practice</div>
+            <div class="fw-semibold">{{ a.tenantName }}</div>
+          </div>
+        </div>
+
+        @if (a.existingRoleName && a.existingRoleName !== a.invitedRoleName) {
+          <p class="text-muted small mb-3">
+            You tried to invite them as
+            <strong>{{ a.invitedRoleName }}</strong>
+            , but the existing account is
+            <strong>{{ a.existingRoleName }}</strong>
+            . Changing someone's role is a separate step -- sending the sign-in link below does not
+            change it.
+          </p>
+        }
+
+        <p class="mb-3">
+          There is nothing to set up. You can email them a link to sign in to this practice's
+          portal.
+        </p>
+
+        @if (portalLinkConfirmation()) {
+          <div class="alert alert-success mb-3">{{ portalLinkConfirmation() }}</div>
+        } @else {
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isSendingPortalLink()"
+            (click)="sendPortalLink()"
+          >
+            @if (isSendingPortalLink()) {
+              <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+              Sending...
+            } @else {
+              Send sign-in link
+            }
+          </button>
+        }
+      </div>
+    </div>
+  }
+
   @if (result(); as r) {
     <div class="card border-0 shadow-sm mt-4">
       <div class="card-header bg-success text-white">

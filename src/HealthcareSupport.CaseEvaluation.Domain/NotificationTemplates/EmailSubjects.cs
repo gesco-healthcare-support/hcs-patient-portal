@@ -295,6 +295,14 @@ internal static class EmailSubjects
     public const string InternalUserCreated =
         "Welcome to the Appointment Portal";
 
+    /// <summary>
+    /// Item F (2026-08-22) -- sent to someone staff tried to invite who already has an account.
+    /// Deliberately not phrased as an invitation: there is nothing to accept and no account to
+    /// create, so the subject says plainly that they already have one.
+    /// </summary>
+    public const string ExternalUserPortalLink =
+        "Appointment Portal - You already have an account at ##TenantName##";
+
     /// <summary>Group D (2026-06-09) -- opposing-side consent request subject.</summary>
     public const string ChangeRequestConsentRequest =
         "Appointment Portal - Your agreement is needed on appointment ##AppointmentRequestConfirmationNumber##";
@@ -401,5 +409,8 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.AccessorAppointmentBooked] = AccessorAppointmentBooked,
             [NotificationTemplateConsts.Codes.AppointmentCancelledDueDate] = AppointmentCancelledDueDate,
             [NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal] = AppointmentJointDeclarationOverdueInternal,
+
+            // Item F (2026-08-22): already-registered sign-in link.
+            [NotificationTemplateConsts.Codes.ExternalUserPortalLink] = ExternalUserPortalLink,
         };
 }

@@ -37,6 +37,14 @@ public interface IExternalSignupAppService : IApplicationService
     Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input);
 
     /// <summary>
+    /// Item F (2026-08-22) -- emails an existing external user a link to their own office portal.
+    /// The companion to <see cref="InviteExternalUserResultDto.AlreadyRegistered"/>: when an invite
+    /// cannot proceed because the account exists, staff can send a sign-in link instead of reading a
+    /// URL down the phone.
+    /// </summary>
+    Task SendPortalLinkAsync(SendPortalLinkInput input);
+
+    /// <summary>
     /// 2026-06-16 (Prompt 16, A-B1) -- paged list of every invitation in the
     /// caller's tenant (Pending / Accepted / Expired / Revoked) for the
     /// internal "Pending Invites" management surface. Includes soft-deleted

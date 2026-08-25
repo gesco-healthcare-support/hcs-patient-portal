@@ -68,6 +68,20 @@ export class InviteExternalUserComponent {
   } | null>(null);
   readonly copyConfirmation = signal<string | null>(null);
 
+  /**
+   * Item F (2026-08-22): the email already has an account in this office, so no invite was issued.
+   * Not an error state -- it gets its own panel offering to email the person a sign-in link, because
+   * the alternative is staff reading a URL down the phone.
+   */
+  readonly alreadyRegistered = signal<{
+    email: string;
+    invitedRoleName: string;
+    existingRoleName: string | null;
+    tenantName: string;
+  } | null>(null);
+  readonly isSendingPortalLink = signal(false);
+  readonly portalLinkConfirmation = signal<string | null>(null);
+
   async onSubmit(): Promise<void> {
     if (this.isSubmitting()) {
       return;
@@ -90,6 +104,8 @@ export class InviteExternalUserComponent {
     this.errorMessage.set(null);
     this.result.set(null);
     this.copyConfirmation.set(null);
+    this.alreadyRegistered.set(null);
+    this.portalLinkConfirmation.set(null);
 
     try {
       const response = await firstValueFrom(
@@ -101,6 +117,8 @@ export class InviteExternalUserComponent {
             roleName: string;
             tenantName: string;
             expiresAt: string;
+            alreadyRegistered?: boolean;
+            existingRoleName?: string | null;
           }
         >(
           {
@@ -111,6 +129,19 @@ export class InviteExternalUserComponent {
           { apiName: 'Default' },
         ),
       );
+
+      // Item F: a 200 no longer always means "invited". When the address already has an account
+      // the server issues nothing and says so, and we offer the sign-in link instead.
+      if (response.alreadyRegistered) {
+        this.alreadyRegistered.set({
+          email: response.email,
+          invitedRoleName: response.roleName,
+          existingRoleName: response.existingRoleName ?? null,
+          tenantName: response.tenantName,
+        });
+        return;
+      }
+
       this.result.set({
         inviteUrl: response.inviteUrl,
         email: response.email,
@@ -132,6 +163,45 @@ export class InviteExternalUserComponent {
     }
   }
 
+  /**
+   * Item F: email the existing account a link to this office's portal. The URL is composed
+   * server-side from the office subdomain -- never assembled here, and never the admin host.
+   */
+  async sendPortalLink(): Promise<void> {
+    const target = this.alreadyRegistered();
+    if (!target || this.isSendingPortalLink()) {
+      return;
+    }
+
+    this.isSendingPortalLink.set(true);
+    this.portalLinkConfirmation.set(null);
+    this.errorMessage.set(null);
+
+    try {
+      await firstValueFrom(
+        this.restService.request<any, void>(
+          {
+            method: 'POST',
+            url: '/api/app/external-users/send-portal-link',
+            body: { email: target.email },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      this.portalLinkConfirmation.set('Sign-in link sent to ' + target.email + '.');
+      this.toaster.success('Sign-in link sent to ' + target.email + '.', 'Link sent');
+    } catch (err: any) {
+      const message =
+        err?.error?.error?.message ??
+        err?.error?.message ??
+        err?.message ??
+        'Could not send the sign-in link. Try again.';
+      this.errorMessage.set(message);
+    } finally {
+      this.isSendingPortalLink.set(false);
+    }
+  }
+
   async copyInviteUrl(): Promise<void> {
     const url = this.result()?.inviteUrl;
     if (!url) return;
@@ -149,6 +219,8 @@ export class InviteExternalUserComponent {
     this.result.set(null);
     this.errorMessage.set(null);
     this.copyConfirmation.set(null);
+    this.alreadyRegistered.set(null);
+    this.portalLinkConfirmation.set(null);
   }
 
   goBack(): void {

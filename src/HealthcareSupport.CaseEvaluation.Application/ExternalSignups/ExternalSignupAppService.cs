@@ -18,6 +18,7 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -1387,10 +1388,29 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // and the pending row lingers misleadingly on the pending-invites surface.
             // The inviter is authenticated and chose the email, so the message is
             // explicit -- no account-enumeration concern (unlike anonymous self-signup).
+            // Item F (2026-08-22): this used to throw InviteEmailAlreadyRegistered. It still refuses
+            // to issue the invite -- registration would reject the duplicate email anyway, whatever
+            // role the existing account holds -- but a dead end is not an error, and the old behaviour
+            // left staff on the phone with someone they could not help. The caller now gets a result
+            // saying the account exists, naming ITS role (which may differ from the one being
+            // invited), so the UI can offer to email them a sign-in link instead.
+            //
+            // Enumeration is fine here and deliberately so: this is an authenticated,
+            // permission-gated staff surface, and telling staff the email is taken is the entire
+            // point. That is a different threat model from anonymous register / forgot-password,
+            // which must stay generic. Do not "harden" this into a generic error.
             var existingUser = await _userManager.FindByEmailAsync(normalizedEmail);
             if (existingUser != null)
             {
-                throw new BusinessException(CaseEvaluationDomainErrorCodes.InviteEmailAlreadyRegistered);
+                var existingRoles = await _userManager.GetRolesAsync(existingUser);
+                return new InviteExternalUserResultDto
+                {
+                    AlreadyRegistered = true,
+                    Email = normalizedEmail,
+                    RoleName = roleName,
+                    ExistingRoleName = existingRoles.FirstOrDefault(),
+                    TenantName = tenantName,
+                };
             }
 
             var (invitation, rawToken) = await _invitationManager.IssueAsync(
@@ -1442,6 +1462,78 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 TenantName = tenantName,
                 ExpiresAt = invitation.ExpiresAt,
             };
+        }
+    }
+
+    /// <summary>
+    /// Item F (2026-08-22) -- emails an existing external user a link to their office portal.
+    ///
+    /// <para>The companion to the already-registered result from
+    /// <see cref="InviteExternalUserAsync"/>. Staff reach this when someone rings up unable to get
+    /// in: rather than reading a URL down the phone, they send the person a sign-in link.</para>
+    ///
+    /// <para>The link comes from <see cref="IAccountUrlBuilder.BuildPortalRootUrlAsync"/> so it is
+    /// always the user's OWN office subdomain. Composing it by hand is how tenant users have twice
+    /// been sent to the host portal, which is the recurring support failure behind both dual-account
+    /// incidents.</para>
+    ///
+    /// <para>Silent no-op when the email has no account in the office. That is not enumeration
+    /// protection -- this surface deliberately tells staff when an email IS registered -- it just
+    /// means there is nobody to email, and staff already know that from the invite result.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task SendPortalLinkAsync(SendPortalLinkInput input)
+    {
+        if (input == null || string.IsNullOrWhiteSpace(input.Email))
+        {
+            throw new UserFriendlyException(L["Email is required."]);
+        }
+
+        var normalizedEmail = input.Email.Trim().ToLowerInvariant();
+        var tenantId = ResolveTenantId(input.TenantId);
+        var tenantName = await ResolveCurrentTenantNameAsync(tenantId!.Value);
+        if (string.IsNullOrWhiteSpace(tenantName))
+        {
+            throw new UserFriendlyException(L["Could not resolve tenant name for portal link."]);
+        }
+
+        using (CurrentTenant.Change(tenantId.Value, tenantName))
+        {
+            var user = await _userManager.FindByEmailAsync(normalizedEmail);
+            if (user == null)
+            {
+                Logger.LogWarning(
+                    "ExternalSignupAppService.SendPortalLinkAsync: no account in office {TenantId} for the requested address; nothing sent.",
+                    tenantId.Value);
+                return;
+            }
+
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(tenantId.Value);
+
+            // Unlike the invite, a dispatch failure here is NOT swallowed. The invite can swallow it
+            // because the caller still holds a copyable link; this flow has no such fallback, so a
+            // silent failure would leave staff believing they had helped someone they had not.
+            await _notificationDispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.ExternalUserPortalLink,
+                recipients: new[]
+                {
+                    // Role is left null on purpose. RecipientRole describes a party's part in an
+                    // APPOINTMENT, and this email is about an account, not an appointment. The
+                    // existing account's role is shown to staff in the UI instead, where it is
+                    // actually useful.
+                    new NotificationRecipient(
+                        email: normalizedEmail,
+                        role: null,
+                        isRegistered: true),
+                },
+                variables: new Dictionary<string, object?>
+                {
+                    ["TenantName"] = tenantName,
+                    ["ClinicName"] = tenantName,
+                    ["PortalUrl"] = portalUrl,
+                    ["Email"] = normalizedEmail,
+                },
+                contextTag: $"PortalLink/{tenantId.Value}/{user.Id}");
         }
     }
 
