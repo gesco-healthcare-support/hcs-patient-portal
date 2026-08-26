@@ -84,11 +84,11 @@ public class LockoutRemainingTextTests
     [Fact]
     public void Describe_ReturnsABareNounPhraseSoThePageCanPrefixIn()
     {
-        // The page renders "Try again in {phrase}", so every phrase must read correctly after "in"
-        // and must not carry its own preposition. This is a real regression, not a hypothetical: the
-        // page shipped reading "Try again {phrase}", which was correct for the old adverb fallback
-        // ("shortly") and rendered "Try again about 5 minutes" for every actual ladder duration.
-        // Found on the deployed box, 2026-08-26.
+        // The page renders "You can sign in again in {phrase}", so every phrase must read correctly
+        // after "in" and must not carry its own preposition. This is a real regression, not a
+        // hypothetical: the page shipped reading "Try again {phrase}", which was correct for the old
+        // adverb fallback ("shortly") and rendered "Try again about 5 minutes" for every actual
+        // ladder duration. Found on the deployed box, 2026-08-26.
         var phrases = new[]
         {
             LockoutRemainingText.Unknown,
