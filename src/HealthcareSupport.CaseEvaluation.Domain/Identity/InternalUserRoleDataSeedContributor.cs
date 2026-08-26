@@ -613,6 +613,21 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// Deliberately NARROWER than the tenant `admin` role (which an IT-Admin's shadow holds):
     /// no framework powers (roles/file/language management), no hard-delete. All grants are
     /// Tenant- or Both-sided, valid at this role's tenant scope.
+    ///
+    /// <para><b>Appointments.ViewIntegrationDeadLetters is ABSENT ON PURPOSE. Do not add it.</b>
+    /// Reviewed and confirmed 2026-08-26 (Adrian's ruling) after it was raised as a possible gap
+    /// against the "IT Admin and Staff Supervisor" requirement. That requirement IS met: the HOST
+    /// pass grants it via <see cref="StaffSupervisorHostGrants"/>, and the host surface is the only
+    /// place the screen is reachable -- <c>ADMIN_SECTIONS</c> marks integration-failures as NOT
+    /// tenant-scoped precisely so it shows at host scope, and its spec says so out loud
+    /// ("integration-failures aggregates EVERY clinic ... host scope is the only place it is meant
+    /// to be used").</para>
+    ///
+    /// <para>Granting it here would be a cross-tenant LEAK, not a convenience:
+    /// <c>CaseTrackerDeadLetterAppService</c> is host-scoped and aggregates across every office
+    /// database, so a Supervisor switched into one office would read other offices' failures. If an
+    /// office-scoped view is ever wanted, the query has to be tenant-filtered first -- adding the
+    /// grant alone is the wrong half of that change.</para>
     /// </summary>
     internal static IEnumerable<string> StaffSupervisorTenantGrants()
     {
