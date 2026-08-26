@@ -22,12 +22,28 @@
     This page still cannot look the user up: the framework redirect
     carries no userId. LoginModel computes the real remainder, where the
     submitted identifier is still in hand, and passes it via TempData;
-    absent that, Model.RemainingText degrades to "shortly" rather than
-    inventing a number.
+    absent that, Model.RemainingText degrades to "a short while" rather
+    than inventing a number.
 
-    The password-reset line is new and load-bearing: completing a reset
-    now CLEARS the lockout (it previously did not), so it is the fastest
-    way back in rather than a dead end.
+    The sentence supplies the "in"; RemainingText is always a bare noun
+    phrase. This line first read "Try again @Model.RemainingText." --
+    correct for the fallback, but it rendered "Try again about 5 minutes"
+    as soon as a real ladder duration arrived (found on the box,
+    2026-08-26). Keep the preposition here and the phrase there.
+
+    "You can sign in again in X" rather than "Try again in X" because the
+    page has to answer one question: is waiting SUFFICIENT, or is some
+    other step required? It previously carried a password-reset link
+    alongside the wait, which left both readings open (Adrian, 2026-08-26)
+    -- so the link is gone and the sentence states plainly that the wait
+    is all there is. Anyone who is locked out BECAUSE they have forgotten
+    their password reaches "Forgot password?" from the sign-in page, one
+    click away via the link below.
+
+    Do not reintroduce a reset link here without resolving that ambiguity
+    in the wording -- completing a reset does still clear the lockout
+    (ExternalAccountAppService.ResetPasswordAsync zeroes the failed count
+    and nulls LockoutEnd), so the temptation to advertise it will recur.
 *@
 
 <div class="account-card">
@@ -36,12 +52,7 @@
         <h1 class="text-center mt-4 mb-3">Account locked</h1>
 
         <p class="text-center mt-3" role="alert">
-            Too many failed sign-in attempts. Try again @Model.RemainingText.
-        </p>
-
-        <p class="text-center mt-2">
-            In a hurry? <a href="~/Account/ForgotPassword">Reset your password</a> to regain access
-            straight away.
+            Too many failed sign-in attempts. You can sign in again in @Model.RemainingText.
         </p>
 
         <p class="text-center mt-2">
