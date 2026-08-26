@@ -21,6 +21,16 @@ screenshots: pending (OLD server on port 4201; capture deferred to batch pass)
 > `AppointmentChangeRequests.Approve` auto-approve (NoBill) immediately after submit, while
 > external bookers submit to Pending for the supervisor queue. The slot picker reads
 > `getDoctorAvailabilityLookup`. See `docs/plans/2026-06-06-appointment-change-request-ui.md`.
+>
+> **(3) THE EXTERNAL REQUESTOR NO LONGER PICKS A DATE AT ALL** -- Phase 4b, 2026-08-04, reaffirmed
+> by Adrian 2026-08-26. Ignore section 4's "Field 2: Appointment Date" and "Field 3" time controls
+> for the external flow: staff choose the date when they approve, and the requestor supplies only a
+> reason. `RequestRescheduleDto.NewDoctorAvailabilityId` is now optional and external submits leave
+> it null; the calendar is gated behind `requesterIsStaff`, and external users see
+> `::Appointment:Modal:RescheduleStaffPicksDateNote` ("Our staff will choose the new date and
+> time.") instead. The old requestor-side dropdown was removed partly because it listed every
+> Available slot from a hardcoded 90-day fetch with NO lead-time or horizon gating, so it offered
+> dates the server then rejected. See `docs/plans/2026-08-04-staff-picks-reschedule-date.md`.
 
 ## 1. Routes
 
@@ -119,6 +129,7 @@ and the user needs to re-submit a corrected document.
 ### 4a. Submit State Fields
 
 **Field 1: Beyond-Limit Radio (`isBeyodLimit`)**
+
 - OLD: `appointment-change-request-add.component.html:29-42`
 - Control name: `isBeyodLimit` (OLD typo -- see Exception 1)
 - Type: radio group
@@ -140,6 +151,7 @@ and the user needs to re-submit a corrected document.
   textarea only render AFTER the user selects Yes or No
 
 **Field 2: Appointment Date (`availableDate`)**
+
 - OLD: `appointment-change-request-add.component.html:57-59`
 - Control name: `availableDate`
 - Type: date picker
@@ -156,7 +168,7 @@ and the user needs to re-submit a corrected document.
   logic and fetches time slots for the chosen date
 - Date validation on selection (external users only; internal users bypass):
   - Lead time floor: selected date must be > today + `SystemParameters.AppointmentLeadTime`
-    - Error toast: "You are not allowed to book an appointment with in  {N}  days
+    - Error toast: "You are not allowed to book an appointment with in {N} days
       of selected date." (note: double spaces in OLD -- NEW may normalize to single
       space; see Exception 4)
   - Normal upper bound (when `isBeyodLimit=0`): selected date must be <=
@@ -175,6 +187,7 @@ and the user needs to re-submit a corrected document.
   - OLD source: `doctorsAvailabilitiesDates()`, ts:190-200
 
 **Field 3: Appointment Time (`doctorAvailabilityId`)**
+
 - OLD: `appointment-change-request-add.component.html:63-71`
 - Control name: `doctorAvailabilityId`
 - Type: `<select>` (plain HTML select in OLD)
@@ -190,6 +203,7 @@ and the user needs to re-submit a corrected document.
   - OLD source: ts:289-309
 
 **Field 4a: JDF File Name (read-only text)**
+
 - OLD: `appointment-change-request-add.component.html:74-76`
 - Control name: none (display only; bound to component `filePath` string)
 - Type: `input[type="text"]`, `readonly`
@@ -199,6 +213,7 @@ and the user needs to re-submit a corrected document.
 - Shows the filename after the user selects a file via the upload input
 
 **Field 4b: JDF Document Upload (file input)**
+
 - OLD: `appointment-change-request-add.component.html:77-80`
 - Control name: none (not part of reactive form; handled via `(change)="onFileChange($event)"`)
 - Type: `input[type="file"]`, hidden; triggered via `<label for="addDocument">`
@@ -217,6 +232,7 @@ and the user needs to re-submit a corrected document.
 - OLD source: `appointment-change-request-add.component.ts:336-371`
 
 **Field 5: Reschedule Reason (`reScheduleReason`)**
+
 - OLD: `appointment-change-request-add.component.html:82-87`
 - Control name: `reScheduleReason`
 - Type: `textarea`, 3 rows
@@ -229,15 +245,15 @@ and the user needs to re-submit a corrected document.
 The re-upload state (`applyRescheduleRequest=false`) has no reactive form inputs
 except the new file upload. All other content is read-only display.
 
-| Display label | Source field |
-|---|---|
-| Existing Appointment Date & Time | `appointmentRescheuldeData.OldAppointmentDateTime` |
-| Requested Appointment Date & Time | `appointmentRescheuldeData.NewAppointmentDateTime` |
-| Reason for Re-schedule | `appointmentRescheuldeData.ReScheduleReason` |
-| Document Name | `appointmentChangeRequestDocumentsLists[0].documentName` |
-| Document Status | `appointmentChangeRequestDocumentsLists[0].documentStatusName` |
-| Download Document | link to `documentFilePath` (see Exception 9) |
-| Rejection Reason | `rejectionNotes`, attributed to `rejectedByUserName` |
+| Display label                     | Source field                                                   |
+| --------------------------------- | -------------------------------------------------------------- |
+| Existing Appointment Date & Time  | `appointmentRescheuldeData.OldAppointmentDateTime`             |
+| Requested Appointment Date & Time | `appointmentRescheuldeData.NewAppointmentDateTime`             |
+| Reason for Re-schedule            | `appointmentRescheuldeData.ReScheduleReason`                   |
+| Document Name                     | `appointmentChangeRequestDocumentsLists[0].documentName`       |
+| Document Status                   | `appointmentChangeRequestDocumentsLists[0].documentStatusName` |
+| Download Document                 | link to `documentFilePath` (see Exception 9)                   |
+| Rejection Reason                  | `rejectionNotes`, attributed to `rejectedByUserName`           |
 
 File upload fields are identical to Fields 4a/4b above.
 
@@ -256,13 +272,13 @@ The OLD app uses `RxPopup` (in-house injection). In NEW app, use `MatDialog`:
 ```typescript
 // Launcher (view-appointment component):
 this.dialog.open(RescheduleRequestModalComponent, {
-  maxWidth: '800px',
+  maxWidth: "800px",
   data: {
     appointmentId: this.appointment.id,
     appointmentTypeId: this.appointment.appointmentTypeId,
     locationId: this.appointment.locationId,
-    mode: 'submit'
-  }
+    mode: "submit",
+  },
 });
 ```
 
@@ -270,29 +286,30 @@ For re-upload mode, pass `mode: 'reupload'` and `changeRequestId`.
 
 ## 7. Buttons
 
-| Button | OLD class | Disabled condition | Action |
-|---|---|---|---|
-| Save (submit) | `btn btn-primary` | `!appointmentChangeRequestFormGroup.valid` | `addAppointmentChangeRequest()` |
-| Save (re-upload) | `btn btn-primary` | `!isDocumentUploaded` | `addAppointmentChangeRequest()` |
-| Close | `btn btn-secondary` | never | `closePopup()` / `dialogRef.close()` |
-| Upload Document | `btn btn-info px-3` | never | triggers hidden file input |
-| X (header close) | `.bootbox-close-button.close.text-white` | never | `closePopup()` |
-| Click here (JAL download) | `sidenav-link` | never | `downloadJointAgreementLetter()` (see Exception 10) |
+| Button                    | OLD class                                | Disabled condition                         | Action                                              |
+| ------------------------- | ---------------------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| Save (submit)             | `btn btn-primary`                        | `!appointmentChangeRequestFormGroup.valid` | `addAppointmentChangeRequest()`                     |
+| Save (re-upload)          | `btn btn-primary`                        | `!isDocumentUploaded`                      | `addAppointmentChangeRequest()`                     |
+| Close                     | `btn btn-secondary`                      | never                                      | `closePopup()` / `dialogRef.close()`                |
+| Upload Document           | `btn btn-info px-3`                      | never                                      | triggers hidden file input                          |
+| X (header close)          | `.bootbox-close-button.close.text-white` | never                                      | `closePopup()`                                      |
+| Click here (JAL download) | `sidenav-link`                           | never                                      | `downloadJointAgreementLetter()` (see Exception 10) |
 
 OLD source: `appointment-change-request-add.component.html:92-94, 106, 151-153`
 
 ## 8. Role Visibility Matrix
 
-| Role | Can open reschedule modal | Notes |
-|---|---|---|
-| Patient | Yes, if appointment owner | Must be appointment owner (created by this user) |
-| Defense Attorney | Yes, if Edit accessor | `AppointmentAccessors` with `Edit` access level |
-| Applicant Attorney | Yes, if Edit accessor | Same as Defense Attorney |
-| Claims Examiner | Yes, if Edit accessor | Same pattern |
-| QME Doctor | No | Doctor is a domain entity, not a portal user |
-| Staff / IT Admin / Supervisor | Via internal shell only | Not this external-user flow |
+| Role                          | Can open reschedule modal | Notes                                            |
+| ----------------------------- | ------------------------- | ------------------------------------------------ |
+| Patient                       | Yes, if appointment owner | Must be appointment owner (created by this user) |
+| Defense Attorney              | Yes, if Edit accessor     | `AppointmentAccessors` with `Edit` access level  |
+| Applicant Attorney            | Yes, if Edit accessor     | Same as Defense Attorney                         |
+| Claims Examiner               | Yes, if Edit accessor     | Same pattern                                     |
+| QME Doctor                    | No                        | Doctor is a domain entity, not a portal user     |
+| Staff / IT Admin / Supervisor | Via internal shell only   | Not this external-user flow                      |
 
 **Gate conditions (both must pass):**
+
 1. Appointment `StatusId == Approved (4)` -- no other status allows reschedule
 2. No existing `AppointmentChangeRequest` with `RequestStatusId == Pending` for this appointment
 3. User is owner (`CreatedById == currentUserId`) OR has `Edit` accessor role
@@ -305,13 +322,13 @@ a SEPARATE design doc: `staff-supervisor-change-request-approval-design.md`.
 
 ## 9. Branding Tokens
 
-| Element | Token | Value |
-|---|---|---|
-| Modal header background | `--brand-primary` | `#4e73df` |
-| Modal header text | `--brand-primary-text` | `#ffffff` |
-| Save button background | `--brand-primary` | via `.btn-primary` override |
-| Upload button | static `btn-info` | `#17a2b8` -- no brand token override |
-| Close button | static `btn-secondary` | `#6c757d` -- no brand token override |
+| Element                 | Token                  | Value                                |
+| ----------------------- | ---------------------- | ------------------------------------ |
+| Modal header background | `--brand-primary`      | `#4e73df`                            |
+| Modal header text       | `--brand-primary-text` | `#ffffff`                            |
+| Save button background  | `--brand-primary`      | via `.btn-primary` override          |
+| Upload button           | static `btn-info`      | `#17a2b8` -- no brand token override |
+| Close button            | static `btn-secondary` | `#6c757d` -- no brand token override |
 
 The header uses `bg-color: var(--brand-primary)` with `color: white` (same as
 cancellation request modal -- see `external-user-appointment-cancellation-design.md`).
@@ -325,8 +342,8 @@ Changes required to replicate OLD behavior on the NEW stack:
    standalone components:
    - `<app-cancel-request-modal>` (already captured in cancellation design doc)
    - `<app-reschedule-request-modal>` (this feature)
-   Both share the same `MatDialog` host pattern and re-upload sub-mode logic can
-   live inside `app-reschedule-request-modal` behind a `mode` input.
+     Both share the same `MatDialog` host pattern and re-upload sub-mode logic can
+     live inside `app-reschedule-request-modal` behind a `mode` input.
 
 2. **Date picker:** Replace OLD `<rx-date [showMonths]="3">` with Angular Material
    `mat-datepicker`. Pass available dates as a `dateFilter: DateFilterFn<Date>` that
@@ -360,43 +377,43 @@ Changes required to replicate OLD behavior on the NEW stack:
 
 ## 11. Strict-Parity Exceptions
 
-| # | Element | OLD behavior | NEW behavior | Reason |
-|---|---|---|---|---|
-| 1 | Form control name `isBeyodLimit` | Typo in HTML, TS, DB column | DB column stays `IsBeyodLimit` (parity); Angular `formControlName` renamed to `isBeyondLimit` (fix at UI layer only) | DB rename requires migration touching existing data; UI layer is safe to fix without breaking contract |
-| 2 | Submit toast text | "Reschedule request submmited" (double-m typo) | "Reschedule request submitted" | Clear typo fix; does not affect any downstream system |
-| 3 | JAL download in header calls `downloadJointAgreementLetter()` with no argument | `filePath` undefined -> `encodeURIComponent(undefined)` = "undefined" -> server returns 404 | NEW download link calls the new blank-JAL endpoint directly | OLD is a clear bug; the feature (download blank template) is intentional |
-| 4 | Lead time error: double space "with in  {N}  days" | Two extra spaces in toast message string | Normalize to single space | Cosmetic fix; no business logic impact |
-| 5 | Time option `item.appointmenTime` | Missing `t` in property name (from OLD DB lookup model) | Use correctly-spelled `appointmentTime` in NEW DTO | Spelling fix at DTO/lookup level; DB column name does not have this typo |
-| 6 | File size guard `file.size >= (1000 * 1024)` (~1MB) vs toast "10 MB" | Guard enforces ~1MB but tells user 10MB | NEW enforces 10MB consistently (guard: `file.size > 10 * 1024 * 1024`) | OLD is a clear mismatch bug; 10MB is the stated limit |
-| 7 | File size toast "You can`t upload file larger than 10 MB." | Backtick used instead of apostrophe | "You can't upload files larger than 10 MB." | ASCII apostrophe fix; backtick is unreadable |
-| 8 | Upload error "Please select word document only." | Misleading -- PDFs are actually accepted | "Please select a .doc, .docx, or .pdf file." | Error message did not match accepted types constant |
-| 9 | Download link in re-upload state: `[href]="...documentFilePath"` | Direct S3/storage path exposed in API response | NEW returns a signed URL or uses `/api/app/appointment-change-request-documents/download/{id}` | Security: direct storage URLs must not be exposed to clients |
-| 10 | `requestedDoctorAvailabilityId = 0` hardcoded on submit | Clears any requested availability before sending | Investigate in Phase 17 -- this may be intentional (not yet used) or a placeholder; mark `// PARITY-FLAG` until confirmed | Ambiguous; preserve with flag |
-| 11 | Phase 17 orchestration pending | Full supervisor approve/clone/notify flow | Frontend can POST the change request; backend returns 202; full state transitions await Phase 17 | Phase dependency -- not a parity deviation |
+| #   | Element                                                                        | OLD behavior                                                                                | NEW behavior                                                                                                              | Reason                                                                                                 |
+| --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 1   | Form control name `isBeyodLimit`                                               | Typo in HTML, TS, DB column                                                                 | DB column stays `IsBeyodLimit` (parity); Angular `formControlName` renamed to `isBeyondLimit` (fix at UI layer only)      | DB rename requires migration touching existing data; UI layer is safe to fix without breaking contract |
+| 2   | Submit toast text                                                              | "Reschedule request submmited" (double-m typo)                                              | "Reschedule request submitted"                                                                                            | Clear typo fix; does not affect any downstream system                                                  |
+| 3   | JAL download in header calls `downloadJointAgreementLetter()` with no argument | `filePath` undefined -> `encodeURIComponent(undefined)` = "undefined" -> server returns 404 | NEW download link calls the new blank-JAL endpoint directly                                                               | OLD is a clear bug; the feature (download blank template) is intentional                               |
+| 4   | Lead time error: double space "with in {N} days"                               | Two extra spaces in toast message string                                                    | Normalize to single space                                                                                                 | Cosmetic fix; no business logic impact                                                                 |
+| 5   | Time option `item.appointmenTime`                                              | Missing `t` in property name (from OLD DB lookup model)                                     | Use correctly-spelled `appointmentTime` in NEW DTO                                                                        | Spelling fix at DTO/lookup level; DB column name does not have this typo                               |
+| 6   | File size guard `file.size >= (1000 * 1024)` (~1MB) vs toast "10 MB"           | Guard enforces ~1MB but tells user 10MB                                                     | NEW enforces 10MB consistently (guard: `file.size > 10 * 1024 * 1024`)                                                    | OLD is a clear mismatch bug; 10MB is the stated limit                                                  |
+| 7   | File size toast "You can`t upload file larger than 10 MB."                     | Backtick used instead of apostrophe                                                         | "You can't upload files larger than 10 MB."                                                                               | ASCII apostrophe fix; backtick is unreadable                                                           |
+| 8   | Upload error "Please select word document only."                               | Misleading -- PDFs are actually accepted                                                    | "Please select a .doc, .docx, or .pdf file."                                                                              | Error message did not match accepted types constant                                                    |
+| 9   | Download link in re-upload state: `[href]="...documentFilePath"`               | Direct S3/storage path exposed in API response                                              | NEW returns a signed URL or uses `/api/app/appointment-change-request-documents/download/{id}`                            | Security: direct storage URLs must not be exposed to clients                                           |
+| 10  | `requestedDoctorAvailabilityId = 0` hardcoded on submit                        | Clears any requested availability before sending                                            | Investigate in Phase 17 -- this may be intentional (not yet used) or a placeholder; mark `// PARITY-FLAG` until confirmed | Ambiguous; preserve with flag                                                                          |
+| 11  | Phase 17 orchestration pending                                                 | Full supervisor approve/clone/notify flow                                                   | Frontend can POST the change request; backend returns 202; full state transitions await Phase 17                          | Phase dependency -- not a parity deviation                                                             |
 
 ## 12. OLD Source Citations
 
-| File | Lines | Content |
-|---|---|---|
-| `appointment-change-request-add.component.html` | 9-13 | Reschedule modal header + subtitle |
-| `appointment-change-request-add.component.html` | 28-43 | `isBeyodLimit` radio group |
-| `appointment-change-request-add.component.html` | 44-88 | `isShowSection` guarded body (date picker, time, JAL, reason) |
-| `appointment-change-request-add.component.html` | 45-51 | JAL upload instruction + download link |
-| `appointment-change-request-add.component.html` | 54-60 | Date picker field |
-| `appointment-change-request-add.component.html` | 63-71 | Time select field |
-| `appointment-change-request-add.component.html` | 72-81 | JDF file name + upload button |
-| `appointment-change-request-add.component.html` | 82-87 | Reschedule reason textarea |
-| `appointment-change-request-add.component.html` | 91-95 | Modal footer (Save / Close) |
-| `appointment-change-request-add.component.html` | 97-155 | Re-upload state (review + re-upload) |
-| `appointment-change-request-add.component.ts` | 82-130 | `ngOnInit()` -- form setup, system param load, validator assignment |
-| `appointment-change-request-add.component.ts` | 154-178 | `addAppointmentChangeRequest()` -- submit + re-upload paths |
-| `appointment-change-request-add.component.ts` | 190-200 | `doctorsAvailabilitiesDates()` -- initial available dates load |
-| `appointment-change-request-add.component.ts` | 202-309 | `getDoctorsAvailabilities($event)` -- date validation + slot fetch |
-| `appointment-change-request-add.component.ts` | 311-334 | `setValidators()` -- radio change handler |
-| `appointment-change-request-add.component.ts` | 336-371 | `onFileChange()` -- file upload handling |
-| `appointment-change-request-add.component.ts` | 373-389 | `downloadJointAgreementLetter(filePath)` -- JAL download |
-| `default-file-extension.ts` | 1 | `".doc,.docx,.pdf"` accepted upload types |
-| `docs/parity/external-user-appointment-rescheduling.md` | all | Full parity audit (gap table, role matrix, phase map) |
+| File                                                    | Lines   | Content                                                             |
+| ------------------------------------------------------- | ------- | ------------------------------------------------------------------- |
+| `appointment-change-request-add.component.html`         | 9-13    | Reschedule modal header + subtitle                                  |
+| `appointment-change-request-add.component.html`         | 28-43   | `isBeyodLimit` radio group                                          |
+| `appointment-change-request-add.component.html`         | 44-88   | `isShowSection` guarded body (date picker, time, JAL, reason)       |
+| `appointment-change-request-add.component.html`         | 45-51   | JAL upload instruction + download link                              |
+| `appointment-change-request-add.component.html`         | 54-60   | Date picker field                                                   |
+| `appointment-change-request-add.component.html`         | 63-71   | Time select field                                                   |
+| `appointment-change-request-add.component.html`         | 72-81   | JDF file name + upload button                                       |
+| `appointment-change-request-add.component.html`         | 82-87   | Reschedule reason textarea                                          |
+| `appointment-change-request-add.component.html`         | 91-95   | Modal footer (Save / Close)                                         |
+| `appointment-change-request-add.component.html`         | 97-155  | Re-upload state (review + re-upload)                                |
+| `appointment-change-request-add.component.ts`           | 82-130  | `ngOnInit()` -- form setup, system param load, validator assignment |
+| `appointment-change-request-add.component.ts`           | 154-178 | `addAppointmentChangeRequest()` -- submit + re-upload paths         |
+| `appointment-change-request-add.component.ts`           | 190-200 | `doctorsAvailabilitiesDates()` -- initial available dates load      |
+| `appointment-change-request-add.component.ts`           | 202-309 | `getDoctorsAvailabilities($event)` -- date validation + slot fetch  |
+| `appointment-change-request-add.component.ts`           | 311-334 | `setValidators()` -- radio change handler                           |
+| `appointment-change-request-add.component.ts`           | 336-371 | `onFileChange()` -- file upload handling                            |
+| `appointment-change-request-add.component.ts`           | 373-389 | `downloadJointAgreementLetter(filePath)` -- JAL download            |
+| `default-file-extension.ts`                             | 1       | `".doc,.docx,.pdf"` accepted upload types                           |
+| `docs/parity/external-user-appointment-rescheduling.md` | all     | Full parity audit (gap table, role matrix, phase map)               |
 
 ## 13. Verification Checklist
 
