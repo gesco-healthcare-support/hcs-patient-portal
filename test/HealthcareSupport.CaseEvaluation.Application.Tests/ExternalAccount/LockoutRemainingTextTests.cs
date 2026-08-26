@@ -81,6 +81,38 @@ public class LockoutRemainingTextTests
         }
     }
 
+    [Fact]
+    public void Describe_ReturnsABareNounPhraseSoThePageCanPrefixIn()
+    {
+        // The page renders "You can sign in again in {phrase}", so every phrase must read correctly
+        // after "in" and must not carry its own preposition. This is a real regression, not a
+        // hypothetical: the page shipped reading "Try again {phrase}", which was correct for the old
+        // adverb fallback ("shortly") and rendered "Try again about 5 minutes" for every actual
+        // ladder duration. Found on the deployed box, 2026-08-26.
+        var phrases = new[]
+        {
+            LockoutRemainingText.Unknown,
+            LockoutRemainingText.Describe(null),
+            LockoutRemainingText.Describe(TimeSpan.FromMinutes(1)),
+            LockoutRemainingText.Describe(TimeSpan.FromMinutes(5)),
+            LockoutRemainingText.Describe(TimeSpan.FromMinutes(15)),
+            LockoutRemainingText.Describe(TimeSpan.FromMinutes(60)),
+            LockoutRemainingText.Describe(TimeSpan.FromHours(3)),
+        };
+
+        foreach (var phrase in phrases)
+        {
+            // Only the phrase itself can be checked. Asserting the composed sentence has no
+            // doubled "in" looks tempting and is wrong: "Try again in ..." always contains "in in",
+            // inside "again in".
+            phrase.ShouldNotStartWith("in ");
+        }
+
+        // Pinned so swapping the fallback back to an adverb -- which cannot follow "in" -- has to be
+        // a deliberate, visible edit rather than a silent grammar regression.
+        LockoutRemainingText.Unknown.ShouldBe("a short while");
+    }
+
     private static int ExtractNumber(string text)
     {
         foreach (var token in text.Split(' '))

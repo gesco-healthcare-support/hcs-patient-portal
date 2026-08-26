@@ -123,9 +123,15 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
 
         // Lockout policy (Adrian decision 2026-05-18, proposed-copy.md
         // section 2.9): bump ABP defaults from 5 attempts / 5 minutes
-        // to 10 attempts / 1 hour. The LockedOut Razor page hardcodes
-        // "Try again in 1 hour" so keep these in sync if the policy
-        // ever changes.
+        // to 10 attempts / 1 hour.
+        //
+        // Item D (2026-08-22) removed the sync obligation this comment
+        // used to carry. LockoutDuration is no longer a flat duration
+        // the page repeats back: it is the CEILING of a progressive
+        // ladder (1 -> 5 -> 15 minutes -> this value), read at runtime
+        // by LockoutBackoff, and the LockedOut page renders whatever
+        // remainder LoginModel computed. Change this value freely; no
+        // copy needs editing to match.
         //
         // ABP setting keys:
         //   "Abp.Identity.Lockout.MaxFailedAccessAttempts" (integer count)
