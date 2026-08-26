@@ -20,15 +20,26 @@ namespace HealthcareSupport.CaseEvaluation.ExternalAccount;
 ///
 /// <para>Public and static so the AuthServer Razor page can call it while the unit tests live in
 /// Application.Tests -- the AuthServer has no test project of its own.</para>
+///
+/// <para><b>Every return value is a bare noun phrase, and the CALLER supplies the preposition.</b>
+/// This is a contract, not a detail: the page renders "Try again in {phrase}", so a phrase that
+/// carried its own "in" would double it. It is also the bug this note exists to prevent -- the page
+/// originally read "Try again {phrase}", which was written around the old fallback ("shortly") and
+/// rendered "Try again about 5 minutes" once the ladder started producing real durations. Keep the
+/// fallback a noun phrase too, so it reads correctly after the same "in".</para>
 /// </summary>
 public static class LockoutRemainingText
 {
-    /// <summary>Used when the remaining time is unknown, elapsed, or not positive.</summary>
-    public const string Unknown = "shortly";
+    /// <summary>
+    /// Used when the remaining time is unknown, elapsed, or not positive. A noun phrase like every
+    /// other return value, so "Try again in {this}" reads correctly.
+    /// </summary>
+    public const string Unknown = "a short while";
 
     /// <summary>
     /// Describes <paramref name="remaining"/> as a rounded-up phrase: "about 1 minute",
-    /// "about 5 minutes", "about 1 hour", "about 2 hours", or <see cref="Unknown"/>.
+    /// "about 5 minutes", "about 1 hour", "about 2 hours", or <see cref="Unknown"/>. Never includes
+    /// a leading preposition -- see the type remarks.
     /// </summary>
     public static string Describe(TimeSpan? remaining)
     {

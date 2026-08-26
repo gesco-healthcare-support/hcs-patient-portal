@@ -22,12 +22,19 @@
     This page still cannot look the user up: the framework redirect
     carries no userId. LoginModel computes the real remainder, where the
     submitted identifier is still in hand, and passes it via TempData;
-    absent that, Model.RemainingText degrades to "shortly" rather than
-    inventing a number.
+    absent that, Model.RemainingText degrades to "a short while" rather
+    than inventing a number.
 
-    The password-reset line is new and load-bearing: completing a reset
-    now CLEARS the lockout (it previously did not), so it is the fastest
-    way back in rather than a dead end.
+    The sentence supplies the "in"; RemainingText is always a bare noun
+    phrase. This line first read "Try again @Model.RemainingText." --
+    correct for the fallback, but it rendered "Try again about 5 minutes"
+    as soon as a real ladder duration arrived (found on the box,
+    2026-08-26). Keep the preposition here and the phrase there.
+
+    The password-reset line is load-bearing: completing a reset now
+    CLEARS the lockout, which it previously did not. Wording stays flat
+    and factual -- it states what the link does, and does not characterise
+    how quick or convenient that is.
 *@
 
 <div class="account-card">
@@ -36,12 +43,11 @@
         <h1 class="text-center mt-4 mb-3">Account locked</h1>
 
         <p class="text-center mt-3" role="alert">
-            Too many failed sign-in attempts. Try again @Model.RemainingText.
+            Too many failed sign-in attempts. Try again in @Model.RemainingText.
         </p>
 
         <p class="text-center mt-2">
-            In a hurry? <a href="~/Account/ForgotPassword">Reset your password</a> to regain access
-            straight away.
+            <a href="~/Account/ForgotPassword">Reset password</a> to regain access.
         </p>
 
         <p class="text-center mt-2">
