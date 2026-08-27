@@ -533,6 +533,19 @@ public class AppointmentChangeRequestsApprovalAppService :
             created.DueDate = sourceAppointment.DueDate;
             created.RefferedBy = sourceAppointment.RefferedBy;
 
+            // 2026-08-26: carry the party snapshot and the ORIGINAL booker. Without these the
+            // replacement appointment locked its own external party out with a 403 -- the read
+            // guard admits an external caller by booker/patient/accessor id or by the email+role
+            // rule, and this row had a staff CreatorId, no BookedByUserId, and all four party-email
+            // columns null. The child rows are copied below by the cascade copier, so notifications
+            // still went out and hid it; found only by signing in as the attorney. See
+            // Appointment.CopyPartySnapshotFrom.
+            created.CopyPartySnapshotFrom(sourceAppointment);
+            // RecordBookedBy rejects Guid.Empty, so assign through the property -- a source with no
+            // booker (pre-D-R2-B rows) must stay null rather than throw mid-approval. This is the
+            // "reschedule clone copies the value directly" case RecordBookedBy's own doc describes.
+            created.BookedByUserId = sourceAppointment.BookedByUserId;
+
             return await _appointmentRepository.InsertAsync(created, autoSave: true);
         });
 
