@@ -346,4 +346,78 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
         }
         BookedByUserId = bookedByUserId;
     }
+
+    /// <summary>
+    /// Carries this case's denormalised party snapshot onto a replacement appointment, for the
+    /// reschedule split (phase 4d) which creates a NEW row for the same case rather than moving
+    /// the old one.
+    ///
+    /// <para><b>Why this is not merely cosmetic.</b> Found live on 2026-08-26: the split created the
+    /// new appointment with these columns NULL, and the external party of record was then 403'd off
+    /// their own replacement appointment while holding its packet PDF in their inbox.
+    /// <c>AppointmentReadAccessGuard</c> admits an external caller either by id (booker / patient
+    /// identity / accessor row) or by the email+role rule, and that rule reads
+    /// <see cref="PatientEmail"/>, <see cref="ApplicantAttorneyEmail"/>,
+    /// <see cref="DefenseAttorneyEmail"/> and <see cref="ClaimExaminerEmail"/> off the appointment.
+    /// With all four null, and <c>CreatorId</c> now the staff approver, every pathway failed.</para>
+    ///
+    /// <para>The child rows (attorney / examiner / employer / injuries) are copied separately by
+    /// <c>IAppointmentChildCascadeCopier</c>, which is why notifications still reached the parties
+    /// and hid the gap -- the packet path resolves through
+    /// <c>AppointmentPatientSnapshotResolver</c>, which falls back to the Patient master. The access
+    /// guard has no such fallback, so it was the only consumer that broke.</para>
+    ///
+    /// <para>Copied wholesale rather than field-by-field at the call site because these columns are
+    /// one thing: what was true of this case AT BOOKING TIME. A replacement appointment continues
+    /// the same case, so it inherits the same snapshot. Deliberately NOT copied:
+    /// <see cref="PatientId"/> and the slot / date / confirmation-number fields, which the
+    /// replacement defines for itself.</para>
+    /// </summary>
+    public virtual void CopyPartySnapshotFrom(Appointment source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        PatientEmail = source.PatientEmail;
+        PatientFirstName = source.PatientFirstName;
+        PatientMiddleName = source.PatientMiddleName;
+        PatientLastName = source.PatientLastName;
+        PatientDateOfBirth = source.PatientDateOfBirth;
+        PatientSocialSecurityNumber = source.PatientSocialSecurityNumber;
+        PatientPhoneNumber = source.PatientPhoneNumber;
+        PatientPhoneNumberTypeId = source.PatientPhoneNumberTypeId;
+        PatientCellPhoneNumber = source.PatientCellPhoneNumber;
+        PatientStreet = source.PatientStreet;
+        PatientApptNumber = source.PatientApptNumber;
+        PatientCity = source.PatientCity;
+        PatientStateId = source.PatientStateId;
+        PatientZipCode = source.PatientZipCode;
+        PatientGenderId = source.PatientGenderId;
+        PatientInterpreterVendorName = source.PatientInterpreterVendorName;
+
+        ApplicantAttorneyEmail = source.ApplicantAttorneyEmail;
+        ApplicantAttorneyFirstName = source.ApplicantAttorneyFirstName;
+        ApplicantAttorneyLastName = source.ApplicantAttorneyLastName;
+        ApplicantAttorneyFirmName = source.ApplicantAttorneyFirmName;
+        ApplicantAttorneyWebAddress = source.ApplicantAttorneyWebAddress;
+        ApplicantAttorneyPhoneNumber = source.ApplicantAttorneyPhoneNumber;
+        ApplicantAttorneyFaxNumber = source.ApplicantAttorneyFaxNumber;
+        ApplicantAttorneyStreet = source.ApplicantAttorneyStreet;
+        ApplicantAttorneyCity = source.ApplicantAttorneyCity;
+        ApplicantAttorneyStateId = source.ApplicantAttorneyStateId;
+        ApplicantAttorneyZipCode = source.ApplicantAttorneyZipCode;
+
+        DefenseAttorneyEmail = source.DefenseAttorneyEmail;
+        DefenseAttorneyFirstName = source.DefenseAttorneyFirstName;
+        DefenseAttorneyLastName = source.DefenseAttorneyLastName;
+        DefenseAttorneyFirmName = source.DefenseAttorneyFirmName;
+        DefenseAttorneyWebAddress = source.DefenseAttorneyWebAddress;
+        DefenseAttorneyPhoneNumber = source.DefenseAttorneyPhoneNumber;
+        DefenseAttorneyFaxNumber = source.DefenseAttorneyFaxNumber;
+        DefenseAttorneyStreet = source.DefenseAttorneyStreet;
+        DefenseAttorneyCity = source.DefenseAttorneyCity;
+        DefenseAttorneyStateId = source.DefenseAttorneyStateId;
+        DefenseAttorneyZipCode = source.DefenseAttorneyZipCode;
+
+        ClaimExaminerEmail = source.ClaimExaminerEmail;
+    }
 }
