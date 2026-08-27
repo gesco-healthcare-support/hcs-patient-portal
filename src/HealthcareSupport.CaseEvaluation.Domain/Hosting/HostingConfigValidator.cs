@@ -69,6 +69,12 @@ public static class HostingConfigValidator
                 "variables (see env.prod.example / secrets/env.prod) before starting. The values are not " +
                 "shown here on purpose.");
         }
+
+        // 2026-08-27: probe the timezone database at startup rather than on first use. Every
+        // human-facing timestamp is rendered in Pacific time, so a container without tzdata cannot
+        // serve correctly -- and the failure would otherwise surface as a thrown packet render or a
+        // mis-scheduled reminder hours later, far from its cause. Touching Zone runs the resolver.
+        _ = Timing.PacificTime.Zone;
     }
 
     private static bool IsBlankOrPlaceholder(string? value)
