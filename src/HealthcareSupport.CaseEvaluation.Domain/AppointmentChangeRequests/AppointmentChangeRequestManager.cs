@@ -2,6 +2,7 @@ using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
+using HealthcareSupport.CaseEvaluation.Timing;
 using System;
 using System.Threading.Tasks;
 using Volo.Abp;
@@ -145,7 +146,11 @@ public class AppointmentChangeRequestManager : DomainService
             throw new BusinessException(CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded);
         }
         var cancelTimeDays = systemParameter.AppointmentCancelTime;
-        if (CancellationRequestValidators.IsWithinNoCancelWindow(slot.AvailableDate, _clock.Now.Date, cancelTimeDays))
+        // 2026-08-27: PACIFIC today, not _clock.Now.Date. AbpClockOptions.Kind is now pinned to
+        // Utc, so IClock.Now.Date is the UTC date -- which after 4pm or 5pm Pacific is tomorrow,
+        // and made this window one day tighter than the office's own policy for the last hours of
+        // every working day. Moving to IClock fixed machine-local drift but not this.
+        if (CancellationRequestValidators.IsWithinNoCancelWindow(slot.AvailableDate, PacificTime.TodayFrom(_clock.Now), cancelTimeDays))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestCancelTimeWindow)
                 .WithData("cancelTimeDays", cancelTimeDays)

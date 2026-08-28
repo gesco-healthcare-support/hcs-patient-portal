@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using Volo.Abp.Domain.Entities;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.ClaimExaminers;
 
@@ -17,9 +18,11 @@ public class ClaimExaminerUpdateDto : IHasConcurrencyStamp
     public string? Email { get; set; }
 
     [StringLength(ClaimExaminerConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(ClaimExaminerConsts.FaxNumberMaxLength)]
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
 
     [StringLength(ClaimExaminerConsts.StreetMaxLength)]

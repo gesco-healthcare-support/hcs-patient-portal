@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.ClaimExaminers;
 
@@ -16,9 +17,11 @@ public class ClaimExaminerCreateDto
     public string? Email { get; set; }
 
     [StringLength(ClaimExaminerConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(ClaimExaminerConsts.FaxNumberMaxLength)]
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
 
     [StringLength(ClaimExaminerConsts.StreetMaxLength)]

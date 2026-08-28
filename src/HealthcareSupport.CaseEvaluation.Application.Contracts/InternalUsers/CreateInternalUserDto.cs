@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 
@@ -61,5 +62,6 @@ public class CreateInternalUserDto
     /// <c>IdentityUser.PhoneNumber</c> column with <c>confirmed: false</c>.
     /// </summary>
     [StringLength(20)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 }

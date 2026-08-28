@@ -213,7 +213,7 @@
                   <td>{{ a.locationName }}</td>
                 }
                 @if (cols.date) {
-                  <td>{{ a.appointmentDate | date: 'MMM d, y' }}</td>
+                  <td>{{ a.appointmentDate | calendarDate: 'MMM d, y' }}</td>
                 }
                 @if (cols.status) {
                   <td><app-status-pill [status]="pill(a.appointmentStatus)" /></td>

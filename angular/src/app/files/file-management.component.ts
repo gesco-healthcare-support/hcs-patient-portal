@@ -15,6 +15,7 @@ import type {
 } from '@volo/abp.ng.file-management/proxy';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 /** One crumb in the breadcrumb path (null id = storage root). */
 interface Crumb {
   id: string | null;
@@ -42,7 +43,7 @@ const PAGE = { maxResultCount: 500, skipCount: 0 };
   selector: 'app-file-management',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [PacificDatePipe, CommonModule, FormsModule, IconComponent],
   templateUrl: './file-management.component.html',
 })
 export class FileManagementComponent {

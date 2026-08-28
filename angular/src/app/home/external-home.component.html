@@ -234,9 +234,9 @@
         @for (a of filtered(); track a.id) {
           <div class="ext-rcard">
             <div class="when">
-              <div class="mo">{{ a.appointmentDate | date: 'MMM' }}</div>
-              <div class="dy">{{ a.appointmentDate | date: 'd' }}</div>
-              <div class="tm">{{ a.appointmentDate | date: 'h:mm a' }}</div>
+              <div class="mo">{{ a.appointmentDate | calendarDate: 'MMM' }}</div>
+              <div class="dy">{{ a.appointmentDate | calendarDate: 'd' }}</div>
+              <div class="tm">{{ a.appointmentDate | calendarDate: 'h:mm a' }}</div>
             </div>
             <div class="meta">
               <b>{{ a.type }}</b>
@@ -321,8 +321,8 @@
                     <span class="af-mono">{{ a.confirmation }}</span>
                   </td>
                   <td>
-                    {{ a.appointmentDate | date: 'MMM d, y' }}
-                    <div class="af-sub2">{{ a.appointmentDate | date: 'h:mm a' }}</div>
+                    {{ a.appointmentDate | calendarDate: 'MMM d, y' }}
+                    <div class="af-sub2">{{ a.appointmentDate | calendarDate: 'h:mm a' }}</div>
                   </td>
                   <td class="af-sub2 num">{{ a.claimNumber }}</td>
                   <td class="af-sub2 num">{{ a.adjNumber }}</td>

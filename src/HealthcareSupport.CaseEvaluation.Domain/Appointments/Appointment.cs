@@ -14,6 +14,7 @@ using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -25,6 +26,10 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? PanelNumber { get; set; }
 
+    // CALENDAR DATE + wall-clock time of the appointment, not an instant -- see
+    // CalendarDateNormalizationTests. Without this ABP kinds it Utc on read, it serializes with a
+    // trailing Z, and every browser shifts it by its own offset.
+    [DisableDateTimeNormalization]
     public virtual DateTime AppointmentDate { get; set; }
 
     public virtual bool IsPatientAlreadyExist { get; set; }
@@ -32,6 +37,9 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [NotNull]
     public virtual string RequestConfirmationNumber { get; set; } = null!;
 
+    // CALENDAR DATE (picked in the UI, arrives on the input DTO), not an instant -- see
+    // CalendarDateNormalizationTests.
+    [DisableDateTimeNormalization]
     public virtual DateTime? DueDate { get; set; }
 
     [CanBeNull]
@@ -88,6 +96,9 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? PatientLastName { get; set; }
 
+    // CALENDAR DATE -- the snapshot of Patient.DateOfBirth, so it must be exempted for the same
+    // reason and in the same way. See CalendarDateNormalizationTests.
+    [DisableDateTimeNormalization]
     public virtual DateTime? PatientDateOfBirth { get; set; }
 
     /// <summary>

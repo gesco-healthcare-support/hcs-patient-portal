@@ -19,6 +19,7 @@ import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { IconName } from '../../shared/ui/icon/icon.registry';
 import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 import { makeComparator, type SortModel, type SortValue } from '../../shared/sort/sort-state';
+import { PacificDatePipe } from '../../shared/pipes/pacific-date.pipe';
 import {
   AvailabilityCalendarComponent,
   type AvailabilitySelection,
@@ -67,6 +68,7 @@ interface CrModal {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PacificDatePipe,
     CommonModule,
     FormsModule,
     IconComponent,

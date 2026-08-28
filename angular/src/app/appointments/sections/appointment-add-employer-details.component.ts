@@ -10,6 +10,7 @@ import {
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 import { Observable } from 'rxjs';
 
+import { PhoneNumberDirective } from '../../shared/phone-number.directive';
 /**
  * #121 phase T3 (2026-05-13) -- Employer Details section, extracted
  * from `AppointmentAddComponent`. Flat 7-field block (Name +
@@ -28,6 +29,7 @@ import { Observable } from 'rxjs';
   selector: 'app-appointment-add-employer-details',
   standalone: true,
   imports: [
+    PhoneNumberDirective,
     CommonModule,
     ReactiveFormsModule,
     LocalizationPipe,

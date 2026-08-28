@@ -54,14 +54,15 @@
             </div>
             <div class="packet-meta">
               @if (packet.status === PacketGenerationStatus.Generated && packet.generatedAt) {
-                Generated {{ packet.generatedAt | date: 'MMM d, yyyy h:mm a' }}
+                Generated {{ packet.generatedAt | pacificDate: 'MMM d, yyyy h:mm a' }}
               } @else if (packet.status === PacketGenerationStatus.Generating) {
                 Generation in progress. This page will refresh automatically.
               } @else if (packet.status === PacketGenerationStatus.Failed) {
                 Generation failed. Re-upload corrupt source documents and click Regenerate.
               }
               @if (packet.regeneratedAt) {
-                &middot; Last regenerated {{ packet.regeneratedAt | date: 'MMM d, yyyy h:mm a' }}
+                &middot; Last regenerated
+                {{ packet.regeneratedAt | pacificDate: 'MMM d, yyyy h:mm a' }}
               }
             </div>
             @if (packet.status === PacketGenerationStatus.Failed && packet.errorMessage) {

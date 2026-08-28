@@ -93,7 +93,7 @@
             <span class="conf">{{ row.appointmentConfirmationNumber || '—' }}</span>
           </div>
           <div class="l2">
-            Requested {{ row.creationTime | date: 'MMM d, y, h:mm a' }}
+            Requested {{ row.creationTime | pacificDate: 'MMM d, y, h:mm a' }}
             @if (sideLabel(row)) {
               &middot; {{ sideLabel(row) }} filed
             }

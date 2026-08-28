@@ -49,11 +49,11 @@
           </div>
           <div class="it">
             <div class="k">Date</div>
-            <div class="v">{{ (apptDate | date: 'EEE, MMM d, y') || '-' }}</div>
+            <div class="v">{{ (apptDate | calendarDate: 'EEE, MMM d, y') || '-' }}</div>
           </div>
           <div class="it">
             <div class="k">Time</div>
-            <div class="v">{{ (apptDate | date: 'h:mm a') || '-' }}</div>
+            <div class="v">{{ (apptDate | calendarDate: 'h:mm a') || '-' }}</div>
           </div>
         </div>
         <div class="ad-callout">
@@ -418,11 +418,11 @@
             </div>
             <div class="ad-field">
               <span class="k">Appointment date</span>
-              <span class="v">{{ (apptDate | date: 'EEE, MMM d, y, h:mm a') || '-' }}</span>
+              <span class="v">{{ (apptDate | calendarDate: 'EEE, MMM d, y, h:mm a') || '-' }}</span>
             </div>
             <div class="ad-field">
               <span class="k">Requested on</span>
-              <span class="v">{{ (requestedOn | date: 'MMM d, y') || '-' }}</span>
+              <span class="v">{{ (requestedOn | pacificDate: 'MMM d, y') || '-' }}</span>
             </div>
           </div>
         </div>
@@ -463,7 +463,9 @@
             <div class="ad-field">
               <span class="k">Date of birth</span>
               <span class="v">
-                {{ (appointment.patient?.dateOfBirth | date: 'MMM d, y') || 'Not provided' }}
+                {{
+                  (appointment.patient?.dateOfBirth | calendarDate: 'MMM d, y') || 'Not provided'
+                }}
               </span>
             </div>
             <div class="ad-field">
@@ -909,7 +911,7 @@
               <tbody>
                 @for (inj of injuryDetails; track inj.id) {
                   <tr>
-                    <td>{{ (inj.dateOfInjury | date: 'MMM d, y') || '-' }}</td>
+                    <td>{{ (inj.dateOfInjury | calendarDate: 'MMM d, y') || '-' }}</td>
                     <td class="num">{{ inj.claimNumber || '-' }}</td>
                     <td class="num">{{ inj.wcabAdj || '-' }}</td>
                     <td>{{ inj.wcabOfficeName || '-' }}</td>

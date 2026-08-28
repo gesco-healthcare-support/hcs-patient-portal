@@ -28,6 +28,8 @@ import { RescheduleRequestModalComponent } from './reschedule-request-modal.comp
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
 import { RequestInfoModalComponent } from './request-info-modal.component';
 import { decideByInfo, type DecideBy } from './internal-appointments.util';
+import { CalendarDatePipe, PacificDatePipe } from '../../../shared/pipes/pacific-date.pipe';
+import { PhoneNumberDirective } from '../../../shared/phone-number.directive';
 import {
   bannerVariant,
   detailActions,
@@ -60,6 +62,9 @@ import {
   selector: 'app-internal-appointment-detail',
   standalone: true,
   imports: [
+    PhoneNumberDirective,
+    CalendarDatePipe,
+    PacificDatePipe,
     CommonModule,
     ReactiveFormsModule,
     NgbDatepickerModule,

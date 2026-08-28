@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
 using Volo.Abp.Domain.Entities;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 
@@ -27,9 +28,11 @@ public class DefenseAttorneyUpdateDto : IHasConcurrencyStamp
     public string? Email { get; set; }
 
     [StringLength(DefenseAttorneyConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(DefenseAttorneyConsts.FaxNumberMaxLength)]
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
 
     [StringLength(DefenseAttorneyConsts.StreetMaxLength)]

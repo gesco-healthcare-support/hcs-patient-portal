@@ -29,6 +29,7 @@ import type {
 } from '../shared/components/managed-table/managed-table.models';
 import type { IconName } from '../shared/ui/icon/icon.registry';
 
+import { CalendarDatePipe, PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 /** A resolved donut slice (pill + label + count + CSS color). */
 interface DonutSlice {
   pill: string;
@@ -78,6 +79,8 @@ const PILL_COLOR: Record<string, string> = {
   selector: 'app-internal-dashboard',
   standalone: true,
   imports: [
+    CalendarDatePipe,
+    PacificDatePipe,
     DatePipe,
     IconComponent,
     SkeletonComponent,

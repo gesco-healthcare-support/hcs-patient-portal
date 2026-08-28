@@ -6,6 +6,7 @@ import { PagedResultDto, RestService } from '@abp/ng.core';
 import { UsDateAutoSlashDirective } from '../../shared/us-date-auto-slash.directive';
 import type { LookupDto } from '../../proxy/shared/models';
 
+import { CalendarDatePipe } from '../../shared/pipes/pacific-date.pipe';
 /**
  * Front-end transient shape for the "add injury" booking-form modal.
  * Bundles the AppointmentInjuryDetail core fields with the linked
@@ -67,7 +68,13 @@ export interface AppointmentInjuryDraft {
 @Component({
   selector: 'app-appointment-add-claim-information',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, NgbDatepickerModule, UsDateAutoSlashDirective],
+  imports: [
+    CalendarDatePipe,
+    CommonModule,
+    ReactiveFormsModule,
+    NgbDatepickerModule,
+    UsDateAutoSlashDirective,
+  ],
   templateUrl: './appointment-add-claim-information.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

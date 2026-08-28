@@ -29,11 +29,13 @@ import {
 } from '@ng-bootstrap/ng-bootstrap';
 import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 
+import { PhoneNumberDirective } from '../../../shared/phone-number.directive';
 @Component({
   selector: 'app-patient-profile',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Default,
   imports: [
+    PhoneNumberDirective,
     CommonModule,
     ReactiveFormsModule,
     LocalizationPipe,

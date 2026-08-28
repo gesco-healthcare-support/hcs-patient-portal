@@ -295,7 +295,7 @@ public class PacketTokenContext
     // -- Others group ------------------------------------------------------
 
     /// <summary>
-    /// OLD: <c>##Others.DateNow##</c>. <c>DateTime.Today.ToString("MM/dd/yyyy")</c>
+    /// OLD: <c>##Others.DateNow##</c>. Today in PACIFIC time, <c>MM/dd/yyyy</c>
     /// then ToUpper'd (no-op for digits). Computed by the resolver at the
     /// time the packet is rendered. UTC -> Pacific Time conversion is the
     /// AppService's responsibility, not the resolver's.

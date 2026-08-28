@@ -81,17 +81,18 @@
               <div class="it">
                 <div class="k">Date &amp; time</div>
                 <div class="v">
-                  {{ apptDate | date: 'MMM d, y' }} &middot; {{ apptDate | date: 'h:mm a' }}
+                  {{ apptDate | calendarDate: 'MMM d, y' }} &middot;
+                  {{ apptDate | calendarDate: 'h:mm a' }}
                 </div>
               </div>
               <div class="it">
                 <div class="k">Requested on</div>
-                <div class="v">{{ requestedOn | date: 'MMM d, y' }}</div>
+                <div class="v">{{ requestedOn | pacificDate: 'MMM d, y' }}</div>
               </div>
               @if (showResubmittedBadge && resubmittedRound) {
                 <div class="it">
                   <div class="k">Resubmitted</div>
-                  <div class="v">{{ resubmittedRound.resolvedAt | date: 'MMM d, y' }}</div>
+                  <div class="v">{{ resubmittedRound.resolvedAt | pacificDate: 'MMM d, y' }}</div>
                 </div>
                 <div class="it">
                   <div class="k">Round</div>
@@ -305,7 +306,7 @@
                           <b>Resubmitted by {{ round.resubmittedByName || 'the requester' }}</b>
                         </span>
                         <span class="t2">
-                          {{ round.resolvedAt | date: 'MMM d, y · h:mm a' }} &middot;
+                          {{ round.resolvedAt | pacificDate: 'MMM d, y · h:mm a' }} &middot;
                           {{ roundFixedSummary(round) }}
                         </span>
                       </span>
@@ -320,7 +321,7 @@
                         <b>Info requested by {{ round.requestedByName || 'staff' }}</b>
                       </span>
                       <span class="t2">
-                        {{ round.requestedAt | date: 'MMM d, y · h:mm a' }} &middot;
+                        {{ round.requestedAt | pacificDate: 'MMM d, y · h:mm a' }} &middot;
                         {{ roundFlaggedSummary(round) }}
                         @if (round.note) {
                           &middot; "{{ roundNotePreview(round.note) }}"
@@ -364,11 +365,11 @@
                 </div>
                 <div class="ra-field col-3">
                   <label>Appointment date</label>
-                  <div class="v">{{ apptDate | date: 'MMM d, y' }}</div>
+                  <div class="v">{{ apptDate | calendarDate: 'MMM d, y' }}</div>
                 </div>
                 <div class="ra-field col-3">
                   <label>Appointment time</label>
-                  <div class="v">{{ apptDate | date: 'h:mm a' }}</div>
+                  <div class="v">{{ apptDate | calendarDate: 'h:mm a' }}</div>
                 </div>
               </div>
             } @else {
@@ -387,11 +388,11 @@
                 </div>
                 <div class="ad-field">
                   <span class="k">Appointment date</span>
-                  <span class="v mono">{{ apptDate | date: 'MMM d, y' }}</span>
+                  <span class="v mono">{{ apptDate | calendarDate: 'MMM d, y' }}</span>
                 </div>
                 <div class="ad-field">
                   <span class="k">Appointment time</span>
-                  <span class="v mono">{{ apptDate | date: 'h:mm a' }}</span>
+                  <span class="v mono">{{ apptDate | calendarDate: 'h:mm a' }}</span>
                 </div>
               </div>
             }
@@ -454,11 +455,11 @@
                 </div>
                 <div class="ra-field col-3">
                   <label>Cell phone</label>
-                  <input class="ra-input" formControlName="patientCellPhoneNumber" />
+                  <input appPhoneNumber class="ra-input" formControlName="patientCellPhoneNumber" />
                 </div>
                 <div class="ra-field col-3">
                   <label>Phone number</label>
-                  <input class="ra-input" formControlName="patientPhoneNumber" />
+                  <input appPhoneNumber class="ra-input" formControlName="patientPhoneNumber" />
                 </div>
                 <div class="ra-field col-3">
                   <label>Social Security #</label>
@@ -555,7 +556,7 @@
                 <div class="ad-field">
                   <span class="k">Date of birth</span>
                   <span class="v mono">
-                    {{ appointment?.patient?.dateOfBirth | date: 'MMM d, y' }}
+                    {{ appointment?.patient?.dateOfBirth | calendarDate: 'MMM d, y' }}
                   </span>
                 </div>
                 <div class="ad-field">
@@ -640,7 +641,7 @@
                 </div>
                 <div class="ra-field col-4">
                   <label>Phone number</label>
-                  <input class="ra-input" formControlName="employerPhoneNumber" />
+                  <input appPhoneNumber class="ra-input" formControlName="employerPhoneNumber" />
                 </div>
                 <div class="ra-field col-3">
                   <label>Street</label>
@@ -755,11 +756,19 @@
                 </div>
                 <div class="ra-field col-3">
                   <label>Phone</label>
-                  <input class="ra-input" formControlName="applicantAttorneyPhoneNumber" />
+                  <input
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="applicantAttorneyPhoneNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Fax</label>
-                  <input class="ra-input" formControlName="applicantAttorneyFaxNumber" />
+                  <input
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="applicantAttorneyFaxNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Street</label>
@@ -889,11 +898,19 @@
                 </div>
                 <div class="ra-field col-3">
                   <label>Phone</label>
-                  <input class="ra-input" formControlName="defenseAttorneyPhoneNumber" />
+                  <input
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="defenseAttorneyPhoneNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Fax</label>
-                  <input class="ra-input" formControlName="defenseAttorneyFaxNumber" />
+                  <input
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="defenseAttorneyFaxNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Street</label>
@@ -1093,10 +1110,10 @@
                   <tr>
                     <td class="mono">
                       @if (injury.isCumulativeInjury) {
-                        {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }} &rarr;
-                        {{ injury.toDateOfInjury | date: 'MM/dd/yyyy' }}
+                        {{ injury.dateOfInjury | calendarDate: 'MM/dd/yyyy' }} &rarr;
+                        {{ injury.toDateOfInjury | calendarDate: 'MM/dd/yyyy' }}
                       } @else {
-                        {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
+                        {{ injury.dateOfInjury | calendarDate: 'MM/dd/yyyy' }}
                       }
                     </td>
                     <td class="mono">{{ injury.claimNumber }}</td>
@@ -1254,17 +1271,17 @@
                 <div class="ad-field">
                   <span class="k">Decision due</span>
                   <span class="v mono">
-                    {{ decideBy.due | date: 'MMM d, y' }} ({{ decideBy.label }})
+                    {{ decideBy.due | calendarDate: 'MMM d, y' }} ({{ decideBy.label }})
                   </span>
                 </div>
               }
               <div class="ad-field">
                 <span class="k">Created</span>
-                <span class="v mono">{{ requestedOn | date: 'MMM d, y · h:mm a' }}</span>
+                <span class="v mono">{{ requestedOn | pacificDate: 'MMM d, y · h:mm a' }}</span>
               </div>
               <div class="ad-field">
                 <span class="k">Last modified</span>
-                <span class="v mono">{{ modifiedOn | date: 'MMM d, y · h:mm a' }}</span>
+                <span class="v mono">{{ modifiedOn | pacificDate: 'MMM d, y · h:mm a' }}</span>
               </div>
               @if (approvalComments) {
                 <div class="ad-field full">

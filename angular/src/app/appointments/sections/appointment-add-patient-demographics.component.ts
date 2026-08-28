@@ -19,6 +19,7 @@ import { Observable } from 'rxjs';
 import { Gender, genderOptions } from '../../proxy/enums/gender.enum';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 
+import { PhoneNumberDirective } from '../../shared/phone-number.directive';
 /**
  * #121 phase T6 (2026-05-13) -- Patient Demographics + Address section.
  * Extracted from `AppointmentAddComponent`. 23 FormControls (firstName,
@@ -60,6 +61,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
   selector: 'app-appointment-add-patient-demographics',
   standalone: true,
   imports: [
+    PhoneNumberDirective,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
