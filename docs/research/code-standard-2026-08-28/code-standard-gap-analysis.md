@@ -8,6 +8,35 @@
 > 2026-08-26), `02-project-status.md`.
 >
 > Companion document: `remediation-plan.md` (the ordered backlog).
+>
+> ## REPOSITORY VERIFICATION, 2026-08-28 -- read before acting on this document
+>
+> This analysis was produced by a session with **web access but no repository access**, so every
+> statement about the codebase's current state was inherited from baseline documents rather than
+> read from source. The repository checks it asked for have since been run. Its research into
+> external standards holds up; several of its conclusions about *this* codebase do not.
+>
+> **Refuted or materially changed:**
+>
+> | Where | Claim | Verified reality |
+> | --- | --- | --- |
+> | Contradiction 5; section 12 | The flaky cascade test is a true-positive model/migration drift signal, because `HasFilter` probably went only into the migration | **`HasFilter` IS in the model configuration** -- `CaseEvaluationDbContext.cs:151,170` plus 8+ sites in `CaseEvaluationSharedModelConfiguration.cs`; 19 occurrences in the migration, 20 in the snapshot. The drift theory is dead. Live hypothesis: SQLite vs SQL Server *filtered-index fidelity* -- the failing index at `CaseEvaluationSharedModelConfiguration.cs:446-448` IS filtered, yet SQLite reports a bare unique violation. That makes the flake evidence FOR the SQL Server test project (remediation item 20), not a separate defect |
+> | Contradiction 1; rows 5.1, R2 | `target-branch` is the kill switch routing security PRs to a stale branch; deleting it is "the highest value-per-minute change available" | **It did not suppress them.** PR #417 and #416 both carry `baseRefName: main` and were closed **by the maintainer** on 2026-08-07 with every check green. Dependabot then replied it would not raise that release again, so 20.3.x is now silently untracked. Deleting `target-branch` fixes version-update routing and **nothing about the CVEs** -- those need a manual bump |
+> | Row 4.4; contradiction 9; R6 | CodeQL's JS/TS analysis is "PARTIAL / suspect"; zero alerts is not credible and probably means it never ran | **It runs.** The `javascript-typescript` analysis completes and uploads SARIF. Zero alerts is a real result. Removing `continue-on-error` is still correct; the urgency is lower |
+> | Remediation items 12, 14 | Two BLOCKER-rated frontend findings requiring urgent code reading | **Both are false positives**, verified by reading the source. See `remediation-plan.md` items 12 and 14 |
+> | Remediation item 13 | `Demo*` seed contributors may execute outside Development | **All four user seeders are runtime-gated on `ASPNETCORE_ENVIRONMENT` / `DOTNET_ENVIRONMENT` and fail closed.** Only 2 databases exist, not 11 |
+> | Remediation item 8 | `dotnet test` must be moved into `ci.yml`; `backend-test` / `frontend-test` jobs must be added | **They already exist and already run** (`ci.yml:127` and `:216`; `dotnet test` at `:161`), unmasked. They are simply not *required checks*. The gap is the gate, not the tests |
+> | Remediation item 29 | Delete `labeler.yml` because it uses `pull_request_target` | Both `pull_request_target` workflows do **not** check out PR code -- the safe pattern. Not warranted |
+>
+> **Not found by this analysis, and launch-blocking:** the Hangfire dashboard at `/hangfire` is
+> mounted with an authorisation filter that returns `true` for everyone, gated only on an ABP Studio
+> flag rather than on environment. See `remediation-plan.md` item 0.
+>
+> **Confirmed against the repository:** the reliability D is driven by 8 non-accessibility bugs, of
+> which 4 are CRITICAL `typescript:S2871` (`.sort()` without a comparator) and **two are in slot
+> generation**; `AnalysisModeSecurity` is absent; CI never passes `--locked-mode`; `ncloc` is
+> 115,754. Note also that **the repository is public**, not private, which raises the stakes on
+> full-history secret scanning.
 
 ---
 
@@ -115,11 +144,11 @@ The brief asked for these to be explicit. Each names the check that settles it.
 
 | # | Baseline says | Research finds | Settle it by |
 | --- | --- | --- | --- |
-| 1 | The Dependabot loop is caused by `target-branch` **and** `open-pull-requests-limit: 0` | `limit: 0` does not affect security updates -- they are exempt by documented design. `target-branch` alone is the kill switch | Read the two GitHub docs linked above; delete one key |
+| 1 | **[CORRECTED 2026-08-28 -- `target-branch` did not suppress the security PRs; #417/#416 targeted `main` and were closed by the maintainer. This fixes routing, not the CVEs.]** The Dependabot loop is caused by `target-branch` **and** `open-pull-requests-limit: 0` | `limit: 0` does not affect security updates -- they are exempt by documented design. `target-branch` alone is the kill switch | Read the two GitHub docs linked above; delete one key |
 | 2 | The `-warnaserror` step is "now redundant" since `Directory.Build.props` sets `TreatWarningsAsErrors=true` | Not redundant. Microsoft: `TreatWarningsAsErrors` "only impacts the C# compiler, not any other MSBuild tasks"; the `warnaserror` switch "impacts all tasks". The step is **broader** than the property | Delete the step but move `-warnaserror` onto the real build, or you lose coverage |
 | 3 | Reliability D is "an accessibility debt signal" from the 330 HTML findings | Sonar's rating is set by the **single worst issue**, not volume. `Web:InputWithoutLabelCheck` is MAJOR/MEDIUM (caps at C); `MouseEventWithoutKeyboardEquivalent` is MINOR/LOW (caps at B). Neither can produce D at any count. The D comes **entirely from the 8 unexamined C#/TS bugs** | One SonarCloud filter: Reliability + High/Blocker. 20 minutes |
 | 4 | The 13 CodeQL seed-contributor alerts "are almost certainly synthetic demo credentials and will triage away" | `cs/exposure-of-sensitive-information` does not detect credentials at all. It is a name heuristic (`%email%`, `%medical%`, `%social%security%number%`, ...) reaching a logger/Trace/cookie/file sink. These are near-certainly **email addresses reaching log lines** | Open one alert and read the source node name |
-| 5 | The flaky test is probably a confirmation-number collision the narrower index no longer tolerates | SQLite has supported UNIQUE **partial** indexes since 3.8.0 (2013) and EF Core's SQLite provider emits `WHERE <filter>`. So SQLite is not the limitation. ABP's test module builds schema via `IRelationalDatabaseCreator.CreateTables()` from the **model**, never from migrations -- the flake is a true-positive signal of **model/migration drift** | Check whether `Fix_UniqueIndexesExcludeSoftDeleted` put `HasFilter` in `OnModelCreating` or only in the migration file. Ten minutes |
+| 5 | **[REFUTED 2026-08-28 -- see the verification block at the top of this document. `HasFilter` is in the model config; the drift theory is dead.]** The flaky test is probably a confirmation-number collision the narrower index no longer tolerates | SQLite has supported UNIQUE **partial** indexes since 3.8.0 (2013) and EF Core's SQLite provider emits `WHERE <filter>`. So SQLite is not the limitation. ABP's test module builds schema via `IRelationalDatabaseCreator.CreateTables()` from the **model**, never from migrations -- the flake is a true-positive signal of **model/migration drift** | Check whether `Fix_UniqueIndexesExcludeSoftDeleted` put `HasFilter` in `OnModelCreating` or only in the migration file. Ten minutes |
 | 6 | `AnalysisLevel=latest` is part of "the strongest single quality control in the repository" | `AnalysisLevel` governs rule vintage, not rule count. No Security-category rule is enabled by default in .NET 10 | Read the CA2100 doc page: "Enabled by default in .NET 10: No" |
 | 7 | Six Angular CVEs ship to the browser | Seven in the baseline's own list (`CVE-2026-54268` and `CVE-2026-50171` are distinct CVEs with different fix versions), **plus** `CVE-2026-52725` which the baseline misses, **minus** `CVE-2026-27970` which was already fixed at 20.3.17. OSV returns 10 distinct CVEs affecting 20.3.19 | `yarn npm audit`; the count discrepancy between sources is noted in section 7 |
 | 8 | Four of those CVEs are cross-request/cross-user data exposure raising them "above routine dependency noise" | Four of them (`54267`, `68945`, `50170`, `54266`) are **contingent on Angular SSR**. GHSA-39pv-4j6c-2g6v: "Applications that do not employ SSR with hydration are unaffected." If this SPA is client-rendered, they are not exploitable here | Grep for `@angular/ssr`, `server.ts`, `provideClientHydration`, and an `ssr`/`prerender` builder target. Fifteen minutes |
@@ -189,7 +218,7 @@ checking.
 | 4.1 | Compiler warnings as errors | PRESENT | `TreatWarningsAsErrors=true` repo-wide. Genuinely strong |
 | 4.2 | .NET **security** analyzers enabled | **MISCONFIGURED** | See section 1, item 2. `AnalysisMode` default enables no Security rules |
 | 4.3 | Banned-API analyzer for tenancy-disabling calls | ABSENT | No SAST product has a rule for host-header cross-tenant leakage; a banned-API list is the substitute |
-| 4.4 | CodeQL running and uploading | PARTIAL / suspect | `continue-on-error` masks run failures; zero JS/TS alerts is not credible. See contradiction 9 |
+| 4.4 | CodeQL running and uploading | **CONFIRMED RUNNING (2026-08-28)** -- was PARTIAL / suspect | `continue-on-error` masks run failures; zero JS/TS alerts is not credible. See contradiction 9 |
 | 4.5 | CodeQL as a merge gate | ABSENT | `continue-on-error: true` |
 | 4.6 | SonarCloud quality gate enforcing | **MISCONFIGURED** | Disabled twice over: `continue-on-error: true` **and** `sonar.qualitygate.wait=false`. README claims it gates; it does not |
 | 4.7 | New-code period usable | **MISCONFIGURED** | `previous_version` frozen at 2026-04-15, so "new code" is the whole project and all four gate conditions apply to 80k lines at once. Unpassable by construction |
@@ -200,7 +229,7 @@ checking.
 
 | # | Check in the standard | State | Note |
 | --- | --- | --- | --- |
-| 5.1 | Dependabot security updates reaching `main` | **MISCONFIGURED** | `target-branch` routes them to a branch 465 commits stale that has never merged. 88 alerts accumulated |
+| 5.1 | Dependabot security updates reaching `main` | **CORRECTED 2026-08-28: they DID reach `main`** -- was MISCONFIGURED | `target-branch` routes them to a branch 465 commits stale that has never merged. 88 alerts accumulated |
 | 5.2 | Dependency audit failing the build on high/critical | **MISCONFIGURED** | `dependency-review.yml` is `continue-on-error` **and** `fail-on-severity: critical` (action default is `low`). Two safety catches on a gate that was already advisory |
 | 5.3 | NuGet audit as an error in CI | PARTIAL | `NuGetAuditMode` defaults to `all` on net10.0+, so restore already computes transitive vulnerability data -- and discards it as warnings |
 | 5.4 | Lockfile enforcement in CI | PARTIAL | `RestorePackagesWithLockFile=true` but `RestoreLockedMode=false`. Fine **if** CI passes `--locked-mode`; unverified |
@@ -819,6 +848,8 @@ should go in a monthly slot now rather than be discovered in November.
 [SQLite CREATE TABLE](https://www.sqlite.org/lang_createtable.html);
 [collation and Unicode support](https://learn.microsoft.com/en-us/sql/relational-databases/collations/collation-and-unicode-support);
 all accessed 2026-08-28.)
+
+> **[REFUTED 2026-08-28: the conclusion drawn in the next three paragraphs is wrong. `HasFilter` IS in `OnModelCreating`. The live hypothesis is SQLite/SQL Server filtered-index fidelity, which makes this evidence for remediation item 20.]**
 
 **But filtered indexes are not on that list, and that matters for your flaky test.** SQLite has
 supported UNIQUE **partial** indexes since 3.8.0 (2013), and EF Core's relational generator appends

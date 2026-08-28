@@ -8,6 +8,16 @@
 > unreachable.** Only 53% survived first-pass scrutiny, which is the argument for the verification
 > pass having existed.
 
+> **REPOSITORY VERIFICATION, 2026-08-28.** This research ran with web access but **no repository
+> access**. Its repo checks have since been run against source, and both deliverables are corrected
+> in place -- see the verification block at the top of `code-standard-gap-analysis.md` and section
+> 0 of `remediation-plan.md`. Summary: the flaky-test drift theory and the `target-branch`
+> Dependabot diagnosis are **refuted**; CodeQL IS running; remediation items 12 and 14 are **false
+> positives**; item 13 is mostly already done; item 8's test jobs already exist. A new
+> launch-blocking item 0 was added (the Hangfire dashboard authorises everyone). **Revised
+> launch-blocking total: ~135 h, not 141**, and the 40 h/month capacity assumption originated in the
+> brief rather than from a stated allocation.
+
 ---
 
 ## 1. What is in this package
