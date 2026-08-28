@@ -1,0 +1,94 @@
+I commissioned a research project on production code standards and I am handing the results back
+to you. Attached are the deliverables and the supporting record.
+
+CONTEXT
+
+The application is a workers' compensation medical-examination scheduling portal: .NET 10, ABP
+Commercial 10.0.2, Angular 20.3.19, SQL Server, EF Core, OpenIddict, Redis, MinIO, all
+containerised. Multi-tenant, database per office, 11 offices at launch with headroom to 33.
+Tenancy resolves from the HTTP Host header only. It is about to move from an internal office LAN
+to the public internet for the first time. Maintained by two SDE 1 developers with no senior
+engineer, no architect, no security specialist, no DevOps and no QA, at roughly one developer-week
+per month for this work. There is no real patient data in it yet; everything is synthetic.
+
+The research established what an industry-standard CI pipeline, test suite and automated check set
+looks like in 2026 for an application of this shape, then verified the codebase against it. Scope
+was code and CI only; hosting, cloud and infrastructure are a separate exercise already in
+progress.
+
+WHAT IS ATTACHED
+
+- code-standard-gap-analysis.md   Document A: one-page summary, nine contradictions with the
+                                  baseline, a 74-row verification table, per-area detail, a
+                                  23-entry REMOVE list, and answers to the three blocking
+                                  questions
+- remediation-plan.md             Document B: 50-item ordered backlog with effort and a
+                                  launch-blocking yes/no on every item, plus the capacity verdict
+- research-method-and-analysis.md How the research was structured, the judgment calls, where the
+                                  evidence conflicted and how it was resolved, and what would
+                                  change the conclusions
+- appendix-A / B / C / D          Raw research with sources, the blocking questions in full, the
+                                  finding triage in full, and the adversarial verification record
+- raw-research.json               Unprocessed structured output from all 35 agents
+
+Read Document A section 1 and section 2 first. Do not rewrite either deliverable until I ask.
+
+THE CRITICAL LIMITATION
+
+The research session had web access but NOT repository access, so every statement about the
+codebase's current state is inherited from the two baseline documents rather than read from
+source. You presumably do have the repository. Section 3 of HANDOFF.md lists seven checks totalling
+under an hour that were blocked only by that, and between them they change the urgency of four
+separate recommendations. Running those and reporting back is the single most valuable thing you
+can do next.
+
+THE THREE FINDINGS THAT CHANGE WHAT WE DO
+
+1. AnalysisLevel=latest does not enable the .NET security analyzers. AnalysisLevel selects rule
+   vintage; AnalysisMode decides how many are on, and its default enables no Security-category rules
+   at all. CA2100 and CA3001 both state "Enabled by default in .NET 10: No". The entire
+   CA2100/CA3xxx/CA5xxx band is dead code in our build. Fix is one line:
+   <AnalysisModeSecurity>All</AnalysisModeSecurity>.
+
+2. The Dependabot fix is a one-line deletion and our diagnosis was half wrong.
+   open-pull-requests-limit: 0 does NOT affect security updates -- GitHub documents that security
+   PRs are exempt from that limit. target-branch is the kill switch, and GitHub says explicitly not
+   to set it alongside security updates.
+
+3. The SonarCloud reliability D is not accessibility debt. Sonar sets the rating from the single
+   worst issue, not volume; the two accessibility rules cap the rating at C and B respectively.
+   The D comes entirely from the 8 C#/TS bugs nobody has opened. The 330 accessibility findings
+   contribute nothing to it.
+
+RULES OF EVIDENCE THAT WERE APPLIED, AND SHOULD CONTINUE TO APPLY
+
+Every standard asserted carries a source URL and an access date, or is marked UNVERIFIED with what
+was tried. 290 individual claims were re-checked by a second adversarial agent instructed to
+default to "does not support the claim"; that pass caught a fabricated quotation of a W3C success
+criterion, a wrong reading of California Government Code 7405, several thresholds cited to pages
+that do not contain them, and a handful of stale version numbers. Appendix D is the record.
+
+Please preserve that convention. Do not replace a cited figure with one from memory, and do not
+promote anything marked UNVERIFIED to asserted without opening the source yourself.
+
+WHAT I WANT FROM YOU
+
+Start by telling me what you would do next, and flag anything in the analysis you think is wrong or
+that the repository contradicts. Likely next steps, in the order I would guess:
+
+(a) Run the seven repository checks in HANDOFF.md section 3 and report what they change.
+(b) Execute Tier 0 week 1 from remediation-plan.md -- seven items, 14 hours, all of them things
+    that are currently misreporting success.
+(c) Take the capacity finding to the business as a decision rather than letting the calendar
+    decide: 141 launch-blocking hours against 40 per month is roughly three and a half months, and
+    the three options are laid out in remediation-plan.md section 1.
+
+One framing to preserve: roughly 60% of the first month's value is DELETION, not addition. Fifteen
+of the twenty-three REMOVE candidates are not clutter, they are checks that report success without
+checking anything -- and the gap they hide is that our merge gate runs no tests and has not since
+2026-05-01. Removing them is what makes that visible.
+
+One piece of timing that expires: there is no real patient data yet, so credential rotation across
+all 11 tenant databases, destructive upload testing and a full-history secret scan are all free
+right now and all become incidents later. Several Tier 0 items are cheap this month and expensive
+after go-live.
