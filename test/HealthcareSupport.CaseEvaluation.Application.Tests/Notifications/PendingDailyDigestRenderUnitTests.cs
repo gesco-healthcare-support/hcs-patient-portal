@@ -16,7 +16,21 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// </summary>
 public class PendingDailyDigestRenderUnitTests
 {
-    private static readonly DateTime Now = new(2026, 6, 11, 9, 0, 0, DateTimeKind.Utc);
+    /// <summary>2026-06-11 12:00 Pacific. Midday so the UTC and Pacific dates agree and each
+    /// expectation below reads as its plain intent.</summary>
+    private static readonly DateTime Now = new(2026, 6, 11, 19, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// A request submitted at MIDDAY PACIFIC on the given date, as the UTC instant it really is.
+    ///
+    /// <para>2026-08-31: these fixtures used to pass a bare <c>new DateTime(y, m, d)</c>. That is a
+    /// midnight value with no Kind, and the decision-SLA math now reads its argument as the UTC
+    /// instant it actually receives in production (<c>Appointment.CreationTime</c>) -- for which
+    /// midnight UTC is the PREVIOUS evening in Pacific. Building the fixture at midday keeps the
+    /// intended calendar date unambiguous in both zones.</para>
+    /// </summary>
+    private static DateTime RequestedOn(int year, int month, int day)
+        => new(year, month, day, 19, 0, 0, DateTimeKind.Utc);
 
     private static PendingDailyDigestRow Row(DateTime requestedAt) => new()
     {
@@ -32,7 +46,7 @@ public class PendingDailyDigestRenderUnitTests
     {
         // window = 3, requested 2026-06-10 -> decision due 2026-06-13 (NOT +5).
         var html = PendingDailyDigestEmailHandler.BuildDigestHtml(
-            new List<PendingDailyDigestRow> { Row(new DateTime(2026, 6, 10)) },
+            new List<PendingDailyDigestRow> { Row(RequestedOn(2026, 6, 10)) },
             decisionDueDays: 3,
             nowForOverdue: Now);
 
@@ -45,7 +59,7 @@ public class PendingDailyDigestRenderUnitTests
     {
         // requested 2026-06-06 -> due 2026-06-09; today 2026-06-11 -> overdue.
         var html = PendingDailyDigestEmailHandler.BuildDigestHtml(
-            new List<PendingDailyDigestRow> { Row(new DateTime(2026, 6, 6)) },
+            new List<PendingDailyDigestRow> { Row(RequestedOn(2026, 6, 6)) },
             decisionDueDays: 3,
             nowForOverdue: Now);
 
@@ -58,7 +72,7 @@ public class PendingDailyDigestRenderUnitTests
     {
         // requested 2026-06-08 -> due 2026-06-11 = today: due today, not overdue.
         var html = PendingDailyDigestEmailHandler.BuildDigestHtml(
-            new List<PendingDailyDigestRow> { Row(new DateTime(2026, 6, 8)) },
+            new List<PendingDailyDigestRow> { Row(RequestedOn(2026, 6, 8)) },
             decisionDueDays: 3,
             nowForOverdue: Now);
 
@@ -72,9 +86,9 @@ public class PendingDailyDigestRenderUnitTests
         var html = PendingDailyDigestEmailHandler.BuildDigestHtml(
             new List<PendingDailyDigestRow>
             {
-                Row(new DateTime(2026, 6, 6)),  // overdue
-                Row(new DateTime(2026, 6, 7)),  // overdue (due 06-10)
-                Row(new DateTime(2026, 6, 10)), // not overdue (due 06-13)
+                Row(RequestedOn(2026, 6, 6)),  // overdue
+                Row(RequestedOn(2026, 6, 7)),  // overdue (due 06-10)
+                Row(RequestedOn(2026, 6, 10)), // not overdue (due 06-13)
             },
             decisionDueDays: 3,
             nowForOverdue: Now);

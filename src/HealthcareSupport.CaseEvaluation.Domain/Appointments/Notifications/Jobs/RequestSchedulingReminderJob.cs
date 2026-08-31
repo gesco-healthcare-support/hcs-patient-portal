@@ -11,6 +11,8 @@ using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Settings;
+using Volo.Abp.Timing;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -35,6 +37,7 @@ public class RequestSchedulingReminderJob : ITransientDependency
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<RequestSchedulingReminderJob> _logger;
+    private readonly IClock _clock;
 
     public RequestSchedulingReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -42,7 +45,8 @@ public class RequestSchedulingReminderJob : ITransientDependency
         IAppointmentRecipientResolver recipientResolver,
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
-        ILogger<RequestSchedulingReminderJob> logger)
+        ILogger<RequestSchedulingReminderJob> logger,
+        IClock clock)
     {
         _appointmentRepository = appointmentRepository;
         _tenantWorkRunner = tenantWorkRunner;
@@ -50,6 +54,7 @@ public class RequestSchedulingReminderJob : ITransientDependency
         _backgroundJobManager = backgroundJobManager;
         _settingProvider = settingProvider;
         _logger = logger;
+        _clock = clock;
     }
 
     public const string RecurringJobId = "appt-request-scheduling-reminder";
@@ -83,7 +88,10 @@ public class RequestSchedulingReminderJob : ITransientDependency
             await _settingProvider.GetOrNullAsync(
                 CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors));
 
-        var nowUtc = DateTime.UtcNow.Date;
+        // 2026-08-31: BOTH sides were UTC dates -- correct only because the cron fires at 08:00
+        // Pacific. CreationTime is a UTC INSTANT, so the elapsed-day count must be measured between
+        // Pacific calendar dates, which is what the configured anchors mean.
+        var todayPacific = PacificTime.TodayFrom(_clock.Now);
         var queryable = await _appointmentRepository.GetQueryableAsync();
         // Match the request-creation date against each configured elapsed-day
         // anchor; ABP CreationTime is set at appointment row insert (the request
@@ -91,7 +99,7 @@ public class RequestSchedulingReminderJob : ITransientDependency
         var eligible = queryable
             .Where(a => a.AppointmentStatus == AppointmentStatusType.Pending)
             .ToList()
-            .Where(a => cadence.ShouldFire((int)(nowUtc - a.CreationTime.Date).TotalDays))
+            .Where(a => cadence.ShouldFire((int)(todayPacific - PacificTime.TodayFrom(a.CreationTime)).TotalDays))
             .ToList();
 
         var enqueued = 0;
