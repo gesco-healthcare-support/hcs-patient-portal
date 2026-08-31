@@ -6,16 +6,16 @@ Workers' compensation Independent Medical Examination (IME) scheduling platform 
 Angular 20, and ABP Commercial. Per-layer and per-feature guidance lives in `CLAUDE.md` files
 (mapped from the repo-root `CLAUDE.md`); this index maps the longer-form `docs/` references.
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| Backend framework | ASP.NET Core / ABP Commercial | .NET 10 / ABP 10.0.2 |
-| Frontend | Angular (standalone components) | 20 |
-| Database | SQL Server (EF Core, code-first) | LocalDB / Docker |
-| Auth | OpenIddict (OAuth 2.0 / OIDC) | -- |
-| UI theme | LeptonX (side-menu layout) | 5.x |
-| Object mapping | Riok.Mapperly | -- |
-| Background jobs | Hangfire | -- |
-| Logging | Serilog | -- |
+| Layer             | Technology                       | Version              |
+| ----------------- | -------------------------------- | -------------------- |
+| Backend framework | ASP.NET Core / ABP Commercial    | .NET 10 / ABP 10.0.2 |
+| Frontend          | Angular (standalone components)  | 20                   |
+| Database          | SQL Server (EF Core, code-first) | LocalDB / Docker     |
+| Auth              | OpenIddict (OAuth 2.0 / OIDC)    | --                   |
+| UI theme          | LeptonX (side-menu layout)       | 5.x                  |
+| Object mapping    | Riok.Mapperly                    | --                   |
+| Background jobs   | Hangfire                         | --                   |
+| Logging           | Serilog                          | --                   |
 
 ```mermaid
 flowchart TB
@@ -32,16 +32,16 @@ flowchart TB
 
 ## Start here
 
-| Goal | Doc |
-|------|-----|
-| Run the app locally | [Getting Started](onboarding/GETTING-STARTED.md) |
-| Common dev tasks (add an entity, field, migration, proxy) | [Common Tasks](onboarding/COMMON-TASKS.md) |
-| Troubleshoot local dev | [Local Dev Runbook](runbooks/LOCAL-DEV.md) |
-| Run in Docker | [Docker Dev Runbook](runbooks/DOCKER-DEV.md) |
-| Understand the domain | [Business Domain Overview](business-domain/DOMAIN-OVERVIEW.md) |
-| Look up a term | [Glossary](GLOSSARY.md) |
-| See why a decision was made | [Architecture Decision Records](decisions/README.md) |
-| Per-layer / per-feature coding rules | the nested `CLAUDE.md` files (see repo-root `CLAUDE.md` Map) |
+| Goal                                                      | Doc                                                            |
+| --------------------------------------------------------- | -------------------------------------------------------------- |
+| Run the app locally                                       | [Getting Started](onboarding/GETTING-STARTED.md)               |
+| Common dev tasks (add an entity, field, migration, proxy) | [Common Tasks](onboarding/COMMON-TASKS.md)                     |
+| Troubleshoot local dev                                    | [Local Dev Runbook](runbooks/LOCAL-DEV.md)                     |
+| Run in Docker                                             | [Docker Dev Runbook](runbooks/DOCKER-DEV.md)                   |
+| Understand the domain                                     | [Business Domain Overview](business-domain/DOMAIN-OVERVIEW.md) |
+| Look up a term                                            | [Glossary](GLOSSARY.md)                                        |
+| See why a decision was made                               | [Architecture Decision Records](decisions/README.md)           |
+| Per-layer / per-feature coding rules                      | the nested `CLAUDE.md` files (see repo-root `CLAUDE.md` Map)   |
 
 ---
 
@@ -116,6 +116,26 @@ flowchart TB
 - Bug + observation findings: `runbooks/findings/bugs/` (tracked by BUG-/OBS-/SEED- id)
 - [Testing Strategy](devops/TESTING-STRATEGY.md) and [Test Coverage Status](testing/coverage-status.md)
 
+## Production readiness
+
+Work aimed at making the portal safe to host publicly. Three research exercises feed one
+remediation queue; the baselines below are the shared evidence they all draw on.
+
+- [System Architecture Baseline](architecture/SYSTEM-ARCHITECTURE-BASELINE.md) -- what the system
+  is, measured rather than remembered
+- [Runtime and Data Profile](devops/RUNTIME-AND-DATA-PROFILE.md) -- real sizes, volumes and
+  runtime shape
+- [CI Tests and Checks](devops/CI-TESTS-AND-CHECKS.md) -- what the pipeline actually enforces
+- [Code Standard Research](research/code-standard-2026-08-28/) -- exercise 1 (complete): gap
+  analysis, [remediation plan](research/code-standard-2026-08-28/remediation-plan.md), and the
+  [verification record](research/code-standard-2026-08-28/appendix-D-verification-record.md) of
+  which findings survived being checked against this repo
+- [System Design Research](research/system-design-2026-08-28/) -- exercise 2 (not yet run): the
+  brief and deployment constraints for an independent architecture review
+
+Exercise 3, platform selection, is deliberately deferred until exercise 2 produces vendor-neutral
+requirements to score against.
+
 ## Legacy parity
 
 - [Parity-v2 Index](parity-v2/INDEX.md) -- gap analysis (10 areas) vs the legacy app
@@ -125,5 +145,7 @@ flowchart TB
 ## Reference + meta
 
 - [Repository Map](repo-map/README.md) -- structural map (regenerate via the documented script)
-- [Research Notes](research/proxy-regen-stringvalues-fix.md) -- open upstream-tooling issues
+- Research notes live in `research/` -- dated investigations, including
+  [proxy regen](research/proxy-regen-stringvalues-fix.md) (upstream tooling) and the two
+  production-readiness exercises linked above
 - Active plans live in `plans/` (e.g. docker lean images, SSN-at-rest encryption deferred)
