@@ -15,20 +15,26 @@ created off `main` at `a5234d25` on 2026-08-31.
 
 Update this table as each phase closes. It is the first thing a successor will read.
 
-| Phase                    | Status      | Landed | Baseline delta |
-| ------------------------ | ----------- | ------ | -------------- |
-| 1 Blockers               | NOT STARTED | --     | --             |
-| 2 Enforcement            | NOT STARTED | --     | --             |
-| 3 Critical-path coverage | NOT STARTED | --     | --             |
-| 4 CodeQL sensitive-info  | NOT STARTED | --     | --             |
-| 5 Security hotspots      | NOT STARTED | --     | --             |
-| 6 Dependencies           | NOT STARTED | --     | --             |
-| 7 Rule families          | NOT STARTED | --     | --             |
-| 8 Coverage expansion     | NOT STARTED | --     | --             |
+| Phase                    | Status           | Landed | Baseline delta |
+| ------------------------ | ---------------- | ------ | -------------- |
+| 1 Blockers               | NOT STARTED      | --     | --             |
+| 2 Enforcement            | NOT STARTED      | --     | --             |
+| 3 Critical-path coverage | NOT STARTED      | --     | --             |
+| 4 CodeQL sensitive-info  | NOT STARTED      | --     | --             |
+| 5 Security hotspots      | NOT STARTED      | --     | --             |
+| 6 Dependencies           | NOT STARTED      | --     | --             |
+| 7 Rule families          | NOT STARTED      | --     | --             |
+| 8 Coverage expansion     | NOT STARTED      | --     | --             |
+| 9 System design intake   | WAITING ON INPUT | --     | --             |
 
 **Open decision blocking phase 2:** the SonarCloud new-code coverage gate is set to 80% and is
 currently admin-overridden on every PR. It must be either enforced at 80% or lowered to a threshold
 that will be respected. See [02-enforcement.md](02-enforcement.md) 2.1.
+
+**Phase 9 has no fixed slot.** It runs whenever the external system-design report arrives, takes an
+hour or two of triage, and dissolves its findings into the phases above. It must not interrupt a
+phase in flight, and it is not a reason to reorder -- see
+[09-system-design-intake.md](09-system-design-intake.md).
 
 ## The goal, in Adrian's words
 
@@ -86,6 +92,7 @@ That is a change from the first draft, made because of this question, and it is 
 | 6   | [Dependencies](06-dependencies.md)                          | 87 patchable of 88          | Now guarded by phase 3                                                                         |
 | 7   | [Rule families](07-rule-families.md)                        | ~1,249 in 100 families      | Bulk. Largest families first; 72% sits in the top 15.                                          |
 | 8   | [Coverage expansion](08-coverage-expansion.md)              | 52.4% -> as high as reached | Open-ended. Degrades gracefully because phase 2 stops backsliding.                             |
+| 9   | [System design intake](09-system-design-intake.md)          | External report, not yet in | No fixed slot. Triage and routing only; findings dissolve into the phases above.               |
 
 Running record of what was NOT fixed and why: [00-triage-log.md](00-triage-log.md).
 

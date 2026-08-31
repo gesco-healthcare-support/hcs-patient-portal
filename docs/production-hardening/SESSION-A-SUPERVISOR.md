@@ -94,6 +94,25 @@ adding judgment.
 
 Use `AskUserQuestion` for all of these, per `~/.claude/rules/communication.md`. Never ask in prose.
 
+## When the system design report arrives
+
+An external architecture review is in progress and may land mid-epic. It is not an interrupt.
+
+**Finish the phase in flight first.** Nothing ships on that report, and the exercise it feeds
+(platform selection) has not started. Stopping phases 1-3 to chase architecture recommendations is
+the specific way this epic stalls -- the enforcement and coverage work is what hardens the codebase,
+and it is the work that stops being possible once the horizon runs out.
+
+When you do process it, follow `09-system-design-intake.md`. The rule that matters:
+
+> A finding enters this epic only if the fix is a change to a file in THIS repository.
+> If it needs a platform, procurement, or an infrastructure decision, record it and route it out.
+
+Slot accepted items into the phase they belong to by nature, not into a phase 9 work queue -- a
+rate-limiting fix belongs with the other security fixes. And if the report argues for a different
+ordering, that is an escalation to Adrian, not something to absorb: the current order was chosen by
+what survives a handoff, and an outside report does not have that context.
+
 ## Keeping the record
 
 After each accepted task, append to the phase file: what landed, the commit, and the measured
