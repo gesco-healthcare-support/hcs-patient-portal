@@ -5,6 +5,7 @@ import type { AppointmentChangeLogDto } from '../proxy/appointment-change-logs/m
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { changeTypeMeta, groupChangeLogEntries, type ClgKindMeta } from './clg-log.util';
 
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 /**
  * Internal Workflow (Prompt 13) -- shared change-log timeline. Renders the
  * PHI-redacted per-field rows as collapsible per-save entries with field diffs
@@ -16,7 +17,7 @@ import { changeTypeMeta, groupChangeLogEntries, type ClgKindMeta } from './clg-l
   selector: 'app-change-log-timeline',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, IconComponent],
+  imports: [PacificDatePipe, CommonModule, IconComponent],
   templateUrl: './change-log-timeline.component.html',
 })
 export class ChangeLogTimelineComponent {

@@ -20,6 +20,7 @@ using Volo.Abp.Uow;
 using Volo.Abp.Validation;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -58,6 +59,13 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         _systemParameterRepository = systemParameterRepository;
         _unitOfWorkManager = unitOfWorkManager;
     }
+
+    /// <summary>
+    /// Today's date in Pacific time. 2026-08-27: replaces <c>DateTime.Today</c>, which on a UTC
+    /// server rolls over at 4pm or 5pm Pacific -- so for the last hours of every working day a
+    /// slot for TODAY was rejected as being in the past, and the lead-time floor was a day late.
+    /// </summary>
+    protected DateTime PacificToday => PacificTime.TodayFrom(Clock.Now);
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>> GetListAsync(GetDoctorAvailabilitiesInput input)
     {
@@ -421,7 +429,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         if (useExplicitDates)
         {
             var selectedDates = input.SelectedDates!;
-            var today = DateOnly.FromDateTime(DateTime.Today);
+            var today = DateOnly.FromDateTime(PacificToday);
             if (selectedDates.Any(d => d < today))
             {
                 throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
@@ -437,7 +445,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             {
                 throw new UserFriendlyException(L["DoctorAvailability:ToDateBeforeFromDate"]);
             }
-            if (input.FromDate.Date < DateTime.Today)
+            if (input.FromDate.Date < PacificToday)
             {
                 throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
             }
@@ -612,7 +620,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
         var leadTimeDays = systemParameter?.AppointmentLeadTime ?? 0;
-        var minDate = (input.AvailableDateFrom?.Date ?? DateTime.Today).AddDays(leadTimeDays);
+        var minDate = (input.AvailableDateFrom?.Date ?? PacificToday).AddDays(leadTimeDays);
 
         var query = await _doctorAvailabilityRepository.GetQueryableAsync();
         query = query.Where(x =>

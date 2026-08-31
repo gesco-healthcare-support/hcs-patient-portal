@@ -16,7 +16,7 @@
                 <b>Resubmitted by {{ resubmitterName(round) }}</b>
               </span>
               <span class="irh-t2">
-                {{ round.resolvedAt | date: 'MMM d, y · h:mm a' }} &middot;
+                {{ round.resolvedAt | pacificDate: 'MMM d, y · h:mm a' }} &middot;
                 {{ fixedSummary(round) }}
               </span>
             </span>
@@ -44,7 +44,7 @@
               <b>Info requested by {{ requesterName(round) }}</b>
             </span>
             <span class="irh-t2">
-              {{ round.requestedAt | date: 'MMM d, y · h:mm a' }} &middot;
+              {{ round.requestedAt | pacificDate: 'MMM d, y · h:mm a' }} &middot;
               {{ flaggedSummary(round) }}
               @if (round.note) {
                 &middot; "{{ notePreview(round.note) }}"

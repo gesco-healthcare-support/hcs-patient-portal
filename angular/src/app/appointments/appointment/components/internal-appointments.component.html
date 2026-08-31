@@ -280,8 +280,10 @@
               </td>
               <td>{{ a.appointmentType?.name }}</td>
               <td>
-                {{ a.appointment?.appointmentDate | date: 'MMM d, y' }}
-                <div class="ia-sub">{{ a.appointment?.appointmentDate | date: 'h:mm a' }}</div>
+                {{ a.appointment?.appointmentDate | calendarDate: 'MMM d, y' }}
+                <div class="ia-sub">
+                  {{ a.appointment?.appointmentDate | calendarDate: 'h:mm a' }}
+                </div>
               </td>
               <td><app-status-pill [status]="pill(a)" /></td>
               <td class="ia-sub ia-panel">{{ a.appointment?.panelNumber }}</td>
@@ -289,7 +291,7 @@
               <td>
                 @if (decideBy(a); as d) {
                   <span class="ia-due">
-                    {{ d.due | date: 'MMM d, y' }}
+                    {{ d.due | calendarDate: 'MMM d, y' }}
                     <span class="dl {{ d.level }}">{{ d.label }}</span>
                   </span>
                 } @else {

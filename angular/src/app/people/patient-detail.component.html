@@ -55,7 +55,7 @@
         </div>
         <div class="ad-field">
           <span class="k">Date of birth</span>
-          <span class="v mono">{{ (row().dateOfBirth | date: 'MMM d, y') || '--' }}</span>
+          <span class="v mono">{{ (row().dateOfBirth | calendarDate: 'MMM d, y') || '--' }}</span>
         </div>
         <div class="ad-field">
           <span class="k">SSN</span>
@@ -173,7 +173,9 @@
                 <span class="ia-conf">{{ a.appointment?.requestConfirmationNumber || '--' }}</span>
               </td>
               <td>{{ a.appointmentType?.name || '--' }}</td>
-              <td class="num">{{ (a.appointment?.appointmentDate | date: 'MMM d, y') || '--' }}</td>
+              <td class="num">
+                {{ (a.appointment?.appointmentDate | calendarDate: 'MMM d, y') || '--' }}
+              </td>
               <td>{{ a.location?.name || '--' }}</td>
               <td><app-status-pill [status]="pill(a)" /></td>
             </tr>

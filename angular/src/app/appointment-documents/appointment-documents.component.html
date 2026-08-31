@@ -160,7 +160,7 @@
                   &middot; {{ doc.contentType }}
                 }
                 @if (doc.creationTime) {
-                  &middot; {{ doc.creationTime | date: 'MMM d, yyyy h:mm a' }}
+                  &middot; {{ doc.creationTime | pacificDate: 'MMM d, yyyy h:mm a' }}
                 }
               </div>
               @if (doc.status === DocumentStatus.Rejected && doc.rejectionReason) {

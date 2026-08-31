@@ -12,6 +12,7 @@ using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -39,6 +40,9 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual Gender GenderId { get; set; }
 
+    // CALENDAR DATE, not an instant -- see CalendarDateNormalizationTests. Without this ABP kinds
+    // it Utc on read, it serializes with a trailing Z, and every browser renders the day before.
+    [DisableDateTimeNormalization]
     public virtual DateTime DateOfBirth { get; set; }
 
     [CanBeNull]

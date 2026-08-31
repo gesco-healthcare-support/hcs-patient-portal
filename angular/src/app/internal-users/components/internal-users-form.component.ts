@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ConfigStateService, RestService } from '@abp/ng.core';
 
+import { PhoneNumberDirective } from '../../shared/phone-number.directive';
 /**
  * Internal-user creation form, reachable by host IT Admin (at
  * admin.localhost) and by per-tenant `admin` users on their own
@@ -34,7 +35,7 @@ import { ConfigStateService, RestService } from '@abp/ng.core';
 @Component({
   selector: 'app-internal-users-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [PhoneNumberDirective, CommonModule, ReactiveFormsModule],
   templateUrl: './internal-users-form.component.html',
 })
 export class InternalUsersFormComponent implements OnInit {

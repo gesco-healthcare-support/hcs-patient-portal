@@ -8,6 +8,7 @@ import { LocalizationPipe } from '@abp/ng.core';
 import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
+import { PacificDatePipe } from '../../shared/pipes/pacific-date.pipe';
 /**
  * Admin-side invite form for external users (Patient, Applicant Attorney,
  * Defense Attorney, Claim Examiner). Backend constrains the role to those
@@ -31,7 +32,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 @Component({
   selector: 'app-invite-external-user',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe],
+  imports: [PacificDatePipe, CommonModule, ReactiveFormsModule, LocalizationPipe],
   templateUrl: './invite-external-user.component.html',
 })
 export class InviteExternalUserComponent {

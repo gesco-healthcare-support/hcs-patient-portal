@@ -914,7 +914,9 @@ public class AppointmentChangeRequestsApprovalAppService :
     /// <see cref="AppointmentChangeRequest.MarkDecided"/>. Stamping here was the flaw -- it put the
     /// timestamp in a different place from the status and actor, so the three could be written
     /// apart. The clock idiom is unchanged: <c>Clock.Now.ToUniversalTime()</c> at each caller, to
-    /// match the consent timestamps and because <c>AbpClockOptions.Kind</c> is Unspecified.</para>
+    /// match the consent timestamps. <c>AbpClockOptions.Kind</c> is pinned to <c>Utc</c> as of
+    /// 2026-08-27, so that conversion is now a no-op rather than a correction; it is kept because
+    /// every decision call site reads identically either way.</para>
     /// </summary>
     private Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {

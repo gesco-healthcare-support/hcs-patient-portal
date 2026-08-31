@@ -1,4 +1,5 @@
 using System;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.MyClaimExaminerProfiles;
 
@@ -12,7 +13,9 @@ public class UpdateMyClaimExaminerProfileInput
 {
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
     public string? Street { get; set; }
     public string? City { get; set; }

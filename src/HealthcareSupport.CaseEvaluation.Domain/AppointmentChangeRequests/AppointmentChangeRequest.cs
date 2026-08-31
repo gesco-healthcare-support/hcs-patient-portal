@@ -238,7 +238,10 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
         if (nowUtc.Kind != DateTimeKind.Utc)
         {
             // A local-kind timestamp on a legal record is ambiguous the moment it crosses a
-            // boundary, and AbpClockOptions.Kind is Unspecified here, so this cannot be assumed.
+            // boundary. AbpClockOptions.Kind is pinned to Utc as of 2026-08-27, so IClock.Now now
+            // satisfies this on its own -- but the guard stays. It is a precondition on the value
+            // the caller hands in, not a workaround for the clock, and EF still reads datetime2
+            // back as Unspecified, so a re-read value can still arrive here unkinded.
             throw new ArgumentException("The decision time must be UTC.", nameof(nowUtc));
         }
 

@@ -18,6 +18,7 @@ import type { AppointmentWithNavigationPropertiesDto } from '../proxy/appointmen
 import { PeopleSectionGateway } from './people-section.gateway';
 import { avatarColor, initials, maskSsn, PORTAL_LABEL, PersonRow } from './people.util';
 
+import { CalendarDatePipe } from '../shared/pipes/pacific-date.pipe';
 /**
  * Patient detail view (Prompt 15): identity header with portal chip +
  * Invite-to-portal deep-link, four demographic cards, and the patient's
@@ -28,7 +29,7 @@ import { avatarColor, initials, maskSsn, PORTAL_LABEL, PersonRow } from './peopl
   selector: 'app-patient-detail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, DatePipe, IconComponent, StatusPillComponent],
+  imports: [CalendarDatePipe, CommonModule, DatePipe, IconComponent, StatusPillComponent],
   templateUrl: './patient-detail.component.html',
 })
 export class PatientDetailComponent {

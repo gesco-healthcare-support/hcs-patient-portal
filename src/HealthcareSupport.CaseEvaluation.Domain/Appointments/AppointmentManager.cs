@@ -3,6 +3,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Stateless;
 using System;
 using System.Threading.Tasks;
@@ -56,7 +57,7 @@ public class AppointmentManager : DomainService
         Check.NotNull(appointmentStatus, nameof(appointmentStatus));
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
         EnsurePanelNumberMatchesType(appointmentTypeId, panelNumber);
-        EnsureAppointmentDateNotInPast(appointmentDate);
+        EnsureAppointmentDateNotInPast(appointmentDate, PacificTime.TodayFrom(Clock.Now));
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
         if (bookedByUserId.HasValue)
         {
@@ -87,13 +88,19 @@ public class AppointmentManager : DomainService
     ///
     /// Re-uses <see cref="CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime"/>
     /// with <c>leadTimeDays=0</c> so the existing localized message
-    /// chain renders. "Today" is local server time per
-    /// <see cref="DateTime.Today"/>; this matches the Create-path
-    /// comparison anchor in BookingPolicyValidator.
+    /// chain renders.
+    ///
+    /// "Today" is TODAY IN PACIFIC TIME, passed in by the caller (2026-08-27).
+    /// It used to be <c>DateTime.Today</c>, i.e. the server's day, and the
+    /// server runs UTC -- so from about 4pm or 5pm Pacific onward this guard
+    /// treated a same-day appointment as being in the past and refused it.
+    /// The anchor is a parameter rather than read here so this stays a pure
+    /// static guard; it still matches the Create-path anchor in
+    /// BookingPolicyValidator, which now uses the same Pacific date.
     /// </summary>
-    private static void EnsureAppointmentDateNotInPast(DateTime appointmentDate)
+    private static void EnsureAppointmentDateNotInPast(DateTime appointmentDate, DateTime pacificToday)
     {
-        if (appointmentDate.Date < DateTime.Today)
+        if (appointmentDate.Date < pacificToday)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime)
                 .WithData("leadTimeDays", 0);
@@ -310,7 +317,7 @@ public class AppointmentManager : DomainService
         // work. Moving an appointment TO a past date is the attack.
         if (appointment.AppointmentDate.Date != appointmentDate.Date)
         {
-            EnsureAppointmentDateNotInPast(appointmentDate);
+            EnsureAppointmentDateNotInPast(appointmentDate, PacificTime.TodayFrom(Clock.Now));
         }
         appointment.PatientId = patientId;
         appointment.IdentityUserId = identityUserId;

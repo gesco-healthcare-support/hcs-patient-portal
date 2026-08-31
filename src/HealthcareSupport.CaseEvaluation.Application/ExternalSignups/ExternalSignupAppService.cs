@@ -36,6 +36,8 @@ using System.Linq.Expressions;
 using Volo.Saas.Tenants;
 using Microsoft.Extensions.Hosting;
 using Volo.Abp.MultiTenancy;
+using System.Globalization;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
@@ -1743,11 +1745,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc,
         string? firstName = null, string? lastName = null)
     {
-        // Format expiry as a short human-readable UTC date so all tenants
-        // see the same calendar day regardless of viewer locale; the
-        // recipient does not need timezone precision to know "this link
-        // works through Tuesday".
-        var expiresAtLabel = expiresAtUtc.ToString("MMMM d, yyyy");
+        // Expiry is an INSTANT, so the calendar day it falls on has to be worked out in Pacific
+        // time before it is printed. 2026-08-27: this said "MMMM d, yyyy" of the raw UTC value,
+        // which is the NEXT day for anything expiring after 4pm or 5pm Pacific -- so an invite
+        // that dies on the Wednesday evening was labelled "September 4" and the recipient was
+        // told, in writing, that a dead link still worked. One human-readable Pacific date for
+        // every recipient; nobody needs the time of day to know which day it stops working.
+        var expiresAtLabel = PacificTime.FromUtc(expiresAtUtc).ToString(
+            "MMMM d, yyyy", CultureInfo.InvariantCulture);
         var fullName = $"{firstName} {lastName}".Trim();
         var greeting = string.IsNullOrWhiteSpace(fullName) ? "Hello," : $"Hi {fullName},";
         return new Dictionary<string, object?>(StringComparer.Ordinal)

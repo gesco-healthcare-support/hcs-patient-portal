@@ -37,6 +37,7 @@ import {
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
 import { CaseTrackerOfficesComponent } from './case-tracker-offices.component';
 import { IntegrationFailuresComponent } from './integration-failures.component';
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 import {
   catalogEntryFor,
   groupTemplatesByLifecycle,
@@ -108,6 +109,7 @@ function auditSortValue(row: AuditLogDto, key: string): SortValue {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PacificDatePipe,
     CommonModule,
     FormsModule,
     RouterLink,

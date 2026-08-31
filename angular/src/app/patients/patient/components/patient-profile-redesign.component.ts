@@ -15,6 +15,7 @@ import { environment } from '../../../../environments/environment';
 import type { PatientDto, PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto } from '../../../proxy/shared/models';
 
+import { PhoneNumberDirective } from '../../../shared/phone-number.directive';
 /** A bound {id,label} option for the State / Language selects. */
 interface MpOption {
   id: string;
@@ -38,7 +39,13 @@ type MpSection = 'personal' | 'contact' | 'address' | 'preferences';
 @Component({
   selector: 'app-patient-profile-redesign',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, IconComponent, ExternalNavbarComponent],
+  imports: [
+    PhoneNumberDirective,
+    CommonModule,
+    ReactiveFormsModule,
+    IconComponent,
+    ExternalNavbarComponent,
+  ],
   templateUrl: './patient-profile-redesign.component.html',
 })
 export class PatientProfileRedesignComponent extends PatientProfileComponent implements OnInit {

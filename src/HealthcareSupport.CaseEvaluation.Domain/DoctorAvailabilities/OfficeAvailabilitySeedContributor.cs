@@ -1,10 +1,12 @@
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -23,15 +25,18 @@ public class OfficeAvailabilitySeedContributor : IDataSeedContributor, ITransien
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
     private readonly IGuidGenerator _guidGenerator;
     private readonly ILogger<OfficeAvailabilitySeedContributor> _logger;
+    private readonly IClock _clock;
 
     public OfficeAvailabilitySeedContributor(
         IRepository<DoctorAvailability, Guid> slotRepository,
         IGuidGenerator guidGenerator,
-        ILogger<OfficeAvailabilitySeedContributor> logger)
+        ILogger<OfficeAvailabilitySeedContributor> logger,
+        IClock clock)
     {
         _slotRepository = slotRepository;
         _guidGenerator = guidGenerator;
         _logger = logger;
+        _clock = clock;
     }
 
     public async Task SeedAsync(DataSeedContext context)
@@ -69,7 +74,7 @@ public class OfficeAvailabilitySeedContributor : IDataSeedContributor, ITransien
             var slot = new DoctorAvailability(
                 id: _guidGenerator.Create(),
                 locationId: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
-                availableDate: DateTime.Today.AddDays(dayOffset),
+                availableDate: PacificTime.TodayFrom(_clock.Now).AddDays(dayOffset),
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(12, 0),
                 bookingStatusId: BookingStatus.Available,

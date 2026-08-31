@@ -21,6 +21,7 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.Timing;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BlobStoring;
@@ -28,6 +29,7 @@ using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 
@@ -84,6 +86,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     private readonly IdentityUserManager _userManager;
     private readonly IBlobContainer<UserSignaturesContainer> _userSignaturesContainer;
     private readonly ILogger<PacketTokenResolver> _logger;
+    private readonly IClock _clock;
 
     public PacketTokenResolver(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -106,7 +109,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         IRepository<IdentityUser, Guid> identityUserRepository,
         IdentityUserManager userManager,
         IBlobContainer<UserSignaturesContainer> userSignaturesContainer,
-        ILogger<PacketTokenResolver> logger)
+        ILogger<PacketTokenResolver> logger,
+        IClock clock)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
@@ -129,6 +133,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         _userManager = userManager;
         _userSignaturesContainer = userSignaturesContainer;
         _logger = logger;
+        _clock = clock;
     }
 
     public virtual async Task<PacketTokenContext> ResolveAsync(Guid appointmentId, CancellationToken cancellationToken = default)
@@ -143,7 +148,11 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         await PopulateDefenseAttorneyAsync(ctx, appointmentId, cancellationToken);
         await PopulateInjuryDetailsAsync(ctx, appointmentId, cancellationToken);
 
-        ctx.DateNow = FormatDate(DateTime.Today);
+        // 2026-08-27: the date the packet was GENERATED, in Pacific time. This was
+        // DateTime.Today, i.e. the server's date, and the server runs UTC -- so a packet
+        // generated after 4pm or 5pm Pacific was stamped with TOMORROW's date. On a document
+        // that is served as a legal record of an appointment, that is not cosmetic.
+        ctx.DateNow = FormatDate(PacificTime.TodayFrom(_clock.Now));
 
         return ctx;
     }
@@ -249,7 +258,13 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     {
         ctx.RequestConfirmationNumber = Upper(appointment.RequestConfirmationNumber);
         ctx.PanelNumber = Upper(appointment.PanelNumber);
-        ctx.AppointmentCreatedDate = FormatDate(appointment.CreationTime);
+        // 2026-08-27: CreationTime is a stored UTC INSTANT, so it must be converted before it is
+        // read as a date -- an appointment booked at 6pm Pacific has a CreationTime on the NEXT
+        // UTC day and was printed with that date. Contrast the calendar dates just below
+        // (AvailableDate) and elsewhere (date of birth, date of injury): those are wall-clock
+        // dates with no zone, and converting one would shift it back a day. The distinction is
+        // why PacificTime has no general-purpose "format any DateTime" method.
+        ctx.AppointmentCreatedDate = FormatDate(PacificTime.FromUtc(appointment.CreationTime));
 
         var availability = await _doctorAvailabilityRepository.FindAsync(appointment.DoctorAvailabilityId, cancellationToken: ct);
         if (availability != null)

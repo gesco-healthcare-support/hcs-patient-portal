@@ -13,6 +13,7 @@ using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 
@@ -23,8 +24,12 @@ public class AppointmentInjuryDetail : FullAuditedAggregateRoot<Guid>, IMultiTen
 
     public Guid AppointmentId { get; set; }
 
+    // CALENDAR DATES, not instants -- see CalendarDateNormalizationTests. Without this ABP kinds
+    // them Utc on read, they serialize with a trailing Z, and every browser renders the day before.
+    [DisableDateTimeNormalization]
     public DateTime DateOfInjury { get; set; }
 
+    [DisableDateTimeNormalization]
     public DateTime? ToDateOfInjury { get; set; }
 
     [NotNull]

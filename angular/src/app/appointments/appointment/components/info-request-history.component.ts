@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
 import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-info-requests/models';
+import { PacificDatePipe } from '../../../shared/pipes/pacific-date.pipe';
 import {
   changedRows,
   fixedSummary,
@@ -28,7 +29,7 @@ import {
   selector: 'app-info-request-history',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, IconComponent],
+  imports: [PacificDatePipe, CommonModule, IconComponent],
   templateUrl: './info-request-history.component.html',
   styleUrl: './info-request-history.component.scss',
 })

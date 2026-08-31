@@ -10,6 +10,7 @@ import {
 } from '../../shared/address/address-autocomplete.component';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 
+import { PhoneNumberDirective } from '../../shared/phone-number.directive';
 /**
  * CI1 (2026-06-05): appointment-level Claim Information parties -- a single
  * Primary Insurance (optional) + a single Claim Examiner (REQUIRED: Name +
@@ -27,6 +28,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
   selector: 'app-appointment-add-claim-parties-section',
   standalone: true,
   imports: [
+    PhoneNumberDirective,
     CommonModule,
     ReactiveFormsModule,
     AppLookupSelectComponent,

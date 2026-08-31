@@ -41,6 +41,7 @@ import {
 } from '../../sections/appointment-add-claim-information.component';
 import { firstValueFrom } from 'rxjs';
 
+import { CalendarDatePipe, PacificDatePipe } from '../../../shared/pipes/pacific-date.pipe';
 interface CalloutCopy {
   icon: string;
   title: string;
@@ -125,6 +126,8 @@ const CALLOUTS: Record<string, CalloutCopy> = {
   selector: 'app-external-appointment-detail',
   standalone: true,
   imports: [
+    CalendarDatePipe,
+    PacificDatePipe,
     CommonModule,
     FormsModule,
     RescheduleRequestModalComponent,

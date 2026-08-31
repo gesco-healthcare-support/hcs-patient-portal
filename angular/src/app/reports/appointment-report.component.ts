@@ -29,6 +29,7 @@ import { StatusPillComponent } from '../shared/ui/status-pill/status-pill.compon
 import { SortHeaderComponent } from '../shared/sort/sort-header.component';
 import { sortingClause, type SortModel } from '../shared/sort/sort-state';
 import type { AppointmentPillStatus } from '../shared/ui/status-pill/status-pill.component';
+import { CalendarDatePipe } from '../shared/pipes/pacific-date.pipe';
 import {
   appointmentStatusToPill,
   appointmentStatusToSegment,
@@ -59,6 +60,7 @@ type ColKey =
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CalendarDatePipe,
     CommonModule,
     ReactiveFormsModule,
     IconComponent,

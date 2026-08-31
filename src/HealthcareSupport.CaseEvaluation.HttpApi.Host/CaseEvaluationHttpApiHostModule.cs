@@ -28,6 +28,7 @@ using HealthcareSupport.CaseEvaluation.HealthChecks;
 using Hangfire;
 using Hangfire.SqlServer;
 using HealthcareSupport.CaseEvaluation.BackgroundJobs;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
@@ -1350,8 +1351,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// </summary>
     private static void ConfigureHangfireRecurringJobs()
     {
-        var pacificTime = TryGetPacificTimeZone();
-        var options = new RecurringJobOptions { TimeZone = pacificTime };
+        var options = new RecurringJobOptions { TimeZone = PacificTime.Zone };
 
         global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob>(
             HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob.RecurringJobId,
@@ -1474,24 +1474,4 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options);
     }
 
-    private static TimeZoneInfo TryGetPacificTimeZone()
-    {
-        // .NET 6+ supports IANA timezone IDs cross-platform; fall back to the
-        // Windows ID if the IANA lookup fails (older runtime / missing tzdata).
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
-        }
-        catch
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
-            }
-            catch
-            {
-                return TimeZoneInfo.Utc;
-            }
-        }
-    }
 }

@@ -188,7 +188,7 @@
         <label class="form-label fw-semibold">
           {{ '::CellPhoneNumber' | abpLocalization }}
         </label>
-        <input class="form-control" formControlName="cellPhoneNumber" maxlength="12" />
+        <input appPhoneNumber class="form-control" formControlName="cellPhoneNumber" />
       </div>
       <!-- OLD parity 2026-05-06: OLD's appointment-add form has a single
            Phone Number field with no Work/Home type radio. The radio
@@ -198,7 +198,7 @@
            null, server treats as not specified). -->
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-        <input class="form-control" formControlName="phoneNumber" maxlength="20" />
+        <input appPhoneNumber class="form-control" formControlName="phoneNumber" />
       </div>
 
       <div class="col-md-3 mb-3">

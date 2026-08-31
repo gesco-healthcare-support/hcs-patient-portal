@@ -31,6 +31,7 @@ import { performFullLogout } from '../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../shared/auth/external-user-display-name';
 import { avatarColor, avatarInitials } from '../shared/ui/avatar.util';
 
+import { CalendarDatePipe } from '../shared/pipes/pacific-date.pipe';
 /** Flattened row the cards/table render (mapped from the nav-properties DTO). */
 interface ExtRow {
   id: string;
@@ -137,6 +138,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   selector: 'app-external-home',
   standalone: true,
   imports: [
+    CalendarDatePipe,
     DatePipe,
     FormsModule,
     IconComponent,

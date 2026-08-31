@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.Timing;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -94,10 +95,30 @@ public static class TemplateVariableSubstitutor
         return value switch
         {
             string s => s,
-            DateTime dt => dt.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture),
-            DateTimeOffset dto => dto.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture),
+            DateTime dt => FormatDate(dt),
+            DateTimeOffset dto => FormatDate(dto.UtcDateTime),
             IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString() ?? string.Empty,
         };
+    }
+
+    /// <summary>
+    /// Renders a date for an email, converting first if the value is an INSTANT.
+    ///
+    /// <para>2026-08-27: this method exists because taking <c>.ToString("MM/dd/yyyy")</c> of a UTC
+    /// instant yields the wrong calendar day for the last 7-8 hours of every Pacific day, and an
+    /// email is the one surface where nobody can go back and check what it said. The Kind is what
+    /// distinguishes the two cases, and it is now trustworthy: the clock pin in
+    /// <c>CaseEvaluationDomainModule</c> stamps instants <c>Utc</c>, and calendar-date columns are
+    /// exempted from normalization so they come back <c>Unspecified</c>. A
+    /// <see cref="DateTimeOffset"/> always carries an offset, so it is always an instant.</para>
+    ///
+    /// <para>Callers that need a specific shape should still pass a pre-formatted string; this is
+    /// the fallback for whatever reaches it, and its job is to not be silently wrong.</para>
+    /// </summary>
+    private static string FormatDate(DateTime value)
+    {
+        var display = value.Kind == DateTimeKind.Utc ? PacificTime.FromUtc(value) : value;
+        return display.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
     }
 }

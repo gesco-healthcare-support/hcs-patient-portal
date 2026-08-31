@@ -213,6 +213,34 @@ public class TemplateVariableSubstitutorUnitTests
     }
 
     [Fact]
+    public void Substitute_UtcInstantLateInThePacificDay_UsesThePacificDate()
+    {
+        // 2026-07-05 02:30Z is still 2026-07-04 in Pacific time (19:30 PDT). Taking the date off
+        // the raw UTC value would put TOMORROW's date in an email, which is the whole reason a
+        // Kind-aware conversion sits in the formatter. An email is the one surface nobody can go
+        // back and re-read, so this boundary matters more here than on a screen.
+        var result = TemplateVariableSubstitutor.Substitute(
+            body: "Submitted ##When##",
+            variables: Vars(("When", new DateTime(2026, 7, 5, 2, 30, 0, DateTimeKind.Utc))));
+
+        result.ShouldBe("Submitted 07/04/2026");
+    }
+
+    [Fact]
+    public void Substitute_UnspecifiedKind_IsTreatedAsACalendarDateAndNotConverted()
+    {
+        // A date of birth, a date of injury, an appointment date: no zone, nothing to convert.
+        // Converting one would move it back a day, which on these records is a wrong value rather
+        // than a display preference. Unspecified is how those columns come back from EF, because
+        // they carry [DisableDateTimeNormalization].
+        var result = TemplateVariableSubstitutor.Substitute(
+            body: "Born ##When##",
+            variables: Vars(("When", new DateTime(1985, 9, 3, 0, 0, 0, DateTimeKind.Unspecified))));
+
+        result.ShouldBe("Born 09/03/1985");
+    }
+
+    [Fact]
     public void Substitute_IntegerValue_UsesInvariantFormatting()
     {
         // Even when the test host's culture uses a non-default group
