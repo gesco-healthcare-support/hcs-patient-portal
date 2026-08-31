@@ -121,6 +121,11 @@ flowchart TB
 Work aimed at making the portal safe to host publicly. Three research exercises feed one
 remediation queue; the baselines below are the shared evidence they all draw on.
 
+**Start at [Production Hardening](production-hardening/README.md)** -- the live execution record.
+It carries the ordered phase queue, the current progress table, the triage log of findings ruled
+out with evidence, and the reasoning behind the ordering. Anyone picking this work up should read
+it before the research below.
+
 - [System Architecture Baseline](architecture/SYSTEM-ARCHITECTURE-BASELINE.md) -- what the system
   is, measured rather than remembered
 - [Runtime and Data Profile](devops/RUNTIME-AND-DATA-PROFILE.md) -- real sizes, volumes and
