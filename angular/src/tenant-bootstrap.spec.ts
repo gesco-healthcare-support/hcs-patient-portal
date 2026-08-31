@@ -135,21 +135,21 @@ describe('detectTenantSlugAndMaybeRedirect', () => {
       const { loc, replaced } = fakeLocation({ hostname: 'falkinstein.portal.example.com' });
 
       expect(detectTenantSlugAndMaybeRedirect(BASE, loc)).toBe('falkinstein');
-      expect(replaced.length).toBe(0);
+      expect(replaced).toHaveSize(0);
     });
 
     it('returns the admin slug for the reserved host surface without redirecting', () => {
       const { loc, replaced } = fakeLocation({ hostname: 'admin.portal.example.com' });
 
       expect(detectTenantSlugAndMaybeRedirect(BASE, loc)).toBe('admin');
-      expect(replaced.length).toBe(0);
+      expect(replaced).toHaveSize(0);
     });
 
     it('redirects the bare base host to the reserved admin surface', () => {
       const { loc, replaced } = fakeLocation({ hostname: BASE });
 
       expect(detectTenantSlugAndMaybeRedirect(BASE, loc)).toBeNull();
-      expect(replaced.length).toBe(1);
+      expect(replaced).toHaveSize(1);
       expect(new URL(replaced[0]).host).toBe('admin.portal.example.com');
     });
 
@@ -219,7 +219,7 @@ describe('detectTenantSlugAndMaybeRedirect', () => {
 
         detectTenantSlugAndMaybeRedirect(BASE, loc);
 
-        expect(replaced.length).toBe(1);
+        expect(replaced).toHaveSize(1);
         expect(new URL(replaced[0]).origin).toBe(ADMIN_ORIGIN);
       });
     });
