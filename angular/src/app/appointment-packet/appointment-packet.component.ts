@@ -23,6 +23,7 @@ import { AppointmentDocumentUrls } from '../appointment-documents/appointment-do
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 /**
  * Phase 1D.9 packet UI. Displays the per-kind packet status for an
  * appointment (Patient / Doctor / AttorneyClaimExaminer rows produced by
@@ -40,7 +41,7 @@ import { firstValueFrom } from 'rxjs';
   selector: 'app-appointment-packet',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Default,
-  imports: [CommonModule],
+  imports: [PacificDatePipe, CommonModule],
   templateUrl: './appointment-packet.component.html',
   styles: [
     `

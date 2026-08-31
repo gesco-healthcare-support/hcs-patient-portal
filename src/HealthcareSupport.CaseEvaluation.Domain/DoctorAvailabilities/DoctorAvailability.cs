@@ -8,6 +8,7 @@ using System.Linq;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -15,6 +16,9 @@ public class DoctorAvailability : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }
 
+    // CALENDAR DATE, not an instant -- see CalendarDateNormalizationTests. Without this ABP kinds
+    // it Utc on read, it serializes with a trailing Z, and every browser renders the day before.
+    [DisableDateTimeNormalization]
     public virtual DateTime AvailableDate { get; set; }
 
     public virtual TimeOnly FromTime { get; set; }

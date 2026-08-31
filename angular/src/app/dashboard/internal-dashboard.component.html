@@ -265,8 +265,8 @@
                 <span class="conf">{{ row.confirmationNumber }}</span>
                 <span class="pt">{{ row.patientName }}</span>
                 <span class="due">
-                  Requested {{ row.requestedAt | date: 'MMM d' }} &middot; decide by
-                  {{ row.dueDate | date: 'MMM d' }}
+                  Requested {{ row.requestedAt | pacificDate: 'MMM d' }} &middot; decide by
+                  {{ row.dueDate | calendarDate: 'MMM d' }}
                 </span>
                 <span class="days" [class.warn]="daysWarn(row.daysRemaining)">
                   {{ daysLabel(row.daysRemaining) }}
@@ -309,7 +309,7 @@
                         [attr.data-v]="pt.count"
                         [style.height]="barHeight(pt.count)"
                       ></div>
-                      <span class="lb">{{ pt.weekStart | date: 'MMM d' }}</span>
+                      <span class="lb">{{ pt.weekStart | calendarDate: 'MMM d' }}</span>
                     </div>
                   }
                   @if (trendLine().length) {
@@ -367,7 +367,7 @@
           <div class="dh-card__body">
             @for (s of d.todaySchedule; track $index) {
               <div class="dh-srow">
-                <span class="tm">{{ s.appointmentDate | date: 'shortTime' }}</span>
+                <span class="tm">{{ s.appointmentDate | calendarDate: 'shortTime' }}</span>
                 <span class="tx">
                   <b>{{ s.appointmentType }}</b>
                   <span>{{ s.location }}</span>

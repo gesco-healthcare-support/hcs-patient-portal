@@ -10,6 +10,7 @@ import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { ExternalNavbarComponent } from '../../shared/components/external-navbar/external-navbar.component';
 import { performFullLogout } from '../../shared/auth/full-logout';
 
+import { PhoneNumberDirective } from '../../shared/phone-number.directive';
 interface StateOption {
   id: string;
   name: string;
@@ -39,7 +40,13 @@ interface ClaimExaminerProfile {
 @Component({
   selector: 'app-claim-examiner-profile',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, IconComponent, ExternalNavbarComponent],
+  imports: [
+    PhoneNumberDirective,
+    CommonModule,
+    ReactiveFormsModule,
+    IconComponent,
+    ExternalNavbarComponent,
+  ],
   templateUrl: './claim-examiner-profile.component.html',
 })
 export class ClaimExaminerProfileComponent implements OnInit {

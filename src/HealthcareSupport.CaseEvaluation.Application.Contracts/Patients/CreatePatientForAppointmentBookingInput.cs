@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -32,6 +33,7 @@ public class CreatePatientForAppointmentBookingInput
     public DateTime DateOfBirth { get; set; }
 
     [StringLength(PatientConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(PatientConsts.SocialSecurityNumberMaxLength)]
@@ -47,6 +49,7 @@ public class CreatePatientForAppointmentBookingInput
     public string? ZipCode { get; set; }
 
     [StringLength(PatientConsts.CellPhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? CellPhoneNumber { get; set; }
 
     public PhoneNumberType PhoneNumberTypeId { get; set; } = Enum.GetValues<PhoneNumberType>()[0];

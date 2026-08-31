@@ -1,9 +1,11 @@
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -29,13 +31,16 @@ public class BookingPolicyValidator : ITransientDependency
 {
     private readonly ISystemParameterRepository _systemParameterRepository;
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
+    private readonly IClock _clock;
 
     public BookingPolicyValidator(
         ISystemParameterRepository systemParameterRepository,
-        IRepository<AppointmentType, Guid> appointmentTypeRepository)
+        IRepository<AppointmentType, Guid> appointmentTypeRepository,
+        IClock clock)
     {
         _systemParameterRepository = systemParameterRepository;
         _appointmentTypeRepository = appointmentTypeRepository;
+        _clock = clock;
     }
 
     /// <summary>
@@ -53,9 +58,12 @@ public class BookingPolicyValidator : ITransientDependency
     /// beyond it. The caller resolves the role flag from
     /// <c>BookingFlowRoles.IsInternalUserCaller</c>.
     ///
-    /// Uses <see cref="DateTime.Today"/> for the comparison anchor;
-    /// callers in tests can swap by extracting the static helper
-    /// <see cref="EvaluateBookingPolicy"/>.
+    /// The comparison anchor is TODAY IN PACIFIC TIME (2026-08-27). It was
+    /// <c>DateTime.Today</c>, which on a UTC server becomes tomorrow at 4pm or
+    /// 5pm Pacific -- so late in the working day both horizons slid forward a
+    /// day and a legitimately bookable slot was rejected. Tests exercise the
+    /// gates through the pure <see cref="EvaluateBookingPolicy"/> helper with a
+    /// fixed anchor.
     /// </summary>
     public virtual async Task ValidateAsync(DateTime slotDate, Guid appointmentTypeId, bool isInternalCaller)
     {
@@ -67,7 +75,7 @@ public class BookingPolicyValidator : ITransientDependency
 
         var appointmentType = await _appointmentTypeRepository.GetAsync(appointmentTypeId);
 
-        var result = EvaluateBookingPolicy(slotDate, DateTime.Today, appointmentType.MaxTimeCategory, systemParameter, isInternalCaller);
+        var result = EvaluateBookingPolicy(slotDate, PacificTime.TodayFrom(_clock.Now), appointmentType.MaxTimeCategory, systemParameter, isInternalCaller);
         switch (result.Outcome)
         {
             case BookingPolicyOutcome.Allowed:
@@ -88,8 +96,8 @@ public class BookingPolicyValidator : ITransientDependency
     /// Pure helper that evaluates the lead-time + max-time gates without
     /// any IO. Extracted as <c>internal static</c> so unit tests can
     /// exercise every branch without standing up the full ABP harness
-    /// (matches the Phase 3 / 5 / 6 / 7 / 11a pattern). Callers pass
-    /// <c>DateTime.Today</c> from production; tests pass a fixed anchor.
+    /// (matches the Phase 3 / 5 / 6 / 7 / 11a pattern). Production passes
+    /// Pacific today; tests pass a fixed anchor.
     ///
     /// <paramref name="isInternalCaller"/> selects the max horizon: internal
     /// staff use <see cref="SystemParameter.AppointmentMaxTimeInternal"/>

@@ -24,6 +24,7 @@ import { LookupDto } from '../proxy/shared/models';
 import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
 import { AppointmentDocumentUrls } from './appointment-document-urls';
 import { FileDropZoneDirective } from './file-drop-zone.directive';
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 import {
   ALLOWED_DOCUMENT_EXTENSIONS,
   MAX_DOCUMENT_UPLOAD_BYTES,
@@ -47,7 +48,7 @@ const PANEL_STRIKE_LIST_LABEL = 'Panel Strike List';
   selector: 'app-appointment-documents',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Default,
-  imports: [CommonModule, FormsModule, FileDropZoneDirective],
+  imports: [PacificDatePipe, CommonModule, FormsModule, FileDropZoneDirective],
   templateUrl: './appointment-documents.component.html',
   styles: [
     `

@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 
@@ -14,9 +15,11 @@ public class AppointmentPrimaryInsuranceCreateDto
     public string? Suite { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength)]
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.StreetMaxLength)]

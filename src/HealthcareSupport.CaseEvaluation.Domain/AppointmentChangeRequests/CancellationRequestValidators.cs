@@ -59,6 +59,12 @@ public static class CancellationRequestValidators
     /// Note OLD uses strict less-than (a slot exactly
     /// <c>cancelTimeDays</c> out is still cancellable). Strict parity
     /// preserves that boundary.
+    ///
+    /// <paramref name="today"/> MUST be today in Pacific time (2026-08-27).
+    /// The OLD <c>DateTime.Today</c> quoted above was the machine's date;
+    /// here the machine runs UTC, so passing a server date would make the
+    /// window a day tighter every evening. Callers use
+    /// <c>PacificTime.TodayFrom(clock.Now)</c>.
     /// </summary>
     public static bool IsWithinNoCancelWindow(DateTime slotDate, DateTime today, int cancelTimeDays)
     {

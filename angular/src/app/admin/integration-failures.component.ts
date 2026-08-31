@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RestService } from '@abp/ng.core';
 import { firstValueFrom } from 'rxjs';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 
 /**
  * One outstanding dead letter, mirroring `CaseTrackerDeadLetterDto`.
@@ -39,7 +40,7 @@ export interface DeadLetterRow {
 @Component({
   selector: 'app-integration-failures',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule, IconComponent, PacificDatePipe],
   template: `
     <div class="if-head">
       <div>
@@ -96,7 +97,7 @@ export interface DeadLetterRow {
               <td>{{ r.officeName }}</td>
               <td>{{ r.messageType }}</td>
               <td>{{ r.attemptCount }}</td>
-              <td>{{ r.failedAt | date: 'short' }}</td>
+              <td>{{ r.failedAt | pacificDate: 'short' }}</td>
               <td class="if-err">{{ r.lastError || '--' }}</td>
               <td>
                 <button

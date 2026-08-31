@@ -533,6 +533,19 @@ public class AppointmentChangeRequestsApprovalAppService :
             created.DueDate = sourceAppointment.DueDate;
             created.RefferedBy = sourceAppointment.RefferedBy;
 
+            // 2026-08-26: carry the party snapshot and the ORIGINAL booker. Without these the
+            // replacement appointment locked its own external party out with a 403 -- the read
+            // guard admits an external caller by booker/patient/accessor id or by the email+role
+            // rule, and this row had a staff CreatorId, no BookedByUserId, and all four party-email
+            // columns null. The child rows are copied below by the cascade copier, so notifications
+            // still went out and hid it; found only by signing in as the attorney. See
+            // Appointment.CopyPartySnapshotFrom.
+            created.CopyPartySnapshotFrom(sourceAppointment);
+            // RecordBookedBy rejects Guid.Empty, so assign through the property -- a source with no
+            // booker (pre-D-R2-B rows) must stay null rather than throw mid-approval. This is the
+            // "reschedule clone copies the value directly" case RecordBookedBy's own doc describes.
+            created.BookedByUserId = sourceAppointment.BookedByUserId;
+
             return await _appointmentRepository.InsertAsync(created, autoSave: true);
         });
 
@@ -901,7 +914,9 @@ public class AppointmentChangeRequestsApprovalAppService :
     /// <see cref="AppointmentChangeRequest.MarkDecided"/>. Stamping here was the flaw -- it put the
     /// timestamp in a different place from the status and actor, so the three could be written
     /// apart. The clock idiom is unchanged: <c>Clock.Now.ToUniversalTime()</c> at each caller, to
-    /// match the consent timestamps and because <c>AbpClockOptions.Kind</c> is Unspecified.</para>
+    /// match the consent timestamps. <c>AbpClockOptions.Kind</c> is pinned to <c>Utc</c> as of
+    /// 2026-08-27, so that conversion is now a no-op rather than a correction; it is kept because
+    /// every decision call site reads identically either way.</para>
     /// </summary>
     private Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {

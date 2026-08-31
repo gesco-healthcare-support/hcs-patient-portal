@@ -13,6 +13,7 @@ import { genderOptions } from '../proxy/enums/gender.enum';
 import { LookupOption, PeopleSectionGateway } from './people-section.gateway';
 import { PatientDetailComponent } from './patient-detail.component';
 import { PeopleEditModalComponent } from './people-edit-modal.component';
+import { CalendarDatePipe } from '../shared/pipes/pacific-date.pipe';
 import {
   avatarColor,
   derivePortalStatus,
@@ -51,6 +52,7 @@ const OPTIONAL_COLUMNS = [
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CalendarDatePipe,
     CommonModule,
     FormsModule,
     RouterLink,

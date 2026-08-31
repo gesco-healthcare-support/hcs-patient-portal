@@ -217,7 +217,7 @@
                 </div>
                 <div>
                   <div class="k">Expires</div>
-                  <div class="v">{{ res.expiresAt | date: 'mediumDate' }}</div>
+                  <div class="v">{{ res.expiresAt | pacificDate: 'mediumDate' }}</div>
                 </div>
               </div>
               <div class="ux-link">
@@ -252,7 +252,7 @@
           {{ inv.invitedByName || '--' }}
         </span>
         <span class="ia-sub" *managedTableCell="'creationTime'; let inv">
-          {{ inv.creationTime | date: 'mediumDate' }}
+          {{ inv.creationTime | pacificDate: 'mediumDate' }}
         </span>
         <ng-container *managedTableCell="'expiresAt'; let inv">
           @if (expiry(inv); as e) {
@@ -526,10 +526,10 @@
           <div class="ra-field col-6">
             <label>Phone</label>
             <input
+              appPhoneNumber
               class="ra-input"
               [ngModel]="f.phoneNumber"
               (ngModelChange)="patchCreate({ phoneNumber: $event })"
-              maxlength="20"
             />
           </div>
           <div class="ra-field col-12">

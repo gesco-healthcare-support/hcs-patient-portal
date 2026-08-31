@@ -14,7 +14,7 @@
               </a>
             }
           </span>
-          <span class="t2">{{ e.changeTime | date: 'MMM d, y, h:mm a' }}</span>
+          <span class="t2">{{ e.changeTime | pacificDate: 'MMM d, y, h:mm a' }}</span>
         </span>
         <span class="cnt">{{ e.diffs.length }} field{{ e.diffs.length === 1 ? '' : 's' }}</span>
         <span class="chev"><app-icon name="chevRight" [size]="16" /></span>

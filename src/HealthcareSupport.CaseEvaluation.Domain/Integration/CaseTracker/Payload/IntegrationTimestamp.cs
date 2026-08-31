@@ -13,12 +13,12 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// UTC (<c>AppointmentApproveDate = DateTime.UtcNow</c>) while ABP audit columns come from
 /// <c>IClock.Now</c>, so the Kind genuinely varies by field.</para>
 ///
-/// <para>ASSUMPTION worth knowing: an <see cref="DateTimeKind.Unspecified"/> value is treated as
-/// already-UTC rather than converted. That is correct while the API container's clock is UTC (which
-/// it is), because ABP's default <c>AbpClockOptions.Kind</c> is Unspecified and therefore
-/// <c>IClock.Now</c> returns <c>DateTime.Now</c>. If a <c>TZ</c> is ever set on the API container,
-/// audit-sourced timestamps such as <c>submittedAtUtc</c> would silently shift; pinning
-/// <c>AbpClockOptions.Kind = DateTimeKind.Utc</c> would remove the assumption entirely.</para>
+/// <para>An <see cref="DateTimeKind.Unspecified"/> value is treated as already-UTC rather than
+/// converted. As of 2026-08-27 that is a fact rather than an assumption: <c>AbpClockOptions.Kind</c>
+/// is pinned to <c>Utc</c> in <c>CaseEvaluationDomainModule</c>, so a freshly stamped value carries
+/// its own Kind and a <c>TZ</c> on the API container can no longer shift <c>submittedAtUtc</c>.
+/// Unspecified now reaches here from ONE source -- an EF <c>datetime2</c> read -- where the stored
+/// value is UTC by decision, so specifying the Kind is the correct reading rather than a guess.</para>
 ///
 /// <para>Round-trip ("O") format is used rather than second precision so sub-second ordering
 /// survives: the receiver uses <c>updatedAt</c> as a monotonic skip-if-older guard, and truncating

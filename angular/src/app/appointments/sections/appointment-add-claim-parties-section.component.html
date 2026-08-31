@@ -36,19 +36,19 @@
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Phone Number</label>
             <input
+              appPhoneNumber
               class="form-control"
               formControlName="appointmentInsurancePhoneNumber"
               placeholder="PHONE NUMBER"
-              maxlength="12"
             />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Fax</label>
             <input
+              appPhoneNumber
               class="form-control"
               formControlName="appointmentInsuranceFaxNumber"
               placeholder="FAX"
-              maxlength="20"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -143,10 +143,10 @@
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Phone Number *</label>
             <input
+              appPhoneNumber
               class="form-control"
               formControlName="appointmentClaimExaminerPhoneNumber"
               placeholder="PHONE NUMBER"
-              maxlength="12"
               [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerPhoneNumber')"
             />
             @if (isFieldInvalid('appointmentClaimExaminerPhoneNumber')) {
@@ -156,10 +156,10 @@
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Fax</label>
             <input
+              appPhoneNumber
               class="form-control"
               formControlName="appointmentClaimExaminerFax"
               placeholder="FAX"
-              maxlength="20"
             />
           </div>
           <div class="col-md-3 mb-3">

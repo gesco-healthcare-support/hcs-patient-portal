@@ -66,7 +66,9 @@
               <span class="fm-type">{{ typeLabel(row) }}</span>
             </td>
             <td class="ia-sub fm-num">
-              {{ row.lastModificationTime ? (row.lastModificationTime | date: 'medium') : '--' }}
+              {{
+                row.lastModificationTime ? (row.lastModificationTime | pacificDate: 'medium') : '--'
+              }}
             </td>
             <td style="text-align: right" (click)="$event.stopPropagation()">
               @if (row.isDirectory) {

@@ -35,6 +35,7 @@ import {
 } from '../../../shared/ui/status-pill/appointment-status.util';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
+import { CalendarDatePipe } from '../../../shared/pipes/pacific-date.pipe';
 import {
   avatarColor,
   avatarInitials,
@@ -76,6 +77,7 @@ const PAGE_SIZES = [10, 25, 50] as const;
   selector: 'app-internal-appointments',
   standalone: true,
   imports: [
+    CalendarDatePipe,
     DatePipe,
     FormsModule,
     StatusPillComponent,

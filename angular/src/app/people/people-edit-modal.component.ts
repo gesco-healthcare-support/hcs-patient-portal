@@ -14,6 +14,7 @@ import { phoneNumberTypeOptions } from '../proxy/enums/phone-number-type.enum';
 import type { LookupOption } from './people-section.gateway';
 import type { PeopleSection, PersonFormState } from './people.util';
 
+import { PhoneNumberDirective } from '../shared/phone-number.directive';
 /**
  * Shared create/edit modal for every People section. The visible fields switch
  * on the section: full demographics for patients, firm fields for attorneys
@@ -25,7 +26,7 @@ import type { PeopleSection, PersonFormState } from './people.util';
   selector: 'app-people-edit-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [PhoneNumberDirective, CommonModule, FormsModule, IconComponent],
   templateUrl: './people-edit-modal.component.html',
 })
 export class PeopleEditModalComponent {

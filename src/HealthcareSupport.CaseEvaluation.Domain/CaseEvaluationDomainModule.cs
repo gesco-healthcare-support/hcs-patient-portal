@@ -9,6 +9,7 @@ using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.PermissionManagement.Identity;
 using Volo.Abp.SettingManagement;
+using Volo.Abp.Timing;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.BlobStoring.Database;
 using Volo.Abp.BlobStoring.Minio;
@@ -62,6 +63,25 @@ public class CaseEvaluationDomainModule : AbpModule
         Configure<AbpMultiTenancyOptions>(options =>
         {
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
+        });
+
+        // 2026-08-27: pin the clock kind. ABP's default is Unspecified, which makes IClock.Now
+        // return DateTime.Now -- i.e. SERVER LOCAL time, stamped with no Kind. That happened to be
+        // correct only because the API container's clock is UTC (TZ unset, /etc/timezone = UTC), so
+        // every audit column held a UTC value that claimed to know nothing about its own zone.
+        //
+        // Two things went wrong with that. Consumers had to ASSUME: IntegrationTimestamp documents
+        // treating Unspecified as already-UTC and warns that "if a TZ is ever set on the API
+        // container, audit-sourced timestamps such as submittedAtUtc would silently shift". And
+        // domain code had to defend against it (see AppointmentChangeRequest's Kind check).
+        //
+        // Pinning Utc removes the assumption rather than restating it: values are now explicitly UTC
+        // and stay correct even if a container ever gets a TZ. Storage stays UTC by decision
+        // (Adrian, 2026-08-27); rendering Pacific is the job of the display formatters, not of the
+        // stored value.
+        Configure<AbpClockOptions>(options =>
+        {
+            options.Kind = DateTimeKind.Utc;
         });
 
         ConfigureBlobStoring(context);

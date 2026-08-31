@@ -41,6 +41,8 @@ import {
 } from './users-hub.util';
 import { TenantFormState, UsersSectionGateway } from './users-section.gateway';
 
+import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
+import { PhoneNumberDirective } from '../shared/phone-number.directive';
 interface InviteDraft {
   firstName: string;
   lastName: string;
@@ -76,6 +78,8 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PhoneNumberDirective,
+    PacificDatePipe,
     CommonModule,
     FormsModule,
     RouterLink,

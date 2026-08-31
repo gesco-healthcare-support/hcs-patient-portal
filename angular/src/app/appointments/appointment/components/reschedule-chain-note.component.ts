@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
+import { PacificDatePipe } from '../../../shared/pipes/pacific-date.pipe';
 import type { RescheduleChainStep, RescheduleChainStepKind } from './reschedule-chain.util';
 
 /**
@@ -18,7 +19,7 @@ import type { RescheduleChainStep, RescheduleChainStepKind } from './reschedule-
 @Component({
   selector: 'app-reschedule-chain-note',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule, IconComponent, PacificDatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="ad-note ad-note--reschedule">
@@ -48,7 +49,10 @@ import type { RescheduleChainStep, RescheduleChainStepKind } from './reschedule-
           <dl class="ad-note__steps">
             @for (step of steps; track step.kind) {
               <dt>{{ stepLabel(step.kind) }}</dt>
-              <dd>{{ step.at | date: 'MMM d, y' }} &middot; {{ step.at | date: 'h:mm a' }}</dd>
+              <dd>
+                {{ step.at | pacificDate: 'MMM d, y' }} &middot;
+                {{ step.at | pacificDate: 'h:mm a' }}
+              </dd>
             }
           </dl>
         }

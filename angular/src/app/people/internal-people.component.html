@@ -255,7 +255,9 @@
                   }
                   <td class="ia-sub">{{ row.email || '--' }}</td>
                   @if (meta().isPatient) {
-                    <td class="ia-sub num">{{ (row.dateOfBirth | date: 'MMM d, y') || '--' }}</td>
+                    <td class="ia-sub num">
+                      {{ (row.dateOfBirth | calendarDate: 'MMM d, y') || '--' }}
+                    </td>
                   }
                   <td class="ia-sub num">{{ row.phoneNumber || '--' }}</td>
                   @if (meta().isPatient) {
