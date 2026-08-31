@@ -13,6 +13,8 @@ using Volo.Abp.EventBus.Local;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
+using HealthcareSupport.CaseEvaluation.Timing;
+
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
 
 /// <summary>
@@ -71,7 +73,10 @@ public class AppointmentReminderJob : ITransientDependency
     {
         _logger.LogInformation("AppointmentReminderJob: starting daily run.");
         var nowUtc = DateTime.UtcNow;
-        var todayDate = nowUtc.Date;
+        // 2026-08-31: PACIFIC today. DueDate is a calendar date, so the subtraction below needs a
+        // Pacific wall-clock date on the other side. Correct before only because the cron fires at
+        // 08:15 Pacific; an evening run would have counted a day out.
+        var todayDate = PacificTime.TodayFrom(nowUtc);
 
         await _tenantWorkRunner.ForEachOfficeAsync(officeId =>
             ProcessTenantAsync(officeId, todayDate, nowUtc));

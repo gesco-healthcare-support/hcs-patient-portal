@@ -10,6 +10,8 @@ using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Settings;
+using Volo.Abp.Timing;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -43,6 +45,7 @@ public class CancellationRescheduleReminderJob : ITransientDependency
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<CancellationRescheduleReminderJob> _logger;
+    private readonly IClock _clock;
 
     public CancellationRescheduleReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -50,7 +53,8 @@ public class CancellationRescheduleReminderJob : ITransientDependency
         IAppointmentRecipientResolver recipientResolver,
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
-        ILogger<CancellationRescheduleReminderJob> logger)
+        ILogger<CancellationRescheduleReminderJob> logger,
+        IClock clock)
     {
         _appointmentRepository = appointmentRepository;
         _tenantWorkRunner = tenantWorkRunner;
@@ -58,6 +62,7 @@ public class CancellationRescheduleReminderJob : ITransientDependency
         _backgroundJobManager = backgroundJobManager;
         _settingProvider = settingProvider;
         _logger = logger;
+        _clock = clock;
     }
 
     public const string RecurringJobId = "appt-cancellation-reschedule-reminder";
@@ -91,13 +96,18 @@ public class CancellationRescheduleReminderJob : ITransientDependency
             await _settingProvider.GetOrNullAsync(
                 CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors));
 
-        var nowUtc = DateTime.UtcNow.Date;
+        // 2026-08-31: BOTH sides of the elapsed-day subtraction were UTC dates. Correct only
+        // because the cron fires at 08:00 Pacific, when UTC is 15:00 the same day; an evening run
+        // or a moved cron silently shifted the elapsed-day count by one and fired a reminder a day
+        // early. LastModificationTime is a UTC INSTANT, so its Pacific calendar date is what the
+        // elapsed-day anchors are actually about.
+        var todayPacific = PacificTime.TodayFrom(_clock.Now);
         var queryable = await _appointmentRepository.GetQueryableAsync();
         var eligible = queryable
             .Where(a => InScopeStatuses.Contains(a.AppointmentStatus))
             .ToList()
             .Where(a => a.LastModificationTime.HasValue &&
-                        cadence.ShouldFire((int)(nowUtc - a.LastModificationTime.Value.Date).TotalDays))
+                        cadence.ShouldFire((int)(todayPacific - PacificTime.TodayFrom(a.LastModificationTime.Value)).TotalDays))
             .ToList();
 
         var enqueued = 0;

@@ -21,6 +21,7 @@ using Volo.Abp.Identity;
 using Volo.Saas;
 using Volo.Saas.Editions;
 using Volo.Saas.Tenants;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Dashboards;
 
@@ -578,9 +579,17 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         var decisionDueDays = systemParameter?.PendingAppointmentOverDueNotificationDays
             ?? SystemParameterConsts.DefaultPendingAppointmentOverDueNotificationDays;
 
-        var today = nowUtc.Date;
-        var lower = today.AddDays(-decisionDueDays);
-        var upperExcl = today.AddDays(ApproachWindowDays - decisionDueDays + 1);
+        // 2026-08-31: the day arithmetic is PACIFIC, but the boundaries are compared against
+        // CreationTime -- a UTC instant in the database -- so they must be handed to SQL as UTC
+        // instants. Pacific midnight, expressed as the UTC moment it occurred. Taking .Date off
+        // nowUtc got the wrong day after 5pm Pacific; converting the boundary to a Pacific
+        // wall-clock value instead would skew the comparison by 7 hours. Both are wrong; this is
+        // the pair that is right. Contrast BuildTodayScheduleAsync, which compares against a
+        // calendar-date column and must NOT convert.
+        var pacificToday = PacificTime.TodayFrom(nowUtc);
+        var lower = PacificTime.StartOfDayUtc(pacificToday.AddDays(-decisionDueDays));
+        var upperExcl = PacificTime.StartOfDayUtc(
+            pacificToday.AddDays(ApproachWindowDays - decisionDueDays + 1));
 
         dto.DeadlineApproachingCount = await _appointmentRepository.CountAsync(
             a => a.AppointmentStatus == AppointmentStatusType.Pending
@@ -613,7 +622,10 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                 PatientName = $"{r.FirstName} {r.LastName}".Trim(),
                 RequestedAt = r.CreationTime,
                 DueDate = due,
-                DaysRemaining = (due - today).Days,
+                // Both sides are PACIFIC dates now: due comes from DecisionSlaPolicy, which
+                // converts, and pacificToday is the converted today. Subtracting a UTC date from a
+                // Pacific one would be off by a day for part of every day.
+                DaysRemaining = (due - pacificToday).Days,
             };
         }).ToList();
     }
@@ -679,7 +691,12 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     private async Task<List<DashboardScheduleItemDto>> BuildTodayScheduleAsync(DateTime nowUtc)
     {
-        var todayStart = nowUtc.Date;
+        // 2026-08-31: AppointmentDate is a CALENDAR DATE column (exempt from UTC normalization), so
+        // "today's schedule" must be bounded by a Pacific wall-clock date and must NOT be converted
+        // to UTC. Converting would shift the window 7 hours and pull in yesterday's late slots.
+        // The opposite of BuildDeadlineSectionAsync above, which compares against a UTC instant --
+        // same file, ten lines apart, opposite treatments.
+        var todayStart = PacificTime.TodayFrom(nowUtc);
         var todayEnd = todayStart.AddDays(1);
         var q = await _appointmentRepository.GetQueryableAsync();
         var tq = await _appointmentTypeRepository.GetQueryableAsync();
