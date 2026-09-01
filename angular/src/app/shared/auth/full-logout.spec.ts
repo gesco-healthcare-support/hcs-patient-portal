@@ -19,8 +19,12 @@ describe('performFullLogout', () => {
     } as unknown as Injector;
   }
 
+  /** Synthetic; only its truthiness matters to the code under test. */
+  const STORED_ACCESS_TOKEN = 'synthetic-access-token';
+
   it('revokes tokens and drives the standard end-session logout', async () => {
     const oauth = {
+      getAccessToken: jasmine.createSpy('getAccessToken').and.returnValue(STORED_ACCESS_TOKEN),
       revokeTokenAndLogout: jasmine.createSpy('revokeTokenAndLogout').and.resolveTo(true),
       logOut: jasmine.createSpy('logOut'),
     } as unknown as OAuthService;
@@ -33,6 +37,7 @@ describe('performFullLogout', () => {
 
   it('falls back to logOut() when revocation fails so the user still reaches login', async () => {
     const oauth = {
+      getAccessToken: jasmine.createSpy('getAccessToken').and.returnValue(STORED_ACCESS_TOKEN),
       revokeTokenAndLogout: jasmine
         .createSpy('revokeTokenAndLogout')
         .and.rejectWith(new Error('boom')),
@@ -46,6 +51,7 @@ describe('performFullLogout', () => {
 
   it('never rejects even if both revocation and the fallback throw', async () => {
     const oauth = {
+      getAccessToken: jasmine.createSpy('getAccessToken').and.returnValue(STORED_ACCESS_TOKEN),
       revokeTokenAndLogout: jasmine
         .createSpy('revokeTokenAndLogout')
         .and.rejectWith(new Error('boom')),
@@ -53,6 +59,50 @@ describe('performFullLogout', () => {
     } as unknown as OAuthService;
 
     await expectAsync(performFullLogout(injectorFor(oauth))).toBeResolved();
+  });
+
+  /**
+   * Production hardening 1.8b (2026-09-01) -- the defect these exist to prevent recurring.
+   *
+   * `revokeTokenAndLogout()` early-returns a RESOLVED promise when local storage holds no access
+   * token (angular-oauth2-oidc@20.0.2 fesm2022 :2958), so the old code's catch never fired, the
+   * fallback never ran, no end-session redirect happened, and sign-out reported success while the
+   * AuthServer SSO cookie survived -- for 14 days on a sliding window.
+   *
+   * These are ALSO the drift guard. `performFullLogout` mirrors the library's own `!accessToken`
+   * condition, which is a library internal. If a future version changes that condition, these fail
+   * rather than the silent sign-out quietly returning.
+   */
+  describe('when local storage holds no access token', () => {
+    function noTokenOAuth(): OAuthService {
+      return {
+        getAccessToken: jasmine.createSpy('getAccessToken').and.returnValue(null),
+        revokeTokenAndLogout: jasmine.createSpy('revokeTokenAndLogout').and.resolveTo(true),
+        logOut: jasmine.createSpy('logOut'),
+      } as unknown as OAuthService;
+    }
+
+    it('still drives the end-session redirect, and does not call revoke with nothing to revoke', async () => {
+      const oauth = noTokenOAuth();
+
+      await performFullLogout(injectorFor(oauth));
+
+      expect(oauth.logOut).toHaveBeenCalledTimes(1);
+      expect(oauth.revokeTokenAndLogout).not.toHaveBeenCalled();
+    });
+
+    it('still resolves', async () => {
+      await expectAsync(performFullLogout(injectorFor(noTokenOAuth()))).toBeResolved();
+    });
+
+    it('still expires the tenant cookie', async () => {
+      document.cookie = '__tenant=44444444-4444-4444-4444-444444444444; Path=/';
+      expect(document.cookie).toContain('__tenant=');
+
+      await performFullLogout(injectorFor(noTokenOAuth()));
+
+      expect(document.cookie).not.toContain('__tenant=');
+    });
   });
 
   /**
@@ -81,6 +131,7 @@ describe('performFullLogout', () => {
 
     function resolvingOAuth(): OAuthService {
       return {
+        getAccessToken: jasmine.createSpy('getAccessToken').and.returnValue(STORED_ACCESS_TOKEN),
         revokeTokenAndLogout: jasmine.createSpy('revokeTokenAndLogout').and.resolveTo(true),
         logOut: jasmine.createSpy('logOut'),
       } as unknown as OAuthService;
