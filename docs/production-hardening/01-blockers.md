@@ -337,6 +337,79 @@ configured value. It could only be wrong if something outside the 728 scanned AB
 outside this repository post-configured `CookieAuthenticationOptions` for
 `IdentityConstants.ApplicationScheme`, and no such component is registered.
 
+### 1.8c COULD WE TELL IF IT ALREADY HAPPENED? -- PARTIALLY, FROM ONE TABLE (2026-09-01)
+
+Research only. Nothing was connected to, queried against, or read from the deployed system; every
+statement below comes from this repository, the ABP 10.0.2 packages and first-party sources.
+
+**Short answer: one source could show it, four could not.** `AbpSessions` retains the residue of a
+session that was never cleanly ended, for 30 days of inactivity. It cannot show that the user pressed
+Sign Out.
+
+| Source            | Could it show a failed sign-out?                                                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AbpSecurityLogs` | **NO.** No logout path in this system writes a `Logout` row (below).                                                                                                   |
+| `AbpAuditLogs`    | **NO.** `AbpAuditingOptions.IsEnabledForGetRequests` defaults to `false` and is not overridden here; `/connect/endsession` is `[HttpGet]`, so it is never audited.     |
+| `AbpSessions`     | **YES, partially.** The row survives an uncleaned sign-out. Retained until 30 days of inactivity.                                                                      |
+| nginx access log  | **WEAK.** `nginx:alpine` writes to stdout; no log volume is mounted (`docker-compose.prod.yml` reverse-proxy block). Captured only by the json-file ring buffer below. |
+| Serilog file sink | **NO.** `File("Logs/logs.txt")` with no rotation and no volume mount on the authserver service, so it lives in the container layer and is lost on every redeploy.      |
+
+**Container log retention is a size ring buffer, not a time window.** `docker-compose.prod.yml:21-25`
+sets `json-file` with `max-size: 10m`, `max-file: 5` for every service -- 50 MB per container, then
+the oldest is discarded. There is no time guarantee at all, so nginx and console output cannot be
+relied on to cover any particular past date.
+
+**Why `AbpSecurityLogs` is dead as a signal, which is the counter-intuitive part.** ABP writes a
+`Logout` security-log row from its Razor logout page
+(`abp@10.0.2 modules/account/.../Pages/Account/Logout.cshtml.cs`), and NOT from the OpenIddict
+end-session controller (`modules/openiddict/.../Controllers/EndSessionController.cs`, whose whole body
+is `SignInManager.SignOutAsync()` then `SignOut(...)`). The SPA signs out through
+`/connect/endsession`. This repo's own `/Account/Logout` override is a bare `AbpPageModel` that does
+not write one either. So **no logout path in this system produces a `Logout` row**, and "a Login with
+no matching Logout" is the normal pattern for every user. Searching for it would return everyone.
+
+**Why `AbpSessions` works.** The feature is active here because it rides on Dynamic Claims, which are
+enabled in both hosts (`CaseEvaluationAuthServerModule.cs:431`, `CaseEvaluationHttpApiHostModule.cs:1084`,
+with `app.UseDynamicClaims()` in each).
+
+- Rows are created on the OpenIddict sign-in path by `OpenIddictCreateIdentitySession`
+  (`Volo.Abp.Account.Pro.Public.Web.OpenIddict` 10.0.2, decompiled), calling
+  `IdentitySessionManager.CreateAsync(...)`.
+- Columns are `SessionId, Device, DeviceInfo, TenantId, UserId, ClientId, IpAddresses, SignedIn, LastAccessed`.
+- Rows are removed on logout by `OpenIddictRevokeIdentitySessionOnLogout` -- **but only when an
+  `id_token_hint` is supplied** (see the 1.8b consequence below).
+- Retention: `IdentitySessionCleanupBackgroundWorker` with ABP defaults, none overridden in this repo
+  -- cleanup runs hourly and removes rows inactive for **30 days**. Background WORKERS are enabled;
+  the `IsJobExecutionEnabled = false` at `CaseEvaluationAuthServerModule.cs:360` is background JOBS,
+  a different subsystem.
+
+**What it can and cannot tell you, stated precisely so nobody over-reads it:**
+
+- CAN show that a given session was never cleanly ended and its row is still live, with `LastAccessed`
+  marking when it stopped being used and `IpAddresses` / `DeviceInfo` narrowing it to a workstation.
+- CANNOT distinguish "pressed Sign Out and it silently failed" from "closed the browser and walked
+  away". Nothing anywhere records that the button was pressed, so the two are identical in the data.
+- Only covers the last 30 days of inactivity. Anything older has already been deleted by the worker.
+
+**CONSEQUENCE FOR 1.8b, found here rather than in 1.8b's own research.**
+`OpenIddictRevokeIdentitySessionOnLogout` derives the session id from `IdentityTokenHintPrincipal`
+only, and OpenIddict's `AttachPrincipal` for end-session propagates nothing else -- it does not attach
+the cookie-authenticated principal. The planned 1.8b fix drives end-session with no tokens at all,
+because in the broken state there are none. Therefore:
+
+- the SSO cookie IS killed -- ABP's controller calls `SignInManager.SignOutAsync()` unconditionally,
+  which is the security-critical half and the whole point of the fix; but
+- the `AbpSessions` row is NOT revoked, and the AuthServer logs
+  `"No SessionId was found in the token during HandleLogoutRequestContext."`
+
+So the fix as scoped leaves a stale session row behind. That row is inert for re-authentication once
+the cookie is gone, and the cleanup worker removes it after 30 days, but it keeps appearing in the
+admin session list. Raised as an open decision for 1.8b rather than settled here.
+
+One useful side effect: that warning line is a positive marker. After 1.8b ships, its presence in the
+AuthServer log distinguishes a hint-less sign-out -- which is exactly the repaired path -- from a
+normal one.
+
 ---
 
 ## 1.4 Packet renderer binds all interfaces
