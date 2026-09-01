@@ -172,6 +172,55 @@ satisfy a scanner and the reported defect is absent. Session A's call.
 
 ---
 
+## REAL -- Sonar `typescript:S6268` (BLOCKER), phase 1.2. Fixed, but the issue stays OPEN.
+
+**Where:** `angular/src/app/shared/ui/icon/icon.component.ts:58`
+**Verdict:** the one genuinely real BLOCKER of the six so far. Fixed in `ad4cb0d7` (#502).
+**Why it is in a log of things NOT fixed:** because the ISSUE is not resolved even though the DEFECT
+is. The fix constrains every input but deliberately keeps the `bypassSecurityTrustHtml` call, and the
+rule fires on the call's presence, so `AZ76eJ5Af85aalgSOdg0` remains OPEN and will keep appearing in
+the BLOCKER count. A successor who sees it open and assumes nothing was done will redo this work.
+
+**What was real and what was not.** Three values are interpolated into the trusted markup:
+
+- `name` -- **LIVE path from server data.** `DashboardActivityItemDto.icon` (the only icon field in
+  the entire generated proxy tree) reaches it through an unchecked `as IconName` cast at
+  `src/app/dashboard/internal-dashboard.component.ts:291`. The registry is a plain object literal, so
+  a lookup keyed on an inherited member returned a function or object that `?? ''` cannot catch, and
+  native-code text rendered into the page. Real, and reachable.
+- `size` -- no live path (all 45 call sites pass numeric literals), but the pre-fix test PROVED a
+  string value closes the `width` attribute and injects a working `onload`. Demonstrated, never live.
+- `label` -- no dynamic binding exists anywhere; the existing escaping is correct for a
+  double-quoted attribute. Pinned by a test, not changed.
+
+**Practical consequence had it shipped untouched:** occasional stray internal text on the dashboard.
+It could not execute code and could not leak data.
+
+**THE DISTINCTION THAT KEEPS 1.1 AND 1.2 CONSISTENT.** 1.1 declined to add a guard; 1.2 added one to
+`size` even though nothing feeds it. That is not a reversal:
+
+> **Structural guarantees do not need guards. Conventions do.**
+
+On 1.1 the redirect origin is fixed by a STRUCTURAL property -- the WHATWG URL Standard guarantees a
+special-scheme path serialises with a leading `/` -- so no future caller can break it and a guard
+would defend against something that cannot happen. On `size` the safety rested on CALLER DISCIPLINE
+across 45 sites and a TypeScript annotation that is erased at runtime, so one
+`[size]="cfg.iconSize"` commit makes it live. The test is that, not "did the scanner complain".
+
+**Action:** the transition is **Accept (won't fix)**, NOT False Positive. The code genuinely does
+disable sanitization, so dismissing it as a false positive would be a lie in the record -- unlike
+1.1, where the scanner was simply wrong. Needs admin rights. It did NOT fire on #502: Sonar matched
+the edit to the pre-existing issue rather than raising a new one, so the PR gate passed with 0 issues
+attributed and no transition was required to merge.
+
+**FOLLOW-UP QUEUED -- remove the bypass entirely.** Restructure the registry from raw SVG fragment
+strings into structured data rendered by Angular template bindings, which deletes the
+`bypassSecurityTrustHtml` call rather than securing it, and closes S6268 by construction. Approved by
+Adrian as SEPARATE work. Deliberately given no phase-1 section: once the issue is accepted it is no
+longer a blocker, and inventing a slot would distort the phase.
+
+---
+
 ## FALSE POSITIVE -- Sonar `typescript:S2699` (BLOCKER), phase 1.3
 
 **Where:** `angular/src/app/shared/auth/full-logout.spec.ts:47`
@@ -268,6 +317,50 @@ inverse case that the theme and culture cookies are deliberately PRESERVED, so a
 The cookie specs passed on first run, which is the point of a characterization test: the clearing
 works today and is now pinned. Had they failed, that would have been a live defect on the leak path
 rather than a test to iterate on.
+
+**WHAT FULL LOGOUT GUARANTEES, AND WHAT CAN HONESTLY BE ASSERTED.** From the doc comment at
+`full-logout.ts:4-30`, five guarantees. Coverage after this task, stated precisely, because two of
+them are NOT OBSERVABLE under the current test architecture and pretending otherwise would be the
+exact false confidence this item was raised about:
+
+| #   | Guarantee                                          | Covered?                                                                                       |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1   | Revoke access and refresh tokens (RFC 7009)        | Yes -- spy asserted called once                                                                |
+| 2   | angular-oauth2-oidc clears its local token storage | **NOT OBSERVABLE.** `logOut()` is a test double; the real storage clearing is library-internal |
+| 3   | Redirect to the discovered `end_session_endpoint`  | **NOT OBSERVABLE**, same reason                                                                |
+| 4   | Expire `__tenant` and `XSRF-TOKEN` first           | Yes -- 5 new specs, real `document.cookie`                                                     |
+| 5   | Never reject                                       | Yes -- the very assertion S2699 says does not exist                                            |
+
+For 2 and 3 the honest ceiling is **asserting that we delegate**, not that the effect happened.
+Do not let a future change quietly upgrade "we called `logOut()`" into "the token store was
+cleared" -- observing that needs a real `OAuthService` against a fake storage, which is a different
+and larger test architecture. Called from 8 sites.
+
+**A SEPARATE DEFECT FOUND WHILE READING THIS, not fixed here.** In angular-oauth2-oidc 20.0.2,
+`revokeTokenAndLogout()` returns early when local storage holds no access token:
+
+```js
+// fesm2022/angular-oauth2-oidc.mjs:2954, early return at :2958
+const accessToken = this.getAccessToken();
+if (!accessToken) {
+  return Promise.resolve();
+}
+// :2642  getAccessToken() { return this._storage ? this._storage.getItem('access_token') : null; }
+```
+
+It RESOLVES rather than throwing, and `performFullLogout` catches only, so the `logOut()` fallback
+never fires either. Guarantees 1, 2 and 3 all silently fail while the function reports success --
+clicking Sign Out in that state expires the two cookies and does nothing else.
+
+**Stated as a caveat, not a finding:** the mechanical behaviour above is certain and verified at the
+library source. What is NOT established is the user-facing exposure. The end-session redirect does
+not occur, so the server-side session is not explicitly terminated; whether it remains valid depends
+on its own lifetime, which is **unmeasured**. Do not repeat "the SSO cookie survives" as fact -- that
+is an inference from the redirect not happening, not an observation.
+
+Queued as its own item 1.8, to be done immediately AFTER 1.3 and not folded into it: 1.3 preserves
+behaviour, 1.8 changes it on an auth path, and the epic's decision rule separates those deliberately.
+These cookie specs become 1.8's safety net, which is the whole reason for that ordering.
 
 ---
 
