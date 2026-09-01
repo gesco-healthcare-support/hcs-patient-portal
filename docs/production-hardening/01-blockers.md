@@ -107,11 +107,26 @@ Angular-only changes for 1.1-1.3, Python for 1.4. Per `~/.claude/rules/testing.m
 ```
 npx ng build
 npx ng test --watch=false --browsers=ChromeHeadless
-npx eslint --ext .html,.ts src/app
+npx ng lint
 ```
 
 Set `CHROME_BIN` first on Windows. Scope the spec run with `--include` while iterating, but run it
 unscoped before the phase is called done -- template changes break specs that pin selectors.
+
+**Corrected 2026-08-31 (task 1.1).** The third line previously read
+`npx eslint --ext .html,.ts src/app`, which does NOT cover `src/tenant-bootstrap.ts` -- that file
+sits outside `src/app`. `angular.json`'s lint target uses
+`lintFilePatterns ["src/**/*.ts", "src/**/*.html"]`, so `npx ng lint` is the command that actually
+lints the files this phase changes.
+
+**Windows caveat, found while running it.** `npx ng lint` (and `yarn lint`, which is the same
+thing) exits 1 on a local Windows worktree with "Invalid lint configuration. Nothing to lint.
+Please check your lint target pattern(s)." This is environment-specific, NOT a repo defect: CI's
+`Frontend: Lint` job runs the identical `yarn lint` with no `continue-on-error` and passes, with the
+same `@angular-eslint/builder` 20.0.0 that `yarn.lock` pins. The difference is ubuntu + Node 22 in
+CI versus Windows + Node 24 locally; the likely cause is the `lintFilePatterns` glob not resolving
+on Windows. Until that is fixed (logged to `docs/backlog.md` for phase 2), lint locally with
+`npx eslint <the files you changed>` and let CI run the real gate.
 
 If 1.4 turns out to need a change, add a container smoke test that the renderer still answers from
 a sibling service.
