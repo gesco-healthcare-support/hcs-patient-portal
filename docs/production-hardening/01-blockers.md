@@ -3,23 +3,25 @@
 **Change class:** deliberate behaviour change. **Test written WITH the fix, not before.**
 Assert the desired behaviour, watch it fail, then fix.
 
-Sonar reports 6 BLOCKER issues. **As of 2026-09-01, four of those six are false positives** -- which
-is three distinct findings, because the two PowerShell hits are the same false positive twice. Only
-one of the six (1.2) turned out to be a real defect; 1.4 is still untriaged. See
+Sonar reports 6 BLOCKER issues. **All six are now triaged, and five of them are false alarms** --
+four distinct findings, because the two PowerShell hits are the same false positive twice. **Exactly
+one (1.2) was a real defect**, and it was narrower than advertised. See
 [00-triage-log.md](00-triage-log.md). State of each, counted per rule by the API:
 
-| Rule               | n   | Item | Verdict                                                                |
-| ------------------ | --- | ---- | ---------------------------------------------------------------------- |
-| `secrets:S7539`    | 2   | --   | FALSE POSITIVE (grep pattern, not a credential); not yet marked        |
-| `tssecurity:S6105` | 1   | 1.1  | FALSE POSITIVE -- marked RESOLVED/FALSE-POSITIVE                       |
-| `typescript:S6268` | 1   | 1.2  | **REAL**, fixed in `ad4cb0d7`; issue stays open pending an Accept      |
-| `typescript:S2699` | 1   | 1.3  | FALSE POSITIVE (rule does not recognise `expectAsync`); not yet marked |
-| `python:S8392`     | 1   | 1.4  | not yet triaged                                                        |
+| Rule               | n   | Item | Verdict                                                               |
+| ------------------ | --- | ---- | --------------------------------------------------------------------- |
+| `secrets:S7539`    | 2   | --   | FALSE ALARM (grep pattern, not a credential); not yet marked          |
+| `tssecurity:S6105` | 1   | 1.1  | FALSE ALARM -- marked RESOLVED/FALSE-POSITIVE                         |
+| `typescript:S6268` | 1   | 1.2  | **REAL**, fixed in `ad4cb0d7`; issue stays open pending an Accept     |
+| `typescript:S2699` | 1   | 1.3  | FALSE ALARM (rule does not recognise `expectAsync`); not yet marked   |
+| `python:S8392`     | 1   | 1.4  | FALSE ALARM (unpublished port; flagged line is dead code); not marked |
 
-**That ratio is itself a finding.** A mechanical sweep of this list would have "fixed" three
-non-problems and changed working code to satisfy a tool. The headline BLOCKER count overstates what
-is wrong with this system by a wide margin, and the triage log is the only honest ledger of which
-items mattered. All are small; this phase is hours, not days.
+**That ratio is the most transferable finding in this epic.** A mechanical sweep of this list would
+have changed working code in FOUR places to satisfy a tool -- and in the packet-renderer case it
+would have broken PDF generation, because the binding the rule objects to is the one that makes the
+service reachable from its sibling container. The headline BLOCKER count overstates what is wrong
+with this system by a wide margin, and the triage log is the only honest ledger of which items
+mattered. All are small; this phase is hours, not days.
 
 Order within the phase is by exploitability once the app is public.
 
@@ -288,6 +290,29 @@ If it is published, it is a real exposure -- the packet renderer generates PHI-b
 
 **Do not change this one before checking.** Binding loopback in a container is a classic way to
 break a working service in the name of a scanner.
+
+### OUTCOME: TRIAGED-NO-FIX (2026-09-01)
+
+**Not a defect, and a "fix" would have broken packet generation.** Full evidence in
+[00-triage-log.md](00-triage-log.md). Four independent checks, all pointing the same way:
+
+1. The flagged line is inside `if __name__ == "__main__":`, commented "Local debugging only", and is
+   NOT the production bind. The container runs `gunicorn --bind 0.0.0.0:3001`
+   (`docker/packet-renderer/Dockerfile:63`). Editing line 116 would change nothing at runtime.
+2. `docker-compose.prod.yml` gives the service **no `ports:` and no `expose:`** -- no host or LAN
+   path to it. The `prod.localseed` override adds none either.
+3. Dev publishes it as `127.0.0.1:${PACKET_RENDERER_PORT}:3001` -- loopback-only even there.
+4. No reverse proxy routes to it, and the API consumes it at `http://packet-renderer:3001`
+   (`docker-compose.prod.yml:264`), the compose service name -- so `0.0.0.0` is REQUIRED for
+   sibling-container reachability. Loopback would make packet generation fail.
+
+The PHI concern was legitimate to raise -- this sidecar renders patient-bearing PDFs -- which is why
+it was checked in four places rather than one. The exposure premise simply does not hold.
+
+**Action:** mark False Positive in SonarCloud. No code change.
+
+**This closes the triage of all six original BLOCKERs:** five of six issues were false alarms (four
+distinct findings), and exactly one (1.2) was a real defect.
 
 ---
 

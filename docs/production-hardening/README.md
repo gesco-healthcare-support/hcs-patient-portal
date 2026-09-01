@@ -17,7 +17,7 @@ Update this table as each phase closes. It is the first thing a successor will r
 
 | Phase                    | Status             | Landed                       | Baseline delta                |
 | ------------------------ | ------------------ | ---------------------------- | ----------------------------- |
-| 1 Blockers               | IN PROGRESS (3/8)  | 046f44f1, ad4cb0d7, fd875d67 | 2 dismissed, 1 really fixed   |
+| 1 Blockers               | IN PROGRESS (4/8)  | 046f44f1, ad4cb0d7, fd875d67 | 3 dismissed, 1 really fixed   |
 | 2 Enforcement            | NOT STARTED        | --                           | --                            |
 | 3 Critical-path coverage | NOT STARTED        | --                           | --                            |
 | 4 CodeQL sensitive-info  | NOT STARTED        | --                           | --                            |
@@ -28,9 +28,10 @@ Update this table as each phase closes. It is the first thing a successor will r
 | 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31   | 4 claims refuted, 3 confirmed |
 
 **Read the phase 1 delta carefully -- the BLOCKER count is a bad proxy for progress here.** It stands
-at 5, down from 6, and that single drop was a False Positive marking, not a defect repaired. Of the
-six originally flagged, **four issues (three distinct findings, since the PowerShell pair is one
-false positive twice) are false alarms, exactly one was a real defect, and one is still untriaged.**
+at 5, down from 6, and that single drop was a False Positive marking, not a defect repaired. All six
+are now triaged: **five issues (four distinct findings, since the PowerShell pair is one false
+positive twice) were false alarms, and exactly ONE was a real defect.** In one case -- the packet
+renderer -- doing what the scanner asked would have broken PDF generation.
 
 The count will barely move as this phase closes, for two reasons that are both correct: dismissals
 need an administrative marking that is batched to the end, and 1.2's issue stays open by design
