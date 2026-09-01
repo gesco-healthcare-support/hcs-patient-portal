@@ -141,7 +141,15 @@ both composed from internal values. `returnUrl` appears only as a field on a gen
 values land. It is right that tainted data reaches the sink; it is wrong that this makes the
 destination attacker-selectable.
 
-**Action:** mark "Safe" / won't-fix in SonarCloud citing this entry. No production behaviour change.
+**Action:** mark **False Positive** in SonarCloud citing this entry. No production behaviour change.
+Ruled by Adrian 2026-08-31: false positive, no guard, no code change.
+
+The transition is "False Positive", NOT "Safe". S6105 is a VULNERABILITY issue, and only Security
+Hotspots offer Safe / Fixed / Acknowledged. "Safe" is correct for the `secrets:S7539` hotspots
+earlier in this log and wrong here; the two are different object types in SonarCloud with different
+workflows. Two separate issue keys exist for the same finding -- `AaBaLBBTO0wh9AbG_-jm` on PR #498
+at line 95 (the one the PR quality gate reads) and `AZ4ihTDXRucw6R5zqNpc` on `main` at line 65.
+Marking needs project admin rights; Adrian holds them.
 Two non-behavioural changes were made and are worth recording:
 
 1. A `TenantBootstrapLocation` seam (an optional second parameter defaulting to `window.location`)
