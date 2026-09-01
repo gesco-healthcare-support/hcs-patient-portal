@@ -335,7 +335,29 @@ surface and it makes host-based routing assumptions untestable from outside.
 
 **Change class:** deliberate behaviour change - **test with the fix**. A catch-all 443 block
 returning 444 or 421 is the usual shape. Verify each of the four legitimate host shapes still
-resolves to its own backend afterwards; a mis-ordered catch-all silently swallows real traffic.
+resolves to its own backend afterwards.
+
+**CORRECTION 2026-09-01 -- the risk originally stated here was wrong.** This section used to end
+"a mis-ordered catch-all silently swallows real traffic". That is not how nginx behaves, and acting
+on it would have sent someone hunting the wrong hazard.
+
+nginx selects a server block by NAME SPECIFICITY, not file order: exact name, then longest
+`*.`-prefixed wildcard, then longest suffix wildcard, then regex, and only when nothing matches does
+it use the block flagged `default_server` for that address:port. `server_name _` is not special
+syntax -- `_` is simply a name no real Host can equal. So a catch-all declared
+`listen 443 ssl default_server;` matches ONLY unmatched hosts **wherever it sits in the file**.
+File order decides the default only when NO block is flagged, which is precisely the bug above. The
+template's own comment at `:14-18` already documents specificity resolving overlap.
+
+**The two real risks, both of which fail LOUD rather than silently:**
+
+1. Two blocks on the same address:port both carrying `default_server` -- nginx refuses to start.
+2. A catch-all without `ssl_certificate` / `ssl_certificate_key` -- on 443 the TLS handshake
+   completes before Host is read, so the catch-all serves the certificate for absent or unmatched
+   SNI. Without them the handshake cannot complete.
+
+Neither can silently misroute traffic, which makes this change materially safer than the original
+note implied.
 
 ### 1.6 DataProtection keys appear to be stored unencrypted at rest
 
