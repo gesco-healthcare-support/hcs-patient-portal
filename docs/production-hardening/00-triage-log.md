@@ -4,8 +4,10 @@ Committed and append-only. Every finding NOT fixed, with the evidence for why.
 
 **Why this file matters most.** A successor inheriting this epic will re-run the same scanners and
 see the same numbers this document was written against. Without this log they re-investigate every
-item already settled, or worse, "fix" a false positive and call it progress. Two of the six original
-Sonar blockers were false positives, so that is not a hypothetical risk.
+item already settled, or worse, "fix" a false positive and call it progress. That is not a
+hypothetical risk: of the six original Sonar BLOCKERs, **four issues -- three distinct findings --
+turned out to be false positives, and only one was a real defect** (the sixth is still untriaged).
+Per-rule breakdown with the command that produces it is in the phase 1.3 entry below.
 
 Never delete an entry. If a dismissal turns out to be wrong, add a superseding entry explaining what
 changed -- the reversal is as informative as the original call.
