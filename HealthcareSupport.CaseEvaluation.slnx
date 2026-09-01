@@ -19,5 +19,6 @@
         <Project Path="test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj" />
         <Project Path="test/HealthcareSupport.CaseEvaluation.TestBase/HealthcareSupport.CaseEvaluation.TestBase.csproj" />
         <Project Path="test/HealthcareSupport.CaseEvaluation.Domain.Tests/HealthcareSupport.CaseEvaluation.Domain.Tests.csproj" />
+        <Project Path="test/HealthcareSupport.CaseEvaluation.AuthServer.Tests/HealthcareSupport.CaseEvaluation.AuthServer.Tests.csproj" />
     </Folder>
 </Solution>

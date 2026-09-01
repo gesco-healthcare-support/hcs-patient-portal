@@ -166,6 +166,27 @@ public class CaseEvaluationAuthServerModule : AbpModule
             // next silent refresh. Reverses the 2026-05-01 multi-session deviation.
             serverBuilder.AddEventHandler<HandleTokenRequestContext>(builder =>
                 builder.UseScopedHandler<RevokePreviousSessionsHandler>());
+
+            // Production hardening 1.8b (2026-09-01). ABP's OpenIddictRevokeIdentitySessionOnLogout
+            // revokes the identity-session record only when an id_token_hint is present, and the
+            // repaired no-token sign-out has no id_token to send. This ADDS a fallback that reads
+            // the session id from the cookie principal instead; ABP's handler is left in place, so
+            // the with-hint path is the same code it has always been.
+            //
+            // The order is load-bearing in ONE direction only: it must run after OpenIddict's
+            // AttachPrincipal, which is what populates IdentityTokenHintPrincipal -- reading that
+            // before it is attached would make every sign-out look hint-less. Its position relative
+            // to ABP's own handler does not matter, because the two are mutually exclusive on the
+            // presence of the hint.
+            serverBuilder.AddEventHandler<HandleEndSessionRequestContext>(builder =>
+                builder
+                    .UseScopedHandler<RevokeSessionWithoutTokenHintHandler>()
+                    // global:: is required, not stylistic: this file's own namespace contains
+                    // `HealthcareSupport.CaseEvaluation.OpenIddict`, so a bare `OpenIddict.Server`
+                    // binds there instead of to the library.
+                    .SetOrder(
+                        global::OpenIddict.Server.OpenIddictServerHandlers.Session.AttachPrincipal
+                            .Descriptor.Order + 2_000));
         });
 
         if (!hostingEnvironment.IsDevelopment())
@@ -248,6 +269,9 @@ public class CaseEvaluationAuthServerModule : AbpModule
         // Single-session enforcement: ensure the OpenIddict server event handler
         // (registered via UseScopedHandler in PreConfigureServices) resolves from DI.
         context.Services.AddScoped<RevokePreviousSessionsHandler>();
+
+        // 1.8b: same reason -- UseScopedHandler resolves this from DI at request time.
+        context.Services.AddScoped<RevokeSessionWithoutTokenHintHandler>();
 
         Configure<AbpLocalizationOptions>(options =>
         {
