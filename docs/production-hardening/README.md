@@ -17,7 +17,7 @@ Update this table as each phase closes. It is the first thing a successor will r
 
 | Phase                    | Status             | Landed                     | Baseline delta                |
 | ------------------------ | ------------------ | -------------------------- | ----------------------------- |
-| 1 Blockers               | NOT STARTED        | --                         | --                            |
+| 1 Blockers               | IN PROGRESS (1/7)  | 046f44f1 (#498)            | BLOCKERs 6 -> 5 (a dismissal) |
 | 2 Enforcement            | NOT STARTED        | --                         | --                            |
 | 3 Critical-path coverage | NOT STARTED        | --                         | --                            |
 | 4 CodeQL sensitive-info  | NOT STARTED        | --                         | --                            |
@@ -26,6 +26,12 @@ Update this table as each phase closes. It is the first thing a successor will r
 | 7 Rule families          | NOT STARTED        | --                         | --                            |
 | 8 Coverage expansion     | NOT STARTED        | --                         | --                            |
 | 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31 | 4 claims refuted, 3 confirmed |
+
+**Read the phase 1 delta carefully.** Open BLOCKERs went 6 -> 5 because 1.1 was marked False
+Positive in SonarCloud, NOT because a defect was fixed. No production behaviour changed. Of the 5
+still open, 2 are the already-dismissed `secrets:S7539` pair, so the actionable count is 3. Anyone
+reading a falling BLOCKER count as defects repaired will draw the wrong conclusion about this epic --
+the triage log is the only honest ledger of what was real. See [00-triage-log.md](00-triage-log.md).
 
 **Open decision blocking phase 2:** the SonarCloud new-code coverage gate is set to 80% and is
 currently admin-overridden on every PR. It must be either enforced at 80% or lowered to a threshold
