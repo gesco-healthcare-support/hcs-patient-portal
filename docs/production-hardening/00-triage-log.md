@@ -219,16 +219,34 @@ empty and a residue grep returns 0.
 
 **Action:** mark **False Positive** in SonarCloud citing this entry. No implementation change.
 
-**THREE OF THE SIX ORIGINAL BLOCKERS ARE NOW FALSE POSITIVES** -- the two `secrets:S7539` PowerShell
-hits, the `tssecurity:S6105` open redirect (1.1), and this one. That is half the headline BLOCKER
-count, and it is a finding about the tool rather than the code: a mechanical sweep of this list would
-have "fixed" three non-problems. Current open BLOCKERs, counted by command:
+**FOUR OF THE SIX ORIGINAL BLOCKER ISSUES ARE NOW FALSE POSITIVES** -- which is THREE distinct
+findings, because the two `secrets:S7539` PowerShell hits are the same false positive twice. Stating
+it both ways deliberately: "three" and "four" are both true of different units, and an unqualified
+number here is exactly what a successor would re-check and distrust.
+
+Per-rule state, counted by the API rather than by memory:
 
 ```bash
-curl -s ".../api/issues/search?...&resolved=false&severities=BLOCKER&ps=1" | jq .total   # -> 5
+for r in secrets:S7539 tssecurity:S6105 typescript:S2699 typescript:S6268 python:S8392; do
+  curl -s ".../api/issues/search?componentKeys=...&rules=$r&severities=BLOCKER"
+done
 ```
 
-5 open, of which 2 are the already-dismissed S7539 pair and 1 is this entry pending its marking.
+| Rule               | n   | Verdict                                                              |
+| ------------------ | --- | -------------------------------------------------------------------- |
+| `secrets:S7539`    | 2   | false positive, still OPEN in SonarCloud (not yet marked)            |
+| `tssecurity:S6105` | 1   | false positive, RESOLVED/FALSE-POSITIVE                              |
+| `typescript:S2699` | 1   | false positive (this entry), still OPEN                              |
+| `typescript:S6268` | 1   | **the one real defect**, fixed in `ad4cb0d7`, OPEN pending an Accept |
+| `python:S8392`     | 1   | not yet triaged (1.4)                                                |
+
+So of six flagged BLOCKERs, exactly ONE has so far turned out to be a real defect, and that one was
+narrower than advertised. This is a finding about the tool, not the code: a mechanical sweep would
+have changed working code in three places to satisfy a scanner. Open BLOCKERs today:
+
+```bash
+curl -s ".../api/issues/search?...&resolved=false&severities=BLOCKER&ps=1"   # total -> 5
+```
 
 **THE REAL GAP WAS NEXT TO IT, and no scanner raised it.** Sign-out expires `__tenant` and
 `XSRF-TOKEN` before redirecting, because the end-session flow does not clear them and, quoting
