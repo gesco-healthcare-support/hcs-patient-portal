@@ -15,23 +15,31 @@ created off `main` at `a5234d25` on 2026-08-31.
 
 Update this table as each phase closes. It is the first thing a successor will read.
 
-| Phase                    | Status             | Landed                     | Baseline delta                |
-| ------------------------ | ------------------ | -------------------------- | ----------------------------- |
-| 1 Blockers               | IN PROGRESS (2/7)  | 046f44f1, ad4cb0d7         | 1 dismissed, 1 really fixed   |
-| 2 Enforcement            | NOT STARTED        | --                         | --                            |
-| 3 Critical-path coverage | NOT STARTED        | --                         | --                            |
-| 4 CodeQL sensitive-info  | NOT STARTED        | --                         | --                            |
-| 5 Security hotspots      | NOT STARTED        | --                         | --                            |
-| 6 Dependencies           | NOT STARTED        | --                         | --                            |
-| 7 Rule families          | NOT STARTED        | --                         | --                            |
-| 8 Coverage expansion     | NOT STARTED        | --                         | --                            |
-| 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31 | 4 claims refuted, 3 confirmed |
+| Phase                    | Status             | Landed                       | Baseline delta                |
+| ------------------------ | ------------------ | ---------------------------- | ----------------------------- |
+| 1 Blockers               | IN PROGRESS (3/8)  | 046f44f1, ad4cb0d7, fd875d67 | 2 dismissed, 1 really fixed   |
+| 2 Enforcement            | NOT STARTED        | --                           | --                            |
+| 3 Critical-path coverage | NOT STARTED        | --                           | --                            |
+| 4 CodeQL sensitive-info  | NOT STARTED        | --                           | --                            |
+| 5 Security hotspots      | NOT STARTED        | --                           | --                            |
+| 6 Dependencies           | NOT STARTED        | --                           | --                            |
+| 7 Rule families          | NOT STARTED        | --                           | --                            |
+| 8 Coverage expansion     | NOT STARTED        | --                           | --                            |
+| 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31   | 4 claims refuted, 3 confirmed |
 
-**Read the phase 1 delta carefully.** Open BLOCKERs went 6 -> 5 because 1.1 was marked False
-Positive in SonarCloud, NOT because a defect was fixed. No production behaviour changed. Of the 5
-still open, 2 are the already-dismissed `secrets:S7539` pair, so the actionable count is 3. Anyone
-reading a falling BLOCKER count as defects repaired will draw the wrong conclusion about this epic --
+**Read the phase 1 delta carefully -- the BLOCKER count is a bad proxy for progress here.** It stands
+at 5, down from 6, and that single drop was a False Positive marking, not a defect repaired. Of the
+six originally flagged, **four issues (three distinct findings, since the PowerShell pair is one
+false positive twice) are false alarms, exactly one was a real defect, and one is still untriaged.**
+
+The count will barely move as this phase closes, for two reasons that are both correct: dismissals
+need an administrative marking that is batched to the end, and 1.2's issue stays open by design
+because its rule fires on a code pattern that was made safe rather than removed. Anyone reading a
+falling BLOCKER count as defects repaired will draw the wrong conclusion about this epic --
 the triage log is the only honest ledger of what was real. See [00-triage-log.md](00-triage-log.md).
+
+**Item count moved 7 -> 8** when 1.8 was added, spawned by 1.3's research rather than by a scanner.
+The denominator in the table above reflects that.
 
 **Open decision blocking phase 2:** the SonarCloud new-code coverage gate is set to 80% and is
 currently admin-overridden on every PR. It must be either enforced at 80% or lowered to a threshold

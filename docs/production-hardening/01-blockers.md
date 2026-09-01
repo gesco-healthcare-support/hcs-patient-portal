@@ -185,6 +185,91 @@ as it was, the task could have been closed without adding value.
 auth path, and the first item in the epic that is NOT test-with-fix (behaviour is preserved, so
 tests come first).
 
+### OUTCOME: TRIAGED-NO-FIX plus new coverage (2026-09-01)
+
+Landed in `fd875d67` (#504). The flagged issue was a false positive; the value delivered was the
+coverage gap found beside it. No implementation line changed.
+
+**S2699 is a false positive, proven by mutation.** A `throw` was added after the try/catch in
+`performFullLogout`, breaking the documented never-reject contract:
+
+```
+performFullLogout never rejects even if both revocation and the fallback throw FAILED
+    Expected a promise to be resolved but it was rejected with Error: mutation: performFullLogout now rejects.
+TOTAL: 8 FAILED, 0 SUCCESS
+```
+
+The flagged spec failed on its own assertion, so the assertion exists and has teeth. Mutation
+reverted; implementation `git diff` empty, residue grep 0. Full evidence in
+[00-triage-log.md](00-triage-log.md). Issue `AZ-Au9J_eUr9gP0iFbsb`, still OPEN pending its marking.
+
+**The real gap, which no scanner raised.** Nothing in the Angular test tree touched either cookie
+sign-out clears -- `git grep -l "__tenant\|XSRF-TOKEN" e19c46ed -- 'angular/src/**/*.spec.ts' | wc -l`
+returned 0 -- and `full-logout.ts:33` is the only place `__tenant` is cleared anywhere. Five
+characterization specs now pin it, including the inverse case that the theme and culture cookies are
+deliberately preserved. They passed on first run, which is the correct result for a
+behaviour-preserving item: the clearing works and is now guarded.
+
+**Coverage ceiling, stated so it is not quietly overclaimed later.** Of the five documented
+guarantees, 1, 4 and 5 are asserted; **2 (local token storage cleared) and 3 (end-session redirect)
+are NOT OBSERVABLE** with a test double. Asserting delegation is the honest ceiling. See the triage
+log entry.
+
+|                 |                                                                  |
+| --------------- | ---------------------------------------------------------------- |
+| Commit          | `fd875d67` (#504)                                                |
+| Sonar BLOCKER   | 5 -> 5 (unchanged; correct, the issue awaits marking not fixing) |
+| Frontend specs  | 630 -> 635 (+5); `full-logout.spec.ts` 3 -> 8                    |
+| S2699 on the PR | did not fire -- 0 issues attributed, gate OK                     |
+
+**Spawned item 1.8**, the silent sign-out dead end, deliberately NOT folded in here: 1.3 preserves
+behaviour, 1.8 changes it on an auth path, and these cookie specs become 1.8's safety net. That
+ordering is the point.
+
+---
+
+## 1.8 Sign-out can silently do nothing
+
+**Placed here, out of numeric order, deliberately.** Sections in this file run in execution order,
+not by number (see the ordering note at the top). 1.8 was discovered during 1.3 and is scheduled
+immediately after it, because 1.3's cookie specs are its safety net. 1.4 through 1.7 follow.
+
+- **Where:** `angular/src/app/shared/auth/full-logout.ts:41`, via
+  `angular-oauth2-oidc@20.0.2` `revokeTokenAndLogout()`
+- **Found:** while researching 1.3. No scanner raised it.
+
+**The mechanism, verified at the library source.** `fesm2022/angular-oauth2-oidc.mjs:2954` takes an
+early return at `:2958` when local storage holds no access token:
+
+```js
+const accessToken = this.getAccessToken(); // :2642 -> _storage.getItem('access_token')
+if (!accessToken) {
+  return Promise.resolve();
+} // no revoke, no logOut(), no redirect
+```
+
+It RESOLVES rather than throwing, and `performFullLogout` catches only, so the `logOut()` fallback
+never fires either. Clicking Sign Out in that state expires the two cookies and does nothing else.
+Guarantees 1, 2 and 3 all fail silently while the function reports success. The trigger state is
+ordinary -- an idle period that clears the stored token.
+
+**What is NOT established.** Whether the AuthServer session remains usable afterwards. The
+end-session redirect does not occur, so the server-side session is not explicitly terminated;
+whether it stays valid depends on its own lifetime, which is **unmeasured**. Do not repeat "the SSO
+cookie survives" as fact -- that is inference from the redirect not happening.
+
+**Split into two tasks on Adrian's decision (2026-09-01):**
+
+- **1.8a -- measure first.** Observation only, no code. Reproduce the no-token state on the DEV stack
+  with synthetic accounts, sign out through the real UI, then check whether the app signs you back in
+  without credentials. The question is whether the server re-issues a session, NOT whether the SPA
+  looks logged out. "Could not determine" is a valid outcome.
+- **1.8b -- the fix**, scoped only after 1.8a answers. Server session dead means an ordinary
+  correctness fix; server session alive escalates beyond an engineering decision.
+
+**Change class:** 1.8a none (observation). 1.8b deliberate behaviour change on an auth path, guarded
+by 1.3's specs.
+
 ---
 
 ## 1.4 Packet renderer binds all interfaces
