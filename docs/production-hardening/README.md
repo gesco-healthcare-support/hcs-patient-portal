@@ -17,7 +17,7 @@ Update this table as each phase closes. It is the first thing a successor will r
 
 | Phase                    | Status             | Landed                                           | Baseline delta                |
 | ------------------------ | ------------------ | ------------------------------------------------ | ----------------------------- |
-| 1 Blockers               | IN PROGRESS (5/8)  | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b | 3 dismissed, 2 really fixed   |
+| 1 Blockers               | IN PROGRESS (5/7)  | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b | 3 dismissed, 2 really fixed   |
 | 2 Enforcement            | NOT STARTED        | --                                               | --                            |
 | 3 Critical-path coverage | NOT STARTED        | --                                               | --                            |
 | 4 CodeQL sensitive-info  | NOT STARTED        | --                                               | --                            |
@@ -39,8 +39,14 @@ because its rule fires on a code pattern that was made safe rather than removed.
 falling BLOCKER count as defects repaired will draw the wrong conclusion about this epic --
 the triage log is the only honest ledger of what was real. See [00-triage-log.md](00-triage-log.md).
 
-**Item count moved 7 -> 8** when 1.8 was added, spawned by 1.3's research rather than by a scanner.
-The denominator in the table above reflects that.
+**The phase 1 denominator has changed twice, and neither change was an item quietly disappearing.**
+7 -> 8 when 1.8 was added, spawned by 1.3's research rather than by a scanner. Then 8 -> 7 on
+2026-09-01 when **1.6 was moved out of the epic entirely** by Adrian's decision -- it became its own
+piece of work on `main`, written up at
+[`docs/security/SESSION-KEY-ENCRYPTION.md`](../security/SESSION-KEY-ENCRYPTION.md). 1.6 was a REAL
+finding; it left because fixing it requires designing certificate custody and a loss-recovery
+override, which is a design exercise rather than a hardening task. Section 1.6 in
+[01-blockers.md](01-blockers.md) is kept as a pointer rather than deleted, so the trail survives.
 
 **Open decision blocking phase 2:** the SonarCloud new-code coverage gate is set to 80% and is
 currently admin-overridden on every PR. It must be either enforced at 80% or lowered to a threshold

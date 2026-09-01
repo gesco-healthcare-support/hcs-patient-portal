@@ -397,23 +397,34 @@ cost of doing it properly: no SNI on port 80, so refusing there needs name-match
 four legitimate shapes plus turning the existing default into a refusal, which is four new blocks
 rather than one line.
 
-### 1.6 DataProtection keys appear to be stored unencrypted at rest
+### 1.6 DataProtection keys unencrypted at rest -- MOVED OUT OF THIS EPIC (2026-09-01)
 
-- **Where:** `CaseEvaluationAuthServerModule.cs:384`, `CaseEvaluationHttpApiHostModule.cs:101` ->
-  `:1103`
-- **Partly confirmed.** Keys are persisted to Redis in both processes. **`ProtectKeysWith` does not
-  appear anywhere in `src`**, and specifying a custom persistence location deregisters the default
-  at-rest protection.
+**No longer a phase 1 item.** Adrian's decision, 2026-09-01: this becomes its own piece of work on
+`main`, designed separately rather than fixed here.
 
-**Read `ConfigureDataProtection` at `CaseEvaluationHttpApiHostModule.cs:1103` before acting** - the
-absence of the call is grep evidence, not a reading of the body, and this is exactly the class of
-inference this epic is supposed to distrust.
+**The finding is REAL** and was confirmed by reading both `ConfigureDataProtection` bodies, not by
+grep: neither process configures any key protection, and Microsoft's documentation states that
+persisting keys to an explicit location deregisters the platform's default at-rest encryption.
+Mitigating context: production Redis publishes no port, so the keys are unreachable from outside the
+container network.
 
-**Why it is here rather than in a later phase.** These keys protect session cookies and
-email-confirmation tokens. Loss makes already-protected payloads permanently undecipherable; theft
-is a session-forgery primitive. **The ordering constraint in REQ-APP-01 applies:** if the key store
-is ever moved out of Redis, that move must precede any cache eviction-policy change, or keys are
-destroyed weeks before anyone notices.
+**Why it left the epic rather than being fixed in it.** The code change is two lines. Everything
+behind it is not: on Linux containers the only available mechanisms need an X.509 certificate or
+Azure Key Vault distributed to both containers, which raises who holds the certificate, how it is
+backed up, and -- the part Adrian specifically wants to design -- what the override is when it is
+lost, rotated or compromised. Encrypting the keys converts a confidentiality gap into an
+availability dependency, and a lost certificate would make every protected payload permanently
+unreadable. That is a design exercise, not a hardening task.
+
+**Everything gathered is written up in
+[`docs/security/SESSION-KEY-ENCRYPTION.md`](../security/SESSION-KEY-ENCRYPTION.md)** -- the method
+bodies, the documentation quotations, the Redis posture, the options with what each costs here, the
+existing-sessions analysis with its confidence label, the override problem, and the open design
+questions. Read that rather than re-deriving any of it.
+
+**REQ-APP-01 travels with it** and is repeated there: if the key store is ever moved out of Redis,
+that move must precede any cache eviction-policy change, or the keys are destroyed weeks before
+anyone notices.
 
 ---
 
