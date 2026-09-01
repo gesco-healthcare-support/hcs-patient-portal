@@ -1,0 +1,392 @@
+<!--
+  Internal Workflow (Prompt 13): unified supervisor change-request inbox. Tabs
+  filter the merged reschedule + cancellation queues client-side; rows expand to
+  the reason; approve (with NoBill/Late outcome + consent-override warning) and
+  reject (reason required) drive the inherited approval service. Class names
+  mirror the handoff in-work.css (.cr-*), ported in styles/_cr-inbox.scss; head /
+  chips / empty reuse _in-appts.scss; modals reuse _ra-wizard.scss.
+-->
+<div class="ia-head">
+  <div>
+    <h1>Change requests</h1>
+    <p>{{ counts().all }} pending request{{ counts().all === 1 ? '' : 's' }} awaiting review</p>
+  </div>
+</div>
+
+<div class="ia-chips">
+  <button class="ia-chip" type="button" [attr.data-on]="tab() === 'all'" (click)="tab.set('all')">
+    All
+    <span class="cnt">{{ counts().all }}</span>
+  </button>
+  <button
+    class="ia-chip"
+    type="button"
+    [attr.data-on]="tab() === 'reschedule'"
+    (click)="tab.set('reschedule')"
+  >
+    Reschedules
+    <span class="cnt">{{ counts().reschedule }}</span>
+  </button>
+  <button
+    class="ia-chip"
+    type="button"
+    [attr.data-on]="tab() === 'cancel'"
+    (click)="tab.set('cancel')"
+  >
+    Cancellations
+    <span class="cnt">{{ counts().cancel }}</span>
+  </button>
+
+  <!-- QA #15 item 6: the queue is a card list, so sorting is a Sort-by control
+       rather than clickable column headers. -->
+  <div class="cr-sortbar">
+    <app-icon name="sort" [size]="15" />
+    <label>Sort by</label>
+    <select
+      aria-label="Sort change requests"
+      [ngModel]="sort().key ?? ''"
+      (ngModelChange)="setSortKey($event)"
+    >
+      <option value="">Newest first</option>
+      <option value="requested">Requested date</option>
+      <option value="type">Type</option>
+      <option value="appt">Appointment #</option>
+      <option value="age">Age waiting</option>
+    </select>
+    <button
+      type="button"
+      class="cr-sortbar__dir"
+      [disabled]="!sort().key"
+      [title]="sort().dir === 'asc' ? 'Ascending' : 'Descending'"
+      (click)="toggleSortDir()"
+    >
+      <app-icon [name]="sort().dir === 'asc' ? 'arrowUp' : 'arrowDown'" [size]="15" />
+    </button>
+  </div>
+</div>
+
+@if (loading()) {
+  @for (n of [1, 2, 3]; track n) {
+    <div class="cr-row" style="padding: 16px 18px">
+      <app-skeleton height="44px" radius="10px" />
+    </div>
+  }
+} @else if (visibleRows().length === 0) {
+  <div
+    class="ia-empty"
+    style="background: #fff; border: 1px solid var(--border); border-radius: var(--r-md)"
+  >
+    <app-icon name="inbox" [size]="36" />
+    <b>Queue clear</b>
+    <span>No pending change requests.</span>
+  </div>
+} @else {
+  @for (row of displayRows(); track row.id) {
+    <div class="cr-row">
+      <div class="cr-row__main" [attr.data-open]="openId() === row.id" (click)="toggle(row)">
+        <span class="cr-row__type" [ngClass]="isReschedule(row) ? 'tint-amber' : 'tint-red'">
+          <app-icon [name]="isReschedule(row) ? 'refresh' : 'x'" [size]="18" />
+        </span>
+        <div class="cr-row__tx">
+          <div class="l1">
+            <b>{{ typeLabel(row) }}</b>
+            <span class="conf">{{ row.appointmentConfirmationNumber || '—' }}</span>
+          </div>
+          <div class="l2">
+            Requested {{ row.creationTime | pacificDate: 'MMM d, y, h:mm a' }}
+            @if (sideLabel(row)) {
+              &middot; {{ sideLabel(row) }} filed
+            }
+          </div>
+        </div>
+        <div class="cr-row__meta">
+          <span class="cr-age" [ngClass]="ageClass(row)">
+            <app-icon name="clock" [size]="12" />
+            {{ ageDays(row) }}d waiting
+          </span>
+          @if (consent(row); as c) {
+            @if (c.show) {
+              <span class="cr-consent" [ngClass]="c.cls">
+                <span class="d"></span>
+                {{ c.label }}
+              </span>
+            }
+          }
+        </div>
+        <div class="cr-row__acts" (click)="$event.stopPropagation()">
+          <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="view(row)">
+            <app-icon name="eye" [size]="14" />
+            View
+          </button>
+          <!--
+            Item K (2026-08-22): the label follows the stage. On a reschedule, the first click sets a
+            date and asks both parties to consent -- calling that "Approve" described step 3 of 3.
+            Green is reserved for the click that genuinely approves.
+          -->
+          <button
+            class="af-btn af-btn--sm"
+            [class.af-btn--green]="rowActionIsFinal(row)"
+            [class.af-btn--ghost]="!rowActionIsFinal(row)"
+            type="button"
+            (click)="openApprove(row)"
+          >
+            <app-icon [name]="rowActionIcon(row)" [size]="14" />
+            {{ rowActionLabel(row) }}
+          </button>
+          <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="openReject(row)">
+            <app-icon name="x" [size]="14" />
+            Reject
+          </button>
+        </div>
+        <span class="cr-row__chev"><app-icon name="chevRight" [size]="17" /></span>
+      </div>
+
+      @if (openId() === row.id) {
+        <div class="cr-detail">
+          <div class="blk">
+            <h4>{{ isReschedule(row) ? 'Requested change' : 'Appointment to cancel' }}</h4>
+            <p>
+              @if (isReschedule(row)) {
+                <!-- Phase 4b (2026-08-04): the queue now carries the requested slot's date, so it
+                     states what was asked for instead of sending staff off to the appointment. -->
+                @if (requestedSlotLabel(row); as requested) {
+                  Requested for
+                  <b>{{ requested }}</b>
+                  . Approve to confirm it, or choose a different date.
+                } @else {
+                  No date was requested -- choose the new date and time when you approve.
+                }
+              } @else {
+                Cancelling this appointment. Both parties are notified once approved.
+              }
+            </p>
+          </div>
+          <div class="blk">
+            <h4>Reason given</h4>
+            <p>{{ reasonOf(row) || 'No reason provided.' }}</p>
+          </div>
+        </div>
+      }
+    </div>
+  }
+}
+
+@if (modal(); as m) {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      @if (m.kind === 'approve') {
+        <div class="ra-modal__head">
+          <h3>Approve {{ isReschedule(m.row) ? 'reschedule' : 'cancellation' }}</h3>
+          <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+            <app-icon name="x" [size]="17" />
+          </button>
+        </div>
+        <div class="ra-modal__body">
+          <p style="margin: 0 0 14px; font-size: 14px; color: var(--n-600); line-height: 1.5">
+            @if (isReschedule(m.row)) {
+              @if (requestedSlotLabel(m.row); as requested) {
+                Move
+                <b>{{ m.row.appointmentConfirmationNumber }}</b>
+                to
+                <b>{{ requested }}</b>
+                , or pick a different date below.
+              } @else {
+                Choose the new date and time for
+                <b>{{ m.row.appointmentConfirmationNumber }}</b>
+                and record the billing outcome.
+              }
+            } @else {
+              Cancel
+              <b>{{ m.row.appointmentConfirmationNumber }}</b>
+              ? Both parties will be notified.
+            }
+          </p>
+
+          <!--
+            Phase 4b (2026-08-04): staff choose the reschedule date here, using the SAME
+            availability calendar and rules as booking (shared since 4a). Exactly one instance
+            renders at a time -- the component uses literal element ids, so one calendar per row
+            would collide, and the stage gate below keeps it that way.
+
+            Phase 4c (2026-08-05): the calendar shows only while a date still needs choosing.
+            Picking has no server effect; the Confirm button below is what commits the date and
+            emails both sides.
+          -->
+          @if (isReschedule(m.row) && stage(m.row) === 'needs-date') {
+            <app-availability-calendar
+              [locationId]="m.row.appointmentLocationId ?? null"
+              [appointmentTypeId]="m.row.appointmentTypeId ?? null"
+              [typeChosen]="true"
+              [selectedDate]="chosenDate()"
+              [selectedTime]="chosenTime()"
+              [dateLabel]="requestedSlotLabel(m.row) ? 'Change date to' : 'New appointment date'"
+              timeLabel="New appointment time"
+              noSlotsMessage="No available slots for this location and appointment type."
+              minimumBookingRuleMessage="Appointments must be at least 3 days from today."
+              (slotSelected)="onSlotSelected($event)"
+              (dateCleared)="onDateCleared()"
+            />
+
+            @if (needsAdminReason(m.row)) {
+              <div class="ra-field col-12" style="margin-bottom: 12px">
+                <!-- Literal id + for, matching the repo convention. Only one approve modal is
+                     open at a time, so a literal id cannot collide. -->
+                <label for="cr-admin-reschedule-reason">
+                  Why are you changing the requested date?
+                  <span class="req">*</span>
+                </label>
+                <textarea
+                  id="cr-admin-reschedule-reason"
+                  class="ra-input"
+                  rows="3"
+                  maxlength="2000"
+                  [ngModel]="adminReason()"
+                  (ngModelChange)="adminReason.set($event)"
+                  placeholder="The requester sees this explanation."
+                ></textarea>
+              </div>
+            }
+
+            <div class="ra-modal__foot" style="padding: 0; border: 0; margin-bottom: 4px">
+              <button
+                class="af-btn af-btn--blue"
+                type="button"
+                [disabled]="isBusy() || !canConfirm(m.row)"
+                (click)="confirmDate()"
+              >
+                {{ isBusy() ? 'Sending...' : 'Confirm date &amp; request consent' }}
+              </button>
+            </div>
+          }
+
+          <!--
+            Phase 4c: a round is open on a confirmed date. Both sides' answers are shown because
+            "who are we waiting on" is the only question staff have at this point.
+          -->
+          @if (isReschedule(m.row) && stage(m.row) !== 'needs-date') {
+            <div class="ra-note" style="margin-bottom: 14px">
+              <span class="i"><app-icon name="calendar" [size]="15" /></span>
+              <span>
+                Proposed date:
+                <b>{{ confirmedSlotLabel(m.row) ?? 'unknown' }}</b>
+                @if (m.row.currentConsentRoundNumber; as roundNo) {
+                  <span style="color: var(--n-500)">(round {{ roundNo }})</span>
+                }
+                <br />
+                Patient / applicant side:
+                <b>{{ sideAConsentLabel(m.row) }}</b>
+                &middot; Defense / claim-examiner side:
+                <b>{{ sideBConsentLabel(m.row) }}</b>
+              </span>
+            </div>
+          }
+
+          <!--
+            Item K (2026-08-22): the one place where clicking Approve really does approve. Both
+            sides have agreed, so this states plainly what the click will do before it is made --
+            the earlier stages never showed anything like this, which is part of why "Approve" read
+            as the same action at every stage.
+          -->
+          @if (isReschedule(m.row) && stage(m.row) === 'granted') {
+            <div class="ra-note" style="margin-bottom: 14px">
+              <span class="i"><app-icon name="check" [size]="15" /></span>
+              <span>
+                Both sides have agreed. Approving now moves the appointment to
+                <b>{{ confirmedSlotLabel(m.row) ?? 'the confirmed date' }}</b>
+                and notifies everyone. This is the step that actually reschedules it.
+              </span>
+            </div>
+          }
+
+          @if (isReschedule(m.row) && stage(m.row) === 'awaiting-consent') {
+            <div class="ra-note warn" style="margin-bottom: 14px">
+              <span class="i"><app-icon name="alert" [size]="15" /></span>
+              <span>
+                Waiting for both sides to agree before this can be finalized. Resending sends a
+                fresh link, which stops the previously emailed link from working.
+              </span>
+            </div>
+            <div class="ra-modal__foot" style="padding: 0; border: 0; margin-bottom: 4px">
+              <button
+                class="af-btn af-btn--ghost"
+                type="button"
+                [disabled]="isBusy()"
+                (click)="resendConsent()"
+              >
+                {{ isBusy() ? 'Sending...' : 'Resend consent request' }}
+              </button>
+            </div>
+          }
+
+          <div class="ra-field col-12">
+            <label>Billing outcome</label>
+            <select class="ra-input" [ngModel]="outcome()" (ngModelChange)="outcome.set($event)">
+              @for (opt of outcomeOptions(m.row); track opt.value) {
+                <option [ngValue]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+          @if (consentNote(m.row); as note) {
+            <div class="ra-note warn" style="margin-top: 12px">
+              <span class="i"><app-icon name="alert" [size]="15" /></span>
+              <span>{{ note }}</span>
+            </div>
+          }
+        </div>
+        <div class="ra-modal__foot">
+          <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+          <button
+            class="af-btn af-btn--green"
+            type="button"
+            [disabled]="
+              isBusy() ||
+              outcome() === null ||
+              approveBlocked(m.row) ||
+              (isReschedule(m.row) && !canFinalize(m.row))
+            "
+            (click)="confirmApprove()"
+          >
+            <app-icon name="check" [size]="15" />
+            {{ isBusy() ? 'Approving…' : 'Approve' }}
+          </button>
+        </div>
+      } @else {
+        <div class="ra-modal__head">
+          <h3>Reject {{ isReschedule(m.row) ? 'reschedule' : 'cancellation' }}</h3>
+          <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+            <app-icon name="x" [size]="17" />
+          </button>
+        </div>
+        <div class="ra-modal__body">
+          <div class="ra-field col-12">
+            <label>
+              Rejection reason
+              <span class="req">*</span>
+            </label>
+            <textarea
+              class="ra-input"
+              rows="4"
+              maxlength="500"
+              [ngModel]="reason()"
+              (ngModelChange)="reason.set($event)"
+              placeholder="Explain why — the requester sees this message."
+            ></textarea>
+            <div class="ra-hint" style="text-align: right">{{ reason().length }}/500</div>
+          </div>
+        </div>
+        <div class="ra-modal__foot">
+          <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+          <button
+            class="af-btn af-btn--primary"
+            type="button"
+            [disabled]="isBusy() || !reason().trim()"
+            (click)="confirmReject()"
+          >
+            <app-icon name="x" [size]="15" />
+            {{ isBusy() ? 'Rejecting…' : 'Reject' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

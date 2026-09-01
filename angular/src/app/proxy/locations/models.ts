@@ -16,41 +16,44 @@ export interface GetLocationsInput extends PagedAndSortedResultRequestDto {
 
 export interface LocationCreateDto {
   name: string;
+  facilityId: string;
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
   parkingFee?: number;
   isActive?: boolean;
   stateId?: string | null;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
 }
 
 export interface LocationDto extends FullAuditedEntityDto<string> {
   name?: string;
+  facilityId?: string;
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
   parkingFee?: number;
   isActive?: boolean;
   stateId?: string | null;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
   concurrencyStamp?: string;
 }
 
 export interface LocationUpdateDto {
   name: string;
+  facilityId: string;
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
   parkingFee?: number;
   isActive?: boolean;
   stateId?: string | null;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
   concurrencyStamp?: string;
 }
 
 export interface LocationWithNavigationPropertiesDto {
   location?: LocationDto;
   state?: StateDto | null;
-  appointmentType?: AppointmentTypeDto | null;
+  appointmentTypes?: AppointmentTypeDto[];
 }

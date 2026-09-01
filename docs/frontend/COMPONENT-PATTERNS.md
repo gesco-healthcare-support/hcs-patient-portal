@@ -1,5 +1,7 @@
 # Component Patterns
 
+> Purpose: Describes the two Angular component patterns (ABP Suite abstract/concrete and custom hand-written) used across the patient portal frontend. Audience: frontend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Frontend](./) > Component Patterns
 
 ## Overview
@@ -138,6 +140,7 @@ These components are hand-written and do not follow the abstract/concrete patter
 | `TopHeaderNavbarComponent` | `shared/components/top-header-navbar/` | Custom header for external users |
 | `HomeComponent` | `home/home.component.ts` | Landing page with role-based rendering |
 | `DashboardComponent` | `dashboard/dashboard.component.ts` | Admin dashboard |
+| `AppointmentPacketComponent` | `appointment-packet/appointment-packet.component.ts` | Per-kind packet status display with download and regenerate actions; polls every 5 s while any packet is Generating |
 
 ## Shared Components
 
@@ -182,10 +185,10 @@ All of the following use the full abstract/concrete generation pattern:
 - Appointment Statuses
 - Appointment Languages
 - Applicant Attorneys
+- Defense Attorneys
 
 ---
 
 **Related Documentation:**
 - [Angular Architecture](ANGULAR-ARCHITECTURE.md)
 - [ABP Framework](../architecture/ABP-FRAMEWORK.md)
-- [Proxy Services](PROXY-SERVICES.md)

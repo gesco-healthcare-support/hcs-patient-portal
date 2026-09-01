@@ -1,5 +1,7 @@
 # User Roles and Actors
 
+> Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Business Domain](./) > User Roles & Actors
 
 ## Overview
@@ -178,11 +180,53 @@ This pattern allows fine-grained, per-appointment access control without grantin
 
 ---
 
+## External Layout Roles
+
+All four external roles share the same simplified portal layout (no LeptonX sidebar; custom
+`TopHeaderNavbarComponent` replaces the LeptonX topbar):
+
+| Role                   | Gets external layout |
+|------------------------|:--------------------:|
+| **Patient**            | Y                    |
+| **Applicant Attorney** | Y                    |
+| **Defense Attorney**   | Y                    |
+| **Claim Examiner**     | Y                    |
+
+This is enforced in two places in the Angular app (both verified against code on main):
+
+- `angular/src/app/shared/auth/external-user-roles.ts` -- `EXTERNAL_USER_ROLES` constant
+  lists all four role names; `hasOnlyExternalRoles` (routing guard) and `hasAnyExternalRole`
+  (CSS toggle) both operate on this constant.
+- `angular/src/app/home/home.component.ts` -- `isPatientUser` getter explicitly includes
+  all four: `'patient'`, `'applicant attorney'`, `'defense attorney'`, `'claim examiner'`.
+
+Note: the code snippets in [Role-Based UI](../frontend/ROLE-BASED-UI.md) show only three
+roles in some inline snippets; those snippets are stale. The canonical source is
+`external-user-roles.ts` and the `isPatientUser` getter above.
+
+---
+
 ## External User Lookup
 
-The `ExternalSignupAppService.GetExternalUserLookupAsync` method provides a lookup of all external users, filtered to the roles: Patient, Applicant Attorney, and Defense Attorney. This is used in the UI when assigning appointment accessors or booking on behalf of another user.
+`ExternalSignupAppService.GetExternalUserLookupAsync(filter)` is a SEARCH: a typed term is
+required (a blank filter returns nothing -- never an enumerable list of every tenant user).
+It covers all four external roles (**Patient, Applicant Attorney, Defense Attorney, Claim
+Examiner**), but the result set is scoped by the caller:
 
-The `GetMyProfileAsync` method allows authenticated external users to retrieve their own profile, including their assigned role.
+- **Internal staff** (admin / Intake Staff / Staff Supervisor / Doctor) search the whole
+  tenant.
+- **External callers** see ONLY their co-parties -- the parties named on appointments the
+  caller can already see (`AppointmentVisibilityService` + `ExternalCoPartyRules`). This is
+  a HIPAA boundary: an external user must not enumerate parties on cases they are not on.
+
+(History: the old "D-2" decision restricted the roles to Patient + Applicant Attorney;
+reversed 2026-06-22 because the four roles are capability-equal. A second pass the same day
+added the co-party scoping so external callers cannot enumerate strangers.) The lookup
+feeds the booking/accessor pickers as a search bar, like the patient lookup.
+
+The `GetMyProfileAsync` method allows authenticated external users to retrieve their own
+profile, including their assigned role. Role resolution covers all four external roles
+(Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
 
 ---
 

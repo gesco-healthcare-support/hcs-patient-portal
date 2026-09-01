@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 
@@ -14,6 +15,7 @@ public class AppointmentEmployerDetailCreateDto
     public string Occupation { get; set; } = null!;
 
     [StringLength(AppointmentEmployerDetailConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(AppointmentEmployerDetailConsts.StreetMaxLength)]

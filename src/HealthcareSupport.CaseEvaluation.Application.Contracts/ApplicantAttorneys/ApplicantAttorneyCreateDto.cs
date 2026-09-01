@@ -1,11 +1,19 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 
 public class ApplicantAttorneyCreateDto
 {
+    // BUG-042 / UM4 (2026-06-05): First/Last name are first-class persisted fields.
+    [StringLength(ApplicantAttorneyConsts.FirstNameMaxLength)]
+    public string? FirstName { get; set; }
+
+    [StringLength(ApplicantAttorneyConsts.LastNameMaxLength)]
+    public string? LastName { get; set; }
+
     [StringLength(ApplicantAttorneyConsts.FirmNameMaxLength)]
     public string? FirmName { get; set; }
 
@@ -15,10 +23,15 @@ public class ApplicantAttorneyCreateDto
     [StringLength(ApplicantAttorneyConsts.WebAddressMaxLength)]
     public string? WebAddress { get; set; }
 
+    [StringLength(ApplicantAttorneyConsts.EmailMaxLength)]
+    public string? Email { get; set; }
+
     [StringLength(ApplicantAttorneyConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(ApplicantAttorneyConsts.FaxNumberMaxLength)]
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
 
     [StringLength(ApplicantAttorneyConsts.StreetMaxLength)]
@@ -32,5 +45,6 @@ public class ApplicantAttorneyCreateDto
 
     public Guid? StateId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // UM4 (2026-06-05): optional -- record-based; identity linked later by email.
+    public Guid? IdentityUserId { get; set; }
 }

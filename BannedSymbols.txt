@@ -1,0 +1,28 @@
+; OBS-14 Scriban-avoidance guard (added 2026-05-22).
+;
+; ABP 10.0.2 ships expecting Scriban 6.3.0; we pin Scriban to 7.2.0 to clear
+; NuGetAudit CVEs. The 7.x ParserOptions layout differs from 6.x, so any code
+; path that resolves ABP's Scriban-backed ITemplateRenderer throws
+; System.TypeLoadException at runtime.
+;
+; This file bans direct use of the Scriban types and ABP's Scriban integration
+; namespace. New email surfaces must render via
+; HealthcareSupport.CaseEvaluation.Notifications.TemplateVariableSubstitutor
+; (##Var## placeholders against the DB-backed NotificationTemplate aggregate).
+;
+; See Directory.Build.props lines 37-72 and
+; docs/runbooks/findings/bugs/OBS-14-auth-vs-api-email-split.md for the full
+; rationale and the alternative pipeline.
+;
+; Format reference:
+; https://github.com/dotnet/roslyn-analyzers/blob/main/docs/Microsoft.CodeAnalysis.BannedApiAnalyzers.md
+
+; --- Scriban core types ---
+T:Scriban.Template; Use HealthcareSupport.CaseEvaluation.Notifications.TemplateVariableSubstitutor instead. ABP 10.x targets Scriban 6.3.0; we pin Scriban to 7.2.0 for CVE patches and the ParserOptions layout differs, so Scriban.Template throws System.TypeLoadException when invoked through ABP's renderer. See OBS-14.
+T:Scriban.TemplateContext; Use TemplateVariableSubstitutor. See OBS-14.
+T:Scriban.Parsing.ParserOptions; Scriban 7.x ParserOptions is binary-incompatible with the layout ABP 10.x's TextTemplating.Scriban expects -- referencing it is a footgun. Use TemplateVariableSubstitutor. See OBS-14.
+
+; --- ABP's Scriban integration ---
+T:Volo.Abp.TextTemplating.Scriban.ScribanTemplateRenderingProvider; ABP's Scriban renderer will TypeLoad-throw at runtime under our Scriban 7.x pin. Use TemplateVariableSubstitutor. See OBS-14.
+T:Volo.Abp.TextTemplating.Scriban.AbpScribanModule; Do not depend on AbpScribanModule. Use TemplateVariableSubstitutor. See OBS-14.
+N:Volo.Abp.TextTemplating.Scriban; Entire ABP Scriban namespace banned. Any addition by ABP in future releases is also off-limits while the Scriban 6 -> 7 ParserOptions break is unresolved. Use TemplateVariableSubstitutor. See OBS-14.

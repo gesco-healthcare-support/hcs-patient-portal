@@ -1,5 +1,7 @@
 # Doctor Availability
 
+> Purpose: Describes the DoctorAvailability slot model, booking status lifecycle, bulk generation, and relationship to appointments. Audience: developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Business Domain](./) > Doctor Availability
 
 ## Overview

@@ -5,10 +5,11 @@ export const APPLICANT_ATTORNEY_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/applicant-attorney.component').then(
-        (c) => c.ApplicantAttorneyComponent,
+      return import('../../people/internal-people.component').then(
+        (c) => c.InternalPeopleComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'aa', requiredPolicy: 'CaseEvaluation.ApplicantAttorneys' },
   },
 ];

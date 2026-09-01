@@ -23,13 +23,13 @@ public class AppointmentApplicantAttorney : FullAuditedAggregateRoot<Guid>, IMul
 
     public Guid ApplicantAttorneyId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    public Guid? IdentityUserId { get; set; }
 
     protected AppointmentApplicantAttorney()
     {
     }
 
-    public AppointmentApplicantAttorney(Guid id, Guid appointmentId, Guid applicantAttorneyId, Guid identityUserId)
+    public AppointmentApplicantAttorney(Guid id, Guid appointmentId, Guid applicantAttorneyId, Guid? identityUserId)
     {
         Id = id;
         AppointmentId = appointmentId;

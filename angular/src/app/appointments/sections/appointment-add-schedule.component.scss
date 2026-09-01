@@ -1,0 +1,25 @@
+// #13 (2026-06-17): appointment-date day-template highlight. Lives here, beside
+// the [dayTemplate] that emits these classes, so it loads on every form that
+// embeds this schedule section. (The redesigned wizard does not load the legacy
+// appointment-add stylesheet, so available dates previously showed no highlight
+// even though the .available-day class was applied.) ::ng-deep is required: the
+// classes land on spans the ngbDatepicker renders outside this component's
+// emulated style scope.
+::ng-deep .appointment-date-day {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
+
+::ng-deep .appointment-date-day.outside-month {
+  opacity: 0.4;
+}
+
+::ng-deep .appointment-date-day.available-day {
+  background-color: #198754;
+  color: #fff;
+  font-weight: 600;
+}

@@ -1,0 +1,377 @@
+# Production compose for the in-house LAN deployment (2026-07-09).
+#
+# Differs from docker-compose.yml (dev) in every way that matters for hosting:
+#   - builds the `prod` image target of each service (published output on the small
+#     aspnet/nginx runtime), NOT the bind-mounted dev target
+#   - no source bind-mounts; images are self-contained
+#   - restart: unless-stopped so the stack survives crashes + host reboots
+#   - persistent named volumes for ALL state (SQL incl. every per-office DB, MinIO,
+#     Redis AOF) so data + DataProtection keys survive restarts (G5)
+#   - a TLS-terminating nginx reverse proxy is the ONLY host-published service (443/80);
+#     every backend is reachable only on the internal docker network
+#   - ASPNETCORE_ENVIRONMENT=Production for the app services (runs the never-before-run
+#     prod code path: openiddict.pfx cert, RequireHttpsMetadata, SetIssuer -- see G6/G8)
+#
+# Secrets come ONLY from the git-ignored secrets/env.prod (see env.prod.example); nothing
+# secret is committed or baked into an image. Bring up with:
+#   docker compose -f docker-compose.prod.yml --env-file secrets/env.prod up -d --build
+# For the CHECKPOINT 1 local-seed run (Option A), add the override:
+#   -f docker-compose.prod.yml -f docker-compose.prod.localseed.yml
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  sql-server:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    # T6: cap the container so SQL cannot starve the app tier on the 16 GB box.
+    mem_limit: ${SQL_MEM_LIMIT:-10g}
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      ACCEPT_EULA: "Y"
+      # Developer edition is licensed for dev/test (this LAN box is UAT). Switch to a
+      # licensed edition (Express/Standard) before any real-patient production use.
+      MSSQL_PID: "Developer"
+      # T6: hard-cap SQL's total process memory (honored by the mssql image). Unset,
+      # SQL grabs ~80% of host RAM (~12.8 GB of 16) and starves the app tier.
+      MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-7168}"
+    volumes:
+      - sqldata:/var/opt/mssql
+      # T13: BACKUP DATABASE writes .bak here; bind-mounted to the configurable host destination
+      # (a network share on the server). The .bak files contain PHI -- keep the dest off-box.
+      - "${BACKUP_DIR:-./backups}:/var/opt/mssql/backups"
+    logging: *default-logging
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -C -b -o /dev/null
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 512m
+    # AOF persistence: the DataProtection keyring (login + email-confirmation tokens,
+    # shared across the authserver + api containers) MUST survive restarts, else every
+    # deploy/reboot logs everyone out and breaks pending confirmation links (G5).
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+    volumes:
+      - miniodata:/data
+    logging: *default-logging
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:9000/minio/health/live || exit 1",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+      # Space-separated so a new bucket is one edit here rather than a hand-made
+      # artifact nobody can reproduce. The Case Tracker bucket (2026-08-13) holds
+      # what THEIR staff upload against a case; ours holds packets and uploads.
+      BUCKET_NAMES: "${MINIO_BUCKET_NAME:-case-evaluation-documents} ${MINIO_CASE_TRACKER_BUCKET_NAME:-case-tracker-documents}"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        for bucket in $$BUCKET_NAMES; do
+          if ! mc ls "local/$$bucket" >/dev/null 2>&1; then
+            mc mb "local/$$bucket"
+            echo "Created bucket: $$bucket"
+          else
+            echo "Bucket exists: $$bucket"
+          fi
+        done
+    restart: "no"
+
+  packet-renderer:
+    build:
+      context: .
+      dockerfile: docker/packet-renderer/Dockerfile
+    restart: unless-stopped
+    mem_limit: ${PACKET_RENDERER_MEM_LIMIT:-1500m}
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db-migrator:
+    build:
+      context: .
+      dockerfile: src/HealthcareSupport.CaseEvaluation.DbMigrator/Dockerfile
+      target: prod
+      args:
+        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+    # One-shot: applies EF migrations + runs seed contributors, then exits. Production
+    # by default (no test-data seeding). The local-seed override flips
+    # DBMIGRATOR_ENVIRONMENT=Development to seed the sample offices + it.admin@hcs.test
+    # into the volume for the CHECKPOINT 1 fast path (Option A).
+    environment:
+      DOTNET_ENVIRONMENT: "${DBMIGRATOR_ENVIRONMENT:-Production}"
+      AbpLicenseCode: "${ABP_LICENSE_CODE}"
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Redis__Configuration: redis
+      OpenIddict__Applications__CaseEvaluation_App__RootUrl: "https://${BASE_DOMAIN}"
+      OpenIddict__Applications__CaseEvaluation_App__ClientId: "CaseEvaluation_App"
+      OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "https://api.${BASE_DOMAIN}"
+      OpenIddict__Applications__CaseEvaluation_Swagger__ClientId: "CaseEvaluation_Swagger"
+      BlobStoring__Minio__Endpoint: "minio:9000"
+      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
+      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      BlobStoring__Minio__WithSsl: "false"
+      BlobStoring__Minio__CreateBucketIfNotExists: "true"
+    depends_on:
+      sql-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: "no"
+    logging: *default-logging
+
+  authserver:
+    build:
+      context: .
+      dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
+      target: prod
+      args:
+        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+    restart: unless-stopped
+    mem_limit: ${AUTHSERVER_MEM_LIMIT:-1500m}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      AbpLicenseCode: "${ABP_LICENSE_CODE}"
+      App__SelfUrl: "https://auth.${BASE_DOMAIN}"
+      App__AngularUrl: "https://${BASE_DOMAIN}"
+      App__CorsOrigins: "https://*.${BASE_DOMAIN}"
+      App__HealthUiCheckUrl: "http://localhost:8080/health-status"
+      # G1: per-service host template so the resolver reads the office from the Host.
+      App__TenantDomainFormat: "{0}.auth.${BASE_DOMAIN}"
+      # OpenIddict wildcard redirect/logout URIs for every office subdomain.
+      App__WildcardDomainsFormat__0: "https://{0}.${BASE_DOMAIN}"
+      App__WildcardDomainsFormat__1: "https://{0}.auth.${BASE_DOMAIN}"
+      App__WildcardDomainsFormat__2: "https://{0}.api.${BASE_DOMAIN}"
+      AuthServer__Authority: "https://auth.${BASE_DOMAIN}"
+      AuthServer__RequireHttpsMetadata: "true"
+      # G6: passphrase for the openiddict.pfx mounted below. NEVER hardcode.
+      AuthServer__CertificatePassPhrase: "${AUTHSERVER_CERT_PASSPHRASE}"
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Redis__Configuration: redis
+      Redis__IsEnabled: "true"
+      StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+      BlobStoring__Minio__Endpoint: "minio:9000"
+      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
+      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      BlobStoring__Minio__WithSsl: "false"
+      BlobStoring__Minio__CreateBucketIfNotExists: "true"
+      # SMTP / email (in-house relay). Production overrides the appsettings.json
+      # REPLACE_ME_LOCALLY placeholders (values from secrets/env.prod); the host reads
+      # these as ABP settings Settings:Abp.Mailing.*. Without them Production would try to
+      # deliver with placeholder credentials. Port 587 + STARTTLS is the tested path.
+      Settings__Abp.Mailing.DefaultFromAddress: "${SMTP_FROM_ADDRESS}"
+      Settings__Abp.Mailing.DefaultFromDisplayName: "${SMTP_FROM_NAME:-Gesco Appointment Portal}"
+      Settings__Abp.Mailing.Smtp.Host: "${SMTP_HOST}"
+      Settings__Abp.Mailing.Smtp.Port: "${SMTP_PORT:-587}"
+      Settings__Abp.Mailing.Smtp.EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      Settings__Abp.Mailing.Smtp.UseDefaultCredentials: "false"
+      Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
+      Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
+    volumes:
+      # G6: OpenIddict token-signing cert mounted read-only at the content root. NEVER
+      # baked into the image. Generate with scripts/hosting/gen-openiddict-cert.sh.
+      - "${OPENIDDICT_PFX_PATH}:/app/openiddict.pfx:ro"
+    depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    logging: *default-logging
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  api:
+    build:
+      context: .
+      dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
+      target: prod
+      args:
+        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+    restart: unless-stopped
+    mem_limit: ${API_MEM_LIMIT:-2g}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      AbpLicenseCode: "${ABP_LICENSE_CODE}"
+      App__SelfUrl: "https://api.${BASE_DOMAIN}"
+      App__AngularUrl: "https://${BASE_DOMAIN}"
+      App__CorsOrigins: "https://*.${BASE_DOMAIN}"
+      App__HealthUiCheckUrl: "http://localhost:8080/health-status"
+      App__TenantDomainFormat: "{0}.api.${BASE_DOMAIN}"
+      AuthServer__Authority: "https://auth.${BASE_DOMAIN}"
+      # Split-horizon: reach the AuthServer for OIDC discovery over the internal
+      # network, but validate tokens against the public issuer (see IssuerValidator).
+      AuthServer__MetaAddress: "http://authserver:8080"
+      AuthServer__RequireHttpsMetadata: "true"
+      PacketRenderer__Url: "http://packet-renderer:3001"
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Redis__Configuration: redis
+      Redis__IsEnabled: "true"
+      StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+      BlobStoring__Minio__Endpoint: "minio:9000"
+      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
+      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      BlobStoring__Minio__WithSsl: "false"
+      BlobStoring__Minio__CreateBucketIfNotExists: "true"
+      # SMTP / email (in-house relay). Production overrides the appsettings.json
+      # REPLACE_ME_LOCALLY placeholders (values from secrets/env.prod); the host reads
+      # these as ABP settings Settings:Abp.Mailing.*. Without them Production would try to
+      # deliver with placeholder credentials. Port 587 + STARTTLS is the tested path.
+      Settings__Abp.Mailing.DefaultFromAddress: "${SMTP_FROM_ADDRESS}"
+      Settings__Abp.Mailing.DefaultFromDisplayName: "${SMTP_FROM_NAME:-Gesco Appointment Portal}"
+      Settings__Abp.Mailing.Smtp.Host: "${SMTP_HOST}"
+      Settings__Abp.Mailing.Smtp.Port: "${SMTP_PORT:-587}"
+      Settings__Abp.Mailing.Smtp.EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      Settings__Abp.Mailing.Smtp.UseDefaultCredentials: "false"
+      Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
+      Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
+      # Case Tracker integration (2026-07-30). Read via IConfiguration by
+      # CaseTrackerClient and IntegrationTokenValidator, NOT as ABP settings -- the master
+      # on/off switch is a per-office ABP setting, but the endpoint and the credentials are
+      # environment config. Both are deliberately left EMPTY by default: an unset BaseUrl
+      # leaves the typed HttpClient with no base address so a misconfigured deploy fails as
+      # a transport error the outbox records, whereas a wrong-but-plausible default could
+      # POST ePHI at the wrong host. Values live in secrets/env.prod, never in the repo.
+      #
+      # IntakeToken = the token THEY issue to us, sent as X-Intake-Token on every push.
+      # IntegrationToken = the token WE issue to them, required on the reconcile GET; the
+      # validator fails CLOSED when it is unset, so leaving it blank refuses every reconcile
+      # request rather than serving PHI.
+      CaseTracker__BaseUrl: "${CASE_TRACKER_BASE_URL:-}"
+      CaseTracker__IntakeToken: "${CASE_TRACKER_INTAKE_TOKEN:-}"
+      CaseTracker__IntegrationToken: "${CASE_TRACKER_INTEGRATION_TOKEN:-}"
+      CaseTracker__TimeoutSeconds: "${CASE_TRACKER_TIMEOUT_SECONDS:-30}"
+    depends_on:
+      db-migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      packet-renderer:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    logging: *default-logging
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  angular:
+    build:
+      context: ./angular
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        # Prod optimizations + environment.prod.ts as the baked fallback; the runtime
+        # prod-dynamic-env.envsh overwrites dynamic-env.json from the env vars below.
+        NG_CONFIG: production
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      APP_BASE_HOST: "${BASE_DOMAIN}"
+      APP_SPA_BASE_URL: "https://${BASE_DOMAIN}"
+      APP_AUTH_URL: "https://auth.${BASE_DOMAIN}"
+      APP_API_URL: "https://api.${BASE_DOMAIN}"
+      APP_NAME: "${APP_NAME:-Appointment Portal}"
+      APP_REQUIRE_HTTPS: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  reverse-proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      # Substituted into default.conf.template by the nginx image's envsubst (only
+      # defined env vars are substituted, so nginx's $host/$scheme are preserved).
+      BASE_DOMAIN: "${BASE_DOMAIN}"
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx-proxy/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - "${TLS_CERT_PATH}:/etc/nginx/certs/wildcard.crt:ro"
+      - "${TLS_KEY_PATH}:/etc/nginx/certs/wildcard.key:ro"
+    depends_on:
+      authserver:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      angular:
+        condition: service_started
+    logging: *default-logging
+
+volumes:
+  sqldata:
+  redisdata:
+  miniodata:

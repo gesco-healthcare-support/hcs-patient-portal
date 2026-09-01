@@ -1,41 +1,67 @@
-# EntityFrameworkCore Layer
+# EntityFrameworkCore -- DbContexts, migrations, custom repos
 
-EF Core DbContext definitions, migrations, and custom repository implementations. This is the only project that touches SQL Server directly.
+EF Core persistence layer. Only project that touches SQL Server directly.
 
 ## What Lives Here
 
-- `EntityFrameworkCore/CaseEvaluationDbContext.cs` -- the main context (`MultiTenancySides.Both`), used by the host side for both host-only and tenant tables
-- `EntityFrameworkCore/CaseEvaluationTenantDbContext.cs` -- tenant-only context used inside tenant sessions
-- `Migrations/` -- EF Core code-first migrations
-- One folder per feature (e.g. `Appointments/`, `Doctors/`) with custom repository implementations
+- `EntityFrameworkCore/CaseEvaluationDbContext.cs` -- host context (`MultiTenancySides.Both`); all entity `OnModelCreating` config is inline here
+- `EntityFrameworkCore/CaseEvaluationTenantDbContext.cs` -- tenant context (`MultiTenancySides.Tenant`); entity config duplicated verbatim for every both-side entity
+- `EntityFrameworkCore/CaseEvaluationEntityFrameworkCoreModule.cs` -- registers DbContexts and custom repos via `options.AddRepository<>`
+- `Migrations/` -- code-first migrations; see docs/database/MIGRATION-GUIDE.md for the `dotnet ef` command and required project flags
+- `{Feature}/EfCore{Entity}Repository.cs` -- custom repo impl per feature
 
 ## Conventions
 
-1. **Dual DbContext.** `CaseEvaluationDbContext` covers both host and tenant tables; `CaseEvaluationTenantDbContext` is scoped to tenant-only data. Host-only entity configurations must be guarded with `if (builder.IsHostDatabase())` so they do not attempt to create tables in the tenant DB. See [ADR-003](../../docs/decisions/003-dual-dbcontext-host-tenant.md).
-2. **Repositories use explicit LINQ joins, not navigation properties.** The `{Entity}WithNavigationPropertiesDto` pattern is populated by custom repository methods that compose joined LINQ queries. This avoids the lazy-loading and projection pitfalls of ABP's default repository.
-3. **Migrations are added from the repo root**:
-   ```bash
-   dotnet ef migrations add <MigrationName> \
-     --project src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore \
-     --startup-project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
-   ```
-4. **The DbMigrator applies migrations and seeds**. Do not rely on runtime `EnsureCreated()` or `Migrate()` calls -- run `dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator` before starting services.
-5. **`IMultiTenant` filter is automatic.** Do not add manual `WHERE TenantId = X` predicates to tenant-scoped entities -- ABP applies the filter transparently. Exception: the `Patient` entity does NOT implement `IMultiTenant`, so its queries must manually include `TenantId` -- see [DATA-FLOWS.md](../../docs/security/DATA-FLOWS.md#cross-tenant-phi-risk-critical).
+### Dual-context entity config (IMPORTANT)
 
-## Key Files
+Every entity that lives in both the host DB and the tenant DB must have its `OnModelCreating`
+block duplicated verbatim in `CaseEvaluationTenantDbContext`. Adding a both-side entity
+requires edits in both files. Host-only entities (e.g. `Location`, `WcabOffice`,
+`AppointmentType`, `AppointmentStatus`, `AppointmentLanguage`, `State`, `Patient`, `Doctor`)
+are wrapped in `if (builder.IsHostDatabase())` in the host context and have NO block in the
+tenant context. See docs/decisions/003-dual-dbcontext-host-tenant.md.
 
-| File | Purpose |
-|------|---------|
-| `EntityFrameworkCore/CaseEvaluationDbContext.cs` | Host-side context; `MultiTenancySides.Both` |
-| `EntityFrameworkCore/CaseEvaluationTenantDbContext.cs` | Tenant-only context |
-| `EntityFrameworkCore/CaseEvaluationDbContextModelCreatingExtensions.cs` | Entity configuration (OnModelCreating) |
-| `Migrations/` | Code-first migrations; add via `dotnet ef migrations add` |
-| `{Feature}/Efcore{Entity}Repository.cs` | Custom repository implementations per feature |
+### Patient is NOT IMultiTenant -- PHI leak risk (IMPORTANT)
 
-## Related Docs
+`Patient` does not implement `IMultiTenant`, so ABP's automatic tenant filter does NOT apply.
+Every `Patient` query in a custom repository MUST add `.Where(p => p.TenantId == currentTenantId)`
+manually. Omitting this filter exposes PHI across tenants. See docs/security/DATA-FLOWS.md.
 
-- [Root CLAUDE.md](../../CLAUDE.md) -- Database & Migrations section
-- [docs/database/EF-CORE-DESIGN.md](../../docs/database/EF-CORE-DESIGN.md)
-- [docs/database/SCHEMA-REFERENCE.md](../../docs/database/SCHEMA-REFERENCE.md)
-- [docs/architecture/MULTI-TENANCY.md](../../docs/architecture/MULTI-TENANCY.md)
-- [ADR-003: Dual DbContext](../../docs/decisions/003-dual-dbcontext-host-tenant.md)
+### Repo registration
+
+A new `IRepository<T>` for a custom type requires both:
+1. An `EfCore{Entity}Repository` class in the appropriate feature folder.
+2. An `options.AddRepository<T, EfCore{Entity}Repository>()` call in the module.
+
+Missing step 2 means DI resolves the untyped default repo, bypassing your custom joins.
+`CaseEvaluationTenantDbContext` uses only `AddDefaultRepositories`.
+
+### AppointmentPacket unique index
+
+The index on `(TenantId, AppointmentId, Kind)` carries the filter
+`[IsDeleted] = 0 AND [TenantId] IS NOT NULL`. Both conditions are required:
+- `IsDeleted = 0` -- lets a soft-deleted row be replaced by a regenerated INSERT (BUG-036).
+- `TenantId IS NOT NULL` -- excludes any host-scoped test rows from the constraint.
+This index is declared in both DbContexts.
+
+### Navigation property pattern
+
+Custom repo methods use explicit LINQ joins, not navigation properties, to populate
+`{Entity}WithNavigationPropertiesDto`. This avoids lazy-loading and projection pitfalls.
+
+## Gotchas
+
+- `CaseEvaluationDbContextModelCreatingExtensions.cs` does NOT exist. All entity config is
+  inline in `OnModelCreating` in each DbContext file -- do not create or reference that class.
+- Filtered indexes (`HasFilter(...)`) are SQL Server syntax; they silently become no-ops on
+  SQLite-backed test runners. Verify constraint behavior against SQL Server for uniqueness rules.
+- Doctor has a filtered unique index on `TenantId` (`[TenantId] IS NOT NULL AND [IsDeleted] = 0`)
+  enforcing one-doctor-per-tenant. It is declared in both DbContexts.
+
+## Related
+
+- docs/decisions/003-dual-dbcontext-host-tenant.md
+- docs/security/DATA-FLOWS.md
+- docs/database/EF-CORE-DESIGN.md
+- docs/database/SCHEMA-REFERENCE.md
+- docs/database/MIGRATION-GUIDE.md

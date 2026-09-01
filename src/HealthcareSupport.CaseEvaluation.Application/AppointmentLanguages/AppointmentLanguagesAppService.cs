@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -11,6 +11,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
+using HealthcareSupport.CaseEvaluation.Patients;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 
@@ -20,21 +21,32 @@ public class AppointmentLanguagesAppService : CaseEvaluationAppService, IAppoint
 {
     protected IAppointmentLanguageRepository _appointmentLanguageRepository;
     protected AppointmentLanguageManager _appointmentLanguageManager;
+    protected IRepository<Patient, Guid> _patientRepository;
 
-    public AppointmentLanguagesAppService(IAppointmentLanguageRepository appointmentLanguageRepository, AppointmentLanguageManager appointmentLanguageManager)
+    // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
+    // raw BusinessException reaches the SPA with no message and the toast falls back to
+    // ABP's generic "An internal error occurred during your request!".
+    public AppointmentLanguagesAppService(IAppointmentLanguageRepository appointmentLanguageRepository, AppointmentLanguageManager appointmentLanguageManager, IRepository<Patient, Guid> patientRepository)
     {
         _appointmentLanguageRepository = appointmentLanguageRepository;
         _appointmentLanguageManager = appointmentLanguageManager;
+        _patientRepository = patientRepository;
     }
 
     public virtual async Task<PagedResultDto<AppointmentLanguageDto>> GetListAsync(GetAppointmentLanguagesInput input)
     {
         var totalCount = await _appointmentLanguageRepository.GetCountAsync(input.FilterText);
         var items = await _appointmentLanguageRepository.GetListAsync(input.FilterText, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var dtoItems = ObjectMapper.Map<List<AppointmentLanguage>, List<AppointmentLanguageDto>>(items);
+        // Prompt 15 / item 32: per-row UsageCount = referencing Patient rows.
+        foreach (var dto in dtoItems)
+        {
+            dto.UsageCount = (int)await _patientRepository.CountAsync(p => p.AppointmentLanguageId == dto.Id);
+        }
         return new PagedResultDto<AppointmentLanguageDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<AppointmentLanguage>, List<AppointmentLanguageDto>>(items)
+            Items = dtoItems
         };
     }
 
@@ -46,7 +58,10 @@ public class AppointmentLanguagesAppService : CaseEvaluationAppService, IAppoint
     [Authorize(CaseEvaluationPermissions.AppointmentLanguages.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        await _appointmentLanguageRepository.DeleteAsync(id);
+        // Route through the manager so the system-row + in-use guards apply.
+        // 2026-08-17: the manager raises a bare *.InUse BusinessException. Translate it here
+        // so the client gets the real reason instead of ABP's generic internal-error text.
+        await _appointmentLanguageManager.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentLanguages.Create)]

@@ -1,8 +1,4 @@
-import type {
-  ExtensibleEntityDto,
-  ExtensibleObject,
-  PagedAndSortedResultRequestDto,
-} from '@abp/ng.core';
+import type { ExtensibleEntityDto, ExtensibleObject, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { TenantActivationState } from '../../tenant-activation-state.enum';
 
 export interface SaasTenantDto extends ExtensibleEntityDto<string> {

@@ -1,0 +1,182 @@
+<div class="in" [class.in--collapsed]="collapsed()">
+  <aside class="in-side">
+    <div class="in-side__brand">
+      @if (brandLogo()) {
+        <img class="in-side__crest" [src]="brandLogo()" alt="Management" />
+      } @else {
+        <span class="mark">A</span>
+      }
+      <span class="tt">
+        <b>{{ brandName() }}</b>
+        <span>{{ brandSubtitle() }}</span>
+      </span>
+    </div>
+
+    <nav class="in-nav">
+      @for (group of groups(); track group.sect) {
+        <!-- Only Configuration + People collapse (they sit at the bottom): they
+             render as a real <button> accordion toggle, so Enter/Space activate
+             natively. The operational groups render a static, always-open header.
+             The icon-rail (collapsed) sidebar always shows every item since the
+             accordion makes no sense at 72px. -->
+        @if (group.collapsible) {
+          <button
+            class="in-sect"
+            type="button"
+            [class.open]="isSectionOpen(group.sect)"
+            [attr.aria-expanded]="isSectionOpen(group.sect)"
+            (click)="toggleSection(group.sect)"
+          >
+            <span>{{ group.sect }}</span>
+            <app-icon class="in-sect__chev" name="chevDown" [size]="13" />
+          </button>
+        } @else {
+          <div class="in-sect in-sect--static">
+            <span>{{ group.sect }}</span>
+          </div>
+        }
+        @if (!group.collapsible || collapsed() || isSectionOpen(group.sect)) {
+          @for (item of group.items; track item.id) {
+            <a
+              class="in-link"
+              [class.on]="item.id === activeId()"
+              [class.has-badge]="badgeCount(item.badge) > 0"
+              [routerLink]="item.route"
+              [attr.data-tip]="item.label"
+            >
+              <span class="i"><app-icon [name]="item.icon" [size]="18" /></span>
+              <span class="lbl">{{ item.label }}</span>
+              @if (badgeCount(item.badge) > 0) {
+                <span class="badge">{{ badgeCount(item.badge) }}</span>
+                <span class="pip"></span>
+              }
+            </a>
+          }
+        }
+      }
+    </nav>
+  </aside>
+
+  <div class="in-main">
+    <header class="in-top">
+      <button
+        class="in-collapse"
+        type="button"
+        (click)="toggleCollapse()"
+        aria-label="Toggle sidebar"
+      >
+        <app-icon name="list" [size]="18" />
+      </button>
+
+      <div class="in-crumb">
+        {{ hostScope() ? 'Management' : 'Home' }}
+        <app-icon name="chevRight" [size]="13" />
+        <b>{{ crumb() }}</b>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="in-tenantwrap">
+        @if (switcherOpen()) {
+          <div class="in-clickaway" (click)="closeSwitcher()"></div>
+        }
+        <div
+          class="in-tenant"
+          [class.host]="platform()"
+          [style.cursor]="canSwitch() ? 'pointer' : 'default'"
+          (click)="toggleSwitcher()"
+        >
+          <span class="mk">{{ hostScope() ? 'M' : tenantInitial() }}</span>
+          {{ hostScope() ? 'Management' : (tenantName() | officeName) }}
+          @if (canSwitch()) {
+            <app-icon name="chevDown" [size]="14" />
+          }
+        </div>
+        @if (switcherOpen()) {
+          <div class="in-tenant__pop">
+            @if (hostScope()) {
+              @if (offices().length === 0) {
+                <span class="in-tenant__muted">No offices available.</span>
+              } @else {
+                @for (office of offices(); track office.id) {
+                  <button type="button" (click)="switchInto(office.id)">
+                    <span class="i"><app-icon name="map" [size]="16" /></span>
+                    {{ office.displayName | officeName }}
+                  </button>
+                }
+              }
+            } @else {
+              <!-- F Half 2: single-click office -> office. The in-office switcher lists
+                   the other offices the caller may hop into (every office for a
+                   supervisor, assigned offices for an Intake operator), then the exit
+                   back to host. The custom AuthServer grant re-authorizes each hop
+                   against the original operator. -->
+              @for (office of offices(); track office.id) {
+                <button type="button" [disabled]="switching()" (click)="switchInto(office.id)">
+                  <span class="i"><app-icon name="map" [size]="16" /></span>
+                  {{ office.displayName | officeName }}
+                </button>
+              }
+              @if (offices().length > 0) {
+                <div class="in-tenant__div"></div>
+              }
+              <button type="button" [disabled]="switching()" (click)="backToHost()">
+                <span class="i"><app-icon name="chevLeft" [size]="16" /></span>
+                Management
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- QA item 7: in-app notifications bell (office scope, where notifications
+           exist). Self-contained: badge + dropdown + poll live in the component. -->
+      @if (!hostScope()) {
+        <app-notification-bell />
+      }
+
+      @if (!hostScope()) {
+        <a class="ap-btn ap-btn--primary" routerLink="/appointments/request">
+          <app-icon name="plus" [size]="15" />
+          New appointment
+        </a>
+      }
+
+      <div class="in-acctwrap">
+        @if (acctOpen()) {
+          <div class="in-clickaway" (click)="closeAcct()"></div>
+        }
+        <button
+          class="in-acct"
+          type="button"
+          [attr.aria-expanded]="acctOpen()"
+          (click)="toggleAcct()"
+        >
+          <span class="ava" [style.background]="avatar()">{{ initials() }}</span>
+          <span class="who">
+            <b>{{ userName() }}</b>
+            <span>{{ roleLabel() }}</span>
+          </span>
+          <span class="cv"><app-icon name="chevDown" [size]="14" /></span>
+        </button>
+        @if (acctOpen()) {
+          <div class="in-acct__pop">
+            <a [href]="manageAccountUrl" (click)="closeAcct()">
+              <span class="i"><app-icon name="user" [size]="16" /></span>
+              My account
+            </a>
+            <div class="in-acct__div"></div>
+            <button class="danger" type="button" (click)="signOut()">
+              <span class="i"><app-icon name="logout" [size]="16" /></span>
+              Sign out
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <div class="in-content">
+      <router-outlet />
+    </div>
+  </div>
+</div>

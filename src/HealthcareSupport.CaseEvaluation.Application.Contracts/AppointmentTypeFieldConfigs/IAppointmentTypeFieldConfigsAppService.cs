@@ -20,4 +20,14 @@ public interface IAppointmentTypeFieldConfigsAppService : IApplicationService
     Task<AppointmentTypeFieldConfigDto> UpdateAsync(Guid id, AppointmentTypeFieldConfigUpdateDto input);
 
     Task DeleteAsync(Guid id);
+
+    /// <summary>
+    /// Prompt 15: replace-set batch save of an AppointmentType's field config.
+    /// Rows absent from <paramref name="items"/> are deleted, new field names are
+    /// created, and changed rows are updated -- so the admin saves the whole
+    /// Field Configuration panel in one call. Returns the resulting set.
+    /// </summary>
+    Task<List<AppointmentTypeFieldConfigDto>> SaveForAppointmentTypeAsync(
+        Guid appointmentTypeId,
+        List<AppointmentTypeFieldConfigBatchItemDto> items);
 }
