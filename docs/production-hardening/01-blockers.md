@@ -272,6 +272,80 @@ cookie survives" as fact -- that is inference from the redirect not happening.
 **Change class:** 1.8a none (observation). 1.8b deliberate behaviour change on an auth path, guarded
 by 1.3's specs.
 
+### OUTCOME: 1.8b CLIENT HALF FIXED AND PROVEN LIVE; SERVER HALF REFUTED (2026-09-01)
+
+**The client fix works and is the only part that shipped.** PR #512. The server-side companion was
+built, passed every automated check, and was then **refuted by the live test**. It has been removed
+from the PR and preserved on `research/endsession-session-revoke` rather than deleted.
+
+**What shipped.** `performFullLogout` now checks `getAccessToken()` first: revoke when a token is
+present, otherwise call `logOut()` directly. `revokeTokenAndLogout()` early-returns a RESOLVED
+promise on an empty token store (`angular-oauth2-oidc@20.0.2` fesm2022 `:2958`), so the old `catch`
+never fired and no end-session request was ever sent. Also removed the chained `navigateToLogin()` at
+the 401 call site, and repointed `patient-profile.component.ts:182` off `AuthService.logout()`.
+
+**THE LIVE TRIGGER, which is the most useful thing this item produced.**
+`app-http-error.component.ts:115` is the 401 session-timeout call to action. A 401 reaching that
+screen means the stored token is gone -- exactly the state in which sign-out did nothing -- and it
+then navigated to the AuthServer with the SSO cookie still live, signing the user straight back in.
+That is 1.8a's observation with a line number.
+
+**LIVE RE-TEST (2026-09-01, dev stack, tenant `falkinstein`).** Three scenarios, because mirroring
+1.8a exactly would have proved nothing: removing ONLY the access token leaves the `id_token` in
+place, so `id_token_hint` is still sent and ABP's pre-existing handler does the revocation. The
+production state has no id_token either -- ABP's `clearOAuthStorage` removes all three together.
+
+| Scenario                                    | Result                                                                           |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| A control -- normal sign-out, token present | Sign-in page PASS; new handler correctly declined PASS; **row NOT removed**      |
+| C production-faithful -- all 3 tokens null  | Sign-in page PASS; fresh navigation bounced to sign-in PASS; **row NOT revoked** |
+
+Scenario C precondition verified before signing out, as the procedure requires:
+`access_token: null | id_token: null | refresh_token: null`.
+
+**WHY THE SERVER HALF FAILED, pinned rather than guessed.** The handler read the session id from
+`HttpContext.User`, on the reasoning that authentication middleware populates it at request start and
+`SignInManager.SignOutAsync()` only expires the cookie in the RESPONSE. That reasoning is WRONG. The
+AuthServer log shows the handler RAN ("...successfully processed by
+`RevokeSessionWithoutTokenHintHandler`") while emitting neither of its own log lines. It has two
+silent returns -- hint-present, and principal-not-authenticated -- but ABP logged "No SessionId was
+found in the token", so no hint was sent and the first was not taken. Among the paths reachable in
+that scenario, the unauthenticated-principal return is the only silent exit. So `HttpContext.User`
+is not authenticated by the time the end-session handler runs.
+
+**Recorded because a successor will otherwise try it again:** reading the session id from
+`HttpContext.User` inside an OpenIddict end-session handler DOES NOT WORK here. A different source is
+needed.
+
+**EVERY AUTOMATED SIGNAL PASSED while the handler did nothing in production** -- 11 frontend specs,
+2294 backend tests, build, format, lint, and four unit tests on the handler with a mutation proof
+behind them. The unit tests substituted `IHttpContextAccessor` with an authenticated principal, so
+they asserted the logic given a premise that is false at runtime. This is the case for insisting a
+live test is the acceptance criterion on anything the unit layer cannot observe.
+
+**A SEPARATE FINDING FROM THE CONTROL, and it may matter more -- see 1.8d.** ABP's own handler logged
+`Revoking the SessionId(42a0615d-...)` three times and the row REMAINED. The Identity-cookie session
+was removed by a different path logging "...during sign out". Six `TaskCanceledException`s appear in
+the same window on `RelationalConnection.OpenAsync`. The new handler declined on that path, so it
+cannot have prevented ABP's delete -- but whether this is a genuine ABP race or an artefact of
+automation speed is NOT established. If real, the session record is inaccurate on the NORMAL sign-out
+path too, which is the premise the whole server-side change rested on.
+
+**Corroborates 1.8c, observed rather than derived:** the three session rows from the original 1.8a
+run (19:57, 20:00, 20:01) were still in `AbpSessions` hours later, untouched.
+
+### 1.8d Does normal sign-out actually revoke the session record? -- OPEN
+
+Spun out of 1.8b's control scenario above. **Research plus a short live run, no code yet.**
+
+Establish whether ABP's with-hint revocation genuinely fails to remove the `AbpSessions` row, or
+whether the browser navigation cancelled the request before it committed. Drive
+`/connect/endsession` directly rather than through a UI click, so nothing can cancel it mid-flight.
+
+**Why it blocks the server-side work:** if the normal path already leaves stale rows, fixing only the
+no-hint path does not produce accurate session records, and rebuilding the server half first would
+rest on a premise that may be false.
+
 ### 1.8a DURATION: ANSWERED FROM SOURCE (2026-09-01)
 
 **The AuthServer SSO session lasts 14 days, and the expiry SLIDES.** Read from source for the pinned
