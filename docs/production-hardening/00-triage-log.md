@@ -5,9 +5,11 @@ Committed and append-only. Every finding NOT fixed, with the evidence for why.
 **Why this file matters most.** A successor inheriting this epic will re-run the same scanners and
 see the same numbers this document was written against. Without this log they re-investigate every
 item already settled, or worse, "fix" a false positive and call it progress. That is not a
-hypothetical risk: of the six original Sonar BLOCKERs, **four issues -- three distinct findings --
-turned out to be false positives, and only one was a real defect** (the sixth is still untriaged).
-Per-rule breakdown with the command that produces it is in the phase 1.3 entry below.
+hypothetical risk, and the finished tally proves it: of the six original Sonar BLOCKERs, **five
+issues -- four distinct findings -- were false alarms, and exactly ONE was a real defect.** All six
+are now triaged. A mechanical sweep would have changed working code in four places, and in one of
+them (the packet renderer) it would have broken PDF generation outright. Per-rule breakdown with the
+command that produces it is in the phase 1.4 entry below.
 
 Never delete an entry. If a dismissal turns out to be wrong, add a superseding entry explaining what
 changed -- the reversal is as informative as the original call.
@@ -361,6 +363,104 @@ is an inference from the redirect not happening, not an observation.
 Queued as its own item 1.8, to be done immediately AFTER 1.3 and not folded into it: 1.3 preserves
 behaviour, 1.8 changes it on an auth path, and the epic's decision rule separates those deliberately.
 These cookie specs become 1.8's safety net, which is the whole reason for that ordering.
+
+---
+
+## NOT A DEFECT -- Sonar `python:S8392` (BLOCKER), phase 1.4
+
+**Where:** `docker/packet-renderer/app.py:116`
+**Claim:** "Avoid binding the application to all network interfaces."
+**Verdict:** Not a defect. The renderer is unreachable from the host or the LAN in production, the
+`0.0.0.0` bind is REQUIRED for it to work at all, and the flagged line is not even the production
+bind. No code change. Changing it to loopback would break packet generation outright.
+
+**First: the flagged line is not what production runs.** `app.py:114-117`:
+
+```python
+if __name__ == "__main__":
+    # Local debugging only; the container runs gunicorn (see Dockerfile CMD).
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "3001")))
+```
+
+It sits inside an `if __name__ == "__main__":` guard that the container never takes. The real bind is
+`docker/packet-renderer/Dockerfile:63`:
+
+```dockerfile
+CMD ["gunicorn", "--bind", "0.0.0.0:3001", "--workers", "2", "--timeout", "120", "app:app"]
+```
+
+So even a "fix" at line 116 would change nothing about how the service actually listens. Sonar
+flagged dev-only dead code.
+
+**Second: nothing publishes the port.** Checked every compose file rather than only the one the phase
+file named:
+
+```bash
+for f in docker-compose.yml docker-compose.prod.yml docker-compose.prod.localseed.yml; do
+  awk '/^  packet-renderer:/{f=1} f&&/^  [a-z][a-z0-9-]*:$/&&!/packet-renderer/{f=0} f' "$f" \
+    | grep -nE "ports:|expose:"
+done
+```
+
+| File                                | Result                                                          |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `docker-compose.prod.yml`           | **no `ports:`, no `expose:`** -- not reachable from host or LAN |
+| `docker-compose.prod.localseed.yml` | none either (the override adds no port)                         |
+| `docker-compose.yml` (dev)          | `- "127.0.0.1:${PACKET_RENDERER_PORT:-3001}:3001"`              |
+
+The dev publish is bound to **127.0.0.1**, not `0.0.0.0`, so even in development it is loopback-only
+and not exposed to the LAN. That is a deliberately careful binding, not an oversight.
+
+**Third: no indirect exposure.** No reverse proxy routes to it --
+`grep -rniE "packet.renderer|:3001" docker/nginx-proxy/ angular/nginx.conf` returns nothing. The only
+way in is the compose network.
+
+**Fourth, and the reason a "fix" would be actively harmful: the bind is necessary.** The API reaches
+the renderer by compose service name, `docker-compose.prod.yml:264`:
+
+```yaml
+PacketRenderer__Url: "http://packet-renderer:3001"
+```
+
+Consumed by `WeasyPrintPacketRenderer` / `GenerateAppointmentPacketJob`. Binding to `127.0.0.1`
+inside the container would make it unreachable from the api container and packet generation would
+stop. This is exactly the trap the phase file warned about: "binding loopback in a container is a
+classic way to break a working service in the name of a scanner."
+
+**On the PHI concern.** It is true that this sidecar renders PHI-bearing PDFs, which is why the
+question was worth asking rather than waving away. But the exposure premise does not hold: in
+production the service has no host port at all, so there is no network path to it from outside the
+compose network. The PHI stakes raise the cost of being wrong, and the answer was checked in four
+independent places for that reason.
+
+**Action:** mark **False Positive** in SonarCloud citing this entry. No code change. Optional tidy,
+NOT required and not done here: delete the dead `if __name__ == "__main__":` block, which would also
+silence the rule at source -- but it is genuinely useful for running the renderer standalone while
+developing templates, so removing it costs a real convenience to satisfy a scanner. Left alone.
+
+**THIS COMPLETES THE TRIAGE OF ALL SIX ORIGINAL BLOCKERS.** Final tally, counted per rule by the API:
+
+```bash
+for r in secrets:S7539 tssecurity:S6105 typescript:S2699 typescript:S6268 python:S8392; do
+  curl -s ".../api/issues/search?componentKeys=...&rules=$r&severities=BLOCKER"
+done
+```
+
+| Rule               | n   | Item | Verdict                                       |
+| ------------------ | --- | ---- | --------------------------------------------- |
+| `secrets:S7539`    | 2   | --   | false alarm (grep pattern, not a credential)  |
+| `tssecurity:S6105` | 1   | 1.1  | false alarm (origin not caller-controlled)    |
+| `typescript:S2699` | 1   | 1.3  | false alarm (rule blind to `expectAsync`)     |
+| `python:S8392`     | 1   | 1.4  | false alarm (this entry)                      |
+| `typescript:S6268` | 1   | 1.2  | **REAL** -- the only one, fixed in `ad4cb0d7` |
+
+**FIVE of the six issues were false alarms** -- four distinct findings, since the two PowerShell hits
+are one false positive twice. **Exactly ONE was a real defect**, and it was narrower than advertised
+(stray text, not executable script). A mechanical sweep of this list would have changed working code
+in four places, and in this case would have broken PDF generation.
+
+That is the single most useful number in this epic for anyone deciding how much to trust a scanner's
+headline severity count.
 
 ---
 
