@@ -337,14 +337,24 @@ configured value. It could only be wrong if something outside the 728 scanned AB
 outside this repository post-configured `CookieAuthenticationOptions` for
 `IdentityConstants.ApplicationScheme`, and no such component is registered.
 
-### 1.8c COULD WE TELL IF IT ALREADY HAPPENED? -- PARTIALLY, FROM ONE TABLE (2026-09-01)
+### 1.8c COULD WE TELL IF IT ALREADY HAPPENED? -- UNDETERMINABLE (2026-09-01)
 
 Research only. Nothing was connected to, queried against, or read from the deployed system; every
 statement below comes from this repository, the ABP 10.0.2 packages and first-party sources.
 
-**Short answer: one source could show it, four could not.** `AbpSessions` retains the residue of a
-session that was never cleanly ended, for 30 days of inactivity. It cannot show that the user pressed
-Sign Out.
+**VERDICT: UNDETERMINABLE. No action follows from this beyond recording why.** Four of the five places
+you would look cannot show it at all, and the fifth cannot be used to find affected sessions.
+
+**The conclusion, stated rather than left as a caveat.** `AbpSessions` does retain the residue of a
+session that was never cleanly ended -- but rows are removed ONLY on a clean sign-out, on token
+revocation, or by the 30-day sweep. Every user who closes a browser without clicking Sign Out leaves
+one behind. The false-positive population is therefore _most sessions_, so a lingering row cannot
+identify who was affected. It is unusable as a detector, not merely partial.
+
+**The direction matters, and this is a precision rather than a hedge.** You cannot go FROM the session
+table TO a list of affected users. If a specific user, time and workstation were already known from
+somewhere else, the row would corroborate. Nothing in this system provides that starting point,
+because nothing records that Sign Out was pressed.
 
 | Source            | Could it show a failed sign-out?                                                                                                                                       |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -385,10 +395,13 @@ with `app.UseDynamicClaims()` in each).
 
 **What it can and cannot tell you, stated precisely so nobody over-reads it:**
 
-- CAN show that a given session was never cleanly ended and its row is still live, with `LastAccessed`
-  marking when it stopped being used and `IpAddresses` / `DeviceInfo` narrowing it to a workstation.
+- CAN show, for a session already identified from elsewhere, that it was never cleanly ended, with
+  `LastAccessed` marking when it stopped being used and `IpAddresses` / `DeviceInfo` narrowing it to a
+  workstation. Corroboration, not discovery.
 - CANNOT distinguish "pressed Sign Out and it silently failed" from "closed the browser and walked
-  away". Nothing anywhere records that the button was pressed, so the two are identical in the data.
+  away". Nothing anywhere records that the button was pressed, so the two are identical in the data
+  -- and since the second is the ordinary way people leave, the lingering rows are overwhelmingly
+  those. That is what makes the signal unusable rather than merely noisy.
 - Only covers the last 30 days of inactivity. Anything older has already been deleted by the worker.
 
 **CONSEQUENCE FOR 1.8b, found here rather than in 1.8b's own research.**
