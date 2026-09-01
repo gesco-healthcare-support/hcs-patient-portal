@@ -518,6 +518,54 @@ pointing at an entirely wrong domain, but the services legitimately live on diff
 a future split-domain deployment would break against it. Brittleness that only appears on a later
 deployment is the worst kind, because nobody connects the failure to the rule.
 
+### OUTCOME: FIXED (2026-09-01)
+
+PR [#509](https://github.com/gesco-healthcare-support/hcs-patient-portal/pull/509), squash-merged as
+`dc134222`. Five files, +516/-3.
+
+| File                                    | Change                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| `angular/src/config-validation.ts`      | new; `validateRuntimeConfig(env): string[]`, pure and Angular-free       |
+| `angular/src/config-validation.spec.ts` | new; 29 specs                                                            |
+| `angular/src/main.ts`                   | validates after the merge; `[config]` console errors plus a fixed banner |
+| `angular/prod-dynamic-env.envsh`        | fails the container start on a malformed `APP_BASE_HOST`                 |
+| this file                               | the widened criterion and the four decisions                             |
+
+**Validation loop, all green.** eslint exit 0, prettier clean, scoped specs `TOTAL: 29 SUCCESS`,
+`npx ng build` exit 0, full frontend suite `TOTAL: 664 SUCCESS` (635 -> 664, no regressions). CI on
+the PR: 23 checks pass, 0 failing.
+
+**The shell guard proven both ways**, outside the Angular suite because no spec can reach it:
+
+| `APP_BASE_HOST`              | Result |
+| ---------------------------- | ------ |
+| `portal.example.com`         | exit 0 |
+| `localhost`                  | exit 0 |
+| `intranet`                   | exit 0 |
+| `https://portal.example.com` | exit 1 |
+| `portal.example.com/`        | exit 1 |
+| `a@b.com`                    | exit 1 |
+| `has space`                  | exit 1 |
+
+**Test-first order was NOT followed, and the evidence was recovered rather than claimed.** The task
+was marked `tdd`; the spec and the implementation were written together, so there was no genuine red
+step. A spec written alongside its implementation can encode that implementation's mistakes and
+still go green, so the red step was reconstructed by mutation: `read()` was changed to always return
+undefined (the pre-implementation behaviour) and the suite re-run.
+
+```
+TOTAL: 14 FAILED, 15 SUCCESS
+```
+
+The 14 failures are exactly the rejection cases; the 15 survivors are the acceptance cases, which
+correctly pass because absent means valid. Mutation reverted, residue grep returns 0. **Standing
+rule from this:** when the red step is skipped, run the mutation as a matter of course, not as an
+apology.
+
+**The regression the specs guard against is an over-strict host rule, not a permissive one.**
+`intranet` (single label), `example.com.` (trailing dot) and `a-b.c-d.example` are all asserted VALID
+so the rule cannot tighten by accident and break a real deployment.
+
 ---
 
 ## Validation loop for this phase
