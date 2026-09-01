@@ -436,6 +436,40 @@ Also worth recording for whoever runs the local stack: the dev compose publishes
 (`127.0.0.1:${REDIS_HOST_PORT:-6379}`), which collides with the MRR AI stack's Redis. Set
 `REDIS_HOST_PORT` to something free rather than stopping the other project's containers.
 
+### 6.8 Certificate expiry does NOT break the key ring -- measured 2026-09-01
+
+This was the one unknown that could have undermined the whole design, because if expiry stopped
+decryption then certificate validity would be a hard deadline after which every session dies. It was
+settled before any implementation work, rather than assumed either way.
+
+**Method.** A certificate with `notBefore` 2023-01-01 and `notAfter` 2024-01-01 -- expired for over
+twenty months -- was configured as the encryptor in BOTH modules, pointed at a SEPARATE Redis ring
+name so the real ring was never touched. Both processes shared that spike ring.
+
+**Results.**
+
+| Observation                          | Result                                                                                                                                                                                                                                              |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does an expired certificate encrypt? | **Yes.** The new key was written with the full XML-Encryption structure (`<EncryptedData>`, `<EncryptedKey>`, `<CipherValue>`, `<X509Certificate>`), 3333 bytes against 888 for a plaintext key, and the plaintext `<masterKey>` element was absent |
+| Does an expired certificate decrypt? | **Yes.** The spike ring stayed at length 1 across both processes -- the second read the first's encrypted key rather than minting a replacement, which is what it would have done had decryption failed                                             |
+| End-to-end protect and unprotect     | **Yes.** A full login succeeded and authenticated under the expired certificate: 200 with the session cookie, 302 without it                                                                                                                        |
+| Real ring throughout                 | Byte-identical; the spike ring was deleted afterwards                                                                                                                                                                                               |
+
+**Conclusion.** Data Protection uses the certificate as a key pair and does not enforce its validity
+dates. So the validity period can be chosen for operational hygiene -- to force a rotation cadence --
+rather than as a cliff edge that would sign everyone out.
+
+**Do not over-read this.** It means expiry is not a data-loss event. It does not mean expiry is
+irrelevant: an expired certificate is still a governance and audit finding, and this was tested with
+a self-signed certificate where no chain or revocation checking is involved. A CA-issued certificate
+under a policy that checks revocation may not behave the same way. Rotation still needs scheduling;
+it just is not an emergency.
+
+**Bonus observation, which makes 6.4 measured rather than reasoned.** Pointing the application at a
+different ring is functionally the reset procedure, and it behaved exactly as 6.4 predicts: the
+pre-existing session returned 302 (signed out), while both processes stayed healthy, login worked,
+and nothing else broke. The reset really does cost only re-logins.
+
 ---
 
 ## 7. Ordering constraint -- read before moving the key store
