@@ -272,6 +272,71 @@ cookie survives" as fact -- that is inference from the redirect not happening.
 **Change class:** 1.8a none (observation). 1.8b deliberate behaviour change on an auth path, guarded
 by 1.3's specs.
 
+### 1.8a DURATION: ANSWERED FROM SOURCE (2026-09-01)
+
+**The AuthServer SSO session lasts 14 days, and the expiry SLIDES.** Read from source for the pinned
+versions, not estimated, and not measured by idling a stack.
+
+**Step 1: nothing in this repository sets a cookie lifetime.** Reproduce with:
+
+```bash
+grep -rnE "ExpireTimeSpan|SlidingExpiration|ConfigureApplicationCookie|ValidationInterval|SecurityStampValidator" --include="*.cs" --include="*.json" --include="*.cshtml" .
+```
+
+Zero hits outside `docs/`. The only auth-lifetime call anywhere in the codebase is
+`serverBuilder.SetAccessTokenLifetime(TimeSpan.FromMinutes(15))` at
+`src/HealthcareSupport.CaseEvaluation.AuthServer/CaseEvaluationAuthServerModule.cs:162`, which is an
+OpenIddict ACCESS TOKEN, not the SSO cookie. So the cookie runs on framework defaults.
+
+**Step 2: the three-link chain, each link read at source for the pinned version.**
+
+| Link                                                               | Source                                                                                                     | What it does                                                                                                                                          |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ABP 10.0.2 `AbpIdentityAspNetCoreModule`                           | `abpframework/abp@10.0.2`, `modules/identity/.../AbpIdentityAspNetCoreModule.cs`                           | `.AddAuthentication(...).AddIdentityCookies()`. Sets NO lifetime; only swaps in `AbpSecurityStampValidator` and adds an `OnRefreshingPrincipal` hook. |
+| ASP.NET Core 10 `AddIdentityCookies()` -> `AddApplicationCookie()` | `dotnet/aspnetcore@release/10.0`, `src/Identity/Core/src/IdentityCookiesBuilderExtensions.cs`              | `AddCookie(IdentityConstants.ApplicationScheme, o => { o.LoginPath; o.Events })`. No `ExpireTimeSpan`, no `SlidingExpiration`.                        |
+| `CookieAuthenticationOptions` constructor                          | `dotnet/aspnetcore@release/10.0`, `src/Security/Authentication/Cookies/src/CookieAuthenticationOptions.cs` | `ExpireTimeSpan = TimeSpan.FromDays(14); SlidingExpiration = true;`                                                                                   |
+
+**Step 3: no ABP package overrides it. Verified exhaustively, not assumed.** All 728 ABP 10.0.2
+assemblies in the local NuGet cache were scanned for the IL member references `set_ExpireTimeSpan`,
+`set_SlidingExpiration` and `set_ValidationInterval`:
+
+| Symbol                   | Assemblies referencing it                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `set_ExpireTimeSpan`     | exactly ONE: `Volo.Abp.Account.Pro.Public.Web`                                                                                    |
+| `set_SlidingExpiration`  | only caching/feature/permission/setting/text-template DOMAIN assemblies (that is `DistributedCacheEntryOptions`, not cookie auth) |
+| `set_ValidationInterval` | NONE                                                                                                                              |
+
+The single hit was decompiled (`ilspycmd`). It is three call sites, all
+`options.ExpireTimeSpan = TimeSpan.FromMinutes(5)`, and all on bespoke short-lived schemes, never the
+SSO cookie: `ConfirmUserModel.ConfirmUserScheme`, `ChangePasswordModel.ChangePasswordScheme`,
+`LockedOut.LockedUserScheme`. The module's one `ConfigureApplicationCookie` block sets no lifetime.
+
+**SLIDING IS THE PART THAT MATTERS, more than the number.** `SlidingExpiration = true` means the
+handler re-issues the cookie with a fresh 14-day window on any request that arrives more than halfway
+through the current one. A session that keeps being used therefore never closes on its own; 14 days
+is the idle ceiling, not the maximum age. On a shared workstation the exposure ends when someone
+stops using the machine for a fortnight, which in a clinic is never.
+
+**Four things that do NOT bound this, checked so they are not offered later as mitigations:**
+
+| Candidate                                 | Why it does not bound the session                                                                                                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The 15-minute access token                | A live SSO cookie mints a fresh one at `/connect/authorize` without credentials. That is the finding, not a limit on it.                                                                                                              |
+| The 30-minute security-stamp revalidation | It ends the session only if the stamp CHANGES (password change, `UpdateSecurityStampAsync`). An ordinary signed-in user's stamp does not change. Default confirmed at 30 min in the ASP.NET Core 10 API reference; ABP never sets it. |
+| Closing the browser                       | Only if `IsPersistent` is false, which is the "Remember me" checkbox at `Pages/Account/Login.cshtml:81`. The 14-day ticket still governs server-side either way, and a shared workstation's browser is not closed.                    |
+| The refresh token                         | OpenIddict 7.2.0 default is also 14 days, and it is not overridden here.                                                                                                                                                              |
+
+**OpenIddict 7.2.0 lifetimes, for context** (`openiddict-core@7.2.0`, `OpenIddictServerOptions.cs`):
+access token 1 hour (**overridden to 15 min here**), refresh token 14 days (not overridden), identity
+token 20 minutes, authorization code 5 minutes, refresh-token reuse leeway 30 seconds (**overridden to
+2 s here**).
+
+**What is still NOT established, stated so it is not overclaimed.** No live `Set-Cookie` or decrypted
+ticket was read, because that needs the stack. The chain above is a source-level derivation of the
+configured value. It could only be wrong if something outside the 728 scanned ABP assemblies and
+outside this repository post-configured `CookieAuthenticationOptions` for
+`IdentityConstants.ApplicationScheme`, and no such component is registered.
+
 ---
 
 ## 1.4 Packet renderer binds all interfaces
