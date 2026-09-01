@@ -3,9 +3,32 @@
 **Change class:** none directly. This phase is triage and routing. It converts an external research
 report into queue items, or into someone else's problem, and records which.
 
-**Status:** waiting on exercise 2. Inputs are committed at
-[`../research/system-design-2026-08-28/`](../research/system-design-2026-08-28/); the output is not
-in yet.
+**Status: RECEIVED 2026-08-31. First triage pass done.** Inputs are committed at
+[`../research/system-design-2026-08-28/`](../research/system-design-2026-08-28/).
+
+The output is two deliverables (`system-design-target.md`, `infrastructure-requirements.md`) plus a
+method document, two appendices and the raw agent output. **62 capability requirements, 10
+application-owned requirements, 17 anti-requirements.**
+
+**Repository verification of its claims is in
+[10-research-corrections.md](10-research-corrections.md)** - four claims contradicted, three
+confirmed, one corrected in the research's favour. Read that before acting on any statement the
+research makes about what this code does; it had no repository access and says so.
+
+**What has been routed so far** (the file-read subset; the runtime checks are still open):
+
+| Finding                                        | Routed to                                                         |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| APP-OWN-01/02/03 - tenant resolver assertions  | [03](03-critical-path-coverage.md) s3.1, now the phase's top item |
+| No `default_server` on 443                     | [01](01-blockers.md) s1.5                                         |
+| DataProtection keys unencrypted at rest        | [01](01-blockers.md) s1.6                                         |
+| REQ-REL-06 - migration check in CI             | [02](02-enforcement.md) s2.6                                      |
+| Audit-ratio re-derivation                      | [08](08-coverage-expansion.md)                                    |
+| Platform, backup, licensing, observability, HA | Deferred list below                                               |
+
+**Not yet triaged:** the majority of the 62 requirements. Most depend on the runtime checks or on a
+platform decision, and several may be retired by the HIPAA diff (check 15). Triage them as their
+phase comes up rather than in one pass - the routing rule below is what makes that safe.
 
 ---
 
@@ -34,15 +57,15 @@ actually harden the codebase -- will stall behind a platform decision that is no
 
 Applied:
 
-| Enters this epic | Routes out |
-| --- | --- |
-| Rate limiting on sign-in (AuthServer process, no limiter today) | WAF, DDoS absorption, CDN |
-| Security headers in `docker/nginx-proxy/default.conf.template` | TLS certificate and domain strategy |
-| Startup validation of required configuration | Managed database selection |
-| Structured logging, correlation ids, health check content | Log aggregation and metrics backend |
-| Session and token handling in application code | High-availability topology, load balancers |
-| Secrets *consumption* patterns in code | Secret *store* selection (Key Vault vs alternatives) |
-| Anything CodeQL or Sonar can see | Backup infrastructure and retention |
+| Enters this epic                                                | Routes out                                           |
+| --------------------------------------------------------------- | ---------------------------------------------------- |
+| Rate limiting on sign-in (AuthServer process, no limiter today) | WAF, DDoS absorption, CDN                            |
+| Security headers in `docker/nginx-proxy/default.conf.template`  | TLS certificate and domain strategy                  |
+| Startup validation of required configuration                    | Managed database selection                           |
+| Structured logging, correlation ids, health check content       | Log aggregation and metrics backend                  |
+| Session and token handling in application code                  | High-availability topology, load balancers           |
+| Secrets _consumption_ patterns in code                          | Secret _store_ selection (Key Vault vs alternatives) |
+| Anything CodeQL or Sonar can see                                | Backup infrastructure and retention                  |
 
 The right-hand column is the **deployment architecture track**, and it is gated on exercise 3
 (platform selection), which is itself gated on this report. Recording those items here is useful;
@@ -87,7 +110,39 @@ for a different order, that is a decision to put to Adrian explicitly -- not one
 
 ## Deferred to deployment architecture
 
-Populate as the report is triaged. Already known before it arrives, from
+**Routed out 2026-08-31 from the delivered report.** Each needs a platform, procurement or an
+infrastructure decision, so none is buildable in this repository. Recorded with enough context that
+whoever runs exercise 3 does not have to re-read the deliverables.
+
+| Item                                                                                                            | Why it routes out                                                                                                                                                           | Ref                 |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Business associate agreements for **every** service in the data path, including the log and backup destinations | Contractual, not technical, and a statutory precondition to real PHI                                                                                                        | REQ-HIP-01          |
+| Managed backup, patching and availability for stateful services                                                 | The team has no database specialist; the alternative is that it does not happen                                                                                             | REQ-TEAM-02         |
+| 80 databases on one endpoint, each independently restorable to a point in time                                  | Where the tenancy model meets the platform hardest. **The platform's documented per-endpoint limit binds, not the engine's**                                                | REQ-TEN-04, -06     |
+| Runtime `CREATE DATABASE` by an identity the application holds                                                  | A platform treating this as an administrative action breaks how the business adds an office                                                                                 | REQ-TEN-03          |
+| **Database edition licensed for production**, with persisted feature dependencies checked first                 | `MSSQL_PID` is Developer, licensed for dev and test only. Tier changes remove capabilities **without raising an error**. A go-live blocker being treated as a cost decision | REQ-APP-06          |
+| Backup enrolment atomic with provisioning                                                                       | Point-in-time capability is inherited from `model` at `CREATE DATABASE`, and offices are created by a business action in the host UI                                        | REQ-TEN-08, -09     |
+| Object-store backup                                                                                             | It holds the actual medical documents, shares a disk with the databases and the backup directory, and **nothing currently requires it to be backed up**                     | Doc B s9.8          |
+| WAF, DDoS absorption, CDN, rate-limiting infrastructure                                                         | Edge infrastructure                                                                                                                                                         | Doc B s7            |
+| Multi-SAN wildcard certificate at three depths; DNS with an automatable API                                     | Requires a DNS provider decision                                                                                                                                            | REQ-TEN-10, ANTI-05 |
+| Centralised logging and alerting destinations                                                                   | **Blocked behind REQ-HIP-08**: PII logging is on by default, so logs carry PHI and cannot leave the host as they are                                                        | REQ-TEAM-04         |
+| Secret store with access control and a change record                                                            | Store selection is a platform decision; how the application consumes secrets is ours                                                                                        | REQ-TEAM-07         |
+| A second environment provisioned by the same mechanism                                                          | Sequenced behind cheaper steps deliberately, because production is a legitimate destructive-test target **while the data is synthetic**                                     | REQ-TEAM-09         |
+| Immutable retention no credential can shorten                                                                   | Offered in a weaker form by many platforms. **Test with the most privileged credential the deployment holds**                                                               | REQ-HIP-06          |
+
+**Two that are neither ours nor the platform's, and need a human:**
+
+- **California and state law are entirely absent from the analysis.** It argues federal retention
+  clocks for a product handling California workers' compensation and California medical records.
+  CMIA and state breach-notification law can exceed the federal floor, and state medical-evaluation
+  record rules bear on the retention question directly. The research names this as the single item
+  most worth an hour with counsel. **It is not an engineering task and should not wait for one.**
+- **The capacity decision.** 734-1,084 hours of setup and 24.5-43.5 hours a month against roughly 40.
+  **Do not take those figures to the business before the audit ratio is re-derived** - see
+  [10-research-corrections.md](10-research-corrections.md) section 5 for why the number is suspect
+  in the direction that inflates it.
+
+Already known before the report arrived, from
 [`../research/system-design-2026-08-28/03-deployment-and-constraints.md`](../research/system-design-2026-08-28/03-deployment-and-constraints.md):
 
 - **Edge security is entirely unconfigured.** The nginx template has zero `add_header` directives --

@@ -98,6 +98,30 @@ clears it. **Clearing a family without locking it closed is half a job** -- the 
 
 ---
 
+## 2.6 Fail the build on a model change with no migration (admitted 2026-08-31)
+
+**Routed here from the system design research** (REQ-REL-06). It is a gate, it is one line, and it
+closes a defect class this repo has already shipped.
+
+An entity mapped in both DbContexts needs a migration in **both** migration sets. Forgetting one
+produces an office database missing a table, which surfaces as a runtime exception in front of a
+user rather than as a build failure. That has happened here before -- see the standing rule that a
+dual-context entity needs both migration sets, and that a model change needs an empty-migration proof
+because the build and the SQLite suite will both agree with a wrong model.
+
+The framework ships a first-party command for exactly this check. Run it **independently for the
+host schema and the tenant schema**, because a single combined check passes when one of the two is
+missing.
+
+**Acceptance (EARS):** WHEN the object-relational model contains a change not represented by a
+committed migration in the corresponding migration set, THE SYSTEM SHALL fail the build.
+
+**Prove it by poisoning**, per this phase's rule: add a model change with a migration in one schema
+only, confirm the build goes red, then add the second migration and confirm green. A gate nobody has
+watched fail on the _one-sided_ case is not testing the thing that actually breaks.
+
+---
+
 ## Validation loop for this phase
 
 The gates are the deliverable, so the validation is adversarial:

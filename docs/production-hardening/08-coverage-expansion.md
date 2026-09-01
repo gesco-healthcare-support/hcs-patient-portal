@@ -59,6 +59,36 @@ the audience that matters here. Already logged in `docs/backlog.md`.
 
 ---
 
+## Re-derive the audit ratio before anything is sized off it
+
+**Admitted from the system design research (2026-08-31).** Not coverage work, but it belongs with the
+measurement tasks and it blocks a number being taken to the business. Evidence in
+[10-research-corrections.md](10-research-corrections.md) section 2.4.
+
+The research prices entity-history capture-at-source as **the cheapest order of magnitude available**
+and states every downstream infrastructure cost is linear in the audit ratio. Its APP-OWN-07 asks for
+capture to be made an explicit allow-list.
+
+Reading source says it already is one. No `EntityHistorySelectors`, no `AddAllEntities`, no
+`SaveEntityHistoryWhenNavigationChanges` and no `AbpAuditingOptions` anywhere in `src`; capture is
+driven by 25 types carrying `[Audited]`, with zero `DisableAuditing`.
+
+**So the saving priced as cheapest appears already taken, and the ratio it inherits from the brief is
+unverified.** One query settles it - row counts of the five audit tables against appointment count,
+per office:
+
+```sql
+SELECT OBJECT_NAME(p.object_id) AS table_name, SUM(p.row_count) AS rows
+FROM sys.dm_db_partition_stats p
+WHERE p.index_id IN (0,1) GROUP BY p.object_id ORDER BY rows DESC;
+```
+
+Run it per office database. It converts several `UNKNOWN` cells in the research's capacity model to
+`MEASURED`, and it is the single number the 734-1,084 hour portfolio estimate is most sensitive to.
+**Do not take that estimate to the business before this runs.**
+
+---
+
 ## Method
 
 - **Do not chase the percentage.** Coverage is a tool for finding untested code, never a quality
