@@ -3,9 +3,23 @@
 **Change class:** deliberate behaviour change. **Test written WITH the fix, not before.**
 Assert the desired behaviour, watch it fail, then fix.
 
-Sonar reports 6 BLOCKER issues. Two are false positives (see
-[00-triage-log.md](00-triage-log.md)). The 4 below are real. All are small; this phase is hours,
-not days.
+Sonar reports 6 BLOCKER issues. **As of 2026-09-01, four of those six are false positives** -- which
+is three distinct findings, because the two PowerShell hits are the same false positive twice. Only
+one of the six (1.2) turned out to be a real defect; 1.4 is still untriaged. See
+[00-triage-log.md](00-triage-log.md). State of each, counted per rule by the API:
+
+| Rule               | n   | Item | Verdict                                                                |
+| ------------------ | --- | ---- | ---------------------------------------------------------------------- |
+| `secrets:S7539`    | 2   | --   | FALSE POSITIVE (grep pattern, not a credential); not yet marked        |
+| `tssecurity:S6105` | 1   | 1.1  | FALSE POSITIVE -- marked RESOLVED/FALSE-POSITIVE                       |
+| `typescript:S6268` | 1   | 1.2  | **REAL**, fixed in `ad4cb0d7`; issue stays open pending an Accept      |
+| `typescript:S2699` | 1   | 1.3  | FALSE POSITIVE (rule does not recognise `expectAsync`); not yet marked |
+| `python:S8392`     | 1   | 1.4  | not yet triaged                                                        |
+
+**That ratio is itself a finding.** A mechanical sweep of this list would have "fixed" three
+non-problems and changed working code to satisfy a tool. The headline BLOCKER count overstates what
+is wrong with this system by a wide margin, and the triage log is the only honest ledger of which
+items mattered. All are small; this phase is hours, not days.
 
 Order within the phase is by exploitability once the app is public.
 
@@ -87,6 +101,45 @@ icon set, THE SYSTEM SHALL render nothing rather than the supplied markup.
 
 **Test:** component spec passing a script payload as the icon name and asserting it is not
 rendered or executed.
+
+### OUTCOME: FIXED (2026-09-01) -- partly real
+
+Landed in `ad4cb0d7` (#502). Unlike 1.1 this was a real fix, not a dismissal.
+
+**Verdict: partly real.** Of the three values interpolated into the trusted markup, one had a LIVE
+path from server data and two did not.
+
+| Input   | Live path?                                    | Finding                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`  | **YES** -- server-sourced                     | `DashboardActivityItemDto.icon` (the ONLY icon field in the whole generated proxy tree) reaches it via an unchecked `as IconName` cast at `src/app/dashboard/internal-dashboard.component.ts:291`. The registry is a plain object literal, so a lookup on an inherited member (`constructor`, `toString`, `__proto__`) returned a function or object, which `?? ''` cannot catch. It rendered native-code text into the page. |
+| `size`  | No -- all 45 call sites pass numeric literals | But the pre-fix test PROVED a string value closes the `width` attribute and injects a working `onload`. Demonstrated, never live.                                                                                                                                                                                                                                                                                             |
+| `label` | No -- no dynamic binding exists anywhere      | Existing escaping is correct for a double-quoted attribute. Pinned, not changed.                                                                                                                                                                                                                                                                                                                                              |
+
+**Practical consequence had it shipped untouched:** occasional stray internal text on the dashboard.
+It could not execute code and could not leak data. Worth fixing, not an incident.
+
+**WHY `size` WAS HARDENED THOUGH IT WAS NOT LIVE -- the distinction that keeps this epic coherent.**
+It looks like a reversal of 1.1, where a guard was deliberately NOT added. It is not:
+
+> **Structural guarantees do not need guards. Conventions do.**
+
+On 1.1 the redirect origin is fixed by a STRUCTURAL property -- the WHATWG URL Standard guarantees a
+special-scheme path serialises with a leading `/`, so no future caller can break it and a guard would
+defend against something that cannot happen. On `size` the safety rested on CALLER DISCIPLINE across
+45 sites, and the TypeScript `number` annotation is erased at runtime, so one `[size]="cfg.iconSize"`
+commit makes it live. That is the test, not "did the scanner complain".
+
+**FOLLOW-UP QUEUED -- remove the sanitizer bypass entirely.** The fix constrains every input but
+keeps `bypassSecurityTrustHtml`, so `typescript:S6268` (`AZ76eJ5Af85aalgSOdg0`) stays open
+project-wide. Removing it means restructuring the registry from raw SVG fragment strings into
+structured data rendered by Angular template bindings, which deletes the bypass rather than securing
+it. That is separate work, approved by Adrian as such, and deliberately NOT given a phase-1 section:
+once the issue is accepted it is no longer a blocker, and inventing a slot would distort the phase.
+
+If S6268 is ever actioned the transition is **Accept (won't fix)**, NOT False Positive -- the code
+genuinely does disable sanitization, so dismissing it as a false positive would be a lie in the
+record. It did not fire on #502: Sonar matched the edit to the pre-existing issue rather than raising
+a new one, so the PR gate passed with 0 issues attributed.
 
 ---
 

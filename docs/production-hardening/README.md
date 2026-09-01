@@ -17,7 +17,7 @@ Update this table as each phase closes. It is the first thing a successor will r
 
 | Phase                    | Status             | Landed                     | Baseline delta                |
 | ------------------------ | ------------------ | -------------------------- | ----------------------------- |
-| 1 Blockers               | IN PROGRESS (1/7)  | 046f44f1 (#498)            | BLOCKERs 6 -> 5 (a dismissal) |
+| 1 Blockers               | IN PROGRESS (2/7)  | 046f44f1, ad4cb0d7         | 1 dismissed, 1 really fixed   |
 | 2 Enforcement            | NOT STARTED        | --                         | --                            |
 | 3 Critical-path coverage | NOT STARTED        | --                         | --                            |
 | 4 CodeQL sensitive-info  | NOT STARTED        | --                         | --                            |
