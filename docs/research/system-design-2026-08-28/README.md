@@ -1,7 +1,15 @@
 # System design + infrastructure research (2026-08-28)
 
-Exercise 2 of three in the production-readiness programme. This folder holds the **inputs** to
-an external research exercise, so the reasoning survives whether or not the exercise is ever run.
+Exercise 2 of three in the production-readiness programme. This folder holds the **inputs and the
+delivered outputs**, so both the question and the answer survive independently of anyone's memory.
+
+**Read this before trusting anything below.** The research session had web access and **no
+repository access**, so every statement it makes about what this code does is inherited from two
+baseline documents rather than read from source. The repository verification is committed
+separately at
+[`../../production-hardening/10-research-corrections.md`](../../production-hardening/10-research-corrections.md);
+**four of its claims do not survive contact with source**, including the one its cost model is most
+sensitive to. Read the corrections alongside the deliverables, not after them.
 
 ## Why this exercise exists
 
@@ -59,9 +67,44 @@ Three corrections were applied on 2026-08-31, before the bundle was considered s
    has never been confirmed against a staffing commitment. The brief now says so and asks for
    thresholds rather than assumptions built on it.
 
+## The delivered output
+
+Archived 2026-09-01, verbatim from the research session's own bundle. Extracted from the delivered
+tarball rather than from the loose copies, and the two are byte-identical where both exist.
+Scale: 34 agents, 4 phases, 5.7M subagent tokens; **526 claims adversarially re-verified -- 347
+clean, 161 corrected, 12 wrong, 6 unreachable.**
+
+| File                                               | What it is                                                                                                                                                                                                                                               |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `system-design-target.md`                          | **Document A.** Three lead decisions; the portfolio problem and a 40-hour list; 14 corrections to the baselines; 14 areas with options, recommendation and operational cost; the target architecture; 8 rejected patterns; 16 adjudicated contradictions |
+| `infrastructure-requirements.md`                   | **Document B.** 62 capability requirements in 5 groups, each MUST/SHOULD with reason, traceability and a test; 10 application-owned requirements; **17 anti-requirements**; scoring guidance; 9 named gaps                                               |
+| `handoff/research-method-and-analysis.md`          | **Read this second.** Separates the author's judgement calls from the agents' sourced findings -- the part that should be argued with                                                                                                                    |
+| `handoff/appendix-A-evidence-register.md`          | 646 sourced claims with URL, access date, agent confidence and the adversarial verifier's verdict on each                                                                                                                                                |
+| `handoff/appendix-B-verification-and-critique.md`  | The integrity record: every material error the adversarial pass caught, per area                                                                                                                                                                         |
+| `handoff/raw-research.json`                        | Unprocessed output from all 34 agents, for anything the appendices flattened                                                                                                                                                                             |
+| `handoff/HANDOFF.md`, `handoff/HANDOFF-PROMPT.txt` | The delivery package and its receiving prompt                                                                                                                                                                                                            |
+
+**The `handoff/` subdirectory is deliberate**, unlike exercise 1's flat layout: Document B section
+9.0 cites `handoff/appendix-A-evidence-register.md` by that path, and flattening would break every
+such reference. Structure preserved over convention.
+
+**Where to start:** Document A section 1, then section 2 (the portfolio problem), then
+`research-method-and-analysis.md` section 3. About twenty minutes, and it carries the decision.
+
 ## Status
 
-**Not yet run.** The bundle is complete and sendable. Nothing downstream depends on it yet.
+**Delivered and verified 2026-08-31.** Triage and routing into the hardening epic is recorded in
+[`../../production-hardening/09-system-design-intake.md`](../../production-hardening/09-system-design-intake.md).
+
+**Two things this exercise did not settle, both flagged by the research itself:**
+
+- **California and state law are entirely absent.** It argues federal retention clocks for a product
+  handling California workers' compensation and California medical records. The research names this
+  as the single item most worth an hour with counsel. Not an engineering task.
+- **The capacity finding is a business decision.** 734-1,084 hours of setup and 24.5-43.5 a month
+  against roughly 40. **Do not take those figures anywhere until the audit ratio is re-derived** --
+  the corrections file section 5 explains why the number is suspect in the direction that inflates
+  it.
 
 ## Related
 
