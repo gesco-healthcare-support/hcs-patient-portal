@@ -37,7 +37,8 @@ public class AppointmentDayReminderJobTests
                 enabled,
                 CaseEvaluationSettings.RemindersPolicy.AppointmentDayTMinusAnchors,
                 "7,1"),
-            NullLogger<AppointmentDayReminderJob>.Instance);
+            NullLogger<AppointmentDayReminderJob>.Instance,
+            ReminderJobTestHarness.Clock());
 
         return (job, resolver);
     }
@@ -45,7 +46,7 @@ public class AppointmentDayReminderJobTests
     [Fact]
     public async Task Muted_when_reminders_disabled()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ReminderJobTestHarness.PacificToday;
         var (job, resolver) = Build(
             enabled: false,
             ReminderJobTestHarness.Appt(OnAnchorId, AppointmentStatusType.Approved, today.AddDays(7)));
@@ -58,7 +59,7 @@ public class AppointmentDayReminderJobTests
     [Fact]
     public async Task Fires_only_for_anchor_days_when_enabled()
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ReminderJobTestHarness.PacificToday;
         var (job, resolver) = Build(
             enabled: true,
             ReminderJobTestHarness.Appt(OnAnchorId, AppointmentStatusType.Approved, today.AddDays(7)),
