@@ -477,9 +477,46 @@ that refuses to boot on bad config is safe but opaque, so decide deliberately ra
 default. Check whether any other merged key (the oAuthConfig URLs) deserves the same treatment
 before choosing a shape.
 
-**Acceptance (EARS):** WHEN the runtime config supplies a `baseHost` that is not a syntactically
-valid host, THE SYSTEM SHALL refuse to use it and fail fast with a diagnosable message rather than
-composing a URL from it.
+**Acceptance (EARS) -- REPLACED and WIDENED, Adrian 2026-09-01.** The original criterion covered
+`baseHost` alone; the scope grew to every setting the file carries. Superseding criterion:
+
+> WHEN the runtime configuration merged from `dynamic-env.json` contains any value that is not valid
+> for its setting -- a host carrying a scheme, path, credentials or whitespace; a service URL that is
+> not an absolute http(s) URL, or that is not https while `production` is true; a boolean field
+> carrying a string; or a required text field that is empty -- THE SYSTEM SHALL start, SHALL name
+> every offending setting in both a visible on-page message and the browser console, and SHALL NOT
+> silently substitute a default.
+
+The final clause is what makes it real: today's only response to a bad `baseHost` is the
+`?? 'localhost'` fallback, which the criterion forbids.
+
+**The four decisions, with their reasons:**
+
+| Decision                                              | Reason                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validate in BOTH the app and `prod-dynamic-env.envsh` | Four producers write this file and only one emits `baseHost`. The app is the only place that sees every route including a hand-edited file; the script is the only place that can stop a bad deploy before it serves anyone.                            |
+| Cover EVERY setting, not just origin-forming ones     | The producers already disagree on types -- `"production": true` in two, `"production": "true"` in the Helm configmap -- and nothing validates any of it.                                                                                                |
+| Require https only when `production` is true          | Uses the file's own flag as the switch, so dev keeps working on http while a production deployment cannot be pointed at a plaintext auth server. Always-https would break every dev stack and need an exemption, which is this rule wearing a disguise. |
+| Start and warn visibly; never silently substitute     | On a self-hosted LAN deployment the person who sees a blank page is not the person who can read a container log. Falling back does not avoid an outage, it disguises one.                                                                               |
+
+**The script behaves differently from the app, deliberately.** The script FAILS THE CONTAINER START;
+the app STARTS AND WARNS. Same principle -- make it visible to whoever is present -- different
+audience: the script's reader is the operator running the deploy, and nothing is being served yet.
+The script guard cannot fire on a currently-valid deployment, because `${APP_BASE_HOST:-localhost}`
+already substitutes on empty, so only malformed values reach it.
+
+**Decided without escalation, recorded so they are not re-litigated:** absent keys are not errors
+(three producers omit `baseHost`; the baked environment covers them); URLs must be absolute (a
+relative value cannot be an origin); `apis` is iterated rather than hardcoded to its two known names,
+because a rule needing manual extension will be wrong within a year; `scope` is checked non-empty
+only and deliberately NOT for `openid`, since the Helm producer omits it and encoding that rule would
+flag an existing producer from inside a validation change -- that question is backlogged separately;
+`logoUrl` may be empty because the production producer emits `""` on purpose.
+
+**Considered and rejected:** requiring the service URLs to share `baseHost`. It would catch a config
+pointing at an entirely wrong domain, but the services legitimately live on different subdomains and
+a future split-domain deployment would break against it. Brittleness that only appears on a later
+deployment is the worst kind, because nobody connects the failure to the rule.
 
 ---
 
