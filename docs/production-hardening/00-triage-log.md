@@ -170,6 +170,87 @@ satisfy a scanner and the reported defect is absent. Session A's call.
 
 ---
 
+## FALSE POSITIVE -- Sonar `typescript:S2699` (BLOCKER), phase 1.3
+
+**Where:** `angular/src/app/shared/auth/full-logout.spec.ts:47`
+**Claim:** "Add at least one assertion to this test case."
+**Verdict:** False positive. The test asserts, and the assertion has teeth. Proven by mutation, not
+argued. Issue key `AZ-Au9J_eUr9gP0iFbsb`.
+
+**The phase file's original premise was also wrong** and has been corrected in
+[01-blockers.md](01-blockers.md): it read "The test passes unconditionally. It is worse than no
+test." It does not pass unconditionally.
+
+**Evidence.** The flagged `it(...)` opens at `:47` and its assertion is at `:55`:
+
+```ts
+await expectAsync(performFullLogout(injectorFor(oauth))).toBeResolved();
+```
+
+`toBeResolved()` fails the spec if the promise rejects. "Never rejects" is precisely the documented
+contract of `performFullLogout` (`full-logout.ts:27-29`) -- a failed revocation must still land the
+user on the login page -- so this is the correct assertion for that test, not a missing one.
+
+**Why the rule fires.** S2699 looks for `expect(` and does not recognise `expectAsync`. Supporting
+correspondence, each counted by command:
+
+```bash
+# open S2699 issues project-wide -> 1
+curl -s ".../api/issues/search?...&rules=typescript:S2699&resolved=false"
+# occurrences of expectAsync in every spec under src -> 1
+grep -rn "expectAsync" --include=*.spec.ts src/
+```
+
+Both point at the same file. The single test in the application written with `expectAsync` is the
+single test the rule flagged. That is corroboration at n=1, not proof, which is why the mutation
+below is the actual evidence.
+
+**Mutation proof.** A `throw` was added after the try/catch in `performFullLogout`, breaking the
+never-reject contract, and the scoped spec was re-run:
+
+```
+performFullLogout never rejects even if both revocation and the fallback throw FAILED
+    Expected a promise to be resolved but it was rejected with Error: mutation: performFullLogout now rejects.
+TOTAL: 8 FAILED, 0 SUCCESS
+```
+
+The flagged spec fails on its own assertion. Mutation reverted; `git diff` on the implementation is
+empty and a residue grep returns 0.
+
+**Action:** mark **False Positive** in SonarCloud citing this entry. No implementation change.
+
+**THREE OF THE SIX ORIGINAL BLOCKERS ARE NOW FALSE POSITIVES** -- the two `secrets:S7539` PowerShell
+hits, the `tssecurity:S6105` open redirect (1.1), and this one. That is half the headline BLOCKER
+count, and it is a finding about the tool rather than the code: a mechanical sweep of this list would
+have "fixed" three non-problems. Current open BLOCKERs, counted by command:
+
+```bash
+curl -s ".../api/issues/search?...&resolved=false&severities=BLOCKER&ps=1" | jq .total   # -> 5
+```
+
+5 open, of which 2 are the already-dismissed S7539 pair and 1 is this entry pending its marking.
+
+**THE REAL GAP WAS NEXT TO IT, and no scanner raised it.** Sign-out expires `__tenant` and
+`XSRF-TOKEN` before redirecting, because the end-session flow does not clear them and, quoting
+`full-logout.ts:22-23`, "a stale `__tenant` can leak the prior user's tenant into a fresh
+registration on the same browser". On a shared machine in a medical office that is a patient-data
+boundary. Before this task NOTHING tested either cookie -- counted by command:
+
+```bash
+git grep -l "__tenant\|XSRF-TOKEN" e19c46ed -- 'angular/src/**/*.spec.ts' | wc -l   # -> 0
+```
+
+and `full-logout.ts:33` is the only place `__tenant` is cleared (the other two references, at
+`app.config.ts:149,151`, are comments). Five characterization specs now cover it, including the
+inverse case that the theme and culture cookies are deliberately PRESERVED, so a future
+"clear everything on logout" change fails loudly instead of resetting every user's preferences.
+
+The cookie specs passed on first run, which is the point of a characterization test: the clearing
+works today and is now pinned. Had they failed, that would have been a live defect on the leak path
+rather than a test to iterate on.
+
+---
+
 ## PENDING TRIAGE -- entries to be added as each family is researched
 
 The following are flagged but not yet investigated. Do not fix before triaging.

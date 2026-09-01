@@ -96,19 +96,41 @@ rendered or executed.
 - **Where:** `angular/src/app/shared/auth/full-logout.spec.ts:47`
 - **Message:** "Add at least one assertion to this test case."
 
-**Why a BLOCKER is correct here.** The test passes unconditionally. It is worse than no test: it
-reports coverage on the full-logout path and gives false confidence on a security-relevant flow.
-This is precisely the failure mode `~/.claude/rules/testing.md` warns about -- a substituted
-dependency returning a plausible value proves the code compiles, not that it works.
+**~~Why a BLOCKER is correct here.~~ THIS PREMISE WAS WRONG -- corrected 2026-09-01.** The original
+text read: "The test passes unconditionally. It is worse than no test." It does not pass
+unconditionally. The flagged `it(...)` opens at `full-logout.spec.ts:47` and asserts at `:55`:
 
-**Research owed:** what full-logout is meant to guarantee (token revocation, cookie clearing,
-end-session redirect) and which of those the spec was intended to cover.
+```ts
+await expectAsync(performFullLogout(injectorFor(oauth))).toBeResolved();
+```
 
-**Acceptance (EARS):** WHEN a full logout completes, THE SYSTEM SHALL have cleared the local token
-store and issued the end-session request, and the spec SHALL assert both.
+That fails the spec if the promise rejects, which is exactly the contract the test is named for --
+`performFullLogout` is documented to never reject so a failed revocation still lands the user on the
+login page. `typescript:S2699` looks for `expect(` and does not recognise `expectAsync`.
+
+**Research owed** (answered): full logout guarantees five things, from the doc comment at
+`full-logout.ts:4-30` -- (1) revoke access and refresh tokens, (2) let angular-oauth2-oidc clear its
+local token storage, (3) redirect to the discovered `end_session_endpoint` to clear the AuthServer
+SSO cookie, (4) expire `__tenant` and `XSRF-TOKEN` first, because the end-session flow does not
+clear them and a stale `__tenant` leaks the prior user's tenant into a fresh registration on the
+same browser, and (5) never reject. Called from 8 sites.
+
+**Acceptance (EARS) -- REPLACED, widened by Adrian 2026-09-01.** Two criteria, both required:
+
+1. WHEN the no-reject spec is run against a deliberately mutated implementation that rejects, THE
+   SYSTEM SHALL fail that spec.
+2. WHEN a full logout completes, THE SYSTEM SHALL have expired both the tenant cookie and the CSRF
+   cookie, and the spec SHALL assert both.
+
+The original criterion -- assert the token store was cleared and the end-session request issued --
+was superseded because **it was already satisfied by doing nothing.** Those are library-internal
+side effects of `logOut()`, the three pre-existing specs already assert the delegation through the
+service double, and nothing in a double-based test can observe the real storage or redirect. Written
+as it was, the task could have been closed without adding value.
 
 **Note:** this one doubles as a phase-3 item -- it is the first real characterization test on an
-auth path.
+auth path, and the first item in the epic that is NOT test-with-fix (behaviour is preserved, so
+tests come first).
 
 ---
 
