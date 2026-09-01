@@ -29,6 +29,39 @@ server {
     return 301 https://$host$request_uri;
 }
 
+# Catch-all for 443: refuse any Host that matches none of the four server blocks below.
+#
+# Without this, no 443 block carries `default_server`, so nginx falls back to the FIRST 443
+# block in the file -- the AuthServer -- and every unmatched hostname reaches it. That is
+# reconnaissance surface once the app is public.
+#
+# `server_name _` is not special syntax; `_` is simply a name no real Host can equal. The
+# `default_server` flag is what makes this block the fallback, and nginx selects server blocks
+# by NAME SPECIFICITY rather than file order (exact name, then longest `*.` wildcard, then
+# suffix wildcard, then regex, and only then the default). So this block matches ONLY unmatched
+# hosts and its POSITION HERE IS COSMETIC -- it sits first so a reader meets the fallback before
+# the named blocks. Do not "fix" it by moving it.
+#
+# 421 rather than 444 (drop): HTTP/2 is on for every block below and one certificate covers
+# several of these names, so a browser may coalesce connections across them. 421 is the RFC 9110
+# signal telling such a client to retry on a fresh connection; 444 would give it an
+# uninterpretable reset. 444 buys little concealment anyway -- port 80 already answers every
+# host, and the TLS handshake announces the certificate's names before Host is ever read.
+#
+# The ssl_ directives are REQUIRED, not decorative: on 443 the handshake completes before Host
+# is read, so this block serves the certificate whenever SNI is absent or unmatched. Without
+# them the handshake cannot complete.
+server {
+    listen 443 ssl default_server;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    return 421;
+}
+
 # {office}.auth.<domain> -> AuthServer (OpenIddict + Razor identity UI).
 server {
     listen 443 ssl;
