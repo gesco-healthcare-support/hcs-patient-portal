@@ -359,6 +359,44 @@ template's own comment at `:14-18` already documents specificity resolving overl
 Neither can silently misroute traffic, which makes this change materially safer than the original
 note implied.
 
+#### OUTCOME: FIXED (2026-09-01)
+
+Landed in `14c3f84b` (#506). One additive server block -- `listen 443 ssl default_server;`,
+`http2 on;`, `server_name _;`, the two `ssl_` directives, `return 421;`. No existing block edited.
+
+**421 rather than 444**, decided by Adrian: HTTP/2 is on for every block and one certificate covers
+several of these names, so a browser may coalesce connections across them. 421 is the RFC 9110
+signal telling such a client to retry on a fresh connection; 444 would give it an uninterpretable
+reset. 444 buys little concealment here anyway -- port 80 already answers every host, and the TLS
+handshake announces the certificate's names before Host is ever read.
+
+**Proved both directions**, in one throwaway nginx container with `proxy_pass` stubbed to
+`return 200 '<block name>'` -- explicitly not the portal stack:
+
+| Host                             | Before               | After               |
+| -------------------------------- | -------------------- | ------------------- |
+| `office.auth.portal.example.com` | auth block           | auth block (200)    |
+| `office.api.portal.example.com`  | api block            | api block (200)     |
+| `minio.portal.example.com`       | minio block          | minio block (200)   |
+| `office.portal.example.com`      | angular block        | angular block (200) |
+| `unmatched.example.net`          | **auth block (200)** | **421**             |
+
+The last row confirms the finding empirically and proves the fix is load-bearing rather than a
+no-op; the four above it prove the second acceptance criterion, that legitimate routing is unchanged.
+The stub config was generated FROM the rendered template, keeping every `listen`, `server_name` and
+`ssl_` line verbatim, so what was tested mirrors the real file rather than a hand-written copy.
+
+**Limit of that proof, stated so it is not overclaimed later:** it establishes server-name SELECTION
+only. `proxy_pass` was stubbed, so backend liveness was not exercised. Selection was the thing at
+risk in this change; proving the backends respond needs the full stack.
+
+**Port 80 deliberately unchanged**, and it is not a half-measure: an unmatched host there is 301'd to
+https, reconnects on 443, and is refused by the new catch-all -- the goal is met one hop later -- and
+port 80 never proxies to a backend, so nothing reaches an application either way. Backlogged with the
+cost of doing it properly: no SNI on port 80, so refusing there needs name-matched 301 blocks for all
+four legitimate shapes plus turning the existing default into a refusal, which is four new blocks
+rather than one line.
+
 ### 1.6 DataProtection keys appear to be stored unencrypted at rest
 
 - **Where:** `CaseEvaluationAuthServerModule.cs:384`, `CaseEvaluationHttpApiHostModule.cs:101` ->
