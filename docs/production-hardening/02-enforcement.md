@@ -210,3 +210,51 @@ argument enough given three were proven?**
 Removing the front-end coverage exclusion is expected to move the number **UP, not down**. Angular
 is at 67.44% of lines against a back-end-only 52.4%; a rough line-weighted blend is ~54%. Treat that
 as a direction only -- it uses karma's line counting, not Sonar's. 2.2 must produce the real number.
+
+---
+
+## REUSABLE PATTERN: land a gate BEFORE its backlog is cleared (2026-09-02)
+
+Adrian's call, generalised from task 2.1's markdown check. Several later phases have the same shape --
+a large pre-existing backlog and a gate you want in place now -- so this is written once here.
+
+**The problem.** A check with a big backlog has only bad options if you think in whole-repo terms:
+
+| Option                        | Failure mode                                                         |
+| ----------------------------- | -------------------------------------------------------------------- |
+| Leave it advisory             | it never gates; the backlog grows                                    |
+| Make it blocking now          | permanently RED; **teaches everyone to ignore red**                  |
+| Wait until the backlog clears | the gate arrives months late, after the habit it prevents has set in |
+
+The middle option is the trap, and it is not obviously worse than the first -- **a permanently red
+check and a permanently green one are equally uninformative.** Task 2.1 produced one of each from the
+same check within an hour: `Lint: Markdown` was green while linting zero files, and fixing that made
+it red on 5,271 pre-existing violations.
+
+**The pattern: scope the gate to what the submission CHANGES.**
+
+Compute the changed files against the merge base and check only those. New and edited work must meet
+the bar; the backlog is untouched and waits for the phase that owns backlogs.
+
+```bash
+base="origin/${{ github.base_ref }}"
+files=$(git diff --name-only --diff-filter=ACMR "$base...HEAD" -- '<pattern>')
+[ -z "$files" ] && { echo "Nothing to check."; exit 0; }
+echo "$files" | xargs <the checker>
+```
+
+Requires `fetch-depth: 0` on checkout. The empty case must exit 0, or every submission that touches
+nothing of that type fails.
+
+**Why it is strictly better than the three options above:** the gate is honest (it reports real
+violations), green (so red means something), and BLOCKING from day one (so it actually constrains
+new work) -- and the backlog stops growing immediately even though nobody has touched it.
+
+**Where this likely applies next:** the rule families in phase 7 (253 instances of one rule cannot be
+made build-failing repo-wide, but they can be for changed files), the coverage threshold once 2.2
+reports the true number (new-code coverage is already this pattern -- Sonar's `new_coverage` metric
+is changed-lines-only), and the action pinning in 2.2/2.3 if the count makes a single sweep unsafe.
+
+**The limit, stated so nobody over-applies it:** it does not work for whole-artifact properties. A
+gate on "the build succeeds" or "no secret exists anywhere in history" cannot be scoped to changed
+files, because the property is not per-file.
