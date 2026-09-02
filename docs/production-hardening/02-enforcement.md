@@ -136,11 +136,29 @@ The gates are the deliverable, so the validation is adversarial:
 
 ---
 
-## TASK 2.1 -- STOPPED PART-WAY 2026-09-02. RESTART HERE.
+## TASK 2.1 -- MERGED 2026-09-02. Five gates proven; four settings left unflipped with reasons.
 
-**Nothing is merged and no PR is open.** All work is on `chore/ci-gates-capable-of-failing`
-(head `e9fbb93b`, 4 commits, branched off the epic branch). A throwaway probe branch
-`chore/ci-poison-probe` + PR **#513** hold the deliberate violations -- **NEVER MERGE #513**.
+**Landed as `8096966d` (#514).** The dependency-review flip followed separately in #518. Three
+throwaway probe PRs -- #513, #515, #517 -- held the deliberate violations and are all CLOSED; their
+branches were kept, not deleted.
+
+**Proven red by poisoning (5):** Backend: Format Check, Frontend: Format Check, Lint: YAML workflows,
+Lint: Markdown (changed-files-only), Dependency Review.
+
+**Deliberately NOT flipped (4), each for a stated reason:** `commitlint` and `pr-title` require a
+malformed commit message or PR title, which two local guardrails prevent this tooling from creating
+-- reported as configured-identically-but-not-observed rather than manufactured. `trufflehog-pr` must
+never be poisoned, because a real secret committed to prove a scanner works outlives the proof.
+`sonarcloud` is pointless to poison as configured -- see the note below.
+
+**Two deletions:** the permanently-green `doc-check.yml` stub, and the duplicate `-warnaserror`
+back-end build whose own comment set the condition for its removal (already met).
+
+**A note that will otherwise be misread:** the SonarCloud QUALITY GATE result is reported by the
+external `SonarCloud Code Analysis` status. The Actions job `SonarCloud: Analysis` never evaluates it
+(`sonar.qualitygate.wait=false`). Two similarly named things. Making the gate blocking therefore means
+REQUIRING THE EXTERNAL STATUS in branch protection -- not flipping that job, and not setting
+`wait=true`.
 
 ### What is DONE and proven
 
