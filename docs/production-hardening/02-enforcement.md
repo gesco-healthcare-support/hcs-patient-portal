@@ -412,3 +412,60 @@ Recommend (1) if 2.7 is going to happen soon, because (2) means deliberately set
 already know is about to be wrong. This is a sequencing decision, not a technical one.
 
 **Not changed here.** This is the audit; the exclusion edits and the sequencing call are separate.
+
+### 2.7 MEASURED RESULT (2026-09-02): 55.4% -> 55.0%, and the composition is the finding
+
+The exclusion narrowing landed and the analyser re-measured. It fell 0.4 points -- far less than the
+"substantial fall" predicted, and the reason it barely moved is the interesting part.
+
+| Metric            | Before narrowing | After  | Delta |
+| ----------------- | ---------------- | ------ | ----- |
+| `coverage`        | 55.4%            | 55.0%  | -0.4  |
+| `lines_to_cover`  | 20,065           | 20,623 | +558  |
+| `uncovered_lines` | 8,980            | 9,324  | +344  |
+| covered (derived) | 11,085           | 11,299 | +214  |
+
+**OF THE 558 COVERABLE LINES THAT CAME INTO SCOPE, 214 WERE ALREADY COVERED -- 38.4%.** The existing
+suite was testing that code all along and the exclusion list was discarding the result. That is the
+"tests run, their coverage is thrown away" claim measured rather than argued.
+
+**MY OWN ESTIMATE WAS AN ORDER OF MAGNITUDE OUT AND THE CAVEAT IS WHY IT DID NOT MISLEAD.** I
+predicted "roughly 3,193 raw lines" and flagged that coverable lines are a fraction of raw. The
+actual figure was **558 coverable, 17.5% of raw**. ABP module classes are largely declarative --
+`DependsOn` attributes and `Configure<T>(options => ...)` lambdas -- so most of those raw lines are
+not executable statements. Stating the estimate as an order of magnitude rather than a figure is the
+only reason it was not a wrong prediction presented as a number.
+
+**Floor sensitivity against the new 55.0% baseline** (line component, 11,299 / 20,623):
+
+```
+floor 55.0%  ->  trips after ~0    additional uncovered lines
+floor 54.5%  ->  trips after ~109
+floor 54.0%  ->  trips after ~301
+floor 53.0%  ->  trips after ~696
+```
+
+**The exclusion list is now seven specific decisions instead of three wildcards and a dead entry:**
+
+```
+**/Program.cs                                  thin host bootstrap
+**/Migrations/**                               generated
+**/TenantMigrations/**                         generated
+angular/src/app/proxy/**                       generated
+**/CaseEvaluationDbContextFactory.cs           design-time only (IDesignTimeDbContextFactory)
+**/CaseEvaluationTenantDbContextFactory.cs     design-time only
+**/CaseEvaluationDbContextFactoryBase.cs       design-time only
+```
+
+**Why the two wildcards were REMOVED rather than narrowed**, since that was a deliberate choice:
+
+- `**/*Module.cs` -- the ABP test modules `DependsOn` the production modules
+  (`CaseEvaluationApplicationModule`, `CaseEvaluationDomainModule`,
+  `CaseEvaluationEntityFrameworkCoreModule`), so those classes EXECUTE during the test run. Their
+  coverage was real and discarded, which the +214 above confirms. The two large host modules are not
+  booted by any test, so they now count as near-zero -- and that is a gap to reveal, not hide: the
+  tenant-resolver rebuild in the AuthServer module is testable by asserting the resolver list.
+- `**/*DbContext*.cs` -- two of its eight matches were the EF snapshots, already excluded by the
+  Migrations patterns, so the wildcard added nothing for them. The rest are exercised by seven test
+  files. Only the three design-time factories are genuinely unreachable at runtime, and they are now
+  excluded BY NAME. A named exclusion states what it protects; a wildcard states nothing and grows.
