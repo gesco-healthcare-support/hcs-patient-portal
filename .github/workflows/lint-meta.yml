@@ -49,5 +49,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v16
         with:
-          globs: "docs/**/*.md README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md"
+          # Phase 2.1 (2026-09-02): globs MUST be newline-separated. As a single
+          # space-separated string the action treated the whole line as one glob,
+          # matched nothing, and reported "Linting: 0 file(s) / Summary: 0 error(s)"
+          # -- permanently green while checking no files at all. Found by poisoning.
+          globs: |
+            docs/**/*.md
+            README.md
+            CONTRIBUTING.md
+            CODE_OF_CONDUCT.md
+            SECURITY.md
+            CHANGELOG.md
           config: ".markdownlint.json"
