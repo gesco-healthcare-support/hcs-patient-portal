@@ -181,9 +181,27 @@ argument enough given three were proven?**
 
 ### Two findings for LATER tasks, not touched here
 
-- **Task 4:** `production` branch protection requires a check named **"Secret Detection"**. No check
-  by that name exists -- the job reports as `TruffleHog: PR commits`. A required check that never
-  runs blocks that branch indefinitely.
+- **LIVE BLOCKER ON `production` -- phase 2 item, do NOT act on it, the fix is Adrian's choice.**
+  `production` branch protection requires seven checks, one of them named **"Secret Detection"**.
+
+  **Corrected mechanism (an earlier note in this file said "no check by that name exists" -- that
+  was WRONG).** The check DOES exist: `.github/workflows/security.yml:47` is literally
+  `name: "Secret Detection"`. The fault is that `security.yml` triggers on `schedule`
+  (weekly, Mondays 06:00) and `workflow_dispatch` ONLY -- it has **zero `pull_request` triggers**.
+  So the check exists, produces exactly that name, and can never report on a pull request.
+
+  **Consequence: no PR to `production` can ever satisfy its required checks, so merges to
+  `production` are blocked indefinitely.** `staging` does not require it and is unaffected. This
+  plausibly explains why `production` has sat untouched since May; the standing decision to defer
+  the staging/production reset until this epic lands means nobody has hit it recently, but it will
+  bite the moment anyone tries.
+
+  The fix is a choice between adding a `pull_request` trigger to that workflow and removing the
+  requirement from branch protection. That is Adrian's call, not ours.
+
+  Why the precision matters: "no such check exists" sends someone hunting for a missing workflow;
+  "the check exists but never runs on PRs" sends them to add a trigger. Same symptom, different fix.
+
 - A **twelfth** masking construct at `ci.yml:121`, `check-links.py || true`, self-documented as
   deliberate for pre-existing broken links. Same class as the eleven; left alone.
 
