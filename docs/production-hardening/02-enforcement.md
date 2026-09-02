@@ -299,3 +299,31 @@ assumed "Angular is untested" is starting from a false premise.
 `new_lines_to_cover` was 0 on that PR -- it changes only a workflow file -- so this run says nothing
 about the new-code gate. That gate is separate and is reported by the external
 `SonarCloud Code Analysis` status, not by the `SonarCloud: Analysis` Actions job.
+
+---
+
+## 2.7 Audit `sonar.coverage.exclusions` (added 2026-09-02)
+
+**Own item, not part of the threshold task.** Raised because the exclusion list has never been
+audited and 2.2 proved it was wrong in a way that mattered.
+
+Until 2026-09-02 it excluded `angular/src/**/*.ts` and `angular/src/**/*.html` -- the entire front
+end -- which turned out to be the BETTER-tested half at 77.1%. The reported 52.4% was a measurement
+hiding its own subject. That exclusion is gone; the rest of the list has never been checked:
+
+```
+**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,**/TenantMigrations/**,
+angular/src/app/proxy/**,**/*.module.ts
+```
+
+**Why it matters NOW rather than later.** With `new_coverage` moving to 90%, every file that is
+wrongly INCLUDED becomes a source of false failure, and every file wrongly EXCLUDED inflates the
+number that the ratchet is set against. At 80% there was slack for both errors; at 90% there is not.
+
+**Ask of each entry:** is this genuinely untestable, or merely untested? `Program.cs` and generated
+proxy code are defensible. `*Module.cs` covers ABP module classes that contain real configuration
+logic -- some of which this epic has already changed and tested. `*DbContext*.cs` is a broad wildcard
+that may catch more than intended.
+
+**Acceptance (EARS):** WHEN a path is excluded from coverage, THE SYSTEM SHALL exclude it because the
+code is not meaningfully testable, and each entry shall carry a recorded reason.
