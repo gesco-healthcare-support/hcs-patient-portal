@@ -133,3 +133,62 @@ The gates are the deliverable, so the validation is adversarial:
 4. Record in the phase notes which checks are required versus advisory -- `main` currently requires
    only `Backend: Build` and `Frontend: Build`; `development` requires four. That asymmetry is
    itself worth fixing here.
+
+---
+
+## TASK 2.1 -- STOPPED PART-WAY 2026-09-02. RESTART HERE.
+
+**Nothing is merged and no PR is open.** All work is on `chore/ci-gates-capable-of-failing`
+(head `e9fbb93b`, 4 commits, branched off the epic branch). A throwaway probe branch
+`chore/ci-poison-probe` + PR **#513** hold the deliberate violations -- **NEVER MERGE #513**.
+
+### What is DONE and proven
+
+| Change                                                           | State                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------- |
+| Delete `doc-check.yml` (permanently green stub)                  | done; verified not a required check on any branch |
+| Delete the duplicate `-warnaserror` build at `ci.yml:101`        | done, per its own removal condition               |
+| Flip **Backend: Format Check** to blocking                       | done, **POISONED RED**                            |
+| Flip **Frontend: Format Check** to blocking                      | done, **POISONED RED**                            |
+| Flip **Lint: YAML workflows** to blocking                        | done, **POISONED RED**                            |
+| Remove `\|\| true` masking the Angular suite in `sonarcloud.yml` | done (job still non-blocking)                     |
+| Fix `markdownlint` globs                                         | done -- see the finding below                     |
+
+### THE FINDING: `Lint: Markdown` was linting ZERO files
+
+`markdownlint-cli2-action` needs `globs` NEWLINE-separated. As one space-separated string it matched
+nothing: `Linting: 0 file(s) / Summary: 0 error(s)`. Permanently green while checking nothing --
+the eighth instance of a check reporting success without running.
+
+**Fixed globs -> `Linting: 431 file(s) / Summary: 5271 error(s)`.** So it was NOT flipped to
+blocking: 5,271 pre-existing violations would turn every PR red, which this task is not scoped to
+fix. It now reports honestly and still does not gate. Flipping it needs its own item.
+
+### What is NOT done -- 6 settings deliberately REVERTED, not left half-flipped
+
+`codeql-pr`, `commitlint`, `dependency-review`, `pr-title`, `trufflehog-pr`, and the `sonarcloud`
+job were flipped and then **reverted**, because a gate made blocking and never watched fail is
+exactly what this phase exists to remove. They are back to `continue-on-error: true`.
+
+Two of them CANNOT be poisoned from a Claude session: `Commitlint` and `PR Title` need a
+deliberately malformed commit message / PR title, and two local guardrails prevent creating one
+(`validate-commit-message.sh`, and `block-dangerous-commands.sh` refusing `--no-verify`). Producing
+that proof needs one command run outside Claude. The other four (`CodeQL`, `SonarCloud`,
+`Dependency Review`, `TruffleHog`) need a real vulnerability, gate breach, denied-licence dependency
+and verified secret respectively -- slow, and two involve committing something deliberately nasty.
+**Open question for Adrian: is observed-red required for those four, or is the configuration
+argument enough given three were proven?**
+
+### Two findings for LATER tasks, not touched here
+
+- **Task 4:** `production` branch protection requires a check named **"Secret Detection"**. No check
+  by that name exists -- the job reports as `TruffleHog: PR commits`. A required check that never
+  runs blocks that branch indefinitely.
+- A **twelfth** masking construct at `ci.yml:121`, `check-links.py || true`, self-documented as
+  deliberate for pre-existing broken links. Same class as the eleven; left alone.
+
+### Task 2.2 preview -- the expectation was backwards
+
+Removing the front-end coverage exclusion is expected to move the number **UP, not down**. Angular
+is at 67.44% of lines against a back-end-only 52.4%; a rough line-weighted blend is ~54%. Treat that
+as a direction only -- it uses karma's line counting, not Sonar's. 2.2 must produce the real number.
