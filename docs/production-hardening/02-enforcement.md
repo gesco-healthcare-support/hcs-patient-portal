@@ -345,3 +345,70 @@ that may catch more than intended.
 
 **Acceptance (EARS):** WHEN a path is excluded from coverage, THE SYSTEM SHALL exclude it because the
 code is not meaningfully testable, and each entry shall carry a recorded reason.
+
+### 2.7 AUDIT RESULT (2026-09-02) -- one dead pattern, two over-broad, three defensible
+
+File reading only; no credential, no stack, no gate touched. Every count below is reproducible with
+the command shown.
+
+| Pattern                    | Matches | Verdict                                                             |
+| -------------------------- | ------- | ------------------------------------------------------------------- |
+| `**/*.module.ts`           | **0**   | **DEAD** -- remove                                                  |
+| `**/*Module.cs`            | 16      | **OVER-BROAD** -- excludes real, branching, security-relevant logic |
+| `**/*DbContext*.cs`        | 8       | **OVER-BROAD** and partly redundant                                 |
+| `**/Program.cs`            | 4       | defensible -- thin host bootstrap                                   |
+| `**/Migrations/**`         | 181     | defensible -- generated                                             |
+| `**/TenantMigrations/**`   | 33      | defensible -- generated                                             |
+| `angular/src/app/proxy/**` | 218     | defensible -- generated                                             |
+
+```bash
+find src test -name '*Module.cs' | wc -l          # 16
+find src test -name '*DbContext*.cs' | wc -l      # 8
+find angular/src -name '*.module.ts' | wc -l      # 0
+```
+
+**`**/\*.module.ts` matches NOTHING.\*\* This app uses standalone components; there are no NgModules.
+Harmless but dead, and dead config is misleading -- someone reading the list believes Angular modules
+are being excluded for a reason.
+
+**`**/\*Module.cs` is the one to worry about.\*\* These are not thin registration files:
+
+| File                                 | Lines | Branch constructs |
+| ------------------------------------ | ----- | ----------------- |
+| `CaseEvaluationHttpApiHostModule.cs` | 1,477 | **42**            |
+| `CaseEvaluationAuthServerModule.cs`  | 591   | **14**            |
+
+`CaseEvaluationAuthServerModule.cs` contains the ADR-006 tenant-resolver rebuild -- the code that
+clears ABP's default resolver chain so a caller cannot switch tenants with `?__tenant=GUID`. That is
+**explicitly HIPAA-relevant** by its own comment, it has 14 branches, and it is excluded from
+coverage. "Genuinely untestable, or merely untested?" answers itself here.
+
+10 of the 16 are production; 6 are test infrastructure, which would not count toward coverage anyway.
+
+**`**/_DbContext_.cs`is over-broad AND partly redundant.** Of its 8 matches, 2 are the EF model
+snapshots -- and those are already excluded by`**/Migrations/**`and`**/TenantMigrations/**`, so
+the wildcard adds nothing for them. The 6 it uniquely excludes include `CaseEvaluationDbContext.cs`(175 lines) and`CaseEvaluationTenantDbContext.cs` (129).
+
+**Those types are exercised by the repo's own tests.** Seven test files reference them, including
+`MultiOffice/MultiOfficeIsolationMatrixTests.cs` -- tenant-isolation tests, the most
+HIPAA-consequential suite in the repo. The tests run; their coverage of this code is discarded.
+
+### THE INTERACTION THAT MATTERS FOR THE RATCHET -- read before setting 54%
+
+Narrowing these two patterns brings roughly **3,193 raw lines** of production code into the coverage
+denominator (2,750 from `*Module.cs` in `src/`, 443 from the real DbContext files). Coverable lines
+are a fraction of raw lines, so treat that as an order of magnitude, not a figure.
+
+**Most of it is uncovered, so fixing the exclusion list honestly will LOWER the reported 55.4%.**
+
+That directly affects the planned 54% overall ratchet: set the ratchet at 54% first and then fix the
+exclusions, and the gate fails on the honesty fix rather than on any regression. Two orders work:
+
+1. **Fix the exclusions FIRST, re-measure, then set the ratchet** against the honest number. Slower,
+   and the ratchet lands once, correctly.
+2. **Set the ratchet at 54% now** and accept it must be re-based immediately after 2.7 lands.
+
+Recommend (1) if 2.7 is going to happen soon, because (2) means deliberately setting a number we
+already know is about to be wrong. This is a sequencing decision, not a technical one.
+
+**Not changed here.** This is the audit; the exclusion edits and the sequencing call are separate.
