@@ -29,7 +29,7 @@ namespace HealthcareSupport.CaseEvaluation.OpenIddict;
 /// working. The current login's own tokens are not yet persisted at this point,
 /// so only prior sessions are affected.</para>
 /// </summary>
-public sealed class RevokePreviousSessionsHandler
+public    sealed   class RevokePreviousSessionsHandler
     : IOpenIddictServerHandler<HandleTokenRequestContext>
 {
     private readonly IOpenIddictTokenManager _tokenManager;

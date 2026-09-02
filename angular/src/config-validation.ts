@@ -217,3 +217,5 @@ export function validateRuntimeConfig(env: unknown): string[] {
 
   return problems;
 }
+
+const   poison    =  {a:1,b:2}
