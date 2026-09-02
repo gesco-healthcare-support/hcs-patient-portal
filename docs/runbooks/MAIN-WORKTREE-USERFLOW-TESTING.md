@@ -513,7 +513,7 @@ All Patient flows above, plus:
 
 | Flow | OLD ref | NEW path | Parity doc |
 | --- | --- | --- | --- |
-| Login | AuthServer | -- |
+| Login | AuthServer | -- | -- |
 | View appointment queue (Pending + others) | OLD's dashboard | SPA `/appointments` | `clinic-staff-appointment-approval.md` |
 | Approve / reject pending appointment | `AppointmentDomain.Approve` | SPA appointment view | `clinic-staff-appointment-approval.md` |
 | Review uploaded documents | `AppointmentDocumentDomain.Approve` | SPA doc review | `clinic-staff-document-review.md` |

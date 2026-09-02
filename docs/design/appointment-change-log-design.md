@@ -114,7 +114,7 @@ ABP audit logging records changes automatically for `[Audited]` entities.
 
 | Column | Notes |
 |---|---|
-| When | `entityChange.changeTime` (Angular `| date:'short'`) |
+| When | `entityChange.changeTime` (Angular `\| date:'short'`) |
 | Who | `entry.userName` |
 | Type | `changeTypeLabel()` → "Created" / "Updated" / "Deleted" |
 | Property | `prop.propertyName` (field name) |

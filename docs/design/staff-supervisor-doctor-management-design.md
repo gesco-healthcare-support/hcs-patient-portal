@@ -433,7 +433,7 @@ Token definitions: `_design-tokens.md`.
 | 6 | Availability filters | Location, From Date, To Date only | Adds booking status, time range, appointment type filters | Enhancement; OLD's 3 filters preserved as subset |
 | 7 | WCAB Offices in Locations list | Radio toggle switches Location/WCAB in same list component | WCAB Offices are a separate list module | Architectural separation; same data, different navigation path |
 | 8 | Slot conflict check scope | Conflict detection per location per date (time overlap) | Same rule implemented in `BookingPolicyValidator` | Strict parity: `existingFromTime < newToTime AND existingToTime > newFromTime` |
-| 9 | Appointment Type on slot | Nullable -- null means any type accepted | Same nullable field; booking form filters slots by type match (type-specific OR null) | Match OLD exactly: `slot.AppointmentTypeId == null || slot.AppointmentTypeId == requestedTypeId` |
+| 9 | Appointment Type on slot | Nullable -- null means any type accepted | Same nullable field; booking form filters slots by type match (type-specific OR null) | Match OLD exactly: `slot.AppointmentTypeId == null \|\| slot.AppointmentTypeId == requestedTypeId` |
 
 ---
 

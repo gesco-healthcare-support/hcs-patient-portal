@@ -89,7 +89,7 @@ Each note in the right panel shows:
 |---|---|
 | Author name | `firstName lastName` (from `modifiedFirstName/LastName` if edited, else `firstName/lastName`) |
 | Author role | `roleName` (or `modifiedRoleName` if edited) |
-| Date | `modifiedDate` if edited, else `createdDate` (Angular `| date:'medium'`) |
+| Date | `modifiedDate` if edited, else `createdDate` (Angular `\| date:'medium'`) |
 | Comment text | `comments` |
 | Edit icon | Visible ONLY if `item.parentNoteId == currentUserId` (own notes only) |
 | Delete icon | Visible ONLY if `item.parentNoteId == currentUserId` (own notes only) |
