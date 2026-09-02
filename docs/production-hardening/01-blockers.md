@@ -346,6 +346,70 @@ whether the browser navigation cancelled the request before it committed. Drive
 no-hint path does not produce accurate session records, and rebuilding the server half first would
 rest on a premise that may be false.
 
+#### RESEARCH: MECHANISM ESTABLISHED FROM SOURCE + LOGS (2026-09-01). LIVE CONFIRMATION STILL OWED.
+
+**It is REAL, not an artefact of automation speed, and it affects every ordinary sign-out.** Stated
+as the leading conclusion with the evidence below; a live run is still required to close it, because
+everything here is source and log reading.
+
+**THE MECHANISM.** `IdentitySessionManager.RevokeAsync(string)` (decompiled,
+`Volo.Abp.Identity.Pro.Domain` 10.0.2) does:
+
+```
+IdentitySessionRepository.FindAsync(sessionId, default(CancellationToken))
+  -> RevokeAsync(IdentitySession session)
+       -> DeleteAsync(session.Id, autoSave: false, default(CancellationToken))
+```
+
+**`autoSave: false`.** The delete is staged in the change tracker and is persisted only when an
+ambient ABP unit of work COMPLETES. `RevokeAsync` neither saves nor opens its own unit of work.
+
+**WHY ONE PATH WORKS AND THE OTHER DOES NOT** -- the contrast is the whole answer:
+
+| Path                                                                                        | Runs in                                             | Row removed? |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------ |
+| Cookie-auth sign-out event (`AbpAccountPublicWebModule`, the "...during sign out" log line) | inside `LogoutController.GetAsync`, an MVC endpoint | **YES**      |
+| `OpenIddictRevokeIdentitySessionOnRevocation` / `...OnLogout`                               | OpenIddict server middleware                        | **NO**       |
+
+The AuthServer log proves the ordering: the `HandleEndSessionRequestContext` handlers complete at
+`23:13:57.106-.118`, and `Executing endpoint 'Volo.Abp.OpenIddict.Controllers.LogoutController.GetAsync'`
+is at `23:13:57.249`. `app.UseUnitOfWork()` is registered at `CaseEvaluationAuthServerModule.cs:583`,
+downstream of `UseAuthentication()` (`:575`). The OpenIddict handlers therefore run with no ambient
+unit of work to commit their staged delete; the MVC endpoint runs inside one.
+
+**CANCELLATION IS RULED OUT, twice over.** Both cancellation tokens in that call chain are
+`default(CancellationToken)`, not the request's. And the two `POST /connect/revocat` requests each
+**finished with HTTP 200** -- nothing was cancelled -- yet the row survived. The six
+`TaskCanceledException`s in the window all carry `OpenIddictServerHandlers+Authentication+ValidateScopes`
+or `+ValidateAuthorizationRequest` stacks: they belong to the SPA's follow-up `/connect/authorize`,
+not to the revocation or end-session path. They were a red herring.
+
+**WHY THREE LOG LINES -- not retries.** `revokeTokenAndLogout()` POSTs to the revocation endpoint
+TWICE (once `token_type_hint=access_token`, once `refresh_token`), each firing
+`OnRevocation`, and the subsequent end-session fires `OnLogout`. Confirmed in the log as three
+separate requests at `:56.954`, `:57.030` and `:57.108`. The log line is emitted BEFORE the await, so
+it records intent, not success.
+
+**No matching upstream issue found** searching `abpframework/abp` for IdentitySession revoke/logout.
+That is a null result from one query, not proof that none exists.
+
+**CONSEQUENCE FOR TASK 6, and it is the important one.** The refuted handler was registered in the
+SAME OpenIddict middleware position. Even with the `HttpContext.User` problem solved, its
+`RevokeAsync` would stage a delete that never commits. **The approach is dead in that position**, not
+merely mis-sourced. Any future fix must either run inside a unit of work or save explicitly.
+
+**LIVE PROCEDURE THAT WOULD CONFIRM OR REFUTE** (not yet run; needs stack capacity):
+
+1. Sign in and capture the `session_id` claim from the id_token, plus the auth cookie jar.
+2. `curl` `GET /connect/endsession?id_token_hint=<token>` with that cookie jar, no redirect
+   following, allowed to complete fully -- **no browser navigation that could cancel anything**.
+3. Query `AbpSessions` for that session id.
+   - **Still present** -> confirms the defect is real and cancellation-independent.
+   - **Gone** -> the original observation was an automation artefact and this entry is wrong.
+4. Discriminating control: repeat with a fresh session but sign out via `/Account/Logout` (the Razor
+   MVC endpoint) instead. Expect the row to be REMOVED, which would confirm the unit-of-work
+   explanation rather than a fault in `IdentitySessionManager` itself.
+
 ### 1.8a DURATION: ANSWERED FROM SOURCE (2026-09-01)
 
 **The AuthServer SSO session lasts 14 days, and the expiry SLIDES.** Read from source for the pinned
