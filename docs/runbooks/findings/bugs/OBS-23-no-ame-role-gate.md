@@ -37,7 +37,6 @@ related:
 > SPA renders user-facing messages from the `code` field, so the
 > en.json key serves direct-API consumers + documentation.
 
-
 # OBS-23 - Patient / Claim Examiner can book AME appointments via direct API call
 
 ## Symptom
@@ -130,6 +129,7 @@ Plus the new error code, localization key, and HTTP 400 mapping.
 ## Audit doc cross-reference
 
 `docs/parity/_remaining-from-old-audit-2026-05-15.md` rows:
+
 - Line 112 (AME / AME-REVAL booking restricted to Attorneys)
 - Line 525 (RoleAppointmentType permission table)
 - Line 845 (Appointment Request AME -- AME role gate TO VERIFY)

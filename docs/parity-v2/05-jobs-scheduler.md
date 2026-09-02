@@ -13,6 +13,7 @@ recurring jobs registered in
 `SendAppointmentEmailJob` and `GenerateAppointmentPacketJob` worker jobs.
 
 Files read in full (OLD):
+
 - `PatientAppointment.Domain\Core\SchedulerDomain.cs` (all 9 reminder
   methods + the `ConfigureNotificaion` dispatch switch).
 - `PatientAppointment.Api\Controllers\Api\Core\SchedulerController.cs`.
@@ -22,6 +23,7 @@ Files read in full (OLD):
   this local copy).
 
 Files read in full (NEW):
+
 - `Domain\Notifications\Jobs\DueDateApproachingJob.cs`
 - `Domain\Notifications\Jobs\DueDateDocumentIncompleteJob.cs`
 - `Domain\Notifications\Jobs\PackageDocumentReminderJob.cs`

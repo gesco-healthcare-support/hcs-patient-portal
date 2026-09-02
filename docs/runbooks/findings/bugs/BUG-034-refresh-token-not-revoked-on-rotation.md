@@ -24,6 +24,7 @@ OAuth refresh-token rotation test against `http://falkinstein.localhost:44368/co
 4. Use `refresh_token_B` (the rotation output from step 2): status 200, returns yet another fresh token.
 
 Expected per OAuth best practice (RFC 6749 Section 10.4 + RFC 8252):
+
 - Step 3 MUST return `400 invalid_grant` (old token revoked on rotation).
 - Step 4 MUST return 200 (new token still valid).
 
@@ -72,12 +73,14 @@ console.log('reuse status:', r2.status); // expected 400, actual 200
 ## Recommended fix
 
 Step 1: Locate OpenIddict server configuration:
+
 ```bash
 grep -rn "AddServer\|UseRollingRefreshTokens\|DisableRollingRefreshTokens\|OpenIddictServerBuilder" \
   src/HealthcareSupport.CaseEvaluation.AuthServer/
 ```
 
 Step 2: Ensure the server explicitly enables rolling refresh tokens:
+
 ```csharp
 builder.AddServer(options =>
 {
@@ -88,15 +91,18 @@ builder.AddServer(options =>
 ```
 
 Step 3: Confirm the `OpenIddictTokens` table is being written. After a rotation, run:
+
 ```sql
 SELECT Id, ReferenceId, Status, ExpirationDate, RedemptionDate
 FROM OpenIddictTokens
 WHERE Type = 'refresh_token'
 ORDER BY CreationDate DESC
 ```
+
 The redeemed (old) token's `Status` should be `redeemed` (not `valid`), and `RedemptionDate` should be set.
 
 Step 4: Add integration test in `test/HealthcareSupport.CaseEvaluation.AuthServer.Tests/`:
+
 ```csharp
 [Fact]
 public async Task Refresh_token_should_be_invalidated_after_rotation()

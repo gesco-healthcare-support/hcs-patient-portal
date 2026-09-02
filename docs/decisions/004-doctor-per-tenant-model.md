@@ -45,6 +45,7 @@ Evidence from the codebase:
 ## Consequences
 
 **Easier:**
+
 - Tenant-scoped queries (appointments, availability slots) automatically filter to
   the correct doctor without needing an explicit DoctorId filter
 - Strong data isolation -- each doctor's practice data lives in a separate database
@@ -52,6 +53,7 @@ Evidence from the codebase:
 - No need for intra-tenant doctor selection UI
 
 **Harder:**
+
 - Cannot support a multi-doctor clinic as a single tenant without restructuring
 - If the business model changes to support group practices, the entire tenancy model
   would need reworking

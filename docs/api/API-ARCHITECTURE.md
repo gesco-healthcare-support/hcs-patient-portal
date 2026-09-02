@@ -69,7 +69,7 @@ Swagger is configured in `CaseEvaluationHttpApiHostModule.ConfigureSwagger()` vi
 
 - **Doc:** `v1` with title "CaseEvaluation API"
 - **OIDC integration:** Uses `AddAbpSwaggerGenWithOidc` to enable OAuth2 authorization code flow in Swagger UI
-- **Authority:** `AuthServer:Authority` (https://localhost:44368)
+- **Authority:** `AuthServer:Authority` (<https://localhost:44368>)
 - **Scopes:** `["CaseEvaluation"]`
 - **Swagger client:** `CaseEvaluation_Swagger` (configured via `AuthServer:SwaggerClientId` in appsettings.json)
 - **Schema IDs:** Uses `type.FullName` for custom schema IDs to avoid naming collisions
@@ -84,6 +84,7 @@ CORS is configured from `App:CorsOrigins` in `appsettings.json`:
 ```
 
 The configuration:
+
 - Splits origins by comma
 - Trims whitespace and trailing slashes
 - Allows wildcard subdomains (`SetIsOriginAllowedToAllowWildcardSubdomains`)

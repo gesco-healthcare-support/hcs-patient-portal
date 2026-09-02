@@ -4,6 +4,7 @@
 
 Scope: every report a user could run and every data-export path in the
 OLD Patient Portal -- the Appointment Request Report (HTML table + Excel
+
 + PDF export), the per-appointment Patient-Demographics print-to-PDF, the
 async export-key handshake, the spec'd-but-unbuilt Schedule Report, and
 the spec'd-but-unbuilt Excel ODBC pivot link. The whole area is expected
@@ -11,44 +12,44 @@ to be MISSING in NEW; this audit documents each lost capability so the
 owner can decide scope and priority.
 
 OLD anchors read in full:
-- `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentRequestReportController.cs`
++ `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentRequestReportController.cs`
   (CRUD over the `AppointmentRequestReport` entity -- generic scaffold).
-- `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentRequestReportSearchController.cs`
++ `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentRequestReportSearchController.cs`
   (`POST /api/appointmentrequestreport/search` -> `EXEC spm.spAppointmentRequestReport @Query,@UserId`).
-- `PatientAppointment.Api\Controllers\Api\Export\CSVExportController.cs`
++ `PatientAppointment.Api\Controllers\Api\Export\CSVExportController.cs`
   (the async export-key handshake + Excel/PDF render + per-appointment
   demographics PDF; uses ClosedXML + iTextSharp).
-- `PatientAppointment.DbEntities\Models\AppointmentRequestReport.cs`
++ `PatientAppointment.DbEntities\Models\AppointmentRequestReport.cs`
   (`: Appointment` -- empty subclass; report binds to a stored proc, not
   this entity).
-- `PatientAppointment.Models\ViewModels\ExportViewModel.cs`,
++ `PatientAppointment.Models\ViewModels\ExportViewModel.cs`,
   `ExportKeyViewModel.cs`, `ReportViewModel.cs`.
-- `PatientAppointment.Api\Controllers\Api\Core\DashboardController.cs`
++ `PatientAppointment.Api\Controllers\Api\Core\DashboardController.cs`
   (counter aggregate only -- belongs to Audit 09, listed here to confirm
   it is NOT a report/export).
-- `patientappointment-portal\src\app\components\appointment-request\appointment-request-report\`
++ `patientappointment-portal\src\app\components\appointment-request\appointment-request-report\`
   (module, routing, service, domain, models) +
   `search\appointment-request-report-search.component.{ts,html}`.
-- `patientappointment-portal\src\app\view-models\appointment-request-report-view-report.ts`
++ `patientappointment-portal\src\app\view-models\appointment-request-report-view-report.ts`
   (filter view model).
-- `patientappointment-portal\src\app\components\login\login.service.ts:35`
++ `patientappointment-portal\src\app\components\login\login.service.ts:35`
   (`printPDF(appointmentId)` -> `GET api/CsvExport/{id}/1`).
-- `PatientAppointment.Api\AppConfiguration\AllowedApis.cs:22,36`
++ `PatientAppointment.Api\AppConfiguration\AllowedApis.cs:22,36`
   (`CsvExportController` on the auth + authorization BYPASS lists).
-- `Documents_and_Diagrams\Architecture\SoCal Project Overview Document.pdf`
++ `Documents_and_Diagrams\Architecture\SoCal Project Overview Document.pdf`
   p.14 "View Reports" (authoritative spec) + `_local\stub-procs.sql:319`
   (`spm.spAppointmentRequestReport` -- a `WHERE 1=0` stub in this copy).
 
 NEW anchors checked (to confirm absence):
-- `src\HealthcareSupport.CaseEvaluation.Application\Dashboards\`,
++ `src\HealthcareSupport.CaseEvaluation.Application\Dashboards\`,
   `...Application.Contracts\Dashboards\`,
   `...HttpApi\Controllers\Dashboards\` -- only the dashboard counter
   AppService exists; no report or export AppService/controller.
-- Grep across `src\` for `report|export|csv|excel|ClosedXML|QuestPDF|iText|spreadsheetml|.xlsx`:
++ Grep across `src\` for `report|export|csv|excel|ClosedXML|QuestPDF|iText|spreadsheetml|.xlsx`:
   every hit is incidental (migration files, DTO names like
   `DoctorAvailabilityCreateRangeResultDto`, the packet-generation
   pipeline). No report/export class exists.
-- `angular\src\app\app.routes.ts` (full) -- no `report` or `export`
++ `angular\src\app\app.routes.ts` (full) -- no `report` or `export`
   route. `angular\src\app\` has no `report/` or `export/` feature
   directory. The only "Patient Demographics" string in the SPA is an
   editable form section heading on `appointment-view.component.html:197`,
@@ -127,46 +128,46 @@ below as guidance for the eventual build, not as scored rows.)
 
 ### G-08-01 -- Appointment Request Report (the whole report) is absent
 
-- **Class:** Missing behavior
-- **OLD:** `AppointmentRequestReportSearchController.cs:20-27`
++ **Class:** Missing behavior
++ **OLD:** `AppointmentRequestReportSearchController.cs:20-27`
   (`POST /api/appointmentrequestreport/search` ->
   `EXEC spm.spAppointmentRequestReport @Query,@UserId`); Angular
   `appointment-request-report-search.component.{ts,html}`; reached from
   the "Reports" sidebar item (`side-bar.component.html:152`, gated on
   `MODULES.Reports`).
-- **NEW:** No report AppService, controller, route, or component. Grep
++ **NEW:** No report AppService, controller, route, or component. Grep
   across `src\` and `angular\src\app\` finds no report feature. The
   sidebar has no Reports entry.
-- **What it is:** A searchable, paged, sortable HTML table of all
++ **What it is:** A searchable, paged, sortable HTML table of all
   appointment requests with ten columns: Confirmation No (links to the
   appointment), Appointment Type, Location Name, Appointment Date Time,
   Status, Patient Name, Date Of Birth, Email, Phone Number, Social
   Security Number. Default sort: `requestConfirmationNumber desc`
   (`*-search.component.ts:63-64`). Has a free-text quick search plus an
   "Advanced Search" collapsible panel with five filters.
-- **Why it existed:** Internal staff need an operational worklist /
++ **Why it existed:** Internal staff need an operational worklist /
   lookup of every request across all patients -- the central "find any
   appointment and its patient details" screen, distinct from the
   dashboard (counts only) and the per-appointment view (one record).
-- **What it does + user impact:** Without it, internal staff in NEW have
++ **What it does + user impact:** Without it, internal staff in NEW have
   no cross-appointment tabular report -- they cannot list/scan/filter all
   requests in one grid, cannot find a patient by name/DOB across
   appointments from a report screen, and have no export source. They are
   limited to whatever per-record navigation the appointments feature
   offers. For a clinic-operations user this is a core daily tool.
-- **Plain-English:** OLD had a "Reports" screen that listed every
++ **Plain-English:** OLD had a "Reports" screen that listed every
   appointment in a searchable table with patient name, DOB, contact info
   and status, filterable by date/location/type/status/patient. NEW has no
   such screen at all.
-- **Keep in NEW?** Yes -- high priority. This is the primary reporting
++ **Keep in NEW?** Yes -- high priority. This is the primary reporting
   surface in OLD and is used by Clinic Staff, Supervisor, and IT Admin.
   Build as an ABP AppService (EF query replacing the stored proc) +
   Angular grid behind a `CaseEvaluation.Reports` permission.
 
 ### G-08-02 -- Export to Excel (.xlsx) is absent
 
-- **Class:** Missing behavior
-- **OLD:** `CSVExportController.cs:109-115` (`POST /api/csvexport` stores
++ **Class:** Missing behavior
++ **OLD:** `CSVExportController.cs:109-115` (`POST /api/csvexport` stores
   the client-rendered CSV under a GUID key) + `:42-67`
   (`GET /api/csvexport/{key}?fileName=&downloadType=2`, branch
   `downloadType==2` -> `ConvertWithClosedXml :123-155` writes an `.xlsx`
@@ -174,54 +175,54 @@ below as guidance for the eventual build, not as scored rows.)
   "Export to Excel" button
   (`*-search.component.html:101-104`,
   `tableEvent.exportToCsv('Appointment Request Report',2)`).
-- **NEW:** No Excel export anywhere. No ClosedXML / EPPlus / any xlsx
++ **NEW:** No Excel export anywhere. No ClosedXML / EPPlus / any xlsx
   library referenced in `src\` (only QuestPDF, used for packets). No
   export endpoint.
-- **What it is:** A one-click download of the current report (header row
++ **What it is:** A one-click download of the current report (header row
   + data rows) as an Excel spreadsheet, file-named after the report.
-- **Why it existed:** Staff hand the appointment list to billing /
++ **Why it existed:** Staff hand the appointment list to billing /
   management / external parties in a spreadsheet they can sort, filter,
   and pivot offline.
-- **What it does + user impact:** NEW users cannot get the appointment
++ **What it does + user impact:** NEW users cannot get the appointment
   list into Excel at all -- no spreadsheet hand-off, no offline analysis.
   Any downstream process that expected an .xlsx breaks.
-- **Plain-English:** OLD let you click "Export to Excel" on the report
++ **Plain-English:** OLD let you click "Export to Excel" on the report
   and download a spreadsheet of the rows. NEW cannot produce a
   spreadsheet.
-- **Keep in NEW?** Yes -- ships with G-08-01. The ClosedXML/iTextSharp
++ **Keep in NEW?** Yes -- ships with G-08-01. The ClosedXML/iTextSharp
   library choice is NOT load-bearing; any .xlsx writer (ClosedXML, EPPlus,
   or even CSV) satisfies parity. Outcome = "user downloads the report as a
   spreadsheet".
 
 ### G-08-03 -- Export to PDF (report table) is absent
 
-- **Class:** Missing behavior
-- **OLD:** `CSVExportController.cs:53-61` (`downloadType==1` branch) ->
++ **Class:** Missing behavior
++ **OLD:** `CSVExportController.cs:53-61` (`downloadType==1` branch) ->
   `GeneratePDF :157-241` builds a styled HTML table (Bootstrap CDN, green
   header, zebra striping, a print button) and returns it as
   `ReportViewModel.HtmlString`; the SPA opens it in a new window for the
   browser's print-to-PDF. Triggered from "Export to PDF"
   (`*-search.component.html:97-100`,
   `tableEvent.exportToCsv('Appointment Request Report',1)`).
-- **NEW:** No report PDF export. (QuestPDF exists in the Domain project
++ **NEW:** No report PDF export. (QuestPDF exists in the Domain project
   but is wired only into the document/packet pipeline, not reports.)
-- **What it is:** A printable PDF rendering of the report grid -- the same
++ **What it is:** A printable PDF rendering of the report grid -- the same
   rows as the Excel export but laid out as a print-friendly HTML table.
-- **Why it existed:** Staff print or PDF the appointment list for
++ **Why it existed:** Staff print or PDF the appointment list for
   paper-based workflows, filing, or sharing an immutable snapshot.
-- **What it does + user impact:** NEW users cannot produce a PDF/printable
++ **What it does + user impact:** NEW users cannot produce a PDF/printable
   version of the report. Per the root mission (OLD DOCX/print -> NEW PDF),
   the NEW build should emit a real PDF (QuestPDF) rather than OLD's
   open-HTML-and-print trick, but the capability itself is missing today.
-- **Plain-English:** OLD let you print/PDF the report list. NEW cannot.
-- **Keep in NEW?** Yes -- ships with G-08-01, rendered as a true PDF via
++ **Plain-English:** OLD let you print/PDF the report list. NEW cannot.
++ **Keep in NEW?** Yes -- ships with G-08-01, rendered as a true PDF via
   QuestPDF (immutable, per mission). The iTextSharp/HTML-print mechanism
   is not load-bearing; only the outcome (a PDF of the report) matters.
 
 ### G-08-04 -- Per-appointment Patient-Demographics print-to-PDF is absent
 
-- **Class:** Missing behavior
-- **OLD:** `CSVExportController.cs:73-106`
++ **Class:** Missing behavior
++ **OLD:** `CSVExportController.cs:73-106`
   (`GET /api/csvexport/{appointmentId}/{downloadType}`) +
   `GetPatientDataHtml :302-681` assembles a full single-appointment
   demographic sheet: Appointment Details, Patient Details (name, phone,
@@ -233,26 +234,26 @@ below as guidance for the eventual build, not as scored rows.)
   (`*-search.component.ts:161-166` `exportPdf` ->
   `login.service.ts:35` `printPDF(appointmentId)` -> `.../{id}/1`) and
   via `appointment-request-report.service.ts:72-78` `exportPdf`.
-- **NEW:** No per-appointment demographic PDF/print. The SPA
++ **NEW:** No per-appointment demographic PDF/print. The SPA
   appointment-view shows a "Patient Demographics" heading
   (`appointment-view.component.html:197`) but it is an EDITABLE reactive
   form section, not a read-only printable export -- no PDF/print button
   exists on that view.
-- **What it is:** A one-click, read-only, print-ready PDF of one
++ **What it is:** A one-click, read-only, print-ready PDF of one
   appointment's complete intake -- every party and detail on a single
   document.
-- **Why it existed:** Staff print a patient's full demographic/intake
++ **Why it existed:** Staff print a patient's full demographic/intake
   sheet to bring to the exam, attach to a paper file, or hand off -- a
   whole-record snapshot the on-screen view does not provide as a
   document.
-- **What it does + user impact:** NEW users cannot generate a printable
++ **What it does + user impact:** NEW users cannot generate a printable
   single-appointment intake document. They can view the record on screen
   but cannot produce the consolidated PDF that paper/clinical workflows
   rely on.
-- **Plain-English:** OLD had a PDF icon on each appointment that produced
++ **Plain-English:** OLD had a PDF icon on each appointment that produced
   a complete printable patient sheet (all the intake details on one
   page). NEW has no such printable sheet.
-- **Keep in NEW?** Yes -- medium/high priority; arguably more useful than
++ **Keep in NEW?** Yes -- medium/high priority; arguably more useful than
   the report-grid PDF for clinical use. Render via QuestPDF as an
   immutable PDF (per mission). Note OLD includes SSN and DOB on this
   sheet (`CSVExportController.cs:410, 409`) -- decide whether NEW masks
@@ -320,13 +321,13 @@ expected library/data-access swaps as parity gaps:
    port this pattern.
 
 Additional non-blocking OLD oddities (note, do not port):
-- **`AppointmentRequestReportController` is generic CRUD scaffolding** for
++ **`AppointmentRequestReportController` is generic CRUD scaffolding** for
   an entity (`AppointmentRequestReport : Appointment`, an empty subclass)
   that the visible report never uses -- the report is proc-bound. Dead
   scaffold; build only the search/export the UI actually calls.
-- **Dead `doctorName` filter** (`*-view-report.ts:28-29`) with no UI
++ **Dead `doctorName` filter** (`*-view-report.ts:28-29`) with no UI
   control or column -- single-tenant artifact; see structural finding 2.
-- **`GeneratePDF`'s `dobCount==4` hack** (`CSVExportController.cs:216-220`)
++ **`GeneratePDF`'s `dobCount==4` hack** (`CSVExportController.cs:216-220`)
   positionally replaces `.` with `-` in the 5th CSV column assuming it is
   the DOB. This is brittle column-position coupling to the client CSV
   order; NEW should format dates by field, not by column index.

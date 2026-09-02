@@ -17,6 +17,7 @@ The solution contains four test projects under the `test/` directory, plus a con
 **Purpose:** Shared test infrastructure and base classes for all other test projects.
 
 Key classes:
+
 - **`CaseEvaluationTestBase<TStartupModule>`** -- Extends `AbpIntegratedTest<TStartupModule>`. Configures Autofac, loads `appsettings.json`, and provides `WithUnitOfWorkAsync()` helper methods for wrapping test logic in a unit of work.
 - **`CaseEvaluationTestDataBuilder`** -- Builds shared test data.
 - **`CaseEvaluationTestConsts`** -- Shared constants including `CollectionDefinitionName` for xUnit collection fixtures.
@@ -27,11 +28,13 @@ Key classes:
 **Purpose:** Unit tests for domain logic and test data seeding.
 
 Key contents:
+
 - **`DoctorsDataSeedContributor`** -- Implements `IDataSeedContributor` to seed two test `Doctor` entities with known GUIDs (`63b171d1-...` and `b6d53903-...`). Uses `ISingletonDependency` to ensure seeding runs only once per test session.
 - **`SampleDomainTests`** -- Baseline domain service tests.
 - **`CaseEvaluationDomainTestModule`** -- Module configuration for domain test project.
 
 Test patterns:
+
 - Validate Manager business rules (entity creation constraints, validation)
 - Verify domain entity behavior and invariants
 - Seed contributors provide consistent test data across all test layers
@@ -41,6 +44,7 @@ Test patterns:
 **Purpose:** Integration tests for application services (AppServices), testing through the full service layer including DTO mapping, permission checks, and repository integration.
 
 Key contents:
+
 - **`DoctorApplicationTests`** -- Abstract generic test class (`DoctorsAppServiceTests<TStartupModule>`) that tests `IDoctorsAppService` CRUD operations:
   - `GetListAsync()` -- Verifies seeded data returns 2 doctors
   - `GetAsync()` -- Retrieves a single doctor by known GUID
@@ -51,6 +55,7 @@ Key contents:
 - **`SampleAppServiceTests`** -- Baseline application service tests.
 
 Test patterns:
+
 - Resolve `IAppService` and `IRepository` via dependency injection
 - Assert against known seeded data GUIDs
 - Use `Shouldly` assertions for readability
@@ -60,6 +65,7 @@ Test patterns:
 **Purpose:** EF Core integration tests for repositories and domain services that exercise the actual database layer (using an in-memory or test database).
 
 Key contents:
+
 - **`CaseEvaluationEntityFrameworkCoreCollection`** -- xUnit `[CollectionDefinition]` that uses `CaseEvaluationEntityFrameworkCoreFixture` as `ICollectionFixture`, ensuring a shared database setup across all EF Core tests.
 - **`CaseEvaluationEntityFrameworkCoreFixture`** -- Implements `IDisposable` for shared test database lifecycle management.
 - **`DoctorRepositoryTests`** -- Tests `IDoctorRepository` custom methods:
@@ -69,6 +75,7 @@ Key contents:
 - **`EfCoreBookAppService_Tests`** / **`EfCoreSampleAppServiceTests`** / **`EfCoreSampleDomainTests`** -- Run corresponding abstract tests against the EF Core infrastructure.
 
 Test patterns:
+
 - Wrap repository calls in `WithUnitOfWorkAsync()` for proper transaction scoping
 - Use collection fixtures for shared database state
 - Test custom repository query methods (filtering, counting)
@@ -79,6 +86,7 @@ Test patterns:
 **Purpose:** Manual end-to-end testing console application that exercises the HTTP API Client against a running API.
 
 Key contents:
+
 - **`ClientDemoService`** -- Uses `IProfileAppService` and `IIdentityUserAppService` to call the running API, printing user profile and user list to console.
 - Requires the AuthServer and API Host to be running.
 
@@ -179,6 +187,7 @@ flowchart TB
 ---
 
 **Related:**
+
 - [Development Setup](../runbooks/DOCKER-DEV.md)
 - [Solution Structure](../architecture/OVERVIEW.md)
 - Domain services are documented per-feature in the Domain CLAUDE.md files

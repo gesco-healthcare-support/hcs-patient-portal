@@ -2,11 +2,12 @@ DRAFT - NOT SENT. Reply to Levon's third email (the one proposing an inbound
 outcome endpoint). Drafted 2026-07-31.
 
 Decisions this reply reflects, all Adrian's, taken 2026-07-31:
-  - Build the inbound endpoint, taking outcomes GENERALLY (not cancellation-only)
-  - A no-show sets NoShow (making that value reachable) rather than a cancellation status
-  - Conflict: domains are disjoint by design; if they ever collide, CASE TRACKER WINS
-  - Suppress the echo, so an inbound outcome is not pushed straight back to them
-  - Reply now; our implementation planned in a later session
+
+- Build the inbound endpoint, taking outcomes GENERALLY (not cancellation-only)
+- A no-show sets NoShow (making that value reachable) rather than a cancellation status
+- Conflict: domains are disjoint by design; if they ever collide, CASE TRACKER WINS
+- Suppress the echo, so an inbound outcome is not pushed straight back to them
+- Reply now; our implementation planned in a later session
 
 Subject: Re: inbound outcomes -- yes, and the state machine already expects you
 
@@ -42,14 +43,14 @@ The shape
 That mirrors the reconcile GET you already call -- same route prefix, same header -- so nothing new to
 learn on auth.
 
-  - Outcomes accepted: NoShow, CheckedIn, CheckedOut, Billed. An explicit allowlist, so an unknown
+- Outcomes accepted: NoShow, CheckedIn, CheckedOut, Billed. An explicit allowlist, so an unknown
     value gets a 400 rather than being stored and puzzled over later. Since your list is still being
     settled, tell me what you add and we will widen it deliberately.
-  - Idempotent on (appointmentId, outcome), as you asked: if the appointment is already in that state
+- Idempotent on (appointmentId, outcome), as you asked: if the appointment is already in that state
     we return success and change nothing. Retry freely.
-  - Ordering is validated, not assumed: the state machine rejects CheckedOut arriving before CheckedIn
+- Ordering is validated, not assumed: the state machine rejects CheckedOut arriving before CheckedIn
     rather than silently applying it. You will get a clear error, not a wrong record.
-  - Reason and decidedBy are persisted. Billing needs them and a status alone will not do.
+- Reason and decidedBy are persisted. Billing needs them and a status alone will not do.
 
 Auth, and one thing you need from us
 
@@ -162,28 +163,31 @@ Adrian
 OPEN ITEMS THIS REPLY CREATES OR CONFIRMS, for tracking:
 
 Commitments made:
-  - inbound POST outcome endpoint, outcomes generally, allowlisted to the four day-of-exam values
-  - idempotent on (appointmentId, outcome); state machine validates ordering
-  - reason + decidedBy persisted
-  - echo suppression for inbound-originated changes
-  - Case Tracker wins any conflict
-  - rescheduledFromAppointmentId as the reschedule link field name
-  - carried-over uploads get a NEW document id
-  - cancellation attribution: free text reason + actor, covering auto-cancel
-  - billing outcome carried by STATUS only, no separate field (corrects the earlier promise)
-  - doctor id: recommend they key on (tenantId, doctorId)
+
+- inbound POST outcome endpoint, outcomes generally, allowlisted to the four day-of-exam values
+- idempotent on (appointmentId, outcome); state machine validates ordering
+- reason + decidedBy persisted
+- echo suppression for inbound-originated changes
+- Case Tracker wins any conflict
+- rescheduledFromAppointmentId as the reschedule link field name
+- carried-over uploads get a NEW document id
+- cancellation attribution: free text reason + actor, covering auto-cancel
+- billing outcome carried by STATUS only, no separate field (corrects the earlier promise)
+- doctor id: recommend they key on (tenantId, doctorId)
 
 Actions on us, not yet done:
-  - ISSUE THE INTEGRATION TOKEN. CaseTracker:IntegrationToken is empty in production, so BOTH the new
+
+- ISSUE THE INTEGRATION TOKEN. CaseTracker:IntegrationToken is empty in production, so BOTH the new
     endpoint and the existing reconcile GET reject everything. Levon has been told to ask for it.
-  - Deploy the doctor id (merged in d658382b, not cascaded or deployed).
-  - Populate Facility IDs on the locations screen before go-live.
-  - Record in the epic doc: the reschedule link is load-bearing for patient filing, not cosmetic;
+- Deploy the doctor id (merged in d658382b, not cascaded or deployed).
+- Populate Facility IDs on the locations screen before go-live.
+- Record in the epic doc: the reschedule link is load-bearing for patient filing, not cosmetic;
     and that the billing outcome is status-only.
-  - Plan + build the outcome endpoint (deferred by Adrian to a later session).
+- Plan + build the outcome endpoint (deferred by Adrian to a later session).
 
 Epic phases affected:
-  - Phase 2 (cancellation reason + billing status): now also owes actor + auto-cancel attribution.
-  - Phase 4e (CT two-case semantics): now also owes rescheduledFromAppointmentId, and must document
+
+- Phase 2 (cancellation reason + billing status): now also owes actor + auto-cancel attribution.
+- Phase 4e (CT two-case semantics): now also owes rescheduledFromAppointmentId, and must document
     that the status carries the billing outcome.
-  - NEW, unscheduled: the inbound outcome endpoint. Not currently any phase in the epic roadmap.
+- NEW, unscheduled: the inbound outcome endpoint. Not currently any phase in the epic roadmap.

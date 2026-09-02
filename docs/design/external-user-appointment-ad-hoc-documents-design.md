@@ -76,6 +76,7 @@ In NEW, ad-hoc documents appear in the same `AppointmentDocumentsComponent` list
 package documents. No separate page.
 
 **Upload gate for ad-hoc (minimal):**
+
 - No appointment-status requirement (can upload at any status).
 - No due-date gate.
 - Max file size: 25MB.

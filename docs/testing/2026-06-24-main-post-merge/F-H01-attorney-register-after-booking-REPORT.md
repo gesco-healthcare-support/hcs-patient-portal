@@ -4,6 +4,7 @@ Status: OPEN. Confirmed on `main` @ 74e91563 (post frontend-rework merge #322), 
 No code changed for this. Written so it can be routed to the multi-tenant (db-per-tenant) session.
 
 ## TL;DR
+
 An Applicant or Defense **attorney who was named on an appointment before they have a portal
 account cannot register** -- the sign-up request returns HTTP 500. In the normal Gesco flow this
 is the common case (a paralegal books and names the opposing attorney, who has no account yet, then
@@ -12,6 +13,7 @@ that attorney tries to sign up later). Claim examiners and patients are NOT affe
 risk; it remains unfixed and now surfaces as a hard 500 (previously it was a silent duplicate row).
 
 ## What exactly is blocked (and what is NOT)
+
 - BLOCKED: registration (`POST /api/public/external-signup/register`, which the Sign-up UI calls)
   for an **Applicant Attorney or Defense Attorney** whose email already appears on an appointment
   as the named applicant/defense attorney. They get 500 and cannot create the account at all.
@@ -22,7 +24,9 @@ risk; it remains unfixed and now surfaces as a hard 500 (previously it was a sil
   - Booking, approval, change requests, packets, etc. -- all unaffected.
 
 ## The data model (why attorneys collide but CE does not)
+
 Two record kinds per party:
+
 1. **Master** -- one row per attorney per tenant: `AppApplicantAttorneys` / `AppDefenseAttorneys`
    (and `AppClaimExaminers`). Holds firm/contact + `IdentityUserId` (the login, once they have one).
    Each has a UNIQUE index `IX_App<Party>_TenantId_Email` (verified live: all three exist).
@@ -37,6 +41,7 @@ inserts cleanly. Attorneys DO get a master row at booking -> register tries to i
 -> unique-index violation.
 
 ## Root cause (exact)
+
 `src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs`,
 `RegisterAsync`, Defense-Attorney branch ~line 912-933 (Applicant-Attorney branch ~895-911 is
 symmetric):
@@ -60,6 +65,7 @@ When a booking named this attorney earlier, a master row already exists with tha
 `IX_AppDefenseAttorneys_TenantId_Email` rejects it.
 
 Observed failure (live):
+
 ```
 Microsoft.Data.SqlClient.SqlException (2601): Cannot insert duplicate key row in object
 'dbo.AppDefenseAttorneys' with unique index 'IX_AppDefenseAttorneys_TenantId_Email'.
@@ -70,6 +76,7 @@ The duplicate key value is (dfed8778-...-b86a, defatty2@gesco.com).
 ```
 
 ## Reproduction (clean)
+
 1. Book an appointment (any booker) naming a NEW defense-attorney email, e.g. `defatty1@gesco.com`,
    that has no account. (Booking creates an `AppDefenseAttorneys` row, `IdentityUserId` NULL.)
 2. As that email, register via the Sign-up page (or POST /api/public/external-signup/register,
@@ -81,6 +88,7 @@ This run: A00001 named defatty1, A00002 named defatty2 (both before registration
 defatty1/defatty2 -> 500 (locked out). defatty3 (never named first) + claimE1/claimE2 -> 204.
 
 ## What was reverted (history)
+
 - Prior pass (feat/frontend-rework) found F-006/F-019: AA registration created a master with a NULL
   email, so booking's find-by-email could not match -> duplicate AA masters.
 - The PRIMARY fix LANDED and is on main: AA + DA registration now pass `email` into
@@ -92,6 +100,7 @@ defatty1/defatty2 -> 500 (locked out). defatty3 (never named first) + claimE1/cl
   hits the unique index and 500s.
 
 ## The fix (when scheduled) -- small + contained
+
 In `RegisterAsync`, for the AA and DA branches, look up the master by EMAIL (unclaimed) as well as
 by IdentityUserId, and ADOPT it rather than insert a new one. Sketch:
 
@@ -106,11 +115,13 @@ else if (existing.IdentityUserId == null) {
     await _defenseAttorneyRepository.UpdateAsync(existing);
 }
 ```
+
 This is the same "adopt unclaimed email master" pattern the Patient branch already uses. Apply
 symmetrically to AA. CE needs no change. Add tests for: register-after-booking adopts (no 500, no
 dup, link still resolves) for AA + DA; registration-first still works.
 
 ## Relationship to the multi-tenant (db-per-tenant) work -- the question to answer
+
 - The fix lives in `ExternalSignupAppService.RegisterAsync` (Application layer) and touches the
   attorney master entities, which ARE `IMultiTenant`. It does NOT depend on db-per-tenant mechanics.
 - The unique index is `(TenantId, Email)`; under db-per-tenant the TenantId column still exists, so
@@ -123,10 +134,12 @@ dup, link still resolves) for AA + DA; registration-first still works.
   fold it in; if no, a separate small PR avoids coupling).
 
 ## Severity
+
 HIGH -- blocks a core real-user action (an attorney creating their account) in the most common
 booking flow, with a 500 and no user-facing guidance. Not a data-corruption or security issue.
 
 ## Workaround used for this QA run (no code change)
+
 Proceed with `defatty3` (registered, never named-first) as the registered Defense Attorney booker;
 keep `defatty1`/`defatty2` as named (login-less) parties on A00001/A00002. This is realistic (not
 every named attorney has a portal account) and preserves the repro.

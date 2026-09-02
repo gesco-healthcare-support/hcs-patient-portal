@@ -45,6 +45,7 @@ to a Case Tracker intake endpoint; the two systems share files via a common MinI
 new case.
 
 Current portal reality:
+
 - No outbound HTTP client, no integration event bus to an external system, no webhook. (Verified: a
   repo-wide search for outbound integration/HTTP-post/webhook found only the internal email
   `NotificationOutbox`.)
@@ -82,12 +83,14 @@ All source paths are relative to the portal repo root.
 Appointment-type note (important): it is NOT a fixed enum. `AppointmentType` is a per-office
 (tenant-scoped) catalog table; each office is seeded with 3 defaults and admins can rename/add.
 Seeded `Name` values are the full labels (`Domain/AppointmentTypes/AppointmentTypeDataSeedContributor.cs:70-81`):
+
 - `Agreed Medical Examination (AME)`
 - `Independent Medical Examination (IME)`   (note: IME, not "QME")
 - `Panel Qualified Medical Examination (PQME)`
 Do not string-match these. Key off `AppointmentTypeId` (Guid) or send both the id and the name.
 
 The clean read model already exists:
+
 - `AppointmentDto` (`src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/AppointmentDto.cs`)
   is the scalar payload.
 - `AppointmentWithNavigationPropertiesDto` (same folder) wraps it with `Patient`, `AppointmentType`,
@@ -152,6 +155,7 @@ the portal include the fully-qualified object keys in the push payload, or (b) f
 download endpoint (section 8). Direct S3 access couples you to ABP's internal key scheme.
 
 Are all files uploaded before approval? NO:
+
 - Required "package" documents are created as `Pending` rows with a `(pending-upload)` placeholder
   blob at SUBMISSION time (`Application/Notifications/Handlers/PackageDocumentQueueHandler.cs`,
   subscribes to `AppointmentSubmittedEto`), then uploaded later by the patient via an emailed
@@ -237,6 +241,7 @@ accept this shape; values below use the confirmed field names):
 ```
 
 Notes for the receiver:
+
 - Treat `appointmentId` as the idempotency key (upsert on it; ignore re-delivery).
 - `appointmentType.name` is free text per office; branch on `id` if you need type logic.
 - Send timestamps as UTC; send the slot as local date + local time + IANA zone (the portal stores
@@ -257,6 +262,7 @@ Tracker knows which office the case belongs to.
 ## 8. Pull alternative (if the portal exposes an API instead of pushing)
 
 Read endpoints that already exist:
+
 - `AppointmentWithNavigationPropertiesDto` via the appointments app-service, incl.
   `GetByConfirmationNumberAsync` (`Application/Appointments/AppointmentsAppService.cs:269`).
 - Packet + document download via `AppointmentPacketsAppService` / `AppointmentDocumentsAppService`.

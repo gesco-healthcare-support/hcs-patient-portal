@@ -68,6 +68,7 @@ The 23 stubs likely correspond to feature areas in the OLD app (`P:\PatientPorta
 ## Functional impact
 
 If any of these 23 templates is referenced by a Hangfire job in production:
+
 - Subject in inbox: `[AccessorAppointmentBooked] -- TODO: parity-correct subject` -- looks broken to the recipient.
 - Body text: `Stub body for AccessorAppointmentBooked. Per-feature phases will replace with parity-correct content.` -- clearly placeholder, useless.
 

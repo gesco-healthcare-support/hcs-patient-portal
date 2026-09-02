@@ -545,6 +545,7 @@ Preserved structure; appointment IDs come from state.
 Persist `state.appointments.<key>.approvedAt` or `.rejectedAt` after each.
 
 Verify SQL after Phase 5:
+
 ```sql
 SELECT RequestConfirmationNumber, AppointmentStatus, RejectionNotes
 FROM AppAppointments
@@ -555,12 +556,14 @@ ORDER BY RequestConfirmationNumber
 ### Phase 6 - Packet generation + recipient routing + partial-failure isolation
 
 Adrian's directive: he reviews packet CONTENT manually. The suite checks:
+
 1. Each packet kind reaches the correct recipient.
 2. If one packet kind fails, the other two still generate AND their
    emails still fire (this is a SUSPECTED CURRENT BUG; confirm).
 
 For each Approve in Phase 5, expect 3 packet rows auto-created in
 `AppAppointmentPackets`:
+
 - Kind=1 (patient), Status=2 (Completed)
 - Kind=2 (doctor), Status=2
 - Kind=3 (attorneyclaimexaminer), Status=2
@@ -645,6 +648,7 @@ On outcome
 
 Driver limitation [[OBS-20]]: Playwright DataTransfer file injection
 does NOT trigger the Angular upload pipeline. Either:
+
 - Run this phase by hand in a real browser, OR
 - Skip and mark as "manually verified once" (acceptable if a Patient
   upload was confirmed in an earlier session).
@@ -1076,6 +1080,7 @@ The upload size limit is a code-review check, not a runtime test
 finding).
 
 Verify:
+
 ```
 Grep src/.../AppointmentDocumentsAppService.cs for "MaxFileSize" or
 "fileSize >" -> there should be an upper-bound check.
@@ -1097,6 +1102,7 @@ are not candidates for replay.
 
 The agent MUST regenerate this list at run-time by globbing the bugs
 directory:
+
 ```
 Glob: docs/runbooks/findings/bugs/*.md
 For each file: read frontmatter, keep iff status in {open, open-low}.
@@ -1171,18 +1177,18 @@ MRN / DOB. The values below are documented and reusable across runs.
 
 | Role | UserName | Real name | Password | Seeded? | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Patient | patient1@gesco.com | Daniel Harper | `1q2w3E*r` | NO | Phase 1.A.1 (manual self-register) |
-| Patient | patient2@gesco.com | Olivia Turner | `1q2w3E*r` | NO | Spare; not registered this run |
-| Applicant Attorney | appatty1@gesco.com | Marcus Bennett | `1q2w3E*r` | NO | Phase 1.A.2 (manual self-register), firmName "Bennett & Associates" |
-| Applicant Attorney | appatty2@gesco.com | Tiffany Lawson | `1q2w3E*r` | NO | Spare |
-| Defense Attorney | defatty1@gesco.com | Gregory Stone | `1q2w3E*r` | NO | Phase 1.B.1 (invite flow), firmName "Stone Defense LLC" |
-| Defense Attorney | defatty2@gesco.com | Alicia Perez | `1q2w3E*r` | NO | Spare |
-| Claim Examiner | claimE1@gesco.com | Henry Caldwell | `1q2w3E*r` | NO | Phase 1.B.2 (invite flow) |
-| Claim Examiner | claimE2@gesco.com | Jasmine Reid | `1q2w3E*r` | NO | Spare |
-| Staff Supervisor | stafsuper1@gesco.com | Patrick O'Neal | `1q2w3E*r` | YES | Phase 0 driver; issues invites in Phase 1.B |
-| Staff Supervisor | stafsuper2@gesco.com | Denise Fowler | `1q2w3E*r` | NO | Spare |
-| Clinic Staff | clistaff1@gesco.com | Rachel Kim | `1q2w3E*r` | YES | Phase 5 approver |
-| Clinic Staff | clistaff2@gesco.com | Luis Mendoza | `1q2w3E*r` | NO | Spare |
+| Patient | <patient1@gesco.com> | Daniel Harper | `1q2w3E*r` | NO | Phase 1.A.1 (manual self-register) |
+| Patient | <patient2@gesco.com> | Olivia Turner | `1q2w3E*r` | NO | Spare; not registered this run |
+| Applicant Attorney | <appatty1@gesco.com> | Marcus Bennett | `1q2w3E*r` | NO | Phase 1.A.2 (manual self-register), firmName "Bennett & Associates" |
+| Applicant Attorney | <appatty2@gesco.com> | Tiffany Lawson | `1q2w3E*r` | NO | Spare |
+| Defense Attorney | <defatty1@gesco.com> | Gregory Stone | `1q2w3E*r` | NO | Phase 1.B.1 (invite flow), firmName "Stone Defense LLC" |
+| Defense Attorney | <defatty2@gesco.com> | Alicia Perez | `1q2w3E*r` | NO | Spare |
+| Claim Examiner | <claimE1@gesco.com> | Henry Caldwell | `1q2w3E*r` | NO | Phase 1.B.2 (invite flow) |
+| Claim Examiner | <claimE2@gesco.com> | Jasmine Reid | `1q2w3E*r` | NO | Spare |
+| Staff Supervisor | <stafsuper1@gesco.com> | Patrick O'Neal | `1q2w3E*r` | YES | Phase 0 driver; issues invites in Phase 1.B |
+| Staff Supervisor | <stafsuper2@gesco.com> | Denise Fowler | `1q2w3E*r` | NO | Spare |
+| Clinic Staff | <clistaff1@gesco.com> | Rachel Kim | `1q2w3E*r` | YES | Phase 5 approver |
+| Clinic Staff | <clistaff2@gesco.com> | Luis Mendoza | `1q2w3E*r` | NO | Spare |
 
 After Phase 1 completes, state.users.* is populated for the 4 newly-
 registered users; the 6 "Spare" rows remain unused unless a future

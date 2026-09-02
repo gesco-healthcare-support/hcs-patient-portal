@@ -226,7 +226,7 @@ The T&C modal opens from `openTermaAndConidition()` (OLD typo
 exception, OLD typo, fixed for correctness**, see Section 10).
 
 The T&C content is per-tenant (see `docs/parity/terms-and-conditions.md`
-+ `_branding.md` -- `branding.termsAndConditions` config field).
+- `_branding.md` -- `branding.termsAndConditions` config field).
 
 ## 6. Buttons + actions
 

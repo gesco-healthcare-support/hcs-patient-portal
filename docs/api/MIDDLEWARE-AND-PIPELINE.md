@@ -234,6 +234,7 @@ ABP uses this passphrase for encrypting sensitive configuration values stored in
 ```
 
 When `DisablePII` is `false` (the development default):
+
 - `IdentityModelEventSource.ShowPII = true` -- shows personally identifiable information in authentication error messages
 - `IdentityModelEventSource.LogCompleteSecurityArtifact = true` -- logs full tokens in error scenarios
 

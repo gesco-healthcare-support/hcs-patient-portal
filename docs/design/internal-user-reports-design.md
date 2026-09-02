@@ -32,6 +32,7 @@ AppService exists. This doc captures the OLD behavior as the design contract.
 | Reports page | `/appointment-request-report` (AppointmentRequestReportModule) | `/reports` |
 
 Guard:
+
 - OLD: `canActivate: [PageAccess]` `rootModuleId: 33` `applicationModuleId: 13`
 - NEW: `canActivate: [authGuard, permissionGuard]`; `CaseEvaluation.Reports.Default`
 
@@ -89,6 +90,7 @@ OLD source: `appointment-request-report/search/appointment-request-report-search
 | To Date | date picker | `MM/DD/YYYY` format; validates against From Date |
 
 **Filter validation rules (must replicate exactly):**
+
 1. If all filters are empty, show error: "Please enter a search value" (from i18n key `validation.message.custom.enterSearchValue`).
 2. If From Date is set but To Date is empty, show error: "Please enter end date".
 3. If To Date is set but From Date is empty, show error: "Please enter 'From Date'".
@@ -167,6 +169,7 @@ OLD source: `search/appointment-request-report-search.component.ts:161-166`,
 | Per-row demographics | `GET api/CsvExport/{appointmentId}/1` | `GET /api/app/reports/{appointmentId}/demographics` |
 
 **Search params (OLD stored proc input):**
+
 - `appointmentTypeId` (int?)
 - `locationId` (int?)
 - `appointmentStatusId` (int?)

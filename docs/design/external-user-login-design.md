@@ -42,7 +42,7 @@ post-login redirect logic, and the error states that must be handled.
 
 Unauthenticated (auth-shell): full-screen layout with no side-nav and no authenticated top-bar.
 
-OLD: custom background image + doctor logo overlay. 
+OLD: custom background image + doctor logo overlay.
 NEW: ABP LeptonX authentication pages (standard themed layout). The LeptonX theme applies
 the app's brand colors; custom logo/background image can be configured via LeptonX theme settings.
 
@@ -72,6 +72,7 @@ the app's brand colors; custom logo/background image can be configured via Lepto
 ```
 
 **Fields:**
+
 - Email Address: `formControlName="emailId"`, `type="email"`, required
 - Password: `formControlName="password"`, `type="password"`, required
 - Sign In button: disabled when form invalid; submits on Enter key
@@ -93,6 +94,7 @@ OLD source: `login/login.component.html:1-40`
 8. Router: external users → `/home`; internal users → `/dashboard`.
 
 **Error messages displayed to user:**
+
 - "User does not exist." (user not found)
 - "Incorrect password." (wrong credentials)
 - "Your account is not active." (InActive status)
@@ -119,6 +121,7 @@ OLD source: `login/login.component.ts:78-120`,
    - Internal role → `/dashboard`.
 
 **Error messages (ABP standard + localized):**
+
 - Invalid username or password
 - Email confirmation required (with link to resend)
 - Account is locked out
@@ -132,6 +135,7 @@ W:\patient-portal\replicate-old-app\angular\src\app\shared\auth\post-login-redir
 ```
 
 Logic:
+
 1. If not authenticated → allow through to home page (shows login button).
 2. If authenticated + external role → stay at `/home` (external user home component).
 3. If authenticated + internal role → redirect to `/dashboard`.

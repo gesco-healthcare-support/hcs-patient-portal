@@ -9,13 +9,16 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Two structural moves under User Management:
+
 1. Re-parent the existing Applicant Attorney and Defense Attorney CRUD pages so they live as children of the "User Management" nav node (today they are top-level nav items).
 2. Add a brand-new Claim Examiner (CE) section: a per-user MASTER entity + manager + AppService + manual controller + permission + Angular CRUD, parallel to Applicant/Defense Attorney. No standalone CE master exists today.
 
 The CE invite role and identity role already exist. The new master is the lookup source the per-appointment required CE references (per CI1). This OVERRIDES OBS-8 (which documented CE as per-claim, not per-user).
 
 ## Current behavior (from investigation)
+
 - AA/DA CRUD pages are TOP-LEVEL nav entries with NO `parentName`:
   - `angular/src/app/applicant-attorneys/applicant-attorney/providers/applicant-attorney-base.routes.ts:3-12` (path `/applicant-attorneys`, name `::Menu:ApplicantAttorneys`, no parentName) -- verified.
   - `angular/src/app/defense-attorneys/defense-attorney/providers/defense-attorney-base.routes.ts:3-12` (symmetric, `/defense-attorneys`).
@@ -28,13 +31,16 @@ The CE invite role and identity role already exist. The new master is the lookup
 - AA/DA CRUD is ABP-Suite-generated: abstract + concrete component, NgxDatatable list + modal detail. Attorney detail form (`applicant-attorney-detail.abstract.service.ts:41-67`) collects firmName/firmAddress/webAddress/phone/fax/street/city/zip/stateId/identityUserId, with `identityUserId` `Validators.required` and NO firstName/lastName (BUG-042).
 
 ## Relevant code locations
+
 Nav re-parent (part 1):
+
 - `angular/src/app/applicant-attorneys/applicant-attorney/providers/applicant-attorney-base.routes.ts:3-12`
 - `angular/src/app/defense-attorneys/defense-attorney/providers/defense-attorney-base.routes.ts:3-12`
 - `angular/src/app/app.routes.ts:137-138` (top-level routes)
 - `angular/src/app/route.provider.ts:35-65` (User Management parent; child registration pattern to copy)
 
 New CE master (part 2; parallel to AA/DA, by layer):
+
 - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/` -- CE consts (max lengths), `en.json` keys
 - `src/HealthcareSupport.CaseEvaluation.Domain/ClaimExaminers/` (NEW) -- `ClaimExaminer` entity + `ClaimExaminerManager`
 - `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ClaimExaminers/` (NEW) -- DTOs + `IClaimExaminersAppService`; `CaseEvaluationPermissions.cs` new nested `ClaimExaminers` class + DefinitionProvider registration
@@ -45,12 +51,14 @@ New CE master (part 2; parallel to AA/DA, by layer):
 - `angular/src/app/proxy/` -- regenerate (never hand-edit)
 
 ## Phase 3 cross-reference
+
 - OBS-8 (firmname-aa-da-only / CE-is-per-claim): this item OVERRIDES it. Note in the OBS-8 record that the per-user CE master is now the decided model (CE is per-appointment via the new master, supersedes per-claim/per-carrier rationale).
 - BUG-042 (attorney-name-not-persisted): AA/DA master tables have no FirstName/LastName column. While re-touching AA/DA here, bundle BUG-042's name-column fix so the new CE master and the relocated attorney CRUDs share a consistent name-bearing shape (CE master should be designed WITH FirstName/LastName from day one).
 - BUG-041 (authorized-user-picker-parity-gap / D-2 exclusion): a new CE master surfaces CE profiles; this partially reverses the D-2 decision that DA/CE saved profiles are excluded from lookups. Reconcile the picker behavior when CI1 wires the per-appointment CE selector to the new master.
 - OBS-32 (booker-aa-section-prefill-first-name-only): same single-name-field defect at booking prefill; same root as BUG-042, fix together.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - Child-nav registration: copy the exact `route.provider.ts:43-64` pattern (set `parentName: '::Menu:UserManagement'`, give an `order`, keep `requiredPolicy`). Re-parenting an ABP `ABP.Route[]` entry is purely adding `parentName` to the base.routes object.
   - CRUD scaffolding shape: AA/DA are the canonical ABP-Suite abstract+concrete + modal-detail pattern (`applicant-attorney.component.ts`, `applicant-attorney-detail.component.ts`, `applicant-attorney-detail.abstract.service.ts:41-67`). The new CE feature mirrors this layer-for-layer.
@@ -61,6 +69,7 @@ New CE master (part 2; parallel to AA/DA, by layer):
 - External docs: standard ABP application-service + permission + EF Core code-first migration patterns; no novel framework behavior. ABP nav child relationship documented via `ABP.Route.parentName`.
 
 ## Approaches considered (with tradeoffs)
+
 1. CE section = NEW per-user master entity (CHOSEN). Parallel to AA/DA, with its own table/AppService/permission/proxy/Angular CRUD.
    - Pro: gives CI1 a real lookup source for the now-required single per-appointment CE; consistent with how AA/DA are managed; supports reuse across appointments; aligns with "first-class party" decision for CE.
    - Con: heaviest option (new entity + migration + full stack); reverses OBS-8 and partly BUG-041 (accepted, both explicitly overridden by the 2026-06-03 decisions).
@@ -76,6 +85,7 @@ New CE master (part 2; parallel to AA/DA, by layer):
 Why the chosen direction wins: the CE became a first-class REQUIRED appointment party (CI1) and needs a managed, reusable directory exactly like AA/DA. Only a real master entity provides that; the two reuse-existing-data alternatives cannot back a clean per-appointment lookup or hold CE profile fields.
 
 ## Decision (locked 2026-06-03)
+
 - Re-parent AA + DA nav under User Management by adding `parentName: '::Menu:UserManagement'` to both base.routes entries and updating the two routes (`app.routes.ts:137-138` plus base.routes), keeping their existing entity permissions.
 - Add a NEW `ClaimExaminer` MASTER entity (per-user, like AA/DA): entity + `ClaimExaminerManager` + DTOs + `IClaimExaminersAppService` + AppService + Mapperly mapper + manual controller (`api/app/claim-examiners`) + new `ClaimExaminers` permission (registered in DefinitionProvider) + Angular CRUD registered under User Management.
 - CE master is the lookup source for the single required per-appointment `AppointmentClaimExaminer` (CI1). CE invite role already exists; no role work here.
@@ -83,6 +93,7 @@ Why the chosen direction wins: the CE became a first-class REQUIRED appointment 
 - Overrides OBS-8. CRUD shape mirrors whatever UM4/IP6 settle for Patients/attorney CRUD (depends on that shape).
 
 ## Implementation outline (no code)
+
 1. Nav re-parent (frontend-only, no migration):
    - Add `parentName: '::Menu:UserManagement'` (+ `order`) to `applicant-attorney-base.routes.ts:3-12` and `defense-attorney-base.routes.ts:3-12`.
    - Update/confirm routes at `app.routes.ts:137-138` per the locked re-path.
@@ -99,11 +110,13 @@ Why the chosen direction wins: the CE became a first-class REQUIRED appointment 
 5. Server-vs-UI enforcement: required/format validation enforced in DTO + `ClaimExaminerManager` (server-authoritative) and mirrored in the Angular reactive form; pure UX affordances (field ordering, labels) UI-only.
 
 ## Dependencies
+
 - DEPENDS ON: UM4 / IP6 (the decided Patients/attorney CRUD shape the CE master and relocated attorney CRUD must mirror -- e.g. whether `identityUserId` is required, whether records are free-standing).
 - BLOCKS / FEEDS: CI1 (per-appointment single required CE selects from this new CE master; the lookup wiring depends on this entity existing).
 - BUNDLE-WITH: BUG-042 / OBS-32 (attorney name columns) -- design CE with names and fix attorney names in the same pass for shape consistency.
 - INTERACTS: BUG-041 (D-2 picker-exclusion) -- reconcile when CI1 surfaces CE profiles in the per-appointment picker.
 
 ## Residual open questions
+
 - Final URL path for relocated attorneys (keep `/applicant-attorneys`,`/defense-attorneys` vs re-path under `/users/...`): the locked decision says re-path; confirm the exact new path string when wiring (breaks internal bookmarks only).
 - Whether the new `ClaimExaminers` permission should be grouped under the existing entity-permission group or under the UserManagement permission group (UM3 open question 4); does not block the entity build -- defaults to its own entity-permission group like AA/DA.

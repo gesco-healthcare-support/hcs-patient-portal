@@ -21,6 +21,7 @@ In OLD, a single `DashboardComponent` serves all internal roles with 12 counter 
 data layer (Intake Staff sees their assigned appointments; Supervisor sees all).
 
 In NEW, the dashboard is split into two role-specific components:
+
 - **Host Dashboard** (IT Admin / ABP Host role): ABP commercial analytics widgets
   (error rate, execution duration, editions usage, latest tenants). No appointment counters.
 - **Tenant Dashboard** (Intake Staff / Staff Supervisor / Doctor): 13 counter cards.
@@ -36,6 +37,7 @@ In NEW, the dashboard is split into two role-specific components:
 | External user home | `/home` (separate component) | `/home` (separate component) |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` with `applicationModuleId` for dashboard.
 - NEW: Root `DashboardComponent` uses `*abpPermission` directives:
   - `CaseEvaluation.Dashboard.Host` → renders `<app-host-dashboard>`
@@ -96,6 +98,7 @@ Responsive Bootstrap grid: `col-sm-6 col-xl-3` (4 cards per row on desktop, 2 pe
 | 12 | Defense Attorney | `defenseAttorneyCount` | `/users?userRoleTypeId=DefenseAttorney` |
 
 **Counter card anatomy:**
+
 - Top-left: lnr icon (e.g., `lnr-apartment`, `lnr-users`)
 - Center: large counter number (e.g., "42")
 - Bottom: label text (e.g., "Pending Appointment")
@@ -201,6 +204,7 @@ deviation; functionally equivalent -- see Exception 2).
 ### 5d. Drill-Down Navigation
 
 Card clicks call `openByStatus(statusId)`:
+
 - Routes to `/appointments?appointmentStatus={statusId}` (pre-filtered list).
 - Pending Change Requests → `/appointments?hasChangePending=true` (TBD).
 - Approaching Legal Deadline → `/appointments?approachingDeadline=true` (TBD).

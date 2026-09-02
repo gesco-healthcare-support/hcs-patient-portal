@@ -13,7 +13,7 @@ component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/Appoint
 ## Symptom
 
 While probing R2 permission rejections during the post-`#250` hardening
-sweep, a Patient-role JWT (patient1@gesco.com) was used to POST to
+sweep, a Patient-role JWT (<patient1@gesco.com>) was used to POST to
 `/api/app/appointments`. The response was **400 Bad Request** with
 validation errors citing missing required fields (patientId,
 doctorAvailabilityId, identityUserId, etc.).

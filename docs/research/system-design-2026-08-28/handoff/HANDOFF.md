@@ -87,7 +87,7 @@ open or run, and what changes depending on the answer. Times are for the check a
 **Total for Tier 0: about 75 minutes.** It settles whether this system can be exposed publicly at
 all, and four of its seven items change a recommendation regardless of the answer.
 
-### Tier 0 - before public exposure. A bad answer means stop.
+### Tier 0 - before public exposure. A bad answer means stop
 
 | # | Question | How | Min | What it changes |
 | --- | --- | --- | --- | --- |
@@ -128,7 +128,6 @@ all, and four of its seven items change a recommendation regardless of the answe
 | **25** | Are the DataProtection keys currently encrypted at rest? | grep for `ProtectKeysWith` | 5 | Specifying a custom persistence location **deregisters the default at-rest protection**. If absent, keys are stored in the clear today |
 | **26** | What is the per-database memory overhead on this instance? | `SELECT database_id, SUM(pages_kb) FROM sys.dm_os_memory_clerks GROUP BY database_id` | 10 | Replaces an explicitly unsourced estimate with a fact. The research marked this `UNVERIFIED` and refused to assert a number |
 | **27** | What are the current office database sizes and the row counts of **all five** audit tables? | `sys.dm_db_partition_stats` per database | 15 | Converts several `UNKNOWN` cells in the capacity model to `MEASURED`. **This is most of what `02-runtime-and-data-profile.md` would have supplied** |
-
 
 ---
 
@@ -413,7 +412,6 @@ rotation free, destructive restore testing free, per-office encryption possible 
 move a build rather than a migration, and "no PHI in non-production" free to adopt. All five become
 expensive, and one becomes permanently impossible, the day a real practice takes a real booking.
 ```
-
 
 ---
 

@@ -14,8 +14,8 @@ parity: regression -- OLD stored a single `attorneyName`; NEW dropped the column
 ## Symptom
 
 Booked A00001 (QME, Demo Clinic North) entering Applicant Attorney
-"Aria Stone / appatty1@gesco.com / Stone & Associates" and Defense
-Attorney "Dana Defense / defatty1@gesco.com / Shield Defense Group".
+"Aria Stone / <appatty1@gesco.com> / Stone & Associates" and Defense
+Attorney "Dana Defense / <defatty1@gesco.com> / Shield Defense Group".
 Later, viewing the appointment:
 
 - **Applicant Attorney section renders completely blank** (First/Last/

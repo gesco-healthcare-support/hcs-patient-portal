@@ -1,10 +1,12 @@
 # 02. Approval / reschedule / cancellation -- OLD vs NEW behavioral parity
+>
 > OLD = P:\PatientPortalOld (intent/behavior source of truth). NEW = this repo.
 > Exhaustive re-read 2026-05-29. We replicate intent + behavior, not code/features.
 
 ## Coverage
 
 ### OLD reviewed
+
 - `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentsController.cs` (Put/Patch -> approve/reject/cancel)
 - `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentChangeRequestsController.cs`
 - `PatientAppointment.Api\Controllers\Api\AppointmentChangeLog\AppointmentChangeLogsController.cs`
@@ -17,6 +19,7 @@
 - Angular: `appointment-change-requests\{add,edit,view}\*.component.ts`, `appointments\view\appointment-view.component.{ts,html}`, `appointment-change-log\...\list\appointment-change-log-list.component.ts`
 
 ### NEW reviewed
+
 - `Domain\Appointments\AppointmentManager.cs` (state machine + transitions), `Appointment.cs`
 - `Application\Appointments\AppointmentsAppService.Approval.cs`, `AppointmentApprovalValidator.cs`, `AppointmentRescheduleCloner.cs`
 - `Domain\AppointmentChangeRequests\AppointmentChangeRequestManager.cs`, `AppointmentChangeRequest.cs`, `CancellationRequestValidators.cs`, `RescheduleRequestValidators.cs`
@@ -27,6 +30,7 @@
 - Angular: `appointment\components\{approve-confirmation-modal,reject-appointment-modal}.component.ts`, `appointment-change-logs\appointment-change-logs.component.ts`, `app.routes.ts` (change-log route)
 
 ## Summary
+
 | Class | Count |
 |---|---|
 | Missing behavior | 3 |
@@ -38,6 +42,7 @@
 ## Behavioral gaps (decide)
 
 ### G-02-01 -- Global change-log list page with field-level filters is missing
+
 - **Class:** Missing
 - **OLD:** `appointment-change-log\appointment-change-logs\list\appointment-change-log-list.component.ts` + `AppointmentChangeLogsController.cs` + `spm.spAppointmentChangeLogs` SP. A standalone, internal-only **searchable list** of every field-level change across ALL appointments, filterable by `fieldName`, `oldValue`, `newValue`, `tableName`, `appointmentStatusName`, `changedDate`, `requestConfirmationNumber`, paged + sortable (default sort `RequestConfirmationNumber`). Row click -> opens the appointment.
 - **NEW:** `angular\src\app\appointments\appointment-change-logs\appointment-change-logs.component.ts` -- per-appointment ONLY (route `appointments/view/:id/change-log`, reads route `:id`). Calls ABP `AuditLogsService.getEntityChangesWithUsername` for a single `Appointment` entity id. No global list, no cross-appointment filters, no `tableName`/`fieldName`/`confirmationNumber` search.
@@ -48,6 +53,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-02-02 -- Change log does not capture child-entity (injury / body-part / claim) field changes
+
 - **Class:** Partial
 - **OLD:** `AppointmentChangeLogDomain.cs` `ChangeLogs` (90-101), `ChangeLogsForBodyParts` (114-124), `ChangeLogForInjuryDetails` (327-333), `AddNewLogForBodyPart` (252-266). OLD reflects over `vAppointmentsForChangeLog` AND over injury-detail / body-part rows, writing a log row per changed field with `TableName` (e.g. "Appointment Injury Body Part Detail"), `FieldName`, `OldValue`, `NewValue`, `ChangedById`, `IsInternalUserUpdate`, `IsMailSent`. Body-part additions log a row with empty `OldValue`.
 - **NEW:** `appointment-change-logs.component.ts:39` hardcodes `entityTypeFullName = '...Appointments.Appointment'` -- it queries ABP entity-changes for the **Appointment aggregate root only**. Child entities (`AppointmentInjuryDetail`, `AppointmentBodyPart`, `AppointmentClaimExaminer`, `AppointmentPrimaryInsurance`) carry `[Audited]`? Not confirmed audited, and even if audited they are not surfaced by this viewer (single FQN filter).
@@ -58,6 +64,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-02-03 -- "Intake-form-changed" notification email (per-field diff table) is absent
+
 - **Class:** Missing
 - **OLD:** `AppointmentChangeLogDomain.cs` `SendEmailForIntakeFormChanges` (334-378) + `SendEmailForChangeLog` (267-311). After any `Appointment.Update`, OLD collects all change-log rows with `IsMailSent==false`, builds an HTML table of `FieldName / OldValue / NewValue`, emails it to stakeholders via `EmailTemplate.AppointmentChangeLogs`, then flips `IsMailSent=true`. A separate `EmailTemplate.AppointmentRescheduleRequestByAdmin` fires once if a Date/Time field changed (`SendEmailForAppointmentTimeChangedByAdmin`, 312-326).
 - **NEW:** No equivalent. `AppointmentManager.UpdateAsync` does not diff fields or send a change-summary email; no `IsMailSent` flag exists on any NEW entity. (Note: emails are area 04's scope, but the gating mechanism -- the change-log diff + `IsMailSent` dedup -- is change-log behavior and has no NEW home.)
@@ -68,6 +75,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later  (cross-ref area 04 for the email send; the diff/dedup logic is the gap here)
 
 ### G-02-04 -- Reschedule-reject does not release the user-picked (Reserved) slot
+
 - **Class:** Intent deviation
 - **OLD:** `AppointmentChangeRequestDomain.cs` Update, `ReScheduleRejectionReason` branch (591-617): on reschedule reject, old slot -> `Booked` (595), **new slot -> `Available` (600)**, change request's `DoctorAvailabilityId` reset to `OldDoctorAvailabilityId`, appointment -> `Approved`. Net: the slot the patient requested is freed for others.
 - **NEW:** `AppointmentChangeRequestsAppService.Approval.cs` `RejectRescheduleAsync` (341-403): reverts appointment -> `Approved`, marks request Rejected, publishes status ETO -- but **explicitly removed `ReleaseSlotIfReservedAsync`** (381-385 comment) per the 2026-05-15 slot-rework. The new slot that `SubmitRescheduleAsync` set to `Reserved` (manager line 256) stays `Reserved` after reject.
@@ -78,6 +86,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later  (NOTE: likely a real bug introduced by the slot-rework; submit still Reserves but nothing un-Reserves on reject/approve)
 
 ### G-02-05 -- Internal-user direct cancellation from the appointment view page is missing
+
 - **Class:** Missing
 - **OLD:** `appointments\view\appointment-view.component.html` (137-139) + `.ts updateAppointmentRequest` + `AppointmentDomain.Update` (537-550). The single view-page modal lets an internal user directly set an Approved appointment to `CancelledNoBill` with a cancellation reason -- NOT through a change request. `Update` then auto-creates an `AppointmentChangeRequest` with `RequestStatusId=Accepted, IsBeyodLimit=false` as an audit record and frees the slot (`UpdateDoctorAvailbilty` 602-603).
 - **NEW:** The view-page modals are `approve-confirmation-modal` and `reject-appointment-modal` only. Direct cancel-from-view is absent. Cancellation in NEW only happens via the external-user change-request submit (`RequestCancellationAsync`) followed by a supervisor approve (`ApproveCancellationAsync`). There is no one-step internal-user cancel of an Approved appointment.
@@ -88,6 +97,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-02-06 -- Cancel-time window gate not re-applied on supervisor approval; outcome is manual-only
+
 - **Class:** Partial
 - **OLD:** `AppointmentChangeRequestDomain.AddValidation` (83-91) checks `AppointmentCancelTime` at **submit** time only; the supervisor's edit modal then lets them pick `CancelledNoBill` OR `CancelledLate` manually (`appointment-change-request-edit.component.ts` 125-157). The two statuses are a pure manual choice -- OLD does NOT auto-derive from the window.
 - **NEW:** Manual choice is faithfully ported (`ApproveCancellationInput.CancellationOutcome`, validated to NoBill/Late by `ChangeRequestApprovalValidator.EnsureCancellationOutcome`). The cancel-time window gate is applied at submit (`AppointmentChangeRequestManager.SubmitCancellationAsync` 130-136, `CancellationRequestValidators.IsWithinNoCancelWindow`). **Behaviorally equivalent** for the manual-outcome part. The PARTIAL flag is narrow: OLD's submit gate used `(slotDate - DateTime.Today).TotalDays < cancelTime` with `DateTime.Today` (local server time); NEW mirrors it but uses `DateTime.Today` at the Application/Domain boundary -- consistent, but verify tenant-timezone handling once multi-tenant lands. No functional gap today.
@@ -98,6 +108,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-02-07 -- Approval injury-detail gate has no OLD equivalent (NEW is stricter)
+
 - **Class:** Intent deviation
 - **OLD:** `AppointmentDomain.UpdateValidation` approve branch (312-344) only blocks if already Approved/Rejected/etc. There is NO "must have >=1 injury detail" gate on approval.
 - **NEW:** `AppointmentManager.ApplyTransitionAsync` (236-241, BUG-043/T8) blocks Pending->Approved when `_appointmentInjuryDetailRepository.GetCountAsync(appointmentId) < 1`, throwing `AppointmentApprovalRequiresInjuryDetail`.
@@ -108,6 +119,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later  (confirm with Adrian that the added gate is desired hardening, not a parity regression)
 
 ### G-02-08 -- Patient-match override is recorded but not acted on (no patient-row split)
+
 - **Class:** Partial
 - **OLD:** `AppointmentDomain.Add` (203-218) + view modal "Patient record has been merged with existing patient" block. On the dedup path, OLD sets `IsPatientAlreadyExist=true` and links the existing `PatientId`; the approve flow shows the merged-patient card.
 - **NEW:** `AppointmentApprovalValidator.ShouldOverridePatientMatch` (100-107) + `AppointmentsAppService.Approval.cs` (113-123): when staff send `OverridePatientMatch=true` on an appointment with `IsPatientAlreadyExist=true`, NEW only flips `IsPatientAlreadyExist=false` and logs it. The comment explicitly defers "the actual patient-row split (creating a new Patient row + relinking)" to a future Session-A manager rewrite. The Angular approve modal hardcodes `overridePatientMatch: false` (`approve-confirmation-modal.component.ts:149`) -- so the override is unreachable from the UI today.

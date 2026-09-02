@@ -12,14 +12,14 @@ Copy-paste cheat sheet for manual testing and demos. All users below were create
 
 | Item | Value |
 | --- | --- |
-| Login URL | http://localhost:4200 |
-| Swagger | http://localhost:44327/swagger/index.html |
-| AuthServer | http://localhost:44368 |
+| Login URL | <http://localhost:4200> |
+| Swagger | <http://localhost:44327/swagger/index.html> |
+| AuthServer | <http://localhost:44368> |
 | Password (ALL users below) | `1q2w3E*` |
 
 **How to log in as a tenant user** (Angular UI):
 
-1. Open http://localhost:4200 -> Login
+1. Open <http://localhost:4200> -> Login
 2. On the AuthServer login page, click the current tenant label (top/right, default is "Not selected")
 3. Enter the tenant name from the headers below (e.g. `Dr Nakamura 1`) -> Save
 4. Enter email + `1q2w3E*` -> Login

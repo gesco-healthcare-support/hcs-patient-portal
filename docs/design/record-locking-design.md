@@ -47,10 +47,12 @@ The "data lost" dialog text was from `ApplicationConfiguration.get("validation.m
 ### api/recordlocks (never activated)
 
 `UserAuthorizationService` had:
+
 - `checkLock(data)` -- `POST api/recordlocks` -- creates a lock record for a given `{applicationModuleId, mainRecordId, childModuleName}`.
 - `unLockRecord(data)` -- `DELETE api/recordlocks{moduleId}/{recordId}/{childModuleName}` -- removes the lock.
 
 The `checkLock()` call was present in `page-access.ts` but **commented out**:
+
 ```
 //    var lockRecord = { applicationModuleId: ..., childModuleName: ..., mainRecordId: ... };
 //    this.authorizationService.checkLock(lockRecord).subscribe(t => {
@@ -67,6 +69,7 @@ The pessimistic lock never existed at the app layer.
 ## 2. Form-Level Unsaved-Changes Behavior
 
 Components that implement `ComponentCanDeactivate` expose:
+
 ```ts
 canDeactivate(): boolean | Observable<boolean>
 ```
@@ -104,6 +107,7 @@ export const unsavedChangesGuard: CanDeactivateFn<ComponentWithUnsavedChanges> =
 ```
 
 Apply to routes that have edit forms:
+
 - Appointment edit form
 - System parameters edit
 - Doctor edit modal (if full-page)

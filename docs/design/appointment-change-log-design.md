@@ -37,6 +37,7 @@ See Exception 1.
 | Per-appointment change log | Not a dedicated route (accessed from appointment-view) | `/appointments/change-log/:id` (or embedded in appointment-view) |
 
 Guard:
+
 - OLD: `canActivate: [PageAccess]` `applicationModuleId: 14`
 - NEW: `canActivate: [authGuard, permissionGuard]`; `CaseEvaluation.AppointmentChangeLogs`
 
@@ -105,6 +106,7 @@ Already implemented at:
 ### 4a. Data Source
 
 Uses ABP's `AuditLogsService.getEntityChangesWithUsername()` with:
+
 - `entityId` = appointment ID (from route param `:id`)
 - `entityTypeFullName` = `'HealthcareSupport.CaseEvaluation.Appointments.Appointment'`
 

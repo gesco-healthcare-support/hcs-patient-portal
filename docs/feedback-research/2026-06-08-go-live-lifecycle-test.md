@@ -61,6 +61,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
 ## Findings
 
 ### F-1 (HIGH): Clinic Staff (clistaff1) gets 403 attaching Claim Examiner during booking -> partial appointment, no auto-approve
+
 - Repro: log in as `clistaff1` (Clinic Staff), book an AME with Patient + AA + DA + CE + 1 injury,
   Continue past the USPS modal.
 - Observed network sequence: `POST /appointments` 200 -> `.../applicant-attorney` 204 ->
@@ -79,6 +80,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   CAN attach the CE (verified: patient1 and stafsuper1 both got 200 on the same endpoint).
 
 ### F-4 (MEDIUM): PQME AttyCE notice may not include the DWC QME form (unverified, weak signal)
+
 - Repro/observation: approved one AME (A00069), one IME (A00072), one PQME (A00071). The emailed
   AttorneyClaimExaminer PDF byte sizes are near-identical: AME 253994 B, IME 254054 B, PQME 254306 B.
 - Expectation (prompt): PQME AttyCE notice contains the DWC QME form (a multi-page government form);
@@ -90,6 +92,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   before relying on this for the demo.
 
 ### F-2 (LOW): blank booking page immediately after login (transient, self-heals on reload)
+
 - Repro: log in as an external user (seen with appatty1) and land directly on `/appointments/add` via
   the post-login returnUrl. The page renders fully blank.
 - Console: `401 Unauthorized` on `GET /api/app/appointments/pending-count` (token not yet attached when
@@ -99,6 +102,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   if a booker deep-links in.
 
 ### F-3 (LOW): approval-gate business-rule violation returns HTTP 403
+
 - Repro: approve a Pending appointment lacking an injury (A00068). Server returns HTTP 403 carrying
   `CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail` (a `UserFriendlyException`).
 - 403 normally means "not authorized"; a domain validation failure is conventionally 400 or 409.
@@ -106,6 +110,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   otherwise correct (blocks + clear message, appt stays Pending). Cosmetic/contract nit.
 
 ### F-5 (LOW, env): reschedule/cancel notification emails log SMTP delivery failure in dev
+
 - Observation: change-request emails log `SendAppointmentEmailJob: SMTP delivery failed
   (ChangeRequestApproved/Reschedule|Cancel/...) Configure ACS credentials to deliver. Job will not
   retry...`, whereas booking/approval/packet emails log `delivered (...)`. EMAIL-LINKS lines are
@@ -150,6 +155,7 @@ Remaining findings (F-2 blank-page-after-login, F-3 403-for-business-rule, F-5 d
 logging) are low severity and do not block the demo.
 
 ### Not tested / could not verify
+
 - **AttyCE notice content (PQME QME form vs AME/IME)** -- F-4; the optional PACKETS_HTML deeper
   check was skipped to avoid an api-container recreate on the memory-constrained engine. Byte-size
   proxy only (inconclusive).

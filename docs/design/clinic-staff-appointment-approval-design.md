@@ -45,6 +45,7 @@ view template but the file does not yet exist. This is a Phase 19b UI task.
 | Send-back modal | n/a (not in OLD) | `<app-send-back-appointment-modal>` on view page (TODO) |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` `applicationModuleId: 6`, `accessItem: 'add'` on detail route.
 - NEW: `canActivate: [authGuard, permissionGuard]`; `CaseEvaluation.Appointments.Approve` permission
   gates the action dropdown visibility (`canTakeOfficeAction`).
@@ -77,6 +78,7 @@ Intake Staff, Staff Supervisor, and IT Admin all use this shell.
 ```
 
 **Action column per row:**
+
 - Approve icon (fa-check, green): `approveRequest(appointmentId, patientDetail)` -- opens modal
 - Reject icon (fa-times, red): `rejectRequest(appointmentId, patientDetail)` -- opens modal
 
@@ -126,6 +128,7 @@ Required for approval -- cannot submit without selecting a responsible user.
 **Comments** (approve only): Optional textarea. Stored as `internalUserComments`.
 
 **Submit flow:**
+
 1. `ngOnInit()` loads appointment via `appointmentsService.group([appointmentId], [lookups])`.
 2. Binds patient detail to display card.
 3. On submit: PATCHes `AppointmentRequestUpdateViewModel` with:
@@ -163,6 +166,7 @@ on Pending or AwaitingMoreInfo appointments):
 ```
 
 On **Submit**, the selected action opens its respective modal:
+
 - `approve` → `approveModalVisible = true`
 - `reject` → `rejectModalVisible = true`
 - `sendBack` → `sendBackModalVisible = true`
@@ -186,6 +190,7 @@ NEW source: `appointment-view.component.html` (action dropdown section),
 ```
 
 Simple confirmation dialog -- no fields. Clicking "Approve":
+
 1. `isBusy = true` (disables button to prevent double-submit).
 2. `appointmentService.approve(appointmentId)` → `POST /api/app/appointments/{id}/approve`.
 3. Success toast: `'::Appointment:Toast:Approved'`.
@@ -217,6 +222,7 @@ NEW source: `approve-confirmation-modal.component.html:1-20`,
 **Reject button enabled** when: `reason.trim().length > 0 && reason.length <= 500`.
 
 Submit:
+
 1. `appointmentService.reject(appointmentId, { reason })` → `POST /api/app/appointments/{id}/reject`.
 2. Success toast: `'::Appointment:Toast:Rejected'`.
 3. Emits `succeeded`; closes modal.
@@ -232,6 +238,7 @@ NEW source: `reject-appointment-modal.component.html:1-39`,
 ### 5d. Send-Back Modal (NOT YET CREATED -- Phase 19b UI task)
 
 Referenced in view template but file does not exist:
+
 ```typescript
 // appointment-view.component.ts line 31
 import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
@@ -311,6 +318,7 @@ State transitions also determine external-user button visibility (see
 | Doctor | No | No | No | No | No |
 
 `canTakeOfficeAction` computed property gates the action dropdown:
+
 - Must be internal role (Intake Staff / Supervisor / IT Admin)
 - Appointment must be in Pending or AwaitingMoreInfo status
 

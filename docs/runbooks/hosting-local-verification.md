@@ -41,7 +41,7 @@ AUTHSERVER_CERT_PASSPHRASE="<the same value>" \
 
 ## 4. Bring up the stack
 
-Option A (fast path -- DbMigrator seeds the sample offices + it.admin@hcs.test into the
+Option A (fast path -- DbMigrator seeds the sample offices + <it.admin@hcs.test> into the
 volume; app services run Production):
 
 ```bash

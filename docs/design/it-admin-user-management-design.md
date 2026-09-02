@@ -21,6 +21,7 @@ screenshots: pending (partial -- old/admin/identity-users captured 2026-04-24)
 In OLD, IT Admin has a custom `/users` page backed by a shared `UserViewComponent`
 popup that handles both Add and Edit. In NEW, **user management is delegated to
 ABP's built-in LeptonX Identity module** at `/identity/users`. ABP provides:
+
 - Full user list with search, pagination, and column sorting
 - Add/Edit modals with role assignment
 - Lockout (block user) support
@@ -88,6 +89,7 @@ OLD source: `list/user-list.component.html:40-83`
 ### 3c. OLD Add/Edit Modal (`UserViewComponent`)
 
 Both Add and Edit reuse the same popup. Header changes based on operation:
+
 - Add: "Add User Details"
 - Edit: "Edit User Details"
 
@@ -107,12 +109,14 @@ Both Add and Edit reuse the same popup. Header changes based on operation:
 ```
 
 **Fields in ADD mode:**
+
 - First Name, Last Name, Email Id: editable (inside `fieldset [disabled]="isEdit"`, `isEdit=false` in Add)
 - User Role select: editable, filtered to `userTypeId == InternalUser`,
   `RoleEnum.ITAdmin` excluded (IT Admin cannot create another IT Admin via this UI)
 - Is Active checkbox: NOT shown (`*ngIf="isEdit"` hides it in Add -- new users always Active)
 
 **Fields in EDIT mode:**
+
 - First Name, Last Name, Email Id: DISABLED (fieldset disabled)
 - User Role select: editable (IT Admin still excluded from role options)
 - Is Active checkbox: shown, pre-filled from `userFormGroup.value.statusId`
@@ -171,6 +175,7 @@ automatically and emails it. NEW must replicate this:
 **Angular UI for this custom flow:**
 Rather than using ABP's standard "New User" modal (which asks for a password), the
 "Add +" button should open a **custom Add Internal User modal** with only:
+
 - First Name, Last Name, Email, Role select
 - No password field
 - Subtitle: "A welcome email with login credentials will be sent automatically."

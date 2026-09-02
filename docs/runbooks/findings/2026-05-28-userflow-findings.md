@@ -165,11 +165,13 @@ Actual state (verified this run):
 
 - Endpoint is `POST /api/app/doctor-availabilities/preview` (not `/generate-preview`).
 - `DoctorAvailabilityGenerateInputDto` schema:
+
   ```
   { fromDate, toDate, fromTime, toTime,
     bookingStatusId, locationId, appointmentTypeId,
     appointmentDurationMinutes }
   ```
+
   **No `doctorId` field.** Slots bind to (location, appointmentType) only.
 
 The "NEVER seed the doctor" directive at the top of Phase 0 is therefore consistent with the actual schema. The runbook contradicts itself by including `doctorId` in the example payload immediately afterward.
@@ -299,6 +301,7 @@ Both radios are `disabled`. User cannot toggle to "Yes" even when they need an i
 ### Recommended fix
 
 If derived from `Language`:
+
 - Hide the question entirely when `Language === English`.
 - Or replace the radios with read-only text: "Interpreter: Not required" / "Interpreter: Required (auto-detected from language)".
 
@@ -343,6 +346,7 @@ So the backend AppService and permission gates work. The frontend page just does
 ### Recommended fix
 
 Investigation steps:
+
 1. Grep for `Doctors.Create` permission check in the Angular tree.
 2. Read the doctor-list component template to see if a create button is declared at all.
 3. If declared and gated correctly, the rendering bug is in the gating logic; if not declared, add it.
@@ -364,6 +368,7 @@ If doctor onboarding is supposed to be a Staff Supervisor responsibility, it is 
 The standing memory rule (`memory/feedback_slot_gen_no_doctor_required.md`) explicitly says: *"0 rows in `AppDoctors` is SEED-2 (known, planned), never a blocker for HRD-P0.* slot gen or downstream booking; stop proposing demo-doctor seeding."*
 
 The agent:
+
 1. Surfaced an `AskUserQuestion` that included an option contradicting the rule ("Have Patrick create a doctor via the admin UI first").
 2. Adrian picked that option (reasonably — the UI is the documented path).
 3. The UI had no create button (PROPOSED-OBS-A5), so the agent fell back to POST `/api/app/doctors` with Patrick's bearer token — creating the doctor via a back-channel that still violates the spirit of the rule.
@@ -387,7 +392,7 @@ No downstream scenario references this record. It is dead data.
 
 1. **Leave it.** Next `docker compose down -v` wipes it anyway.
 2. **SQL DELETE** with a flag explaining why this once-only override of the "DB writes are destructive" rule is OK.
-3. **Soft-delete via host-tenant admin** (admin@abp.io probably has Delete).
+3. **Soft-delete via host-tenant admin** (<admin@abp.io> probably has Delete).
 
 ### Lesson
 
@@ -446,6 +451,7 @@ Findings below are in addition to A1-A5 above.
 Replayed twice in this run:
 
 **A00001** (Daniel's QME, approved by Rachel 17:40:30):
+
 ```
 AppAppointmentPackets:
   Kind=1 (patient), Status=2 (Completed), patient PDF in MinIO
@@ -454,6 +460,7 @@ AppAppointmentPackets:
 ```
 
 **A00003** (Henry's Panel QME for Mary Brown, approved 18:18:01):
+
 ```
 Same pattern: Kind=1 + Kind=2 only, no Kind=3 row.
 ```
@@ -463,10 +470,11 @@ This is NOT a "Status=4 Failed" case — the row is entirely absent. Suggests th
 ### Approval emails still fire
 
 For A00001, all four parties received approval emails via SMTP (verified in Hangfire `HangFire.Job` table — 5 emails Succeeded):
-- patient1@gesco.com x2 (one "Approved" subject, one "approved successfully")
-- appatty1@gesco.com (Marcus)
-- defatty1@gesco.com (Gregory)
-- claimE1@gesco.com (Henry)
+
+- <patient1@gesco.com> x2 (one "Approved" subject, one "approved successfully")
+- <appatty1@gesco.com> (Marcus)
+- <defatty1@gesco.com> (Gregory)
+- <claimE1@gesco.com> (Henry)
 
 So **emails are decoupled from packet generation**. The AA/DA/CE recipients get the notification email without the attached packet. Per Phase 6.2 expectation, this is partial isolation working for emails but failing silently for packets.
 
@@ -517,6 +525,7 @@ Context: StatusChange/Approved/Stakeholders/8fb62a63-...
 ```
 
 Two different subjects, two different Context tags. Looks like:
+
 - `PatientPacket` handler fires for Kind=1 packet -> emails the patient.
 - `StatusChange/Approved/Stakeholders` handler fires for status change -> emails all stakeholders (including the patient).
 
@@ -525,6 +534,7 @@ Both legitimate paths, both correctly addressed, but the patient ends up with 2 
 ### Recommended fix
 
 Consolidate the two events. Either:
+
 - The `StatusChange/Approved/Stakeholders` handler should exclude the patient (the patient gets the `PatientPacket` email instead).
 - Or merge the two emails into one with the packet attached.
 
@@ -545,6 +555,7 @@ Patient inbox clutter. No functional breakage. Could erode trust if the patient 
 ### Symptom
 
 When approving A00001 as Rachel, the Responsible User dropdown listed:
+
 - `admin@abp.io`        (host tenant admin — should never appear in a tenant context)
 - `admin@falkinstein.test`
 - `clistaff1@gesco.com`
@@ -576,6 +587,7 @@ Either delete the `.test` seed users post-bootstrap, or add a filter (`IsSeed=0`
 ### Symptom
 
 After all 3 bookings:
+
 ```
 AppAppointments.ClaimExaminerEmail:
   A00001  claimE1@gesco.com   (mixed case - typed by Daniel)
@@ -608,6 +620,7 @@ Normalize email at insert: lowercase + trim on `ClaimExaminerEmail`, `ApplicantA
 ### Symptom
 
 Observed for Gregory and Henry:
+
 1. Patrick sends invite -> user receives invite email -> clicks link, lands on Register page (email + role locked).
 2. User fills name + password + accepts T&C -> click Sign up.
 3. Success card: "Account created. We sent a verification link to <email>. Click the link to sign in."
@@ -632,6 +645,7 @@ For invite-flow registrations, set `EmailConfirmed=true` immediately upon succes
 ### Symptom
 
 Both Gregory's and Henry's invite emails contained literally:
+
 ```
 <p>Hi ,</p>
 ```
@@ -655,6 +669,7 @@ In the invite email template, replace `Hi {{name}},` with `Hi {{name | default: 
 ### Symptom
 
 When Henry (CE booker) booked A00003, the claim modal opened with the CE section locked and pre-filled:
+
 ```
 Name: "Henry"          (only first name)
 Email: "claime1@gesco.com"  (correct)
@@ -713,6 +728,7 @@ Decide on the intended public surface for forgot-password. If API is intended: i
 ### Symptom
 
 After consuming a reset URL by setting a new password:
+
 - The same URL is opened a second time.
 - Server renders the full ResetPassword form with empty New / Confirm password fields, as if the token is still valid.
 - Only on submit does the server respond: redirect to `/Account/ForgotPassword` with flash `"That reset link doesn't work anymore. Request a new one below."`

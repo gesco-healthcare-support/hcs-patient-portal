@@ -116,7 +116,7 @@ Verdict: **minor-corrections**. Claims checked: 32.
 
 ### Material errors (7)
 
-- [24] CFR citation error: 164.316(b)(2)(i) (six-year documentation retention, Required) is cited to https://www.law.cornell.edu/cfr/text/45/164.312, which is 'Technical safeguards' and does not contain any part of 164.316. Confirmed absent on the page. The correct URL is .../45/164.316. The substance of the retention requirement is not in dispute; the citation is simply wrong and will not survive review.
+- [24] CFR citation error: 164.316(b)(2)(i) (six-year documentation retention, Required) is cited to <https://www.law.cornell.edu/cfr/text/45/164.312>, which is 'Technical safeguards' and does not contain any part of 164.316. Confirmed absent on the page. The correct URL is .../45/164.316. The substance of the retention requirement is not in dispute; the citation is simply wrong and will not survive review.
 
 - [19] UnprotectKeysWithAnyCertificate is attributed to the key-encryption-at-rest page, where it does not appear. It is documented on configuration/overview. More seriously, the assertion that the 'only certificates with CAPI private keys are supported' caveat is 'scoped to .NET Framework, not .NET 10 on Linux' is the researcher's inference, not the page's text  -  the sentence sits unqualified inside an X.509 section whose moniker range includes aspnetcore-10.0, on a page titled 'Key encryption at rest in Windows and Azure'. This is load-bearing: it is the sole recommended at-rest mechanism for the Linux/no-cloud-KMS case, so it must be settled by an actual ProtectKeysWithCertificate test on .NET 10/Linux before the design depends on it.
 
@@ -298,9 +298,9 @@ Verdict: **minor-corrections**. Claims checked: 44.
 
 - [1] The stated threshold includes 'a WARN line is printed but the command proceeds'. The cited page says only 'If an environment variable is not set, Compose substitutes with an empty string' and says nothing about a warning. The warning is real CLI behaviour but is not documented at the cited URL, so the threshold as stated is not supported by the evidence offered.
 
-- [44] Mis-flagged as unverified. https://www.martinfowler.com/ieeeSoftware/failFast.pdf is reachable and the PDF fully confirms the claim (Jim Shore, IEEE Software, 2004, '0740-7459/04/$20.00 (c) 2004 IEEE', column editor Martin Fowler; 'when a problem occurs, it fails immediately and visibly'). The 503 note is stale and should be removed rather than carried into the document as a caveat.
+- [44] Mis-flagged as unverified. <https://www.martinfowler.com/ieeeSoftware/failFast.pdf> is reachable and the PDF fully confirms the claim (Jim Shore, IEEE Software, 2004, '0740-7459/04/$20.00 (c) 2004 IEEE', column editor Martin Fowler; 'when a problem occurs, it fails immediately and visibly'). The 503 note is stale and should be removed rather than carried into the document as a caveat.
 
-- [30] https://www.sciencedirect.com/science/article/abs/pii/0005109883900468 returns HTTP 403 - not reachable, not even the abstract. The '~1800 citations as of Nov 2016' figure is unverifiable from any fetched source and should be dropped.
+- [30] <https://www.sciencedirect.com/science/article/abs/pii/0005109883900468> returns HTTP 403 - not reachable, not even the abstract. The '~1800 citations as of Nov 2016' figure is unverifiable from any fetched source and should be dropped.
 
 ### Vendor-neutrality findings (5)
 
@@ -408,13 +408,13 @@ Verdict: **material-errors**. Claims checked: 45.
 
 ### Material errors (6)
 
-- Claim [1]: the cited URL https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-88r1.pdf returns HTTP 404. The live r1 PDF is at https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-88r1.pdf. Worse, neither the CSRC landing page nor the r1 PDF contains the two phrases quoted as if verbatim ('withdrawn and superseded in its entirety by NIST SP 800-88r2', 'solely for historical purposes'). NIST's actual notice reads only: 'Withdrawn on September 26, 2025. Superseded by SP 800-88 Rev. 2'. The date and supersession are correct; the quoted wording is not sourced.
+- Claim [1]: the cited URL <https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-88r1.pdf> returns HTTP 404. The live r1 PDF is at <https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-88r1.pdf>. Worse, neither the CSRC landing page nor the r1 PDF contains the two phrases quoted as if verbatim ('withdrawn and superseded in its entirety by NIST SP 800-88r2', 'solely for historical purposes'). NIST's actual notice reads only: 'Withdrawn on September 26, 2025. Superseded by SP 800-88 Rev. 2'. The date and supersession are correct; the quoted wording is not sourced.
 
 - Claim [15]: the stated threshold 'cites NIST SP 800-88 by number, not revision' is contradicted by the page. The HHS disposal FAQ's link text omits the revision but the hyperlink target is /sites/default/files/nistsp800-88-rev1.pdf  -  HHS points specifically at Rev. 1. This directly weakens claim [17], which is built on the premise that HHS's pointer is revision-agnostic.
 
 - Claim [12]: the quotation omits the qualifier 'if feasible'. The actual text of 45 CFR 164.504(e)(2)(ii)(J) is 'At termination of the contract, if feasible, return or destroy all protected health information...'. Presenting the return-or-destroy duty as unconditional and then separately noting an 'infeasibility carve-out' materially overstates the obligation; the feasibility condition is in the operative clause itself.
 
-- Claim [44]: version number wrong for the cited URL. https://hl7.org/fhir/uv/bulkdata/STU2/export.html is version 2.0.0 STU 2, not 'v3.0.0 STU 3' as claimed. v3.0.0 STU 3 is the current published version but lives at a different URL (https://hl7.org/fhir/uv/bulkdata/). The NDJSON SHALL and 202/Content-Location content is correct on the cited page, but the page cannot support the version assertion.
+- Claim [44]: version number wrong for the cited URL. <https://hl7.org/fhir/uv/bulkdata/STU2/export.html> is version 2.0.0 STU 2, not 'v3.0.0 STU 3' as claimed. v3.0.0 STU 3 is the current published version but lives at a different URL (<https://hl7.org/fhir/uv/bulkdata/>). The NDJSON SHALL and 202/Content-Location content is correct on the cited page, but the page cannot support the version assertion.
 
 - Claim [45]: the cited URL (Microsoft's tenant life cycle article) has no connection whatsoever to the claim. It contains nothing about audit-log row counts, entity property-change rows, or a 100:1 ratio. The claim is a codebase measurement with an unrelated URL attached; the citation should be removed rather than pointed at an irrelevant page.
 

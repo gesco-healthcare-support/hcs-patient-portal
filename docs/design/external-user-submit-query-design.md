@@ -15,6 +15,7 @@ screenshots: pending
 
 External users can submit a free-form help question at any time via a modal popup.
 There are two entry points:
+
 1. **Global Help link** in the top navigation bar (free-form query with no appointment context).
 2. **Help button** on the appointment-view page (appointment-context query, pre-fills
    the confirmation number).
@@ -37,10 +38,12 @@ implementation approach (see parity doc question Q11).
 No dedicated route. The submit-query form is a modal popup, not a page.
 
 OLD entry points:
+
 - Global top-nav: `onAddQuery()` → `RxPopup.show(UserQueryAddComponent, {})`
 - Appointment-view: `onAddQuery()` → `RxPopup.show(UserQueryAddComponent, { appointmentId, isAskConfirmationNumber: true, requestConfirmationNumber })`
 
 NEW entry points (to be implemented):
+
 - Global top-nav Help icon → `MatDialog.open(SubmitQueryDialogComponent, {})`
 - Appointment-view Help button → `MatDialog.open(SubmitQueryDialogComponent, { data: { appointmentId, confirmationNumber } })`
 
@@ -74,6 +77,7 @@ should be available to all authenticated users).
 ```
 
 **Fields:**
+
 - Confirmation Number: read-only, pre-filled from appointment context.
   Hidden (`*ngIf="isAskConfirmationNumber"`) in free-form mode.
 - Message: required textarea, max 500 characters.
@@ -87,9 +91,11 @@ OLD source: `user-queries/add/user-query-add.component.html:1-34`
 ## 4. OLD Submit Flow
 
 1. `POST /api/UserQueries` with body:
+
    ```json
    { "userId": int, "message": string, "appointmentId": int?, "requestConfirmationNumber": string? }
    ```
+
 2. Backend stores in `UserQueries` table: `UserQueryId`, `UserId`, `Message`, `CreatedDate`, `CreatedById`.
 3. Email routing:
    - **With appointmentId**: looks up `PrimaryResponsibleUserId` from the appointment; sends email to that user.
@@ -110,6 +116,7 @@ OLD source: `user-queries/add/user-query-add.component.ts:73-86`,
 ## 5. NEW Implementation Options
 
 **Option A -- Port full send-only flow (recommended if UserQuery is in scope):**
+
 1. Create `UserQuery` entity + EF migration.
 2. Create `IUserQueriesAppService` + `UserQueriesAppService` with `SubmitQueryAsync`.
 3. Create Angular `SubmitQueryDialogComponent` (MatDialog -- matches OLD's popup).
@@ -118,6 +125,7 @@ OLD source: `user-queries/add/user-query-add.component.ts:73-86`,
 6. Connect global Help icon in top-nav and appointment-view Help button.
 
 **Option B -- Replace with `mailto:` link (zero backend work):**
+
 1. Configure `supportEmail` in `SystemParameters`.
 2. Help icon opens `mailto:{supportEmail}?subject=Help%20Request` (pre-populated subject, no PHI).
 3. No UserQuery entity, no storage, no email templates.

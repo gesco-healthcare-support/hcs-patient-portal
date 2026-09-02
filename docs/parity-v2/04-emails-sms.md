@@ -12,6 +12,7 @@ IEmailSender/SMTP, disk-HTML -> DB `NotificationTemplate`, MimeKit ->
 ## Coverage
 
 OLD email/SMS surface examined:
+
 - `PatientAppointment.Infrastructure\Utilities\SendMail.cs` -- 4 send
   overloads (SES `SendSMTPMailAWS`, SMTP `SendSMTPMail`, +attachment
   variants). SMTP variant is the live one; `smtpConfiguration` from
@@ -36,6 +37,7 @@ OLD email/SMS surface examined:
   `PatientAppointment.Api\wwwroot\EmailTemplates\` (brief estimated ~59).
 
 NEW email/SMS surface examined:
+
 - `Domain.Shared\NotificationTemplates\NotificationTemplateConsts.cs` --
   59 unified template codes (`Codes.All`).
 - `Domain\NotificationTemplates\NotificationTemplateDataSeedContributor.cs`
