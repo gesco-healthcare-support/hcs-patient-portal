@@ -410,6 +410,54 @@ merely mis-sourced. Any future fix must either run inside a unit of work or save
    MVC endpoint) instead. Expect the row to be REMOVED, which would confirm the unit-of-work
    explanation rather than a fault in `IdentitySessionManager` itself.
 
+#### OUTCOME: CONFIRMED LIVE (2026-09-02). THREAD CLOSED BY DECISION -- NOT UNRESOLVED.
+
+**The mechanism is confirmed, and the discriminating control turned out to live inside a single
+request** -- a login creates TWO session rows (one at the Razor cookie sign-in, one at
+`/connect/authorize`), and one end-session request revokes both, by two different code paths. So the
+contrast needed no second run.
+
+Driven entirely by `curl` with a cookie jar -- **no browser, no navigation, nothing that could cancel
+anything**. The request completed in 0.98s with HTTP 200.
+
+| Session row   | Revoked from                       | Result            |
+| ------------- | ---------------------------------- | ----------------- |
+| `477bc943...` | OpenIddict server middleware       | **STILL PRESENT** |
+| `9e53066d...` | inside `LogoutController.GetAsync` | **REMOVED**       |
+
+The AuthServer log records the whole mechanism within one second:
+
+```
+[00:20:28 INF] The request URI matched a server endpoint: EndSession.
+[00:20:28 DBG] Revoking the SessionId(477bc943-...).                  <- middleware, BEFORE the endpoint
+[00:20:28 INF] Executing endpoint 'Volo.Abp.OpenIddict.Controllers.LogoutController.GetAsync'
+[00:20:28 DBG] Revoking the SessionId(9e53066d-...) during sign out.  <- inside the endpoint
+```
+
+Same request, same second, same process, same `IdentitySessionManager`, same `autoSave: false`. The
+ONLY difference is position relative to `app.UseUnitOfWork()`. That kills all three competing
+explanations at once: cancellation (no browser, HTTP 200, sub-second), a broken manager (it removed
+the other row in the same request), and automation speed (there was no automation).
+
+**CLOSED BY ADRIAN'S DECISION (2026-09-02), knowing the mechanism.** Not deferred, not unresolved. No
+fix, no upstream report, and the removed Task 6 does not return. The reasoning a successor needs:
+
+- **The security exposure was the surviving SSO COOKIE, and that is fixed and proven live** (1.8b).
+  A stale `AbpSessions` row does not authenticate anyone -- it cannot be used to sign in.
+- What remains is an **administrative inaccuracy**: the admin session list shows sessions that have
+  actually ended. It is wrong, not dangerous.
+- **It clears itself.** `IdentitySessionCleanupBackgroundWorker` removes rows after 30 days of
+  inactivity, on ABP defaults, and background workers are enabled here.
+- Fixing it properly means changing where framework-owned handlers run, or making ABP's revocation
+  save explicitly -- a cross-tier change to an auth path, to correct a display.
+
+**If you are here because you found stale rows in `AbpSessions`: this is the explanation, it is
+known, and it was left deliberately.** Do not re-derive it, and do not "fix" the session table by
+deleting rows -- the cleanup worker owns that.
+
+`research/endsession-session-revoke` retains the refuted handler. It is kept, not merged, and not
+deleted.
+
 ### 1.8a DURATION: ANSWERED FROM SOURCE (2026-09-01)
 
 **The AuthServer SSO session lasts 14 days, and the expiry SLIDES.** Read from source for the pinned
