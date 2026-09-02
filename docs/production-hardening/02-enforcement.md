@@ -258,3 +258,44 @@ is changed-lines-only), and the action pinning in 2.2/2.3 if the count makes a s
 **The limit, stated so nobody over-applies it:** it does not work for whole-artifact properties. A
 gate on "the build succeeds" or "no secret exists anywhere in history" cannot be scoped to changed
 files, because the property is not per-file.
+
+---
+
+## TASK 2.2 RESULT: the true coverage number is 55.4%, and it went UP (2026-09-02)
+
+Measured, not estimated. PR #516 removed `angular/src/**/*.ts` and `angular/src/**/*.html` from
+`sonar.coverage.exclusions` and the analyser was allowed to report. Generated proxy code and
+`*.module.ts` remain excluded.
+
+| Metric            | Before (back end only) | After (honest) | Delta    |
+| ----------------- | ---------------------- | -------------- | -------- |
+| `coverage`        | **52.4%**              | **55.4%**      | **+3.0** |
+| `lines_to_cover`  | 17,750                 | 20,065         | +2,315   |
+| `uncovered_lines` | 8,450                  | 8,980          | +530     |
+
+**IT ROSE. The original expectation was that it would fall, "probably substantially".** That
+expectation was reasoned from file counts -- 667 specs across ~493 files sounded thin -- rather than
+from the coverage report, which was sitting in the build output the whole time. Inferring where
+observation was available.
+
+**The Angular slice, derived from the deltas:** 2,315 lines entered the denominator and 530 of them
+are uncovered, so Angular is at **77.1% line coverage as the analyser counts it** -- materially
+better than the back end's 52.4%, which is why the blend rose.
+
+**Two precisions so nobody re-derives these wrongly:**
+
+- Sonar's `coverage` metric is a BLEND of line and condition coverage, not line coverage alone.
+  Pure line coverage from the same numbers is 55.25%; the reported 55.4% includes conditions. Both
+  are correct measures of different things.
+- The analyser puts Angular at 77.1% while karma's own summary reported 67.44%. Not a contradiction:
+  Sonar excludes files karma counts (the generated proxy, `*.module.ts`) and counts coverable lines
+  differently. **Use the analyser's number for anything gate-related**, since the gate is the
+  analyser's.
+
+**Consequence for the threshold work:** the real baseline to set a threshold against is 55.4%, not
+52.4%, and the front end is the stronger half rather than the weaker one. Any threshold argument that
+assumed "Angular is untested" is starting from a false premise.
+
+`new_lines_to_cover` was 0 on that PR -- it changes only a workflow file -- so this run says nothing
+about the new-code gate. That gate is separate and is reported by the external
+`SonarCloud Code Analysis` status, not by the `SonarCloud: Analysis` Actions job.
