@@ -27,8 +27,10 @@ jobs:
   analyze:
     name: "SonarCloud: Analysis"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # NOT flipped in phase 2.1: never poisoned, so not made blocking. The `|| true`
+    # removal below stands (it was masking nothing) but this job still does not gate.
     continue-on-error: true
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -77,10 +79,13 @@ jobs:
         run: |
           corepack enable
           yarn install --immutable
-          yarn test --watch=false --browsers=ChromeHeadless --code-coverage || true
-        # Tolerates the current silent-skip (most features have no specs yet).
-        # Phase A PR 4 hardens the frontend-test job. LCOV output lands in
-        # angular/coverage/**/lcov.info when specs exist.
+          yarn test --watch=false --browsers=ChromeHeadless --code-coverage
+        # Phase 2.1 (2026-09-02): `|| true` removed. Its comment claimed this
+        # tolerated a silent skip because "most features have no specs yet" --
+        # stale. The suite runs 667 specs and emits coverage (67.44% of lines on
+        # the run checked), so the tolerance was masking nothing and would have
+        # hidden a genuine frontend-test failure from the analysis.
+        # LCOV lands in angular/coverage/**/lcov.info.
 
       - name: SonarScanner begin
         env:
