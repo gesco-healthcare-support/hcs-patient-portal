@@ -4,8 +4,11 @@ name: Lint Meta
 # drift.
 #
 # Both jobs BLOCK as of 2026-09-02 (production-hardening phase 2.1). They were
-# `continue-on-error: true` pending "Phase C"; that condition has been met and
-# both were verified green on recent runs before being flipped.
+# `continue-on-error: true` pending "Phase C"; that condition has been met.
+#
+# yamllint was verified green on recent runs before being flipped. markdownlint
+# was NOT: it only appeared green because it was linting zero files. It blocks
+# on the markdown a submission CHANGES -- see the job comment below.
 
 on:
   pull_request:
@@ -45,25 +48,31 @@ jobs:
     name: "Lint: Markdown"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # NOT flipped to blocking in phase 2.1, deliberately. Fixing the globs above
-    # revealed 5,271 pre-existing violations across 431 files -- the check had been
-    # green only because it was linting nothing. Making it block would turn every
-    # PR red on a backlog this task is not scoped to fix. It now REPORTS honestly
-    # and still does not gate; flipping it needs its own item.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v16
         with:
-          # Phase 2.1 (2026-09-02): globs MUST be newline-separated. As a single
-          # space-separated string the action treated the whole line as one glob,
-          # matched nothing, and reported "Linting: 0 file(s) / Summary: 0 error(s)"
-          # -- permanently green while checking no files at all. Found by poisoning.
-          globs: |
-            docs/**/*.md
-            README.md
-            CONTRIBUTING.md
-            CODE_OF_CONDUCT.md
-            SECURITY.md
-            CHANGELOG.md
-          config: ".markdownlint.json"
+          fetch-depth: 0
+      # Phase 2.1 (2026-09-02): lints ONLY the markdown a submission changes.
+      #
+      # Two failure modes were found and both are avoided here. The globs were
+      # previously one space-separated string, which the action treated as a single
+      # glob: it matched nothing and reported "Linting: 0 file(s) / 0 error(s)" --
+      # permanently GREEN while checking nothing. Fixing that revealed 5,271
+      # pre-existing violations across 431 files, which would have made this
+      # permanently RED instead. A check that is always red teaches people to ignore
+      # red just as effectively as one that is always green.
+      #
+      # Changed-files-only lands the gate NOW without waiting for the backlog: new
+      # and edited docs must be clean, and the 5,271 wait for the phase that handles
+      # backlogs. This is a reusable pattern -- see 02-enforcement.md.
+      - name: Lint the markdown this submission changes
+        run: |
+          base="origin/${{ github.base_ref }}"
+          files=$(git diff --name-only --diff-filter=ACMR "$base...HEAD" -- '*.md')
+          if [ -z "$files" ]; then
+            echo "No markdown files changed by this pull request. Nothing to lint."
+            exit 0
+          fi
+          echo "Linting:"
+          echo "$files" | sed 's/^/  /'
+          echo "$files" | xargs npx --yes markdownlint-cli2@0.13.0 --config .markdownlint.json
