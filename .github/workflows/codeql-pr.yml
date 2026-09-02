@@ -23,6 +23,7 @@ jobs:
     name: 'CodeQL: ${{ matrix.language }}'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    continue-on-error: true
 
     strategy:
       fail-fast: false

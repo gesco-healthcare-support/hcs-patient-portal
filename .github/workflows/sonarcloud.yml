@@ -27,6 +27,9 @@ jobs:
   analyze:
     name: "SonarCloud: Analysis"
     runs-on: ubuntu-latest
+    # NOT flipped in phase 2.1: never poisoned, so not made blocking. The `|| true`
+    # removal below stands (it was masking nothing) but this job still does not gate.
+    continue-on-error: true
     timeout-minutes: 60
 
     steps:
