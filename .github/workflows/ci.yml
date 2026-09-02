@@ -96,14 +96,13 @@ jobs:
             fi
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      # Phase 2.1 (2026-09-02): the separate informational `-warnaserror` build was
+      # removed here, per its own instruction. It said to remove it once
+      # Directory.Build.props set <TreatWarningsAsErrors>true</TreatWarningsAsErrors>,
+      # which happened in Phase B-6 PR-0 (see Directory.Build.props:9,:21). The build
+      # below therefore already enforces warnings-as-errors, so the extra step was a
+      # duplicate full-solution build on every back-end submission.
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
-      - name: Backend Build (warnings-as-errors, informational)
-        continue-on-error: true
-        run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release -warnaserror
-        # Phase A informational step — surfaces the pre-existing warnings that
-        # Phase B #3 will resolve. Does not block merge. When Phase C flips
-        # Directory.Build.props <TreatWarningsAsErrors> to true, this separate
-        # step is removed and -warnaserror folds into the primary build above.
 
   docs-structure:
     name: "Docs: Structure Check"
@@ -263,7 +262,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
     timeout-minutes: 10
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -298,7 +296,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
     timeout-minutes: 10
-    continue-on-error: true
     defaults:
       run:
         working-directory: angular

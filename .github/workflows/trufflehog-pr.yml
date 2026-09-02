@@ -26,7 +26,6 @@ jobs:
     name: 'TruffleHog: PR commits'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
