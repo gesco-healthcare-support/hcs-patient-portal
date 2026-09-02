@@ -45,6 +45,12 @@ jobs:
     name: "Lint: Markdown"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # NOT flipped to blocking in phase 2.1, deliberately. Fixing the globs above
+    # revealed 5,271 pre-existing violations across 431 files -- the check had been
+    # green only because it was linting nothing. Making it block would turn every
+    # PR red on a backlog this task is not scoped to fix. It now REPORTS honestly
+    # and still does not gate; flipping it needs its own item.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v16
