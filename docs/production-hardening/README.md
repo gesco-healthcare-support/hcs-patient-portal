@@ -15,17 +15,17 @@ created off `main` at `a5234d25` on 2026-08-31.
 
 Update this table as each phase closes. It is the first thing a successor will read.
 
-| Phase                    | Status             | Landed                                                     | Baseline delta                |
-| ------------------------ | ------------------ | ---------------------------------------------------------- | ----------------------------- |
-| 1 Blockers               | IN PROGRESS (6/7)  | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b, dc134222 | 3 dismissed, 3 really fixed   |
-| 2 Enforcement            | NOT STARTED        | --                                                         | --                            |
-| 3 Critical-path coverage | NOT STARTED        | --                                                         | --                            |
-| 4 CodeQL sensitive-info  | NOT STARTED        | --                                                         | --                            |
-| 5 Security hotspots      | NOT STARTED        | --                                                         | --                            |
-| 6 Dependencies           | NOT STARTED        | --                                                         | --                            |
-| 7 Rule families          | NOT STARTED        | --                                                         | --                            |
-| 8 Coverage expansion     | NOT STARTED        | --                                                         | --                            |
-| 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31                                 | 4 claims refuted, 3 confirmed |
+| Phase                    | Status             | Landed                                                                         | Baseline delta                                                                          |
+| ------------------------ | ------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| 1 Blockers               | **COMPLETE (7/7)** | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b, dc134222, e91be9f1, df705ad8 | 5 of 6 flagged were false alarms; 3 real defects found UNFLAGGED. See the closing note. |
+| 2 Enforcement            | NOT STARTED        | --                                                                             | --                                                                                      |
+| 3 Critical-path coverage | NOT STARTED        | --                                                                             | --                                                                                      |
+| 4 CodeQL sensitive-info  | NOT STARTED        | --                                                                             | --                                                                                      |
+| 5 Security hotspots      | NOT STARTED        | --                                                                             | --                                                                                      |
+| 6 Dependencies           | NOT STARTED        | --                                                                             | --                                                                                      |
+| 7 Rule families          | NOT STARTED        | --                                                                             | --                                                                                      |
+| 8 Coverage expansion     | NOT STARTED        | --                                                                             | --                                                                                      |
+| 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31                                                     | 4 claims refuted, 3 confirmed                                                           |
 
 **Read the phase 1 delta carefully -- the BLOCKER count is a bad proxy for progress here.** It stands
 at 5, down from 6, and that single drop was a False Positive marking, not a defect repaired. All six

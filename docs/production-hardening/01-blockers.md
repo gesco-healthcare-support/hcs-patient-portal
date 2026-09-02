@@ -887,3 +887,82 @@ on Windows. Until that is fixed (logged to `docs/backlog.md` for phase 2), lint 
 
 If 1.4 turns out to need a change, add a container smoke test that the renderer still answers from
 a sibling service.
+
+---
+
+## PHASE 1 CLOSING NOTE -- read this before you touch the remaining ~1,270 items
+
+Phase 1 is COMPLETE: 7 of 7. This note is not a summary of what happened. It is the argument against
+the thing a successor is most likely to try next, which is working the scanner list from the top.
+
+### The scanner pointed at the right neighbourhood every time and was wrong about the house
+
+Six issues were flagged BLOCKER -- the tool's most serious grade. **Five were false alarms.** One was
+real, and narrower than advertised.
+
+| Rule               | Item | Verdict                                                               |
+| ------------------ | ---- | --------------------------------------------------------------------- |
+| `secrets:S7539` x2 | --   | FALSE ALARM -- a grep pattern in a script, not a credential           |
+| `tssecurity:S6105` | 1.1  | FALSE ALARM -- the origin cannot be relocated; proven by 16 new specs |
+| `typescript:S6268` | 1.2  | **REAL** -- but see below; the reported line was not the defect       |
+| `typescript:S2699` | 1.3  | FALSE ALARM -- the rule does not recognise `expectAsync`              |
+| `python:S8392`     | 1.4  | FALSE ALARM -- unpublished port, and the flagged line is dead code    |
+
+Reproduce the count:
+
+```bash
+curl -s "https://sonarcloud.io/api/issues/search?componentKeys=gesco-healthcare-support_hcs-patient-portal&severities=BLOCKER&resolved=false"
+```
+
+**Acting on that list mechanically would have changed working code in four places, and in the
+packet-renderer case (1.4) it would have BROKEN PDF GENERATION** -- the interface binding the rule
+objects to is the one that makes the service reachable from its sibling container.
+
+### Every defect actually worth fixing was found NEXT TO a flagged item, not in it
+
+This is the transferable result.
+
+| Fixed defect                                             | How it was found                              | Flagged? |
+| -------------------------------------------------------- | --------------------------------------------- | -------- |
+| Icon component interpolated an unescaped `size`          | tracing call sites while triaging 1.2         | **No**   |
+| Unmatched hosts on 443 served the AuthServer (1.5)       | external design review, not the scanner       | **No**   |
+| Sign-out silently did nothing with no stored token (1.8) | reading the logout path while researching 1.3 | **No**   |
+| No validation of the runtime config merge (1.7)          | reading `main.ts` while triaging 1.1          | **No**   |
+
+The one genuinely real flagged issue, 1.2, was real in a narrower sense than reported: of three values
+interpolated into trusted markup, only one had a live path from server data -- and the fix that
+mattered was the unescaped `size`, which the rule never mentioned.
+
+**So: read the flagged line, then read the file around it.** The finding is usually the neighbour. A
+sweep that closes items without reading their neighbourhoods would have shipped every one of the four
+defects above while reporting excellent progress.
+
+### The other pattern: SEVEN checks that reported success without having run
+
+Counted across one day. This is why the phase-2 rule is _prove it by poisoning_.
+
+1. A cancelled CI job read as a pass.
+2. A run-level conclusion masking a failed job inside it.
+3. Eleven `continue-on-error` settings, so a red check stops nothing --
+   `grep -rn "continue-on-error" .github/workflows/*.yml` returns 12 lines, one of which is a comment.
+4. A pre-PR hook that fails open under load.
+5. A partial `grep` whose result was read as complete.
+6. Two of this session's own verification steps: a `sed` mutation that never mutated because the `|`
+   delimiter collided with `||` in the code, and a `dotnet format` invocation that printed usage text
+   while `$?` captured the exit of `tail` at the end of the pipeline.
+7. **Four green unit tests, with a mutation proof behind them, on a server handler that does nothing
+   in production** (1.8b Task 6). They substituted an authenticated principal, so they asserted the
+   logic against a premise that is false at runtime.
+
+Number 7 is the sharpest, and it is the one to remember: that check COULD fail. It just could not fail
+for the right reason. Only a live test caught it, which is why anything the unit layer cannot observe
+needs one.
+
+### What is still open from this phase
+
+- **1.8d** -- does the NORMAL sign-out actually revoke the session record? Mechanism established
+  (`autoSave: false` outside a unit of work); live confirmation still owed.
+- **Four SonarCloud markings** await an administrative decision: `secrets:S7539` x2,
+  `typescript:S2699` and `python:S8392` as False Positive, `typescript:S6268` as Accept.
+- **`research/endsession-session-revoke`** holds the refuted server-side handler. Do not merge it;
+  read 1.8d first.
