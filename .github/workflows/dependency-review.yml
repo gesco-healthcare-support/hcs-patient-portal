@@ -32,4 +32,12 @@ jobs:
             AGPL-3.0-only,
             AGPL-3.0-or-later,
             SSPL-1.0
-        continue-on-error: true
+        # Phase 2.1 (2026-09-02): BLOCKING. Proven by poisoning on a throwaway PR --
+        # adding pm2@7.0.4 (SPDX AGPL-3.0) produced:
+        #   angular/package.json » pm2@7.0.4 - License: AGPL-3.0
+        #   ##[error]Dependency review detected incompatible licenses.
+        #
+        # KNOWN GAP, not fixed here: the deny-list matches SPDX expressions only. A
+        # package declaring its licence as a URL sails through -- itext7 on NuGet
+        # declares "https://www.gnu.org/licenses/agpl.html" and this check PASSED it
+        # while listing it in the diff. Recorded as a phase 6 item.
