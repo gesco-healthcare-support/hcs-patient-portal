@@ -550,6 +550,23 @@ jobs:
       # still runs and the absent-report path is observed in the same run.
       - name: "PROBE: input-validity paths"
         run: |
+          # `set +e` FIRST, and it is not optional. GitHub invokes this step as
+          # `bash -e {0}`, and `set -uo pipefail` does NOT clear that -e -- which
+          # is exactly how the first version of this step failed. Under -e, an
+          # assignment from a command substitution takes the substitution's exit
+          # status, so `out=$("$@" 2>&1)` KILLED THE SHELL on the first expect()
+          # call: no output at all, no PROBE lines, and a red job that looked
+          # like a successful poison.
+          #
+          # This step exists to run commands that exit non-zero and inspect the
+          # result, so -e is the wrong mode for all of it. Every failure below is
+          # either handled explicitly or benign.
+          #
+          # `Evaluate floors`, fifteen lines further down, already carries its
+          # exit code by hand for the same reason and says so in a comment.
+          # Knowing the rule and having applied it in the adjacent step was not
+          # enough to stop it recurring here.
+          set +e
           set -uo pipefail
           d=$(mktemp -d)
           : > "$d/empty.info"
