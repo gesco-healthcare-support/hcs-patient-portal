@@ -199,8 +199,19 @@ def main() -> int:
     args = ap.parse_args()
 
     patterns = load_exclusions(Path(args.exclusions))
-    ok = True
 
+    # MEASURE EVERY STACK BEFORE VALIDATING ANY FLOOR.
+    #
+    # These were one loop until 2026-09-03, and the ordering was a real defect.
+    # require_floor() calls die(), which exits the process immediately, and its
+    # message instructs the reader to "read the measured figure printed by this
+    # job and set the floor to it". Measuring after that check meant the figure
+    # was never printed: the instruction pointed at output that could not exist,
+    # and an unset backend floor also exited before the frontend was measured at
+    # all. The whole "the gate's first run fails and tells you the number" design
+    # rests on the figures reaching stdout first, so they are gathered here and
+    # judged below.
+    measured = []
     for label, path_arg, prefix, floor_arg, parser in (
         ("backend", args.cobertura, args.cobertura_prefix, args.floor_backend, parse_cobertura),
         ("frontend", args.lcov, args.lcov_prefix, args.floor_frontend, parse_lcov),
@@ -214,11 +225,23 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001 -- any parse failure is a gate failure
             die(f"{label} coverage report at {path} could not be parsed: {exc}")
         found, hit, files = summarise(per_file, patterns)
+        pct = (hit / found * 100) if found else 0.0
         if args.measure_only:
-            pct = (hit / found * 100) if found else 0.0
             print(f"{label}: {pct:.2f}% ({hit}/{found} lines over {files} files) "
                   "[measure-only, not gated]")
-            continue
+        else:
+            # "measured" distinguishes this from report()'s verdict line, which
+            # repeats the figure next to the floor. The repetition is deliberate:
+            # this is the line that survives an unset-floor exit, and the one the
+            # error message tells the reader to copy the floor from.
+            print(f"{label}: measured {pct:.2f}% ({hit}/{found} lines over {files} files)")
+        measured.append((label, found, hit, files, floor_arg))
+
+    if args.measure_only:
+        return 0
+
+    ok = True
+    for label, found, hit, files, floor_arg in measured:
         floor = require_floor(floor_arg, label)
         ok = report(label, found, hit, files, floor) and ok
 
