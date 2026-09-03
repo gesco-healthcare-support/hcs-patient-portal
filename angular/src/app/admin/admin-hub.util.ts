@@ -371,3 +371,22 @@ export const SP_GROUPS: SpGroup[] = [
     ],
   },
 ];
+
+// PROBE POISON -- phase 2 item 2.10, FINAL probe. Throwaway branch, never merged.
+// Deliberately unreachable from any spec, so its lines are coverable and unhit.
+// admin-hub.util.ts is in the lcov after exclusions (52 coverable / 51 hit) and
+// has a sibling spec, so lines added here are genuinely measured rather than
+// invisible -- poisoning a file with no spec would prove nothing, per the
+// instrumentation blind spot this gate reports on.
+export function probeFinalUncoveredBranch(value: number): string {
+  if (value > 100) {
+    return 'over';
+  }
+  if (value > 50) {
+    return 'high';
+  }
+  if (value > 10) {
+    return 'mid';
+  }
+  return 'low';
+}

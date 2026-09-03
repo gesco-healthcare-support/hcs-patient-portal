@@ -505,7 +505,16 @@ jobs:
       #   Trustworthy because the UNFILTERED read of that same file reproduces
       #   karma's own 67.44% summary exactly, which validates the parser rather
       #   than merely the number.
-      FLOOR_FRONTEND: "69"
+      # PROBE POISON, FINAL. 99.90 is unreachable, so the frontend floor must
+      # report its own FAIL by name. Real value is 69; throwaway branch.
+      #
+      # FLOOR_BACKEND is DELIBERATELY LEFT AT ITS REAL VALUE of 73, unlike the
+      # earlier probe which forced it to 0. That probe had to, because an unset
+      # floor exited before anything downstream was reachable. The floor is set
+      # now, so backend PASS in this run means THE REAL FLOOR PASSING -- a
+      # strictly stronger result than a zero passing, and it proves the shipping
+      # configuration rather than a probe-only one.
+      FLOOR_FRONTEND: "99.90"
       # BACKEND -- MEASURED, by the mechanism this job was built around. It was
       # deliberately unset until 2026-09-03 so the gate's own first run would
       # fail and print the figure, which is exactly what happened:
