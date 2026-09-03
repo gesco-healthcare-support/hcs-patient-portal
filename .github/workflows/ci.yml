@@ -474,7 +474,10 @@ jobs:
       #   parser rather than merely the number. Set a little under the
       #   measurement so the gate cannot fail on floating-point equality against
       #   the very tree it was measured from.
-      FLOOR_FRONTEND: "69.40"
+      # PROBE POISON, run A. 99.90 is unreachable, so the frontend floor must
+      # report its own FAIL by name. Real value is 69.40; this branch is a
+      # throwaway and is never merged.
+      FLOOR_FRONTEND: "99.90"
       # BACKEND -- DELIBERATELY UNSET. This job's first run WILL FAIL here, on
       # purpose. The figure has never been measured: the EF suite hangs locally,
       # so the only honest measurement comes from CI. A guessed floor is worse
@@ -482,7 +485,12 @@ jobs:
       # unset floor is a hard failure, so this run prints the real backend figure
       # in the gate's own counting and its own environment. Copy that figure in
       # here; that one commit finishes item 2.10.
-      FLOOR_BACKEND: ""
+      # PROBE POISON, run A. Set to 0 ONLY so the backend stack passes and the
+      # frontend floor and changed-lines gates downstream of it are reachable at
+      # all: require_floor() exits the process, so an unset backend floor would
+      # stop the run before either could report. The real value is still unknown
+      # and is still deliberately unset on feat/ci-coverage-floors.
+      FLOOR_BACKEND: "0"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here

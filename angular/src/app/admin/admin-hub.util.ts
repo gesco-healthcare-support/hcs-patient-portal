@@ -371,3 +371,19 @@ export const SP_GROUPS: SpGroup[] = [
     ],
   },
 ];
+
+// PROBE POISON -- phase 2 item 2.10. Deliberately unreachable from any spec so
+// that its lines are coverable and unhit, which drives the changed-lines floor
+// below 90% on purpose. This branch is a throwaway and is never merged.
+export function probePoisonUncoveredBranch(value: number): string {
+  if (value > 100) {
+    return 'over';
+  }
+  if (value > 50) {
+    return 'high';
+  }
+  if (value > 10) {
+    return 'mid';
+  }
+  return 'low';
+}
