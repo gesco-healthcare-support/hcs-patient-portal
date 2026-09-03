@@ -399,3 +399,7 @@ volumes:
   miniodata:
   angular_node_modules:
   nuget_packages:
+
+# PROBE 2026-09-03 (phase 2, item 0.5): deliberate no-op comment.
+# This PR changes ONLY an unmatched path, to observe whether the required
+# checks skip and report Success. To be reverted and the PR closed.
