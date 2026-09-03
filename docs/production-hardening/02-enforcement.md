@@ -20,51 +20,56 @@ Read this section first. It is maintained so that a restart costs minutes rather
 
 ### In flight
 
-| Item     | What                       | State                                                                |
-| -------- | -------------------------- | -------------------------------------------------------------------- |
-| **2.10** | Separate CI coverage check | PARTIAL -- `feat/ci-coverage-floors` @ `d2d9a0d9`, pushed, **no PR** |
+**Do not restate the open-PR list here. Run it:**
 
-**Epic head `fcc529dc`. 0 behind `main`, 42 ahead, `main` a genuine ancestor.**
+```bash
+gh pr list --repo gesco-healthcare-support/hcs-patient-portal --state open --base feat/production-hardening
+```
 
-The catch-up merged as `d2dc0233` (#524); the row that used to sit here said "the PR you are
-reading" and described nothing once that PR landed. 2.12 merged as `855a5f7c` (#529) and 2.3 as
-`fcc529dc` (#530).
+**Epic head at phase 2 close: `da4532a4`. 0 behind `main`, 46 ahead, `main` a genuine ancestor.**
 
-> **This block was wrong on three of twelve statuses until 2026-09-03**, reporting 2.3 as
-> "researched", 2.10 as "not started" and 2.12 as "unblocked" after all three had moved. It was found
-> by the incoming implementer, whose first action on a stale instruction was to push a closed PR.
-> **A block whose stated purpose is that a restart costs minutes rather than an hour, reporting
-> current without being current, is the same shape as a check reporting success without having run.**
-> Correcting it is the supervisor's job, by Adrian's ruling, because the implementer holds the shared
-> index and a 77KB file is not worth racing over.
+> **Why this section no longer holds a table, and it is not a style choice.** It did, and it went
+> stale twice on 2026-09-03 -- the second time within an hour of being corrected, by the same
+> supervisor who had just written up the first instance. **It duplicated the fastest-moving state in
+> the project into a file that only changes when somebody edits it**, so it was structurally
+> guaranteed to be wrong most of the time; no amount of diligence fixes that.
+>
+> The item-status table above is safe because items close rarely. A live query cannot go stale at
+> all. **Restate what changes slowly; query what changes fast.**
+>
+> The first instance is worth keeping for its shape: the block was wrong on three of twelve statuses,
+> and it was found by an incoming implementer whose first action on a stale instruction was to push
+> an already-closed PR. **A block whose stated purpose is that a restart costs minutes rather than an
+> hour, reporting current without being current, is the same shape as a check reporting success
+> without having run.**
 
 ### Next, in order
 
-1. **2.10** -- the separate CI coverage check. **Partially built and pushed**, not merged. The gate
-   script and `.coverage-exclusions` are done and independently re-proved (69.46%, 1713/2466 over 82
-   files; PASS at floor 69.0, FAIL exit 1 at 70.0). Remaining: the `ci.yml` wiring, artefact uploads,
-   the changed-lines check, both gitignores and the README badge. Its section below holds the trap
-   that will make a naive version pass while measuring nothing.
-2. **2.6** -- fail the build on a model change with no migration. Mechanism already proven per
-   context; only the ONE-SIDED poison remains. Not batched with 2.10 -- see 2.10's validation loop.
-3. **2.2** -- pin actions to commit SHAs. Not started; re-derive its counts first.
+**Phase 2 as numbered is CLOSED.** What remains came out of it:
 
-### Blocked on a decision, not on work
+1. **2.13** -- instrument the Angular sources the coverage report cannot see. 194 of 276 real sources
+   are invisible to both the gate and SonarCloud. Adrian ruled: own item, gate keeps PRINTING the
+   count, does not fail on it. See its section.
+2. **2.14** -- container images, `curl | bash`, npm/pip. **Open with the two `curl | bash` lines, not
+   the images** -- they are the larger exposure. ~18 actionable after triage, not 31.
+3. **Phase 3** -- critical-path coverage, the safety net phases 4-8 depend on.
 
-- **2.11** (require the checks in branch protection) is deliberately last, and now has a hard
-  prerequisite as well as an ordering. Do not start it until the gates it would require are
-  individually proven -- turning it on early converts a false alarm into a hard block on all work,
-  and there is no second engineer to unblock it. The prerequisite: five required checks on
-  `production` are conditional on a classifier job that is not itself required, so they skip and
-  report Success. See the `production` section.
-- **Observed-red versus configuration argument** for the four gates that cannot be cheaply poisoned.
-  Asked in 2.8, still open, and 2.11 and the `production` fix both depend on the answer.
+### Decisions that were open and are now closed
+
+- **2.11 is APPLIED.** All 17 checks required on all four branches, `strict=true`, 2026-09-03.
+  Adrian's reasoning, recorded because it governs how strictly successors should read this: he is the
+  admin and can override, **an unenforced gate is not taken seriously**, and he is onboarding a
+  successor and preparing a handoff. `Docs: Structure Check` and `SonarCloud Code Analysis` are
+  deliberately EXCLUDED -- see 2.11.
+- **Observed-red versus configuration argument**, asked in 2.8: settled in practice rather than by
+  ruling. Every gate this phase required was individually watched fail by name before 2.11 turned it
+  into a hard block, so the question no longer gates anything.
 
 ### The one lens that has paid off more than any other
 
-A check that reports success without having run. **Eighteen** instances are catalogued at the end of
-this file, nine found in this epic's own work -- and two of those CORRECTED earlier entries rather
-than adding to them. **Assume the class exists in whatever you are about to trust until you
+A check that reports success without having run. **Twenty-four** instances are catalogued at the end
+of this file, fifteen found in this epic's own work -- and three of those CORRECTED earlier entries
+rather than adding to them. **Assume the class exists in whatever you are about to trust until you
 have disproven it**, including in your own prior conclusions.
 
 ---
@@ -90,17 +95,23 @@ expected; the commits are immutable and this table is the bridge.
 | Item     | What                                               | Status                                 |
 | -------- | -------------------------------------------------- | -------------------------------------- |
 | **2.1**  | Make the SonarCloud new-code coverage gate real    | **SUPERSEDED** -- cancelled 2026-09-02 |
-| **2.2**  | Pin GitHub Actions to commit SHAs                  | NOT STARTED                            |
+| **2.2**  | Pin GitHub Actions to commit SHAs                  | **MERGED** (`da4532a4`, #538)          |
 | **2.3**  | Restrict workflow token permissions                | **MERGED** (`fcc529dc`, #530)          |
 | **2.4**  | Decide the fate of the stub Documentation Check    | **DONE** via #514                      |
 | **2.5**  | Promote cleared rule families to build errors      | DEFERRED to phase 7 by design          |
-| **2.6**  | Fail the build on a model change with no migration | NOT STARTED                            |
+| **2.6**  | Fail the build on a model change with no migration | **MERGED** (`9f30e60b`, #534)          |
 | **2.7**  | Audit `sonar.coverage.exclusions`                  | **MERGED** (`2d3f656b`, #519)          |
 | **2.8**  | Make the five existing gates capable of failing    | **MERGED** (#514, #518)                |
 | **2.9**  | Measure true coverage                              | **MERGED** (#516)                      |
-| **2.10** | Build a separate CI coverage check                 | **IN PROGRESS** -- partial, pushed     |
-| **2.11** | Require the checks in branch protection            | **DELIBERATELY LAST**                  |
+| **2.10** | Build a separate CI coverage check                 | **MERGED** (`17745194`, #532)          |
+| **2.11** | Require the checks in branch protection            | **APPLIED 2026-09-03** -- see below    |
 | **2.12** | Make `Lint: Markdown` repo-wide blocking           | **MERGED** (`855a5f7c`, #529)          |
+| **2.13** | Instrument the Angular sources coverage cannot see | **OPEN** -- Adrian's ruling, see below |
+| **2.14** | Pin container images, `curl \| bash`, npm/pip      | **OPEN** -- split out of 2.2           |
+
+**PHASE 2 IS COMPLETE at 12 of 12** as originally numbered. 2.13 and 2.14 were opened FROM this
+phase's findings and are new work, not outstanding work -- do not read the phase as unfinished
+because two rows are open.
 
 ---
 
@@ -1064,7 +1075,78 @@ afterwards.
 
 ---
 
-## 2.11 Require the checks in branch protection -- DELIBERATELY LAST
+## 2.11 Require the checks in branch protection -- APPLIED 2026-09-03
+
+**DONE. All 17 checks required on all four branches, `strict=true`. The gradient is gone.**
+
+```text
+main / development / staging / production   17 checks each, identical, strict=true
+approvals 1 / 1 / 1 / 2 (unchanged)   force-push and deletion still disabled
+```
+
+**Adrian's reasoning, recorded because it governs how strictly a successor should read this file:** he
+is the admin and can override; **an unenforced gate is not taken seriously**; and he is onboarding a
+successor and preparing a handoff, so it needed to block before he steps back.
+
+**TWO CHECKS ARE DELIBERATELY EXCLUDED. Do not "complete" the set by adding them.**
+
+- **`Docs: Structure Check`** -- still carries a bare `if: needs.changes.outputs.shared == 'true'`,
+  with no `always()`, no `unclassified` and no result guard. **It can skip, and a skipped required
+  check reports Success** (instance 12). Requiring it would recreate, on the production branch, the
+  exact defect this phase existed to remove.
+- **`SonarCloud Code Analysis`** -- red at the time of application, on two conditions neither session
+  could fix: `new_coverage 0.0` (no Python coverage pipeline feeds it) and `new_security_rating 3`
+  (two S8707 false alarms needing an administrative marking only Adrian can make). Requiring it would
+  have blocked every branch including the epic itself. **Revisit only once both are resolved.**
+
+### RESIDUAL, recorded not actioned: three required checks have a null app binding
+
+```text
+main         Backend: Build
+development  Backend: Build, Backend: Test
+production   Backend: Build, Backend: Test
+staging      none -- all bound to app_id 15368
+```
+
+A null binding means **any integration able to post a commit status of that name satisfies the
+check** -- so a status could mark `Backend: Build` green without the build running. Pre-existing on
+`production` and carried onto the others with the rest of the set. **It is instance-12's shape wearing
+a different hat, and it is now on a hard-blocking branch.** Fix is to re-apply using the API's
+`checks` array with `app_id: 15368` rather than the `contexts` array.
+
+### The prerequisite that was open, and how it closed
+
+The recorded blocker was that the five CI-based required checks are conditional on `Meta: Changed
+paths`, which was not itself required -- so a classifier failure would let a PR through having run
+nothing. **#527 closed the main path** (a failed or skipped classifier now makes the build jobs RUN),
+and **`Meta: Changed paths` is now itself a required check**, which closes the rest.
+
+**One narrower hole remains open.** The classify step hard-fails on an empty INPUT but does not assert
+its OUTPUT. If it ever exited 0 having written nothing to `$GITHUB_OUTPUT`, every arm would be false,
+every dependant would skip, and all five would report Success. Reachable by reading; never observed.
+Cheap hardening exists -- assert the outputs, or add an `outputs.backend == ''` arm.
+
+### The prior research this reconciles with -- read before changing the gradient again
+
+**`ClaudeKnowledge/temp-layer-2-plan.md`** (vault root, 1,074 lines, "Layer 2 CI Implementation Plan").
+Three earlier searches missed it because its filename mentions neither CI nor gates nor branch
+protection.
+
+> line 10: "The end state is **Pattern 3** branch protection (identical required checks on all 4
+> branches)"
+
+**Today's gradient was that document's Pattern 1**, documented at `CONTRIBUTING.md:30-37` under
+"Progressive Hardening" -- so options were weighed and identical-everywhere won. Adrian's 2026-09-03
+ruling ("main strictest; cascade only environment-specific and additive") is a THIRD position, and it
+**converges with Pattern 3 today** because nothing in the current set is environment-specific: the
+2/4/6/7 ladder encoded WHEN each check became trustworthy, not WHICH environment needs it. They
+diverge only once a genuinely environment-specific check exists, and the only one ever written down is
+`Open-Items.md` P1 item 2, a Docker Build check for staging/production.
+
+**`CONTRIBUTING.md:30-37` is now stale** -- it still shows the gradient and still names
+`Secret Detection`, which was replaced by `TruffleHog: PR commits`. Update it with the Pattern 3 table.
+
+### Original notes, retained
 
 **Do not start this until dispatched.** None of this phase's gates bite until the checks are marked
 required in branch protection, so it is tempting to do it early. That is the trap: turning it on
@@ -1175,11 +1257,85 @@ stale was the half nobody had re-checked.
 
 ---
 
+## 2.13 Instrument the Angular sources the coverage report cannot see (opened 2026-09-03)
+
+**karma/istanbul instruments only files reachable from a spec.** A source file with no spec is not
+"uncovered" -- it is INVISIBLE, absent from the gate AND from SonarCloud.
+
+```bash
+find angular/src -name '*.ts' ! -name '*.spec.ts' ! -name '*.d.ts' | wc -l            # 492
+find angular/src/app/proxy -name '*.ts' ! -name '*.spec.ts' ! -name '*.d.ts' | wc -l  # 216 -> 276 real
+grep -c '^SF:' angular/coverage/CaseEvaluation/lcov.info                              # 99
+grep '^SF:' angular/coverage/CaseEvaluation/lcov.info | grep -vc 'proxy'              # 82
+# 276 real - 82 with a record = 194 INVISIBLE
+```
+
+Replaying PR #493 through the finished gate: **33 changed files, 6 with any coverage record, 27 with
+none.** SonarCloud shares the blind spot -- for TypeScript it imports the lcov, so absent files
+contribute to neither side of the ratio (Angular added 2,873 to `lines_to_cover` against an lcov of
+2,663 lines over 99 files). **So "coverage rises to 55.0% when the epic lands" means backend plus the
+instrumented third of Angular, and the README badge note must say so.**
+
+**Adrian's ruling, 2026-09-03: own item; the gate PRINTS the count of changed files with no coverage
+record on every run and does NOT fail on it.** Failing at 27-of-33 would block every submission from
+day one, which is the permanently-red anti-gate this phase exists to remove. It did not block 2.10
+because the gate is designed to fail-and-print when a floor is unset, so resetting the frontend floor
+later is one commit -- the 2.7 rule about not gating against a measurement that is about to change
+applies where the reset is expensive, and here it is not.
+
+**THE BACKEND HAS NO SUCH BLIND SPOT. Do not carry the Angular conclusion across.** 184 of 887 backend
+files report 0% and are still counted, so uncovered code IS in the denominator; absence there means
+"no executable lines". The 42 absent `EntityFrameworkCore.Tests` files were flagged as suspicious and
+then RESOLVED -- 9-line empty subclasses whose methods live in a generic base and are instrumented
+there, zero `[Fact]` among them. **Closed, not a live thread.**
+
+## 2.14 Pin container images, `curl | bash`, npm and pip (opened 2026-09-03)
+
+Split out of 2.2 by Adrian's ruling. Of the 97 `PinnedDependenciesID` findings, 2.2 closed the 66 that
+are actions. **After triage this item is ~18 actionable, not 31:**
+
+```text
+ 2  downloadThenRun   REAL -- OPENS THE ITEM, see below
+15  containerImage    REAL -- 12 external FROM lines, 5 distinct images
+ 1  npmCommand        REAL but DEV-STAGE ONLY -- angular/Dockerfile `npm install -g serve`
+ 1  pipCommand        PARTIAL false alarm -- every version already pinned; Scorecard wants hashes
+12  nugetCommand      DISMISSED -- all false alarms, see below
+```
+
+**Open with the two `downloadThenRun` lines, not the images.**
+
+```text
+AuthServer/Dockerfile:35 and :83
+    RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+```
+
+**An unpinned tag still resolves to something a registry vouches for; this fetches and executes an
+arbitrary script from a third-party host, as root, at image build time, with no pin, no checksum and
+no signature.** It is a strictly worse exposure than every container-image finding in the same item.
+
+**The 12 `nugetCommand` findings are DISMISSED as false alarms**, triaged from the SARIF rather than
+from what the rule name suggests. Every one is `dotnet restore` or a restore-triggering command, and
+restore is lockfile-pinned repo-wide: **15 `.csproj`, 15 `packages.lock.json`, none missing**, and
+`dotnet restore --locked-mode` exits 0 today. Scorecard cannot see lockfiles.
+
+**One thing inside that false alarm is real and is NOT a defect.** `RestoreLockedMode` is `false`, so
+CI restore can resolve differently and rewrite the lockfile rather than failing.
+`Directory.Build.props:26-31` says exactly that, in its own words -- lockfiles exist so
+dependency-review can scan transitive NuGet dependencies, and "CI can opt in via the dotnet restore
+flag for locked mode when we want strict reproducibility." **A comment that accurately states its own
+limitation instead of overstating it is the opposite of everything else in this record, and is worth
+noting for that reason alone.**
+
+**Caution on the container images.** Dependabot does NOT watch the `docker` ecosystem here. Pinning a
+base image by digest therefore stops patched images arriving until a person updates the digest -- a
+trade, unlike the actions half. Either add the ecosystem or accept the freeze deliberately.
+
 ## CATALOGUE: checks that reported success without having run
 
-**This is the most useful artefact the epic has produced.** Eighteen instances in three days, nine
-of them in this epic's own work -- in its tooling, its counts, its merges, its handoffs and its own prior claims. The lesson is not "tools lie" -- it is that a green result is evidence
-only if you know what was examined.
+**This is the most useful artefact the epic has produced.** Twenty-four instances in four days,
+fifteen of them in this epic's own work -- in its tooling, its counts, its merges, its handoffs, its
+verification harness and its own prior claims. The lesson is not "tools lie" -- it is that a green
+result is evidence only if you know what was examined.
 
 | #   | Instance                                                               | How it presented             |
 | --- | ---------------------------------------------------------------------- | ---------------------------- |
@@ -1201,11 +1357,18 @@ only if you know what was examined.
 | 16  | A **verified** claim restated wrongly from memory two messages later   | plausible, and wrong         |
 | 17  | A **clean auto-merge** that silently duplicated 96 lines of the record | no conflict markers          |
 | 18  | A **trigger-list claim in the handoff**, inherited and repeated twice  | a confident **false alarm**  |
+| 19  | A gate's error naming a figure it exited before printing               | red, with no figure          |
+| 20  | An empty file failed where **empty is the legitimate case**            | a hard fail on nothing       |
+| 21  | A harness run under a **different shell than CI uses**                 | "8 of 8", all vacuous        |
+| 22  | Third-party and generated source graded as ours in a coverage figure   | a plausible percentage       |
+| 23  | A shared list one of its two stated consumers **never read**           | byte-identical copies        |
+| 24  | An ecosystem declared and **capped at zero** -- grep says covered      | looked configured            |
 
-**Instances 10, 11, 13, 15, 16, 17 and 18 are self-inflicted rather than inherited** -- committed by
-the tooling and the sessions doing the verifying, not found in the repository. **Instance 12 is the
-most consequential for design; instance 17 is the one that would have silently corrupted the
-record; instance 18 is the one that survived a handoff and was repeated by two sessions.**
+**Instances 10, 11, 13, 15, 16, 17, 18, 19, 21, 22, 23 and 24 are self-inflicted rather than
+inherited** -- committed by the tooling and the sessions doing the verifying, not found in the
+repository. **Instance 12 is the most consequential for design; instance 17 is the one that would
+have silently corrupted the record; instance 21 is the worst, because it invalidates the evidence
+behind every entry recorded before it rather than adding a defect of its own.**
 
 ### THE CORRECTION TO INSTANCE 3 -- the headline framing was wrong and is now sharper
 
@@ -1354,6 +1517,97 @@ base against the list", and it got compressed into a claim about one specific br
 - **The rule: a handoff is a claim with a shelf life, and an inherited claim is not a verified one.**
   This entry is the instance-11 shape -- a false alarm rather than a false pass -- and it costs the
   same way: it sends people to fix what is not broken. Re-derive, do not inherit.
+
+**19 -- an error message naming a figure the code exited before printing.** `coverage-gate.py`
+validated the floor BEFORE measuring, and `require_floor()` calls `die()`, which exits. So the
+unset-floor error said "read the measured figure printed by this job" and that figure was never
+printed. **The backend floor ships unset ON PURPOSE, so the one run the self-measuring design depends
+on was the one run that could not work.** None of the seven hard-failure paths covered it, because
+they test exit codes and this was an ordering defect in what reached stdout before the exit.
+
+**20 -- two absences that mean opposite things.** `require_report()` failed on an empty file. Correct
+for a coverage report; WRONG for a diff, where empty is the legitimate case -- the submission changed
+nothing against its base. Found by the scenario harness, not by reading. **File missing = the workflow
+never computed it = fail. File empty = nothing to enforce = exit 0.**
+
+**21 -- the harness ran under a different shell than CI uses, so everything it had ever proved was
+vacuous.** Step scripts were extracted from the YAML and run as `bash script.sh`. GitHub runs them as
+`bash -e script.sh`.
+
+```bash
+bash -e -c 'out=$(false); rc=$?; echo "REACHED rc=$rc"'   # prints nothing, exit 1
+bash    -c 'out=$(false); rc=$?; echo "REACHED rc=$rc"'   # REACHED rc=1
+```
+
+Under `-e` the assignment takes the substitution's exit status, `-e` fires, `rc=$?` never runs and
+every guard after it is unreachable. **`set -uo pipefail` inside the script does NOT clear the `-e`
+from the invocation.**
+
+**It was in shipping code, not only a probe.** 2.6's migration steps had the identical shape: on the
+`pending` case -- the one the whole item exists to catch -- the step went RED while printing nothing,
+so the `migrations add` guidance, the folder name and the missing-migration-versus-tooling-failure
+distinction were all dead code. It would have shipped looking correct and surfaced only when somebody
+actually forgot a migration and got an empty red log.
+
+- **The rule: a false green in the instrument contaminates every measurement it took.** This is the
+  worst entry in the table. It does not add a defect -- **it invalidates the evidence behind the
+  entries recorded before it.** Every "8 of 8" and "12 of 12" logged before it was produced under the
+  wrong flags.
+
+**22 -- a coverage figure that graded a third-party library and a code generator as ours.**
+
+```text
+1300  files in the artefact      218 removed by the then-current exclusions      1082 counted
+        ours 951   third-party 131 (FluentValidation, via SourceLink, rooted at /_/)
+        and among the 951, 64 obj/Release/**/Riok.Mapperly/**/*.g.cs -- generator output
+
+current list  66.24%   + third-party excluded 71.85%   + generated 68.37%   + BOTH 73.61% over 887
+```
+
+**7.37 points, and the drift matters more than the inaccuracy:** upgrade FluentValidation or change a
+Mapperly mapping and the figure moves with no change to hand-written code. **A floor that moves when a
+dependency moves is not a floor.**
+
+**Found independently by both sessions within minutes, from separate parses** -- then each corrected
+the other. The supervisor's "this repo / not this repo" split kept the 64 generated files; the
+implementer's `_/**` worked only because `normalise()` strips the leading slash, while the
+supervisor's proposed `/_/**` matched nothing at all and would have left the figure at 66.24% looking
+fixed. Settled as `**/_/**`, which matches raw, normalised and prefixed forms.
+
+- **The rule: a filter that looks like it partitions may not.** Two errors of one species, in opposite
+  directions, each caught by the other inside a single exchange.
+
+**23 -- a shared list that one of its two stated consumers never read.** `.coverage-exclusions` said
+from creation "Read by BOTH: sonarcloud.yml ... and coverage-gate.py".
+
+```bash
+grep -n "coverage-exclusions" .github/workflows/sonarcloud.yml   # -> no match
+```
+
+`sonarcloud.yml` carried a hardcoded copy. **The two were byte-identical, which is exactly why it
+survived: there was no symptom** until new patterns made them diverge -- the precise drift the file's
+own header warns about, committed by the file that warns about it.
+
+**The root cause is sharper than "the header lied."** Sonar was never contaminated by generated code
+because `sonar.exclusions` (what to ANALYSE) already carried `**/obj/**`, while the gate was seeded
+from `sonar.coverage.exclusions` (what to omit from COVERAGE) alone. **Copying half a configuration is
+how a shared list stops being shared.**
+
+- A distinct species from the rest of the table: not a check that passed without running, but **a
+  document asserting an integration that did not exist**, unfalsifiable until somebody relied on it.
+
+**24 -- an ecosystem declared, and capped at zero.** `.github/dependabot.yml` declares
+`github-actions`; the next line is `open-pull-requests-limit: 0`, on all four ecosystems. Zero
+disables version updates; security advisories bypass it.
+
+**A grep for the ecosystem name says "covered". The behaviour is "nothing is ever opened."** The claim
+that SHA-pinning would not rot rested on the declaration and was false -- pins would freeze, moved
+only by an advisory.
+
+**Chesterton's Fence applied, and the 0 is NOT a defect** -- the header explains it is deliberate
+pending ABP Commercial supporting Angular 20.3+. **But that is an npm reason applied blanket to a
+github-actions ecosystem it has nothing to do with.** Inherited, not decided. Adrian lifted it for
+`github-actions` only, in 2.2; the other three stay at 0 with their reason intact.
 
 **How to count this table:** the total is **the number of rows in it**. Do not increment from
 memory -- that error has already happened once and vacated a slot behind it.
