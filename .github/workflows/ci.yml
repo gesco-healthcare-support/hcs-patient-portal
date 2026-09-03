@@ -348,8 +348,17 @@ jobs:
             fi
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      # PINNED (2026-09-03). This install was added UNPINNED in item 2.10, one
+      # item before 2.2 pinned all 69 action references -- the same supply-chain
+      # class, introduced by the same hand, inside the coverage gate itself.
+      #
+      # 18.11.0 is not "latest today": it is the version CI actually installed on
+      # the run that produced this gate's verified figures, read from that run's
+      # own log -- "Tool 'dotnet-coverage' (version '18.11.0') was successfully
+      # installed". So the pin locks in the toolchain that measured 73.61% over
+      # 887 files, rather than whatever the registry happens to serve next.
       - name: Install dotnet-coverage
-        run: dotnet tool install --global dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage --version 18.11.0
       # Item 2.10. This mirrors the WRAPPING pattern at sonarcloud.yml:148, not
       # its format. That line emits `-f xml` (the Visual Studio format) because
       # SonarCloud reads it via sonar.cs.vscoveragexml.reportsPaths; the floors
