@@ -483,8 +483,19 @@ jobs:
       # in the gate's own counting and its own environment. Copy that figure in
       # here; that one commit finishes item 2.10.
       FLOOR_BACKEND: ""
+      # The changed-lines floor, per Adrian's settled decision and the EARS
+      # criterion in 02-enforcement.md. Unlike the two absolute floors this one
+      # is a fixed policy number rather than a measurement, so it is set here
+      # rather than discovered by a first run.
+      FLOOR_CHANGED: "90"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Required by the changed-lines floor: it diffs against the merge base
+          # with the base branch, which a shallow clone does not contain. The
+          # step below fails loudly rather than silently measuring nothing if
+          # the base ref is somehow still unresolvable.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -519,6 +530,7 @@ jobs:
           CHANGED_UNCLASSIFIED: ${{ needs.changes.outputs.unclassified }}
           BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
           FRONTEND_TEST_RESULT: ${{ needs.frontend-test.result }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
 
@@ -640,11 +652,42 @@ jobs:
             exit 0
           fi
 
-          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" | tee gate-output.txt
+          # The changed-lines floor. Added only once at least one stack is
+          # applicable, because 90% of the changed lines is a question about
+          # coverage reports, and with none of them present there is nothing to
+          # ask it of.
+          #
+          # `...` is deliberate: two dots would also attribute every change that
+          # landed on the base branch since this one was cut. The empty case is
+          # handled inside the gate, which exits 0 when no CHANGED line is
+          # coverable -- a docs-only submission must not fail this.
+          base="origin/${BASE_REF}"
+          if ! git rev-parse --verify --quiet "$base" >/dev/null; then
+            m="cannot resolve '$base', so the changed-lines floor has nothing to"
+            m="$m diff against. This needs fetch-depth: 0 on checkout. Failing"
+            m="$m rather than skipping the check, which would pass silently."
+            echo "::error::$m"
+            exit 1
+          fi
+          git diff --unified=0 --diff-filter=ACMR "$base...HEAD" > changed.diff
+          echo "changed-lines: diffed against $base"
+          args+=(--changed-diff changed.diff --floor-changed "$FLOOR_CHANGED")
+
+          # NOT piped into tee, and the exit code is carried by hand. Under
+          # `pipefail` a failing gate would abort the step immediately and the
+          # step summary below would never be written -- and the first run of
+          # this job FAILS BY DESIGN, so that is precisely the run whose measured
+          # backend figure somebody needs to read.
+          set +e
+          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" > gate-output.txt 2>&1
+          gate_rc=$?
+          set -e
+          cat gate-output.txt
           {
             echo "### Coverage floors"
             echo ""
-            echo "$(printf '%s' '```text')"
+            echo '```text'
             cat gate-output.txt
-            echo "$(printf '%s' '```')"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          exit "$gate_rc"
