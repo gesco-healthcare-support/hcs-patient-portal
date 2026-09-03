@@ -13,15 +13,23 @@ concurrency:
   group: codeql-pr-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default (phase 2 item 2.3, 2026-09-03). Scorecard
+# `TokenPermissionsID` flagged a top-level `write` here. The scope is
+# REQUIRED -- CodeQL uploads its SARIF results to code scanning -- so it moved DOWN to the job that
+# needs it rather than being removed. A job-level block replaces this one,
+# so behaviour is unchanged; what changes is the default for any job added
+# to this file later, which no longer inherits write access silently.
 permissions:
-  actions: read
   contents: read
-  security-events: write
 
 jobs:
   analyze:
     name: 'CodeQL: ${{ matrix.language }}'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     timeout-minutes: 90
     continue-on-error: true
 
