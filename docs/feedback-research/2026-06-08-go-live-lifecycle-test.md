@@ -14,12 +14,12 @@ Uncommitted diagnostic present: `SendAppointmentEmailJob` email-link logging +
 |-------|------|--------|----------|
 | 0 | Containers healthy; db-migrator exit 0; Falkinstein + data present | PASS | All 10 containers healthy/exited-0; `main-db-migrator-1` exit=0; migrator log "Successfully completed all database migrations"; Falkinstein present, 67 appts + 22 patients preserved in-place |
 | 0 | Type reduction: 3 types, 0 legacy refs, dropdown shows 3 | PASS | DB: exactly 3 types (AME ...0003 / IME ...0007 / PQME ...0002), TypeCount=3, LegacyRefs=0. Booking-form Type dropdown shows exactly AME / IME / Panel QME |
-| A | AME by internal Clinic Staff (clistaff1) -- F1/F2 core: ends Approved, AA/DA/CE=1/1/1, injuries>=1, NO 409 | PASS (after F-1 fix; also PASS via stafsuper1) | POST-FIX: clistaff1 AME A00075 -> CE 200, injury 200, body-parts 200, auto-approve 200, Approved AA/DA/CE/Injuries/BodyParts=1/1/1/1/1, no 403/409. PRE-FIX detail: | clistaff1: NO 409, but CE attach => 403 (lacks `AppointmentClaimExaminers.Create`); appt A00068 left Pending 1/1/0, injuries=0. stafsuper1 (Staff Supervisor): full sequence POST appt 200 -> AA 204 -> DA 204 -> CE 200 -> injury 200 -> `appointment-approvals/{id}/approve` 200, NO 409. Appt A00069 ends Status=2 (Approved), AA/DA/CE/Injuries = 1/1/1/1 |
+| A | AME by internal Clinic Staff (clistaff1) -- F1/F2 core: ends Approved, AA/DA/CE=1/1/1, injuries>=1, NO 409 | PASS (after F-1 fix; also PASS via stafsuper1) | POST-FIX: clistaff1 AME A00075 -> CE 200, injury 200, body-parts 200, auto-approve 200, Approved AA/DA/CE/Injuries/BodyParts=1/1/1/1/1, no 403/409. PRE-FIX detail: \| clistaff1: NO 409, but CE attach => 403 (lacks `AppointmentClaimExaminers.Create`); appt A00068 left Pending 1/1/0, injuries=0. stafsuper1 (Staff Supervisor): full sequence POST appt 200 -> AA 204 -> DA 204 -> CE 200 -> injury 200 -> `appointment-approvals/{id}/approve` 200, NO 409. Appt A00069 ends Status=2 (Approved), AA/DA/CE/Injuries = 1/1/1/1 |
 | A | IME by Applicant Attorney (appatty1) -- ends Pending, joins 1/1/1, then internal approve | PASS (approve step below) | IME A00072 by appatty1: AA section auto-prefilled w/ appatty1's record. POST appt 200 -> AA 204 -> DA 204 -> CE 200 -> injury 200, NO approve call (external booking stays Pending), NO 409. DB: Status=1 Pending, AA/DA/CE/Injuries=1/1/1/1. IME Panel# field DISABLED. Then stafsuper1 approved A00072 -> `approve` 200, Status=2 Approved, 3 packets generated |
 | A | PQME by Patient self (patient1) -- Panel# required+persists, ends Pending, then approved; AME/IME reject Panel# | PASS (approve step below) | PQME makes Panel# label "Panel Number *" + field ENABLED; AME (A00068/69) had Panel# DISABLED. Self-book A00071: POST appt 200 -> AA 204 -> DA 204 -> CE 200 -> injury 200, NO approve call (patient booking stays Pending), NO 409. DB: Status=1 Pending, PanelNumber="PQME-PNL-001" persisted, AA/DA/CE/Injuries=1/1/1/1. (patient1 CAN attach CE -> 403 is Clinic-Staff-specific, see F-1.) Then stafsuper1 approved A00071 -> `approve` 200, Status=2 Approved, 3 packets generated |
 | B | Approval gates: Pending->Approved blocked without active CE + >=1 injury | PASS | Positive: A00069 (AME), A00071 (PQME), A00072 (IME) each approved 200 with CE+injury present. Negative: approving A00068 (CE=0, injuries=0) returned an error w/ `CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail` "At least one Claim Information entry is required before the appointment can be approved" -> stayed Pending. (NOTE: gate maps to HTTP 403, not 400/409 -- see F-3) |
 | B | Each approved appt -> 3 packets (Patient/Doctor/AttyCE Generated); Patient+AttyCE emailed w/ PDF; Doctor never emailed | PASS | A00069 logs: GenerateAppointmentPacketJob generated kind Patient (529548 B), Doctor (581972 B), AttorneyClaimExaminer (253994 B). Patient emailed to patient2 w/ PDF; AttyCE emailed to appatty2/defatty2/claime2 w/ PDF; Doctor has NO delivered line. NOTE: AttyCE row is hard-pruned after send (by design), so only Patient+Doctor persist in AppAppointmentPackets (Status=2) |
-| B | AttyCE notice type-correct: PQME->pqme notice (DWC QME form); AME/IME->ame_ime notice | PASS (after F-4 fix) | POST-FIX: HTML pipeline enabled; renderer logs show PQME->`attorney-pqme` (DWC QME form), AME->`attorney-ame` (no QME form). PRE-FIX detail: | AttyCE PDF is pruned post-send, so content not inspectable without the PACKETS_HTML deeper check (which needs an api container recreate -> engine risk, skipped). Byte-size proxy is INCONCLUSIVE/concerning: AttyCE PDFs are near-identical across types (AME 253994 B, IME 254054 B, PQME 254306 B). A real multi-page DWC QME form would add many KB; the ~300 B spread looks like field-text variance only. Needs the proper content check before demo |
+| B | AttyCE notice type-correct: PQME->pqme notice (DWC QME form); AME/IME->ame_ime notice | PASS (after F-4 fix) | POST-FIX: HTML pipeline enabled; renderer logs show PQME->`attorney-pqme` (DWC QME form), AME->`attorney-ame` (no QME form). PRE-FIX detail: \| AttyCE PDF is pruned post-send, so content not inspectable without the PACKETS_HTML deeper check (which needs an api container recreate -> engine risk, skipped). Byte-size proxy is INCONCLUSIVE/concerning: AttyCE PDFs are near-identical across types (AME 253994 B, IME 254054 B, PQME 254306 B). A real multi-page DWC QME form would add many KB; the ~300 B spread looks like field-text variance only. Needs the proper content check before demo |
 | B | F3: each AttyCE email sent exactly once; no AbpDbConcurrencyException, no Hangfire retry, no dup delivered | PASS | A00069: AbpDbConcurrencyException count=0, Hangfire retry count=0, each AttyCE recipient (appatty2/defatty2/claime2) has exactly ONE "delivered" line. Prune logged twice for same packet id with no exception -> idempotent set-based prune (F3) confirmed |
 | C | Upload PDF + PNG; oversize (>10MB) + disallowed types rejected client+server | PASS | On A00072 doc manager (stafsuper1): qa-doc.pdf (243 B) + qa-image.png (70 B) uploaded -> 200, both listed w/ Approved badge. Disallowed qa-bad.txt: client error modal "Only PDF and image formats (JPG, PNG) are accepted" + server 403 at `EnsureValidFileFormat`. Oversize 11 MB: blocked client-side (no POST reached server). (server rejects map to 403 -- see F-3) |
 | C | Moderation: external upload lands Uploaded/pending; internal approve one, reject one w/ reason; badges render | PASS | patient1 (external) uploaded 2 docs to A00071 -> both landed status "Uploaded" (vs internal uploads which auto-"Approved"). stafsuper1 approved "Patient Upload Two" -> Approved badge; rejected "Patient Upload One" w/ required reason -> Rejected badge + reason text rendered ("...illegible scan, please re-upload..."). All 3 badge states (Uploaded/Approved/Rejected) render correctly |
@@ -61,6 +61,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
 ## Findings
 
 ### F-1 (HIGH): Clinic Staff (clistaff1) gets 403 attaching Claim Examiner during booking -> partial appointment, no auto-approve
+
 - Repro: log in as `clistaff1` (Clinic Staff), book an AME with Patient + AA + DA + CE + 1 injury,
   Continue past the USPS modal.
 - Observed network sequence: `POST /appointments` 200 -> `.../applicant-attorney` 204 ->
@@ -79,6 +80,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   CAN attach the CE (verified: patient1 and stafsuper1 both got 200 on the same endpoint).
 
 ### F-4 (MEDIUM): PQME AttyCE notice may not include the DWC QME form (unverified, weak signal)
+
 - Repro/observation: approved one AME (A00069), one IME (A00072), one PQME (A00071). The emailed
   AttorneyClaimExaminer PDF byte sizes are near-identical: AME 253994 B, IME 254054 B, PQME 254306 B.
 - Expectation (prompt): PQME AttyCE notice contains the DWC QME form (a multi-page government form);
@@ -90,6 +92,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   before relying on this for the demo.
 
 ### F-2 (LOW): blank booking page immediately after login (transient, self-heals on reload)
+
 - Repro: log in as an external user (seen with appatty1) and land directly on `/appointments/add` via
   the post-login returnUrl. The page renders fully blank.
 - Console: `401 Unauthorized` on `GET /api/app/appointments/pending-count` (token not yet attached when
@@ -99,6 +102,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   if a booker deep-links in.
 
 ### F-3 (LOW): approval-gate business-rule violation returns HTTP 403
+
 - Repro: approve a Pending appointment lacking an injury (A00068). Server returns HTTP 403 carrying
   `CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail` (a `UserFriendlyException`).
 - 403 normally means "not authorized"; a domain validation failure is conventionally 400 or 409.
@@ -106,6 +110,7 @@ Deployed via sequenced backend rebuild (db-migrator + api, built one at a time t
   otherwise correct (blocks + clear message, appt stays Pending). Cosmetic/contract nit.
 
 ### F-5 (LOW, env): reschedule/cancel notification emails log SMTP delivery failure in dev
+
 - Observation: change-request emails log `SendAppointmentEmailJob: SMTP delivery failed
   (ChangeRequestApproved/Reschedule|Cancel/...) Configure ACS credentials to deliver. Job will not
   retry...`, whereas booking/approval/packet emails log `delivered (...)`. EMAIL-LINKS lines are
@@ -150,6 +155,7 @@ Remaining findings (F-2 blank-page-after-login, F-3 403-for-business-rule, F-5 d
 logging) are low severity and do not block the demo.
 
 ### Not tested / could not verify
+
 - **AttyCE notice content (PQME QME form vs AME/IME)** -- F-4; the optional PACKETS_HTML deeper
   check was skipped to avoid an api-container recreate on the memory-constrained engine. Byte-size
   proxy only (inconclusive).

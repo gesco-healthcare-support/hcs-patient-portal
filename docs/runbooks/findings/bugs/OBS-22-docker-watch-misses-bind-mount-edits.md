@@ -19,6 +19,7 @@ component: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile.dev | sr
 > **Resolution 2026-05-22.** Watchers removed entirely. The actual iteration workflow had already collapsed to "edit on host -> `docker compose restart <service>`" because the bind-mount / inotify drift was so unreliable. Removing the watchers matches the real workflow with no UX loss and eliminates an entire class of "did my edit take effect?" debugging time.
 >
 > **Changes shipped:**
+>
 > - `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile.dev` -- `dotnet watch run` -> `dotnet run`, drop `DOTNET_USE_POLLING_FILE_WATCHER` env var.
 > - `src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile.dev` -- same.
 > - `angular/Dockerfile.dev` -- drop `CHOKIDAR_USEPOLLING=1`, drop `concurrently` from yarn-add (no longer needed without a parallel watch+serve pair).
@@ -66,9 +67,11 @@ This is a known class of issue (see e.g. Docker Desktop GH issues #8694, #15171,
 
 1. **Always `docker compose restart <service>` after touching a watched source file** before testing. Costs ~30s per .NET restart, ~90s for Angular.
 2. **Verify dist mtime before testing**:
+
    ```bash
    docker exec replicate-old-app-angular-1 sh -c "ls -la /app/dist/CaseEvaluation/browser/main-*.js"
    ```
+
    If the mtime is older than the source edit, restart the container.
 3. **For .NET**: tailing `docker logs <api|authserver> -f` and watching for "Hot reload" / "File changed" entries gives confirmation when the watcher does pick up; absence of those entries after the expected delay means the edit was lost.
 

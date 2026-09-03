@@ -16,6 +16,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Security.Claims;
 using Volo.Saas.Tenants;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.HostOperators;
 
@@ -282,7 +283,12 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
                 .ToDictionary(t => t.Id, t => t.Name ?? string.Empty);
         }
 
-        var todayStart = DateTime.UtcNow.Date;
+        // 2026-08-31: "today" is PACIFIC today, not the server's UTC day, which was a day ahead for
+        // the last 7-8 hours of every Pacific day and so counted tomorrow's appointments. The window
+        // bounds AppointmentDate, a CALENDAR DATE column, so it stays a Pacific wall-clock date and
+        // is NOT converted to UTC -- converting would shift it 7 hours and pull in yesterday's late
+        // slots. Clock.Now rather than DateTime.UtcNow so a test can pin the instant.
+        var todayStart = PacificTime.TodayFrom(Clock.Now);
         var todayEnd = todayStart.AddDays(1);
 
         var metrics = new List<IntakeOfficeMetricsDto>(assignments.Count);

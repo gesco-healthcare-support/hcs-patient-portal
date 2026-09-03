@@ -111,6 +111,7 @@ conditional validator blocks submit until a strike-list file is staged. Needs AF
 
 **17. CI1 - Insurance + CE per-appointment.** [CI1 note](CI1-insurance-ce-per-appointment.md)
 The heaviest data-model change: move both FKs from `AppointmentInjuryDetailId` to `AppointmentId`
+
 + backfill, dual-DbContext config, Mapperly + proxy regen, persist/read rework. Reverses OBS-17.
 CE becomes first-class + required and converges on `Appointment.ClaimExaminerEmail`.
 **Coordinate with UM3** (CE master entity).
@@ -164,29 +165,30 @@ Pending Change Requests approval pages. ng-bootstrap. Type change = manual cance
 
 ## Cross-cutting notes
 
-- **Security callout (elevate within IP6):** the booking auto-create mints an IdentityUser with a
++ **Security callout (elevate within IP6):** the booking auto-create mints an IdentityUser with a
   shared hardcoded admin password (SEC-05 / Q-12). The "stop setting the shared password" sub-task
   is a small, localized, no-migration fix and should ship FIRST within IP6 (or as a standalone
   early task) ahead of the larger record-only/nullable-FK rework.
-- **Shared-file contention:** `appointment-add.component.ts` is touched by AF3/AF4/AF6/AF7 and
++ **Shared-file contention:** `appointment-add.component.ts` is touched by AF3/AF4/AF6/AF7 and
   CI1/CI2/CI3. Sequence those waves so each rebases on the prior; expect merge attention.
-- **Migrations:** AF1 (seed delete), AF5 (IsPanelStrikeList), CI1+CI4 (FK move + DropColumn -
++ **Migrations:** AF1 (seed delete), AF5 (IsPanelStrikeList), CI1+CI4 (FK move + DropColumn -
   one migration), UM1 (Invitation names), UM3/UM4 (ClaimExaminer master + AA/DA name columns),
   IP6 (nullable Appointment.IdentityUserId). All EF changes hit BOTH DbContexts.
-- **Proxy regen** (`abp generate-proxy`) after any DTO/endpoint change: AF5, CI1, CI4, UM1, UM3,
++ **Proxy regen** (`abp generate-proxy`) after any DTO/endpoint change: AF5, CI1, CI4, UM1, UM3,
   UM4, IP6. Never hand-edit `angular/src/app/proxy/`.
-- **Re-seed** (DbMigrator) after IR1 and the IP1/IP2/IP5/UM2 grants so existing tenants pick them up.
-- **Server vs UI enforcement** (approved H): integrity/security rules are server-side + UI
++ **Re-seed** (DbMigrator) after IR1 and the IP1/IP2/IP5/UM2 grants so existing tenants pick them up.
++ **Server vs UI enforcement** (approved H): integrity/security rules are server-side + UI
   (AF4, CI3, CE-required, 60-day horizon, role gates); pure affordances are UI-only (AF3 disable,
   AF6 submit gate). Each note states its split.
-- **Doc reconciliation:** AF1/AF2 supersede OBS-10/OBS-23 framing; IP1/IP2/IP5/UM2 supersede
++ **Doc reconciliation:** AF1/AF2 supersede OBS-10/OBS-23 framing; IP1/IP2/IP5/UM2 supersede
   master-data-crud-design.md IT-Admin-only + OLD-parity notes; CI1 supersedes OBS-17; IP3
   supersedes the ADR-004/design-doc IdentityUserId claims; UM3 supersedes OBS-8.
-- **Deferred (not in this plan):** the AA-intermediary email refinement (patient gets only
++ **Deferred (not in this plan):** the AA-intermediary email refinement (patient gets only
   patient-relevant emails when an AA is present); a true multi-doctor-per-tenant model; a guided
   "Cancel & Rebook" flow for type change; destructive hard-delete/purge.
 
 ## Next step
+
 On approval, run RPE per item in the order above (one at a time), starting with IR1. Each item's
 note is the research input; `/feature-design` writes its `docs/plans/` file; `/feature-build`
 executes; `/ship-plan` cleans up post-merge.

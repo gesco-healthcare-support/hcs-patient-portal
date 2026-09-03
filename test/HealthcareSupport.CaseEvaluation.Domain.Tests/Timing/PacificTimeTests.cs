@@ -134,6 +134,31 @@ public class PacificTimeTests
     }
 
     [Fact]
+    public void TodayFrom_YesterdayIsInThePastAtEveryHour_UnlikeUtcYesterday()
+    {
+        // Reproduces, at a pinned instant, the CI failure of 2026-08-31: the past-date guard in
+        // DoctorAvailabilitiesAppService compares FromDate against PACIFIC today, but its test built
+        // "yesterday" from DateTime.Today, which on a UTC runner is the UTC day. Between 17:00 and
+        // midnight Pacific the two constructions collapse onto the SAME date, so "yesterday" was not
+        // in the past, the guard did not fire, and the test failed -- every evening, passing every
+        // morning. It presented as flakiness and was arithmetic.
+        //
+        // 2026-08-31 02:30 UTC is 2026-08-30 19:30 Pacific: inside the window, so UTC today is the
+        // 31st while Pacific today is the 30th. Pinning it means this holds at any wall-clock hour,
+        // which is the one property the integration test cannot demonstrate on its own.
+        var eveningPacific = new DateTime(2026, 8, 31, 2, 30, 0, DateTimeKind.Utc);
+        var pacificToday = PacificTime.TodayFrom(eveningPacific);
+
+        // The guard's predicate, verbatim: FromDate.Date < PacificToday.
+        var utcYesterday = eveningPacific.Date.AddDays(-1);
+        (utcYesterday < pacificToday).ShouldBeFalse(
+            "UTC yesterday is Pacific TODAY in the evening window -- this is the bug, not a quirk");
+
+        var pacificYesterday = pacificToday.AddDays(-1);
+        (pacificYesterday < pacificToday).ShouldBeTrue();
+    }
+
+    [Fact]
     public void FormatDate_UsesThePacificCalendarDate()
     {
         PacificTime.FormatDate(new DateTime(2026, 8, 28, 6, 0, 0, DateTimeKind.Utc))

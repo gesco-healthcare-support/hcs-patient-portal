@@ -16,6 +16,7 @@ P7.3 scenario - clinic staff uploads PDF to an approved appointment they
 booked. Failed with HTTP 403.
 
 Steps:
+
 1. Logged in as `clistaff1@gesco.com` (Clinic Staff role).
 2. Navigated to `/appointments/view/<A00005-id>` (the appointment
    clistaff1 booked themselves; auto-approved at create-time per
@@ -26,7 +27,7 @@ Steps:
 
 Observed:
 
-```
+```text
 [browser console]
 Failed to load resource: the server responded with a status of 403 (Forbidden)
   @ http://falkinstein.localhost:44327/api/app/appointments/42a6f114-d44c-cadc-0d87-3a2168443cdf/documents:0
@@ -35,6 +36,7 @@ Failed to load resource: the server responded with a status of 403 (Forbidden)
 The DB has no new `AppAppointmentDocuments` row for this appointment.
 
 Counter-evidence (the same flow works for other roles):
+
 - P7.1 patient1 uploads PNG to A00001 -> 200, row created (IsAdHoc=1,
   image/png).
 - P7.2 appatty1 (AA) uploads PDF to A00002 -> 200, row created
@@ -52,6 +54,7 @@ The class name is literally `ExternalUserRoleDataSeedContributor` -- it only see
 Result: the `[Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]` attribute on `AppointmentDocumentsAppService.UploadStreamAsync` (line 146) returns 403 for ClinicStaff because the permission is unset for that role.
 
 Suspected fix paths:
+
 - Add `"Clinic Staff"` and `"Staff Supervisor"` to the seed loop on line 60. They should get the same Document grants as external roles AND additionally `.Edit`, `.Delete`, `.Approve` (which external roles intentionally don't have).
 - Or create a parallel `InternalUserRoleDataSeedContributor` with the appropriate grants. Cleaner separation of concerns.
 - Verify the IT Admin role also has these grants (admin@ uses, but as a system role with all-permissions, this might already be the case).

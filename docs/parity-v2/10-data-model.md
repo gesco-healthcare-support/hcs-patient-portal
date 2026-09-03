@@ -454,7 +454,7 @@ These are outcome-equivalent structural swaps -- explicitly NOT gaps.
 - **E-05 -- `AppointmentChangeLogs` -> ABP entity-change tracking.**
   Same as E-04 for the appointment-specific diff log.
 - **E-06 -- `CreatedById`/`CreatedDate`/`ModifiedById`/`ModifiedDate`
-  + `StatusId`(=Delete) -> ABP `FullAuditedAggregateRoot`** (`CreatorId`,
+  - `StatusId`(=Delete) -> ABP `FullAuditedAggregateRoot`** (`CreatorId`,
   `CreationTime`, `LastModifierId`, `LastModificationTime`,
   `IsDeleted` soft-delete). On every entity.
 - **E-07 -- `ApplicationObjects` + lookup tables -> typed enums.**

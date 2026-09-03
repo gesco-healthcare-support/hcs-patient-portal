@@ -195,7 +195,7 @@ coverage gap found beside it. No implementation line changed.
 **S2699 is a false positive, proven by mutation.** A `throw` was added after the try/catch in
 `performFullLogout`, breaking the documented never-reject contract:
 
-```
+```text
 performFullLogout never rejects even if both revocation and the fallback throw FAILED
     Expected a promise to be resolved but it was rejected with Error: mutation: performFullLogout now rejects.
 TOTAL: 8 FAILED, 0 SUCCESS
@@ -346,7 +346,7 @@ whether the browser navigation cancelled the request before it committed. Drive
 no-hint path does not produce accurate session records, and rebuilding the server half first would
 rest on a premise that may be false.
 
-#### RESEARCH: MECHANISM ESTABLISHED FROM SOURCE + LOGS (2026-09-01). LIVE CONFIRMATION STILL OWED.
+#### RESEARCH: MECHANISM ESTABLISHED FROM SOURCE + LOGS (2026-09-01). LIVE CONFIRMATION STILL OWED
 
 **It is REAL, not an artefact of automation speed, and it affects every ordinary sign-out.** Stated
 as the leading conclusion with the evidence below; a live run is still required to close it, because
@@ -355,7 +355,7 @@ everything here is source and log reading.
 **THE MECHANISM.** `IdentitySessionManager.RevokeAsync(string)` (decompiled,
 `Volo.Abp.Identity.Pro.Domain` 10.0.2) does:
 
-```
+```text
 IdentitySessionRepository.FindAsync(sessionId, default(CancellationToken))
   -> RevokeAsync(IdentitySession session)
        -> DeleteAsync(session.Id, autoSave: false, default(CancellationToken))
@@ -410,7 +410,7 @@ merely mis-sourced. Any future fix must either run inside a unit of work or save
    MVC endpoint) instead. Expect the row to be REMOVED, which would confirm the unit-of-work
    explanation rather than a fault in `IdentitySessionManager` itself.
 
-#### OUTCOME: CONFIRMED LIVE (2026-09-02). THREAD CLOSED BY DECISION -- NOT UNRESOLVED.
+#### OUTCOME: CONFIRMED LIVE (2026-09-02). THREAD CLOSED BY DECISION -- NOT UNRESOLVED
 
 **The mechanism is confirmed, and the discriminating control turned out to live inside a single
 request** -- a login creates TWO session rows (one at the Razor cookie sign-in, one at
@@ -427,7 +427,7 @@ anything**. The request completed in 0.98s with HTTP 200.
 
 The AuthServer log records the whole mechanism within one second:
 
-```
+```text
 [00:20:28 INF] The request URI matched a server endpoint: EndSession.
 [00:20:28 DBG] Revoking the SessionId(477bc943-...).                  <- middleware, BEFORE the endpoint
 [00:20:28 INF] Executing endpoint 'Volo.Abp.OpenIddict.Controllers.LogoutController.GetAsync'
@@ -890,7 +890,7 @@ step. A spec written alongside its implementation can encode that implementation
 still go green, so the red step was reconstructed by mutation: `read()` was changed to always return
 undefined (the pre-implementation behaviour) and the suite re-run.
 
-```
+```text
 TOTAL: 14 FAILED, 15 SUCCESS
 ```
 
@@ -909,7 +909,7 @@ so the rule cannot tighten by accident and break a real deployment.
 
 Angular-only changes for 1.1-1.3, Python for 1.4. Per `~/.claude/rules/testing.md`:
 
-```
+```text
 npx ng build
 npx ng test --watch=false --browsers=ChromeHeadless
 npx ng lint

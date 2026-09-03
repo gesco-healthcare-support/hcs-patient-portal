@@ -14,8 +14,8 @@ parity: regression -- OLD stored a single `attorneyName`; NEW dropped the column
 ## Symptom
 
 Booked A00001 (QME, Demo Clinic North) entering Applicant Attorney
-"Aria Stone / appatty1@gesco.com / Stone & Associates" and Defense
-Attorney "Dana Defense / defatty1@gesco.com / Shield Defense Group".
+"Aria Stone / <appatty1@gesco.com> / Stone & Associates" and Defense
+Attorney "Dana Defense / <defatty1@gesco.com> / Shield Defense Group".
 Later, viewing the appointment:
 
 - **Applicant Attorney section renders completely blank** (First/Last/
@@ -73,7 +73,7 @@ null-returning endpoint above).
 
 ### DB ground truth (2026-05-27)
 
-```
+```text
 AppAppointmentApplicantAttorneys: 2 rows, both IdentityUserId = NULL
 AppAppointmentDefenseAttorneys:   2 rows, both IdentityUserId = 84B591AD-... (defatty1)
 AppApplicantAttorneys master:     FirmName='Stone & Associates', Email='appatty1@gesco.com', IdentityUserId=NULL  (no name column)

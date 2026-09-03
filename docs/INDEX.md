@@ -91,6 +91,7 @@ flowchart TB
 - [PHI Data Flows](security/DATA-FLOWS.md) -- where PHI lives, how it moves, SSN reveal egress
 - [Authorization](security/AUTHORIZATION.md) -- permissions, roles, endpoint mappings
 - [Session & Tokens](security/SESSION-AND-TOKENS.md) -- cookie/token inventory, logout, renewal
+- [Session Key Encryption](security/SESSION-KEY-ENCRYPTION.md) -- DataProtection keys unencrypted at rest; open design work
 - [Secrets Management](security/SECRETS-MANAGEMENT.md) -- secret locations, injection, gaps
 - [HIPAA Compliance](security/HIPAA-COMPLIANCE.md) -- technical safeguards + readiness gaps
 

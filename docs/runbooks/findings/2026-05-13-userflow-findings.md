@@ -66,10 +66,10 @@ Each entry below links to a per-bug file in `bugs/`. One bug per file is the can
 | Packet-attached email | PatientPacket email with PDF attachment delivered to real Gmail inbox |
 | Patient ad-hoc document upload | 66 KB PNG uploaded to A00001 |
 | Patient forgot-password (API path) | API-direct call worked; UI link broken ([[BUG-011]]) |
-| AA register/verify/login | SoftwareFour@gesco.com |
+| AA register/verify/login | <SoftwareFour@gesco.com> |
 | AA book on behalf of fresh patient | A00003 with AppointmentApplicantAttorneys link |
-| DA register/verify | SoftwareFive@gesco.com |
-| CE register/verify | SoftwareSix@gesco.com |
+| DA register/verify | <SoftwareFive@gesco.com> |
+| CE register/verify | <SoftwareSix@gesco.com> |
 
 **Note 2026-05-14:** the test DB was wiped during the port-pinning attempt ([[OBS-9]]). The above flows must be re-walked against the canonical-port stack after the BUG-012..016 fixes land — confirmation that the original fixes (PR #197 + #198) hold up under a fresh boot, plus verification of the new fixes.
 

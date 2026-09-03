@@ -520,7 +520,7 @@ Do not file public issues for vulnerabilities.
 This README is the landing page. The deep material lives in
 [docs/](docs/). Start at [docs/INDEX.md](docs/INDEX.md) for the full map.
 
-### I want to...
+### I want to
 
 | Goal                                 | Start here                                                                         |
 | ------------------------------------ | ---------------------------------------------------------------------------------- |

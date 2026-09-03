@@ -37,7 +37,8 @@ public class CancellationRescheduleReminderJobTests
                 enabled,
                 CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors,
                 "45,55"),
-            NullLogger<CancellationRescheduleReminderJob>.Instance);
+            NullLogger<CancellationRescheduleReminderJob>.Instance,
+            ReminderJobTestHarness.Clock());
 
         return (job, resolver);
     }
@@ -52,8 +53,12 @@ public class CancellationRescheduleReminderJobTests
     [Fact]
     public async Task Muted_when_reminders_disabled()
     {
-        var today = DateTime.UtcNow.Date;
-        var (job, resolver) = Build(false, CancelRequestedModifiedOn(OnAnchorId, today.AddDays(-45)));
+        // CreationTime / LastModificationTime are UTC INSTANTS, so the fixture dates them from the
+        // harness's pinned instant, not from a Pacific wall-clock date. Dating them from
+        // PacificToday would build a value whose Pacific date is a day earlier than intended --
+        // the same confusion the production bug came from.
+        var since = ReminderJobTestHarness.NowUtc;
+        var (job, resolver) = Build(false, CancelRequestedModifiedOn(OnAnchorId, since.AddDays(-45)));
 
         await job.ExecuteAsync();
 
@@ -63,11 +68,15 @@ public class CancellationRescheduleReminderJobTests
     [Fact]
     public async Task Fires_only_for_elapsed_day_anchors_when_enabled()
     {
-        var today = DateTime.UtcNow.Date;
+        // CreationTime / LastModificationTime are UTC INSTANTS, so the fixture dates them from the
+        // harness's pinned instant, not from a Pacific wall-clock date. Dating them from
+        // PacificToday would build a value whose Pacific date is a day earlier than intended --
+        // the same confusion the production bug came from.
+        var since = ReminderJobTestHarness.NowUtc;
         var (job, resolver) = Build(
             true,
-            CancelRequestedModifiedOn(OnAnchorId, today.AddDays(-45)),
-            CancelRequestedModifiedOn(OffAnchorId, today.AddDays(-46)));
+            CancelRequestedModifiedOn(OnAnchorId, since.AddDays(-45)),
+            CancelRequestedModifiedOn(OffAnchorId, since.AddDays(-46)));
 
         await job.ExecuteAsync();
 

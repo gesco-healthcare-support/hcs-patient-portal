@@ -10,7 +10,7 @@ The Application Service layer orchestrates use cases by coordinating domain serv
 
 ## Base Class
 
-```
+```text
 CaseEvaluationAppService : ApplicationService
 ```
 
@@ -70,6 +70,7 @@ WithNavigationProperties mappers also exist (e.g., `AppointmentWithNavigationPro
 The Application project contains **38 feature folders** (Application CLAUDE.md). This document covers the five most complex services in depth. The remaining services follow the standard CRUD pattern described in the [Standard CRUD Services](#standard-crud-services) section below.
 
 **Major services (covered in depth below):**
+
 - `AppointmentsAppService` -- most complex; 24 injected dependencies, multi-step booking pipeline
 - `PatientsAppService` -- patient lifecycle, self-service profile, SSN masking, SSN reveal endpoint
 - `DoctorAvailabilitiesAppService` -- slot CRUD, bulk generation, slot preview
@@ -171,6 +172,7 @@ Before creating an appointment, `CreateAsync` validates:
 10. Lead-time and per-type max-time gates via `BookingPolicyValidator`
 
 After validation passes, the method:
+
 - Generates the next confirmation number (wrapped in `ConfirmationNumberRetryPolicy` to handle concurrent bookings)
 - Calls `AppointmentManager.CreateAsync(...)` (domain service) -- status is `Approved` for internal callers, `Pending` for external
 - Does **not** mutate `DoctorAvailability.BookingStatusId`; slot capacity is tracked by active-appointment-count
@@ -275,12 +277,14 @@ This method supports the attorney-books-on-behalf-of-patient workflow:
 ### Bulk Slot Generation (GeneratePreviewAsync)
 
 `GeneratePreviewAsync` accepts a list of generation inputs, each specifying:
+
 - `FromDate` / `ToDate` -- date range
 - `FromTime` / `ToTime` -- time window within each day
 - `AppointmentDurationMinutes` -- slot length
 - `LocationId`, `AppointmentTypeId`, `BookingStatusId`
 
 **Algorithm:**
+
 1. Validates all inputs (duration > 0, date range valid, time range valid, location required)
 2. Queries existing availability slots in the date range
 3. Iterates each day in the range, slicing the time window into individual slots of the specified duration
@@ -343,7 +347,7 @@ This service manages the doctor-as-tenant lifecycle. When a new doctor is create
 
 ### Overridden Method: CreateAsync
 
-```
+```text
 override CreateAsync(SaasTenantCreateDto input) -> SaasTenantDto
 ```
 
@@ -373,7 +377,7 @@ This service extends ABP's built-in user management to keep `Doctor` entities in
 
 ### Overridden Method: UpdateAsync
 
-```
+```text
 override UpdateAsync(Guid id, IdentityUserUpdateDto input) -> IdentityUserDto
 ```
 
@@ -402,6 +406,7 @@ The following services follow a consistent pattern with `GetListAsync`, `GetAsyn
 | `AppointmentApplicantAttorneysAppService` | AppointmentApplicantAttorney | WithNavigationProperties (Appointment, ApplicantAttorney, IdentityUser) |
 
 Each service:
+
 - Inherits from `CaseEvaluationAppService`
 - Uses `[RemoteService(IsEnabled = false)]` (controllers wrap them)
 - Delegates create/update to the corresponding domain Manager
@@ -422,7 +427,7 @@ Services frequently return `*WithNavigationPropertiesDto` types that bundle an e
 
 **Example flow:**
 
-```
+```text
 AppService.GetListAsync(input)
   -> Repository.GetListWithNavigationPropertiesAsync(...)    // Single SQL query with JOINs
   -> returns List<AppointmentWithNavigationProperties>       // Domain container

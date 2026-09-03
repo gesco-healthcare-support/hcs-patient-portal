@@ -16,13 +16,15 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/Identity/InternalUserRole
 During HRD-P3.5 (clistaff1 books Record Review for existing patient1 via `/appointments/add` deep-link), after submitting the booking form, the Angular SPA fired an additional POST to `/api/app/appointment-injury-details` with the injury payload from the Claim Information modal. The response was 403 Forbidden.
 
 API container log:
-```
+
+```text
 [18:13:37 INF] Request starting HTTP/1.1 POST http://falkinstein.localhost:44327/api/app/appointment-injury-details - application/json 232
 [18:13:37 INF] Request finished HTTP/1.1 POST http://falkinstein.localhost:44327/api/app/appointment-injury-details - 403 0 null 212.5665ms
 ```
 
 Browser console:
-```
+
+```text
 ERROR: Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://falkinstein.localhost:44327/api/app/appointment-injury-details
 ```
 
@@ -52,10 +54,12 @@ Most likely (1). The "ALL form sections work but server rejects the auxiliary ca
 ## Recommended fix
 
 Step 1: Inspect the endpoint authorization:
+
 ```bash
 grep -rn "appointment-injury-details" src/
 grep -rn "AppointmentInjuryDetail" src/HealthcareSupport.CaseEvaluation.Application/
 ```
+
 Locate the `[Authorize(...)]` attribute on the controller action or AppService method.
 
 Step 2: Map the permission name to roles in `CaseEvaluationPermissionDefinitionProvider.cs` AND in the role seed (likely `RolePermissionsDefinitionProvider` or similar). Confirm whether Clinic Staff has the grant.

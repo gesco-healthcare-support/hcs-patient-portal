@@ -12,7 +12,7 @@ The HCS Case Evaluation Portal frontend is an **Angular 20** application built e
 
 The application bootstraps via `main.ts` using Angular's `bootstrapApplication()`:
 
-```
+```text
 main.ts -> bootstrapApplication(AppComponent, appConfig)
 ```
 
@@ -236,6 +236,7 @@ Third-party style dependencies are loaded via `angular.json` and include ngx-dat
 ---
 
 **Related Documentation:**
+
 - [Component Patterns](COMPONENT-PATTERNS.md)
 - [Routing & Navigation](ROUTING-AND-NAVIGATION.md)
 - Proxy Services (the Angular proxy is auto-generated; see `angular/src/app/CLAUDE.md`)

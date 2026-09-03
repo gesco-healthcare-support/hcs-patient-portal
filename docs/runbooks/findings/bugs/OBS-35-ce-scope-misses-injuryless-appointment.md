@@ -19,6 +19,7 @@ Phase 8 scope-visibility check for `claimE1@gesco.com` (role: Claim Examiner). T
 > `ClaimExaminerEmail = me OR injury.ClaimExaminerEmail = me`
 
 SQL cross-check (top-level only):
+
 ```sql
 SELECT RequestConfirmationNumber
 FROM AppAppointments
@@ -27,7 +28,8 @@ WHERE ClaimExaminerEmail IN ('claimE1@gesco.com','claime1@gesco.com')
 ```
 
 API result (`GET /api/app/appointments?MaxResultCount=100` as claimE1):
-```
+
+```text
 totalCount: 4
 confNums: [A00001, A00002, A00003, A00004]
 ```
@@ -56,6 +58,7 @@ Most likely (1) combined with (2): the filter is injury-only, and BUG-031 create
 ## Recommended fix
 
 Step 1: Locate the scope filter:
+
 ```bash
 grep -rn "ClaimExaminer\|HasClaimExaminerScope" src/HealthcareSupport.CaseEvaluation.Application/
 ```
@@ -63,8 +66,10 @@ grep -rn "ClaimExaminer\|HasClaimExaminerScope" src/HealthcareSupport.CaseEvalua
 Step 2: Identify whether the current filter is injury-only or OR-shaped. Compare with the suite's expectation.
 
 Step 3: Decide intent:
+
 - If "injury-only" is intentional: update suite docs.
 - If "OR top-level/injury" was intended (most likely given the suite's rule): change filter to:
+
   ```csharp
   query.Where(a =>
       a.ClaimExaminerEmail == currentUser.Email ||

@@ -10,6 +10,8 @@ using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Settings;
+using Volo.Abp.Timing;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -33,6 +35,7 @@ public class AppointmentDayReminderJob : ITransientDependency
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<AppointmentDayReminderJob> _logger;
+    private readonly IClock _clock;
 
     public AppointmentDayReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -40,7 +43,8 @@ public class AppointmentDayReminderJob : ITransientDependency
         IAppointmentRecipientResolver recipientResolver,
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
-        ILogger<AppointmentDayReminderJob> logger)
+        ILogger<AppointmentDayReminderJob> logger,
+        IClock clock)
     {
         _appointmentRepository = appointmentRepository;
         _tenantWorkRunner = tenantWorkRunner;
@@ -48,6 +52,7 @@ public class AppointmentDayReminderJob : ITransientDependency
         _backgroundJobManager = backgroundJobManager;
         _settingProvider = settingProvider;
         _logger = logger;
+        _clock = clock;
     }
 
     public const string RecurringJobId = "appt-day-reminder";
@@ -81,12 +86,17 @@ public class AppointmentDayReminderJob : ITransientDependency
             await _settingProvider.GetOrNullAsync(
                 CaseEvaluationSettings.RemindersPolicy.AppointmentDayTMinusAnchors));
 
-        var todayUtc = DateTime.UtcNow.Date;
+        // 2026-08-31: PACIFIC today. This was DateTime.UtcNow.Date, which is correct ONLY because
+        // the cron fires at 07:00 Pacific, when UTC is 14:00 the same day. Move the cron past 5pm
+        // Pacific -- or trigger this job manually in the evening -- and it silently used tomorrow,
+        // sending day-of reminders a day early. AppointmentDate is a calendar date, so both sides
+        // of the subtraction below are now Pacific wall-clock dates.
+        var todayPacific = PacificTime.TodayFrom(_clock.Now);
         var queryable = await _appointmentRepository.GetQueryableAsync();
         var eligible = queryable
             .Where(a => a.AppointmentStatus == AppointmentStatusType.Approved)
             .ToList()
-            .Where(a => cadence.ShouldFire((int)(a.AppointmentDate.Date - todayUtc).TotalDays))
+            .Where(a => cadence.ShouldFire((int)(a.AppointmentDate.Date - todayPacific).TotalDays))
             .ToList();
 
         var enqueued = 0;
@@ -95,7 +105,7 @@ public class AppointmentDayReminderJob : ITransientDependency
             var recipients = await _recipientResolver.ResolveAsync(
                 appointment.Id,
                 NotificationKind.AppointmentDayReminder);
-            var daysUntil = (int)(appointment.AppointmentDate.Date - todayUtc).TotalDays;
+            var daysUntil = (int)(appointment.AppointmentDate.Date - todayPacific).TotalDays;
             var when = daysUntil == 1 ? "tomorrow" : $"in {daysUntil} days";
             var subject = $"Reminder: appointment {appointment.RequestConfirmationNumber} {when}";
             var body = $"<p>Appointment confirmation #{appointment.RequestConfirmationNumber} is scheduled for {appointment.AppointmentDate:MMM d, yyyy h:mm tt}.</p><p>Please make any arrangements needed and confirm attendance.</p>";

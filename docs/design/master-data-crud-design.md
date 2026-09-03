@@ -50,6 +50,7 @@ source to match -- they are NEW enhancements and just need to work correctly.
 | States | No active route | `/states` |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` with `applicationModuleId: 9` (locations), various for others
 - NEW: `canActivate: [authGuard, permissionGuard]` per entity permissions (see Section 8)
 
@@ -69,7 +70,7 @@ Side-nav group: "Administration" or "Master Data" menu section.
 OLD uses a SINGLE page at `/locations` with radio buttons to toggle between
 "Location" and "Wcab" views. The table and Add form switch based on selection.
 
-```
+```text
 +----------------------------------------------------------+
 | [H2 "Location" or "WCAB Office"]   [Search]  [Reset]   |
 +----------------------------------------------------------+
@@ -145,7 +146,7 @@ OLD source: `doctor-management/locations/list/location-list.component.html:1-98`
 
 ### 4a. OLD List
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Document Type    [Search]  [Reset]     [Add +]     |
 +----------------------------------------------------------+
@@ -175,7 +176,7 @@ OLD source: `document/appointment-document-types/list/appointment-document-type-
 
 ### 5a. OLD List
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Documents        [Search]              [Add +]     |
 +----------------------------------------------------------+
@@ -227,6 +228,7 @@ NEW source: `angular/src/app/appointment-types/appointment-type/components/appoi
 ## 7. Surface: Appointment Statuses, Languages, States (NEW-only)
 
 These three entities have no OLD admin surfaces. They were seeded data in OLD:
+
 - **Appointment Statuses**: defined as `AppointmentStatusTypeEnums` in TS code (Pending=1 ... CancellationRequested=13).
 - **Languages**: seeded lookup data (English, Spanish, etc.).
 - **States**: US state lookup data (CA, TX, NY ...) used as dropdown in location forms.
@@ -253,6 +255,7 @@ Intake Staff had no access; Staff Supervisor and IT Admin did. NEW should gate t
 behind `CaseEvaluation.{Entity}.Create` / `Edit` / `Delete` permissions.
 
 Permission names for NEW:
+
 - `CaseEvaluation.AppointmentTypes.Create / Edit / Delete`
 - `CaseEvaluation.AppointmentStatuses.Create / Edit / Delete`
 - `CaseEvaluation.AppointmentLanguages.Create / Edit / Delete`

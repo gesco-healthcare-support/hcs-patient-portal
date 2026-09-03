@@ -35,7 +35,7 @@ No tabs, no sub-navigation.
 
 ## 3. Screen Layout
 
-```
+```text
 +-------------------------------------------+
 | [H2] System Parameters                    |
 +-------------------------------------------+

@@ -370,7 +370,7 @@ because seventeen workflows and a dozen green ticks read as a thorough pipeline.
 
 **One required status check name.** Not two, not eight.
 
-```
+```text
 Required status check:  ci / gate
 ```
 
@@ -399,7 +399,7 @@ The eight jobs behind the gate:
 
 Plus branch ruleset rules, which are not status checks:
 
-```
+```text
 Ruleset "main-protected", enforcement Active, bypass list EMPTY:
   - Require a pull request before merging
       - 1 required approval
@@ -924,50 +924,57 @@ All accessed 2026-08-28. This is the load-bearing subset; full per-claim citatio
 statement above.
 
 **Standards bodies**
-- NIST SP 800-218 (SSDF v1.1): https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218.pdf
-- OWASP ASVS 5.0.0: https://github.com/OWASP/ASVS
-- OWASP Top 10: https://owasp.org/Top10/
-- W3C WCAG 2.2: https://www.w3.org/TR/WCAG22/
-- W3C WAI on evaluation tools: https://www.w3.org/WAI/test-evaluate/tools/selecting/
+
+- NIST SP 800-218 (SSDF v1.1): <https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218.pdf>
+- OWASP ASVS 5.0.0: <https://github.com/OWASP/ASVS>
+- OWASP Top 10: <https://owasp.org/Top10/>
+- W3C WCAG 2.2: <https://www.w3.org/TR/WCAG22/>
+- W3C WAI on evaluation tools: <https://www.w3.org/WAI/test-evaluate/tools/selecting/>
 
 **GitHub**
-- Workflow syntax (`continue-on-error`): https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
-- About protected branches: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
-- Available rules for rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
-- Dependabot options reference: https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
-- Configuring Dependabot security updates: https://docs.github.com/en/code-security/dependabot/dependabot-security-updates/configuring-dependabot-security-updates
-- Secure use of Actions: https://docs.github.com/en/actions/reference/security/secure-use
-- CodeQL query help (C#): https://codeql.github.com/codeql-query-help/csharp/
+
+- Workflow syntax (`continue-on-error`): <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax>
+- About protected branches: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches>
+- Available rules for rulesets: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets>
+- Dependabot options reference: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference>
+- Configuring Dependabot security updates: <https://docs.github.com/en/code-security/dependabot/dependabot-security-updates/configuring-dependabot-security-updates>
+- Secure use of Actions: <https://docs.github.com/en/actions/reference/security/secure-use>
+- CodeQL query help (C#): <https://codeql.github.com/codeql-query-help/csharp/>
 
 **Microsoft**
-- .NET support policy: https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core
-- Code analysis overview (`AnalysisMode`): https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/overview
-- `AnalysisMode<Category>`: https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props#analysismodecategory
-- CA2100: https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2100
-- Choosing an EF Core testing strategy: https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy
-- EF Core SQLite limitations: https://learn.microsoft.com/en-us/ef/core/providers/sqlite/limitations
-- Managing migrations: https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing
-- NuGet package auditing: https://learn.microsoft.com/en-us/nuget/concepts/auditing-packages
-- ASP.NET Core host filtering: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/host-filtering
+
+- .NET support policy: <https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core>
+- Code analysis overview (`AnalysisMode`): <https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/overview>
+- `AnalysisMode<Category>`: <https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props#analysismodecategory>
+- CA2100: <https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2100>
+- Choosing an EF Core testing strategy: <https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy>
+- EF Core SQLite limitations: <https://learn.microsoft.com/en-us/ef/core/providers/sqlite/limitations>
+- Managing migrations: <https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing>
+- NuGet package auditing: <https://learn.microsoft.com/en-us/nuget/concepts/auditing-packages>
+- ASP.NET Core host filtering: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/host-filtering>
 
 **Angular / ABP**
-- Angular release policy and LTS: https://angular.dev/reference/releases
-- Angular hydration: https://angular.dev/guide/hydration
-- ABP 10.0 Angular quick start: https://abp.io/docs/10.0/framework/ui/angular/quick-start
-- ABP 10.0.2 Angular template manifest: https://raw.githubusercontent.com/abpframework/abp/10.0.2/templates/app/angular/package.json
-- ABP EF Core migrations and test harness: https://raw.githubusercontent.com/abpframework/abp/dev/docs/en/framework/data/entity-framework-core/migrations.md
+
+- Angular release policy and LTS: <https://angular.dev/reference/releases>
+- Angular hydration: <https://angular.dev/guide/hydration>
+- ABP 10.0 Angular quick start: <https://abp.io/docs/10.0/framework/ui/angular/quick-start>
+- ABP 10.0.2 Angular template manifest: <https://raw.githubusercontent.com/abpframework/abp/10.0.2/templates/app/angular/package.json>
+- ABP EF Core migrations and test harness: <https://raw.githubusercontent.com/abpframework/abp/dev/docs/en/framework/data/entity-framework-core/migrations.md>
 
 **Vulnerability data**
-- OSV: https://api.osv.dev/v1/query
-- GitHub Advisories: https://github.com/advisories
-- NVD: https://services.nvd.nist.gov/rest/json/cves/2.0
+
+- OSV: <https://api.osv.dev/v1/query>
+- GitHub Advisories: <https://github.com/advisories>
+- NVD: <https://services.nvd.nist.gov/rest/json/cves/2.0>
 
 **Regulation**
-- 45 CFR Part 164: https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164
-- NIST SP 800-66r2: https://csrc.nist.gov/pubs/sp/800/66/r2/final
-- DOJ Title II web accessibility rule: https://www.federalregister.gov/documents/2024/04/24/2024-07758/
+
+- 45 CFR Part 164: <https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164>
+- NIST SP 800-66r2: <https://csrc.nist.gov/pubs/sp/800/66/r2/final>
+- DOJ Title II web accessibility rule: <https://www.federalregister.gov/documents/2024/04/24/2024-07758/>
 
 **Other**
-- SQLite partial indexes: https://www.sqlite.org/partialindex.html
-- Core Web Vitals: https://web.dev/articles/vitals
-- Let's Encrypt challenge types: https://letsencrypt.org/docs/challenge-types/
+
+- SQLite partial indexes: <https://www.sqlite.org/partialindex.html>
+- Core Web Vitals: <https://web.dev/articles/vitals>
+- Let's Encrypt challenge types: <https://letsencrypt.org/docs/challenge-types/>
