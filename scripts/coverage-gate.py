@@ -34,6 +34,7 @@ import argparse
 import re
 import sys
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from pathlib import Path
 from typing import NoReturn
 
@@ -159,6 +160,37 @@ def parse_cobertura(path: Path, prefix: str) -> dict[str, dict[int, int]]:
     return per_file
 
 
+_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def _diff_target(line: str) -> str | None:
+    """Repo-relative path from a `+++ ` header, or None when there is no new side.
+
+    None means the submission DELETED the file, and a deleted line cannot be
+    covered by a test, so it must not join the changed set.
+    """
+    target = line[4:].strip()
+    if target == "/dev/null":
+        return None
+    if target.startswith("b/"):
+        target = target[2:]
+    return target.replace("\\", "/")
+
+
+def _hunk_lines(line: str) -> range:
+    """New-side line numbers a hunk header covers; empty range if it is not one.
+
+    Returning an empty range rather than None keeps the caller's loop flat --
+    `update(range(0))` is a no-op, so there is nothing to branch on.
+    """
+    m = _HUNK.match(line)
+    if not m:
+        return range(0)
+    start = int(m.group(1))
+    count = int(m.group(2)) if m.group(2) is not None else 1
+    return range(start, start + count)
+
+
 def parse_changed_lines(path: Path) -> dict[str, set[int]]:
     """Return {file: {line numbers added or modified}} from a unified diff.
 
@@ -167,24 +199,13 @@ def parse_changed_lines(path: Path) -> dict[str, set[int]]:
     side is read: a line the submission deletes cannot be covered by a test.
     """
     changed: dict[str, set[int]] = {}
-    hunk = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
     cur: set[int] | None = None
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         if line.startswith("+++ "):
-            target = line[4:].strip()
-            if target == "/dev/null":
-                cur = None            # a deletion has no new side
-                continue
-            if target.startswith("b/"):
-                target = target[2:]
-            cur = changed.setdefault(target.replace("\\", "/"), set())
+            target = _diff_target(line)
+            cur = None if target is None else changed.setdefault(target, set())
         elif line.startswith("@@") and cur is not None:
-            m = hunk.match(line)
-            if not m:
-                continue
-            start = int(m.group(1))
-            count = int(m.group(2)) if m.group(2) is not None else 1
-            cur.update(range(start, start + count))
+            cur.update(_hunk_lines(line))
     return changed
 
 
@@ -312,7 +333,7 @@ def report(label: str, found: int, hit: int, files: int, floor: float) -> bool:
     return pct >= floor
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--exclusions", default=".coverage-exclusions")
     ap.add_argument("--lcov", help="frontend lcov report")
@@ -330,25 +351,52 @@ def main() -> int:
     ap.add_argument("--measure-only", action="store_true",
                     help="print the figures and skip floor enforcement; for "
                          "establishing a baseline, never for gating")
-    args = ap.parse_args()
+    return ap
 
-    patterns = load_exclusions(Path(args.exclusions))
 
-    # MEASURE EVERY STACK BEFORE VALIDATING ANY FLOOR.
-    #
-    # These were one loop until 2026-09-03, and the ordering was a real defect.
-    # require_floor() calls die(), which exits the process immediately, and its
-    # message instructs the reader to "read the measured figure printed by this
-    # job and set the floor to it". Measuring after that check meant the figure
-    # was never printed: the instruction pointed at output that could not exist,
-    # and an unset backend floor also exited before the frontend was measured at
-    # all. The whole "the gate's first run fails and tells you the number" design
-    # rests on the figures reaching stdout first, so they are gathered here and
-    # judged below.
-    measured = []
-    # Pooled across stacks for the changed-lines floor below. Keys are
-    # repo-relative paths from normalise(), which is what makes them comparable
-    # with the diff's paths in the first place.
+def measure_stack(label: str, path_arg: str, prefix: str, parser: Callable[[Path, str], dict[str, dict[int, int]]],
+                  patterns: list[re.Pattern[str]],
+                  measure_only: bool) -> tuple[int, int, int, dict[str, dict[int, int]]]:
+    """Read one stack's report and PRINT its figure. Returns (found, hit, files, per_file)."""
+    path = Path(path_arg)
+    require_report(path, label)
+    try:
+        per_file = parser(path, prefix)
+    except Exception as exc:  # noqa: BLE001 -- any parse failure is a gate failure
+        die(f"{label} coverage report at {path} could not be parsed: {exc}")
+    found, hit, files = summarise(per_file, patterns)
+    pct = (hit / found * 100) if found else 0.0
+    if measure_only:
+        print(f"{label}: {pct:.2f}% ({hit}/{found} lines over {files} files) "
+              "[measure-only, not gated]")
+    else:
+        # "measured" distinguishes this from report()'s verdict line, which
+        # repeats the figure next to the floor. The repetition is deliberate:
+        # this is the line that survives an unset-floor exit, and the one the
+        # error message tells the reader to copy the floor from.
+        print(f"{label}: measured {pct:.2f}% ({hit}/{found} lines over {files} files)")
+    return found, hit, files, per_file
+
+
+def measure_all(args: argparse.Namespace,
+                patterns: list[re.Pattern[str]]) -> tuple[list[tuple], dict[str, dict[int, int]]]:
+    """MEASURE EVERY STACK BEFORE VALIDATING ANY FLOOR.
+
+    Measuring and judging were one loop until 2026-09-03, and the ordering was a
+    real defect. require_floor() calls die(), which exits the process
+    immediately, and its message instructs the reader to "read the measured
+    figure printed by this job and set the floor to it". Measuring after that
+    check meant the figure was never printed: the instruction pointed at output
+    that could not exist, and an unset backend floor also exited before the
+    frontend was measured at all. The whole "the gate's first run fails and tells
+    you the number" design rests on the figures reaching stdout first, so they
+    are gathered here and judged by the caller.
+
+    The returned coverage map is POOLED across stacks for the changed-lines
+    floor. Keys are repo-relative paths from normalise(), which is what makes
+    them comparable with the diff's paths in the first place.
+    """
+    measured: list[tuple] = []
     coverage_by_file: dict[str, dict[int, int]] = {}
     for label, path_arg, prefix, floor_arg, parser in (
         ("backend", args.cobertura, args.cobertura_prefix, args.floor_backend, parse_cobertura),
@@ -356,26 +404,81 @@ def main() -> int:
     ):
         if path_arg is None:
             continue
-        path = Path(path_arg)
-        require_report(path, label)
-        try:
-            per_file = parser(path, prefix)
-        except Exception as exc:  # noqa: BLE001 -- any parse failure is a gate failure
-            die(f"{label} coverage report at {path} could not be parsed: {exc}")
-        found, hit, files = summarise(per_file, patterns)
-        pct = (hit / found * 100) if found else 0.0
-        if args.measure_only:
-            print(f"{label}: {pct:.2f}% ({hit}/{found} lines over {files} files) "
-                  "[measure-only, not gated]")
-        else:
-            # "measured" distinguishes this from report()'s verdict line, which
-            # repeats the figure next to the floor. The repetition is deliberate:
-            # this is the line that survives an unset-floor exit, and the one the
-            # error message tells the reader to copy the floor from.
-            print(f"{label}: measured {pct:.2f}% ({hit}/{found} lines over {files} files)")
+        found, hit, files, per_file = measure_stack(
+            label, path_arg, prefix, parser, patterns, args.measure_only)
         measured.append((label, found, hit, files, floor_arg))
         coverage_by_file.update(per_file)
+    return measured, coverage_by_file
 
+
+def load_changed_diff(path_arg: str) -> dict[str, set[int]]:
+    """Parse the changed-lines diff, distinguishing MISSING from EMPTY.
+
+    Deliberately NOT require_report(). That helper treats an empty file as a
+    failure, which is right for a coverage report -- an empty one means the suite
+    produced nothing -- and wrong for a diff. The two absences mean opposite
+    things here:
+      file missing -> the workflow never computed it, the gate is miswired, and a
+                      miswired gate must fail rather than skip.
+      file empty   -> the submission genuinely changes nothing against the base.
+                      That is the empty case the changed-files pattern requires
+                      to exit 0, not a defect.
+    """
+    diff_path = Path(path_arg)
+    if not diff_path.is_file():
+        die(f"changed-lines diff not found at {diff_path}. The workflow "
+            "computes this before invoking the gate, so its absence means "
+            "the gate was wired wrong. Failing rather than skipping: a "
+            "skipped check is indistinguishable from a passing one.")
+    try:
+        return parse_changed_lines(diff_path)
+    except Exception as exc:  # noqa: BLE001 -- a parse failure is a gate failure
+        die(f"changed-lines diff at {diff_path} could not be parsed: {exc}")
+
+
+def enforce_changed_lines(args: argparse.Namespace,
+                          coverage_by_file: dict[str, dict[int, int]],
+                          patterns: list[re.Pattern[str]]) -> bool:
+    """THE CHANGED-LINES FLOOR. Returns whether it passed.
+
+    Both stacks are pooled into one verdict rather than judged separately,
+    because the requirement is about the submission, not about a stack: "WHEN the
+    lines a pull request changes are covered at less than 90%". A PR touching
+    both sides gets one number, which is also what SonarCloud's new-code metric
+    reports.
+    """
+    changed = load_changed_diff(args.changed_diff)
+    floor = require_floor(args.floor_changed, "changed-lines")
+
+    blind = unmeasured_changed(coverage_by_file, changed, patterns)
+    if blind:
+        print(f"changed-lines: NOTE -- {len(blind)} changed source file(s) have "
+              "no coverage record at all and are invisible to this floor "
+              "(no spec reaches them), e.g. " + ", ".join(blind[:3]))
+
+    coverable, hit, files = summarise_changed(coverage_by_file, changed, patterns)
+    if coverable == 0:
+        # Passes deliberately, and this is NOT the absent-input hole the rest of
+        # this gate guards against. There the report was missing; here the
+        # reports were read and genuinely contain no coverable line this
+        # submission changed -- a docs-only or config-only PR. Failing those
+        # would make the gate impossible to satisfy honestly.
+        print("changed-lines: no coverable changed lines in this submission "
+              "-> nothing to enforce")
+        return True
+
+    pct = hit / coverable * 100
+    verdict = "PASS" if pct >= floor else "FAIL"
+    print(f"changed-lines: {pct:.2f}% ({hit}/{coverable} changed coverable "
+          f"lines over {files} files) floor {floor:.2f}% -> {verdict}")
+    return pct >= floor
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    patterns = load_exclusions(Path(args.exclusions))
+
+    measured, coverage_by_file = measure_all(args, patterns)
     if args.measure_only:
         return 0
 
@@ -384,56 +487,8 @@ def main() -> int:
         floor = require_floor(floor_arg, label)
         ok = report(label, found, hit, files, floor) and ok
 
-    # THE CHANGED-LINES FLOOR.
-    #
-    # Both stacks are pooled into one verdict rather than judged separately,
-    # because the requirement is about the submission, not about a stack: "WHEN
-    # the lines a pull request changes are covered at less than 90%". A PR
-    # touching both sides gets one number, which is also what SonarCloud's
-    # new-code metric reports.
     if args.changed_diff is not None:
-        diff_path = Path(args.changed_diff)
-        # Deliberately NOT require_report(). That helper treats an empty file as
-        # a failure, which is right for a coverage report -- an empty one means
-        # the suite produced nothing -- and wrong for a diff. The two absences
-        # mean opposite things here:
-        #   file missing -> the workflow never computed it, the gate is miswired,
-        #                   and a miswired gate must fail rather than skip.
-        #   file empty   -> the submission genuinely changes nothing against the
-        #                   base. That is the empty case the changed-files
-        #                   pattern requires to exit 0, not a defect.
-        if not diff_path.is_file():
-            die(f"changed-lines diff not found at {diff_path}. The workflow "
-                "computes this before invoking the gate, so its absence means "
-                "the gate was wired wrong. Failing rather than skipping: a "
-                "skipped check is indistinguishable from a passing one.")
-        try:
-            changed = parse_changed_lines(diff_path)
-        except Exception as exc:  # noqa: BLE001 -- a parse failure is a gate failure
-            die(f"changed-lines diff at {diff_path} could not be parsed: {exc}")
-        floor = require_floor(args.floor_changed, "changed-lines")
-
-        blind = unmeasured_changed(coverage_by_file, changed, patterns)
-        if blind:
-            print(f"changed-lines: NOTE -- {len(blind)} changed source file(s) have "
-                  "no coverage record at all and are invisible to this floor "
-                  "(no spec reaches them), e.g. " + ", ".join(blind[:3]))
-
-        coverable, hit, files = summarise_changed(coverage_by_file, changed, patterns)
-        if coverable == 0:
-            # Exits 0 deliberately, and this is NOT the absent-input hole the
-            # rest of this gate guards against. There the report was missing;
-            # here the reports were read and genuinely contain no coverable line
-            # this submission changed -- a docs-only or config-only PR. Failing
-            # those would make the gate impossible to satisfy honestly.
-            print("changed-lines: no coverable changed lines in this submission "
-                  "-> nothing to enforce")
-        else:
-            pct = hit / coverable * 100
-            verdict = "PASS" if pct >= floor else "FAIL"
-            print(f"changed-lines: {pct:.2f}% ({hit}/{coverable} changed coverable "
-                  f"lines over {files} files) floor {floor:.2f}% -> {verdict}")
-            ok = (pct >= floor) and ok
+        ok = enforce_changed_lines(args, coverage_by_file, patterns) and ok
 
     return 0 if ok else 1
 
