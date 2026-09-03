@@ -58,7 +58,7 @@ should be available to all authenticated users).
 
 ## 3. OLD Query Modal
 
-```
+```text
 +---------------------------------------------+
 | Need Question?                        [X]   |
 | "If you have any further inquiries,         |

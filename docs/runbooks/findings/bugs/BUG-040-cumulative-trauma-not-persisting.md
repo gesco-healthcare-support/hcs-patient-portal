@@ -32,7 +32,7 @@ In Phase 3.6 (cumulative-trauma single-injury booking), the Playwright driver:
 
 DB inspection of the resulting injury row:
 
-```
+```text
 IsCumulativeInjury | DateOfInjury | ToDateOfInjury
 0                  | 2025-06-01   | NULL
 ```

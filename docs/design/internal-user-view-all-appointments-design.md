@@ -44,7 +44,7 @@ Side-nav item: "Appointments" (or similar) under the main navigation.
 
 ## 3. OLD Page Layout
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] All Appointments  [Search input] [Sync]         |
 | [Advanced Search accordion]                          |

@@ -22,7 +22,7 @@
 - **Deliverable:** a findings report (Section 9). Lead with answers, then
   evidence, then an options matrix with trade-offs. **Do not pick a winner.**
 
-### How to use this document (adaptability clause)
+## How to use this document (adaptability clause)
 
 Section 3 lists findings **already confirmed** on 2026-05-27. They exist so
 you extend and validate rather than rediscover from zero. **They are
@@ -206,7 +206,7 @@ content as a lead, not truth; verify against `docker-compose.yml`.
 
 Verbatim signature, for reference:
 
-```
+```text
 ...Microsoft.NET.Sdk.targets(308,5): error MSB4018:
   at ...DependencyContextBuilder.GetRuntimeLibrary(...)
   at ...GenerateDepsFile.WriteDepsFile(String depsFilePath)

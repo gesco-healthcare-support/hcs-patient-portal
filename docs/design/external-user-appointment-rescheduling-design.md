@@ -66,7 +66,7 @@ Angular Material dialog host -- use a discriminator `@Input() mode: 'submit' | '
 
 ### 3a. Submit State (`mode = 'submit'`, `applyRescheduleRequest = true`)
 
-```
+```text
 +------------------------------------------------------------------+
 | [H] Re-Schedule Request                    [x close]            |
 |     Do you want to Re-Schedule an appointment?                   |
@@ -101,7 +101,7 @@ Angular Material dialog host -- use a discriminator `@Input() mode: 'submit' | '
 Rendered when a Beyond-Limit reschedule's JAL document was rejected by supervisor
 and the user needs to re-submit a corrected document.
 
-```
+```text
 +------------------------------------------------------------------+
 | [H] Re-Schedule Request                    [x close]            |
 +------------------------------------------------------------------+

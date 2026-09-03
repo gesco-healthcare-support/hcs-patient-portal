@@ -370,7 +370,7 @@ because seventeen workflows and a dozen green ticks read as a thorough pipeline.
 
 **One required status check name.** Not two, not eight.
 
-```
+```text
 Required status check:  ci / gate
 ```
 
@@ -399,7 +399,7 @@ The eight jobs behind the gate:
 
 Plus branch ruleset rules, which are not status checks:
 
-```
+```text
 Ruleset "main-protected", enforcement Active, bypass list EMPTY:
   - Require a pull request before merging
       - 1 required approval

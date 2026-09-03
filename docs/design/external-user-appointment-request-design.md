@@ -46,7 +46,7 @@ Internal users do not see a Back button.
 
 ## 3. Page Header
 
-```
+```text
 New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset][Back]
 ```
 
@@ -60,7 +60,7 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 
 ## 4. Section 1: Appointment Details
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Appointment Details                      |
 +-----------------------------------------------+
@@ -123,7 +123,7 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 
 ## 5. Section 2: Patient Demographics
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Patient Demographics                     |
 +-----------------------------------------------+
@@ -218,7 +218,7 @@ All fields are under `formGroupName="patient"`.
 
 ## 6. Section 3: Employer Details
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Employer Details                         |
 +-----------------------------------------------+
@@ -243,7 +243,7 @@ The most complex section. Uses an in-page Bootstrap modal (`#myModal`) rather th
 a separate popup dialog. The main page shows a summary table of added injuries;
 clicking "Add +" or "Edit Claim" opens the modal overlay.
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Claim Information        [Add + button]  |
 |   "Please add injury and body part details"   |  <- warning if isInjuryDetailExist
@@ -256,7 +256,7 @@ clicking "Add +" or "Edit Claim" opens the modal overlay.
 
 The Bootstrap modal (`#myModal`) contains:
 
-```
+```text
 +-----------------------------------------------+
 | [Modal] Claim Information               [X]  |
 | --- Claim Info sub-card ---                  |
@@ -342,7 +342,7 @@ The Bootstrap modal (`#myModal`) contains:
 
 Visible only when `showFormBaseOnRole` is true (non-Adjuster roles; TO VERIFY exact condition).
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Additional Authorized User  [Add button] |
 +-----------------------------------------------+
@@ -363,7 +363,7 @@ Visible only when `showFormBaseOnRole` is true (non-Adjuster roles; TO VERIFY ex
 
 Visible only when `showFormBaseOnRole` is true.
 
-```
+```text
 +-----------------------------------------------+
 | [H5] Applicant Attorney Details  [toggle]     |
 +-----------------------------------------------+
@@ -388,7 +388,7 @@ Visible only when `showFormBaseOnRole` is true.
 
 Visible only when `showFormBaseOnRole` is true.
 
-```
+```text
 +-----------------------------------------------+
 | [H5] Defense Attorney Details  [toggle]       |
 +-----------------------------------------------+
@@ -408,7 +408,7 @@ Visible only when `showFormBaseOnRole` is true.
 Visible only when `isCustomeFileds` is true (set when `SystemParameter.IsCustomField == true`
 AND the appointment type has configured custom fields).
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Additional Details                       |
 +-----------------------------------------------+

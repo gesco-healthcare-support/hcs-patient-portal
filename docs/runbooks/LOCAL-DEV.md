@@ -25,7 +25,7 @@ Never skip this order. Race conditions at startup cause silent permission-seedin
 
 **Symptom:**
 
-```
+```text
 System.IO.FileLoadException: Could not load file or assembly
 'Microsoft.Data.SqlClient.SNI.dll'
 ```
@@ -52,7 +52,7 @@ System.IO.FileLoadException: Could not load file or assembly
 
 **Symptom:** Browser console shows:
 
-```
+```text
 NullInjectorError: R3InjectorError(Standalone[AppComponent])
   [CORE_OPTIONS -> CORE_OPTIONS]:
     NullInjectorError: No provider for CORE_OPTIONS!

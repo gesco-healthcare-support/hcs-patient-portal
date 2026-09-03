@@ -61,7 +61,7 @@ Intake Staff, Staff Supervisor, and IT Admin all use this shell.
 
 ## 3. Pending Appointments List (OLD)
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Pending Appointments     [Search input] [Sync]  |
 | [Advanced Search accordion]                          |
@@ -94,7 +94,7 @@ OLD source: `detail/appointment-detail.component.html:1-153`,
 
 One `AppointmentViewComponent` handles all three actions:
 
-```
+```text
 +---------------------------------------------+
 | [Modal header: Approve/Reject Appointment]  |
 +---------------------------------------------+
@@ -155,7 +155,7 @@ In NEW, staff navigate to the full appointment-view page and use the action drop
 Visible only when `canTakeOfficeAction` is true (Intake Staff / Staff Supervisor / IT Admin
 on Pending or AwaitingMoreInfo appointments):
 
-```
+```text
 +---------------------------------------------+
 | Choose Action  [dropdown v]   [Submit]      |
 +---------------------------------------------+
@@ -178,7 +178,7 @@ NEW source: `appointment-view.component.html` (action dropdown section),
 
 ### 5b. Approve Confirmation Modal (IMPLEMENTED)
 
-```
+```text
 +---------------------------------------------+
 | Approve Appointment                   [X]   |
 +---------------------------------------------+
@@ -207,7 +207,7 @@ NEW source: `approve-confirmation-modal.component.html:1-20`,
 
 ### 5c. Reject Appointment Modal (IMPLEMENTED)
 
-```
+```text
 +---------------------------------------------+
 | Reject Appointment                    [X]   |
 +---------------------------------------------+
@@ -246,7 +246,7 @@ import { SendBackAppointmentModalComponent } from './send-back-appointment-modal
 
 **Expected behavior** (from view template + component logic):
 
-```
+```text
 +---------------------------------------------+
 | Send Back Appointment                 [X]   |
 +---------------------------------------------+

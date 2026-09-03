@@ -61,7 +61,7 @@ Launched from two entry points: appointment-view page and check-in/check-out lis
 
 ## 3. OLD Notes Popup Layout
 
-```
+```text
 +--------------------------------------------------+
 | Notes                                  [X]       |
 +--------------------------------------------------+
@@ -177,7 +177,7 @@ OLD source: `appointments/info/appointment-info.component.ts:146-180`
 In OLD, `Note.parentNoteId` stores the **current user's ID** (not a note parent/thread ID).
 The name is misleading. It is used for the "own notes only" edit/delete check:
 
-```
+```html
 *ngIf="noteFormGroup.value.parentNoteId == item.createdById"
 ```
 

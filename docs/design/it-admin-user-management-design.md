@@ -57,7 +57,7 @@ ABP LeptonX renders the identity pages inside the standard shell automatically.
 
 ### 3a. Users List Page
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Users                        [Search input] [X] |
 +-------------------------------------------------------+
@@ -93,7 +93,7 @@ Both Add and Edit reuse the same popup. Header changes based on operation:
 - Add: "Add User Details"
 - Edit: "Edit User Details"
 
-```
+```text
 +-----------------------------------+
 | Add/Edit User Details       [X]  |
 | {{bodyContent}}                  |

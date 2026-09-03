@@ -29,7 +29,7 @@ WHERE ClaimExaminerEmail IN ('claimE1@gesco.com','claime1@gesco.com')
 
 API result (`GET /api/app/appointments?MaxResultCount=100` as claimE1):
 
-```
+```text
 totalCount: 4
 confNums: [A00001, A00002, A00003, A00004]
 ```

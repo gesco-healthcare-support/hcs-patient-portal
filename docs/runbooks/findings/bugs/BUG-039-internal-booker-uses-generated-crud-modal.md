@@ -40,7 +40,7 @@ component: angular/src/app/appointments/appointment/components/appointment.compo
 >
 > **Related:** [[BUG-038]] (`/appointments/add` route missing permissionGuard) -- complementary; both touch the same internal-vs-external split.
 
-# OBS-19 - Internal booker has a different create flow than external roles
+## OBS-19 - Internal booker has a different create flow than external roles
 
 ## Symptom
 

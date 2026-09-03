@@ -173,6 +173,7 @@ Reactive Forms).
 ```
 
 Per-feature design docs cite "form-field" pattern + the label string
+
 - the validation message string (verbatim from OLD).
 
 ## Modals (`<rx-dialog>` -> `<app-confirm-dialog>`)
@@ -307,6 +308,7 @@ Toggle classes: `loadin` / `loadout` (`spinner.css`:34, 57-58).
 ### NEW spinner mapping
 
 NEW uses ABP's `LoaderBar` (top-page progress bar, default in LeptonX)
+
 - optional `LoaderService` for full-page overlays. Per-feature design
 docs decide which to use:
 

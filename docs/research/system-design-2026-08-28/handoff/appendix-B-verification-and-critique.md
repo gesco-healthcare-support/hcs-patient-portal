@@ -220,9 +220,9 @@ Verdict: **material-errors**. Claims checked: 52.
 
 - [38] Both statistics (21 of 33 implementations; ~97% of transparent-cache users) are unverifiable: dl.acm.org returns HTTP 403 to automated retrieval. Precise-sounding figures behind a paywalled DOI should not be carried into a deliverable a reader cannot check.
 
-- [27][28] The cited RFC 4592 mirror (rfc-annotations.research.icann.org) returned HTTP 503 on repeated attempts. The substance is correct and confirmed at rfc-editor.org, but the empty-non-terminal DNS requirement  -  one of the more consequential and least intuitive requirements in the set  -  currently points at an unreachable host.
+- \[27\]\[28\] The cited RFC 4592 mirror (rfc-annotations.research.icann.org) returned HTTP 503 on repeated attempts. The substance is correct and confirmed at rfc-editor.org, but the empty-non-terminal DNS requirement  -  one of the more consequential and least intuitive requirements in the set  -  currently points at an unreachable host.
 
-- [17][21][33][34][37] A recurring pattern: each of these claims bundles a correct, verbatim-confirmed fact with a second threshold or prescription that the cited page does not contain (ALB's 'no Host setting in the settings list'; GCP's '--host defaults to the forwarding rule IP'; the ASP.NET template '"AllowedHosts": "*"' and subdomain-wildcard semantics; ABP's '__tenant' default key and CurrentUserTenantResolveContributor; OWASP's 'validate on every request and reject unexpected hostnames'). Each needs its own citation or must be dropped.
+- \[17\]\[21\]\[33\]\[34\]\[37\] A recurring pattern: each of these claims bundles a correct, verbatim-confirmed fact with a second threshold or prescription that the cited page does not contain (ALB's 'no Host setting in the settings list'; GCP's '--host defaults to the forwarding rule IP'; the ASP.NET template '"AllowedHosts": "*"' and subdomain-wildcard semantics; ABP's '__tenant' default key and CurrentUserTenantResolveContributor; OWASP's 'validate on every request and reject unexpected hostnames'). Each needs its own citation or must be dropped.
 
 ### Vendor-neutrality findings (3)
 
@@ -430,7 +430,7 @@ Verdict: **material-errors**. Claims checked: 45.
 
 ---
 
-# Appendix B2: completeness and portfolio critique
+## Appendix B2: completeness and portfolio critique
 
 ## The three decisions, as the critique ranked them
 

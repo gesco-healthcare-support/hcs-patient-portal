@@ -184,7 +184,7 @@ Two tests run sequentially against `replicate-old-app` AuthServer
 
 SQL probe of `OpenIddictTokens` post-tests:
 
-```
+```text
 Status     Cnt
 redeemed    2
 valid       3

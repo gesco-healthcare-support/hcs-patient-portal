@@ -10,7 +10,7 @@ The Application Service layer orchestrates use cases by coordinating domain serv
 
 ## Base Class
 
-```
+```text
 CaseEvaluationAppService : ApplicationService
 ```
 
@@ -347,7 +347,7 @@ This service manages the doctor-as-tenant lifecycle. When a new doctor is create
 
 ### Overridden Method: CreateAsync
 
-```
+```text
 override CreateAsync(SaasTenantCreateDto input) -> SaasTenantDto
 ```
 
@@ -377,7 +377,7 @@ This service extends ABP's built-in user management to keep `Doctor` entities in
 
 ### Overridden Method: UpdateAsync
 
-```
+```text
 override UpdateAsync(Guid id, IdentityUserUpdateDto input) -> IdentityUserDto
 ```
 
@@ -427,7 +427,7 @@ Services frequently return `*WithNavigationPropertiesDto` types that bundle an e
 
 **Example flow:**
 
-```
+```text
 AppService.GetListAsync(input)
   -> Repository.GetListWithNavigationPropertiesAsync(...)    // Single SQL query with JOINs
   -> returns List<AppointmentWithNavigationProperties>       // Domain container

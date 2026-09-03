@@ -183,7 +183,7 @@ Mirrors the status report's Stage 1 with file-level scope. Total effort: 17-27 w
 **Plans:** Umbrella `docs/plans/2026-05-15-slot-generation-rework.md` + six phase docs `docs/plans/SlotGenerationRework/2026-05-15-slot-rework-phase-{1-6}-*.md`  
 **Sequence (hard chain, declared in each plan's frontmatter):**
 
-```
+```text
 Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
   → Phase 3 (generation API) → Phase 4 (gen UI) → Phase 5 (picker UI) → Phase 6 (tests)
 ```

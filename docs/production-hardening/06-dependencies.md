@@ -80,7 +80,7 @@ Land these last and alone, with the full frontend suite behind them.
 
 ## Validation loop
 
-```
+```bash
 npx ng build
 npx ng test --watch=false --browsers=ChromeHeadless
 ```

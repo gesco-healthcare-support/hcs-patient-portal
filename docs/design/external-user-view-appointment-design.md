@@ -66,7 +66,7 @@ the view component is shared -- the shell switches per role.
 
 ### 3a. Layout
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] My Appointments                                 |
 | [Advanced Search -- collapsible accordion card]      |
@@ -148,7 +148,7 @@ Token definitions: `_design-tokens.md` (status colors section).
 
 ## 4. Appointment View Page -- Header
 
-```
+```text
 +---------------------------------------------------------------------+
 | [H2] {AppointmentType} Appointment  [Status badge]                 |
 |     > {FirstName} {LastName}                                        |
@@ -211,7 +211,7 @@ OLD source: `edit/appointment-edit.component.html:9-19, 969-1007`
 
 All fields read-only (disabled) for external users in standard view.
 
-```
+```text
 +---------------------------------------------+
 | Appointment Details                         |
 | Status: [badge]                             |
@@ -403,7 +403,7 @@ OLD source: `edit/appointment-edit.component.html:939-965`
 
 When status = AwaitingMoreInfo and a latest unresolved send-back exists:
 
-```
+```text
 +---------------------------------------------+
 | Fields Needing Review                       |
 | Note: "{staffNote}"                         |

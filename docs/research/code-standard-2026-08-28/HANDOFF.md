@@ -93,7 +93,7 @@ Attach `code-standard-gap-analysis.md`, `remediation-plan.md` and
 `research-method-and-analysis.md` at minimum. Attach the appendices if the session will be
 challenging specific claims. Then paste:
 
-```
+```text
 I commissioned a research project on production code standards and I am handing the results back
 to you. Attached are the deliverables and the supporting record.
 

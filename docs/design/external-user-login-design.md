@@ -50,7 +50,7 @@ the app's brand colors; custom logo/background image can be configured via Lepto
 
 ## 3. OLD Login Form
 
-```
+```text
 +-------------------------------------------------------+
 | [Doctor Logo -- centered]                            |
 +-------------------------------------------------------+
@@ -130,7 +130,7 @@ OLD source: `login/login.component.ts:78-120`,
 
 ## 6. Post-Login Redirect Guard
 
-```
+```text
 W:\patient-portal\replicate-old-app\angular\src\app\shared\auth\post-login-redirect.guard.ts
 ```
 

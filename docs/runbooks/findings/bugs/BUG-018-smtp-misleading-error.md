@@ -22,7 +22,7 @@ medium (operationally important: makes triaging email-delivery failures slow bec
 
 After Workflow B successfully delivered 7 emails at ~20:05, Workflow C's approval at ~20:17 triggered another 7 emails. ALL 7 of Workflow C's emails failed with this warning in the api logs:
 
-```
+```text
 [WRN] SendAppointmentEmailJob: SMTP delivery failed (StatusChange/Approved/Stakeholders/...)
        to SoftwareSix@gesco.com.
        Configure ACS credentials to deliver. Job will not retry until Attempts policy is raised.

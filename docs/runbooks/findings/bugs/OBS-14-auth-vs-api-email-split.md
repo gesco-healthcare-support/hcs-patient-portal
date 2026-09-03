@@ -34,7 +34,7 @@ The 500 the original observation saw at `POST http://falkinstein.localhost:44327
 
 ### Pipeline reality (one path below the trigger)
 
-```
+```text
 AUTH FLOW  (AuthServer Razor + AbpAccountPublic* routes on port 44368)
   CaseEvaluationAccountEmailer.SendXAsync
     -> Render via TemplateVariableSubstitutor (NotificationTemplate repo + ##Var## placeholders)

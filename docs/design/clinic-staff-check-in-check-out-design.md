@@ -53,7 +53,7 @@ Side-nav item: "Check-In / Check-Out" or "Today's Appointments".
 
 ## 3. OLD Page Layout
 
-```
+```text
 +--------------------------------------------------------------+
 | [H2] Check-in & Check-out Appointments (N) Date: MM-DD-YYYY |
 |                                [Search input] [Sync reset]   |
@@ -150,7 +150,7 @@ OLD source: `appointment-list.component.html:82-128`
 
 ## 8. Status Transition Flow
 
-```
+```text
 Approved (2)
   ├── [Check In]   → CheckedIn (9)
   │                     └── [Check Out] → CheckedOut (10)

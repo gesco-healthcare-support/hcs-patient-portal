@@ -67,7 +67,7 @@ Access is gated to `StaffSupervisor` and `ITAdmin` roles only (see Section 8).
 
 ### 3a. Reschedule Requests Page
 
-```
+```text
 +------------------------------------------------------------------+
 | [H2] Reschedule Requests                                        |
 |   [Toggle] Reschedule Requests till Date  [Search] [Clear icon] |
@@ -94,7 +94,7 @@ OLD source: `list/appointment-change-request-list.component.html:1-159`
 
 ### 3b. Cancel Requests Page
 
-```
+```text
 +------------------------------------------------------------------+
 | [H2] Cancel Requests                                            |
 |   [Toggle] Cancellation Requests till Date  [Search] [Clear]   |
@@ -162,7 +162,7 @@ OLD source: `detail/appointment-change-request-detail.component.html:34-84`
 
 **Reschedule action column** (both approve + reject icons):
 
-```
+```text
 if (showButtonBaseOnRole) {
   // Beyond-limit path: JAL must be Accepted before supervisor can act
   if (event.documentStatusId == Accepted && event.isBeyodLimitId) {
@@ -180,7 +180,7 @@ OLD source: `list/appointment-change-request-list.component.html:124-150`
 
 **Cancel action column** (approve icon only, NO reject):
 
-```
+```text
 if (showButtonBaseOnRole) {
   show approve  [only if event.RequestStatusId == Pending]
 }

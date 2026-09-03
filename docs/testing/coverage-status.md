@@ -43,6 +43,7 @@ Plus framework-scaffold tests in `Domain.Tests/Samples/SampleDomainTests.cs`,
 `Application.Tests/Samples/SampleAppServiceTests.cs`,
 `EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs`,
 and the seed-sanity tests `Application.Tests/SeedContributor/Wave2SeedSanityTests.cs`
+
 - its EfCore mirror.
 
 ### Not yet covered (7 entities)
@@ -72,7 +73,7 @@ harness is tracked separately and is out of scope for this doc.
 
 From the repo root, in Git Bash:
 
-```
+```bash
 # [Fact] count -- expect ~113 currently
 grep -rcP '\[Fact' test/ --include='*.cs' | awk -F: '{s+=$2} END{print s}'
 

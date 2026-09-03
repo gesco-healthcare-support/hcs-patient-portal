@@ -61,7 +61,7 @@ Every external user that lands on `/Account/ConfirmUser` after attempting login 
 
 Server log:
 
-```
+```text
 [INF] Request starting HTTP/1.1 POST /api/account/send-email-confirmation-token
 [INF] CORS policy execution failed.
 [INF] Request origin http://falkinstein.localhost:44368 does not have permission to access the resource.
@@ -70,7 +70,7 @@ Server log:
 
 **Root cause:** the AuthServer's `App__CorsOrigins` env var in `docker-compose.yml:152` is set to:
 
-```
+```text
 http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT:-44327},
 http://*.localhost:${NG_PORT:-4200},http://*.localhost:${API_PORT:-44327}
 ```
@@ -87,7 +87,7 @@ App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT
 
 After fixing Layer 1, the same POST still returned 400 empty body. Server log:
 
-```
+```text
 [INF] CORS policy execution successful.
 [INF] Identity.Application was not authenticated. Failure message: Unprotect ticket failed
 [INF] Executing StatusCodeResult, setting HTTP status code 400

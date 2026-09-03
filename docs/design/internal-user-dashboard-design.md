@@ -58,7 +58,7 @@ The dashboard is the default landing page after login for all internal roles.
 
 Responsive Bootstrap grid: `col-sm-6 col-xl-3` (4 cards per row on desktop, 2 per row on tablet).
 
-```
+```text
 +-----+-----+-----+-----+
 |  1  |  2  |  3  |  4  |
 +-----+-----+-----+-----+
@@ -127,7 +127,7 @@ OLD source: `dashboard/dashboard.service.ts` (role-aware query in POST body)
 
 ABP commercial analytics widgets; no appointment-specific counters.
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Dashboard                                       |
 | [Date Range Picker]                                  |
@@ -152,7 +152,7 @@ NEW source: `dashboard/host-dashboard/host-dashboard.component.html`
 Bootstrap grid: `col-md-3 col-sm-6` (4 cards per row on desktop).
 Placeholder cards styled with `.placeholder-card` CSS class.
 
-```
+```text
 +--------+--------+--------+--------+
 | Pend.  | Approv.| Reject.| Pend.  |
 | Req.   | Week   | Week   | Change |

@@ -231,7 +231,7 @@ composing a URL from it.
 
 Angular-only changes for 1.1-1.3, Python for 1.4. Per `~/.claude/rules/testing.md`:
 
-```
+```bash
 npx ng build
 npx ng test --watch=false --browsers=ChromeHeadless
 npx ng lint

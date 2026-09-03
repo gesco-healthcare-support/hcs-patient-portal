@@ -53,7 +53,7 @@ The "data lost" dialog text was from `ApplicationConfiguration.get("validation.m
 
 The `checkLock()` call was present in `page-access.ts` but **commented out**:
 
-```
+```text
 //    var lockRecord = { applicationModuleId: ..., childModuleName: ..., mainRecordId: ... };
 //    this.authorizationService.checkLock(lockRecord).subscribe(t => {
 ```

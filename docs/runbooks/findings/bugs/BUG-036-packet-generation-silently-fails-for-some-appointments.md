@@ -21,7 +21,7 @@ AME / Panel-QME (the only types that also generate `Kind=3 AttyCE`).
 
 DB observation:
 
-```
+```sql
 SELECT a.RequestConfirmationNumber, p.Kind, p.[Status]
 FROM AppAppointments a LEFT JOIN AppAppointmentPackets p ON p.AppointmentId = a.Id
 WHERE a.IsDeleted = 0 AND a.AppointmentStatus = 2
@@ -40,7 +40,7 @@ A00004 has ZERO packet rows.
 
 Hangfire job ledger:
 
-```
+```text
 Job 63 | Succeeded | 2026-05-23 18:32:45.650
        Arguments: {"AppointmentId":"097e2788-686a-f430-1a89-3a216842d1c2",
                   "TenantId":"d2b03683-2ad9-e7c6-7d97-3a2167dbfded"}
@@ -106,7 +106,7 @@ So "packets never generate" is wrong. The remaining bug is:
 Confirmed by direct SQL inspection of
 `IX_AppAppointmentPackets_TenantId_AppointmentId_Kind`:
 
-```
+```text
 INDEX_NAME                                       is_unique filter_definition
 IX_AppAppointmentPackets_TenantId_AppointmentId_Kind  1   ([TenantId] IS NOT NULL)
 ```
@@ -143,7 +143,7 @@ if (existing == null)
 
 This is the EXACT failure path captured in Hangfire's exception trace:
 
-```
+```text
 at AppointmentPacketManager.EnsureGeneratingAsync(...) line 42
 at GenerateAppointmentPacketJob.GenerateKindAsync(...) line 156
 ```
@@ -203,7 +203,7 @@ This is documented as won't-fix in EF Core issues:
 ABP wraps `DbUpdateConcurrencyException` as
 `Volo.Abp.Data.AbpDbConcurrencyException`. So the chain is:
 
-```
+```text
 SqlException (2601 - duplicate key)
   -> DbUpdateConcurrencyException
     -> AbpDbConcurrencyException
@@ -290,12 +290,12 @@ Land fix #1 (filtered unique index) FIRST as the cheap +
 self-contained fix. Then fix #2 (OnCompleted) to remove the Hangfire
 race. Fix #3 is optional defense-in-depth.
 
-## Hypothesis (3 in priority order)
+## Hypothesis (3 in priority order) - confirmed by Hangfire state history
 
 Hangfire state-history inspection for the failing packet jobs (Job 63 for
 A00004, Job 87 for A00006) shows the EXACT failure path:
 
-```
+```text
 63 Enqueued     2026-05-23T18:32:45.648
 63 Processing  2026-05-23T18:32:45.663
 63 Failed      2026-05-23T18:32:45.771
@@ -357,7 +357,7 @@ Suspected fix paths:
 - Or wrap the per-kind packet-row write in its own SCOPED UoW so
   the surrounding rollback doesn't undo the row.
 
-## Hypothesis (3 in priority order)
+## Hypothesis (3 in priority order) - initial triage
 
 1. **EnsureGeneratingAsync race / silent swallow** - per the 2026-05-15
    episodic context, `EnsureGeneratingAsync` is a query+insert sequence
@@ -370,7 +370,7 @@ Suspected fix paths:
    logging a warning but marking the Hangfire job as Succeeded. Need
    to inspect job container logs:
 
-   ```
+   ```bash
    docker logs main-api-1 --since 2026-05-23T18:32:00 | grep -i "packet\|appointmentid\|generate"
    ```
 

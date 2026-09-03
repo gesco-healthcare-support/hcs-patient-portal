@@ -121,7 +121,7 @@ A test that has never been observed failing is an assumption, not a guard. That 
 
 Touches both layers, so both run:
 
-```
+```bash
 dotnet format --verify-no-changes
 dotnet build -warnaserror
 dotnet test

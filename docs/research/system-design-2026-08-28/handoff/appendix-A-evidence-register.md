@@ -4172,7 +4172,7 @@ Verification verdict for this area: **minor-corrections** (44 claims checked)
 
 ### A10.16  [yes]
 
-**Claim.** Compose image references may specify a digest: image must follow '[<registry>/][<project>/]<image>[:<tag>|@<digest>]', e.g. redis@sha256:0ed5d59... pull_policy values include always, never, missing (default), build, daily, weekly and every_<duration>.
+**Claim.** Compose image references may specify a digest: image must follow `[<registry>/][<project>/]<image>[:<tag>|@<digest>]`, e.g. redis@sha256:0ed5d59... pull_policy values include always, never, missing (default), build, daily, weekly and every_<duration>.
 
 **Limit or threshold asserted.** pull_policy default is 'missing'
 

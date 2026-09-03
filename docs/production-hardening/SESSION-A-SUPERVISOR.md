@@ -67,7 +67,7 @@ you lose the independence that makes this two-session split worth its overhead.
 Send Session B exactly one task at a time, in this shape. Fill every field from the phase file;
 if a field cannot be filled, the task is not ready to dispatch.
 
-```
+```text
 TASK: <phase>.<number> -- <short name>
 SOURCE: docs/production-hardening/<phase file>
 GOAL: <one sentence, what changes and why it matters>

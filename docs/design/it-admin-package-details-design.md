@@ -57,7 +57,7 @@ Internal-user authenticated shell for both pages. Side-nav items under a
 
 ### 3a. Layout (Documents List)
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Documents                         [Search input] |
 +-------------------------------------------------------+
@@ -83,7 +83,7 @@ OLD source: `documents/list/document-list.component.html:1-52`
 
 Header: "Document Details" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Document Details            [X]  |
 +-----------------------------------+
@@ -127,7 +127,7 @@ OLD source: `documents/add/document-add.component.ts:58-90`
 Header: "Document Details" (same as Add)
 Identical visible fields to Add PLUS **Is Active checkbox**:
 
-```
+```text
 +-----------------------------------+
 | Document Details            [X]  |
 +-----------------------------------+
@@ -164,7 +164,7 @@ OLD source: `documents/list/document-list.component.ts` (standard pattern)
 
 ### 4a. Layout (Packages List + Embedded Sub-list)
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Packages                          [Search input] |
 +-------------------------------------------------------+
@@ -231,7 +231,7 @@ OLD source: `package-details/list/package-detail-list.component.ts:112-118`
 
 Header: "Add Package" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Add Package                 [X]  |
 +-----------------------------------+
@@ -264,7 +264,7 @@ OLD source: `package-details/add/package-detail-add.component.html:1-37`
 
 Header: "Edit Package" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Edit Package                [X]  |
 +-----------------------------------+
@@ -318,7 +318,7 @@ OLD source: `document-packages/list/document-package-list.component.html:34-49`
 
 Header: "Document Package" (no subtitle; same header for Add and Edit)
 
-```
+```text
 +-----------------------------------+
 | Document Package            [X]  |
 +-----------------------------------+
@@ -350,7 +350,7 @@ OLD source: `document-packages/add/document-package-add.component.html:1-39`
 Header: "Document Package" (same as Add)
 Identical layout to Add PLUS **Is Active checkbox**:
 
-```
+```text
 +-----------------------------------+
 | Document Package            [X]  |
 +-----------------------------------+

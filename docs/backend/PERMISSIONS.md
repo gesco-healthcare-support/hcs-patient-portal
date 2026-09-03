@@ -208,7 +208,7 @@ Each entity group (except Dashboard and AppointmentChangeLogs) follows a parent-
 
 ### Permission String Format
 
-```
+```text
 CaseEvaluation.{Entity}.{Action}
 ```
 

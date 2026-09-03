@@ -37,7 +37,7 @@ IT Admin section (or "Custom Field Configuration" as the heading -- see layout).
 
 ## 3. Page Layout (List)
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Custom Field Configuration    [Search input]  [refresh icon] |
 +-------------------------------------------------------+
@@ -90,7 +90,7 @@ Do NOT propagate the `apporved` class name typo.
 Header: "Add Custom Field Detail"
 Subtitle: "Please configure custom appointment form details to be filled by a user."
 
-```
+```text
 +-----------------------------------+
 | Add Custom Field Detail     [X]  |
 | Please configure custom...        |
@@ -174,7 +174,7 @@ Header: "Edit Custom Field "
 (Note: trailing space in OLD -- "Edit Custom Field " not "Edit Custom Field")
 Subtitle: "Please edit custom field configuration from here."
 
-```
+```text
 +-----------------------------------+
 | Edit Custom Field            [X] |
 | Please edit custom field...       |
@@ -221,7 +221,7 @@ OLD source: `list/custom-field-list.component.ts:85-97`
 
 OLD logic in `ngOnInit`:
 
-```
+```text
 let maxLength = 0;
 for (let customField of customFields) {
   if (customField.statusId == StatusEnum.Active) {

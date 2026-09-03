@@ -209,7 +209,7 @@ Each would be bypassed within a month at two developers.
 
 ## 7. Sequencing dependencies at a glance
 
-```
+```text
 Week 1  (1)(2)(3)(4)(5)(6) ------------------> (7) flake diagnosis
                                     |
 Week 2                              +--------> (8) ci/gate --> (9) ruleset

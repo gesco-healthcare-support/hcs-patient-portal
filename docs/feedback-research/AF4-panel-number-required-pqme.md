@@ -17,6 +17,7 @@ state machine whose negative half is AF3 (AME/IME -> Panel Number disabled + cle
 + optional). Enforce on BOTH the Angular form and the server (DTO + domain manager).
 
 ## Current behavior (from investigation)
+
 + Panel Number is never required. The add-form control is
   `panelNumber: [null as string | null, [Validators.maxLength(50)]]`
   (appointment-add.component.ts:386) -- length cap only, no required validator.
@@ -43,6 +44,7 @@ state machine whose negative half is AF3 (AME/IME -> Panel Number disabled + cle
 ## Relevant code locations
 
 Frontend:
+
 + angular/src/app/appointments/appointment-add.component.ts:386 -- `panelNumber`
   control; attach/clear conditional `Validators.required` here.
 + angular/src/app/appointments/appointment-add.component.ts:512-518 -- the
@@ -57,6 +59,7 @@ Frontend:
   at 343 is the pattern to mirror).
 
 Backend:
+
 + src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/AppointmentCreateDto.cs:11-12 --
   `PanelNumber` DTO field; DTO-level guard goes here (and the mirror in AppointmentUpdateDto).
 + src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs:34,45 --
@@ -64,6 +67,7 @@ Backend:
   required check is added (and the symmetric spot in UpdateAsync).
 
 ## Phase 3 cross-reference
+
 + BUG-012 (appointment-view.component.ts:343): existing "firmname-required" conditional
   required-validator wiring. Reuse the exact pattern for consistency; do not invent a
   second style.
@@ -79,6 +83,7 @@ Backend:
   cleared + optional).
 
 ## Research findings
+
 + Internal patterns / prior art:
   + Dynamic validators via `setValidators` + `clearValidators` + `updateValueAndValidity`
     is already the house style (appointment-add.component.ts:2449-2459 for appointmentDate;
@@ -119,6 +124,7 @@ enforced server-side AND mirrored in UI), reuses the established validator patte
 new abstractions, and closes the OBS-24 defense-in-depth gap for this field.
 
 ## Decision (locked 2026-06-03)
+
 + Angular: conditional `Validators.required` on `panelNumber` when the selected type is
   PQME; clear it (and, per AF3, disable + null the control) for AME/IME. Drive it from the
   `appointmentTypeId` valueChanges subscriber using the existing
@@ -168,6 +174,7 @@ new abstractions, and closes the OBS-24 defense-in-depth gap for this field.
    affordance -> UI-only is fine.
 
 ## Dependencies
+
 + Depends on AF1 (final PQME identity / seed GUID) -- the conditional must key off the
   decided PQME GUID, not the legacy "Panel QME" name.
 + Tightly coupled to AF3 (AME/IME disable + clear) -- same control, same hook; implement
@@ -176,6 +183,7 @@ new abstractions, and closes the OBS-24 defense-in-depth gap for this field.
   claim-information required gate.
 
 ## Residual open questions
+
 + Edit-form switch behavior: when an existing non-PQME appointment is changed to PQME on
   the view/edit page, confirm the expected UX (block save until Panel Number entered) --
   treated as the same rule as the add form unless product says otherwise. Minor.

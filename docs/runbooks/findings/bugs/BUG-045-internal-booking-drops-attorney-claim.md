@@ -33,13 +33,13 @@ synthetic data.
 
 Browser console at submit:
 
-```
+```http
 POST /api/app/appointments/{id}/applicant-attorney  -> 409 Conflict
 ```
 
 API container log at the same moment:
 
-```
+```text
 [17:37:28 WRN] ... Volo.Abp.Data.AbpDbConcurrencyException:
   The database operation was expected to affect 1 row(s), but actually
   affected 0 row(s); data may have been modified or deleted since
@@ -48,7 +48,7 @@ API container log at the same moment:
 
 Post-hoc API GETs against A00001 (data-loss confirmed):
 
-```
+```http
 GET /api/app/appointments/{id}/applicant-attorney  -> 204 (empty)
 GET /api/app/appointments/{id}/defense-attorney    -> 204 (empty)
 GET /api/app/appointment-injury-details/by-appointment/{id} -> [] (empty)
@@ -64,7 +64,7 @@ Booking the SAME fully-populated appointment as an EXTERNAL user
 (`patient@falkinstein.test`) -> appointment `df7b3474-...` -> the attach
 calls returned cleanly:
 
-```
+```http
 POST /api/app/appointments/{id}/applicant-attorney  -> 204
 POST /api/app/appointments/{id}/defense-attorney    -> 204
 POST /api/app/appointment-injury-details            -> 200
