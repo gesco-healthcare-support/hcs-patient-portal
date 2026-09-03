@@ -52,10 +52,20 @@ jobs:
           cache: "yarn"
           cache-dependency-path: angular/yarn.lock
 
+      # PINNED (2026-09-03), same class as the 69 action references pinned in
+      # item 2.2: an unpinned `dotnet tool install` resolves and executes a
+      # third-party package from the registry at run time.
+      #
+      # Both versions are the ones CI ACTUALLY INSTALLED on its last successful
+      # run, read from that run's own log rather than taken as "latest today":
+      #   Tool 'dotnet-sonarscanner' (version '11.3.0') was successfully installed.
+      #   Tool 'dotnet-coverage'     (version '18.11.0') was successfully installed.
+      # So this pins the toolchain that produced the analysis we have been
+      # reading all along, and changes no behaviour.
       - name: Install .NET sonar tooling
         run: |
-          dotnet tool install --global dotnet-sonarscanner
-          dotnet tool install --global dotnet-coverage
+          dotnet tool install --global dotnet-sonarscanner --version 11.3.0
+          dotnet tool install --global dotnet-coverage --version 18.11.0
 
       - name: Generate NuGet.Config
         run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
