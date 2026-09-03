@@ -4,15 +4,24 @@ on:
   push:
     branches: [production]
 
+# Least-privilege default (phase 2 item 2.3, 2026-09-03). Scorecard
+# `TokenPermissionsID` flagged a top-level `write` here. The scope is
+# REQUIRED -- semantic-release creates releases and tags, and comments on
+# issues and PRs -- so it moved DOWN to the job that needs it rather than
+# being removed. A job-level block replaces this one,
+# so behaviour is unchanged; what changes is the default for any job added
+# to this file later, which no longer inherits write access silently.
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   release:
     name: 'Create Release'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
