@@ -1,6 +1,6 @@
 # AppointmentDrafts -- server-persisted booking-wizard drafts
 
-#15 (2026-06-22): a server-side, in-progress booking-wizard draft that replaces the
+\#15 (2026-06-22): a server-side, in-progress booking-wizard draft that replaces the
 cosmetic localStorage-only autosave, so a partially-filled request survives
 navigate-away and resumes on return. One active draft per (tenant, creator); the
 self-scoped app service upserts it.

@@ -50,29 +50,41 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      # Phase 2.1 (2026-09-02): lints ONLY the markdown a submission changes.
+      # REPO-WIDE as of 2026-09-03 (phase 2 item 2.12). No longer changed-files-only.
       #
-      # Two failure modes were found and both are avoided here. The globs were
-      # previously one space-separated string, which the action treated as a single
-      # glob: it matched nothing and reported "Linting: 0 file(s) / 0 error(s)" --
-      # permanently GREEN while checking nothing. Fixing that revealed 5,271
-      # pre-existing violations across 431 files, which would have made this
-      # permanently RED instead. A check that is always red teaches people to ignore
-      # red just as effectively as one that is always green.
+      # History, because the shape of this check has been wrong in both directions.
+      # The globs were once a single space-separated string, which matched nothing:
+      # "Linting: 0 file(s) / 0 error(s)", permanently GREEN while checking nothing.
+      # Fixing that revealed a large backlog, which would have made it permanently
+      # RED -- equally uninformative. So 2.8 scoped it to changed files, which
+      # landed a real gate immediately and left the backlog for later.
       #
-      # Changed-files-only lands the gate NOW without waiting for the backlog: new
-      # and edited docs must be clean, and the 5,271 wait for the phase that handles
-      # backlogs. This is a reusable pattern -- see 02-enforcement.md.
-      - name: Lint the markdown this submission changes
+      # The backlog is now zero, so the scoping is no longer needed and the gate
+      # covers everything. Changed-files-only remains a documented reusable pattern
+      # in 02-enforcement.md for phases that still have backlogs -- it is retired
+      # HERE, not withdrawn as an idea.
+      #
+      # NOTE on the exclusions below: they are command-line globs, NOT a
+      # `.markdownlintignore` file. markdownlint-cli2 does NOT read that file --
+      # verified, it linted 1,830 files with one present and 444 with these globs.
+      # An inert ignore file would be the third "looks configured, is not" defect
+      # this epic has found, so it is deliberately not used.
+      #
+      # Every exclusion is NAMED with a reason. A named exclusion states what it
+      # protects; a wildcard states nothing and grows.
+      - name: Lint every markdown file in the repository
         run: |
-          base="origin/${{ github.base_ref }}"
-          files=$(git diff --name-only --diff-filter=ACMR "$base...HEAD" -- '*.md')
-          if [ -z "$files" ]; then
-            echo "No markdown files changed by this pull request. Nothing to lint."
-            exit 0
-          fi
-          echo "Linting:"
-          echo "$files" | sed 's/^/  /'
-          echo "$files" | xargs npx --yes markdownlint-cli2@0.13.0 --config .markdownlint.json
+          npx --yes markdownlint-cli2@0.13.0 --config .markdownlint.json \
+            '**/*.md' \
+            '!**/node_modules/**' \
+            '!design_handoff_appointment_portal/**' \
+            '!design_handoff_part_B/**' \
+            '!scripts/Test-Report.md' \
+            '!docs/plans/**'
+        # node_modules            -- dependencies, never ours
+        # design_handoff_*        -- third-party design deliverables committed as
+        #                            received in #321; the repo's value in keeping
+        #                            them is that they are the untouched artefact
+        # scripts/Test-Report.md  -- generated output; a fix is undone on regeneration
+        # docs/plans/**           -- gitignored working artefacts, absent from a CI
+        #                            checkout; listed so a local run matches CI
