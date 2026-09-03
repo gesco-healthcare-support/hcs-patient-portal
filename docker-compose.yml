@@ -399,3 +399,7 @@ volumes:
   miniodata:
   angular_node_modules:
   nuget_packages:
+
+# PROBE 2026-09-03 (after the fix): same unmatched-path-only change as
+# PR #525, but on a head carrying the deny-by-default classifier. Expect the
+# full suite to RUN. To be reverted and the PR closed.
