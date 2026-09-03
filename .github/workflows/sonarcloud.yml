@@ -87,6 +87,36 @@ jobs:
         # hidden a genuine frontend-test failure from the analysis.
         # LCOV lands in angular/coverage/**/lcov.info.
 
+      # ONE LIST, TWO CONSUMERS -- and until 2026-09-03 that was only half true.
+      #
+      # `.coverage-exclusions` announced itself in its own header as "read by
+      # BOTH .github/workflows/sonarcloud.yml and scripts/coverage-gate.py".
+      # This workflow never read it; it carried a hardcoded copy of the same
+      # patterns. The two were byte-identical, which is exactly why nobody
+      # noticed -- and the moment item 2.10 added two backend patterns they
+      # diverged, which is precisely the drift the list's own header warns
+      # about. This step makes the claim true rather than softening the claim.
+      #
+      # Verified before shipping: the generated string reproduces the previous
+      # hardcoded value exactly, plus the two new patterns and nothing else.
+      - name: Build the shared coverage-exclusion list
+        run: |
+          set -euo pipefail
+          list=$(grep -v '^[[:space:]]*#' .coverage-exclusions \
+                 | grep -v '^[[:space:]]*$' | paste -sd, -)
+          # Absent input is a hard failure. An empty list here would silently
+          # analyse with NO coverage exclusions and move every figure, which is
+          # the same shape as a gate that passes by not running.
+          if [ -z "$list" ]; then
+            m="No patterns read from .coverage-exclusions. Refusing to analyse"
+            m="$m with an empty exclusion list, which would silently change"
+            m="$m every coverage figure this project reports."
+            echo "::error::$m"
+            exit 1
+          fi
+          echo "COVERAGE_EXCLUSIONS=$list" >> "$GITHUB_ENV"
+          echo "Coverage exclusions: $list"
+
       - name: SonarScanner begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -100,7 +130,7 @@ jobs:
           /d:sonar.javascript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts,design_handoff_*/**"
-          /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**,**/TenantMigrations/**,angular/src/app/proxy/**,**/CaseEvaluationDbContextFactory.cs,**/CaseEvaluationTenantDbContextFactory.cs,**/CaseEvaluationDbContextFactoryBase.cs"
+          /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS"
           /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml,abpDiAppServiceParams,abpDiManagerParams,abpDiRepoParams,abpPermissionStrings,abpAppServiceI18nKeys,abpHostModuleConfigKeys,abpDavailComplexity,bootstrapModalDialogRole,emailDoctype,emailTitle,emailLang,emailTableHeader,emailMouseKeyboard,emailDeprecatedAttrs,emailLayoutTable
           /d:sonar.issue.ignore.multicriteria.abpModelState.ruleKey=csharpsquid:S6967
           /d:sonar.issue.ignore.multicriteria.abpModelState.resourceKey=**/*.cs

@@ -4,6 +4,15 @@
 #   - .github/workflows/sonarcloud.yml  (joined with commas into sonar.coverage.exclusions)
 #   - scripts/coverage-gate.py          (the independent CI coverage floors)
 #
+# THAT WAS A FALSE CLAIM UNTIL 2026-09-03, and it is recorded here rather than
+# quietly corrected. This file said it was read by sonarcloud.yml from the day it
+# was created; sonarcloud.yml never read it, and carried a hardcoded copy of the
+# same patterns instead. The two were byte-identical, which is exactly why the
+# claim survived unexamined -- there was no symptom to notice. It surfaced only
+# when the two backend patterns below were added and the copies diverged, which
+# is the very failure the paragraph beneath this one warns about. sonarcloud.yml
+# now builds its list from this file, and fails if the file yields nothing.
+#
 # WHY ONE FILE. Two lists drift, and a drift here means two gates measuring the
 # same code disagree with nobody able to say which is right. That is not
 # hypothetical: measured on 2026-09-03, the Angular front end reads 67.44% from
@@ -36,3 +45,31 @@ angular/src/app/proxy/**
 **/CaseEvaluationDbContextFactory.cs
 **/CaseEvaluationTenantDbContextFactory.cs
 **/CaseEvaluationDbContextFactoryBase.cs
+
+# NOT OUR CODE, and NOT OUR COVERAGE. Added 2026-09-03 after reading the first
+# real Cobertura artefact rather than assuming what was in it.
+#
+# `dotnet-coverage` writes ABSOLUTE runner paths, and the report carried two
+# populations that are not this repository's source at all:
+#
+#   131 files of FluentValidation's OWN source, embedded by SourceLink and
+#       rooted at `/_/` (e.g. /_/src/FluentValidation/AbstractValidator.cs)
+#    70 build intermediates under obj/, chiefly Riok.Mapperly's generated
+#       mappers (obj/Release/net10.0/Riok.Mapperly/**/*.g.cs)
+#
+# Measured on the artefact from CI run 33800844354 (PR #532, e87ee4c0):
+#
+#   scripts/coverage-gate.py --cobertura coverage.cobertura.xml --measure-only
+#     with this list before these two lines : 66.24% (35049/52915) over 1082 files
+#     after                                 : 73.61% (33195/45098) over  887 files
+#
+# The 7.37-point difference is a third-party library and a code generator being
+# graded as ours. Worse than inaccurate, it DRIFTS: upgrade FluentValidation or
+# change a Mapperly mapping and the measured figure moves with no change to any
+# code we wrote. A floor that moves when a dependency moves is not a floor.
+#
+# 887 is the cross-check: it is exactly the number of tracked, non-excluded .cs
+# files in this repo that the artefact contains, so these two patterns remove
+# the contamination and nothing of ours.
+_/**
+**/obj/**
