@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: ibiqlik/action-yamllint@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
         with:
           file_or_dir: .github/workflows/
           config_data: |
@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       # REPO-WIDE as of 2026-09-03 (phase 2 item 2.12). No longer changed-files-only.
       #
       # History, because the shape of this check has been wrong in both directions.
@@ -72,9 +72,30 @@ jobs:
       #
       # Every exclusion is NAMED with a reason. A named exclusion states what it
       # protects; a wildcard states nothing and grows.
+      # githubactions:S6505 (phase 2 item 2.2, 2026-09-03). This step used
+      # `npx --yes markdownlint-cli2@0.13.0`, and a pinned VERSION does not close
+      # that finding: `npx --yes` resolves the package from the registry AT RUN
+      # TIME and executes its lifecycle scripts, so third-party code still
+      # arrives and RUNS during the job. It is the same supply-chain class as an
+      # unpinned action, which is why it was routed into 2.2 -- but it needs a
+      # different remedy, because SHA-pinning does not apply to npm.
+      #
+      # `--ignore-scripts` removes the execution surface: the package is still
+      # fetched, which is unavoidable, but nothing from it runs except the linter
+      # binary invoked below. Installed under RUNNER_TEMP rather than the
+      # workspace so no node_modules appears in the checkout.
+      #
+      # Verified equivalent before shipping: this form reports
+      # "markdownlint-cli2 v0.13.0 ... Linting: 444 file(s) ... 0 error(s)",
+      # identical to the npx form it replaces.
+      - name: Install markdownlint-cli2 without running lifecycle scripts
+        run: >
+          npm install --no-save --no-audit --no-fund --ignore-scripts
+          --prefix "$RUNNER_TEMP/mdlint" markdownlint-cli2@0.13.0
+
       - name: Lint every markdown file in the repository
         run: |
-          npx --yes markdownlint-cli2@0.13.0 --config .markdownlint.json \
+          "$RUNNER_TEMP/mdlint/node_modules/.bin/markdownlint-cli2" --config .markdownlint.json \
             '**/*.md' \
             '!**/node_modules/**' \
             '!design_handoff_appointment_portal/**' \

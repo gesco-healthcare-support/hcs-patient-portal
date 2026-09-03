@@ -5,12 +5,30 @@ version: 2
 # docs/superpowers/specs/2026-05-21-dependency-integration-branch-design.md
 # for the policy.
 #
-# Version-update PRs are disabled via open-pull-requests-limit: 0 until ABP
-# Commercial supports Angular 20.3+. Security advisories (configured in repo
-# settings, independent of this file) continue to flow into the integration
-# branch regardless of the limit. The limit was briefly raised in #212 to
-# recover four orphan PRs after the target-branch change; this PR restores
-# it to 0 so future weekly scans do not surface unwanted bumps.
+# PACKAGE version-update PRs (nuget, both npm) are disabled via
+# open-pull-requests-limit: 0 until ABP Commercial supports Angular 20.3+.
+# Security advisories (configured in repo settings, independent of this file)
+# continue to flow into the integration branch regardless of the limit. The
+# limit was briefly raised in #212 to recover four orphan PRs after the
+# target-branch change; it was restored to 0 so future weekly scans do not
+# surface unwanted bumps. THAT CONSTRAINT IS STILL LIVE -- do not raise those
+# three.
+#
+# GITHUB-ACTIONS IS DIFFERENT, and was changed in phase 2 item 2.2 (2026-09-03).
+# It had inherited the same 0 without the reason applying: the ABP/Angular
+# constraint is an npm concern and says nothing about GitHub Actions. The
+# ecosystem was DECLARED but produced no update pull requests at all, so a grep
+# for "github-actions" reported it covered while nothing was ever opened.
+#
+# That mattered the moment 2.2 pinned all 69 `uses:` references to commit SHAs.
+# A SHA pin is immutable by design, so without version updates nothing would
+# ever propose moving one, and the pins would freeze until a security advisory
+# happened to fire -- discovered, if ever, by someone asking why an action had
+# not moved in a year. Pinning without a refresh path is a slow freeze rather
+# than a supply-chain improvement.
+#
+# Adrian ruled: lift the cap for this ecosystem ONLY, accepting the weekly PR
+# cost because they land on chore/dependency-updates rather than the main line.
 
 updates:
   - package-ecosystem: "nuget"
@@ -44,6 +62,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+    # 5 is Dependabot's own default, not a number picked here. It is what keeps
+    # the SHA pins in .github/workflows/ refreshable; see the note at the top of
+    # this file for why this ecosystem alone is not 0.
+    open-pull-requests-limit: 5
     labels: ["dependencies", "ci"]
     target-branch: "chore/dependency-updates"
