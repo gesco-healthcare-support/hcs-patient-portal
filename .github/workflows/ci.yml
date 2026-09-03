@@ -348,17 +348,38 @@ jobs:
             fi
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - name: Install dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage
+      # Item 2.10. This mirrors the WRAPPING pattern at sonarcloud.yml:148, not
+      # its format. That line emits `-f xml` (the Visual Studio format) because
+      # SonarCloud reads it via sonar.cs.vscoveragexml.reportsPaths; the floors
+      # gate parses Cobertura. Two workflows, two artefacts, two formats -- both
+      # gitignored. The inner command is single-quoted so its own --logger
+      # quotes survive being passed through as one argument.
       - name: Test
         run: >
-          dotnet test HealthcareSupport.CaseEvaluation.slnx
+          dotnet-coverage collect
+          'dotnet test HealthcareSupport.CaseEvaluation.slnx
           --no-restore -c Release
           --logger "trx;LogFileName=results.trx"
-          --results-directory ./test-results
+          --results-directory ./test-results'
+          -f cobertura -o coverage.cobertura.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-test-results
           path: ./test-results
+          retention-days: 14
+      # if: always() is load-bearing, not defensive. The gate must be able to
+      # tell "the test job failed" apart from "the report is absent". Uploading
+      # only on success collapses those into one indistinguishable state, which
+      # is the exact hole item 2.10 exists to close.
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: coverage.cobertura.xml
           retention-days: 14
 
   frontend-build:
@@ -459,6 +480,23 @@ jobs:
       - name: Run tests with coverage
         if: steps.check-tests.outputs.has_tests == 'true'
         run: yarn test --watch=false --browsers=ChromeHeadless --code-coverage
+      # Item 2.10. `path` is repo-relative on purpose: defaults.run.working-directory
+      # applies to `run` steps only, never to `uses` steps, so `coverage/**` here
+      # would resolve against the workspace root and silently upload nothing.
+      #
+      # if: always() for the reason given in backend-test, plus one specific to
+      # this job: the coverage step above is gated on has_tests, so if the specs
+      # ever disappear it is SKIPPED while the job still reports success and no
+      # lcov is written. That is a check reporting success without having run.
+      # Uploading unconditionally is what lets the gate see the absence and fail
+      # on it rather than inherit the false green.
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-coverage
+          path: angular/coverage/**/lcov.info
+          retention-days: 14
 
   backend-format:
     name: "Backend: Format Check"
@@ -526,3 +564,287 @@ jobs:
       - run: corepack enable
       - run: yarn install
       - run: yarn format:check
+
+  coverage-floors:
+    name: "Coverage: Floors"
+    runs-on: ubuntu-latest
+    needs: [changes, backend-test, frontend-test]
+    # `if: always()` with NO further condition, and that is the whole point of
+    # this job. Every other job in this file is conditional, and a SKIPPED job
+    # reports "Success" and does not block a merge even when it is a required
+    # check (catalogue instance 12). A coverage gate that inherits that
+    # conditionality passes by not running, which is the single defect item 2.10
+    # exists to prevent. So this job always runs and decides applicability
+    # itself, below, where absent input is a hard failure rather than an absent
+    # constraint.
+    if: always()
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # Absolute per-stack line coverage floors, measured through the shared
+      # .coverage-exclusions list that sonarcloud.yml also consumes. One list,
+      # two readers: two lists drift, and a drift means two gates disagree with
+      # nobody able to say which is right.
+      #
+      # ============================================================
+      # WHOLE NUMBERS ONLY. Adrian's rule, 2026-09-03. DO NOT "TIGHTEN"
+      # THESE BACK TO FRACTIONAL VALUES -- that reintroduces a real defect.
+      # ============================================================
+      #
+      # What the fractional version cost us. The gate prints a figure ROUNDED to
+      # two places; the comparison uses the unrounded value. Two runs of the SAME
+      # code measured:
+      #
+      #   33197/45098 = 73.6108%   both print as "73.61%"
+      #   33195/45098 = 73.6064%
+      #
+      # A floor of 73.61 -- the printed figure, and the obvious thing to copy in
+      # -- PASSES the first and FAILS the second. Two lines of ordinary test
+      # nondeterminism is 0.0044 points, so any floor set from the display sits
+      # inside the display's own rounding error and the gate goes red on
+      # unchanged code. It would be blamed on the gate, not on the rounding.
+      #
+      # A whole number cannot be tripped by that: it removes the failure mode
+      # rather than managing it with a hand-picked margin.
+      #
+      # THE COST, stated so it is not discovered later:
+      #
+      #   backend   measured 73.6064%   floor 73   slack 0.61 pts  ~273 lines
+      #   frontend  measured 69.4647%   floor 69   slack 0.46 pts   ~11 lines
+      #
+      # ~273 backend lines could go uncovered before the absolute floor fires.
+      # That is real, and it is acceptable for one reason: THE ABSOLUTE FLOORS
+      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 90% on the lines
+      # each submission touches, and it catches new uncovered code per pull
+      # request, long before it could accumulate into a 273-line drift. The
+      # absolute floors are a backstop against slow erosion.
+      #
+      # FRONTEND -- measured, never guessed:
+      #   scripts/coverage-gate.py --measure-only \
+      #     --lcov angular/coverage/CaseEvaluation/lcov.info --lcov-prefix angular
+      #   -> frontend: 69.46% (1713/2466 lines over 82 files)
+      #   measured on feat/ci-coverage-floors @ d2d9a0d9, 667 specs all passing.
+      #   Trustworthy because the UNFILTERED read of that same file reproduces
+      #   karma's own 67.44% summary exactly, which validates the parser rather
+      #   than merely the number.
+      FLOOR_FRONTEND: "69"
+      # BACKEND -- MEASURED, by the mechanism this job was built around. It was
+      # deliberately unset until 2026-09-03 so the gate's own first run would
+      # fail and print the figure, which is exactly what happened:
+      #
+      #   run 97ea9356  backend: measured 73.61% (33197/45098 lines over 887 files)
+      #
+      # 887 is the load-bearing number, not the percentage. It is the count of
+      # this repo's tracked, non-excluded .cs files present in the report, and it
+      # confirms both contamination exclusions matched: 1082 would mean neither,
+      # 951 only the third-party one, 1012 only the generated one.
+      FLOOR_BACKEND: "73"
+      # The changed-lines floor, per Adrian's settled decision and the EARS
+      # criterion in 02-enforcement.md. Unlike the two absolute floors this one
+      # is a fixed policy number rather than a measurement, so it is set here
+      # rather than discovered by a first run.
+      FLOOR_CHANGED: "90"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Required by the changed-lines floor: it diffs against the merge base
+          # with the base branch, which a shallow clone does not contain. The
+          # step below fails loudly rather than silently measuring nothing if
+          # the base ref is somehow still unresolvable.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # continue-on-error belongs on these two steps and nowhere else in this
+      # job. A stack that legitimately did not run has no artefact, and
+      # download-artifact failing is not itself the verdict -- the verdict is
+      # reached explicitly in "Evaluate floors", which fails when a report is
+      # absent while its stack is applicable. This is STEP level: job-level
+      # continue-on-error would mask the job's conclusion, the opposite of what
+      # this gate is for.
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: backend-coverage
+          path: artifacts/backend
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: frontend-coverage
+          path: artifacts/frontend
+
+      - name: Evaluate floors
+        env:
+          CLASSIFIER_RESULT: ${{ needs.changes.result }}
+          CHANGED_BACKEND: ${{ needs.changes.outputs.backend }}
+          CHANGED_FRONTEND: ${{ needs.changes.outputs.frontend }}
+          CHANGED_SHARED: ${{ needs.changes.outputs.shared }}
+          CHANGED_UNCLASSIFIED: ${{ needs.changes.outputs.unclassified }}
+          BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
+          FRONTEND_TEST_RESULT: ${{ needs.frontend-test.result }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          # Deny by default, exactly as backend-build's own `if:` does. If the
+          # classifier did not itself succeed we cannot trust a word of its
+          # output, so every stack is treated as applicable and must produce a
+          # report. `unclassified` is included for the same reason: item 0.5
+          # made an unrecognised path run the full suite, so this gate has to
+          # agree with that or it contradicts the classifier it depends on.
+          applicable() {
+            [ "$CLASSIFIER_RESULT" != "success" ] && return 0
+            [ "$1" = "true" ] && return 0
+            [ "$CHANGED_SHARED" = "true" ] && return 0
+            [ "$CHANGED_UNCLASSIFIED" = "true" ] && return 0
+            return 1
+          }
+
+          fail=0
+
+          # Resolve by search rather than by a fixed path. upload-artifact@v4
+          # roots an artefact at the least common ancestor of the files it
+          # matched, so a glob matching one file yields a different layout than
+          # one matching two. Searching by name is indifferent to that.
+          #
+          # Three deliberate details, each of which was wrong in a first draft:
+          #  - NO `2>/dev/null`. Suppressing find's stderr would report "no
+          #    report" for a permission error exactly as for a genuine absence,
+          #    and the gate would then fail for the wrong stated reason. The
+          #    only EXPECTED absence is the directory itself, so that is tested
+          #    explicitly and everything else stays loud.
+          #  - `-print -quit` rather than `| head -1`. Under `pipefail` a pipe
+          #    into head fails the whole pipeline when find is killed by SIGPIPE
+          #    after the first match, which `set -e` would turn into a silent
+          #    step abort with no diagnostic at all.
+          #  - returns empty, not an error, when the directory is missing. That
+          #    is the normal case for a stack whose job was skipped, and the
+          #    verdict on it belongs to check_stack, not here.
+          find_report() {
+            if [ ! -d "$1" ]; then
+              return 0
+            fi
+            find "$1" -type f -name "$2" -print -quit
+          }
+
+          BACKEND_REPORT="$(find_report artifacts/backend coverage.cobertura.xml)"
+          FRONTEND_REPORT="$(find_report artifacts/frontend lcov.info)"
+
+          check_stack() {
+            label="$1"; changed="$2"; result="$3"; report="$4"
+            if applicable "$changed"; then
+              echo "$label: APPLICABLE (classifier=$CLASSIFIER_RESULT changed=$changed shared=$CHANGED_SHARED unclassified=$CHANGED_UNCLASSIFIED)"
+              if [ "$result" != "success" ]; then
+                # Built across several assignments purely to keep the source
+                # lines short; the annotation itself must stay on ONE line,
+                # because a literal newline inside ::error:: truncates it.
+                m="$label coverage is applicable to this change, but its test"
+                m="$m job reported '$result' rather than 'success'. Refusing to"
+                m="$m draw a coverage conclusion from a run that did not complete."
+                echo "::error::$m"
+                fail=1
+                return 0
+              fi
+              if [ -z "$report" ]; then
+                m="$label coverage is applicable and its test job succeeded, yet"
+                m="$m no coverage report was uploaded. A missing report is a"
+                m="$m FAILURE here, never an absent constraint -- that is"
+                m="$m precisely how a gate comes to pass without measuring anything."
+                echo "::error::$m"
+                fail=1
+                return 0
+              fi
+              echo "$label: report at $report"
+            else
+              echo "$label: NOT APPLICABLE"
+              # 'skipped' is the only coherent result for a stack this change
+              # does not touch. 'failure' or 'cancelled' means something ran and
+              # went wrong, and must never be read as "nothing to check here".
+              if [ "$result" != "skipped" ]; then
+                m="$label coverage is not applicable to this change, so its test"
+                m="$m job should have been 'skipped', but it reported '$result'."
+                m="$m That combination is incoherent and is treated as a failure"
+                m="$m rather than as an absent constraint."
+                echo "::error::$m"
+                fail=1
+              fi
+            fi
+            return 0
+          }
+
+          check_stack backend "$CHANGED_BACKEND" "$BACKEND_TEST_RESULT" "$BACKEND_REPORT"
+          check_stack frontend "$CHANGED_FRONTEND" "$FRONTEND_TEST_RESULT" "$FRONTEND_REPORT"
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Coverage gate failed on input validity before any floor was evaluated."
+            exit 1
+          fi
+
+          args=()
+          if applicable "$CHANGED_BACKEND"; then
+            # --cobertura-prefix is left at its empty default pending the first
+            # real CI run. The path shape dotnet-coverage writes into Cobertura
+            # has not been observed here, and the shared exclusions only match
+            # if it is repo-relative. The measured line and file counts printed
+            # below are what confirm it: a wrong prefix shows up as an
+            # implausible file count, not as an error.
+            args+=(--cobertura "$BACKEND_REPORT" --floor-backend "$FLOOR_BACKEND")
+          fi
+          if applicable "$CHANGED_FRONTEND"; then
+            # karma writes `SF:src\app\...` -- backslashes, and relative to
+            # angular/, not to the repo root. Without this prefix the shared
+            # exclusions match nothing and the gate silently measures 67.44%
+            # instead of 69.46% while looking entirely correct.
+            args+=(--lcov "$FRONTEND_REPORT" --lcov-prefix angular --floor-frontend "$FLOOR_FRONTEND")
+          fi
+
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "Neither stack is applicable to this change; both test jobs were correctly skipped."
+            echo "Coverage floors: nothing to evaluate." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # The changed-lines floor. Added only once at least one stack is
+          # applicable, because 90% of the changed lines is a question about
+          # coverage reports, and with none of them present there is nothing to
+          # ask it of.
+          #
+          # `...` is deliberate: two dots would also attribute every change that
+          # landed on the base branch since this one was cut. The empty case is
+          # handled inside the gate, which exits 0 when no CHANGED line is
+          # coverable -- a docs-only submission must not fail this.
+          base="origin/${BASE_REF}"
+          if ! git rev-parse --verify --quiet "$base" >/dev/null; then
+            m="cannot resolve '$base', so the changed-lines floor has nothing to"
+            m="$m diff against. This needs fetch-depth: 0 on checkout. Failing"
+            m="$m rather than skipping the check, which would pass silently."
+            echo "::error::$m"
+            exit 1
+          fi
+          git diff --unified=0 --diff-filter=ACMR "$base...HEAD" > changed.diff
+          echo "changed-lines: diffed against $base"
+          args+=(--changed-diff changed.diff --floor-changed "$FLOOR_CHANGED")
+
+          # NOT piped into tee, and the exit code is carried by hand. Under
+          # `pipefail` a failing gate would abort the step immediately and the
+          # step summary below would never be written -- and the first run of
+          # this job FAILS BY DESIGN, so that is precisely the run whose measured
+          # backend figure somebody needs to read.
+          set +e
+          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" > gate-output.txt 2>&1
+          gate_rc=$?
+          set -e
+          cat gate-output.txt
+          {
+            echo "### Coverage floors"
+            echo ""
+            echo '```text'
+            cat gate-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$gate_rc"

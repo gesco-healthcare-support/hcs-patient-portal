@@ -11,11 +11,14 @@ platform, maintained by Gesco.
 [![Node](https://img.shields.io/badge/Node-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=alert_status)](https://sonarcloud.io/dashboard?id=gesco-healthcare-support_hcs-patient-portal)
-[![Codecov](https://img.shields.io/badge/coverage-pending-lightgrey)](#known-issues-and-roadmap)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=coverage)](https://sonarcloud.io/component_measures?id=gesco-healthcare-support_hcs-patient-portal&metric=coverage)
 
-> The Codecov badge is a placeholder until that service is wired up; SonarCloud
-> is live and gates new-code coverage on PRs. See
-> [Known Issues and Roadmap](#known-issues-and-roadmap).
+> The coverage badge reads `main`, because SonarCloud analyses only `main` in
+> this project. It is therefore the shipped figure, not the figure for any open
+> pull request. Two separate gates enforce coverage on a PR: SonarCloud's
+> new-code quality gate, and the `Coverage: Floors` check in `ci.yml`, which
+> measures each stack independently and fails on a missing report rather than
+> passing without one.
 
 Healthcare support staff use this portal to book patients with IME doctors at
 specific locations and time slots, then track each appointment through a
@@ -572,8 +575,10 @@ severity.
 
 Pre-deployment TODOs still open (summary):
 
-- Codecov wiring (the coverage badge above is a placeholder until it is
-  configured; SonarCloud is live and gates new-code coverage on PRs).
+- Set the backend coverage floor in `ci.yml`'s `Coverage: Floors` job. It is
+  deliberately unset, so that job fails until the figure its own first CI run
+  measures is filled in. Codecov is not being wired up; SonarCloud plus that
+  check cover it.
 - Seven Angular XSS advisories blocked on ABP Commercial 10.3+ releases
   becoming available.
 - Polish of the auto-PR workflow and expansion of the disabled
