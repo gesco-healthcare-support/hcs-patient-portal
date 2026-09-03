@@ -71,5 +71,29 @@ angular/src/app/proxy/**
 # 887 is the cross-check: it is exactly the number of tracked, non-excluded .cs
 # files in this repo that the artefact contains, so these two patterns remove
 # the contamination and nothing of ours.
-_/**
+# WHY `**/_/**` AND NOT `_/**`. The raw Cobertura path has a LEADING SLASH
+# (`/_/src/FluentValidation/...`). `_/**` matches only after normalise() strips
+# it, so it would work today and silently stop matching if --cobertura-prefix
+# were ever set -- the contamination would return with no error and no symptom,
+# which is the same "looks configured, is not" class this entry exists to fix.
+# `**/_/**` matches the leading-slash form, the stripped form AND a prefixed
+# form, so the exclusion no longer depends on a normalisation step it does not
+# control. Verified against the artefact: it matches exactly the 131
+# FluentValidation files and zero files of ours.
+**/_/**
+
+# Build output. `**/obj/**` is the one that mattered -- 64 Riok.Mapperly
+# generated mappers were being graded as our source. `**/bin/**` matches nothing
+# in today's report and is here because it is the SAME CLASS, and the reason obj/
+# was missed is instructive: sonarcloud.yml already excluded both, but in
+# `sonar.exclusions` (what to analyse) rather than `sonar.coverage.exclusions`
+# (what to exclude from coverage). This list was seeded from the coverage half
+# only, so it inherited half a configuration. Naming the whole class here is what
+# stops the next generator that writes into bin/ from repeating it.
+#
+# Deliberately NOT copied across: node_modules/** and dist/**. They appear in
+# sonar.exclusions but cannot appear in either coverage report -- karma
+# instruments angular/src only -- and an entry that can never match is noise in
+# a list whose every line is supposed to carry a reason.
 **/obj/**
+**/bin/**
