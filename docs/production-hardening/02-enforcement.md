@@ -136,7 +136,7 @@ The gates are the deliverable, so the validation is adversarial:
 
 ---
 
-## TASK 2.1 -- MERGED 2026-09-02. Five gates proven; four settings left unflipped with reasons.
+## TASK 2.1 -- MERGED 2026-09-02. Five gates proven; four settings left unflipped with reasons
 
 **Landed as `8096966d` (#514).** The dependency-review flip followed separately in #518. Three
 throwaway probe PRs -- #513, #515, #517 -- held the deliberate violations and are all CLOSED; their
@@ -329,7 +329,7 @@ Until 2026-09-02 it excluded `angular/src/**/*.ts` and `angular/src/**/*.html` -
 end -- which turned out to be the BETTER-tested half at 77.1%. The reported 52.4% was a measurement
 hiding its own subject. That exclusion is gone; the rest of the list has never been checked:
 
-```
+```text
 **/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,**/TenantMigrations/**,
 angular/src/app/proxy/**,**/*.module.ts
 ```
@@ -438,7 +438,7 @@ only reason it was not a wrong prediction presented as a number.
 
 **Floor sensitivity against the new 55.0% baseline** (line component, 11,299 / 20,623):
 
-```
+```text
 floor 55.0%  ->  trips after ~0    additional uncovered lines
 floor 54.5%  ->  trips after ~109
 floor 54.0%  ->  trips after ~301
@@ -447,15 +447,15 @@ floor 53.0%  ->  trips after ~696
 
 **The exclusion list is now seven specific decisions instead of three wildcards and a dead entry:**
 
-```
-**/Program.cs                                  thin host bootstrap
-**/Migrations/**                               generated
-**/TenantMigrations/**                         generated
-angular/src/app/proxy/**                       generated
-**/CaseEvaluationDbContextFactory.cs           design-time only (IDesignTimeDbContextFactory)
-**/CaseEvaluationTenantDbContextFactory.cs     design-time only
-**/CaseEvaluationDbContextFactoryBase.cs       design-time only
-```
+| Exclusion                                    | Reason                                          |
+| -------------------------------------------- | ----------------------------------------------- |
+| `**/Program.cs`                              | thin host bootstrap                             |
+| `**/Migrations/**`                           | generated                                       |
+| `**/TenantMigrations/**`                     | generated                                       |
+| `angular/src/app/proxy/**`                   | generated                                       |
+| `**/CaseEvaluationDbContextFactory.cs`       | design-time only (`IDesignTimeDbContextFactory`) |
+| `**/CaseEvaluationTenantDbContextFactory.cs` | design-time only                                |
+| `**/CaseEvaluationDbContextFactoryBase.cs`   | design-time only                                |
 
 **Why the two wildcards were REMOVED rather than narrowed**, since that was a deliberate choice:
 
