@@ -255,7 +255,13 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: backend-coverage
+          # PROBE POISON, run B. Renamed so the download in `Coverage: Floors`,
+          # which looks for `backend-coverage`, finds nothing. This exercises the
+          # ABSENT-REPORT path through the real wiring -- download-artifact
+          # failing, continue-on-error swallowing it, find_report returning
+          # empty, check_stack reaching its own verdict -- rather than through a
+          # fixture. Throwaway branch, never merged.
+          name: backend-coverage-POISONED-RUN-B
           path: coverage.cobertura.xml
           retention-days: 14
 
@@ -371,7 +377,11 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: frontend-coverage
+          # PROBE POISON, run B -- see the note on the backend upload. Both
+          # stacks are poisoned so check_stack must name BOTH failures in one
+          # run; it sets its flag and continues rather than returning early,
+          # and this is what proves that.
+          name: frontend-coverage-POISONED-RUN-B
           path: angular/coverage/**/lcov.info
           retention-days: 14
 
@@ -482,7 +492,12 @@ jobs:
       # unset floor is a hard failure, so this run prints the real backend figure
       # in the gate's own counting and its own environment. Copy that figure in
       # here; that one commit finishes item 2.10.
-      FLOOR_BACKEND: ""
+      # PROBE POISON, run B. Set to 0 purely to remove a confound: this run must
+      # fail on ABSENT REPORTS, and an unset floor is a second, independent
+      # reason to fail. It is unreachable here -- check_stack exits before any
+      # floor is read -- but leaving it unset would make a reader ask which
+      # cause produced the red, which is the ambiguity this whole phase is about.
+      FLOOR_BACKEND: "0"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
@@ -520,6 +535,60 @@ jobs:
         with:
           name: frontend-coverage
           path: artifacts/frontend
+
+      # PROBE-ONLY STEP, run B. Not part of the gate. Deleted with this branch.
+      #
+      # Exercises the three input-validity paths that CANNOT share a run with
+      # the absent-report poison, because the gate deliberately validates its
+      # input and exits on the FIRST problem it finds -- so one run can observe
+      # exactly one of them. Running them here proves them in the real CI
+      # environment: real runner, real Python, real script, real exclusion file.
+      #
+      # This is a WEAKER claim than the absent-report poison below, which goes
+      # through the job's own artefact wiring, and it is written separately
+      # rather than blurred into it. Exits 0 on success so that `Evaluate floors`
+      # still runs and the absent-report path is observed in the same run.
+      - name: "PROBE: input-validity paths"
+        run: |
+          set -uo pipefail
+          d=$(mktemp -d)
+          : > "$d/empty.info"
+          printf 'this is not xml <<<' > "$d/broken.xml"
+          fails=0
+
+          expect() {
+            label="$1"; want="$2"; shift 2
+            out=$("$@" 2>&1); rc=$?
+            if [ "$rc" -eq 0 ]; then
+              echo "PROBE FAIL: $label exited 0, and it must not"
+              fails=1
+              return
+            fi
+            if printf '%s' "$out" | grep -q "$want"; then
+              echo "PROBE OK  : $label -> exit $rc, reported its own reason"
+              printf '%s\n' "$out" | grep '::error::' | sed 's/^/            /'
+            else
+              echo "PROBE FAIL: $label exited $rc without reporting '$want'"
+              printf '%s\n' "$out" | sed 's/^/            /'
+              fails=1
+            fi
+          }
+
+          expect "empty report" "is empty" \
+            python scripts/coverage-gate.py --exclusions .coverage-exclusions \
+              --lcov "$d/empty.info" --floor-frontend 50
+          expect "unparseable report" "could not be parsed" \
+            python scripts/coverage-gate.py --exclusions .coverage-exclusions \
+              --cobertura "$d/broken.xml" --floor-backend 50
+          expect "missing exclusion list" "exclusion list not found" \
+            python scripts/coverage-gate.py --exclusions "$d/no-such-list" \
+              --lcov "$d/empty.info" --floor-frontend 50
+
+          if [ "$fails" -ne 0 ]; then
+            echo "::error::An input-validity path did not behave as specified."
+            exit 1
+          fi
+          echo "All three input-validity paths reported their own failure."
 
       - name: Evaluate floors
         env:
