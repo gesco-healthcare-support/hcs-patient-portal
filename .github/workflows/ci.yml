@@ -464,20 +464,51 @@ jobs:
       # two readers: two lists drift, and a drift means two gates disagree with
       # nobody able to say which is right.
       #
+      # ============================================================
+      # WHOLE NUMBERS ONLY. Adrian's rule, 2026-09-03. DO NOT "TIGHTEN"
+      # THESE BACK TO FRACTIONAL VALUES -- that reintroduces a real defect.
+      # ============================================================
+      #
+      # What the fractional version cost us. The gate prints a figure ROUNDED to
+      # two places; the comparison uses the unrounded value. Two runs of the SAME
+      # code measured:
+      #
+      #   33197/45098 = 73.6108%   both print as "73.61%"
+      #   33195/45098 = 73.6064%
+      #
+      # A floor of 73.61 -- the printed figure, and the obvious thing to copy in
+      # -- PASSES the first and FAILS the second. Two lines of ordinary test
+      # nondeterminism is 0.0044 points, so any floor set from the display sits
+      # inside the display's own rounding error and the gate goes red on
+      # unchanged code. It would be blamed on the gate, not on the rounding.
+      #
+      # A whole number cannot be tripped by that: it removes the failure mode
+      # rather than managing it with a hand-picked margin.
+      #
+      # THE COST, stated so it is not discovered later:
+      #
+      #   backend   measured 73.6064%   floor 73   slack 0.61 pts  ~273 lines
+      #   frontend  measured 69.4647%   floor 69   slack 0.46 pts   ~11 lines
+      #
+      # ~273 backend lines could go uncovered before the absolute floor fires.
+      # That is real, and it is acceptable for one reason: THE ABSOLUTE FLOORS
+      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 90% on the lines
+      # each submission touches, and it catches new uncovered code per pull
+      # request, long before it could accumulate into a 273-line drift. The
+      # absolute floors are a backstop against slow erosion.
+      #
       # FRONTEND -- measured, never guessed:
       #   scripts/coverage-gate.py --measure-only \
       #     --lcov angular/coverage/CaseEvaluation/lcov.info --lcov-prefix angular
       #   -> frontend: 69.46% (1713/2466 lines over 82 files)
       #   measured on feat/ci-coverage-floors @ d2d9a0d9, 667 specs all passing.
-      #   It is trustworthy because the UNFILTERED read of that same file
-      #   reproduces karma's own 67.44% summary exactly, which validates the
-      #   parser rather than merely the number. Set a little under the
-      #   measurement so the gate cannot fail on floating-point equality against
-      #   the very tree it was measured from.
-      FLOOR_FRONTEND: "69.40"
-      # BACKEND -- MEASURED, by the mechanism above. This was deliberately unset
-      # until 2026-09-03 so the gate's own first run would fail and print the
-      # figure, which is exactly what happened:
+      #   Trustworthy because the UNFILTERED read of that same file reproduces
+      #   karma's own 67.44% summary exactly, which validates the parser rather
+      #   than merely the number.
+      FLOOR_FRONTEND: "69"
+      # BACKEND -- MEASURED, by the mechanism this job was built around. It was
+      # deliberately unset until 2026-09-03 so the gate's own first run would
+      # fail and print the figure, which is exactly what happened:
       #
       #   run 97ea9356  backend: measured 73.61% (33197/45098 lines over 887 files)
       #
@@ -485,19 +516,7 @@ jobs:
       # this repo's tracked, non-excluded .cs files present in the report, and it
       # confirms both contamination exclusions matched: 1082 would mean neither,
       # 951 only the third-party one, 1012 only the generated one.
-      #
-      # WHY 73.55 AND NOT 73.61. The printed figure is rounded; the comparison is
-      # not. Two runs of the SAME code measured 33197/45098 = 73.6108% and
-      # 33195/45098 = 73.6064% -- both print as "73.61%", and a floor of 73.61
-      # PASSES the first and FAILS the second. Two lines of ordinary test
-      # nondeterminism is 0.0044 points, so a floor set to the rounded value sits
-      # inside the noise and the gate flakes with no code change. That is a
-      # mystery-failure generator, and it would be blamed on the gate.
-      #
-      # 73.55 sits ~12x the observed jitter below the lower measurement, and
-      # matches the 0.06 margin used for the frontend. It still constrains: any
-      # real regression moves the figure far more than this.
-      FLOOR_BACKEND: "73.55"
+      FLOOR_BACKEND: "73"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
