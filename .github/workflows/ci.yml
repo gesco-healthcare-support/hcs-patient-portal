@@ -34,41 +34,108 @@ jobs:
     permissions:
       pull-requests: read
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      shared: ${{ steps.filter.outputs.shared }}
+      backend: ${{ steps.classify.outputs.backend }}
+      frontend: ${{ steps.classify.outputs.frontend }}
+      shared: ${{ steps.classify.outputs.shared }}
+      unclassified: ${{ steps.classify.outputs.unclassified }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'src/**'
-              - 'test/**'
-              - '*.sln'
-              - '*.slnx'
-              - 'Directory.Build.props'
-              - 'NuGet.Config.template'
-              - 'common.props'
-              - 'global.json'
-            frontend:
-              - 'angular/**'
-            shared:
-              - '.github/**'
-              - 'docs/**'
-              - '.editorconfig'
-              - '.gitleaks.toml'
-              - '.markdownlint.json'
-              - 'README.md'
-              - 'CONTRIBUTING.md'
-              - 'CHANGELOG.md'
+      # DENY BY DEFAULT (phase 2 item 0.5, 2026-09-03).
+      #
+      # This replaced `dorny/paths-filter` with an explicit classifier for one
+      # reason: the filters were an ALLOWLIST WITH NO CATCH-ALL. 28 tracked
+      # top-level paths matched none of the three groups -- all three compose
+      # files, `docker/`, `scripts/`, `tools/`, `etc/`, `BannedSymbols.txt`,
+      # `.gitignore`, `.env.example` among them. A pull request touching only
+      # those set every output to false, so every downstream job's `if:`
+      # evaluated false and every job SKIPPED.
+      #
+      # A skipped job reports "Success" and does NOT block a merge, even when it
+      # is a required check. So such a pull request satisfied every required
+      # check on `main` and `development` -- where ALL required checks are
+      # conditional on this job -- having run none of them.
+      #
+      # The `*)` arm below is the fix and it is the whole point: anything this
+      # classifier does not RECOGNISE is treated as affecting everything, so the
+      # full suite runs. A new top-level directory added next year is covered
+      # without anyone remembering to come back here. An allowlist cannot
+      # self-heal; a fallback can.
+      #
+      # Keep the genuine saving: a `src/`-only change still skips the frontend
+      # jobs, and vice versa.
+      - name: Classify the changed paths
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          files=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+
+          # Absent input is a hard failure, never a silent pass. An empty list
+          # here would classify everything as false and skip the whole suite --
+          # exactly the defect this job was rewritten to remove.
+          if [ -z "$files" ]; then
+            echo "::error::No changed files reported for this pull request. Refusing to classify."
+            exit 1
+          fi
+
+          backend=false
+          frontend=false
+          shared=false
+          unclassified=false
+
+          while IFS= read -r f; do
+            case "$f" in
+              src/* | test/* | *.sln | *.slnx | Directory.Build.props | \
+              NuGet.Config.template | common.props | global.json)
+                backend=true
+                ;;
+              angular/*)
+                frontend=true
+                ;;
+              .github/* | docs/* | .editorconfig | .gitleaks.toml | \
+              .markdownlint.json | README.md | CONTRIBUTING.md | CHANGELOG.md)
+                shared=true
+                ;;
+              *)
+                # Deny by default. Unrecognised path -> run everything.
+                unclassified=true
+                echo "unclassified path, will run the full suite: $f"
+                ;;
+            esac
+          done <<< "$files"
+
+          {
+            echo "backend=$backend"
+            echo "frontend=$frontend"
+            echo "shared=$shared"
+            echo "unclassified=$unclassified"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "### Changed-path classification" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Group | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ----- | ----- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| backend | \`$backend\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| frontend | \`$frontend\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| shared | \`$shared\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unclassified | \`$unclassified\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$files" | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
 
   backend-build:
     name: "Backend: Build"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): the classifier's OWN failure must not skip this job. If it
+    # cannot classify, run -- the same deny-by-default rule as `unclassified`.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -127,7 +194,10 @@ jobs:
     name: "Backend: Test"
     runs-on: ubuntu-latest
     needs: [changes, backend-build]
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    # Gated on its build, whose condition already encodes the path logic.
+    # always() so a failed classifier does not skip it; the build must have
+    # SUCCEEDED, so a skipped or failed build still skips the test.
+    if: ${{ always() && needs.backend-build.result == 'success' }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -172,7 +242,12 @@ jobs:
     name: "Frontend: Build"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): see the note on backend-build.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 15
     defaults:
       run:
@@ -194,7 +269,12 @@ jobs:
     name: "Frontend: Lint"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): see the note on backend-build.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 10
     defaults:
       run:
@@ -216,7 +296,8 @@ jobs:
     name: "Frontend: Test"
     runs-on: ubuntu-latest
     needs: [changes, frontend-build]
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # See the note on backend-test.
+    if: ${{ always() && needs.frontend-build.result == 'success' }}
     timeout-minutes: 25
     defaults:
       run:
@@ -260,7 +341,13 @@ jobs:
     name: "Backend: Format Check"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): the classifier's OWN failure must not skip this job. If it
+    # cannot classify, run -- the same deny-by-default rule as `unclassified`.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -294,7 +381,12 @@ jobs:
     name: "Frontend: Format Check"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): see the note on backend-build.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 10
     defaults:
       run:
