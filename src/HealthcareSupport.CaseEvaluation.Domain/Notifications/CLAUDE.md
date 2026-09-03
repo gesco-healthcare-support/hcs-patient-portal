@@ -47,6 +47,7 @@ placeholders are left in place, not blanked.
 ### Recipient resolution
 
 `AppointmentRecipientResolver.ResolveAsync` resolves recipients in this order (first-wins dedup by email):
+
 1. ApplicantAttorney via join table
 2. DefenseAttorney via join table
 3. ClaimExaminer via AppointmentInjuryDetail

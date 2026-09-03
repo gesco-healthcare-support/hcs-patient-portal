@@ -28,6 +28,7 @@ has a corresponding AppService here.
 IMPORTANT: Extend `CaseEvaluationAppService`, NOT `ApplicationService` directly.
 
 Two known deviations (do not replicate):
+
 - `SystemParametersAppService` extends `ApplicationService` -- localization calls fall back
   to the default ABP resource instead of the project's `CaseEvaluationResource`.
 - `NotificationTemplatesAppService` extends `ApplicationService` -- same localization fallback.
