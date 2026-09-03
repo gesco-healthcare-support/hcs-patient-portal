@@ -2274,6 +2274,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("PrimaryResponsibleUserId");
 
+                    b.Property<string>("ProbeOneSidedMigrationMarker")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ReScheduleReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)")

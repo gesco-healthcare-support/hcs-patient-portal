@@ -157,6 +157,14 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? ClaimExaminerEmail { get; set; }
 
+    // PROBE POISON -- phase 2 item 2.6, ONE-SIDED case. Throwaway branch, never
+    // merged. Appointment is mapped in BOTH CaseEvaluationDbContext and
+    // CaseEvaluationTenantDbContext, and this branch adds a migration for the
+    // HOST set only. The host check must therefore PASS while the tenant check
+    // FAILS -- which is the failure that has actually shipped to users here, and
+    // the one a single combined check would let through.
+    public virtual string? ProbeOneSidedMigrationMarker { get; set; }
+
     // ---- Attorney snapshot (#9, 2026-06-19) ----
     // Booking-time copy of the applicant / defense attorney's name + firm + contact,
     // captured from the master when the attorney is linked to (or edited on) THIS
