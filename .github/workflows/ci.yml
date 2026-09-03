@@ -171,6 +171,115 @@ jobs:
       # duplicate full-solution build on every back-end submission.
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
 
+      # PHASE 2 ITEM 2.6 -- fail the build on a model change with no migration.
+      #
+      # Pinned to the version the mechanism was actually verified with, not to
+      # "latest". Newer 10.0.x exist; an unpinned tool means the gate's behaviour
+      # can change without anyone changing this file.
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.7
+
+      # TWO STEPS, ONE PER CONTEXT, DELIBERATELY NEVER COMBINED.
+      #
+      # This repo has two schemas: `CaseEvaluationDbContext` (host, Migrations/)
+      # and `CaseEvaluationTenantDbContext` (tenant, TenantMigrations/, one
+      # database per office). Most entities are mapped in BOTH.
+      #
+      # A single combined check passes when one of the two is missing, and the
+      # ONE-SIDED case is the one that actually breaks here: a migration added to
+      # the host set and forgotten in the tenant set produces an office database
+      # missing a table, which surfaces as a runtime exception in front of a
+      # user. That has shipped before. Two steps means two exit codes, two check
+      # lines in the log, and a message naming the right folder -- a generic
+      # failure sends people to the wrong migration set.
+      #
+      # `--no-build` is NOT used, though the Release build above would allow it.
+      # The command form below is the one whose exit codes were verified (0 on a
+      # clean tree, 1 on a pending change, per context); adding --no-build is an
+      # unproven variant, and the cost of being wrong here is a gate that cannot
+      # fail. The extra compile is the price of that certainty.
+      # A NOTE ON EXIT 1, which is why these steps are not a bare `if`.
+      #
+      # `has-pending-model-changes` exits 1 for a pending model change AND for
+      # any tooling failure -- a broken build, a context it cannot find, a
+      # design-time factory that throws. Treating every exit 1 as "you forgot a
+      # migration" would print a confident, specific, wrong diagnosis and send
+      # someone to write a migration that was never missing.
+      #
+      # So the output is inspected as well as the exit code. Both outcomes still
+      # FAIL: the distinction changes only the message, never the verdict, so a
+      # wrong guess about the marker string cannot manufacture a false pass.
+      - name: "Migrations: host schema is current"
+        run: |
+          set -uo pipefail
+          P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationDbContext -p "$P" 2>&1)
+          rc=$?
+          printf '%s\n' "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "Host schema matches its migrations."
+            exit 0
+          fi
+          # Case-SENSITIVE, and that is the whole point. EF's two messages are
+          # "Changes have been made to the model since the last migration." and
+          # "No changes have been made to the model since the last migration."
+          # -- verified against Microsoft.EntityFrameworkCore.Design.dll 10.0.0,
+          # the version this repo references. A case-insensitive match treats
+          # those opposites as identical. It is unreachable today because the
+          # success message comes with exit 0 and this branch only runs on a
+          # non-zero exit, but a matcher that cannot tell "changed" from "not
+          # changed" is one refactor away from being wrong.
+          if printf '%s' "$out" | grep -q "Changes have been made to the model"; then
+            m="The HOST model has changes with no migration in Migrations/."
+            m="$m Add one with: dotnet ef migrations add <Name>"
+            m="$m -c CaseEvaluationDbContext -o Migrations -p $P"
+          else
+            m="The host migration check could not complete (exit $rc) and this is"
+            m="$m NOT a missing-migration report. Read the output above before"
+            m="$m adding any migration."
+          fi
+          echo "::error::$m"
+          exit 1
+
+      - name: "Migrations: tenant schema is current"
+        # Runs even when the host step failed. These are two independent
+        # schemas, and the ONE-SIDED case is the whole reason this item exists;
+        # letting the host failure short-circuit the tenant check would hide
+        # exactly half of what the gate is for.
+        if: always()
+        run: |
+          set -uo pipefail
+          P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationTenantDbContext -p "$P" 2>&1)
+          rc=$?
+          printf '%s\n' "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "Tenant schema matches its migrations."
+            exit 0
+          fi
+          # Case-SENSITIVE, and that is the whole point. EF's two messages are
+          # "Changes have been made to the model since the last migration." and
+          # "No changes have been made to the model since the last migration."
+          # -- verified against Microsoft.EntityFrameworkCore.Design.dll 10.0.0,
+          # the version this repo references. A case-insensitive match treats
+          # those opposites as identical. It is unreachable today because the
+          # success message comes with exit 0 and this branch only runs on a
+          # non-zero exit, but a matcher that cannot tell "changed" from "not
+          # changed" is one refactor away from being wrong.
+          if printf '%s' "$out" | grep -q "Changes have been made to the model"; then
+            m="The TENANT model has changes with no migration in TenantMigrations/."
+            m="$m Every office has its own database, so a missing tenant migration"
+            m="$m is a runtime failure in front of a user, not a build problem."
+            m="$m Add one with: dotnet ef migrations add <Name>"
+            m="$m -c CaseEvaluationTenantDbContext -o TenantMigrations -p $P"
+          else
+            m="The tenant migration check could not complete (exit $rc) and this"
+            m="$m is NOT a missing-migration report. Read the output above before"
+            m="$m adding any migration."
+          fi
+          echo "::error::$m"
+          exit 1
+
   docs-structure:
     name: "Docs: Structure Check"
     runs-on: ubuntu-latest
