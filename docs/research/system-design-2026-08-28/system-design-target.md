@@ -1274,7 +1274,7 @@ only five, one of which is new and one of which has moved.
 
 ### Component boundaries and trust zones
 
-```
+```text
                         PUBLIC INTERNET  (anonymous traffic reaches registration,
                         login, password reset, consent response, document upload)
                                        |

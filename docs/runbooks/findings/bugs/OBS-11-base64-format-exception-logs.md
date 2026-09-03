@@ -22,7 +22,7 @@ found: 2026-05-14 during Workflow B approval flow
 
 After Workflow B approval (Staff approves Patient-booked appointment), the api logs emit several:
 
-```
+```text
 System.FormatException: The input is not a valid Base-64 string as it contains a non-base 64 character, more than two padding characters, or an illegal character among the padding characters.
 ```
 
@@ -44,7 +44,7 @@ None visible — packets generate and emails deliver successfully. The exception
 
 After a clean `docker compose down -v` + `up -d --build`, `AbpSettings` table has **zero rows**. The Base-64 FormatException **still appears** on every email send, paired with the warning:
 
-```
+```text
 [WRN] Failed to decrypt the setting: Abp.Mailing.Smtp.Password. Returning the original value...
 System.FormatException: The input is not a valid Base-64 string...
 [INF] SendAppointmentEmailJob: delivered (...) to <recipient>.
@@ -66,7 +66,5 @@ Promoting to [[BUG-020]] for the proper fix-session ticket.
 ## Related
 
 - [[BUG-020]] — proper fix: override ABP's setting definition so `Abp.Mailing.Smtp.Password` is not marked encrypted in our deployment, OR provide an actually-encrypted value at a higher-priority config source.
-
-## Related
 
 - [[BUG-009]] (BusinessException auto-localization gap) — similar shape of "exception swallowed, generic log" but observable in different surface.

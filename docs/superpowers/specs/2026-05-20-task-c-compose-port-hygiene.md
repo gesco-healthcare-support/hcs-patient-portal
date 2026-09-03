@@ -43,7 +43,7 @@ Insert after the existing `REDIS_HOST_PORT` comment (currently line 35),
 matching the existing AUTH/API/NG/SQL/REDIS format with `+10` offset
 examples (consistent with the other 5 lines in the block):
 
-```
+```text
 #MINIO_API_PORT=9010     # default 9000 (main)
 #MINIO_CONSOLE_PORT=9011 # default 9001 (main)
 #GOTENBERG_PORT=3010     # default 3000 (main)

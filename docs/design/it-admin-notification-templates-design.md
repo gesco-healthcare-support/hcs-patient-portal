@@ -40,7 +40,7 @@ an IT Admin section.
 
 ## 3. Page Layout (List)
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Notification Templates          [Search input]  |
 +-------------------------------------------------------+
@@ -75,6 +75,7 @@ Commented out in OLD (intentionally hidden from list):
 - `description`
 
 NEW should show the same visible set: Template Code name + Email Body + SMS Body
+
 - Status + Action. Email Body column may truncate to ~80 chars with a "show more"
 tooltip since bodies are long HTML strings.
 
@@ -84,7 +85,7 @@ OLD source: `list/template-list.component.html:32-56`
 
 Header: "Template Details" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Template Details            [X]  |
 +-----------------------------------+
@@ -157,7 +158,7 @@ OLD source: `add/template-add.component.html:1-75`
 
 Header: "Template Details" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Template Details            [X]  |
 +-----------------------------------+

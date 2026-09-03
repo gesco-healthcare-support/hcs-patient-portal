@@ -19,7 +19,7 @@ across chunks, two separate copies of `CORE_OPTIONS` are created. Angular's depe
 injection uses `===` (reference identity) to match tokens. Since the two copies are
 different object references, the DI container cannot find the provider, resulting in:
 
-```
+```text
 NullInjectorError: No provider for CORE_OPTIONS
 ```
 

@@ -51,7 +51,7 @@ feature lives behind login, behind the side-nav, or in the auth chrome.
 State the OLD route(s) -> NEW route(s). Cite the OLD `app-routing.module.ts`
 or component selector if the route is non-obvious.
 
-```
+```text
 - OLD: <old route> -> NEW: <new route>
 - OLD: <old route 2> -> NEW: <new route 2>
 ```
@@ -64,7 +64,7 @@ query param), document it here.
 ASCII wireframe for each distinct screen state, plus a relative link to
 the captured OLD screenshot.
 
-```
+```text
 +--------------------------------------------------+
 | <header / shell context, e.g. "auth-shell">       |
 +--------------------------------------------------+
@@ -145,6 +145,7 @@ Cite the OLD permission check location (`*ngIf="hasPermission(...)"` or
 
 For external-user features that gate by appointment ownership /
 accessor scope (rather than role alone), add a note explaining the gate
+
 - cite the OLD service method.
 
 ## 8. Branding tokens used
@@ -190,7 +191,7 @@ cross-reference the `docs/parity/_parity-flags.md` entry.
 
 Re-list every OLD file the design references, in alphabetical order:
 
-```
+```text
 - patientappointment-portal/src/app/components/<area>/<feature>.component.html
 - patientappointment-portal/src/app/components/<area>/<feature>.component.ts
 - patientappointment-portal/src/app/components/<area>/<feature>.component.scss

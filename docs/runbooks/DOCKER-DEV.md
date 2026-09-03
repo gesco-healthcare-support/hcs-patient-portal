@@ -143,7 +143,7 @@ Per-worktree isolation comes from two mechanisms:
 
 Main uses the defaults (nothing to set). For `development`, `staging`, or a feature worktree, append the override block to the worktree's `.env` (the file is gitignored):
 
-```
+```text
 AUTH_PORT=44378           # 44368 + (offset * 10), default 44368 = main
 API_PORT=44337            # 44327 + (offset * 10), default 44327
 NG_PORT=4210              # 4200 + (offset * 10), default 4200
@@ -204,7 +204,7 @@ If unhealthy, check `docker compose logs api` -- usually missing license or DB c
 **AuthServer login redirects return `invalid_client`:**
 OpenIddict seed ran against a different `RootUrl` than Angular uses. The compose file hard-codes the Angular root URL in the DbMigrator environment:
 
-```
+```text
 OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:4200"
 ```
 

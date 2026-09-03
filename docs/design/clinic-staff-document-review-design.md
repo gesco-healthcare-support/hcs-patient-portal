@@ -65,7 +65,7 @@ The component itself is identical; the shell is determined by the parent page.
 In OLD, "Upload Documents" navigates to a separate full page at
 `/appointment-new-documents/:appointmentId`:
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Appointment Documents        [Back]             |
 +-------------------------------------------------------+
@@ -108,7 +108,7 @@ Embedded as `<app-appointment-documents [appointmentId]="id">` in the appointmen
 
 ### 4a. Layout
 
-```
+```text
 +-------------------------------------------------------+
 | [H3] Appointment Documents                           |
 +-------------------------------------------------------+
@@ -184,7 +184,7 @@ NEW source: `appointment-documents.component.ts:199-205`
 1. Staff clicks **Reject** button on a document row.
 2. Rejection reason modal opens:
 
-```
+```text
 +---------------------------------------------+
 | Reject Document                       [X]   |
 +---------------------------------------------+

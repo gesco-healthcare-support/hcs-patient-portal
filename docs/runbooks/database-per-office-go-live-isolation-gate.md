@@ -11,7 +11,7 @@ blocking failure** -- there is no "low severity" cross-office leak.
 
 Run the backend suite; the multi-office isolation tests are the gate.
 
-```
+```bash
 cd test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests
 dotnet test --filter "FullyQualifiedName~MultiOffice"
 ```

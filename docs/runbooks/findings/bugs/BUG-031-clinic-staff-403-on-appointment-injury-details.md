@@ -17,14 +17,14 @@ During HRD-P3.5 (clistaff1 books Record Review for existing patient1 via `/appoi
 
 API container log:
 
-```
+```text
 [18:13:37 INF] Request starting HTTP/1.1 POST http://falkinstein.localhost:44327/api/app/appointment-injury-details - application/json 232
 [18:13:37 INF] Request finished HTTP/1.1 POST http://falkinstein.localhost:44327/api/app/appointment-injury-details - 403 0 null 212.5665ms
 ```
 
 Browser console:
 
-```
+```text
 ERROR: Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://falkinstein.localhost:44327/api/app/appointment-injury-details
 ```
 

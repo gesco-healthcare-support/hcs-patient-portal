@@ -53,7 +53,7 @@ Internal-user authenticated shell (side-nav + top-bar).
 
 ### 3a. Layout
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Change Logs       [Search input] [Reset]           |
 | [Advanced Search accordion]                             |

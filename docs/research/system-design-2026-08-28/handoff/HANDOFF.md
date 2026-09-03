@@ -182,7 +182,7 @@ below. Attach `system-design-target.md`, `infrastructure-requirements.md` and
 `research-method-and-analysis.md` at minimum. Attach the appendices if the session will be
 challenging specific claims.
 
-```
+```text
 I commissioned a research project on system design and infrastructure architecture, and I am handing
 the results back to you. Attached are the deliverables and the supporting record.
 

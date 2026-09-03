@@ -271,7 +271,7 @@ The `::` prefix tells ABP to look in the application's own localization resource
 
 Localization JSON files are located in:
 
-```
+```text
 Domain.Shared/Localization/CaseEvaluation/en.json
 Domain.Shared/Localization/CaseEvaluation/es.json
 ```

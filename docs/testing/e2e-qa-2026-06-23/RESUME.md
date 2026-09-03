@@ -26,6 +26,7 @@ runnable checks; commit only the fix files by pathspec; never echo MSSQL_SA_PASS
    meaningful bugs to Adrian with fix-size + recommendation via the modal; he decides fix now/later.
 
 ## Environment
+
 + App <http://falkinstein.localhost:4250> ; API <http://localhost:44377> ; AuthServer 44418 ; SQL 1439.
 + Repo: C:\src\patient-portal\feat-frontend-rework  (Bash = Git Bash).
 + Tenant Falkinstein = 09f46f32-6119-0d8f-f552-3a2202649ed3.
@@ -39,6 +40,7 @@ runnable checks; commit only the fix files by pathspec; never echo MSSQL_SA_PASS
 Internal (seeded): <stafsuper1@gesco.com> (Staff Supervisor), <clistaff1@gesco.com> (Intake Staff).
   NOTE stafsuper2/clistaff2 are NOT seeded (F-003).
 External (ALL registered + email-confirmed already this run):
+
 + Patients: <patient1@gesco.com> (Daniel Harper), <patient2@gesco.com> (Olivia Turner)
 + Applicant Attorneys: appatty1 (Marcus Bennett, firm "Bennett Lawson Law"), appatty2 (Tiffany Lawson, same firm), appatty3 (Jesse Rogers, firm "Rogers Jones Law")
 + Defense Attorneys: defatty1 (Gregory Stone, firm "Stone & Perez Defense LLP"), defatty2 (Alicia Perez, same firm), defatty3 (Darla Norris, firm "Norris Barret Defense LLP")
@@ -48,6 +50,7 @@ Firm/paralegal model: a paralegal logs in with their own account and enters a DI
 details in the attorney section; booker = the logged-in account, attorney-of-record = the named email.
 
 ## Lookup IDs (verified)
+
 + AppointmentType: AME=a0a00002-0000-4000-9000-000000000001? (CONFIRM via lookup) ; the ids used this
   run: type passed as a0a00002-0000-4000-9000-000000000003 worked for North loose slots. ALWAYS fetch
   fresh via `GET /api/app/appointments/appointment-type-lookup?maxResultCount=200&evaluationContext=0`
@@ -87,6 +90,7 @@ details in the attorney section; booker = the logged-in account, attorney-of-rec
    Reject: `POST /api/app/appointment-approvals/{id}/reject` {reason}.
 
 ## Change-request + consent endpoints (lifecycle)
+
 + External request reschedule: `POST /api/app/appointment-change-requests/reschedule/{appointmentId}`
   {newDoctorAvailabilityId, reScheduleReason, isBeyondLimit:false}.
 + External request cancel: `POST /api/app/appointment-change-requests/cancel/{appointmentId}` {reason}.
@@ -98,6 +102,7 @@ details in the attorney section; booker = the logged-in account, attorney-of-rec
   real mail ALSO sends). Note the extractor also prints <www.w3.org/1999/xhtml> (ignore).
 
 ## Current appointment state (as of handoff)
+
 + A00001 CancelledNoBill(5) — DA-paralegal(defatty1) booked; cancelled via booker request -> supervisor.
 + A00002 Rejected(3).
 + A00003 InfoRequested(14) — patient1 booker; resubmit is gated until the flagged "Documents" field is
@@ -110,6 +115,7 @@ details in the attorney section; booker = the logged-in account, attorney-of-rec
   gates) and use for a lifecycle test.
 
 ## ALREADY DONE (do not redo)
+
 + Setup: clean DB, 57 North slots, 12 externals registered via 3 paths (self-signup, staff invite,
   register-after-booking), internal seeds.
 + Booking VARIATIONS all UI-proven: AME/IME/PQME, panel-number conditional, both clinics + South empty
@@ -151,6 +157,7 @@ C. Internal-staff at volume: approve/reject/send-back across the new appointment
 D. Re-verify F-007 (dashboard "Requests over time" stale count) now that real appointments exist.
 
 ## Constraints / gotchas (learned this run)
+
 + Drive via UI/token as the real actor. API booking is OK for VOLUME but appointments must be complete
   (injury+CE) and approved through the REAL gates — do NOT SQL-insert records to dodge gates.
 + Login (authserver MVC form): set email+password inputs + click Sign in (works via JS form fill).

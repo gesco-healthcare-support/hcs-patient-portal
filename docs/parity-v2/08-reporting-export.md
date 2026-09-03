@@ -12,6 +12,7 @@ to be MISSING in NEW; this audit documents each lost capability so the
 owner can decide scope and priority.
 
 OLD anchors read in full:
+
 + `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentRequestReportController.cs`
   (CRUD over the `AppointmentRequestReport` entity -- generic scaffold).
 + `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentRequestReportSearchController.cs`
@@ -41,6 +42,7 @@ OLD anchors read in full:
   (`spm.spAppointmentRequestReport` -- a `WHERE 1=0` stub in this copy).
 
 NEW anchors checked (to confirm absence):
+
 + `src\HealthcareSupport.CaseEvaluation.Application\Dashboards\`,
   `...Application.Contracts\Dashboards\`,
   `...HttpApi\Controllers\Dashboards\` -- only the dashboard counter
@@ -321,6 +323,7 @@ expected library/data-access swaps as parity gaps:
    port this pattern.
 
 Additional non-blocking OLD oddities (note, do not port):
+
 + **`AppointmentRequestReportController` is generic CRUD scaffolding** for
   an entity (`AppointmentRequestReport : Appointment`, an empty subclass)
   that the visible report never uses -- the report is proc-bound. Dead

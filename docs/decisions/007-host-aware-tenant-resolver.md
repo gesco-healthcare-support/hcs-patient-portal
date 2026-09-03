@@ -10,7 +10,7 @@ ADR-006 (2026-05-05) decided that the Angular SPA promotes the bare `localhost:4
 
 Empirical evidence (2026-05-11) contradicts that assumption:
 
-```
+```bash
 curl -H "Host: admin.localhost" http://localhost:44327/api/abp/application-configuration
 => HTTP/1.1 404 Not Found
    Abp-Tenant-Resolve-Error: Tenant not found!
@@ -48,7 +48,7 @@ The contributor lives at `src/HealthcareSupport.CaseEvaluation.HttpApi/MultiTena
 
 After the change, both of these must hold:
 
-```
+```bash
 curl -i -H "Host: admin.localhost"        http://localhost:44327/api/abp/application-configuration  # => 200, host context
 curl -i -H "Host: falkinstein.localhost"  http://localhost:44327/api/abp/application-configuration  # => 200, tenant context (Falkinstein)
 curl -i -H "Host: falkinstien.localhost"  http://localhost:44327/api/abp/application-configuration  # => 404, "Tenant not found!" (typo protection)

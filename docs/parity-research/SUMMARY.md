@@ -81,7 +81,7 @@ Net effect: the 59 `include` rows collapse to **~53 distinct buildable units**
 
 ### 1.3 Dependency chains (must-fix-before)
 
-```
+```text
 G-01-03 (populate flag) ---------> G-02-08 (act on patient-match override)
 G-01-01 + G-01-02 (injury dates) - underpin -> G-02-07 (approval injury gate, keep)
 G-07-02 (ReEvalId data) ---------> G-01-07 (reval UI + prefill)

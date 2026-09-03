@@ -30,7 +30,7 @@ with `redirect_uri=http%3A%2F%2Ffalkinstein.localhost%3A4230`.
 
 OpenIddict rejects with:
 
-```
+```text
 error: invalid_request
 error_description: The specified 'redirect_uri' is not valid for this client application.
 error_uri: https://documentation.openiddict.com/errors/ID2043

@@ -115,7 +115,7 @@ lines over 17,464 file-changes** (inflated by generated ABP proxy code and lockf
 
 `main` is effectively single-author across four git identities:
 
-```
+```text
 483  Adrian <adriang@gesco.com>
 311  AdrianG <arajeev@gesco.com>
  91  Adriang <arajeev@gesco.com>
@@ -153,7 +153,7 @@ the box is updated by hand over SSH. There is **no CD**.
 
 **Branch protection on `main` is thin.** `gh api .../branches/main/protection`:
 
-```
+```text
 strict (up-to-date required): true
 REQUIRED CHECKS (2):
    - Backend: Build
@@ -336,7 +336,7 @@ Domain 528, EFCore 130); `[Theory]` expansion accounts for the difference.
 `MultiOfficeAppointmentChildCascadeTests.Copies_custom_field_values` failed on **both** the
 2026-08-23 and 2026-08-25 cascade PRs, identically:
 
-```
+```text
 Microsoft.Data.Sqlite.SqliteException : SQLite Error 19:
 'UNIQUE constraint failed: AppAppointments.TenantId, AppAppointments.RequestConfirmationNumber'
   at ...MultiOfficeAppointmentChildCascadeTests.RunCopyAsync(...):line 286
@@ -372,7 +372,7 @@ Riok.Mapperly, Stateless (state machine), QuestPDF, MailKit/MimeKit, MinIO blob 
 
 **Projects** (10 src, 5 test):
 
-```
+```text
 src/  Application, Application.Contracts, AuthServer, DbMigrator, Domain,
       Domain.Shared, EntityFrameworkCore, HttpApi, HttpApi.Client, HttpApi.Host
 test/ Application.Tests, Domain.Tests, EntityFrameworkCore.Tests,

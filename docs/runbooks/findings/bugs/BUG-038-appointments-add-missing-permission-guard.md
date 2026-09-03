@@ -43,7 +43,7 @@ component: angular/src/app/app.routes.ts:113-117 (path/lineno corrected from doc
 >
 > **Out-of-scope question to consider in the fix session:** which roles actually hold `CaseEvaluation.Appointments.Create`? If internal staff also hold it (per [[OBS-19]]'s observation that internal staff *can* book), they'll continue to reach the external form via deep-link even after this fix -- which is what OBS-19 separately worries about. The route fix is correct in isolation; the internal-vs-external booking UX split is a separate concern.
 
-# OBS-18 - /appointments/add reachable by ANY authenticated user
+## OBS-18 - /appointments/add reachable by ANY authenticated user
 
 ## Symptom
 

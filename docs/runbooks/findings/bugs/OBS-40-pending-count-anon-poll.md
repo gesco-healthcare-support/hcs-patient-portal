@@ -14,7 +14,7 @@ component: angular/src/app/(dashboard or shared layout)/pending-count-poll - exa
 
 While clicking around the SPA, the browser console shows repeated:
 
-```
+```text
 Failed to load resource: the server responded with a status of 401 (Unauthorized)
 @ http://falkinstein.localhost:44327/api/app/appointments/pending-count:0
 ```

@@ -36,6 +36,7 @@ USPS address-standardization modal accepted ("Continue").
 Result: appointment id `42b18aef-7cf9-a3e5-5b90-3a21b64530ab`, confirmation A00065.
 
 PASS items:
+
 + Panel Number field is DISABLED for AME (UI-level rejection of panel number). PASS.
 + `POST /api/app/appointments` -> 200; appointment persisted with denormalized party emails
   (patient1/appatty1/defatty1/claimE1). PASS.
@@ -83,6 +84,7 @@ claimE2 (Jasmine Reid); Insurance "Golden State Insurance Fund"; 1 injury (WC-20
 ADJ87654321, Right shoulder). Result: id `86ead7cd-0879-70a2-13bc-3a21b6504993`, A00066.
 
 PASS items:
+
 + Panel Number DISABLED for IME (UI rejects panel number). PASS.
 + External-attorney booker: AA section auto-filled with booker identity, AA email locked
   (read-only). PASS.
@@ -113,6 +115,7 @@ defatty2 (Alicia Perez); CE claimE2 (Jasmine Reid); Insurance "Sequoia Casualty"
 `e7629001-3e82-3606-3b74-3a21b6549307`, A00067.
 
 PASS items:
+
 + **Panel Number ENABLED + required ("Panel Number *") for PQME** and persisted
   (PanelNumber=PNL-2026-0042) -- the inverse of the AME/IME disabled state. Confirms the
   per-type panel-number rule at the UI + storage.

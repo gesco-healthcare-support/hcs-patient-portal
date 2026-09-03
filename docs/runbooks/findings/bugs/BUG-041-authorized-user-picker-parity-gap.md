@@ -42,7 +42,7 @@ component: src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/Exte
 >
 > **Alternative (smaller fix):** keep the dropdown but expand the role allow-list to all 4 external roles. Loses the "authorize someone not yet registered" capability but at least matches OLD's role coverage. Less work; preserves NEW's "must pre-exist" simplification.
 
-# OBS-16 — Authorized User picker is filtered to a small subset
+## OBS-16 — Authorized User picker is filtered to a small subset
 
 ## Symptom
 

@@ -66,7 +66,7 @@ When a booking named this attorney earlier, a master row already exists with tha
 
 Observed failure (live):
 
-```
+```text
 Microsoft.Data.SqlClient.SqlException (2601): Cannot insert duplicate key row in object
 'dbo.AppDefenseAttorneys' with unique index 'IX_AppDefenseAttorneys_TenantId_Email'.
 The duplicate key value is (dfed8778-...-b86a, defatty2@gesco.com).

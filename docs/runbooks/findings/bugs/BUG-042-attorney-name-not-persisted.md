@@ -73,7 +73,7 @@ null-returning endpoint above).
 
 ### DB ground truth (2026-05-27)
 
-```
+```text
 AppAppointmentApplicantAttorneys: 2 rows, both IdentityUserId = NULL
 AppAppointmentDefenseAttorneys:   2 rows, both IdentityUserId = 84B591AD-... (defatty1)
 AppApplicantAttorneys master:     FirmName='Stone & Associates', Email='appatty1@gesco.com', IdentityUserId=NULL  (no name column)

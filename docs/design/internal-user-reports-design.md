@@ -47,7 +47,7 @@ Side-nav item: "Reports" under the main navigation.
 
 ## 3. OLD Page Layout
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Appointment Request Report                         |
 |                          [Search input] [Sync reset]    |

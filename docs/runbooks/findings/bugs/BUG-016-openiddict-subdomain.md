@@ -51,7 +51,7 @@ medium (blocks SPA login from any tenant subdomain; affects multi-tenant Phase 2
 
 Navigating to the SPA at `http://falkinstein.localhost:4200/` (any tenant subdomain) redirects to `/connect/authorize`. The OpenIddict authorization endpoint then returns:
 
-```
+```text
 error:invalid_request
 error_description:The specified 'redirect_uri' is not valid for this client application.
 error_uri:https://documentation.openiddict.com/errors/ID2043

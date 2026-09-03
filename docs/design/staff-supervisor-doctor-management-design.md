@@ -91,7 +91,7 @@ Internal-user authenticated shell (side-nav + top-bar). Side-nav items:
 In OLD there is no doctor list page. Staff Supervisor navigates directly to
 `/doctors/:doctorId`. The edit page is a full-page form:
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Manage Doctor Details          [Edit User]      |
 +---------------------------+---------------------------+
@@ -137,7 +137,7 @@ OLD source: `doctor-preferred-locations/list/doctor-preferred-location-list.comp
 
 NEW introduces a full doctor list (ABP DataTable):
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Doctors                   [Create] [Refresh]    |
 | [ABP Advanced Filters]                               |
@@ -162,7 +162,7 @@ NEW source: `doctors/doctor/components/doctor.component.html:1-210`
 
 Opens via "Create" button or "Edit" action:
 
-```
+```text
 +-------------------------------------------------------+
 | Doctor Details                                 [X]   |
 | [Tab: Doctor] [Tab: Appointment Types] [Tab: Locations] |
@@ -205,7 +205,7 @@ NEW source: `doctors/doctor/components/doctor-detail.component.html:1-140`
 
 ### 4a. OLD Availability List
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Doctor Availability      [Add + button]         |
 | [Advanced Search accordion]                          |
@@ -237,7 +237,7 @@ OLD source: `doctors-availabilities/list/doctors-availability-list.component.htm
 
 Functionally identical to OLD; implemented with plain HTML table + NGBootstrap pagination.
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Doctor Availabilities    [Generate] [Refresh]   |
 | [ABP Advanced Filters]                               |
@@ -275,7 +275,7 @@ Two slot-generation modes toggled by radio button:
 **Slot By Date(s):** specify an explicit date range.
 **Slot By Weekdays:** specify a month + day-of-week range.
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Generate Doctor Availability  [Back]            |
 +-------------------------------------------------------+
@@ -352,7 +352,7 @@ for doctor-management context.
 
 ### 6a. OLD Locations List
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Locations                   [Add + button]      |
 | ( ) Location  ( ) WCAB Office   [radio toggle]       |

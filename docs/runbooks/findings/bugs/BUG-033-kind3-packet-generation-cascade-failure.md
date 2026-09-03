@@ -15,7 +15,7 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Pack
 
 Phase 5 approved 4 appointments (A00001, A00002, A00004, A00005). Phase 6 expected 3 packet rows per appointment (Kind=1 patient, Kind=2 doctor, Kind=3 attorneyclaimexaminer) -> 12 rows total. Actual DB state at +15 min after Phase 5:
 
-```
+```text
 A00001 -> 1, 2, 3   (all three; Status=2 each)
 A00002 -> 1, 2      (Kind=3 missing)
 A00004 -> 1, 2      (Kind=3 missing)
@@ -26,7 +26,7 @@ Only the FIRST approved appointment's Kind=3 packet materialized. Three subseque
 
 API container log at the moment of A00001's Kind=3 send-completion:
 
-```
+```text
 [18:23:08 WRN] There is an entry which is not saved due to concurrency exception:
 AppointmentPacket {Id: 024c71a8-7af5-62a9-f890-3a215df3bbef} Modified FK {AppointmentId: 2b07609a-432f-3dc3-8637-3a215dda046f}
 [18:23:08 WRN] SendAppointmentEmailJob: NotifySendCompletedAsync threw for packet 024c71a8-...
@@ -41,7 +41,7 @@ Volo.Abp.Data.AbpDbConcurrencyException: The database operation was expected to 
 
 And immediately after, the suspended state cascades:
 
-```
+```text
 [18:23:32 WRN] SendAppointmentEmailJob: packet 024c71a8-... (kind=AttorneyClaimExaminer) is
               not Generated; skipping packet email (AttyCEPacket/2b07609a-...) to appatty1@gesco.com.
 [18:23:32 WRN] SendAppointmentEmailJob: packet 024c71a8-... (kind=AttorneyClaimExaminer) is

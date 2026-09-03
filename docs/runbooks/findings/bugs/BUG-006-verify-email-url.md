@@ -41,7 +41,7 @@ Every external user that must verify email before first login (Patient / AA / DA
 
 ## Evidence
 
-```
+```text
 POST http://falkinstein.localhost:44328/api/account/verify-email
 request body: {"userId":"97e54a2b-...","token":"CfDJ8LV2..."}
 response status: 405

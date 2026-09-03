@@ -122,7 +122,7 @@ There is no completion criterion, so define the stopping rule instead:
 
 ## Validation loop
 
-```
+```bash
 dotnet test
 npx ng test --watch=false --browsers=ChromeHeadless
 ```

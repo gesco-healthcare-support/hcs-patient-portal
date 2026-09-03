@@ -70,7 +70,7 @@ Side-nav group: "Administration" or "Master Data" menu section.
 OLD uses a SINGLE page at `/locations` with radio buttons to toggle between
 "Location" and "Wcab" views. The table and Add form switch based on selection.
 
-```
+```text
 +----------------------------------------------------------+
 | [H2 "Location" or "WCAB Office"]   [Search]  [Reset]   |
 +----------------------------------------------------------+
@@ -146,7 +146,7 @@ OLD source: `doctor-management/locations/list/location-list.component.html:1-98`
 
 ### 4a. OLD List
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Document Type    [Search]  [Reset]     [Add +]     |
 +----------------------------------------------------------+
@@ -176,7 +176,7 @@ OLD source: `document/appointment-document-types/list/appointment-document-type-
 
 ### 5a. OLD List
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Documents        [Search]              [Add +]     |
 +----------------------------------------------------------+

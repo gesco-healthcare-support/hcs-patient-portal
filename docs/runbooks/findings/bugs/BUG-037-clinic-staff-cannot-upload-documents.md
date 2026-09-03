@@ -27,7 +27,7 @@ Steps:
 
 Observed:
 
-```
+```text
 [browser console]
 Failed to load resource: the server responded with a status of 403 (Forbidden)
   @ http://falkinstein.localhost:44327/api/app/appointments/42a6f114-d44c-cadc-0d87-3a2168443cdf/documents:0

@@ -21,6 +21,7 @@ is-invalid), matching the BUG-043 two-layer precedent.
 ## Current behavior (from investigation)
 
 ADJ# is optional across all four enforcement points:
+
 + Client: `injuryWcabAdj` control declared with NO validators --
   `appointment-add-claim-information.component.ts:187` (`injuryWcabAdj: [src.wcabAdj]`).
 + Client: label "ADJ#" has no asterisk and no invalid-state binding --
@@ -43,6 +44,7 @@ By contrast, the sibling required fields are already two-layer enforced: client
 making ADJ# follow that same established pattern.
 
 ## Relevant code locations
+
 + `angular/src/app/appointments/sections/appointment-add-claim-information.component.ts` --
   add `Validators.required` to `injuryWcabAdj` (:187); update docstring (:160). Modal submit
   guard (`saveInjuryModal`) already blocks on invalid controls, so no extra blocking logic.
@@ -60,6 +62,7 @@ making ADJ# follow that same established pattern.
   -- no change needed unless a min-length constant is desired.
 
 ## Phase 3 cross-reference
+
 + CI4 (remove "Attention" field) edits the SAME modal/component
   (appointment-add-claim-information.component.*) and ships an EF migration -- bundle to avoid
   touching the file twice. CI3 itself ships no migration (see below).
@@ -72,6 +75,7 @@ making ADJ# follow that same established pattern.
   same submit gate.
 
 ## Research findings
+
 + Internal patterns / prior art:
   + BUG-043 ("at least one claim required") is the direct precedent: fixed BOTH client-side
     (appointment-add.component.ts:1091) AND in `AppointmentManager` (injuryCount<1 throws).
@@ -103,6 +107,7 @@ making ADJ# follow that same established pattern.
 
 ADJ# (`WcabAdj`) is REQUIRED, per injury (one ADJ# per Date-of-Injury / Claim-Number block).
 Enforce in two layers:
+
 + UI: `Validators.required` on `injuryWcabAdj` + required asterisk on the "ADJ#" label +
   is-invalid binding on the input.
 + Server: `[Required]` on both Create and Update DTO `WcabAdj`; domain ctor makes `wcabAdj`
@@ -133,11 +138,13 @@ required" rule is UNCONDITIONAL across appointment types -- it does not defer to
 7. Enforcement summary: server (DTO + domain) is authoritative; UI is the mirrored affordance.
 
 ## Dependencies
+
 + Soft-coupled to CI1/CI2 (per-injury block restructure) and CI4 (Attention removal + its
   migration), all in the same modal/entity -- sequence CI3 after or alongside them to avoid
   rework, but CI3 has no hard prerequisite. CI3 blocks nothing.
 
 ## Residual open questions
+
 + Column nullability + backfill: the entity column stays nullable for now; the change applies
   to new bookings only. If product later wants the DB column NOT NULL, that needs a separate EF
   migration plus a backfill/decision for existing null-ADJ rows (acceptable to defer -- flagged,

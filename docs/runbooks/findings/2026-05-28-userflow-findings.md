@@ -102,7 +102,7 @@ Users blocked by the rule have no idea why. They will retry with the same input 
 
 Network trace from this run:
 
-```
+```text
 206. PUT /api/app/patients/me  -> 200 OK         (first Book click)
 207. POST /api/app/appointments -> 400 Bad Request (AME rule)
                                                   (user sees error, changes type)
@@ -156,7 +156,7 @@ Any user who fails the first Book attempt is forced to reload and re-fill. Compo
 
 The runbook says:
 
-```
+```http
 POST /api/app/doctor-availabilities/generate-preview with
   { doctorId, locationId, appointmentTypeId, startDate, endDate, ... }
 ```
@@ -166,7 +166,7 @@ Actual state (verified this run):
 - Endpoint is `POST /api/app/doctor-availabilities/preview` (not `/generate-preview`).
 - `DoctorAvailabilityGenerateInputDto` schema:
 
-  ```
+  ```text
   { fromDate, toDate, fromTime, toTime,
     bookingStatusId, locationId, appointmentTypeId,
     appointmentDurationMinutes }
@@ -203,7 +203,7 @@ Confused future runs. Agents may try to POST `doctorId` and silently fail valida
 
 Runbook table row HRD-P3.1:
 
-```
+```text
 | HRD-P3.1 | state.users.patient1 | self (Daniel Harper) | YES | YES | YES | AME |
 ```
 
@@ -327,7 +327,7 @@ Logged in as `stafsuper1@gesco.com` (Staff Supervisor), navigated to `/doctor-ma
 
 `/api/abp/application-configuration` confirms Patrick holds:
 
-```
+```text
 CaseEvaluation.Doctors
 CaseEvaluation.Doctors.Create
 CaseEvaluation.Doctors.Edit
@@ -378,7 +378,7 @@ The agent:
 
 ### Resulting state
 
-```
+```text
 AppDoctors:
   Id:        b2b29044-6623-ac11-8e53-3a2181b48946
   Name:      Evelyn Sato
@@ -414,7 +414,7 @@ When a memory rule says "never propose X", do not include X in an `AskUserQuesti
 
 ## DB state at end of run
 
-```
+```text
 AbpUsers (gesco roster):    stafsuper1@gesco.com  (seed)
                             clistaff1@gesco.com   (seed)
                             patient1@gesco.com    (this run, EmailConfirmed=1)
@@ -452,7 +452,7 @@ Replayed twice in this run:
 
 **A00001** (Daniel's QME, approved by Rachel 17:40:30):
 
-```
+```text
 AppAppointmentPackets:
   Kind=1 (patient), Status=2 (Completed), patient PDF in MinIO
   Kind=2 (doctor),  Status=2 (Completed), doctor  PDF in MinIO
@@ -461,7 +461,7 @@ AppAppointmentPackets:
 
 **A00003** (Henry's Panel QME for Mary Brown, approved 18:18:01):
 
-```
+```text
 Same pattern: Kind=1 + Kind=2 only, no Kind=3 row.
 ```
 
@@ -514,7 +514,7 @@ AA/DA/CE recipients are told via email that an appointment was approved but neve
 
 Approval of A00001 produced these Hangfire jobs (all Succeeded):
 
-```
+```text
 To: patient1@gesco.com
 Subject: "Appointment Request Approved - (Patient: Daniel Harper - Claim: WC-HRD0528-A001 - ADJ: ADJ-HRD0528-A1)"
 Context: PatientPacket/8fb62a63-...
@@ -588,7 +588,7 @@ Either delete the `.test` seed users post-bootstrap, or add a filter (`IsSeed=0`
 
 After all 3 bookings:
 
-```
+```text
 AppAppointments.ClaimExaminerEmail:
   A00001  claimE1@gesco.com   (mixed case - typed by Daniel)
   A00002  claimE1@gesco.com   (mixed case - typed by Marcus)
@@ -646,7 +646,7 @@ For invite-flow registrations, set `EmailConfirmed=true` immediately upon succes
 
 Both Gregory's and Henry's invite emails contained literally:
 
-```
+```html
 <p>Hi ,</p>
 ```
 
@@ -670,7 +670,7 @@ In the invite email template, replace `Hi {{name}},` with `Hi {{name | default: 
 
 When Henry (CE booker) booked A00003, the claim modal opened with the CE section locked and pre-filled:
 
-```
+```text
 Name: "Henry"          (only first name)
 Email: "claime1@gesco.com"  (correct)
 ```
@@ -695,7 +695,7 @@ CE auto-fill should set Name to `${name} ${surname}`.trim() (or equivalent). Sam
 
 ### Symptom
 
-```
+```http
 POST /api/public/external-account/forgot-password
   with { email: "patient1@gesco.com" }              -> 404 in 413ms
   with { email: "nonexistent.hrd-0528@example.test" } -> 404 in 32ms
@@ -818,7 +818,7 @@ Can't probe multi-session policy without launching a second isolated browser con
 
 ---
 
-## What was verified to still hold (no replay needed)
+## What was verified to still hold in the re-verification run (no replay needed)
 
 - PR #197 happy-path registration: 4 users registered cleanly (Daniel manual, Marcus manual, Gregory invite, Henry invite).
 - Verify URL routes to AuthServer Razor page (not SPA) — BUG-006 / BUG-014 fix region still good.
@@ -833,9 +833,9 @@ Can't probe multi-session policy without launching a second isolated browser con
 
 ---
 
-## DB state at end of run
+## DB state at end of the re-verification run
 
-```
+```text
 AbpUsers (gesco roster):    stafsuper1@gesco.com  (seed, Staff Supervisor)
                             clistaff1@gesco.com   (seed, Clinic Staff)
                             patient1@gesco.com    (manual, EmailConfirmed=1, password rotated to 2W3e4R*t)

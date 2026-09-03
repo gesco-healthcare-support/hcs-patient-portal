@@ -47,7 +47,7 @@ OLD route: `/appointment-new-documents/:appointmentId` (separate full page, reac
 In OLD, the "Upload Documents" button on the appointment-edit page navigated to:
 `/appointment-new-documents/:appointmentId`:
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] New Appointment Documents    [Back]             |
 +-------------------------------------------------------+

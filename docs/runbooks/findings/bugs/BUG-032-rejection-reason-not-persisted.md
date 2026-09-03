@@ -16,7 +16,7 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentM
 
 HRD-P5.3 called:
 
-```
+```text
 POST http://falkinstein.localhost:44327/api/app/appointments/22FA225C-D14E-3EA8-11AE-3A215DE39F48/reject
 Body: { "reason": "Invalid claim number" }
 Auth: Bearer <clistaff1's token>
@@ -50,7 +50,9 @@ Most likely (1): pure mapping hole. The [[BUG-024]] fix added the validation att
 1. Pick any Pending appointment id (e.g., from HRD-P3.3).
 2. Get a clinic-staff or supervisor bearer token from localStorage after login.
 
-3. ```
+3. Reject via the API:
+
+   ```bash
    curl -X POST http://falkinstein.localhost:44327/api/app/appointments/<id>/reject \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer <token>" \
