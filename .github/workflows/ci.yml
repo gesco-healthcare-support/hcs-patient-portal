@@ -475,14 +475,29 @@ jobs:
       #   measurement so the gate cannot fail on floating-point equality against
       #   the very tree it was measured from.
       FLOOR_FRONTEND: "69.40"
-      # BACKEND -- DELIBERATELY UNSET. This job's first run WILL FAIL here, on
-      # purpose. The figure has never been measured: the EF suite hangs locally,
-      # so the only honest measurement comes from CI. A guessed floor is worse
-      # than no floor, because it enforces a number nobody stands behind. An
-      # unset floor is a hard failure, so this run prints the real backend figure
-      # in the gate's own counting and its own environment. Copy that figure in
-      # here; that one commit finishes item 2.10.
-      FLOOR_BACKEND: ""
+      # BACKEND -- MEASURED, by the mechanism above. This was deliberately unset
+      # until 2026-09-03 so the gate's own first run would fail and print the
+      # figure, which is exactly what happened:
+      #
+      #   run 97ea9356  backend: measured 73.61% (33197/45098 lines over 887 files)
+      #
+      # 887 is the load-bearing number, not the percentage. It is the count of
+      # this repo's tracked, non-excluded .cs files present in the report, and it
+      # confirms both contamination exclusions matched: 1082 would mean neither,
+      # 951 only the third-party one, 1012 only the generated one.
+      #
+      # WHY 73.55 AND NOT 73.61. The printed figure is rounded; the comparison is
+      # not. Two runs of the SAME code measured 33197/45098 = 73.6108% and
+      # 33195/45098 = 73.6064% -- both print as "73.61%", and a floor of 73.61
+      # PASSES the first and FAILS the second. Two lines of ordinary test
+      # nondeterminism is 0.0044 points, so a floor set to the rounded value sits
+      # inside the noise and the gate flakes with no code change. That is a
+      # mystery-failure generator, and it would be blamed on the gate.
+      #
+      # 73.55 sits ~12x the observed jitter below the lower measurement, and
+      # matches the 0.06 margin used for the frontend. It still constrains: any
+      # real regression moves the figure far more than this.
+      FLOOR_BACKEND: "73.55"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
