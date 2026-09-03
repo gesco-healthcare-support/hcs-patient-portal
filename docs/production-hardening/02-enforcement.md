@@ -20,20 +20,34 @@ Read this section first. It is maintained so that a restart costs minutes rather
 
 ### In flight
 
-| Item | What                    | State                  |
-| ---- | ----------------------- | ---------------------- |
-| --   | The catch-up with main  | the PR you are reading |
+| Item     | What                       | State                                                                |
+| -------- | -------------------------- | -------------------------------------------------------------------- |
+| **2.10** | Separate CI coverage check | PARTIAL -- `feat/ci-coverage-floors` @ `d2d9a0d9`, pushed, **no PR** |
 
-2.7 merged as `2d3f656b` (#519). The record-reconciliation pass merged as `f9d86bfe` (#523).
-**The epic is level with `main` as of this PR**, which unblocks 2.12.
+**Epic head `fcc529dc`. 0 behind `main`, 42 ahead, `main` a genuine ancestor.**
+
+The catch-up merged as `d2dc0233` (#524); the row that used to sit here said "the PR you are
+reading" and described nothing once that PR landed. 2.12 merged as `855a5f7c` (#529) and 2.3 as
+`fcc529dc` (#530).
+
+> **This block was wrong on three of twelve statuses until 2026-09-03**, reporting 2.3 as
+> "researched", 2.10 as "not started" and 2.12 as "unblocked" after all three had moved. It was found
+> by the incoming implementer, whose first action on a stale instruction was to push a closed PR.
+> **A block whose stated purpose is that a restart costs minutes rather than an hour, reporting
+> current without being current, is the same shape as a check reporting success without having run.**
+> Correcting it is the supervisor's job, by Adrian's ruling, because the implementer holds the shared
+> index and a 77KB file is not worth racing over.
 
 ### Next, in order
 
-1. **2.10** -- the separate CI coverage check. Designed, not built. Everything needed is in its
-   section below, including the trap that will make a naive version pass while measuring nothing.
-2. **2.3** -- workflow token permissions. Researched, ready to build. One item, two parts.
+1. **2.10** -- the separate CI coverage check. **Partially built and pushed**, not merged. The gate
+   script and `.coverage-exclusions` are done and independently re-proved (69.46%, 1713/2466 over 82
+   files; PASS at floor 69.0, FAIL exit 1 at 70.0). Remaining: the `ci.yml` wiring, artefact uploads,
+   the changed-lines check, both gitignores and the README badge. Its section below holds the trap
+   that will make a naive version pass while measuring nothing.
+2. **2.6** -- fail the build on a model change with no migration. Mechanism already proven per
+   context; only the ONE-SIDED poison remains. Not batched with 2.10 -- see 2.10's validation loop.
 3. **2.2** -- pin actions to commit SHAs. Not started; re-derive its counts first.
-4. **2.6** -- fail the build on a model change with no migration. Not started.
 
 ### Blocked on a decision, not on work
 
@@ -48,8 +62,8 @@ Read this section first. It is maintained so that a restart costs minutes rather
 
 ### The one lens that has paid off more than any other
 
-A check that reports success without having run. **Seventeen** instances are catalogued at the end of
-this file, eight found in this epic's own work -- and two of those CORRECTED earlier entries rather
+A check that reports success without having run. **Eighteen** instances are catalogued at the end of
+this file, nine found in this epic's own work -- and two of those CORRECTED earlier entries rather
 than adding to them. **Assume the class exists in whatever you are about to trust until you
 have disproven it**, including in your own prior conclusions.
 
@@ -77,16 +91,16 @@ expected; the commits are immutable and this table is the bridge.
 | -------- | -------------------------------------------------- | -------------------------------------- |
 | **2.1**  | Make the SonarCloud new-code coverage gate real    | **SUPERSEDED** -- cancelled 2026-09-02 |
 | **2.2**  | Pin GitHub Actions to commit SHAs                  | NOT STARTED                            |
-| **2.3**  | Restrict workflow token permissions                | RESEARCHED, ready to build             |
+| **2.3**  | Restrict workflow token permissions                | **MERGED** (`fcc529dc`, #530)          |
 | **2.4**  | Decide the fate of the stub Documentation Check    | **DONE** via #514                      |
 | **2.5**  | Promote cleared rule families to build errors      | DEFERRED to phase 7 by design          |
 | **2.6**  | Fail the build on a model change with no migration | NOT STARTED                            |
 | **2.7**  | Audit `sonar.coverage.exclusions`                  | **MERGED** (`2d3f656b`, #519)          |
 | **2.8**  | Make the five existing gates capable of failing    | **MERGED** (#514, #518)                |
 | **2.9**  | Measure true coverage                              | **MERGED** (#516)                      |
-| **2.10** | Build a separate CI coverage check                 | NOT STARTED -- designed                |
+| **2.10** | Build a separate CI coverage check                 | **IN PROGRESS** -- partial, pushed     |
 | **2.11** | Require the checks in branch protection            | **DELIBERATELY LAST**                  |
-| **2.12** | Make `Lint: Markdown` repo-wide blocking           | UNBLOCKED as of the catch-up merge     |
+| **2.12** | Make `Lint: Markdown` repo-wide blocking           | **MERGED** (`855a5f7c`, #529)          |
 
 ---
 
@@ -195,14 +209,54 @@ record the tag in a trailing comment (`uses: actions/checkout@<sha> # v4.2.2`) s
 are legible. Dependabot can keep pinned SHAs updated if `.github/dependabot.yml` includes the
 `github-actions` ecosystem -- check whether it does, and add it if not, or the pins will rot.
 
+### ROUTED HERE FROM #529: `githubactions:S6505` at `lint-meta.yml:77`
+
+SonarCloud went red on #529 with `new_security_rating 3 > 1`, from a single MAJOR vulnerability:
+**`npx` installs packages on demand and runs their lifecycle scripts.**
+
+**It is PRE-EXISTING, not introduced.** The identical line sat at line 78 before #529 and was only
+moved, which is the basis #529 was merged on.
+
+**It belongs to 2.2 because it is the same supply-chain class as an unpinned action**, and it needs
+stating explicitly that **a pinned version tag does not remove it** -- `npx` still resolves and
+executes from the registry at run time. Fix it here rather than leaving it sitting in Sonar, where it
+will be re-triaged by whoever meets it next.
+
 **Acceptance (EARS):** WHEN a workflow references a third-party action, THE SYSTEM SHALL reference
 it by full commit SHA.
 
 ---
 
-## 2.3 Restrict workflow token permissions
+## 2.3 Restrict workflow token permissions -- MERGED 2026-09-03
 
-**Scope:** 7 `TokenPermissionsID` findings (severity high). **Researched 2026-09-03, ready to build.**
+**Scope:** 7 `TokenPermissionsID` findings (severity high). **Landed as `fcc529dc` (#530).**
+
+### What proved it, and what did NOT
+
+**Six files changed; only three could be exercised by the pull request.** `codeql-pr.yml` and
+`pr-title.yml` reported green on #530 itself. `security.yml` was proven by a `workflow_dispatch` run
+on the PR branch, **run `33794718492`, all four jobs green by name** -- Secret Detection, CodeQL
+Analysis, npm Vulnerability Audit, .NET Vulnerability Audit. That run was still in flight when the
+previous session handed over, and confirming it was the last open piece of this item.
+
+**`scorecard.yml`, `deploy-dev.yml` and `release.yml` were NOT exercised**, because they trigger only
+on `schedule`/`dispatch`, push to `development`, and push to `production` respectively.
+
+**Merged anyway, on a mechanism rather than on optimism.** A job-level `permissions:` block REPLACES
+the top-level one for that job, and every job in `deploy-dev.yml` and `release.yml` declares its own.
+So the new top-level `contents: read` is a default that no job in either file inherits -- inert at
+runtime, and incapable of producing the silent 403 this item's own research warns about.
+`release.yml` correctly retains `contents: write` at job level, which is the "narrow, not remove"
+prescription applied rather than quoted.
+
+**`scorecard.yml` carries `workflow_dispatch` and so could still be turned into an observation.**
+Recorded as an accepted residual, not as done.
+
+### Eight unflagged `pull-requests: write` grants
+
+Recorded in #530's body and nowhere else until now. **Scorecard does not flag that scope** and
+several of the eight genuinely need it, so 2.3 correctly did not touch them. Noted here so the next
+reader does not mistake the silence for absence.
 
 **ONE ITEM, TWO PARTS -- and the second part was missed on first reading.** The 7 findings are two
 different defects with two different fixes. An earlier version of this section described only the
@@ -1123,8 +1177,8 @@ stale was the half nobody had re-checked.
 
 ## CATALOGUE: checks that reported success without having run
 
-**This is the most useful artefact the epic has produced.** Seventeen instances in three days, eight
-of them in this epic's own work -- in its tooling, its counts, its merges and its own prior claims. The lesson is not "tools lie" -- it is that a green result is evidence
+**This is the most useful artefact the epic has produced.** Eighteen instances in three days, nine
+of them in this epic's own work -- in its tooling, its counts, its merges, its handoffs and its own prior claims. The lesson is not "tools lie" -- it is that a green result is evidence
 only if you know what was examined.
 
 | #   | Instance                                                               | How it presented             |
@@ -1146,10 +1200,12 @@ only if you know what was examined.
 | 15  | A background launcher's `exit 0`, unrelated to the job it launched     | reported success             |
 | 16  | A **verified** claim restated wrongly from memory two messages later   | plausible, and wrong         |
 | 17  | A **clean auto-merge** that silently duplicated 96 lines of the record | no conflict markers          |
+| 18  | A **trigger-list claim in the handoff**, inherited and repeated twice  | a confident **false alarm**  |
 
-**Instances 10, 11, 13, 15, 16 and 17 are self-inflicted rather than inherited** -- committed by the
-tooling and the sessions doing the verifying, not found in the repository. **Instance 12 is the most
-consequential for design; instance 17 is the one that would have silently corrupted the record.**
+**Instances 10, 11, 13, 15, 16, 17 and 18 are self-inflicted rather than inherited** -- committed by
+the tooling and the sessions doing the verifying, not found in the repository. **Instance 12 is the
+most consequential for design; instance 17 is the one that would have silently corrupted the
+record; instance 18 is the one that survived a handoff and was repeated by two sessions.**
 
 ### THE CORRECTION TO INSTANCE 3 -- the headline framing was wrong and is now sharper
 
@@ -1275,6 +1331,29 @@ criterion for a merge is a passing linter and not the absence of conflicts.
 
 - **The rule: the acceptance for a merge is that the merged result passes its checks.** "No
   conflicts" is not a result; it is the absence of one kind of evidence.
+
+**18 -- a false claim about a trigger list, inherited from a handoff and repeated by two sessions.**
+The implementer handoff stated that `feat/ci-coverage-floors` does **not** match `lint-meta.yml`'s
+trigger list, so a probe based there "would prove nothing and look clean doing it". The supervisor
+repeated it to the incoming implementer, which repeated it back in its own analysis. **Nobody read
+the trigger list.** It is:
+
+```bash
+# both lint-meta.yml and ci.yml, measured on fcc529dc
+# on: pull_request: branches:
+#   [main, development, staging, production, chore/dependency-updates, "feat/**", "fix/**"]
+```
+
+`feat/ci-coverage-floors` matches `feat/**`. **A probe based there fires both workflows.**
+
+**The diagnosis of #528 was right and only its generalisation was wrong**, which is what made it
+survive. #528's base was `chore/markdown-gate-repo-wide`; the list carries `chore/dependency-updates`
+as a LITERAL, not `chore/**`, so that base genuinely matched nothing. The true rule is "check the
+base against the list", and it got compressed into a claim about one specific branch that was false.
+
+- **The rule: a handoff is a claim with a shelf life, and an inherited claim is not a verified one.**
+  This entry is the instance-11 shape -- a false alarm rather than a false pass -- and it costs the
+  same way: it sends people to fix what is not broken. Re-derive, do not inherit.
 
 **How to count this table:** the total is **the number of rows in it**. Do not increment from
 memory -- that error has already happened once and vacated a slot behind it.
