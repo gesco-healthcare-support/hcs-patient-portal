@@ -94,7 +94,7 @@ with legal weight. Triage with the others.
 
 Backend only unless a fix reaches a template:
 
-```
+```bash
 dotnet format --verify-no-changes
 dotnet build -warnaserror
 dotnet test

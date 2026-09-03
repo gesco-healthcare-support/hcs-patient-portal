@@ -136,18 +136,23 @@ These are NOT gaps. Outcome matches OLD; only the mechanism differs (expected pe
 ## OLD bugs (do not port)
 
 ### G-03-B1 -- Per-recipient document queueing is commented out in OLD
+
 - `AppointmentDocumentDomain.AddAppointmentDocumentsAndSendDocumentToEmail` calls `AddAppointmentDocument(...)` (which would insert per-recipient `AppointmentDocument` rows with `VerificationCode` + status Pending) but EVERY call site is commented out (`:487, :681, :729, :775, :789, :835, :849`). At runtime OLD emailed packet attachments but never created the per-document upload rows or codes. NEW correctly implements the intended (live) design. The hardcoded `DocumentPackageId = 77` in that dead method (`:1109`) is an obvious placeholder bug. Do not port the dead code; NEW's wired version is correct.
 
 ### G-03-B2 -- OLD internal-user JDF "reject" never sets Rejected status
+
 - `AppointmentJointDeclarationDomain.Update` internal-user branch (`:171-178`) only sets `RejectedById = UserClaim.UserId` and commits -- it never sets `DocumentStatusId = Rejected`. So a staff "reject" left the JDF in its prior status with only a `RejectedById` stamp. Additional bug: the branch's guard `vInternalUser.RoleId == UserClaim.UserId` (`:129`) compares a RoleId to a UserId, so the internal/external classification is wrong. NEW's `RejectAsync` correctly sets `Rejected` + reason + `RejectedByUserId`. Do not port.
 
 ### G-03-B3 -- OLD `PackageDetailDomain.Delete` orphans all-but-first link
+
 - `PackageDetailDomain.Delete` (`:98-112`) soft-deletes only the FIRST `DocumentPackage` (`FirstOrDefault`) when removing a package, orphaning the rest as active links pointing at a deleted package. NEW's `PackageDetailsAppService.DeleteAsync` deletes ALL link rows. Sanctioned fix; do not port the orphan behavior.
 
 ### G-03-B4 -- OLD packet generation hardcodes a single responsible-user signature for ALL recipients + signature is keyed by wrong path setting
+
 - In `AddAppointmentDocumentsAndSendDocumentToEmail`, the signature image inserted into the doctor/attorney/claim-examiner packets is always `appointment.PrimaryResponsibleUserId`'s signature (`:567-572, :655-660, :702-707, :753-758, :814-819`) regardless of recipient. This is arguably intentional (the clinic's responsible staffer signs all packets), so NEW replicates it (`PacketTokenResolver.PopulateAppointmentAsync:197-205` uses `PrimaryResponsibleUserId`). Noting it as ambiguous-but-replicated; no PARITY-FLAG needed since NEW matches.
 
 ### G-03-B5 -- OLD `AppointmentNewDocument.Add` swallows all exceptions and returns success
+
 - `AppointmentNewDocumentDomain.Add` (`:64-108`) wraps the insert in try/catch that on ANY exception returns the un-persisted object as if successful (`:104-107`), and the controller `Post` does the same (`AppointmentNewDocumentsController.cs:54-58`). A failed upload silently reports success. NEW propagates failures (UoW rollback + compensating blob delete, `SaveBlobWithRollbackAsync`). Do not port the swallow.
 
 ---

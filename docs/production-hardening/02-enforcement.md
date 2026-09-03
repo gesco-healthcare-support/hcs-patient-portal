@@ -20,11 +20,12 @@ Read this section first. It is maintained so that a restart costs minutes rather
 
 ### In flight
 
-| Item | What                            | State                  |
-| ---- | ------------------------------- | ---------------------- |
-| --   | This record-reconciliation pass | the PR you are reading |
+| Item | What                    | State                  |
+| ---- | ----------------------- | ---------------------- |
+| --   | The catch-up with main  | the PR you are reading |
 
-Nothing else is in flight. 2.7 merged as `2d3f656b` (#519) on 2026-09-03.
+2.7 merged as `2d3f656b` (#519). The record-reconciliation pass merged as `f9d86bfe` (#523).
+**The epic is level with `main` as of this PR**, which unblocks 2.12.
 
 ### Next, in order
 
@@ -47,9 +48,9 @@ Nothing else is in flight. 2.7 merged as `2d3f656b` (#519) on 2026-09-03.
 
 ### The one lens that has paid off more than any other
 
-A check that reports success without having run. **Thirteen** instances are catalogued at the end of
-this file, four found in this epic's own work -- and two of those four CORRECTED earlier entries
-rather than adding to them. **Assume the class exists in whatever you are about to trust until you
+A check that reports success without having run. **Seventeen** instances are catalogued at the end of
+this file, eight found in this epic's own work -- and two of those CORRECTED earlier entries rather
+than adding to them. **Assume the class exists in whatever you are about to trust until you
 have disproven it**, including in your own prior conclusions.
 
 ---
@@ -85,6 +86,7 @@ expected; the commits are immutable and this table is the bridge.
 | **2.9**  | Measure true coverage                              | **MERGED** (#516)                      |
 | **2.10** | Build a separate CI coverage check                 | NOT STARTED -- designed                |
 | **2.11** | Require the checks in branch protection            | **DELIBERATELY LAST**                  |
+| **2.12** | Make `Lint: Markdown` repo-wide blocking           | UNBLOCKED as of the catch-up merge     |
 
 ---
 
@@ -107,6 +109,25 @@ describes a state that does not exist anywhere yet.
 curl -sS "https://sonarcloud.io/api/project_branches/list?project=gesco-healthcare-support_hcs-patient-portal"
 # -> exactly one branch: main, isMain=true
 ```
+
+### Three more method rules, each from a real error on 2026-09-03
+
+**`git branch -r --contains` is a point-in-time check.** It cannot see a branch cut afterwards from a
+pre-merge base. #519 was squashed after a clean `--contains` result, and #523 -- which did not yet
+exist when the check ran -- needed a rebase because of it. **While a peer session is working in the
+shared worktree, a clean `--contains` is not sufficient grounds to squash.** Coordinate the merge or
+expect the rebase.
+
+**Measure a conflict set; do not infer one.** Both sessions predicted the catch-up's conflicts from
+change lists -- one said four files, one said nine. **The measured answer was two.**
+Both-sides-changed is an upper bound, not a conflict set: git merges non-overlapping hunks fine.
+
+```bash
+git merge-tree --write-tree --name-only <ours> <theirs>   # touches no working tree
+```
+
+**A merge's acceptance is that the merged result passes its checks**, not that git reported no
+conflicts. See catalogue instance 17, where a clean auto-merge duplicated 96 lines of this record.
 
 ---
 
@@ -1035,10 +1056,75 @@ THE EXTERNAL STATUS -- not flipping that job, and not setting `wait=true`.
 
 ---
 
+## 2.12 Make `Lint: Markdown` repo-wide blocking (added 2026-09-03)
+
+**Satisfies the dangling note in 2.8** -- "it now reports honestly and still does not gate. Flipping
+it needs its own item." This is that item.
+
+**Why it was not possible before.** 2.8 fixed the globs and the check went from _linting zero files_
+to reporting **5,271 violations across 431 files**. Blocking on that would have made every pull
+request permanently red, which teaches people to ignore red just as effectively as permanent green.
+The changed-files-only pattern was the way to land the gate anyway.
+
+**Why it is possible now.** PR #522 took the backlog to zero on `main`, and it is careful work rather
+than a relaxed bar:
+
+- **`MD024` had never been configured at all.** The config said `"allow_different_nesting"`, which is
+  not a markdownlint option, so it was silently ignored and the rule ran at full strictness --
+  catalogue instance 14. Corrected to `"siblings_only": true`.
+- **`MD025` was counting YAML front matter as a title.** 87 of 89 flagged files had front matter plus
+  exactly one body H1. A config correction, measured, with the 7 genuine cases fixed by hand.
+- **Three rules disabled with per-rule evidence** argued from document content, not blanket
+  relaxation: list numbers that are identifiers rather than sequence, adjacent callouts that would
+  merge into one quote, bold used as labels.
+- **Verified against a `git archive` extract** -- what CI actually checks out -- 378 files, 0 errors.
+
+**Precondition: the epic must carry main's config and fixed files.** Met by the catch-up merge that
+this PR performs. Before it, the epic still had the broken `MD024` key.
+
+**What this retires.** The changed-files-only scoping in `lint-meta.yml` becomes unnecessary for
+markdown. **Do not remove the pattern from the record** -- it is documented as reusable above and
+phase 7 will want it for rule families. Retire its use here, not the idea.
+
+**Acceptance (EARS):** WHEN a pull request introduces a markdown violation anywhere in the
+repository, THE SYSTEM SHALL fail a blocking status check.
+
+**Validation:** lint the whole repository at zero errors first, then flip, then **poison it** -- add a
+violation in a file the PR does not otherwise touch and confirm red, since that is the case
+changed-files-only would have missed.
+
+---
+
+## THE LOOSE-FILE CLEARANCE (2026-09-03) -- recorded because the handoff described a tree that no longer exists
+
+Eight untracked files under `docs/research/system-design-2026-08-28/` blocked the catch-up merge:
+they exist on `main`, and git refuses to overwrite untracked files.
+
+The handoff document claimed they were "already on main" and proved it with a zero-line
+`git diff origin/main` on the README. **That proof only ever covered the README, and by 2026-09-03
+five of the others DIFFERED from `main`** -- because #520/#522 reformatted them after they shipped.
+
+**Verified before moving anything**, line by line rather than by summary. Every differing line was
+one of: a fence gaining `text` (MD040), a bare URL gaining angle brackets (MD034), a bracket gaining
+an escape, a heading losing a trailing period (MD026), or a blank line. **Zero substantive
+differences, and the direction was that `main` held the FIXED versions while the loose copies were
+the pre-fix originals.**
+
+**Moved, not deleted**, to `C:\src\patient-portal\handoff\worktree-leftovers-2026-09-03\`.
+Deleting untracked files is unrecoverable; a move costs nothing and stays reversible. `git clean` was
+deliberately not used -- a blanket clean in a worktree two sessions share is the wrong instrument
+regardless of what it would have caught.
+
+**The transferable point:** a handoff document that describes a working tree is a claim with a
+shelf life. This one was true when written and half-stale two days later, and the half that went
+stale was the half nobody had re-checked.
+
+---
+
 ## CATALOGUE: checks that reported success without having run
 
-**This is the most useful artefact the epic has produced.** Thirteen instances in three days, four of
-them in this epic's own work. The lesson is not "tools lie" -- it is that a green result is evidence
+**This is the most useful artefact the epic has produced.** Seventeen instances in three days, eight
+of them in this epic's own work -- in its tooling, its counts, its merges and its own prior claims. The lesson is not "tools lie" -- it is that a green result is evidence
 only if you know what was examined.
 
 | #   | Instance                                                               | How it presented             |
@@ -1056,9 +1142,14 @@ only if you know what was examined.
 | 11  | "These 11 checks cannot fail" -- itself unverified, and wrong for 9    | a confident **false alarm**  |
 | 12  | **A SKIPPED job reports Success and does not block, even if required** | green                        |
 | 13  | A correct command run against a **stale worktree**                     | correct-looking wrong answer |
+| 14  | `"allow_different_nesting"` is not a markdownlint option -- ignored    | looked configured            |
+| 15  | A background launcher's `exit 0`, unrelated to the job it launched     | reported success             |
+| 16  | A **verified** claim restated wrongly from memory two messages later   | plausible, and wrong         |
+| 17  | A **clean auto-merge** that silently duplicated 96 lines of the record | no conflict markers          |
 
-**Instances 10, 11 and 13 are self-inflicted rather than inherited** -- committed by the tooling
-doing the verifying. **Instance 12 is the most consequential in the whole list.**
+**Instances 10, 11, 13, 15, 16 and 17 are self-inflicted rather than inherited** -- committed by the
+tooling and the sessions doing the verifying, not found in the repository. **Instance 12 is the most
+consequential for design; instance 17 is the one that would have silently corrupted the record.**
 
 ### THE CORRECTION TO INSTANCE 3 -- the headline framing was wrong and is now sharper
 
@@ -1148,7 +1239,47 @@ claim was about.
   measured on. Policy alongside naming the scope on coverage figures -- see the standing rule at the
   top of this file.
 
-**Why nine became thirteen in a single session:** because the lens was being applied deliberately,
+**14 -- a setting that looks configured and is not.** `.markdownlint.json` carried
+`"MD024": { "allow_different_nesting": true }`. **That option name does not exist in markdownlint**,
+so it was silently ignored and MD024 ran at full strictness while appearing tuned. Found by a third
+session on the same day as instances 5 and 6, which are the same species. **Three independent
+instances of this in one repository in one day is not a coincidence; it is a thing to look for
+deliberately.** `main`'s corrected value is `"siblings_only": true`, and it arrives with the
+catch-up merge.
+
+**15 -- `exit 0` from a launcher says nothing about the job.** Three times in twenty minutes while
+measuring coverage: `nohup ... &` reported success while the script was still building; a relaunch
+reported success having done **nothing at all** (`setsid: command not found`, which does not exist in
+Git Bash); and piping build output through `tail` buffered until EOF so a working build looked hung.
+Each time the reported status was success and the actual state was different.
+
+- **The rule: assert on the artefact, not on the exit code.** All three were caught only because the
+  expected output file was absent.
+
+**16 -- a verified claim degraded in transit.** The conflict set for the catch-up was computed
+correctly with one command, then restated from memory two messages later as a different, wrong
+number. Distinct from every other entry: not an unverified claim, but a **verified one corrupted by
+being retold.** Both sessions did this in the same exchange, in opposite directions -- one said four
+files, one said nine; the measured answer was two.
+
+- **The rule: re-run the command rather than quoting yourself.** A number is only as good as its
+  most recent derivation.
+
+**17 -- a clean auto-merge is not a correct one, and this one duplicated the record.**
+`01-blockers.md` merged with **no conflict markers** and git reported success. The result contained
+two sections twice -- `## Admitted from the system design research` and `## 1.7 ...` -- roughly 96
+duplicated lines, because both branches had independently added sections with the same headings and
+git aligned neither. **Nothing in git's output indicated a problem.** It was caught by `MD024`
+(duplicate headings) when the merged result was linted, which is precisely why the acceptance
+criterion for a merge is a passing linter and not the absence of conflicts.
+
+- **The rule: the acceptance for a merge is that the merged result passes its checks.** "No
+  conflicts" is not a result; it is the absence of one kind of evidence.
+
+**How to count this table:** the total is **the number of rows in it**. Do not increment from
+memory -- that error has already happened once and vacated a slot behind it.
+
+**Why nine became seventeen in a single session:** because the lens was being applied deliberately,
 including to the epic's own prior conclusions. The class is not rare; it is invisible unless looked
 for. **Two of the four new entries corrected earlier entries rather than adding new ones**, which is
 the strongest argument for re-deriving a claim instead of inheriting it.

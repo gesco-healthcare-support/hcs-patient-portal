@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Move the Insurance and Claim Examiner (CE) sections out of the per-injury "Claim Information"
 modal and render each as a single section on the main booking form, BELOW the Attorney
 (AA/DA) sections. There is exactly ONE insurance and ONE CE per appointment request, not one
@@ -16,6 +17,7 @@ per injury. CE simultaneously becomes a first-class REQUIRED party (per UM3); in
 optional. This is a data-model migration (FK move + backfill), not a UI relocation.
 
 ## Current behavior (from investigation)
+
 - Insurance/CE are children of `AppointmentInjuryDetail`, not `Appointment`. Both entities
   carry `Guid AppointmentInjuryDetailId` (AppointmentClaimExaminer.cs:19; AppointmentPrimaryInsurance.cs:19).
 - EF wires each as a required many-to-one to injury:
@@ -39,7 +41,9 @@ optional. This is a data-model migration (FK move + backfill), not a UI relocati
   (status resolved-not-a-bug). CI1 reverses it.
 
 ## Relevant code locations
+
 Backend:
+
 - src/HealthcareSupport.CaseEvaluation.Domain/AppointmentClaimExaminers/AppointmentClaimExaminer.cs:19,57-62 (FK field + ctor)
 - src/HealthcareSupport.CaseEvaluation.Domain/AppointmentPrimaryInsurances/AppointmentPrimaryInsurance.cs:19 (FK field)
 - src/HealthcareSupport.CaseEvaluation.Domain/AppointmentInjuryDetails/AppointmentInjuryDetailWithNavigationProperties.cs:17-18 (CE + insurance hang off injury)
@@ -59,6 +63,7 @@ Frontend:
 - angular/src/app/proxy/appointment-primary-insurances/models.ts, angular/src/app/proxy/appointment-claim-examiners/* (regen after FK change)
 
 ## Phase 3 cross-reference
+
 - BUG-045: internal auto-approve booking drops insurance/CE via a 409 on the per-injury
   attach. Restructuring the persist path to one-per-appointment removes the per-injury attach
   that triggers the 409, so FIX it in the same pass to avoid leaving dead code.
@@ -74,6 +79,7 @@ Frontend:
   Management; CI1 provides the appointment-level CE slot UM3 fills.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - AA/DA already model the appointment-level relationship CI1 wants for CE/insurance: join
     entities (`AppointmentApplicantAttorney`, `AppointmentDefenseAttorney`) link attorneys to
@@ -94,6 +100,7 @@ Frontend:
   `Up()`. Confirm against docs/database/MIGRATION-GUIDE.md for the project's `dotnet ef` flags.
 
 ## Approaches considered (with tradeoffs)
+
 1. Move the FK to `Appointment` + backfill (CHOSEN). Single source of truth: one insurance
    row + one CE row link directly to the appointment. Read/persist/scope/fan-out all collapse
    to one lookup. Cost: schema migration with backfill across both contexts, DTO/proxy/mapper
@@ -108,6 +115,7 @@ Frontend:
    ~10 fields; flattening fights UM3 and bloats the Appointment table. Rejected.
 
 ## Decision (locked 2026-06-03)
+
 Migrate the FK on BOTH `AppointmentPrimaryInsurance` and `AppointmentClaimExaminer` from
 `AppointmentInjuryDetailId` to `AppointmentId` (one each per appointment) with a backfill of
 existing rows. Update both DbContexts, Mapperly mappers, Create/Update/Dto contracts, proxy
@@ -118,6 +126,7 @@ scope. Supersedes OBS-17. Bundle CI2 (per-injury decoupling) and CI4 (Attention 
 into the same migration/PR.
 
 ## Implementation outline (no code)
+
 1. Domain: re-point FK on AppointmentClaimExaminer.cs:19,57-62 and AppointmentPrimaryInsurance.cs:19
    from `AppointmentInjuryDetailId` to `AppointmentId` (field + ctor param).
 2. EF config: change both `b.HasOne<AppointmentInjuryDetail>()...HasForeignKey(...InjuryDetailId)`
@@ -148,6 +157,7 @@ into the same migration/PR.
     appointment-add-claim-information.component.spec.ts to the new sections.
 
 ## Dependencies
+
 - Blocks/co-ships: CI2 (per-injury decoupling), CI4 (Attention DropColumn -- same migration).
 - Tightly coupled: UM3 (CE first-class master + required) -- CI1 provides the slot it fills;
   align field shape and required rule.
@@ -155,6 +165,7 @@ into the same migration/PR.
 - Supersedes: OBS-17.
 
 ## Residual open questions
+
 - Confirm the FK delete behavior on the new Appointment-level FK (existing config uses
   NoAction; all deletes are soft per the role decision, so cascade is moot, but keep NoAction
   explicit). Minor.

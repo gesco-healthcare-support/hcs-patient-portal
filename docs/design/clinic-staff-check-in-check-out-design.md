@@ -38,6 +38,7 @@ OLD route name `appointment-approve-request` is a legacy misnomer -- the page is
 day-of check-in/check-out view, not the approval workflow. NEW uses a descriptive route.
 
 Guard:
+
 - OLD: `canActivate: [PageAccess]` `rootModuleId: 33` `applicationModuleId: 6` `accessItem: 'add'`
 - NEW: `canActivate: [authGuard, permissionGuard]`; `CaseEvaluation.Appointments.CheckIn`
 
@@ -52,7 +53,7 @@ Side-nav item: "Check-In / Check-Out" or "Today's Appointments".
 
 ## 3. OLD Page Layout
 
-```
+```text
 +--------------------------------------------------------------+
 | [H2] Check-in & Check-out Appointments (N) Date: MM-DD-YYYY |
 |                                [Search input] [Sync reset]   |
@@ -149,7 +150,7 @@ OLD source: `appointment-list.component.html:82-128`
 
 ## 8. Status Transition Flow
 
-```
+```text
 Approved (2)
   ├── [Check In]   → CheckedIn (9)
   │                     └── [Check Out] → CheckedOut (10)
@@ -158,12 +159,14 @@ Approved (2)
 ```
 
 Each transition requires:
+
 1. Confirmation dialog with message:
    - Check In: "Checked In Appointment"
    - Check Out: "Checked Out Appointment"
    - Billed: "Billed Appointment"
    - Not Show: "No Show Appointment"
 2. On confirm: `PATCH /api/appointments/{appointmentId}` with:
+
    ```json
    {
      "appointmentStatusId": <target_status_id>,
@@ -173,6 +176,7 @@ Each transition requires:
      "isStatusUpdate": true
    }
    ```
+
 3. Success toast messages:
    - "Appointment Request CheckedIn"
    - "Appointment Request CheckedOut"

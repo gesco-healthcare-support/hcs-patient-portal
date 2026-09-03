@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -158,9 +159,22 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     [Fact]
     public async Task GeneratePreviewAsync_WhenFromDatePast_Throws()
     {
+        // The guard this asserts (DoctorAvailabilitiesAppService:448) compares against PACIFIC
+        // today, so the test's "yesterday" has to be Pacific yesterday. Built from DateTime.Today
+        // it was the CI runner's UTC yesterday, and between 17:00 and midnight Pacific those are
+        // the same calendar day -- so nothing was in the past, nothing threw, and this test failed
+        // every evening from 2026-08-31 while passing all morning. It read as flaky; it was
+        // clock-driven. Deriving it from the same helper the guard uses means the two cannot
+        // disagree at any hour.
+        var pacificYesterday = PacificTime.TodayFrom(DateTime.UtcNow).AddDays(-1);
+
+        // Self-proving precondition: if this ever stops holding, the test below is not testing what
+        // its name says and should fail here rather than pass vacuously.
+        pacificYesterday.ShouldBeLessThan(PacificTime.TodayFrom(DateTime.UtcNow));
+
         var input = BuildValidGenerateInput();
-        input.FromDate = DateTime.Today.AddDays(-1);
-        input.ToDate = DateTime.Today.AddDays(-1);
+        input.FromDate = pacificYesterday;
+        input.ToDate = pacificYesterday;
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
             async () => await _appService.GeneratePreviewAsync(input));

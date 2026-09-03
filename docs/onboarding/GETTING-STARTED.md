@@ -48,13 +48,13 @@ cp docker/appsettings.secrets.json.example docker/appsettings.secrets.json
 docker compose up --build
 ```
 
-Wait ~3-5 minutes for first build. When you see all health checks pass, open http://localhost:4200.
+Wait ~3-5 minutes for first build. When you see all health checks pass, open <http://localhost:4200>.
 
 | Service | URL | Container |
 |---------|-----|-----------|
-| Angular | http://localhost:4200 | patient-portal-ui |
-| API + Swagger | http://localhost:44327/swagger | patient-portal-api |
-| AuthServer | http://localhost:44368 | patient-portal-auth |
+| Angular | <http://localhost:4200> | patient-portal-ui |
+| API + Swagger | <http://localhost:44327/swagger> | patient-portal-api |
+| AuthServer | <http://localhost:44368> | patient-portal-auth |
 | SQL Server | localhost:1434 | patient-portal-db |
 | Redis | localhost:6379 | patient-portal-redis |
 
@@ -116,23 +116,29 @@ The `npm install` step downloads ~1GB of Angular + ABP packages. `ERESOLVE` warn
 The application needs a SQL Server instance. Choose one option:
 
 ### Option A: Docker (recommended, cross-platform)
+
 ```bash
 # If you have Docker installed:
 docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=YourStrong!Passw0rd" \
   -p 1433:1433 --name sql-server -d mcr.microsoft.com/mssql/server:2022-latest
 ```
+
 Then update `ConnectionStrings:Default` in `src/*/appsettings.json` to use `Server=localhost;...`.
 
 ### Option B: SQL Server LocalDB (Windows only)
+
 ```bash
 sqllocaldb start MSSQLLocalDB
 ```
+
 The default connection strings already point to LocalDB — no config changes needed.
 
 ### Option C: Full SQL Server
+
 Point the connection strings in `src/*/appsettings.json` to your SQL Server instance.
 
 ### Run Migrations
+
 ```bash
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
   dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
@@ -161,20 +167,25 @@ flowchart LR
 ```
 
 **Terminal 1 -- AuthServer** (start first):
+
 ```bash
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
   dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 ```
+
 Wait for `Now listening on: https://localhost:44368`.
 
 **Terminal 2 -- API Host** (start after AuthServer is ready):
+
 ```bash
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
   dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
+
 Wait for `Now listening on: https://localhost:44327`.
 
 **Terminal 3 -- Angular** (start last):
+
 ```bash
 cd angular
 npx ng build --configuration development
@@ -196,13 +207,13 @@ curl -sk -o /dev/null -w "%{http_code}" https://localhost:44327/swagger/index.ht
 curl -s -o /dev/null -w "%{http_code}" http://localhost:4200/
 ```
 
-Open **http://localhost:4200**, log in with `admin@abp.io` and the `TEST_PASSWORD` from your `.env.local`. You should see the LeptonX dashboard with sidebar menu (Appointments, Doctors, Patients, Locations).
+Open **<http://localhost:4200>**, log in with `admin@abp.io` and the `TEST_PASSWORD` from your `.env.local`. You should see the LeptonX dashboard with sidebar menu (Appointments, Doctors, Patients, Locations).
 
 | Service | URL | Expected |
 |---------|-----|----------|
-| AuthServer | https://localhost:44368 | OpenIddict login page |
-| API Host | https://localhost:44327/swagger | Swagger API explorer |
-| Angular | http://localhost:4200 | LeptonX themed SPA |
+| AuthServer | <https://localhost:44368> | OpenIddict login page |
+| API Host | <https://localhost:44327/swagger> | Swagger API explorer |
+| Angular | <http://localhost:4200> | LeptonX themed SPA |
 
 ## Running Services Independently
 
@@ -281,6 +292,7 @@ docker exec patient-portal-api env | sort
 For local development with full .NET hot-reload and debugging:
 
 **AuthServer** (Terminal 1 -- start first):
+
 ```bash
 # Standard
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
@@ -296,6 +308,7 @@ DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
 ```
 
 **API Host** (Terminal 2 -- start after AuthServer):
+
 ```bash
 # Standard
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
@@ -311,6 +324,7 @@ DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
 ```
 
 **Angular** (Terminal 3 — start last):
+
 ```bash
 cd angular
 
@@ -324,6 +338,7 @@ npx ng build --configuration production && npx serve -s dist/CaseEvaluation/brow
 > **Critical:** Never use `ng serve` or `yarn start`. See [Deep Dive](#deep-dive-why-ng-serve-breaks).
 
 **DbMigrator** (one-time, run before services):
+
 ```bash
 # Standard
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
@@ -355,6 +370,7 @@ docker compose exec api sh -c 'export Serilog__MinimumLevel__Default=Debug && do
 | `Verbose` | Everything including framework internals | Last resort deep debugging |
 
 Override specific namespaces for targeted debugging:
+
 ```bash
 # See all SQL queries
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
@@ -390,12 +406,12 @@ curl http://localhost:44368/health-status
 | Problem | Cause | Solution |
 |---------|-------|----------|
 | `NullInjectorError: CORE_OPTIONS` | Used `ng serve` instead of `ng build` + `npx serve` | Kill any running Angular processes, rebuild with `npx ng build --configuration development`, serve with `npx serve` |
-| CORE_OPTIONS persists after rebuild | Ghost dev server still on port 4200 | Check `lsof -i :4200` (macOS/Linux) or `netstat -ano | findstr :4200` (Windows), kill the process, then restart |
+| CORE_OPTIONS persists after rebuild | Ghost dev server still on port 4200 | Check `lsof -i :4200` (macOS/Linux) or `netstat -ano \| findstr :4200` (Windows), kill the process, then restart |
 | `OIDC configuration error` from API Host | AuthServer not running or not ready | Start AuthServer first, wait for "listening" message |
 | `HTTP 500` on API requests (Windows) | Project path exceeds 260 chars | Move project to a shorter path. See [path length note](#deep-dive-windows-path-length) |
 | SQL connection error on startup | Database server not running | Start your SQL Server (Docker: `docker start sql-server`, LocalDB: `sqllocaldb start MSSQLLocalDB`) |
 | SSL certificate errors in browser | Dev cert not trusted | Run `dotnet dev-certs https --trust` |
-| Port already in use | Previous instance still running | Find and kill: `lsof -i :44327` (macOS/Linux) or `netstat -ano | findstr :44327` (Windows) |
+| Port already in use | Previous instance still running | Find and kill: `lsof -i :44327` (macOS/Linux) or `netstat -ano \| findstr :44327` (Windows) |
 | Angular build fails with ABP library errors | ABP client-side libs not installed | Run `abp install-libs` from the solution root |
 | `Host version X does not match binary Y` (esbuild) | Stale esbuild binary | Delete `node_modules/@esbuild/*/esbuild*`, re-run `npm install` |
 | Migration error: "database already exists" | Partial previous run | Drop the `CaseEvaluation` database and re-run DbMigrator |
@@ -434,6 +450,7 @@ Redis is disabled by default. Only needed for multi-instance deployment. Set `Re
 ---
 
 **Next steps:**
+
 - [Common Tasks](COMMON-TASKS.md) -- add entities, run migrations, create tests
 - [Architecture Overview](../architecture/OVERVIEW.md) -- understand the system structure
 - [Docker & Deployment](../runbooks/DOCKER-DEV.md) -- containerization

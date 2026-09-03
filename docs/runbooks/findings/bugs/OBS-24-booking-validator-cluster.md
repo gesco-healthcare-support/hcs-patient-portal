@@ -147,7 +147,7 @@ Three options:
 
 - **B** -- Build a single `BookingDomainValidators` static class with
   all 7 rules + 7 facts. One PR. Cleanest. ~50 lines of pure logic
-  + 7 tests + 1 wiring change per call site (CreateAsync, UpdateAsync,
+  - 7 tests + 1 wiring change per call site (CreateAsync, UpdateAsync,
   InjuryDetailManager, ChangeRequestManager).
 
 - **C** -- Defer all 7 until alpha testing exposes which ones actually

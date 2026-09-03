@@ -27,6 +27,7 @@ In NEW, **this feature is not yet implemented**. The Notes entity, AppService, a
 Angular component do not exist.
 
 **Decisions confirmed by Adrian (2026-05-04):**
+
 1. Notes surfaced as a `MatDialog` popup (NOT embedded tab/section). Same intent as OLD.
 2. All internal users can see all notes on any appointment they can access; only the note
    author can edit or delete their own notes.
@@ -44,6 +45,7 @@ OLD: `RxPopup.show(AppointmentInfoComponent, { appointmentId, patientDetail })`
 NEW: `MatDialog.open(AppointmentNotesDialogComponent, { data: { appointmentId } })`
 
 Entry points (two):
+
 1. Appointment-view page -- a "Notes" button/icon opens the dialog.
 2. Check-in/check-out list -- the `fa-info` Notes icon (currently commented out in OLD template)
    will be uncommented and wired to `MatDialog.open(AppointmentNotesDialogComponent)`.
@@ -59,7 +61,7 @@ Launched from two entry points: appointment-view page and check-in/check-out lis
 
 ## 3. OLD Notes Popup Layout
 
-```
+```text
 +--------------------------------------------------+
 | Notes                                  [X]       |
 +--------------------------------------------------+
@@ -89,7 +91,7 @@ Each note in the right panel shows:
 |---|---|
 | Author name | `firstName lastName` (from `modifiedFirstName/LastName` if edited, else `firstName/lastName`) |
 | Author role | `roleName` (or `modifiedRoleName` if edited) |
-| Date | `modifiedDate` if edited, else `createdDate` (Angular `| date:'medium'`) |
+| Date | `modifiedDate` if edited, else `createdDate` (Angular `\| date:'medium'`) |
 | Comment text | `comments` |
 | Edit icon | Visible ONLY if `item.parentNoteId == currentUserId` (own notes only) |
 | Delete icon | Visible ONLY if `item.parentNoteId == currentUserId` (own notes only) |
@@ -140,6 +142,7 @@ OLD source: `appointments/info/appointment-info.component.ts:84-117`
 ## 7. Edit Note
 
 Edit loads the comment into the textarea. Save triggers `editNote()`:
+
 - Creates a NEW Note record (POST, not PUT) with:
   - `editNoteId` = original note's `noteId`
   - `isLatest = true`
@@ -173,7 +176,8 @@ OLD source: `appointments/info/appointment-info.component.ts:146-180`
 
 In OLD, `Note.parentNoteId` stores the **current user's ID** (not a note parent/thread ID).
 The name is misleading. It is used for the "own notes only" edit/delete check:
-```
+
+```html
 *ngIf="noteFormGroup.value.parentNoteId == item.createdById"
 ```
 

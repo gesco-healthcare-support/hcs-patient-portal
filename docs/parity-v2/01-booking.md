@@ -1,8 +1,10 @@
 # 01. Booking workflow -- OLD vs NEW behavioral parity
+>
 > OLD = P:\PatientPortalOld (intent/behavior source of truth). NEW = this repo.
 > Exhaustive re-read 2026-05-29. We replicate intent + behavior, not code/features.
 
 ## Coverage
+
 - OLD reviewed:
   - `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentsController.cs`
   - `PatientAppointment.Api\Controllers\Api\AppointmentRequest\AppointmentsSearchController.cs`
@@ -28,6 +30,7 @@
 - OLD reference docs: none consulted beyond code (Documents_and_Diagrams not needed for this slice).
 
 ## Summary
+
 | Class | Count |
 |---|---|
 | Missing behavior | 4 |
@@ -39,6 +42,7 @@
 ## Behavioral gaps (decide)
 
 ### G-01-01 -- Injury date validations (date <= today, date >= DOB) not enforced
+
 - **Class:** Missing
 - **OLD:** `AppointmentDomain.cs:645-695` (`CommonValidation`) rejects booking when any injury `DateOfInjury.Date > today` (InjuryDateLessThanToday), or when `Patient.DateOfBirth.Date > DateOfInjury.Date` ("Injury date must be less than to date of birth"). Also `AppointmentInjuryDetailDomain.cs:160-168` re-checks both on the standalone add/edit endpoint. Client mirrors it in `appointment.domain.ts:1031-1060` (`checkDateValidationForInjury`).
 - **NEW:** *absent* -- `AppointmentInjuryDetailManager.CreateAsync/UpdateAsync` (`AppointmentInjuryDetailManager.cs`) only checks claim/body-part length + the (claim#, DOI) duplicate. The Angular modal `appointment-add-claim-information.component.ts:147` only marks `injuryDateOfInjury` as `Validators.required` -- no max-date, no DOB comparison. No server-side guard anywhere.
@@ -49,6 +53,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-02 -- Cumulative-trauma injury date-range validation missing
+
 - **Class:** Missing
 - **OLD:** `appointment.domain.ts:1031-1052` (`checkDateValidationForInjury`): for a cumulative injury, requires From < To, To <= today, and From != To. Validated before the injury row is added to the form.
 - **NEW:** *absent* -- `appointment-add-claim-information.component.ts:146-148` carries `injuryCumulative` + `injuryToDateOfInjury` but applies no validator to `injuryToDateOfInjury` and never compares From/To. The injury manager ignores `ToDateOfInjury` semantics entirely.
@@ -59,6 +64,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-03 -- Patient-existence flag (IsPatientAlreadyExist) never populated by the booking client
+
 - **Class:** Partial
 - **OLD:** `AppointmentDomain.cs:203-218` runs `IsPatientRegistered` (3-of-6 dedup) and stamps `appointment.IsPatientAlreadyExist = true/false` on every booking; the staff queue + emails use it to distinguish a returning patient from a brand-new one.
 - **NEW:** Server-side plumbing exists -- `AppointmentsAppService.cs:804` sets `appointment.IsPatientAlreadyExist = input.IsPatientAlreadyExist`, and `PatientsAppService.GetOrCreatePatientForAppointmentBookingAsync` correctly returns `IsExisting` (email fast-path + 3-of-6 dedup, lines 138-322). BUT the Angular `onSubmit` payload (`appointment-add.component.ts:1007-1043`) never reads `patientProfile.patient.isExisting` and never sets `payload.isPatientAlreadyExist`; the DTO defaults to `false` (`AppointmentCreateDto.cs:52`). The DTO doc-comment explicitly says the client "must populate this" -- it does not.
@@ -69,6 +75,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-04 -- Role-to-AppointmentType authorization is hardcoded to AME-only (OLD was a full configurable matrix)
+
 - **Class:** Partial
 - **OLD:** `AppointmentDomain.cs:640-642` checks `RoleAppointmentType` -- a DB join table mapping which role may book which AppointmentType -- for EVERY type, and rejects with AppointmentCanNotBook if the row is absent. The client (`appointment-add.component.ts:682`) also filters the AppointmentType dropdown by the booker's role (`filterLookup(appointmentTypeLookups, [roleId])`). `RoleAppointmentType` is a seeded, admin-meaningful table (`DbEntities\Models\RoleAppointmentType.cs`).
 - **NEW:** `AppointmentsAppService.cs:672-686` hardcodes ONE rule: external callers cannot book an AME / AME-REVAL type unless they hold Applicant/Defense Attorney (`BookingFlowRoles.IsAmeAppointmentType` + `IsAttorneyCaller`). No general role-to-type matrix; `GetAppointmentTypeLookupAsync` (`:508-521`) returns all types unfiltered by role.
@@ -79,6 +86,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-05 -- Per-appointment stakeholder email uniqueness not enforced
+
 - **Class:** Missing
 - **OLD:** `AppointmentDomain.cs:700-728` (`CommonValidation`) collects patient email + every applicant-attorney email + every defense-attorney email into one list and rejects the booking ("Please insert different email-id") if any duplicate exists across those stakeholders.
 - **NEW:** *absent* -- `AppointmentsAppService.CreateAppointmentInternalAsync` performs no cross-party email-uniqueness check; the section validators only check format/required per field. (Note the duplicate-accessor-email check IS ported -- see Equivalent.)
@@ -89,6 +97,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-06 -- Accessor role-type conflict check (registered user with different role) not enforced
+
 - **Class:** Missing
 - **OLD:** `AppointmentDomain.cs:185-195` (Add path) and `AppointmentAccessorDomain.cs:129-140` (`CommonValidation`): when an added accessor email already belongs to an active verified User whose `RoleId` differs from the accessor's chosen role, OLD rejects ("already registered in our system with different user type. Please select proper Accessor user's type"). Auto-create-vs-invite of the accessor account is handled in `AppointmentAccessorDomain.CreateAccountOfAppointmentAccessors` (creates a User if new, emails if existing).
 - **NEW:** *absent* -- `AppointmentAccessorsAppService.CreateAsync` (`:92-107`) only guards `IdentityUserId`/`AppointmentId` for Guid.Empty and calls the manager; no role-conflict check against an existing IdentityUser's role.
@@ -99,6 +108,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-07 -- Reval pre-load does not copy the prior appointment's intake data
+
 - **Class:** Partial
 - **OLD:** `appointment-add.component.ts:298-374` + `reEvalAppointment` (`:542-567`) and `appointment.domain.ts:325-417`: on a reval, OLD looks up the source by confirmation number and re-binds the FULL prior appointment -- patient, injuries, body parts, attorneys, employer, custom fields -- into the new form (resetting child PKs to 0) so the user edits a pre-populated copy. Server reuses the source confirmation number for re-request (`AppointmentDomain.cs:262-266`) and validates Approved-source for reval (`:162-175`).
 - **NEW:** Server-side reval/re-submit gates ARE ported (`AppointmentManager.LoadRevalSourceAsync` / `LoadResubmitSourceAsync`; `AppointmentsAppService.CreateRevalAsync` / `ReSubmitAsync`, `:587-616`), and the confirmation-number reuse-vs-fresh logic is correct (`AppointmentLifecycleValidators.ResolveConfirmationNumber`). BUT the Angular booking form has no reval/re-submit entry path: `appointment-add.component.ts` reads only `?type=1|2` (initial vs re-evaluation heading flag, `:429-431`) and never calls `CreateRevalAsync`/`ReSubmitAsync` nor pre-loads a source appointment's intake. The reval endpoints are unreachable from the UI, and even if reached they take a fresh `AppointmentCreateDto` (no injury/attorney copy).
@@ -109,6 +119,7 @@
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
 
 ### G-01-08 -- Self-represented confirmation modal on AA toggle-off (NEW-only deviation)
+
 - **Class:** Intent deviation
 - **OLD:** No such gate. Applicant-attorney section is optional; OLD never forced an acknowledgement when it was left empty (`appointment-add.component.ts` / `appointment.domain.ts` have no equivalent).
 - **NEW:** `appointment-add.component.ts:488-605` (`confirmAaToggleOff`) pops an ABP confirmation modal ("applicant is self-represented?") when the booker turns the Applicant Attorney section off; declining reverts the toggle back ON. AA section is also enabled-by-default (`:362`).
@@ -120,6 +131,7 @@
 - **Resolution:** Resolved by #269 (2026-05-29): AA add modal + DA section toggle shipped.
 
 ## Equivalent -- different implementation (no action; checked for coverage)
+
 - **Confirmation number format**: OLD `ApplicationUtility.GenerateConfirmationNumber` = `"A" + id.ToString("D5")` keyed on int PK; NEW `AppointmentsAppService.GenerateNextRequestConfirmationNumberAsync` + `AppointmentBookingValidators.FormatConfirmationNumber` produce `A#####` via MAX(existing)+1 with overflow guard at 99999. Same output format + uniqueness; NEW adds a unique index + retry policy (race fix). Outcome same.
 - **Lead-time gate (external only)**: OLD `AppointmentDomain.cs:115-126` skips for InternalUser, rejects slot when `today + AppointmentLeadTime >= AvailableDate`. NEW `BookingPolicyValidator` + `AppointmentBookingValidators.IsSlotWithinLeadTime`. Equivalent. (NEW comment notes internal-user bypass is handled by status path; the lead-time validator itself runs for all, but per-type/lead values mirror OLD.)
 - **Per-type max-time gate**: OLD branches PQME/PQMEREEVAL -> MaxTimePQME, AME/AMEREEVAL -> MaxTimeAME, OTHER -> MaxTimeOTHER (`:127-156`). NEW `ResolveMaxTimeDaysForType` substring-routes the same three buckets. Equivalent.
@@ -135,11 +147,13 @@
 - **Past-date booking rejected**: OLD enforces via lead-time gate (external) only. NEW additionally hard-rejects any past `AppointmentDate` at the domain layer (`AppointmentManager.EnsureAppointmentDateNotInPast`) on Create + date-changing Update. Stricter than OLD but same user intent (no past bookings); NEW-only hardening, not a gap.
 
 ## OLD bugs (do not port)
+
 - **Swallowed booking exception returns success-shaped result**: `AppointmentDomain.Add` `catch` (`:295-309`) logs and `return appointment` -- the controller then returns `Ok(result)` even though the booking failed mid-transaction. NEW lets exceptions propagate as proper error responses. Do not port the swallow.
 - **Reval "not approved" branch adds a validation message even for IT Admin then still blocks**: `AppointmentDomain.cs:170-173` -- the `isItAdmin` branch sets a message and blocks identically to the non-admin branch (the admin override is hint-only and never actually bypasses). NEW preserves the gate but via distinct error codes; the OLD dead "admin can bypass" expectation is not real. Replicated faithfully (gate blocks both) -- no action, noted so it is not mistaken for a missing admin bypass.
 - **Body-part-required validation dead-commented**: OLD `CommonValidation:696-699` ("Please enter at least one body part") is commented out, so OLD never enforced >=1 body part server-side. NEW's modal DOES require >=1 body-part row (`appointment-add-claim-information.component.ts:153-164`). NEW is stricter; OLD's commented-out check is a non-behavior -- do not treat NEW's requirement as a deviation to remove.
 
 ## Open questions / could-not-verify
+
 - **G-01-04 scope**: Could not confirm from code alone whether OLD's `RoleAppointmentType` table held rules beyond "AME -> attorneys". Needs the seed data / running OLD app to know if collapsing to the single AME rule loses real configured restrictions. If the only production rule was AME-attorney, NEW matches intent.
 - **Panel-number per-type required**: NEW relies on per-AppointmentType field-config seeding to mark `panelNumber` required for PQME/OTHER. Could not verify the seed sets it; if unseeded, this becomes a Missing gap (cross-check with area 07 admin/master-data).
 - **Reval/re-submit UI (G-01-07)**: Confirmed no UI call path in `appointment-add.component.ts`. Could not find any other component invoking `CreateRevalAsync`/`ReSubmitAsync`; needs a running-app check or area-02 confirmation that reval is intentionally deferred.

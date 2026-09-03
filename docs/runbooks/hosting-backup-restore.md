@@ -28,7 +28,7 @@ sqlcmd path is not mangled; on the Linux server it is not needed.
 
 ## Schedule (server, cron)
 
-```
+```text
 30 1 * * *  cd /opt/hcs-patient-portal && ./scripts/hosting/backup-databases.sh >> /var/log/hcs-backup.log 2>&1
 ```
 

@@ -64,6 +64,7 @@ short-circuit information surfacing.
 ### Fix 1: align promise with behavior
 
 Either:
+
 - Actually sign the user in after reset (set the auth cookie at the
   end of the OnPostAsync handler, then redirect to root with a
   welcome flash). This is what the page text promises.
@@ -121,6 +122,7 @@ curl -X POST http://falkinstein.localhost:44327/api/public/external-account/send
 ## Functional impact
 
 Cosmetic. The flow works; the two issues are usability gaps:
+
 - Issue 1 confuses users who expect to be auto-logged in.
 - Issue 2 risks the user thinking they need to set the password again,
   potentially attempting a second reset.

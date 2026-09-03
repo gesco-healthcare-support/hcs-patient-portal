@@ -44,6 +44,7 @@ until consent is given is a usability gap.
 ## Recommended fix
 
 Either:
+
 - Lower the z-index of the cookie banner so it docks below the active
   form (typical pattern: bottom-of-screen, doesn't overlap content).
 - Auto-dismiss on first form interaction.

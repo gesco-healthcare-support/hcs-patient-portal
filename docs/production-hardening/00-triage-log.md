@@ -174,7 +174,7 @@ satisfy a scanner and the reported defect is absent. Session A's call.
 
 ---
 
-## REAL -- Sonar `typescript:S6268` (BLOCKER), phase 1.2. Fixed, but the issue stays OPEN.
+## REAL -- Sonar `typescript:S6268` (BLOCKER), phase 1.2. Fixed, but the issue stays OPEN
 
 **Where:** `angular/src/app/shared/ui/icon/icon.component.ts:58`
 **Verdict:** the one genuinely real BLOCKER of the six so far. Fixed in `ad4cb0d7` (#502).
@@ -261,7 +261,7 @@ below is the actual evidence.
 **Mutation proof.** A `throw` was added after the try/catch in `performFullLogout`, breaking the
 never-reject contract, and the scoped spec was re-run:
 
-```
+```text
 performFullLogout never rejects even if both revocation and the fallback throw FAILED
     Expected a promise to be resolved but it was rejected with Error: mutation: performFullLogout now rejects.
 TOTAL: 8 FAILED, 0 SUCCESS

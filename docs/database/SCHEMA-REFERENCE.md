@@ -70,6 +70,7 @@ See [EF Core Design](EF-CORE-DESIGN.md) for full details on the dual DbContext s
 ---
 
 **Related:**
+
 - [Domain Model](EF-CORE-DESIGN.md) -- entity index with links to per-entity details
 - [EF Core Design](EF-CORE-DESIGN.md) -- dual DbContext strategy
 - [Migration Guide](MIGRATION-GUIDE.md) -- creating and applying migrations

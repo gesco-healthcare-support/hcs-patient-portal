@@ -34,7 +34,7 @@ The 500 the original observation saw at `POST http://falkinstein.localhost:44327
 
 ### Pipeline reality (one path below the trigger)
 
-```
+```text
 AUTH FLOW  (AuthServer Razor + AbpAccountPublic* routes on port 44368)
   CaseEvaluationAccountEmailer.SendXAsync
     -> Render via TemplateVariableSubstitutor (NotificationTemplate repo + ##Var## placeholders)
@@ -98,6 +98,7 @@ Together: the analyzer catches source-level use at compile time; the unit tests 
 ## To test auth-related email delivery (still relevant)
 
 Use the AuthServer's Razor flow:
+
 - `http://falkinstein.localhost:44368/Account/ForgotPassword`
 - `http://falkinstein.localhost:44368/Account/ResendVerification?email=...&autosend=1`
 
@@ -114,7 +115,9 @@ NOT the API host's `/api/account/*` -- those routes don't exist on the API host 
 ## Original observation (preserved for audit trail, superseded by 2026-05-22 correction above)
 
 ### The split (per Adrian 2026-05-14)
+
 **AuthServer** (`main-authserver-1`, port 44368) handles all **authentication-related** emails:
+
 - Email verification (Welcome / Resend Verification)
 - Password reset
 - 2FA / email security codes
@@ -124,6 +127,7 @@ The override `CaseEvaluationAccountEmailer` (`src/HealthcareSupport.CaseEvaluati
 > **Correction:** path above is wrong. The override lives in the Application project at `src/HealthcareSupport.CaseEvaluation.Application/Emailing/CaseEvaluationAccountEmailer.cs`, and both module manifests `DependsOn` the Application module -- so both containers see the override.
 
 **HttpApi.Host** (`main-api-1`, port 44327) handles all **appointment + business-flow** emails:
+
 - Booking notifications (StatusChange/Stakeholders/Responsible)
 - Packet-attached emails (Patient packet, Doctor packet, AttyCE packet)
 - Document upload notifications
@@ -133,7 +137,9 @@ The override `CaseEvaluationAccountEmailer` (`src/HealthcareSupport.CaseEvaluati
 These go through `SendAppointmentEmailJob` -> `IEmailSender` -> MailKit. The job uses `INotificationTemplateRepository` (DB-backed templates) directly -- no ABP `IAccountEmailer` involvement. So the Scriban-version-mismatch path is sidestepped end to end.
 
 ### What confused me
+
 I probed `POST http://falkinstein.localhost:44327/api/account/send-password-reset-code` (API host port 44327) and got 500. The stack trace showed ABP's stock `AccountEmailer` running because:
+
 - The API host registers `AbpAccountHttpApiModule` (for completeness)
 - But the `IAccountEmailer` override is in the **AuthServer** project -- not in the API host's DI scope
 - So the API host falls back to ABP's stock emailer, which then fails on Scriban
@@ -143,6 +149,7 @@ I probed `POST http://falkinstein.localhost:44327/api/account/send-password-rese
 > **Correction:** see the corrected diagnostic above. The 500 was almost certainly route-layer (no `AbpAccountPublicHttpApiModule` on the API host), not a Scriban fallback.
 
 ### Lesson for future probing
+
 - Auth emails: hit AuthServer routes / endpoints (port 44368)
 - Appointment emails: triggered as a side-effect of API host's appointment-status changes (port 44327)
 

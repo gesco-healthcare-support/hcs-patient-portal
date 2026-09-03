@@ -47,6 +47,7 @@ Constants are defined per-entity in `src/.../Domain.Shared/{Feature}/{Entity}Con
 ---
 
 **Related:**
+
 - [Domain Model](../database/EF-CORE-DESIGN.md) -- entity index with CLAUDE.md links
 - [Appointment Lifecycle](../business-domain/APPOINTMENT-LIFECYCLE.md) -- AppointmentStatusType state machine
 - [Doctor Availability](../business-domain/DOCTOR-AVAILABILITY.md) -- BookingStatus lifecycle

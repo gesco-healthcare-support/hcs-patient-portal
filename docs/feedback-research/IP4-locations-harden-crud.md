@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Locations CRUD already works end to end (richest of the four internal lookup pages), but
 it lacks the data-integrity guards a clinic-staff-facing master-data screen needs. Add
 standard industry CRUD validation: duplicate-name guard, ParkingFee non-negative, ZipCode
@@ -17,6 +18,7 @@ of a raw DB FK error). Clarify the AppointmentTypeId-per-location field (storage
 a driver is confirmed). Soft-Delete grant for Staff Supervisor comes via IR1, not here.
 
 ## Current behavior (from investigation)
+
 - Domain manager performs only not-blank + length checks; NO duplicate-name guard, NO
   ParkingFee range check, NO ZipCode format check
   (src/HealthcareSupport.CaseEvaluation.Domain/Locations/LocationManager.cs:22-51 -- both
@@ -39,6 +41,7 @@ a driver is confirmed). Soft-Delete grant for Staff Supervisor comes via IR1, no
   line 147); Clinic Staff Default read only. So IP4 is robustness, not access.
 
 ## Relevant code locations
+
 - src/HealthcareSupport.CaseEvaluation.Domain/Locations/LocationManager.cs:22-51 (add
   duplicate-name + ParkingFee + ZipCode guards; add pre-delete reference check or soft-delete)
 - src/HealthcareSupport.CaseEvaluation.Domain/Locations/Location.cs (already FullAudited per
@@ -58,6 +61,7 @@ a driver is confirmed). Soft-Delete grant for Staff Supervisor comes via IR1, no
   (no change expected; thin delegator)
 
 ## Phase 3 cross-reference
+
 - OBS-26 (slot-gen location-scoped conflict): slot conflict detection is location-scoped, so
   the pre-delete reference check must count DoctorAvailability slots, not just appointments --
   reuse the same location scoping while here so the "is this location in use" query is
@@ -71,6 +75,7 @@ a driver is confirmed). Soft-Delete grant for Staff Supervisor comes via IR1, no
   pattern established here is the template those items can copy if they later harden too.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - LocationManager.cs:22-51 already uses ABP Check.* guards; the duplicate-name check fits
     the same style -- query repository, throw BusinessException on conflict (consistent with
@@ -94,6 +99,7 @@ a driver is confirmed). Soft-Delete grant for Staff Supervisor comes via IR1, no
     the client-side ParkingFee and ZipCode mirrors; the server remains authoritative.
 
 ## Approaches considered (with tradeoffs)
+
 1. UI-only validation (rejected): add min/pattern validators to the Angular form only.
    Fast, but the VALIDATION decision mandates server-side enforcement for integrity rules;
    a direct API call would bypass UI guards. Duplicate-name and in-use-delete are integrity
@@ -108,7 +114,9 @@ a driver is confirmed). Soft-Delete grant for Staff Supervisor comes via IR1, no
    soft-delete standard, and master-data-crud-design Exception 3.
 
 ## Decision (locked 2026-06-03)
+
 Standard industry CRUD validation, nothing fancy:
+
 - Duplicate-name guard in LocationManager (server-enforced; UI mirrors with a friendly message).
 - ParkingFee non-negative (server [Range] + Validators.min(0)).
 - ZipCode format validation (server regex + Validators.pattern; US 5 or 5+4).
@@ -119,6 +127,7 @@ Standard industry CRUD validation, nothing fancy:
   exist for Supervisor; no role change is made here.
 
 ## Implementation outline (no code)
+
 1. Domain (server, authoritative): in LocationManager.CreateAsync/UpdateAsync add a
    duplicate-name check (repository lookup, case-insensitive, exclude self on update) -> throw
    localized BusinessException. Add ParkingFee >= 0 and ZipCode format checks alongside the
@@ -146,6 +155,7 @@ Standard industry CRUD validation, nothing fancy:
    the new manager pre-check (manager-level guard is testable without FK enforcement).
 
 ## Dependencies
+
 - Depends on IR1 for the Staff Supervisor soft-Delete grant (delete UX is meaningless for
   Supervisor until granted; sequence the friendly-delete behavior to land with or before IR1's
   grant so the grant never re-exposes the raw FK error).
@@ -153,6 +163,7 @@ Standard industry CRUD validation, nothing fancy:
 - Blocks none.
 
 ## Residual open questions
+
 - ZipCode regex scope: US-only 5 or 5+4 assumed (synthetic data, CA workers-comp domain).
   Confirm no non-US locations are expected before locking the pattern.
 - Confirm Location actually carries ISoftDelete today; if it is FullAudited-only without

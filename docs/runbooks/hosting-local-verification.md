@@ -20,7 +20,7 @@ Base domain for local verification: `portal.local`.
 Hosts files cannot express wildcards, so add explicit entries. Edit
 `C:\Windows\System32\drivers\etc\hosts` (as Administrator) and add:
 
-```
+```text
 127.0.0.1 admin.portal.local        admin.api.portal.local        admin.auth.portal.local
 127.0.0.1 falkinstein.portal.local  falkinstein.api.portal.local  falkinstein.auth.portal.local
 127.0.0.1 hekmat.portal.local       hekmat.api.portal.local       hekmat.auth.portal.local
@@ -41,7 +41,7 @@ AUTHSERVER_CERT_PASSPHRASE="<the same value>" \
 
 ## 4. Bring up the stack
 
-Option A (fast path -- DbMigrator seeds the sample offices + it.admin@hcs.test into the
+Option A (fast path -- DbMigrator seeds the sample offices + <it.admin@hcs.test> into the
 volume; app services run Production):
 
 ```bash

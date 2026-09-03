@@ -130,6 +130,7 @@ cascade.
   <i class="ion ion-md-mail d-block"></i>          <!-- decorative leading icon -->
 </div>
 ```
+
 Source: `login.component.html`:14-17.
 
 `form-control` styling -- shared via Bootstrap 4 + `vendor/app.css`:16-19:
@@ -172,7 +173,8 @@ Reactive Forms).
 ```
 
 Per-feature design docs cite "form-field" pattern + the label string
-+ the validation message string (verbatim from OLD).
+
+- the validation message string (verbatim from OLD).
 
 ## Modals (`<rx-dialog>` -> `<app-confirm-dialog>`)
 
@@ -263,6 +265,7 @@ top-right at `top:12px; right:12px` (`toast.css`:14-17).
 .toast-card .close        { color: #fff; margin-left: auto; font-size: 16px; }
 .toast-card .icon         { font-size: 22px; margin-right: 15px; align-self: center; }
 ```
+
 Source: `toast.css`:132-179.
 
 ### Variants (semantic colors)
@@ -305,7 +308,8 @@ Toggle classes: `loadin` / `loadout` (`spinner.css`:34, 57-58).
 ### NEW spinner mapping
 
 NEW uses ABP's `LoaderBar` (top-page progress bar, default in LeptonX)
-+ optional `LoaderService` for full-page overlays. Per-feature design
+
+- optional `LoaderService` for full-page overlays. Per-feature design
 docs decide which to use:
 
 - Background fetch / list refresh: top-page bar.
@@ -365,6 +369,7 @@ Standard Bootstrap 4 `.table` plus per-column inline filter dropdowns:
   cursor: pointer;
 }
 ```
+
 Source: `table-filter.css`:94-97.
 
 ### Pagination
@@ -376,6 +381,7 @@ Source: `table-filter.css`:94-97.
   border-bottom: 1px solid #0071c1;
 }
 ```
+
 Source: `table-filter.css`:108-112.
 
 ### NEW table mapping
@@ -495,6 +501,7 @@ OLD anatomy:
   flex-wrap: nowrap !important;
 }
 ```
+
 Source: `demo-falkinstein.css`:23-29.
 
 Used as the standard panel header for booking-form sections, doctor
@@ -513,6 +520,7 @@ list, etc. NEW preserves the layout via a shared `<app-card>` wrapper.
   font-size: .894rem;               /* --fs-label */
 }
 ```
+
 Source: `demo-falkinstein.css`:39-47.
 
 Used as a status / category badge throughout the appointment views.

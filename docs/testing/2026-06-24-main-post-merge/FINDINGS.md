@@ -9,6 +9,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
 ---
 
 ## Run summary (2026-06-24)
+
 - Built `main` from scratch (fresh DB), seeded + drove the app end-to-end as real users.
 - DATA: 17 appointments, ALL complete (injury + active CE + AA link + DA link + employer + insurance);
   0 duplicate masters. Status: 8 Approved, 7 Pending, 1 Rejected, 1 Rescheduled. Bookers: DA ~8
@@ -32,6 +33,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
 ## Open findings
 
 ### F-H01 (HIGH) -- Attorney "register-after-booking" returns 500 (locked out of sign-up)
+
 - An Applicant/Defense attorney NAMED on an appointment before they have an account CANNOT register:
   `POST /api/public/external-signup/register` -> HTTP 500. Common in the real flow (paralegal books +
   names the opposing attorney, who signs up later). CE + Patient unaffected.
@@ -45,6 +47,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
 - This run: defatty1/defatty2 (named on A00001/A00002 first) -> 500; defatty3 + claimE1/2 -> OK.
 
 ### F-M01 (MED) -- Attorney signup hides First/Last name (only Firm name shown)
+
 - Repro: AuthServer `/Account/Register` -> select "Defense Attorney" (or Applicant Attorney).
   The First name + Last name fields are REMOVED and replaced by a single "Firm name" field.
 - Expected (per DTO doc `ExternalUserSignUpDto` B17 2026-05-07): "the Razor register form now
@@ -56,6 +59,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
 - Status: OPEN, impact verification pending (blocked by F-M02 this session).
 
 ### F-M02 (MED, UX) -- Registration rate-limit (5/hr/IP) surfaces only as "Registration failed."
+
 - The signup UI (browser) POSTs to the rate-limited API endpoint
   `http://falkinstein.localhost:44327/api/public/external-signup/register` (FixedWindow, PermitLimit=5,
   Window=1h, partitioned by client IP -- CaseEvaluationHttpApiHostModule). UI + API share the window.
@@ -69,11 +73,13 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
 - Severity rationale: not a security hole; a UX + onboarding-friction issue.
 
 ### F-M03 (LOW) -- Staff "New appointment" links to legacy /appointments/add
+
 - The internal header + Appointments-list "New appointment" button routes to `/appointments/add` (the
   legacy single-page form), not the reworked wizard. Adrian wants legacy pages removed; this is a live
   link to one. Scope: legacy-removal sweep.
 
 ### F-M05 (MED, UX) -- Re-evaluation submit is a silent dead-end UNLESS a prior appointment is loaded
+
 - ROOT CAUSE (diagnosed in code): re-eval (`bookingMode='reval'`, `?type=2`) requires loading a prior
   APPROVED appointment via the "Load prior appointment" lookup on the SCHEDULE step (enter its
   confirmation #, e.g. A00010 -> `loadRevalSource` -> sets `sourceConfirmationNumber`). `onSubmit()`
@@ -102,6 +108,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
   (this folder) -- frontend-only UX fix + the backend OriginalAppointmentId question + conflict notes.
 
 ### F-M04 (MED, UX) -- Staff "Cancel" on a PENDING appointment fails with a generic error
+
 - Staff detail action bar offers "Cancel" on a Pending appointment. Clicking it + entering a reason
   POSTs `/api/app/appointment-change-requests/cancel/{id}` -> 403 with generic "An internal error
   occurred during your request!" (domain `BusinessException` at AppointmentChangeRequestManager
@@ -113,6 +120,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
   checking it routes correctly (direct cancel vs opposing-consent).
 
 ### F-010 (LOW) -- Patient self-book prefill is identity-only (DOB/gender/address blank)
+
 - When the patient self-books, name/email/cell prefill from the identity, but DOB, gender, and address
   are blank even though the patient already has a patient record (from a prior booking). Confirms prior
   F-010 on main; prefill does not pull the patient master.
@@ -120,6 +128,7 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
 ---
 
 ## Merged-fix verifications (all via real UI flow + DB/email evidence)
+
 - **F-013 PASS**: patient1 (named patient, NOT the booker -- booker is appatty1) requested a reschedule on
   approved A00001 -> HTTP 200 (no 403). Named non-booker parties can request changes.
 - **F-014 PASS**: that request emailed a consent link to the OPPOSING side -- defatty1 (defense attorney)
@@ -134,11 +143,12 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
   resubmit -> HTTP 204. Server-side gate enforced (not just the disabled button).
 - **F-006 PASS**: AA registration persists email to master; booking reuses existing AA master by email
   (appatty2 reused with IdentityUserId set, no dup). DA/AA/Patient masters 1-per-email after 2 bookings.
-- **F-011 PASS (apparent)**: staff detail "Booker (identity)" shows appatty1@gesco.com (the ACTUAL booker),
+- **F-011 PASS (apparent)**: staff detail "Booker (identity)" shows <appatty1@gesco.com> (the ACTUAL booker),
   not the responsible user.
 - **F-007 PASS (apparent)**: dashboard "Requests over time" reflects real counts (Received 2), not stale 0.
 
 ## Verified-good (positive QA results)
+
 - Booking wizard (9 steps) end-to-end x2 COMPLETE appointments (A00001 AA-booked AME, A00002 patient-booked
   IME cumulative w/ 2 body parts). DB audit: every child record present (injury, active CE, AA link, DA
   link, employer, insurance). Slot time stored correctly (10:00, 14:00).
@@ -157,7 +167,8 @@ SPA :4200, AuthServer :44368, API :44327, SQL :1434; in-app today 2026-06-24.
   no Patient-role/OpenIddict seed gaps.
 
 ## Accounts registered this session
-- Via UI signup: patient1@gesco.com (Daniel Harper, Patient) -- email-verified via link.
+
+- Via UI signup: <patient1@gesco.com> (Daniel Harper, Patient) -- email-verified via link.
 - Via API (register + dev confirm): patient2, appatty1 (Marcus Bennett/Bennett Lawson Law),
   appatty2 (Tiffany Lawson/same), appatty3 (Jesse Rogers/Rogers Jones Law).
 - BLOCKED by F-M02 this hour: defatty1-3, claimE1-2 (to register after window reset ~18:55 or via

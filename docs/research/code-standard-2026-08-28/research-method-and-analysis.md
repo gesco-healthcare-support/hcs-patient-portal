@@ -40,7 +40,7 @@ actively harmful delivered to a team that cannot check them.
 
 35 agents, four phases, ~12.2M tokens of subagent work, zero errors.
 
-```
+```text
 Phase 1  Standards        14 agents, one per area, blind to the codebase
               |            each returns: standard summary, individually-citable claims with
               |            URLs, recommended checks with tool-maintenance evidence,

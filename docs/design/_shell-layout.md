@@ -33,7 +33,7 @@ docs name the variant in their layout section.
 
 ### Shell variant 1 -- `unauthenticated` (login / forgot-password / reset / verify-email)
 
-```
+```text
 +----------------------------------------------------------+
 |                                                          |
 |        background-image: ./assets/images/login-bg.jpg    |
@@ -68,7 +68,7 @@ NEW maps these to:
 
 ### Shell variant 2 -- `external user authenticated` (home + booking + view)
 
-```
+```text
 +----------------------------------------------------------+
 | TOP-BAR (white bg, navbar-brand on left, user nav right) |
 +----------------------------------------------------------+
@@ -102,7 +102,7 @@ keeps an equivalent `*ngIf` keyed on the auth-state observable.
 
 ### Shell variant 3 -- `internal user authenticated` (dashboard + admin)
 
-```
+```text
 +--------+------------------------------------------------+
 | SIDE-  | TOP-BAR                                        |
 | NAV    +------------------------------------------------+

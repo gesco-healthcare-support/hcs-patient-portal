@@ -17,8 +17,8 @@ Patients list (`/doctor-management/patients`) shows 2 rows:
 
 | FirstName | LastName | Email |
 |---|---|---|
-| (empty) | (empty) | patient@falkinstein.test |
-| Alex | Patient | patient1@gesco.com |
+| (empty) | (empty) | <patient@falkinstein.test> |
+| Alex | Patient | <patient1@gesco.com> |
 
 The first row is from seed; the second is the one Adrian registered
 during the hardening run.
@@ -32,6 +32,7 @@ gets nothing.
 ## Expected
 
 Either:
+
 1. The seed contributor populates the AppPatients row with the
    AbpUser's Name + Surname, OR
 2. The seed doesn't create an AppPatients row for this user (let

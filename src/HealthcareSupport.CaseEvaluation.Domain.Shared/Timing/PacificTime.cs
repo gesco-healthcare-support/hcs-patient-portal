@@ -93,6 +93,30 @@ public static class PacificTime
     }
 
     /// <summary>
+    /// The UTC instant at which a Pacific calendar day begins. The inverse direction to
+    /// <see cref="FromUtc"/>, and the one a DATABASE QUERY needs.
+    ///
+    /// <para>WHY THIS EXISTS. Stored timestamps are UTC, so any cutoff compared against them in SQL
+    /// must also be a UTC instant. Converting the cutoff to a Pacific wall-clock value instead --
+    /// the obvious-looking fix -- silently skews the comparison by 7 or 8 hours, which on a
+    /// "requests overdue" count means rows appear or vanish for part of every day. That is a worse
+    /// bug than the one being fixed, because a count is not obviously wrong the way a printed date
+    /// is.</para>
+    ///
+    /// <para>DST: only ever pass MIDNIGHT of a Pacific date. US Pacific transitions at 02:00 local,
+    /// so midnight is never inside the skipped March hour nor the repeated November hour, and the
+    /// mapping to UTC is therefore always unambiguous. Passing an arbitrary wall-clock time would
+    /// reintroduce that ambiguity, which is why the parameter is named for a date and the value is
+    /// normalized to its date component here rather than trusted.</para>
+    /// </summary>
+    /// <param name="pacificDate">A Pacific calendar date. Any time component is discarded.</param>
+    public static DateTime StartOfDayUtc(DateTime pacificDate)
+    {
+        var midnight = DateTime.SpecifyKind(pacificDate.Date, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(midnight, Zone);
+    }
+
+    /// <summary>
     /// <c>PDT</c> or <c>PST</c> for the given instant -- whichever was actually in force. Use it
     /// wherever a bare time could be misread, which on a shared medical-legal record is most places.
     /// </summary>

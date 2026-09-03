@@ -91,7 +91,7 @@ client-rendered SPA served as static files by nginx.
 **From the HTTP `Host` header, and nothing else.** There is no tenant switcher, no path prefix, no
 query parameter in normal operation. The leftmost DNS label is the office slug.
 
-```
+```text
 {office}.<BASE_DOMAIN>          -> Angular SPA
 {office}.api.<BASE_DOMAIN>      -> HttpApi.Host
 {office}.auth.<BASE_DOMAIN>     -> AuthServer
@@ -176,7 +176,7 @@ database missing a table, which surfaces as an invalid-object-name exception at 
 
 `docker-compose.prod.yml` defines ten services; eight are long-running.
 
-```
+```text
 sql-server ──┐
 redis ───────┼──> db-migrator (one-shot, must exit 0)
 minio ───────┘         │

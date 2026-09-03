@@ -18,6 +18,7 @@ when a slot already exists at the same `(location, date, time)` window,
 REGARDLESS of the `AppointmentType` chosen for the new slot.
 
 Sequence:
+
 1. As `stafsuper1`, generated 58 daily 09:00-09:15 slots for AME at
    Demo Clinic North. Success.
 2. Same form, switched type to QME, kept location + window. Clicked

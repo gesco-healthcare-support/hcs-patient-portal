@@ -10,7 +10,7 @@ ADR-006 (2026-05-05) decided that the Angular SPA promotes the bare `localhost:4
 
 Empirical evidence (2026-05-11) contradicts that assumption:
 
-```
+```bash
 curl -H "Host: admin.localhost" http://localhost:44327/api/abp/application-configuration
 => HTTP/1.1 404 Not Found
    Abp-Tenant-Resolve-Error: Tenant not found!
@@ -48,7 +48,7 @@ The contributor lives at `src/HealthcareSupport.CaseEvaluation.HttpApi/MultiTena
 
 After the change, both of these must hold:
 
-```
+```bash
 curl -i -H "Host: admin.localhost"        http://localhost:44327/api/abp/application-configuration  # => 200, host context
 curl -i -H "Host: falkinstein.localhost"  http://localhost:44327/api/abp/application-configuration  # => 200, tenant context (Falkinstein)
 curl -i -H "Host: falkinstien.localhost"  http://localhost:44327/api/abp/application-configuration  # => 404, "Tenant not found!" (typo protection)
@@ -58,6 +58,6 @@ curl -i -H "Host: falkinstien.localhost"  http://localhost:44327/api/abp/applica
 
 - `angular/src/tenant-bootstrap.ts` -- the SPA promotion logic and the corrected ADR comment
 - `src/HealthcareSupport.CaseEvaluation.HttpApi/MultiTenancy/HostAwareDomainTenantResolveContributor.cs` -- the resolver
-- ABP source -- `MultiTenancyMiddleware` 404 path: https://github.com/abpframework/abp/blob/dev/framework/src/Volo.Abp.AspNetCore.MultiTenancy/Volo/Abp/AspNetCore/MultiTenancy/MultiTenancyMiddleware.cs
-- ABP source -- stock `AbpDomainTenantResolveContributorBase`: https://github.com/abpframework/abp/blob/dev/framework/src/Volo.Abp.MultiTenancy/Volo/Abp/MultiTenancy/AbpDomainTenantResolveContributorBase.cs
-- Volo support thread #10261 -- same-shape "admin slug 404" problem with a custom contributor solution: https://abp.io/support/questions/10261/Issue-with-Domain-Based-Tenant-Resolver-Login-Angular--OpenIddict
+- ABP source -- `MultiTenancyMiddleware` 404 path: <https://github.com/abpframework/abp/blob/dev/framework/src/Volo.Abp.AspNetCore.MultiTenancy/Volo/Abp/AspNetCore/MultiTenancy/MultiTenancyMiddleware.cs>
+- ABP source -- stock `AbpDomainTenantResolveContributorBase`: <https://github.com/abpframework/abp/blob/dev/framework/src/Volo.Abp.MultiTenancy/Volo/Abp/MultiTenancy/AbpDomainTenantResolveContributorBase.cs>
+- Volo support thread #10261 -- same-shape "admin slug 404" problem with a custom contributor solution: <https://abp.io/support/questions/10261/Issue-with-Domain-Based-Tenant-Resolver-Login-Angular--OpenIddict>

@@ -37,7 +37,8 @@ public class RequestSchedulingReminderJobTests
                 enabled,
                 CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors,
                 "30,60,75,85,90"),
-            NullLogger<RequestSchedulingReminderJob>.Instance);
+            NullLogger<RequestSchedulingReminderJob>.Instance,
+            ReminderJobTestHarness.Clock());
 
         return (job, resolver);
     }
@@ -52,8 +53,12 @@ public class RequestSchedulingReminderJobTests
     [Fact]
     public async Task Muted_when_reminders_disabled()
     {
-        var today = DateTime.UtcNow.Date;
-        var (job, resolver) = Build(false, PendingCreatedOn(OnAnchorId, today.AddDays(-30)));
+        // CreationTime / LastModificationTime are UTC INSTANTS, so the fixture dates them from the
+        // harness's pinned instant, not from a Pacific wall-clock date. Dating them from
+        // PacificToday would build a value whose Pacific date is a day earlier than intended --
+        // the same confusion the production bug came from.
+        var since = ReminderJobTestHarness.NowUtc;
+        var (job, resolver) = Build(false, PendingCreatedOn(OnAnchorId, since.AddDays(-30)));
 
         await job.ExecuteAsync();
 
@@ -63,11 +68,15 @@ public class RequestSchedulingReminderJobTests
     [Fact]
     public async Task Fires_only_for_elapsed_day_anchors_when_enabled()
     {
-        var today = DateTime.UtcNow.Date;
+        // CreationTime / LastModificationTime are UTC INSTANTS, so the fixture dates them from the
+        // harness's pinned instant, not from a Pacific wall-clock date. Dating them from
+        // PacificToday would build a value whose Pacific date is a day earlier than intended --
+        // the same confusion the production bug came from.
+        var since = ReminderJobTestHarness.NowUtc;
         var (job, resolver) = Build(
             true,
-            PendingCreatedOn(OnAnchorId, today.AddDays(-30)),
-            PendingCreatedOn(OffAnchorId, today.AddDays(-31)));
+            PendingCreatedOn(OnAnchorId, since.AddDays(-30)),
+            PendingCreatedOn(OffAnchorId, since.AddDays(-31)));
 
         await job.ExecuteAsync();
 

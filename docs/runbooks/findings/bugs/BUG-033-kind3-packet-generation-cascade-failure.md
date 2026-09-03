@@ -15,7 +15,7 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Pack
 
 Phase 5 approved 4 appointments (A00001, A00002, A00004, A00005). Phase 6 expected 3 packet rows per appointment (Kind=1 patient, Kind=2 doctor, Kind=3 attorneyclaimexaminer) -> 12 rows total. Actual DB state at +15 min after Phase 5:
 
-```
+```text
 A00001 -> 1, 2, 3   (all three; Status=2 each)
 A00002 -> 1, 2      (Kind=3 missing)
 A00004 -> 1, 2      (Kind=3 missing)
@@ -25,7 +25,8 @@ A00005 -> 1, 2      (Kind=3 missing)
 Only the FIRST approved appointment's Kind=3 packet materialized. Three subsequent appointments are missing Kind=3 entirely.
 
 API container log at the moment of A00001's Kind=3 send-completion:
-```
+
+```text
 [18:23:08 WRN] There is an entry which is not saved due to concurrency exception:
 AppointmentPacket {Id: 024c71a8-7af5-62a9-f890-3a215df3bbef} Modified FK {AppointmentId: 2b07609a-432f-3dc3-8637-3a215dda046f}
 [18:23:08 WRN] SendAppointmentEmailJob: NotifySendCompletedAsync threw for packet 024c71a8-...
@@ -39,7 +40,8 @@ Volo.Abp.Data.AbpDbConcurrencyException: The database operation was expected to 
 ```
 
 And immediately after, the suspended state cascades:
-```
+
+```text
 [18:23:32 WRN] SendAppointmentEmailJob: packet 024c71a8-... (kind=AttorneyClaimExaminer) is
               not Generated; skipping packet email (AttyCEPacket/2b07609a-...) to appatty1@gesco.com.
 [18:23:32 WRN] SendAppointmentEmailJob: packet 024c71a8-... (kind=AttorneyClaimExaminer) is
@@ -98,6 +100,7 @@ Most likely (1)+(3) combined: the packet ConcurrencyStamp is shared across send/
 2. Approve at least 4 bookings within ~60 seconds (Phase 5.1, 5.2, 5.4, plus one more).
 3. Wait 3 minutes.
 4. SQL:
+
    ```sql
    SELECT a.RequestConfirmationNumber, p.Kind, p.Status
    FROM AppAppointments a
@@ -105,6 +108,7 @@ Most likely (1)+(3) combined: the packet ConcurrencyStamp is shared across send/
    WHERE a.AppointmentStatus = 2
    ORDER BY a.RequestConfirmationNumber, p.Kind
    ```
+
 5. Observe: only the first approved appointment has 3 packet rows; the rest have 2 each (missing Kind=3).
 6. Tail api container logs: `docker logs --since 5m main-api-1 2>&1 | grep -iE 'AbpDbConcurrency|NotifySendCompleted|kind=AttorneyClaimExaminer'` -> shows the cascade.
 
@@ -115,6 +119,7 @@ Step 1: Inspect `PacketAttachmentProvider.NotifySendCompletedAsync` at line 113 
 Step 2: Audit `GenerateAppointmentPacketArgs` job handler. Look for any spot where the per-kind generation shares state with the per-kind send-completion. Common pattern: a single `await UnitOfWorkManager.CurrentOrCreateAsync()` wrapping both -- that wrapper is the bug.
 
 Step 3: Refactor to per-kind try/catch with per-kind isolated UoW:
+
 ```csharp
 foreach (var kind in new[] { Patient, Doctor, AttorneyClaimExaminer })
 {
@@ -139,6 +144,7 @@ Step 5: Add integration test that approves 5 appointments in rapid succession an
 ## Functional impact
 
 **HIGH severity** -- this is a data-loss bug for the attorneys + claim examiners on the appointment:
+
 - The 3 party emails (AA, DA, CE) on A00002/A00004/A00005 will NOT receive their packet PDF.
 - Audit log shows the appointments were approved but the corresponding party-notification was never sent.
 - Adrian's directive in the suite says "AttyCE packet emails: exactly 3 per approved appointment, one each to AA, DA, CE". The system silently delivered 0 per appointment for 3 of 4.

@@ -88,9 +88,9 @@ All four sub-endpoints contribute calls to the same 5-call-per-hour-per-IP bucke
 Code comment on lines 320-327 states the body-field-partitioning omission is intentional:
 
 > "Window: 1 hour. Permit: 5. Queue: 0 (over-limit returns 429
->  immediately rather than queueing). Partition key precedence:
->  optional `email` query-string override -> AuthN `sub` claim ->
->  client IP. Body-field partitioning is intentionally NOT..."
+> immediately rather than queueing). Partition key precedence:
+> optional `email` query-string override -> AuthN `sub` claim ->
+> client IP. Body-field partitioning is intentionally NOT..."
 
 (Comment cut off in my read; the omitted reasoning is not in the source.)
 
@@ -149,7 +149,7 @@ Note: 6 different emails -> still 6th returns 429, because partition is IP-based
 - [[OBS-25]] -- invite acceptance doesn't auto-confirm. Compounded by the same IP-bucket issue for the post-accept verification email.
 - [[BUG-018]] -- earlier finding on SMTP misleading error. Different surface, not directly related.
 - Suite Phase 9.2.f (HARDENING-TEST-SUITE.md line 778) -- explicitly probes the 5/hour throttle. This finding confirms the throttle fires but reveals the partition key choice is not what the suite assumed.
-- Code comment in the limiter source (line 322) says the partition is intentional and references "https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit".
+- Code comment in the limiter source (line 322) says the partition is intentional and references "<https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit>".
 
 ## Fix verified (2026-05-22)
 
@@ -192,12 +192,12 @@ table row is the response of the indexed call.
 
 | # | Email | Status |
 |---|---|---|
-| 1 | testA-1@example.test | 204 |
-| 2 | testA-2@example.test | 204 |
-| 3 | testA-3@example.test | 204 |
-| 4 | testA-4@example.test | 204 |
-| 5 | testA-5@example.test | 204 |
-| 6 | testA-6@example.test | **204** |
+| 1 | <testA-1@example.test> | 204 |
+| 2 | <testA-2@example.test> | 204 |
+| 3 | <testA-3@example.test> | 204 |
+| 4 | <testA-4@example.test> | 204 |
+| 5 | <testA-5@example.test> | 204 |
+| 6 | <testA-6@example.test> | **204** |
 
 All 6 succeed. The pre-fix shared-IP DoS where call #6 returned 429
 is gone.
