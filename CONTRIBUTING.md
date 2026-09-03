@@ -123,3 +123,9 @@ security vulnerability.
 - How the code is organised:
   [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md).
 - Everything else: the index at [docs/INDEX.md](docs/INDEX.md).
+
+## Poison heading with a trailing period.
+
+```
+bare fence, no language
+```
