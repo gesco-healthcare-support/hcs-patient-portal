@@ -67,6 +67,7 @@ OLD source: `list/custom-field-list.component.html:23-35`
 | Action | -- | Pencil (edit) + trash (delete) icons |
 
 Commented out in OLD (not shown):
+
 - `displayOrder`
 - `defaultValue`
 - Status column (Active/Inactive) -- the `statusId` field exists in the entity
@@ -105,11 +106,13 @@ Subtitle: "Please configure custom appointment form details to be filled by a us
 ### 5a. Form Fields (Add)
 
 **Field Label (required):**
+
 - Label: "Field Label"
 - `type="text"`, `formControlName="fieldLabel"`
 - Placeholder: "Field Label"
 
 **Field Type (required):**
+
 - Label: "Field Type"
 - `<select>` bound to `customFieldLookupGroup.customFieldTypeLookUps` lookup
 - Option value: `field.customFieldId`
@@ -122,6 +125,7 @@ Subtitle: "Please configure custom appointment form details to be filled by a us
   hides Field Length and patches it to null when Date is selected
 
 **Field Length (conditional):**
+
 - Label: "Field Length"
 - `type="text"`, `formControlName="fieldLength"`
 - Placeholder: "Field Length"
@@ -131,12 +135,14 @@ Subtitle: "Please configure custom appointment form details to be filled by a us
 - In NEW: use `type="number"` with `min="1"` for type-safe input
 
 **Is Mandatory checkbox:**
+
 - Label: "Is Mandatory"
 - `formControlName="isMandatory"`
 - Bootstrap 4 custom checkbox (`custom-control custom-checkbox`)
 - NEW: use `mat-checkbox`
 
 **Appointment Type select (COMMENTED OUT in both Add and Edit):**
+
 - OLD HTML has the select commented out in both modals (lines 15-24 of add, 15-24 of edit)
 - OLD TS hardcodes `appointmentTypeId = AppointmentTypeEnum.AME` on the model before
   POST -- so ALL custom fields are silently created for AME only
@@ -189,6 +195,7 @@ Subtitle: "Please edit custom field configuration from here."
 - **Appointment Type IS NOT shown** (same commented-out state as Add)
 
 Commented out in Edit but NOT in Add:
+
 - **Default Value** (`formControlName="defaultValue"`, placeholder "Default Value")
 - **Multiple Value** (`formControlName="multipleValues"`, placeholder "Multipal Value" -- typo)
 - **Is Active checkbox** (`formControlName="statusId"`, `(change)="activeInactive($event)"`,

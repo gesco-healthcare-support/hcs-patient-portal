@@ -134,13 +134,14 @@ No source-tree TEMP-UNBLOCK patches were applied during this run.
    on Four / Five / Six (Bug A fix evidence). Avoid clicking the UI
    AttyCE download button (row pruned post-send by design).
 4. **SoftwareFour-junk caveat from prior run still applies** -- if
-   the recipient's mail rule routes patientportal@securemailprotocol.com
+   the recipient's mail rule routes <patientportal@securemailprotocol.com>
    to junk, Four's emails land there. Adrian's IT to add safe-sender
    allow rule before demo.
 
 ## Fix sprint plan delta from 2026-05-11
 
 Cluster F additions:
+
 - ISS-015 BookingSubmissionEmailHandler.BuildRegisterUrl: add `role=`
   query param and confirm `tenantName` is being passed through; align
   with ExternalUserController.InviteExternalUser as the reference shape.
@@ -149,6 +150,7 @@ Cluster F additions:
   consistent CRLF regardless of how MSBuild normalizes the embedded resource.
 
 Cluster G addition:
+
 - ISS-017 AttyCE-post-prune 500: map EntityNotFoundException on the
   packet/download endpoint to 410 Gone (or a 200 with empty body and a
   "Packet no longer available" header) so the UI / scripts get a

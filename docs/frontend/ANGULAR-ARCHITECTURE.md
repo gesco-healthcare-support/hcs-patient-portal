@@ -236,6 +236,7 @@ Third-party style dependencies are loaded via `angular.json` and include ngx-dat
 ---
 
 **Related Documentation:**
+
 - [Component Patterns](COMPONENT-PATTERNS.md)
 - [Routing & Navigation](ROUTING-AND-NAVIGATION.md)
 - Proxy Services (the Angular proxy is auto-generated; see `angular/src/app/CLAUDE.md`)

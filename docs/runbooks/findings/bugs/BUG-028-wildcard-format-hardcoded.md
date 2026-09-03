@@ -141,6 +141,7 @@ Out of scope for this fix; document as the next iteration target.
 ## Workaround (for the hardening slice today)
 
 Until this lands:
+
 - Run the hardening test slice on the MAIN stack (canonical ports).
   No login regression there because the hardcoded values match.
 - The replicate-old-app stack remains operational for backend probes
@@ -161,12 +162,14 @@ This finding is the blocker for Phase 1.A.1 and beyond on
 2. Navigate `http://falkinstein.localhost:4230/` -- expect the
    AuthServer login page (NOT an `invalid_request` error).
 3. SQL probe to confirm config propagation:
+
    ```sh
    docker exec replicate-old-app-authserver-1 sh -c \
      'echo "WildcardDomainsFormat__0=$App__WildcardDomainsFormat__0"; \
       echo "WildcardDomainsFormat__1=$App__WildcardDomainsFormat__1"; \
       echo "WildcardDomainsFormat__2=$App__WildcardDomainsFormat__2"'
    ```
+
    Expect format strings carrying `4230 / 44398 / 44357`.
 4. Same probe on main stack: expect `4200 / 44368 / 44327`.
 5. Run the full hardening slice (Phase 0 through 6.1) on both stacks
@@ -198,6 +201,7 @@ through as `App__WildcardDomainsFormat__0..2`, so each worktree's
 | Perl byte-grep AuthServer DLL for `App:WildcardDomainsFormat` | (n/a) | UTF-16 hit, count=1 (new code path in running binary) |
 
 End-to-end positives captured earlier on the same stack:
+
 - Full OIDC code-flow + PKCE login as `admin@falkinstein.test`
   succeeded (token issued, invite endpoint reachable, JSON returned).
 - Email-confirmation click-through via Chrome DevTools landed at

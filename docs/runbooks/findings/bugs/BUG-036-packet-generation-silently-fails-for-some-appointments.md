@@ -160,9 +160,10 @@ Research finding from ABP framework GitHub + ABP support threads:
 > the outer ABP UoW later rolls back.
 
 Sources:
-- https://abp.io/support/questions/3685/Hangfire-background-job-does-not-work-with-unit-of-work-properly
-- https://abp.io/support/questions/10072/How-to-make-Hangfire-job-creation-part-of-transaction
-- https://github.com/aspnetboilerplate/aspnetboilerplate/issues/3375
+
+- <https://abp.io/support/questions/3685/Hangfire-background-job-does-not-work-with-unit-of-work-properly>
+- <https://abp.io/support/questions/10072/How-to-make-Hangfire-job-creation-part-of-transaction>
+- <https://github.com/aspnetboilerplate/aspnetboilerplate/issues/3375>
 
 `PacketGenerationOnApprovedHandler.HandleEventAsync` at line 44 calls
 `_backgroundJobManager.EnqueueAsync` directly inside `[UnitOfWork]`
@@ -173,6 +174,7 @@ change.
 
 On the very first packet-generation run after Approve, the job can
 race the parent UoW's commit. Within the racy window:
+
 - Job's `_appointmentRepository.GetAsync(args.AppointmentId)` may
   succeed (appointment row already exists at Status=Pending).
 - Job's `EnsureGeneratingAsync.InsertAsync` ATTEMPTS to insert a new
@@ -194,8 +196,9 @@ than `DbUpdateException`, because EF's batch executor's
 counts rows-affected mismatch.
 
 This is documented as won't-fix in EF Core issues:
-- https://github.com/dotnet/efcore/issues/20649 (EF Core 3.1.2)
-- https://github.com/dotnet/efcore/issues/35043 (EF Core 8.0.10)
+
+- <https://github.com/dotnet/efcore/issues/20649> (EF Core 3.1.2)
+- <https://github.com/dotnet/efcore/issues/35043> (EF Core 8.0.10)
 
 ABP wraps `DbUpdateConcurrencyException` as
 `Volo.Abp.Data.AbpDbConcurrencyException`. So the chain is:
@@ -226,6 +229,7 @@ VALUES (NEWID(), '<existing-tenant-id>', '<existing-appt-id>', 3,
 ```
 
 E2E repro (would require IT Admin permission to trigger Regenerate):
+
 1. Approve an AME-type appointment as Clinic Staff. Wait for packet job
    retry to complete (60 s).
 2. Verify Patient + Doctor + AttyCE packets exist.
@@ -317,6 +321,7 @@ or `MarkFailedAsync` (line 79). All three call `UpdateAsync` on an entity
 whose `ConcurrencyStamp` no longer matches the DB row.
 
 Likely sequence on the first attempt that fails:
+
 1. Worker dequeues job, ExecuteAsync starts inside [UnitOfWork] +
    tenant scope.
 2. `EnsureGeneratingAsync` finds an existing row (from a PRIOR PARTIAL
@@ -331,6 +336,7 @@ Likely sequence on the first attempt that fails:
 6. Hangfire reschedules attempt 2.
 
 On attempt 2:
+
 - `EnsureGeneratingAsync.FirstOrDefault` may again return null (because
   the prior insert rolled back). InsertAsync creates a new row.
 - The catch filter (line 216: only IOException / InvalidOperationException
@@ -341,6 +347,7 @@ On attempt 2:
   rolled back.
 
 Suspected fix paths:
+
 - Widen `catch when (ex is IOException || ...)` to also catch
   `AbpDbConcurrencyException` + `DbUpdateConcurrencyException` ->
   MarkFailed + don't rethrow.
@@ -362,9 +369,11 @@ Suspected fix paths:
    catching ALL exceptions including the "appointment not found" ones,
    logging a warning but marking the Hangfire job as Succeeded. Need
    to inspect job container logs:
+
    ```
    docker logs main-api-1 --since 2026-05-23T18:32:00 | grep -i "packet\|appointmentid\|generate"
    ```
+
 3. **Single-row pre-check returns empty** - if the job's first step
    reads `AppAppointmentPackets` to check existence and the query
    somehow returns "exists" for an empty result set (column-comparison

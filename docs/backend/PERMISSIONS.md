@@ -213,6 +213,7 @@ CaseEvaluation.{Entity}.{Action}
 ```
 
 Examples:
+
 - `CaseEvaluation.Appointments` -- Default/read permission for appointments
 - `CaseEvaluation.Appointments.Create` -- Create new appointments
 - `CaseEvaluation.Appointments.Approve` -- Approve a pending appointment

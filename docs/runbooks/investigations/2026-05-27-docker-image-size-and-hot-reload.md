@@ -110,7 +110,9 @@ exist in the repo but are **not wired into the local compose**.
 > MEDIUM = reputable docs/inference; LOW = hypothesis to test.
 
 ### 3.1 There are THREE Dockerfile variants per service (HIGH)
+
 For AuthServer, HttpApi.Host, and Angular, the repo has:
+
 - **`Dockerfile`** -- proper **multi-stage production** image. Backend:
   SDK build -> `dotnet publish -c Release` -> `FROM mcr.microsoft.com/dotnet/aspnet:10.0`
   runtime, `COPY --from=build /app/publish`, `ENTRYPOINT ["dotnet", "...dll"]`.
@@ -134,6 +136,7 @@ For AuthServer, HttpApi.Host, and Angular, the repo has:
 > (Section 8): a prod image path largely **already exists**.
 
 ### 3.2 The local compose is a DEV compose (HIGH)
+
 `docker-compose.yml` (folded 2026-05-06; the old `docker-compose.dev.yml`
 overlay was **deleted**) builds `api`, `authserver`, `angular` from
 `Dockerfile.dev`. `db-migrator` and `gotenberg` use their own `Dockerfile` /
@@ -141,6 +144,7 @@ overlay was **deleted**) builds `api`, `authserver`, `angular` from
 prod/local compose profile exists.
 
 ### 3.3 Hot-reload was deliberately removed (HIGH)
+
 OBS-22 (resolved 2026-05-22, see
 `docs/runbooks/findings/bugs/OBS-22-docker-watch-misses-bind-mount-edits.md`):
 `dotnet watch` and `ng build --watch` were **removed** because inotify events
@@ -153,6 +157,7 @@ Angular.** ENGINEERING-ROADMAP.md lists a "better fix bundled in Slot rework
 Phase 2 pre-flight" -- so a future fix is already on the radar.
 
 ### 3.4 Image bloat causes (mixed confidence -- validate in Part A)
+
 - **SDK base instead of runtime base** (HIGH, structural): `Dockerfile.dev`
   ships `sdk:10.0` (~3 GB, MEDIUM -- base not pulled standalone locally, so
   re-measure) where prod uses `aspnet:10.0` (~220 MB, MEDIUM). This is the
@@ -178,6 +183,7 @@ Phase 2 pre-flight" -- so a future fix is already on the radar.
   already ran (and also `dist/`, `.angular/`). Double node_modules.
 
 ### 3.5 Host-dev mode exists but is partly broken (HIGH)
+
 `scripts/dev/` has `start-dev-stack.ps1`, `dev-api.ps1`, `dev-authserver.ps1`.
 `dev-api.ps1` runs **`dotnet watch run` on the host** (host inotify works ->
 **real** hot reload), wiring CORS / `127.0.0.1` SQL+Redis / localhost
@@ -188,6 +194,7 @@ the **deleted** `docker-compose.dev.yml`, and it hardcodes
 `docs/runbooks/LOCAL-DEV.md`.
 
 ### 3.6 Documentation drift (MEDIUM)
+
 `docs/runbooks/DOCKER-DEV.md` says services build from `Dockerfile` (they
 build from `Dockerfile.dev`) and says "six containers" (there are ~9 now;
 MinIO + Gotenberg were added). Its timing/disk benchmarks are from 2026-04-16
@@ -196,7 +203,9 @@ cache" -- useful historical baseline, but stale on specifics. Treat DOCKER-DEV
 content as a lead, not truth; verify against `docker-compose.yml`.
 
 ### 3.7 The runtime crash (HIGH)
+
 Verbatim signature, for reference:
+
 ```
 ...Microsoft.NET.Sdk.targets(308,5): error MSB4018:
   at ...DependencyContextBuilder.GetRuntimeLibrary(...)
@@ -205,6 +214,7 @@ warning MSB3026: Could not copy "obj/Debug/net10.0/...EntityFrameworkCore.dll"
   to "bin/Debug/..." ... because it is being used by another process.
 The build failed. Fix the build errors and run again.
 ```
+
 Likely a combination of (a) memory pressure / OOM during the in-container
 compile and (b) **host `obj/bin` (514 MB across 20 dirs) leaking through the
 `./src:/app/src` bind mount** (bind mounts ignore `.dockerignore`), colliding
@@ -276,6 +286,7 @@ with the container's own build. Recovered on auto-restart once memory freed.
 Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
 
 ### A1. Per-image, per-layer attribution
+
 - **Goal:** byte-level breakdown per large image.
 - **Probe:** `docker images "main-*" --format "table {{.Repository}}\t{{.Size}}"`;
   `docker history --no-trunc --format "{{.Size}}\t{{.CreatedBy}}" <image>` for
@@ -290,6 +301,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
   SDK vs aspnet vs node base sizes.
 
 ### A2. Build-context size + `.dockerignore` gap quantification
+
 - **Goal:** measure what each context actually ships, and confirm the
   Logs/bin leak and angular node_modules copy.
 - **Probe:**
@@ -308,6 +320,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
   don't reproduce.)
 
 ### A3. NuGet restore footprint & layer sharing
+
 - **Goal:** quantify restored package volume and whether api/authserver share
   the restore layer or duplicate it.
 - **Probe:** compare the `dotnet restore` layer hashes across api/authserver
@@ -316,6 +329,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
 - **Capture:** restore size; degree of layer sharing; redundant test restore.
 
 ### A4. The size baselines: db-migrator (good) + the prod Dockerfiles
+
 - **Goal:** quantify how small the images *could* be using the existing prod
   `Dockerfile`s.
 - **Probe:** read the three prod `Dockerfile`s; build one read-only to a temp
@@ -324,6 +338,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
   the delta = the "size prize."
 
 ### A5. Angular image (5.51 GB) specifics
+
 - **Goal:** attribute the angular image (base, yarn install, COPY-. node_modules
   duplication, browser-sync, dist).
 - **Probe:** `docker history` the angular image; confirm the doubled
@@ -333,6 +348,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
   cost, prod-vs-dev delta.
 
 ### A6. Engine-wide disk + why the vhdx doesn't shrink
+
 - **Goal:** total WSL `.vhdx` consumption vs reclaimable, and the compaction
   story (the core "WSL clogged" complaint).
 - **Probe:** `docker system df -v`; `docker builder du`; locate the WSL data
@@ -345,6 +361,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
   required vs reclaimable; the compaction procedure to recommend.
 
 ### Part A questions for the report
+
 1. Of each ~5-6 GB dev image: how many GB are SDK base, NuGet restore, build
    output, source copy, **Logs leak**, **bin leak**, **doubled node_modules**?
 2. What is *necessary for in-container dev* vs *pure waste*?
@@ -361,11 +378,13 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
 removed, whether it could work now, and the full landscape of options.
 
 ### B1. Reconstruct history (mostly done -- verify)
+
 - **Probe:** read OBS-22 in full; `git log --oneline -- docker-compose.yml "src/**/Dockerfile*" angular/Dockerfile.dev angular/dev-entrypoint.sh scripts/dev/` and read the 2026-05-06 (fold) and 2026-05-22 (watcher removal) commits.
 - **Capture:** confirm/refine the timeline and the exact failure that drove
   removal.
 
 ### B2. Measure the current reload cost (verify the ~30 s / ~90 s claim)
+
 - **Goal:** real edit->serving time today on this hardware.
 - **Probe (mutating; main stack):** `time docker compose restart api`, then
   `docker logs -f main-api-1` until `Now listening on:`. Repeat for `angular`
@@ -375,6 +394,7 @@ removed, whether it could work now, and the full landscape of options.
   `dotnet restore` on every restart is necessary overhead.
 
 ### B3. Is the Windows watcher problem still real? (verify -- it may have moved)
+
 - **Goal:** decide whether polling/inotify could work on the current Docker
   Desktop, since that gates Options 1 and 4.
 - **Probe:** `docker version` + Docker Desktop About for the engine version;
@@ -385,8 +405,10 @@ removed, whether it could work now, and the full landscape of options.
   polling cost on this source-tree size.
 
 ### B4. Options to research (do NOT choose; capture trade-offs for each)
+
 For each: how it works, effort, size impact, reload impact, risk, dual-stack-
 on-15.5 GB fit. **Note: several are partly built already.**
+
 - **Option 1 -- Re-enable `dotnet watch` in-container with polling.** Reverse
   OBS-22 with `DOTNET_USE_POLLING_FILE_WATCHER=1` + scoped watch tree.
   Depends on B3. Risk: the exact drift that caused removal.
@@ -419,6 +441,7 @@ on-15.5 GB fit. **Note: several are partly built already.**
   that sidesteps Windows inotify. Research fit/cost.
 
 ### Part B questions for the report
+
 1. What does "reload" do today and how slow is it (measured)?
 2. Is the Windows watcher problem still real on the current Docker Desktop?
 3. Per option: feasibility, effort, risk, dual-stack fit, and how much is
@@ -434,6 +457,7 @@ on-15.5 GB fit. **Note: several are partly built already.**
 vs both). Investigate; do not fix.
 
 ### C1. Reproduce & classify
+
 - **Probe:** with the *other* worktree's stack stopped (the one allowed
   exception -- e.g. `cd ../replicate-old-app && docker compose stop`, then
   restart after), bring up `main` and watch whether `api` compiles cleanly;
@@ -446,6 +470,7 @@ vs both). Investigate; do not fix.
   `up --build` with both stacks.
 
 ### C2. File-lock hypothesis
+
 - **Probe:** confirm host `src/**/obj` + `src/**/bin` (514 MB / 20 dirs) are
   bind-mounted in via `./src:/app/src`; review whether the `Dockerfile.dev`
   entrypoint's artifact-deletion (`find src -name project.assets.json -delete
@@ -455,6 +480,7 @@ vs both). Investigate; do not fix.
   would eliminate the crash.
 
 ### Part C questions for the report
+
 1. Memory, file-lock, or both?
 2. Does isolating obj/bin and/or removing memory pressure eliminate it?
 3. Minimum free RAM for a clean dual-stack cold build?
@@ -479,6 +505,7 @@ vs both). Investigate; do not fix.
 Write findings to
 `docs/runbooks/investigations/2026-05-27-docker-findings.md` (in the worktree
 you run from). Structure:
+
 1. **Answers first** (5-8 sentences): why images are huge; why reload is
    broken; the crash cause.
 2. **Part A evidence** -- per-image attribution; necessary-vs-waste; the
@@ -498,6 +525,7 @@ evidence -- that is a success, not a failure.
 ---
 
 ## 11. What NOT to do (recap)
+
 - Do not edit Dockerfiles, compose, `.env`, `.dockerignore`, scripts, source.
 - Do not disrupt other worktrees' stacks (one momentary `stop` allowed in C1,
   then restart + verify).

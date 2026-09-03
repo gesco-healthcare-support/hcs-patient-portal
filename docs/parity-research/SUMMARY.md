@@ -190,23 +190,27 @@ Angular-context reload.
 > low-keyboard). Week numbers assume the groups run roughly in listed order.
 
 **Phase 0 -- Decisions + research spikes (~2-3 days, overlaps Week 1)**
+
 - Adrian decisions (2.4 list).
 - Spikes: OpenIddict single-session mechanics (`G-06-06`); ABP audit child-entity
   capture + PHI-redaction approach (`G-02-02`); QuestPDF table layout (`G-08-03/04`).
 
 **Phase 1 -- Integrity & quick wins (Weeks 1-2, ~75h)**
+
 - Group A booking validations; Group B patient flag->override; Group C slot
   integrity (incl. the `G-02-04` bug); Group D auth hardening.
 - *Rationale:* low-risk, bug-like, unblocks `G-02-08` and stabilizes the booking
   spine before feature work.
 
 **Phase 2 -- Self-contained verticals (Weeks 3-5, ~117h)**
+
 - Group E doc-type master + packet; Group F Submit-Query; Group G reval
   (`G-07-02` data first, then `G-01-07` UI); Group H email reliability.
 - *Rationale:* independent features with clean producer->consumer chains; no
   cross-group coupling, easy to review and merge as parity slices.
 
 **Phase 3 -- Cross-cutting + PHI cluster (Weeks 6-9, ~137h)**
+
 - Group I role x type matrix; Group J accessor model (after UX decision);
   Group K audit + change-email (**highest risk**; after redaction spike, order:
   `G-02-01`/`G-02-02` -> `G-10-05` -> `G-02-03`/`G-04-03`); Group L reminder jobs.
@@ -214,6 +218,7 @@ Angular-context reload.
   with focused review; matrix lands before its admin screen in Phase 4.
 
 **Phase 4 -- Reporting, dashboard, lookups, admin UI (Weeks 10-15, ~169h)**
+
 - Group M reporting + PDF (after QuestPDF spike); Group N dashboard counters;
   Group O lookups; Group P admin master-data UI suite (XL).
 - *Rationale:* the Angular-heavy block last, in one sustained UI context; the XL

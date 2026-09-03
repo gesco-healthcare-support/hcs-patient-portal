@@ -17,6 +17,7 @@ dotnet test --filter "FullyQualifiedName~MultiOffice"
 ```
 
 Required:
+
 - `MultiOfficeHarnessSelfValidationTests` passes -- office A's row is invisible to office
   B even with the `IMultiTenant` filter disabled (proves physical separation, not
   filter-only).
@@ -35,6 +36,7 @@ fidelity gap on real databases. Use the docker stack (real SQL Server container)
 staging SQL Server.
 
 Preconditions:
+
 - Stack up: `docker compose down -v && PACKET_RENDERER_PORT=3011 docker compose up -d --build`
   (db-per-tenant worktree ports: authserver 44438, api 44397 HTTP, angular 4270). Confirm
   db-migrator exited 0 and api/authserver are Healthy.
@@ -46,6 +48,7 @@ Preconditions:
   `MSYS_NO_PATHCONV=1 docker exec -i db-per-tenant-sql-server-1 bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C' <<'SQL' ... SQL`
 
 Checks (each must pass):
+
 1. **Physical separation.** Confirm two distinct office databases exist
    (`SELECT name FROM sys.databases` -> `CaseEvaluation_{slugA}`, `CaseEvaluation_{slugB}`).
    Confirm office A's patients/appointments rows exist only in office A's database and are

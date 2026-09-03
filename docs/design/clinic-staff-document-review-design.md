@@ -45,6 +45,7 @@ No dedicated document-review route in NEW. The document component is embedded in
 within the full appointment-view page, below the custom fields section.
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` on the document list route.
 - NEW: Document view visible to all authenticated users on the appointment. Approve/Reject
   buttons gated by `CaseEvaluation.AppointmentDocuments.Approve` permission (`canApprove`).
@@ -80,11 +81,13 @@ In OLD, "Upload Documents" navigates to a separate full page at
 ```
 
 **Upload constraints (OLD):**
+
 - File type: `.doc`, `.docx` only (DEFAULT_IMAGE_FILE_EXTENSTION constant = ".doc,.docx,.pdf")
 - File size: `file.size >= (1000 * 1024)` → silent abort (~1MB actual cap)
 - Encoding: `FileReader.readAsBinaryString` + `btoa()` (base64 string in request body)
 
 **Document statuses (OLD enum):**
+
 - Pending (4)
 - Uploaded (1)
 - Accepted / Approved (2)
@@ -124,6 +127,7 @@ Embedded as `<app-appointment-documents [appointmentId]="id">` in the appointmen
 ```
 
 Buttons visible per document:
+
 - **Download**: Always visible (all roles)
 - **Approve**: `*ngIf="canApprove && doc.status !== Approved"` (staff only)
 - **Reject**: `*ngIf="canApprove && doc.status !== Rejected"` (staff only)
@@ -199,6 +203,7 @@ NEW source: `appointment-documents.component.ts:199-205`
 7. External user sees rejection reason on their appointment-view page.
 
 **State management:**
+
 - `rejectingDoc: AppointmentDocumentDto | null` tracks which doc is in the modal.
 - `rejectionReason: string` bound to textarea.
 - `isSubmittingReject: boolean` prevents double-submit.

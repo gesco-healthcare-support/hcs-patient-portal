@@ -45,6 +45,7 @@ from the pages above.
 | JAL Document Approve | Inline confirmation dialog | `RxDialog.confirmation()` |
 
 **Backend endpoints (all pending Phase 17 -- not yet built):**
+
 - `GET api/app/appointment-change-requests?statusTypeId=12&...` (reschedule list)
 - `GET api/app/appointment-change-requests?statusTypeId=13&...` (cancel list)
 - `POST api/app/appointment-change-requests/{id}/approve-cancellation`
@@ -160,6 +161,7 @@ OLD source: `detail/appointment-change-request-detail.component.html:34-84`
 ### 4c. Action Column Visibility Rules
 
 **Reschedule action column** (both approve + reject icons):
+
 ```
 if (showButtonBaseOnRole) {
   // Beyond-limit path: JAL must be Accepted before supervisor can act
@@ -177,6 +179,7 @@ if (showButtonBaseOnRole) {
 OLD source: `list/appointment-change-request-list.component.html:124-150`
 
 **Cancel action column** (approve icon only, NO reject):
+
 ```
 if (showButtonBaseOnRole) {
   show approve  [only if event.RequestStatusId == Pending]
@@ -233,10 +236,12 @@ OLD source: `domain/appointment-change-request.domain.ts:40-76`
 ### 5b. Cancel-Approve Body (`cancelRequest=true, operationType=1`)
 
 Read-only fields:
+
 - "Appointment Date Time": `appointmentChangeRequest.OldAppointmentDateTime`
 - "Reason for Cancellation": `appointmentChange.cancellationReason`
 
 Form field:
+
 - **Appointment Status radio (required):**
   - "Cancelled-No Bill" (`AppointmentStatusTypeEnums.CancelledNoBill`)
   - "Cancelled-Late" (`AppointmentStatusTypeEnums.CancelledLate`)
@@ -249,10 +254,12 @@ OLD source: `edit/appointment-change-request-edit.component.html:13-56`
 ### 5c. Cancel-Reject Body (`cancelRequest=true, operationType=2`)
 
 Read-only fields:
+
 - "Appointment Date Time": same as above
 - "Reason for Cancellation": same as above
 
 Form field:
+
 - **Notes textarea (required):**
   - Label: "Notes"
   - Control: `cancellationRejectionReason`
@@ -266,12 +273,14 @@ OLD source: `edit/appointment-change-request-edit.component.html:30-55`
 ### 5d. Reschedule-Approve Body (`rescheduleRequest=true, operationType=1`)
 
 Read-only display fields:
+
 - "Existing Appointment Date & Time": `appointmentChangeRequest.OldAppointmentDateTime`
 - "Requested Appointment Date & Time": `appointmentChangeRequest.NewAppointmentDateTime`
 - "Reschedule reason": `appointmentChangeRequest.ReScheduleReason` (text display,
   no control)
 
 Form fields:
+
 1. **Appointment Status radio (required):**
    - "Rescheduled-No Bill" (`RescheduledNoBill`)
    - "Rescheduled-Late" (`RescheduledLate`)
@@ -304,10 +313,12 @@ OLD source: `edit/appointment-change-request-edit.component.html:58-148`
 ### 5e. Reschedule-Reject Body (`rescheduleRequest=true, operationType=2`)
 
 Read-only display fields:
+
 - "Existing Appointment Date & Time"
 - "Requested Appointment Date & Time"
 
 Form field:
+
 - **Re-Schedule Rejection Reason textarea (required):**
   - Control: `reScheduleRejectionReason`
   - rows: 3
@@ -319,17 +330,20 @@ OLD source: `edit/appointment-change-request-edit.component.html:78-81`
 ### 5f. Submit logic and backend payload
 
 **Cancel approve:**
+
 - `requestStatusId = Accepted`
 - `appointmentStatusId = (selected CancelledNoBill or CancelledLate)`
 - `appointmentId = appointmentChangeRequest.AppointmentId`
 
 **Cancel reject:**
+
 - `requestStatusId = Rejected`
 - `appointmentStatusId = Approved` (reverts appointment to Approved)
 - `cancellationRejectionReason = (entered reason)`
 - `appointmentId`
 
 **Reschedule approve, no date override (adminReScheduleReason is null):**
+
 - `requestStatusId = Accepted`
 - `appointmentStatusId = (selected RescheduledNoBill or RescheduledLate)`
 - `doctorAvailabilityId = appointmentChangeRequest.NewDoctorsAvailabilityId`
@@ -338,6 +352,7 @@ OLD source: `edit/appointment-change-request-edit.component.html:78-81`
 - `appointmentId`
 
 **Reschedule approve WITH date override by supervisor (adminReScheduleReason filled):**
+
 - `requestStatusId = Accepted`
 - `appointmentStatusId = (selected)`
 - `doctorAvailabilityId = (form-selected supervisor slot)`
@@ -348,6 +363,7 @@ OLD source: `edit/appointment-change-request-edit.component.html:78-81`
 - `appointmentId`
 
 **Reschedule reject:**
+
 - `requestStatusId = Rejected`
 - `appointmentStatusId = Approved`
 - `doctorAvailabilityId = NewDoctorsAvailabilityId`
@@ -358,6 +374,7 @@ OLD source: `edit/appointment-change-request-edit.component.html:78-81`
 OLD source: `edit/appointment-change-request-edit.component.ts:110-199`
 
 **Toast messages on success:**
+
 - Approve: "Your request has been approved successfully"
 - Reject: "Your request has been rejected successfully"
 
@@ -368,14 +385,17 @@ OLD source: `edit/appointment-change-request-edit.component.ts:227-238`
 Header: "Reject Document" + subtitle "Please reject document from here."
 
 Body (one per document in the FormArray):
+
 - "Document Name": `input[type="text"]`, `readonly`, bound to `documentName`
 - "Rejection Reason": `textarea`, rows=3, control `rejectionNotes`,
   required, `maxLength(500)`
 
 Footer:
+
 - "Reject" button: `btn btn-danger`, `[disabled]="!appointmentChangeRequestFormGroup.valid"`
 
 On submit: PATCHes the change request record with:
+
 - `isDocumentUpdate = true`
 - All documents patched with `documentStatusId = Rejected`, `rejectedById`,
   `modifiedById`, `modifiedDate`
@@ -507,6 +527,7 @@ inconsistency).
 ## 13. Verification Checklist
 
 **Reschedule requests page:**
+
 - [ ] Page loads with pending reschedule requests (`statusTypeId = RescheduleRequested`)
 - [ ] Columns: Patient, Gender, Type, Requested On, Conf #, Existing Date, Requested
       Date, Reason, Reschedule Status, Requested By, Beyond Limit?, DOB, SSN,
@@ -529,6 +550,7 @@ inconsistency).
 - [ ] Action icons only shown for Pending requests; non-Pending rows show no icons
 
 **Cancel requests page:**
+
 - [ ] Page loads with pending cancel requests (`statusTypeId = CancellationRequested`)
 - [ ] Columns: Patient, Gender, Type, DOB, SSN, Claim #, DOI, Requested On,
       Conf #, Appt Date/Time, Cancellation Reason, Request Status, Requested By, Action
@@ -536,6 +558,7 @@ inconsistency).
 - [ ] Toggle + search work same as reschedule page
 
 **Approve/Reject modal -- cancel-approve:**
+
 - [ ] Header: "Approve Cancellation Request" + subtitle
 - [ ] Shows appointment date/time and cancellation reason (read-only)
 - [ ] Radio: Cancelled-No Bill / Cancelled-Late; Save disabled until one is selected
@@ -544,12 +567,14 @@ inconsistency).
 - [ ] List refreshes after modal closes
 
 **Approve/Reject modal -- cancel-reject:**
+
 - [ ] Header: "Reject Cancellation Request" + subtitle
 - [ ] Notes textarea required; Save disabled until filled
 - [ ] Submit: appointment status reverts to Approved, request status = Rejected
 - [ ] Toast: "Your request has been rejected successfully"
 
 **Approve/Reject modal -- reschedule-approve (no override):**
+
 - [ ] Header: "Approve Reschedule request" + subtitle
 - [ ] Shows existing date, requested date, reschedule reason (read-only)
 - [ ] Radio: Rescheduled-No Bill / Rescheduled-Late; required
@@ -558,6 +583,7 @@ inconsistency).
       confirmation #, new slot Booked, old slot Available, stakeholders notified
 
 **Approve/Reject modal -- reschedule-approve (with supervisor override):**
+
 - [ ] Checking "Change Re-Schedule Date & Time" reveals date picker + time select +
       reason field; all three become required
 - [ ] Unchecking hides and resets all three
@@ -566,10 +592,12 @@ inconsistency).
       `adminReScheduleReason` saved; `requestedDoctorAvailabilityId` preserves original request
 
 **Approve/Reject modal -- reschedule-reject:**
+
 - [ ] Rejection reason required; button styled as danger (red)
 - [ ] Appointment reverts to Approved; new slot Released (Reserved -> Available)
 
 **General modals:**
+
 - [ ] Modal header uses `--brand-primary` background, white text
 - [ ] Close (X) button works on all modals
 - [ ] Approve button is blue (btn-primary); Reject button is red (btn-danger)

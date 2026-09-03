@@ -96,18 +96,22 @@ Header: "Document Details" (no subtitle)
 ```
 
 **Document Name (required):**
+
 - `type="text"`, `formControlName="documentName"`, placeholder "Document Name"
 
 **File Path (readonly display):**
+
 - `type="text"`, readonly, `value="{{filePath}}"` (bound to component property, not form control)
 - Populated when a file is chosen; shows the filename
 - Not a form control -- read-only display only
 
 **File Upload button:**
+
 - Label styled as `btn btn-info px-3 bold pull-left col-md-4`: "Choose File to Upload"
 - `<input type="file" (change)="onFileChange($event)">` (hidden, overlapping the button via CSS)
 
 **`onFileChange()` behavior:**
+
 - Validates file size: `file.size >= (1000 * 1024)` = ~1MB -- silently aborts (no toast) if exceeded
   See Exception 1 (size cap bug)
 - Accepted types: `DEFAULT_IMAGE_FILE_EXTENSTION = ".doc,.docx,.pdf"` (same const as JAL upload)
@@ -137,6 +141,7 @@ Identical visible fields to Add PLUS **Is Active checkbox**:
 ```
 
 **Is Active checkbox:**
+
 - `formControlName="statusId"`
 - `[checked]="documentFormGroup.value.statusId == statusTypeEnums"` (Active enum)
 - `(change)="statusChange(documentFormGroup.value.statusId)"`
@@ -201,6 +206,7 @@ OLD source: `package-details/list/package-detail-list.component.html:32-50`
 The file-alt icon (`fas fa-file-alt`) calls `showDocumentPackages(event, 1)`.
 
 `showDocumentPackages()` logic:
+
 ```ts
 showDocumentPackages(row: any): void {
   this.packageDetailId = 0;
@@ -237,14 +243,17 @@ Header: "Add Package" (no subtitle)
 ```
 
 **Package Name (required):**
+
 - `type="text"`, `formControlName="packageName"`, placeholder "Package Name"
 
 **Appointment Type (required):**
+
 - `<select>` bound to `documentManagementLookups.appointmentTypeLookUps`
 - Value: `item.appointmentTypeId`, display: `item.appointmentTypeName`
 - Default: "Select Appointment Type" (disabled placeholder, value "null")
 
 **Is Active (COMMENTED OUT in Add):**
+
 - OLD HTML lines 22-28 are commented out; new packages always created Active by default
 - NEW: surface Is Active in Add if Adrian wants to pre-stage inactive packages;
   otherwise keep the same behavior (always Active on create). Surface to Adrian -- see Exception 4.
@@ -270,6 +279,7 @@ Header: "Edit Package" (no subtitle)
 appointment type a package serves once created.
 
 **Is Active (COMMENTED OUT in Edit):**
+
 - OLD HTML lines 20-26 are commented out; no soft-deactivate available from UI
 - This means packages can only be deleted (hard-delete route) but not deactivated
 - See Exception 4 for NEW behavior
@@ -320,12 +330,14 @@ Header: "Document Package" (no subtitle; same header for Add and Edit)
 ```
 
 **Package Name select (DISABLED):**
+
 - Bound to `documentPackageLookupGroup.packageDetailLookUps`
 - Pre-selected with the `packageDetailId` passed from the parent
 - Disabled -- user cannot change which package they're adding to
 - Value: `package.packageDetailId`, display: `package.packageName`
 
 **Document Name select (required):**
+
 - Bound to `documentPackageLookupGroup.documentLookUps`
 - Shows all active Documents from the master catalog
 - Value: `document.documentId`, display: `document.documentName`
@@ -351,6 +363,7 @@ Identical layout to Add PLUS **Is Active checkbox**:
 ```
 
 **Is Active checkbox:**
+
 - `formControlName="statusId"`
 - `[checked]="documentPackageFormGroup.value.statusId == statusTypeEnums"` (Active enum)
 - `(change)="statusChange(documentPackageFormGroup.value.statusId)"`
@@ -491,6 +504,7 @@ guard level. NEW should restrict Add/Edit/Delete buttons by role at the componen
 ## 12. Verification Checklist
 
 ### Documents page
+
 - [ ] IT Admin navigates to `/documents` and sees the list
       (Document Name, File Path, Status columns + Action)
 - [ ] "Add +" opens the Add Document modal
@@ -504,6 +518,7 @@ guard level. NEW should restrict Add/Edit/Delete buttons by role at the componen
 - [ ] Delete icon confirms with document name; confirming removes the row
 
 ### Packages page
+
 - [ ] IT Admin navigates to `/package-details` and sees the list
       (Appointment Type, Package Name columns + Action)
 - [ ] "Add +" opens Add Package modal with Appointment Type select
@@ -516,6 +531,7 @@ guard level. NEW should restrict Add/Edit/Delete buttons by role at the componen
 - [ ] Delete icon confirms with package name; confirming removes the package
 
 ### Document Packages sub-list
+
 - [ ] Clicking the file-alt icon on an Active package shows the Document Packages
       sub-list below the Packages table
 - [ ] Clicking the icon on an Inactive package shows no sub-list

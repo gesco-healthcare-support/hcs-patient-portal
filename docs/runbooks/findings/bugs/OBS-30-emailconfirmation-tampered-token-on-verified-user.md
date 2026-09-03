@@ -56,6 +56,7 @@ attacker can't tell the difference from a legitimate idempotent re-click.
 
 The attack-value of "tampered token returns success flash on already-
 verified user" is essentially zero. The attacker:
+
 - Did NOT obtain a valid login session.
 - Did NOT learn whether the userId exists (R2.14 anti-enumeration
   covers that case for unverified users).

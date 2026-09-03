@@ -68,7 +68,7 @@ That URL resolves the user correctly (subdomain-resolved tenant = Falkinstein), 
 
 ## Token is host-agnostic (workaround proven 2026-05-21 17:17)
 
-A second register (HRD-P1.A.2 -- appatty1@gesco.com) produced the SAME broken URL pattern (`host=localhost`) in Adrian's inbox, and this time only one email arrived (because no Resend page autosend was manually triggered as in the patient1 case). Confirmed: every fresh register sends a broken first email.
+A second register (HRD-P1.A.2 -- <appatty1@gesco.com>) produced the SAME broken URL pattern (`host=localhost`) in Adrian's inbox, and this time only one email arrived (because no Resend page autosend was manually triggered as in the patient1 case). Confirmed: every fresh register sends a broken first email.
 
 I rewrote the broken URL by swapping `localhost` -> `falkinstein.localhost` while keeping the same token, then loaded it. AuthServer log:
 

@@ -35,6 +35,7 @@ Other fields (firm name, address) are empty.
 
 The first-name-only prefill suggests the prefill source is a single
 `firstName` claim rather than a composed `fullName` or `firstName + ' '
+
 + lastName`. The user has to manually edit the field to add their last
 name OR the form serializer downstream might happen to accept the
 first-name-only value (depending on validation).
@@ -45,9 +46,9 @@ first-name-only value (depending on validation).
    last=Bennett).
 2. Navigate to `/appointments/add`.
 3. Observe the Applicant Attorney Details section:
-   - Include checkbox: checked (auto-on).
-   - ATTORNEY NAME placeholder field: contains "Marcus" (first name only).
-   - ATTORNEY EMAIL: contains "appatty1@gesco.com".
+   + Include checkbox: checked (auto-on).
+   + ATTORNEY NAME placeholder field: contains "Marcus" (first name only).
+   + ATTORNEY EMAIL: contains "<appatty1@gesco.com>".
 
 ## Recommended fix
 
@@ -72,5 +73,5 @@ correspondence.
 
 ## Related
 
-- HRD-P3.2 (the scenario that surfaced this).
-- Booking-form-structure observations (OBS-17, OBS-18).
++ HRD-P3.2 (the scenario that surfaced this).
++ Booking-form-structure observations (OBS-17, OBS-18).

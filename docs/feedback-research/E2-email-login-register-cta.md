@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 The Appointment Request notification body must explicitly tell the recipient to "log in or
 register to view the appointment" and surface a login link, in ONE shared, non-role-aware
 body. Today the wording is split across three role-aware templates (Registered = Login CTA,
@@ -16,6 +17,7 @@ Unregistered = Register CTA, Office = neither). When E1 collapses the per-recipi
 into a single To+CC message, that single body must offer both affordances to every recipient.
 
 ## Current behavior (from investigation)
+
 Three separate AppointmentRequested templates exist, each role-aware:
 
 - `AppointmentRequestedRegistered.html:13-17` -- says "Log in to the appointment portal to
@@ -39,6 +41,7 @@ templates; the literal gaps are (a) the Office template has neither CTA, and (b)
 shared body cannot branch on `IsRegistered`, so the one body must contain BOTH affordances.
 
 ## Relevant code locations
+
 - `src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/AppointmentRequestedRegistered.html`
 - `src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/AppointmentRequestedUnregistered.html`
 - `src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/AppointmentRequestedOffice.html`
@@ -51,6 +54,7 @@ shared body cannot branch on `IsRegistered`, so the one body must contain BOTH a
   CLAUDE.md "Seeder update behavior"). Editing the `.html` is the supported propagation path.
 
 ## Phase 3 cross-reference
+
 - OBS-27 (invite email empty greeting) -- sibling template-wording fix; bundle if touching
   EmailBodies wording in the same pass so reviewers review one wording PR.
 - OBS-36 (23 stub templates pending parity) -- template-wording governance; the consolidated
@@ -60,6 +64,7 @@ shared body cannot branch on `IsRegistered`, so the one body must contain BOTH a
   bundled.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - Variable substitution is `##Var##` -> dictionary via `TemplateVariableSubstitutor.Substitute`;
     unknown placeholders are left in place and null renders as empty (NotificationTemplates
@@ -74,6 +79,7 @@ shared body cannot branch on `IsRegistered`, so the one body must contain BOTH a
 - External docs: none required; this is internal HTML template wording + existing substitution.
 
 ## Approaches considered (with tradeoffs)
+
 1. (CHOSEN) One shared, non-role-aware body offering BOTH "Log in" and "Register" with a
    login link; applied when E1's single To+CC message lands; add the same wording to the
    Office path. Wins because E1 mandates one body addressed To one party with the rest CC'd
@@ -90,6 +96,7 @@ shared body cannot branch on `IsRegistered`, so the one body must contain BOTH a
    "log in" body with no register affordance, defeating the feedback's intent.
 
 ## Decision (locked 2026-06-03)
+
 ONE shared, non-role-aware Appointment Request body. It explicitly says to log in OR register
 to view the appointment and includes a login link (register is reachable from the login page).
 Consolidate the Registered/Unregistered/Office wording into this single body when E1's single
@@ -97,6 +104,7 @@ To+CC message lands, and ensure the Office path carries the same wording. The pa
 remains a separate email (out of E2 scope). The wording change rides E1; E2 alone is wording.
 
 ## Implementation outline (no code)
+
 1. Sequence after E1: E2's single-body consolidation depends on E1 having one To+CC message
    and one variable set. Until E1 lands, the three templates stay.
 2. Author the consolidated body in `EmailBodies/` (reuse the existing AppointmentRequested
@@ -119,12 +127,14 @@ remains a separate email (out of E2 scope). The wording change rides E1; E2 alon
    Office recipient now sees the same wording.
 
 ## Dependencies
+
 - DEPENDS ON E1 (single To+CC message + single variable set). E2 cannot deliver one shared
   body until the fan-out is collapsed; without E1, the wording stays in three templates.
 - Loosely related to E3 (document-email To/CC) -- same notification subsystem, but no shared
   code path; not a hard dependency.
 
 ## Residual open questions
+
 - Whether to reuse the existing AppointmentRequested template code or mint a single new
   consolidated code is an E1 decision (E1 settles the code/addressing shape); E2 inherits it.
 - "Mention the login link" is satisfied by the existing styled button (href=`##LoginUrl##`);

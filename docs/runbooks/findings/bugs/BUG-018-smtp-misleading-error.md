@@ -11,12 +11,15 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Jobs/SendApp
 # BUG-018 — Misleading "Configure ACS credentials" log on SMTP rate-limit
 
 ## Severity
+
 medium (operationally important: makes triaging email-delivery failures slow because the message blames the wrong subsystem)
 
 ## Status
+
 **Open** — for fix session.
 
 ## Symptom
+
 After Workflow B successfully delivered 7 emails at ~20:05, Workflow C's approval at ~20:17 triggered another 7 emails. ALL 7 of Workflow C's emails failed with this warning in the api logs:
 
 ```
@@ -30,7 +33,9 @@ MailKit.Net.Smtp.SmtpCommandException: 4.5.127 Message rejected.
 The log message **"Configure ACS credentials to deliver"** suggests an authentication/configuration problem. The actual exception underneath is a transient **rate-limit** error from Exchange Online (`4.5.127`).
 
 ## Root cause
+
 `SendAppointmentEmailJob.cs:90-108` (and the analogous SendWithAttachmentAsync at line ~146) catches all `Exception` types and emits the same warning message regardless of cause:
+
 ```csharp
 catch (Exception ex)
 {
@@ -40,6 +45,7 @@ catch (Exception ex)
         args.Context, args.To);
 }
 ```
+
 The inner exception type / SMTP status code is not surfaced in the message; the operator has to read the stack trace below to find the real cause.
 
 ## Recommended fix (Adrian's directive 2026-05-14)
@@ -90,11 +96,13 @@ Concrete design:
    throughput + rate-limit incidence.
 
 ## Adrian's directive verbatim (2026-05-14)
+>
 > "I will want to send emails slower, like 2-3 emails per second but
 > all the emails must be sent. so this is the prefered option:
 > Throttle in the app"
 
 ## Workaround used this session
+
 None. We accepted the temporary rate-limit and continued workflows that don't depend on email verification, planning to re-test email delivery after the EXO rate window cleared.
 
 ## Additional scope (added 2026-05-14): stale ACS references in source
@@ -117,4 +125,5 @@ Even though the actual SMTP provider is now in-house (which forwards to Microsof
 Also worth checking: the `appsettings.secrets.json` placeholder values (per the comments above) may still use `REPLACE_WITH_ACS_*` labels. If so, rename to generic `REPLACE_WITH_SMTP_*` since the consumer no longer cares about provider identity.
 
 ## Related
+
 - [[BUG-010]] (synthetic-user SMTP silently fails) — separate problem (synthetic `.test` domains never reach a real MX). Combined with BUG-018, the email-delivery surface has multiple log-message-vs-root-cause mismatches.

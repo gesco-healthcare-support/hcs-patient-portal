@@ -145,7 +145,7 @@ Cite the OLD permission check location (`*ngIf="hasPermission(...)"` or
 
 For external-user features that gate by appointment ownership /
 accessor scope (rather than role alone), add a note explaining the gate
-+ cite the OLD service method.
+- cite the OLD service method.
 
 ## 8. Branding tokens used
 

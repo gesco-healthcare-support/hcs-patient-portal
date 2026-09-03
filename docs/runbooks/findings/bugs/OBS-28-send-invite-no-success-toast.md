@@ -33,6 +33,7 @@ invite tokens.
 ## Recommended fix
 
 Surface either:
+
 - A toast notification: "Invite sent to <email>" (success) or "Failed to
   send invite" (error).
 - An inline banner that appears above the form for ~5 seconds.

@@ -313,6 +313,7 @@ Suite generates pairs of files using an abstract/concrete pattern:
 **Customization rule:** Always put custom logic in the concrete (derived) class. Never edit the abstract (base) class directly -- your changes will be lost on the next Suite regeneration.
 
 This pattern applies to:
+
 - Application services (AppService base + concrete)
 - Angular components (abstract component + concrete component)
 - Repository implementations

@@ -41,6 +41,7 @@ In NEW, it is a dedicated `appointment-view.component` (1604 lines) with per-fie
 | Change log | n/a | `/appointments/view/:id/change-log` |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` `applicationModuleId: 6` on the list; NO guard on the
   edit/view route (lazy-loaded module without `canActivate`).
 - NEW: `canActivate: [authGuard, permissionGuard]`; external users need
@@ -231,6 +232,7 @@ All fields read-only (disabled) for external users in standard view.
 ```
 
 Conditional banners within this section:
+
 - Reschedule reason: `isCancelRescheduleRequestPending` -- explains why buttons are hidden
 - Document status + rejection reason: when reschedule-request supporting doc was rejected
   by staff (shows "Document Status: Rejected" + rejection note)
@@ -315,6 +317,7 @@ from the booking form is re-used in OLD's edit component for adding or editing c
 ### 10b. Claim Modal (when adding/editing a claim)
 
 Same fields as the booking form modal:
+
 - Cumulative Trauma Injury (Yes/No radio)
 - Date Of Injury / From Date + To Date (conditional)
 - Claim Number, WCAB Office (dropdown), ADJ#, Body Parts (textarea)
@@ -350,6 +353,7 @@ OLD source: `edit/appointment-edit.component.html:740-796`
 Two-column layout on desktop (stacked on mobile):
 
 **Applicant Attorney** (left half):
+
 - Include Applicant Attorney toggle (checkbox on/off)
 - Name
 - Email (readonly for Applicant Attorney role -- cannot change own email)
@@ -358,6 +362,7 @@ Two-column layout on desktop (stacked on mobile):
 - Street, City, State (select), Zip
 
 **Defense Attorney** (right half):
+
 - Include Defense Attorney toggle (checkbox on/off)
 - Name
 - Email (readonly for Defense Attorney role -- cannot change own email)

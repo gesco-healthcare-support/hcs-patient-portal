@@ -26,6 +26,7 @@ continues at its interval regardless of auth state.
 ## Expected
 
 The pending-count poll should:
+
 1. Check `oAuthService.hasValidAccessToken()` (or equivalent) before
    firing, OR
 2. Be gated behind the dashboard route guard so it only mounts when

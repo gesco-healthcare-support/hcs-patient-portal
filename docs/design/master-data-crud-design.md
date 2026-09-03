@@ -50,6 +50,7 @@ source to match -- they are NEW enhancements and just need to work correctly.
 | States | No active route | `/states` |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` with `applicationModuleId: 9` (locations), various for others
 - NEW: `canActivate: [authGuard, permissionGuard]` per entity permissions (see Section 8)
 
@@ -227,6 +228,7 @@ NEW source: `angular/src/app/appointment-types/appointment-type/components/appoi
 ## 7. Surface: Appointment Statuses, Languages, States (NEW-only)
 
 These three entities have no OLD admin surfaces. They were seeded data in OLD:
+
 - **Appointment Statuses**: defined as `AppointmentStatusTypeEnums` in TS code (Pending=1 ... CancellationRequested=13).
 - **Languages**: seeded lookup data (English, Spanish, etc.).
 - **States**: US state lookup data (CA, TX, NY ...) used as dropdown in location forms.
@@ -253,6 +255,7 @@ Intake Staff had no access; Staff Supervisor and IT Admin did. NEW should gate t
 behind `CaseEvaluation.{Entity}.Create` / `Edit` / `Delete` permissions.
 
 Permission names for NEW:
+
 - `CaseEvaluation.AppointmentTypes.Create / Edit / Delete`
 - `CaseEvaluation.AppointmentStatuses.Create / Edit / Delete`
 - `CaseEvaluation.AppointmentLanguages.Create / Edit / Delete`

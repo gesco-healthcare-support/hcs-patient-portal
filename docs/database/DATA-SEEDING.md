@@ -166,7 +166,7 @@ Creates the default admin user. Credentials are passed via the `DataSeedContext`
 
 | User | Email | Password | Notes |
 |------|-------|----------|-------|
-| Admin | admin@abp.io | See `TEST_PASSWORD` in `.env.local` | Created by ABP's IdentityDataSeedContributor |
+| Admin | <admin@abp.io> | See `TEST_PASSWORD` in `.env.local` | Created by ABP's IdentityDataSeedContributor |
 
 > **Security Warning:** These are development defaults. Change the admin password immediately in production environments.
 
@@ -182,6 +182,7 @@ When multi-tenancy is enabled (`MultiTenancyConsts.IsEnabled`), every seed contr
 Contributors that are tenant-aware (like `ExternalUserRoleDataSeedContributor`) use `ICurrentTenant.Change(context?.TenantId)` to ensure data is created in the correct scope.
 
 This means each tenant gets:
+
 - Its own set of roles (Patient, Claim Examiner, Applicant Attorney, Defense Attorney)
 - Its own admin user
 - Its own OpenIddict configuration
