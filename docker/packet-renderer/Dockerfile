@@ -14,7 +14,9 @@
 # Caladea=Cambria, Liberation=Arial/Times) the templates target first, plus ttf-mscorefonts for the
 # few patient pages (release / privacy / pregnancy) that name Arial / Times New Roman directly.
 
-FROM python:3.12-slim-trixie
+# Digest-pinned because this image SHIPS. The tag stays alongside the digest --
+# that pair is the form Dependabot updates; see .github/dependabot.yml.
+FROM python:3.12-slim-trixie@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
 # WeasyPrint runtime (Pango / HarfBuzz / fontconfig) + the template font stack + curl (for the
 # compose healthcheck) + poppler-utils (in-container PDF inspection while debugging). Debian

@@ -29,7 +29,10 @@ ARG NG_CONFIG=docker
 RUN yarn ng build --configuration "${NG_CONFIG}"
 
 # ---- prod (DEFAULT): static nginx image ----
-FROM nginx:alpine AS prod
+# Digest-pinned because this image SHIPS. The tag stays alongside the digest --
+# that pair is the form Dependabot updates; see .github/dependabot.yml for why
+# the base/deps/build/dev stages above are deliberately left on tags.
+FROM nginx:alpine@sha256:72ba65eb42c10344912a84ff42408db7d34f2feb642204570ab8fc5ffd29f1d3 AS prod
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY dynamic-env.json /usr/share/nginx/html
 # In-house hosting (2026-07-09, T4): regenerate dynamic-env.json from env vars at

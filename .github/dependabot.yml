@@ -29,6 +29,19 @@ version: 2
 #
 # Adrian ruled: lift the cap for this ecosystem ONLY, accepting the weekly PR
 # cost because they land on chore/dependency-updates rather than the main line.
+#
+# DOCKER was added in phase 2 item 2.14 (2026-09-04), for the same reason as
+# github-actions: item 2.14 pinned the five SHIPPING images to
+# `image:tag@sha256:digest`, and a digest is immutable, so without version
+# updates nothing would ever propose moving one. Docker gets no Dependabot
+# security updates at all -- version updates are the ONLY thing that will ever
+# refresh these pins.
+#
+# The seven build- and dev-stage images stay on floating tags by Adrian's
+# decision: they never reach a shipped artefact (each prod stage is a separate
+# FROM that copies only the publish output), so they keep receiving upstream
+# patches automatically and cost no review. The `ignore` list below is what
+# keeps this entry from proposing bumps for exactly those seven.
 
 updates:
   - package-ecosystem: "nuget"
@@ -68,3 +81,44 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "ci"]
     target-branch: "chore/dependency-updates"
+
+  - package-ecosystem: "docker"
+    # An explicit list, not a glob. `directories` accepts `*`, but how glob
+    # expansion treats a directory with no Dockerfile was not verified, and the
+    # five paths are stable. `directory: "/"` would NOT work: the fetcher reads
+    # one directory and does not recurse, and the repository root holds no
+    # Dockerfile -- the entry would fail rather than find nothing quietly.
+    directories:
+      - "/angular"
+      - "/docker/packet-renderer"
+      - "/src/HealthcareSupport.CaseEvaluation.AuthServer"
+      - "/src/HealthcareSupport.CaseEvaluation.DbMigrator"
+      - "/src/HealthcareSupport.CaseEvaluation.HttpApi.Host"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "docker"]
+    target-branch: "chore/dependency-updates"
+    ignore:
+      # The build- and dev-stage images, left on floating tags deliberately.
+      #
+      # THESE NAMES ARE UNQUALIFIED ON PURPOSE. DO NOT ADD THE REGISTRY.
+      # Dependabot parses a FROM line into separate `registry` and `image`
+      # captures and names the dependency from the image ALONE, putting the
+      # registry in the requirement source (dependabot-core,
+      # docker/lib/dependabot/shared/shared_file_parser.rb: `name:
+      # details.fetch("image")`). So `mcr.microsoft.com/dotnet/sdk` matches
+      # NOTHING: the config would still parse, this list would still read as
+      # though it excluded the sdk stages, and Dependabot would open bumps for
+      # them anyway. GitHub's own options reference says to match Docker
+      # dependencies by "the full name of the repository", which is what leads
+      # to writing the registry-qualified form. It is wrong here.
+      - dependency-name: "dotnet/sdk"
+      # Only angular/Dockerfile's `base` stage today. The four
+      # `COPY --from=node:22-bookworm-slim` lines in the AuthServer image are
+      # invisible to Dependabot regardless -- its FROM regex is anchored at
+      # `^FROM` and never matches a COPY -- so that Node reference has no
+      # automated refresh path and moving it is a human's job. This entry stays
+      # so the exclusion is still correct if a `FROM node:` is ever added.
+      - dependency-name: "node"
