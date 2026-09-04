@@ -51,16 +51,25 @@ public class MultiOfficeExternalRoleGrantsTests : CaseEvaluationMultiOfficeTestB
     /// under test would make this assertion vacuous -- the list and the loop would move
     /// together and the test could never fail. The duplication is the point.</para>
     ///
-    /// <para><b>AND THE CONSTRAINT SURVIVES ANY FUTURE UNIFICATION OF THE ROLE LISTS.</b>
-    /// Four literals of these names exist (`AppointmentAccessorRules.RecognizedExternalRoles`,
-    /// the `EnsureRoleAsync` calls above the grant loop, the grant loop's own array, and
-    /// `BookingFlowRoles.ExternalAccessorManagerRoles`), and unifying them is a live design
-    /// question. If they are unified, THIS LIST MUST NOT BECOME A READ OF THE UNIFIED
-    /// SOURCE. A naive unification that this test then reads from would move the assertion
-    /// and the code under test together and silently restore the vacuity -- the tidier the
-    /// production code becomes, the more this duplication is load-bearing, not less.
-    /// The requirement is not "do not derive this list"; it is "the assertion's source must
-    /// stay independent of the code under test".</para>
+    /// <para><b>THE LISTS ARE BEING UNIFIED -- issue #692, ruled 2026-09-04 -- AND THIS
+    /// LIST MUST NOT BECOME A READ OF THE UNIFIED SOURCE.</b> Three full copies of these
+    /// four names exist today: <c>AppointmentAccessorRules.RecognizedExternalRoles</c>, the
+    /// <c>EnsureRoleAsync</c> block above the grant loop, and the grant loop's own array.
+    /// (<c>BookingFlowRoles.ExternalAccessorManagerRoles</c> is a deliberate TWO-name subset
+    /// with its own meaning, in scope for review when the names change and explicitly out of
+    /// scope for merging.)</para>
+    ///
+    /// <para>Whoever implements #692 will have just removed three duplicate literals, will be
+    /// looking at this fourth one, and will have every instinct telling them to finish the
+    /// job. <b>Do not.</b> Pointing this list at the unified source would move the assertion
+    /// and the code under test together and silently restore the vacuity that made the gap
+    /// invisible in the first place -- measured 2026-09-04, 1,919 tests green with a role
+    /// dropped. The tidier the production code becomes, the more this duplication is
+    /// load-bearing, not less.</para>
+    ///
+    /// <para>The requirement is not "do not derive this list". It is <b>"the assertion's
+    /// source must stay independent of the code under test"</b> -- which is why a second
+    /// literal here is correct rather than sloppy.</para>
     /// </summary>
     private static readonly string[] ExternalBookingRoles =
     {
