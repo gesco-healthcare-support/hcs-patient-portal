@@ -620,7 +620,7 @@ jobs:
       # THE COST, stated so it is not discovered later:
       #
       #   backend   measured 73.6064%   floor 73   slack 0.61 pts  ~273 lines
-      #   frontend  measured 69.4647%   floor 69   slack 0.46 pts   ~11 lines
+      #   frontend  measured 20.97%     floor 20   slack 0.97 pts   ~88 lines
       #
       # ~273 backend lines could go uncovered before the absolute floor fires.
       # That is real, and it is acceptable for one reason: THE ABSOLUTE FLOORS
@@ -632,12 +632,26 @@ jobs:
       # FRONTEND -- measured, never guessed:
       #   scripts/coverage-gate.py --measure-only \
       #     --lcov angular/coverage/CaseEvaluation/lcov.info --lcov-prefix angular
-      #   -> frontend: 69.46% (1713/2466 lines over 82 files)
-      #   measured on feat/ci-coverage-floors @ d2d9a0d9, 667 specs all passing.
-      #   Trustworthy because the UNFILTERED read of that same file reproduces
-      #   karma's own 67.44% summary exactly, which validates the parser rather
-      #   than merely the number.
-      FLOOR_FRONTEND: "69"
+      #   -> frontend: 20.97% (1900/9062 lines over 269 files)
+      #
+      # 69 UNTIL 2026-09-04, AND THAT FIGURE WAS NOT A HIGHER STANDARD -- it was
+      # a smaller sample. It described 82 files because karma only instruments
+      # what a spec reaches, so 184 of the 269 application sources were
+      # invisible to coverage rather than uncovered by it. Item 2.13 widened the
+      # karma target's `include` and tsconfig.spec.json so every source is
+      # instrumented; the same tests, all 667 still passing, then measure 20.97%
+      # over the whole application.
+      #
+      # So this is not a regression and must not be read as one. The covered
+      # line count went UP (1713 -> 1900): karma executes a file's top-level
+      # code when it loads it as an entry point, so imports and declarations in
+      # the newly visible files register as hit. The denominator is what
+      # actually changed, from a third of the app to all of it.
+      #
+      # Trustworthy for the same reason the old figure was: the UNFILTERED read
+      # of that same report reproduces karma's own summary exactly (20.73%,
+      # 2049/9881), which validates the parser rather than merely the number.
+      FLOOR_FRONTEND: "20"
       # BACKEND -- MEASURED, by the mechanism this job was built around. It was
       # deliberately unset until 2026-09-03 so the gate's own first run would
       # fail and print the figure, which is exactly what happened:
@@ -806,9 +820,17 @@ jobs:
           fi
           if applicable "$CHANGED_FRONTEND"; then
             # karma writes `SF:src\app\...` -- backslashes, and relative to
-            # angular/, not to the repo root. Without this prefix the shared
-            # exclusions match nothing and the gate silently measures 67.44%
-            # instead of 69.46% while looking entirely correct.
+            # angular/, not to the repo root. Without this prefix the
+            # `angular/src/app/proxy/**` exclusion matches nothing, and the 55
+            # ABP-generated proxy files in the report are graded as ours:
+            # 20.74% over 324 files instead of 20.97% over 269. Passed
+            # explicitly even though the script defaults to it, so the value CI
+            # relies on is visible here rather than only in the script.
+            #
+            # Measured 2026-09-04, after item 2.13 widened instrumentation. The
+            # percentages are now close because the proxy files are largely
+            # uncovered too, so the reason to keep this is WHOSE code is being
+            # graded, not the size of the number it moves.
             args+=(--lcov "$FRONTEND_REPORT" --lcov-prefix angular --floor-frontend "$FLOOR_FRONTEND")
           fi
 
