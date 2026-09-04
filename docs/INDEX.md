@@ -114,7 +114,8 @@ flowchart TB
 - [Hardening Test Suite](runbooks/HARDENING-TEST-SUITE.md) -- security/regression checklist
 - [Main-Worktree Userflow Testing](runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md) -- manual userflow protocol
 - [Engineering Roadmap](runbooks/ENGINEERING-ROADMAP.md) -- bug/observation backlog status
-- Bug + observation findings: `runbooks/findings/bugs/` (tracked by BUG-/OBS-/SEED- id)
+- **Open work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues).** `runbooks/findings/bugs/` keeps the
+  reproduction and diagnosis for each finding and links its issue; it no longer records status.
 - [Testing Strategy](devops/TESTING-STRATEGY.md) and [Test Coverage Status](testing/coverage-status.md)
 
 ## Production readiness
