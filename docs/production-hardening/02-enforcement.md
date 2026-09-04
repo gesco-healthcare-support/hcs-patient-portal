@@ -1357,6 +1357,16 @@ grep '^SF:' angular/coverage/CaseEvaluation/lcov.info | grep -vc 'proxy'        
 # 276 real - 82 with a record = 194 INVISIBLE
 ```
 
+> **SUPERSEDED -- these two figures are WRONG and are kept only because the method is the finding.**
+> `276` counted `main.ts`, `polyfills.ts`, `test.ts` and `environments/`, which are bootstrap rather
+> than application code. `194` was DERIVED BY SUBTRACTING against an lcov rather than counted.
+> **The honest figures are 269 real sources and 184 invisible**, and 184 is the number the TypeScript
+> compiler errored on when the program was widened -- counted, not inferred.
+>
+> **Left in place deliberately.** Deleting it would hide that a subtraction against a report is a
+> weaker instrument than a compiler, which is the transferable half. See catalogue instance 29: this
+> block was correct-looking and wrong for a day, in the file that exists to catch exactly that.
+
 Replaying PR #493 through the finished gate: **33 changed files, 6 with any coverage record, 27 with
 none.** SonarCloud shares the blind spot -- for TypeScript it imports the lcov, so absent files
 contribute to neither side of the ratio (Angular added 2,873 to `lines_to_cover` against an lcov of
