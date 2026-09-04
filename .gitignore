@@ -363,3 +363,6 @@ tests/baseline/
 # Working artefacts (plans, bug/task backlog) are local-only and never committed.
 docs/plans/
 docs/backlog.md
+
+# Generated issue manifest (regenerable; derived from the gitignored backlog)
+scripts/maintenance/issues.json
