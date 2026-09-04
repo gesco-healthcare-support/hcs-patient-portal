@@ -662,7 +662,33 @@ jobs:
       # this repo's tracked, non-excluded .cs files present in the report, and it
       # confirms both contamination exclusions matched: 1082 would mean neither,
       # 951 only the third-party one, 1012 only the generated one.
-      FLOOR_BACKEND: "73"
+      #
+      # 73 UNTIL 2026-09-04, AND IT WAS NEVER RIGHT -- it silently omitted an
+      # entire process. Phase 3 APP-OWN-01 asserts the tenant-resolver chain in
+      # BOTH the API and the AuthServer, which needs a ProjectReference to the
+      # AuthServer, which loads that assembly during the run, which puts its lines
+      # in the denominator for the first time. Adrian's ruling: re-baseline to the
+      # honest figure, exactly as item 2.13 did on the front end (69 -> 20). His
+      # words: it is not a number that got worse, it is a number that was never
+      # right.
+      #
+      # MEASURED on this branch, not on the earlier probe, because the probe used
+      # a throwaway test that only touched typeof(...) while the real test
+      # exercises both modules:
+      #
+      #   backend: 72.47% (33255/45891 lines over 916 files)
+      #
+      # 916 is this one's load-bearing number: 887 + 29 AuthServer files. If a
+      # future run reports 961, the MessagePack exclusion has stopped matching and
+      # the figure is contaminated again rather than improved.
+      #
+      # THE CONTAMINATION THAT DID NOT GET BAKED IN. The naive reading of that
+      # same report is 68.25% over 961 files. Five of those points are MessagePack
+      # source-generator source arriving through SourceLink, not our code; see
+      # .coverage-exclusions. A floor of 68 would have DRIFTED on every MessagePack
+      # bump. Found only because the probe was run twice, against a control that
+      # reproduced this file's own 73.61% exactly.
+      FLOOR_BACKEND: "72"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
