@@ -372,3 +372,6 @@ docs/backlog.md
 # first is how the second gets committed by accident.
 /coverage.xml
 /coverage.cobertura.xml
+
+# Generated issue manifest (regenerable; derived from the gitignored backlog)
+scripts/maintenance/issues.json
