@@ -1280,7 +1280,7 @@ stale was the half nobody had re-checked.
 
 ---
 
-## 2.13 -- MERGED `1ca6c078`. The front end is honestly measured; the figure fell 69 -> 20.
+## 2.13 -- MERGED `1ca6c078`. The front end is honestly measured; the figure fell 69 -> 20
 
 **Two configuration lines, and the obvious approaches were all dominated by them.**
 
