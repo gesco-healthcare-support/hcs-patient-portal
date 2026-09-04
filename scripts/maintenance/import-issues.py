@@ -97,6 +97,13 @@ SEVERITY_ALIASES = {
     "open-low": "low",
 }
 
+SEV_HIGH, SEV_MEDIUM = "severity/high", "severity/medium"
+SEV_LOW, SEV_OBSERVATION = "severity/low", "severity/observation"
+TYPE_BUG, TYPE_OBSERVATION = "type/bug", "type/observation"
+TYPE_HARDENING, TYPE_SWEEP = "type/hardening", "type/sweep"
+SRC_FINDING, SRC_HARDENING = "source/finding", "source/hardening"
+SRC_BACKLOG, SRC_SWEEP = "source/backlog", "source/sweep"
+
 LABELS = [
     ("severity/high", "b60205", "Security, data integrity or a blocked user path"),
     ("severity/medium", "d93f0b", "Real defect, contained blast radius"),
@@ -112,7 +119,11 @@ LABELS = [
     ("source/sweep", "ededed", "Generated from Sonar / CodeQL by directory"),
 ]
 
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# The domain is matched as explicit dot-separated labels rather than a character
+# class that itself contains a dot. The looser `[A-Za-z0-9.-]+\.` form overlaps
+# with its own separator, which backtracks super-linearly on a hostile input --
+# and this pattern runs over the whole backlog, so it stays linear.
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 
@@ -180,11 +191,11 @@ def collect_findings() -> list[dict]:
         for key in ("severity", "found", "flow", "component"):
             if fm.get(key):
                 body.append(f"- **{key.capitalize()}:** {fm[key]}")
-        body += ["", f"Status is tracked here from now on; the file no longer carries `status:`.",
+        body += ["", "Status is tracked here from now on; the file no longer carries `status:`.",
                  "", f"Source: [`{rel}`](../blob/main/{rel})"]
         issues.append({
             "key": fid, "title": f"{fid}: {title}",
-            "labels": [f"severity/{sev}", kind, "source/finding"],
+            "labels": [f"severity/{sev}", kind, SRC_FINDING],
             "body": "\n".join(body),
         })
     return issues
@@ -201,7 +212,7 @@ def collect_hardening() -> list[dict]:
             rel = path.relative_to(ROOT).as_posix()
             issues.append({
                 "key": f"HARD-{num}", "title": f"Hardening {num}: {title}",
-                "labels": ["severity/medium", "type/hardening", "source/hardening"],
+                "labels": [SEV_MEDIUM, "type/hardening", SRC_HARDENING],
                 "milestone": f"Hardening phase {phase}",
                 "body": (f"Production-hardening item {num}.\n\n"
                          f"Full context, rationale and validation loop: "
@@ -227,7 +238,7 @@ def collect_backlog() -> list[dict]:
         n += 1
         issues.append({
             "key": f"BL-{n:02d}", "title": title,
-            "labels": ["severity/medium", "type/bug", "source/backlog"],
+            "labels": [SEV_MEDIUM, "type/bug", SRC_BACKLOG],
             "body": redact(f"Recorded in the working backlog on {m.group(1)}.\n\n"
                            f"Identifiers are redacted: this file was gitignored, so publishing "
                            f"it discloses content the other trackers deliberately do not."),
@@ -240,7 +251,7 @@ def collect_backlog() -> list[dict]:
         n += 1
         issues.append({
             "key": f"BL-{n:02d}", "title": title[:100],
-            "labels": ["severity/medium", "type/bug", "source/backlog"],
+            "labels": [SEV_MEDIUM, "type/bug", SRC_BACKLOG],
             "body": redact(f"Recorded {m.group(1)} ({m.group(2)}).\n\nIdentifiers redacted."),
         })
     return issues
@@ -251,14 +262,8 @@ def _sonar(url: str) -> dict:
         return json.load(r)
 
 
-def collect_sweeps() -> list[dict]:
-    """One batch per directory tree, carrying every static-analysis finding.
-
-    Batching by directory rather than by rule family is the whole point: a rule
-    batch spans the repository, so two people working two rule batches collide
-    on every shared file. Directory batches have disjoint path sets, which is
-    asserted before anything is created.
-    """
+def _finding_counts_by_file() -> collections.Counter:
+    """Every open static-analysis finding, counted per file, across all sources."""
     files: collections.Counter = collections.Counter()
     for page in range(1, 4):
         d = _sonar(f"https://sonarcloud.io/api/issues/search?componentKeys={SONAR_KEY}"
@@ -278,56 +283,89 @@ def collect_sweeps() -> list[dict]:
     if raw.returncode == 0:
         for p in json.loads(raw.stdout or "[]"):
             files[p] += 1
+    return files
 
-    def is_held(f: str) -> bool:
-        if any(f.startswith(p) for p in HELD_PREFIXES) or f in HELD_FILES:
-            return True
-        return "Dockerfile" in f or "/" not in f
 
-    def leaf(f: str) -> str:
-        """Group a file into the directory that will own it. Files sitting
-        directly in a directory go to an explicit `(root)` bucket so they never
-        collide with that directory's subdirectories."""
-        p = f.split("/")
-        if f.startswith("angular/src/app/"):
-            if p[3] == "appointments":
-                return "angular/src/app/appointments/" + (p[4] if len(p) > 5 else "(root)")
-            return "angular/src/app/" + p[3]
-        if f.startswith("angular/"):
-            return "angular/src/(shared)"
-        if f.startswith("src/"):
-            return f"src/{p[1]}/" + (p[2] if len(p) > 3 else "(root)")
-        return p[0]
+def _is_held(f: str) -> bool:
+    """True when a hardening session owns this path, so no sweep may claim it."""
+    if any(f.startswith(p) for p in HELD_PREFIXES) or f in HELD_FILES:
+        return True
+    return "Dockerfile" in f or "/" not in f
 
-    live: collections.Counter = collections.Counter()
-    for f, c in files.items():
-        if not is_held(f):
-            live[leaf(f)] += c
 
+def _owning_directory(f: str) -> str:
+    """The directory that will own this file.
+
+    Files sitting directly in a directory go to an explicit `(root)` bucket so
+    they can never collide with that directory's own subdirectories -- without
+    that split, `a/b` and `a/b/c` are both batches and one contains the other.
+    """
+    p = f.split("/")
+    if f.startswith("angular/src/app/"):
+        if p[3] == "appointments":
+            return "angular/src/app/appointments/" + (p[4] if len(p) > 5 else "(root)")
+        return "angular/src/app/" + p[3]
+    if f.startswith("angular/"):
+        return "angular/src/(shared)"
+    if f.startswith("src/"):
+        return f"src/{p[1]}/" + (p[2] if len(p) > 3 else "(root)")
+    return p[0]
+
+
+def _sweep_severity(count: int) -> str:
+    """Severity band for a sweep, by how much work it represents."""
+    if count >= 60:
+        return SEV_HIGH
+    return SEV_MEDIUM if count >= 25 else SEV_LOW
+
+
+def _group_into_batches(live: collections.Counter) -> list[tuple[str, list[str], int]]:
+    """Directories big enough to stand alone, plus the rest grouped by parent.
+
+    A grouped batch lists its member directories explicitly rather than using a
+    parent glob, because a glob would contain the standalone batches beneath it
+    and break disjointness.
+    """
     groups = [(k, [k], c) for k, c in live.items() if c >= BATCH_MIN]
     rest: dict[str, list] = collections.defaultdict(list)
     for k, c in live.items():
         if c < BATCH_MIN:
-            rest["/".join(k.split("/")[:2]) if "/" in k else k].append((k, c))
+            parent = "/".join(k.split("/")[:2]) if "/" in k else k
+            rest[parent].append((k, c))
     for parent, items in rest.items():
         groups.append((f"{parent} and {len(items)} smaller directories",
                        [k for k, _ in items], sum(c for _, c in items)))
     groups.sort(key=lambda g: -g[2])
+    return groups
 
+
+def collect_sweeps() -> list[dict]:
+    """One batch per directory tree, carrying every static-analysis finding.
+
+    Batching by directory rather than by rule family is the whole point: a rule
+    batch spans the repository, so two people working two rule batches collide
+    on every shared file. Directory batches have disjoint path sets, which is
+    asserted before anything is created.
+    """
+    live: collections.Counter = collections.Counter()
+    for f, c in _finding_counts_by_file().items():
+        if not _is_held(f):
+            live[_owning_directory(f)] += c
+
+    held_by = ", ".join(sorted(set(HELD_PREFIXES.values())))
     issues = []
-    for idx, (name, paths, count) in enumerate(groups, 1):
-        sev = "high" if count >= 60 else "medium" if count >= 25 else "low"
+    for idx, (name, paths, count) in enumerate(_group_into_batches(live), 1):
         listed = "\n".join(f"- `{p}`" for p in sorted(paths))
         issues.append({
             "key": f"SWEEP-{idx:02d}", "title": f"Static-analysis sweep: {name} ({count})",
-            "labels": [f"severity/{sev}", "type/sweep", "source/sweep"],
+            "labels": [_sweep_severity(count), TYPE_SWEEP, SRC_SWEEP],
             "body": (f"{count} open Sonar issues, security hotspots and CodeQL alerts in the "
                      f"paths below.\n\n**Paths (this batch owns these exclusively):**\n{listed}\n\n"
                      f"Assigning yourself is the claim. Do not edit files outside these paths -- "
                      f"comment here instead. Path sets across all sweeps are verified disjoint, so "
                      f"two people on two sweeps cannot touch the same file.\n\n"
                      f"Held back and not in any sweep: paths owned by the hardening sessions "
-                     f"({', '.join(sorted(set(HELD_PREFIXES.values())))})."),
+                     f"({held_by})."),
             "paths": paths,
         })
     return issues
@@ -371,9 +409,8 @@ def load() -> list[dict]:
 def already_created() -> dict[str, str]:
     if not MAP.exists():
         return {}
-    return dict(
-        line.split("\t", 1) for line in MAP.read_text(encoding="utf-8").splitlines() if "\t" in line
-    )
+    rows = MAP.read_text(encoding="utf-8").splitlines()
+    return {key: url for key, url in (r.split("\t", 1) for r in rows if "\t" in r)}
 
 
 def dry_run() -> None:
