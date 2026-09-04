@@ -1505,10 +1505,10 @@ trade, unlike the actions half. Either add the ecosystem or accept the freeze de
 
 ## CATALOGUE: checks that reported success without having run
 
-**This is the most useful artefact the epic has produced.** Twenty-nine instances in five days,
-fifteen of them in this epic's own work -- in its tooling, its counts, its merges, its handoffs, its
-verification harness and its own prior claims. The lesson is not "tools lie" -- it is that a green
-result is evidence only if you know what was examined.
+**This is the most useful artefact the epic has produced.** Thirty-six instances in five days.
+**The total is the number of rows in the table below, counted -- never a figure incremented from
+memory.** The lesson is not "tools lie" -- it is that a green result is evidence only if you know
+what was examined.
 
 | #   | Instance                                                               | How it presented               |
 | --- | ---------------------------------------------------------------------- | ------------------------------ |
@@ -1541,12 +1541,32 @@ result is evidence only if you know what was examined.
 | 27  | A POSIX path between two Windows binaries that resolve it differently  | file written, file not found   |
 | 28  | The VENDOR'S OWN DOCS naming a field the parser does not use           | a config that matches nothing  |
 | 29  | A record entry **correct when written**, wrong after our own work      | still reads plausibly          |
+| 30  | A removal-guard against an **empty fixture** -- `Clear()` is a no-op   | green, guarantee deleted       |
+| 31  | A break script whose `\|\|` separator collided with C# `\|\|`          | `Passed!`, unbroken source     |
+| 32  | `--no-build` running a **stale DLL** after the break failed to compile | `Passed!`, stale binary        |
+| 33  | A cleanup trap reverting **only what its author thought of**           | reported `REVERTED`            |
+| 34  | A **stale `packages.lock.json`** under the required dependency gate    | green, wrong graph             |
+| 35  | A CI watcher counting **SKIPPED as FAILED**, ending the watch early    | a false **RED**                |
+| 36  | An editor reporting 5 errors on a file the build compiles clean        | stale analysis, false alarm    |
 
-**Instances 10, 11, 13, 15, 16, 17, 18, 19, 21, 22, 23 and 24 are self-inflicted rather than
-inherited** -- committed by the tooling and the sessions doing the verifying, not found in the
-repository. **Instance 12 is the most consequential for design; instance 17 is the one that would
-have silently corrupted the record; instance 21 is the worst, because it invalidates the evidence
-behind every entry recorded before it rather than adding a defect of its own.**
+**Instances 10, 11, 13, 15, 16, 17, 18, 19, 21, 22, 23, 24, 30, 31, 32, 33, 34 and 35 -- eighteen of
+the thirty-six -- are self-inflicted rather than inherited**, committed by the tooling and the
+sessions doing the verifying rather than found in the repository. **Instance 12 is the most
+consequential for design; instance 17 is the one that would have silently corrupted the record;
+instance 21 is the worst, because it invalidates the evidence behind every entry recorded before it
+rather than adding a defect of its own.**
+
+> **A COUNT IN THIS SECTION HAD DRIFTED, which is instance 29 happening to instance 29's own section.**
+> The lead paragraph said "fifteen of them in this epic's own work" while the sentence above it
+> enumerated twelve. The two were never reconcilable and neither carried the command that produced it.
+> Both figures are now derived from the lists themselves: the total is the row count, and the
+> self-inflicted figure is the length of the enumeration. Do not restate either from memory.
+
+**Instance 30 is the one worth reading twice.** It is a test that could not fail, guarding the
+system's most dangerous boundary, written during the phase created to eliminate tests that cannot
+fail, by a session that had spent the day applying that very rule to other people's work. It was
+caught only because the plan required breaking the guarantee and watching the test fail. Nothing
+about the code, the build, the suite or the review would have revealed it.
 
 ### THE CORRECTION TO INSTANCE 3 -- the headline framing was wrong and is now sharper
 
