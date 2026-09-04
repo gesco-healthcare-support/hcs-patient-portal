@@ -32,7 +32,7 @@ Update this table as each phase closes. It is the first thing a successor will r
 | ------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 1 Blockers               | **COMPLETE (7/7)**                                            | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b, dc134222, e91be9f1, df705ad8          | 5 of 6 flagged were false alarms; 3 real defects found UNFLAGGED. See the closing note.                                 |
 | 2 Enforcement            | **COMPLETE (12/12)** -- 9 merged, 2.1 cancelled, 2.5 deferred | #514, #518, #516, #519, #529, #530, #532, #534, #538; 2.11 applied as branch protection | Anti-gate settings **11 -> 5**. 17 checks now REQUIRED on all four branches. Coverage honestly measured on both stacks. |
-| 3 Critical-path coverage | NOT STARTED -- research done, see the note below              | --                                                                                      | Researched 2026-09-04: **no test asserts the tenant resolver chain** (0 of 323 backend test files).                     |
+| 3 Critical-path coverage | **IN PROGRESS** -- 3.1 COMPLETE, 3.2-3.5 next                 | #686 `a8e221df`, #688 `d1d70938`, #689 `c9ad7de8` (on the epic branch)                 | Tenancy went from **0 of 323** backend test files asserting the resolver chain to pinned in BOTH processes, every test seen to fail. `FLOOR_BACKEND` 73 -> 72, honestly measured. |
 | 4 CodeQL sensitive-info  | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
 | 5 Security hotspots      | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
 | 6 Dependencies           | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
@@ -69,9 +69,14 @@ to a compaction in any session. Counts above were measured 2026-09-04 and move a
   smells, clear-text protocol warnings -- are untouched. Closing the item unblocks the paths; it does
   not clear them. That is the whole reason the re-run matters.
 
-The import script is `scripts/maintenance/import-issues.py` on `chore/issue-import`, **PR #671, open
-and ungated -- Adrian decides that merge.** If he declines it, #672 needs rewriting rather than
-silently becoming unactionable; flag it to him rather than assuming.
+The import script is `scripts/maintenance/import-issues.py`, **MERGED to `main` as `2cf1904c`
+(PR #671) on 2026-09-04.** #672 stands and is actionable.
+
+> **Corrected 2026-09-04.** This paragraph said the PR was "open and ungated -- Adrian decides that
+> merge", with a contingency for him declining it. That was true when written and false a few hours
+> later. Nothing reported the change; it was noticed only because a session happened to check the PR's
+> state for an unrelated reason. It is catalogue instance 29 -- a record entry correct when written and
+> wrong after our own work, still reading plausibly -- occurring in the file that describes it.
 
 **Two items were opened OUT of phase 2 and are not part of its 12:** **2.13** (instrument the Angular
 sources coverage could not see -- merged `1ca6c078`, front-end floor 69 -> 20) and **2.14** (container
@@ -112,6 +117,33 @@ branch requirement. Both are recorded in 02-enforcement.md; work continues aroun
 hour or two of triage, and dissolves its findings into the phases above. It must not interrupt a
 phase in flight, and it is not a reason to reorder -- see
 [09-system-design-intake.md](09-system-design-intake.md).
+
+## Two REQUIRED gates found measuring the wrong thing (phase 3, 2026-09-04)
+
+Both were found by pushing on the gates rather than by any check reporting a problem, and both are
+tracked rather than fixed here -- Adrian ruled that the class-level fixes get their own changes rather
+than riding on a test PR.
+
+| Issue | The gate                | What it examines instead                                            |
+| ----- | ----------------------- | ------------------------------------------------------------------- |
+| #683  | `Coverage: Floors`      | counts third-party SourceLink source as ours; a per-vendor denylist  |
+| #687  | `Dependency Review`     | scans a committed lock file nothing verifies is current              |
+
+**#683.** Second occurrence of the same class: FluentValidation and Mapperly cost 7.37 points in phase
+2, MessagePack 5.36 points in phase 3, each fixed by naming that vendor's SourceLink root. The list
+grows one vendor at a time and the next arrives with no signal, because the file count that would
+reveal it is a comment rather than a check.
+
+**#687.** `Directory.Build.props:29-31` says CI "can opt in via the dotnet restore flag for locked
+mode". CI never opted in -- all five restore invocations are plain. A PR that adds a dependency can
+commit a stale lock file, and the REQUIRED gate then scans a graph without the new packages and
+reports green. Found live on #686 and fixed there; the hole remains.
+
+**A third suspicion was investigated and is NOT a gap.** Four `Frontend:` checks stay required while
+being able to skip, which would be dangerous since a skipped required check reports Success. Phase 2
+item 0.5 had already replaced the path filter with a deny-by-default classifier whose `*)` arm runs the
+full suite for any unrecognised path, and an empty file list is a hard error. Verified in source rather
+than taken from the comment describing it.
 
 ## The goal, in Adrian's words
 
