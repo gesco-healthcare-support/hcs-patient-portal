@@ -107,6 +107,7 @@ dotnet run
 ```
 
 The DbMigrator:
+
 1. Applies pending host database migrations
 2. Seeds host data
 3. Iterates all tenants and applies pending tenant database migrations
@@ -228,6 +229,7 @@ Make sure you are running the command from the EntityFrameworkCore project direc
 ### Migration creates empty Up/Down methods
 
 This usually means no schema changes were detected. Verify that:
+
 1. The entity is registered as a `DbSet` in the target DbContext.
 2. The entity is configured in `OnModelCreating` of the target DbContext.
 3. You are targeting the correct DbContext with the `-c` flag.

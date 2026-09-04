@@ -140,7 +140,7 @@ The per-tenant database (`CaseEvaluation_<slug>`) holds:
    Phase 1A because it requires N stacks for N tenants and complicates the
    demo (separate containers, separate volumes); the user explicitly asked
    for "URL like `falkinstein.localhost:4200`" which means single deployment
-   + subdomain.
+   - subdomain.
 
 3. **Single shared database with row-level filtering** - ABP default. Easy to
    set up, but loses physical isolation. Strict OLD-parity directive
@@ -152,15 +152,15 @@ The per-tenant database (`CaseEvaluation_<slug>`) holds:
 This ADR's claims are verified against:
 
 - ABP framework docs:
-  https://abp.io/docs/latest/framework/architecture/multi-tenancy
+  <https://abp.io/docs/latest/framework/architecture/multi-tenancy>
 - Volosoft Medium article on Angular + OpenIddict subdomain resolution:
-  https://medium.com/volosoft/how-to-use-domain-based-tenant-resolver-in-abp-with-angular-and-openiddict-d749ad1df2c3
+  <https://medium.com/volosoft/how-to-use-domain-based-tenant-resolver-in-abp-with-angular-and-openiddict-d749ad1df2c3>
 - ABP SaaS module per-tenant connection strings:
-  https://abp.io/modules/tenant-management
+  <https://abp.io/modules/tenant-management>
 - LeptonX tenant box hide pattern:
-  https://community.abp.io/posts/hide-the-tenant-switch-of-the-login-page-4foaup7p
+  <https://community.abp.io/posts/hide-the-tenant-switch-of-the-login-page-4foaup7p>
 - Microsoft Learn `*.localhost` TLD support:
-  https://learn.microsoft.com/en-us/aspnet/core/test/localhost-tld?view=aspnetcore-10.0
+  <https://learn.microsoft.com/en-us/aspnet/core/test/localhost-tld?view=aspnetcore-10.0>
 
 OLD spec citations are verbatim quotes from
 `docs/parity/_old-docs-index.md` lines 88-100, sourcing

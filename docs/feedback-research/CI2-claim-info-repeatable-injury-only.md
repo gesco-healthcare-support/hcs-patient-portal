@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Claim Information must remain repeatable (multiple injuries -> multiple claim
 numbers, each its own block) but the requester must NOT re-enter Insurance and
 Claim Examiner for every block. After CI1 lifts Insurance + CE to a single
@@ -19,6 +20,7 @@ de-coupling: remove `primaryInsurance` / `claimExaminer` from the per-injury dra
 and its form/serialize plumbing. Repeatability itself already exists and stays.
 
 ## Current behavior (from investigation)
+
 - The per-injury draft model BUNDLES insurance + CE: `AppointmentInjuryDraft`
   declares `primaryInsurance` (appointment-add-claim-information.component.ts:40-51)
   and `claimExaminer` (`:52-63`) as nested objects on every injury row.
@@ -47,6 +49,7 @@ and its form/serialize plumbing. Repeatability itself already exists and stays.
   so repeatability needs NO backend change here.
 
 ## Relevant code locations
+
 - angular/src/app/appointments/sections/appointment-add-claim-information.component.ts
   -- `AppointmentInjuryDraft` interface (`:40-63`), `buildInjuryForm` (`:164-208`),
   validator helpers (`:276-311`), toggle subs (`:221-231`),
@@ -63,6 +66,7 @@ and its form/serialize plumbing. Repeatability itself already exists and stays.
   insurance/CE validators; must drop those expectations.
 
 ## Phase 3 cross-reference
+
 - BUG-040 -- cumulative-trauma flag + ToDateOfInjury not persisting from this same
   injury modal; fix while the same `serializeInjuryForm` path is being trimmed so
   the remaining per-injury fields all round-trip correctly.
@@ -79,6 +83,7 @@ and its form/serialize plumbing. Repeatability itself already exists and stays.
   CI2 deletes the client cascade it depends on -- coordinate.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - Section components are template-only; ALL form-building, validators, and submit
     cascades live in `AppointmentAddComponent` (angular/src/app/appointments/CLAUDE.md,
@@ -94,6 +99,7 @@ and its form/serialize plumbing. Repeatability itself already exists and stays.
   Angular signals/reactive-forms patterns already in use, no new API surface.
 
 ## Approaches considered (with tradeoffs)
+
 1. CHOSEN -- Remove `primaryInsurance` + `claimExaminer` from `AppointmentInjuryDraft`
    and delete their controls/validators/subs from `buildInjuryForm`,
    `makeEmptyInjuryDraft`, and `serializeInjuryForm`; delete the insurance/CE modal
@@ -116,6 +122,7 @@ and its form/serialize plumbing. Repeatability itself already exists and stays.
      form. The de-coupling must happen with the move.
 
 ## Decision (locked 2026-06-03)
+
 After CI1, each repeatable per-injury block holds ONLY: Cumulative Trauma flag, Date
 of Injury, Claim Number (req), WCAB Office (Venue), ADJ# (req), Body Parts (multiple).
 Remove `primaryInsurance` and `claimExaminer` from `AppointmentInjuryDraft` and from
@@ -124,6 +131,7 @@ helpers + toggle subscriptions). Repeatability is unchanged. This depends on CI1
 owns the new single appointment-level Insurance + CE entry and the persist/read paths.
 
 ## Implementation outline (no code)
+
 1. (Sequence after CI1) Confirm CI1 has added the appointment-level single Insurance +
    CE entry on the main form below the Attorney sections, with its own persist + view read.
 2. Model: trim `AppointmentInjuryDraft` to the six retained fields; delete
@@ -154,6 +162,7 @@ owns the new single appointment-level Insurance + CE entry and the persist/read 
     removes client controls.
 
 ## Dependencies
+
 - DEPENDS ON CI1 (appointment-level single Insurance + CE entry, FK move, view read,
   proxy regen). CI2 cannot ship before CI1 or the form has two sources of truth.
 - Coordinates with BUG-045 (CI2 deletes the failing per-injury attach client cascade)
@@ -161,5 +170,6 @@ owns the new single appointment-level Insurance + CE entry and the persist/read 
 - Bundles BUG-040 and confirms OBS-41 survive the modal trim.
 
 ## Residual open questions
+
 - none. The retained per-block field set and the "multiple blocks share one
   Insurance/CE" association are both fixed by the locked CI1/CI2 decision.

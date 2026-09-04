@@ -28,7 +28,9 @@ Shared constants, enums, localization resources, and multi-tenancy configuration
 ## Gotchas
 
 ### Enums in feature subfolders (tolerated deviation)
+
 The following enums live outside `Enums/` by convention because they were authored alongside their feature or moved for dependency reasons. Do NOT "fix" them by relocating -- namespace + using-directive changes ripple into Angular proxy regeneration and seeded test data:
+
 - `ExternalSignups/ExternalUserType.cs`
 - `AppointmentDocuments/DocumentStatus.cs`, `PacketGenerationStatus.cs`, `PacketKind.cs`
 - `AppointmentChangeRequests/ChangeRequestType.cs`
@@ -36,6 +38,7 @@ The following enums live outside `Enums/` by convention because they were author
 - `Books/BookType.cs`
 
 ### IMPORTANT: Reading bool extension properties -- use ExtraPropertyConverters
+
 `entity.GetProperty<bool>("flag")` throws on a freshly reloaded ABP entity because ABP's
 `TypeHelper.ChangeTypePrimitiveExtended<T>` cannot coerce a `JsonElement` to `bool` (ABP
 issues 12547, 19430, 23546). Always call `ExtraPropertyConverters.GetBoolOrDefault` (see
@@ -43,7 +46,9 @@ issues 12547, 19430, 23546). Always call `ExtraPropertyConverters.GetBoolOrDefau
 extension properties.
 
 ### ModuleExtensionConfigurator -- use consts, never inline strings
+
 `CaseEvaluationModuleExtensionConfigurator` exposes these `IdentityUser` extension property names as `public const string`:
+
 - `FirmNamePropertyName`, `FirmEmailPropertyName`
 - `IsExternalUserPropertyName`, `IsAccessorPropertyName`
 - `UserSignatureBlobNamePropertyName`
@@ -51,6 +56,7 @@ extension properties.
 Reference the const. Inline string literals will silently diverge if a name ever changes.
 
 ### en.json known duplicate-key bug
+
 `Localization/CaseEvaluation/en.json` contains two blocks with keys `Enum:BookingStatus.8/9/10`.
 The first (earlier) block has the correct labels: `8=Available, 9=Reserved, 10=Booked`.
 The second (later) block has 9 and 10 swapped: `9=Booked, 10=Reserved`. JSON parsers use
@@ -58,6 +64,7 @@ the last occurrence, so the live labels for 9 and 10 are wrong. Do not add a thi
 fix the second block when touching that file.
 
 ### AbpUiOverride / AccountOverride localization
+
 ABP Razor pages look up strings directly in ABP's base resources (`AbpUi`, `AbpAccount`), not in `CaseEvaluationResource`. Overrides in `Localization/AbpUiOverride/en.json` and `Localization/AccountOverride/en.json` reach those pages; changes to `CaseEvaluationResource` do not.
 
 ## Key Files

@@ -2,13 +2,16 @@
 id: OBS-27
 title: Invite email body opens with "Hi ," (empty greeting since name not yet known)
 severity: observation
-status: open
+issue: 564
 found: 2026-05-23 hardening HRD-P1.B.1
 flow: invite-email-template
 component: src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/InviteExternalUser.html
 ---
 
 # OBS-27 - Invite email greeting is empty
+
+> Tracked in [#564](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/564). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

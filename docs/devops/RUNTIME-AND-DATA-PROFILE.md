@@ -171,7 +171,7 @@ audit.
 **Entirely manual. There is no CD.** The workflow named `deploy-dev.yml` builds, tests and opens
 the next promotion pull request; it never touches a server.
 
-```
+```text
 backup -> git pull --ff-only -> docker compose build <changed services>
        -> docker compose up -d
        -> docker compose up -d --force-recreate reverse-proxy

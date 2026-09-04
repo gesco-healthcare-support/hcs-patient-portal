@@ -2,13 +2,16 @@
 id: OBS-32
 title: When attorney logs in to book, AA section prefills ATTORNEY NAME with first name only (not full name)
 severity: observation
-status: open
+issue: 569
 found: 2026-05-23 hardening HRD-P3.2
 flow: booking-form-prefill
 component: angular/src/app/appointments/appointment-add.component.ts (currentUser-to-AA-section binding)
 ---
 
 # OBS-32 - AA section prefill uses only first name
+
+> Tracked in [#569](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/569). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
@@ -18,13 +21,13 @@ the Applicant Attorney section is auto-enabled (per the runbook lesson
 that DA is auto-on when a DA logs in - same for AA when an AA logs in)
 and the `ATTORNEY NAME` field is prefilled with:
 
-```
+```text
 Marcus
 ```
 
 instead of the expected full name:
 
-```
+```text
 Marcus Bennett
 ```
 
@@ -35,6 +38,7 @@ Other fields (firm name, address) are empty.
 
 The first-name-only prefill suggests the prefill source is a single
 `firstName` claim rather than a composed `fullName` or `firstName + ' '
+
 + lastName`. The user has to manually edit the field to add their last
 name OR the form serializer downstream might happen to accept the
 first-name-only value (depending on validation).
@@ -45,9 +49,9 @@ first-name-only value (depending on validation).
    last=Bennett).
 2. Navigate to `/appointments/add`.
 3. Observe the Applicant Attorney Details section:
-   - Include checkbox: checked (auto-on).
-   - ATTORNEY NAME placeholder field: contains "Marcus" (first name only).
-   - ATTORNEY EMAIL: contains "appatty1@gesco.com".
+   + Include checkbox: checked (auto-on).
+   + ATTORNEY NAME placeholder field: contains "Marcus" (first name only).
+   + ATTORNEY EMAIL: contains "<appatty1@gesco.com>".
 
 ## Recommended fix
 
@@ -72,5 +76,5 @@ correspondence.
 
 ## Related
 
-- HRD-P3.2 (the scenario that surfaced this).
-- Booking-form-structure observations (OBS-17, OBS-18).
++ HRD-P3.2 (the scenario that surfaced this).
++ Booking-form-structure observations (OBS-17, OBS-18).

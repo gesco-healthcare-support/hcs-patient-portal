@@ -32,9 +32,26 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
 
 # Node + ABP CLI to restore client-side libraries (wwwroot/libs is gitignored).
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+#
+# Node arrives by COPY from an official image, NOT from a downloaded script.
+# This replaced `curl -fsSL https://deb.nodesource.com/setup_22.x | bash -`
+# (Scorecard PinnedDependenciesID / downloadThenRun): that fetched a script from
+# a third party and executed it AS ROOT at build time. Nothing here ships to the
+# prod stage -- it is `FROM aspnet` and copies only /app/publish -- but this
+# stage produces what does ship, so a compromised script could tamper with
+# wwwroot/libs or the publish output. Build integrity, not runtime surface.
+#
+# node:22-bookworm-slim is glibc 2.36; this SDK image is Ubuntu 24.04 / glibc
+# 2.39. glibc is forward-compatible, so a binary built against 2.36 runs on
+# 2.39 -- the reverse would not hold, so do not "upgrade" this to a trixie or
+# noble node tag without re-checking.
+#
+# Verified before shipping: this produces node v22.23.2 / npm 10.9.8, byte-identical
+# to what the setup script installed, so `abp install-libs` sees the same toolchain.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
 ENV PATH="$PATH:/root/.dotnet/tools"
 WORKDIR /src/src/HealthcareSupport.CaseEvaluation.AuthServer
@@ -80,9 +97,13 @@ RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSuppo
 # a compose anonymous volume re-seeds wwwroot/libs from this baked copy, so the
 # ./src bind-mount cannot hide it AND we avoid a slow install-libs writing
 # thousands of small files into a Windows bind-mount on every start.
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+#
+# Node by COPY rather than a piped setup script -- see the note on the build
+# stage for the reasoning and the glibc constraint.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
 ENV PATH="$PATH:/root/.dotnet/tools"
 WORKDIR /app/src/HealthcareSupport.CaseEvaluation.AuthServer
@@ -100,7 +121,12 @@ ENTRYPOINT ["sh", "-c", "\
   exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS prod
+# Digest-pinned because this image SHIPS. The tag stays alongside the digest --
+# that pair is the form Dependabot updates; see .github/dependabot.yml for why
+# the sdk build/dev stages above are deliberately left on tags.
+# SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
+# argument for keeping them is with the docker ecosystem entry in that file.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .

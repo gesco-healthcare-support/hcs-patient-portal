@@ -363,3 +363,15 @@ tests/baseline/
 # Working artefacts (plans, bug/task backlog) are local-only and never committed.
 docs/plans/
 docs/backlog.md
+
+# Coverage reports generated in CI (phase 2 item 2.10). Two different files
+# from two different workflows: sonarcloud.yml writes `coverage.xml` in the
+# Visual Studio format for SonarCloud, ci.yml writes Cobertura for the
+# `Coverage: Floors` gate. Both land at the repo root and neither belongs in
+# version control. Ignored together because ignoring only the one that existed
+# first is how the second gets committed by accident.
+/coverage.xml
+/coverage.cobertura.xml
+
+# Generated issue manifest (regenerable; derived from the gitignored backlog)
+scripts/maintenance/issues.json

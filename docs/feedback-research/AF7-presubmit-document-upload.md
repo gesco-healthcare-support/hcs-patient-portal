@@ -62,6 +62,7 @@ upload mechanism.
 ## Relevant code locations
 
 Frontend (the work is here):
+
 - `angular/src/app/appointments/appointment-add.component.ts` -- onSubmit (1158-1175), new file
   staging state, post-create upload loop, on-page progress + retry, conditional PQME validator.
 - `angular/src/app/appointments/sections/` -- the section template that renders the upload
@@ -73,6 +74,7 @@ Frontend (the work is here):
   appointment-view uploader agree).
 
 Backend (untouched by Option A; cited only as the consumed contract):
+
 - `src/...HttpApi/Controllers/AppointmentDocuments/AppointmentDocumentController.cs:32-50`
 - `src/...Application/AppointmentDocuments/AppointmentDocumentsAppService.cs:173,183,692-747`
 - `src/...Application/Appointments/AppointmentReadAccessGuard.cs:152`
@@ -96,6 +98,7 @@ Backend (untouched by Option A; cited only as the consumed contract):
 ## Research findings
 
 Internal patterns / prior art:
+
 - The create-then-POST-children pattern in `onSubmit` (appointment-add.component.ts:1158-1173)
   is the direct precedent: documents become one more child POST against the returned
   `createdAppointment.id`. This makes Option A consistent, not novel.

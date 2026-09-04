@@ -91,6 +91,7 @@ flowchart TB
 - [PHI Data Flows](security/DATA-FLOWS.md) -- where PHI lives, how it moves, SSN reveal egress
 - [Authorization](security/AUTHORIZATION.md) -- permissions, roles, endpoint mappings
 - [Session & Tokens](security/SESSION-AND-TOKENS.md) -- cookie/token inventory, logout, renewal
+- [Session Key Encryption](security/SESSION-KEY-ENCRYPTION.md) -- DataProtection keys unencrypted at rest; open design work
 - [Secrets Management](security/SECRETS-MANAGEMENT.md) -- secret locations, injection, gaps
 - [HIPAA Compliance](security/HIPAA-COMPLIANCE.md) -- technical safeguards + readiness gaps
 
@@ -113,7 +114,8 @@ flowchart TB
 - [Hardening Test Suite](runbooks/HARDENING-TEST-SUITE.md) -- security/regression checklist
 - [Main-Worktree Userflow Testing](runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md) -- manual userflow protocol
 - [Engineering Roadmap](runbooks/ENGINEERING-ROADMAP.md) -- bug/observation backlog status
-- Bug + observation findings: `runbooks/findings/bugs/` (tracked by BUG-/OBS-/SEED- id)
+- **Open work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues).** `runbooks/findings/bugs/` keeps the
+  reproduction and diagnosis for each finding and links its issue; it no longer records status.
 - [Testing Strategy](devops/TESTING-STRATEGY.md) and [Test Coverage Status](testing/coverage-status.md)
 
 ## Production readiness

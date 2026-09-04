@@ -48,11 +48,13 @@ differently depending on which database context is active.
 ## Consequences
 
 **Easier:**
+
 - Clean separation of host vs. tenant migrations -- no orphan tables
 - ABP's `IsHostDatabase()` guard is a well-documented pattern with framework support
 - Tenant databases are smaller and contain only relevant schema
 
 **Harder:**
+
 - Every new entity requires configuration in potentially both DbContexts
 - Entity configurations that span both contexts (e.g., DoctorAvailability references
   host-scoped Location) must be carefully coordinated

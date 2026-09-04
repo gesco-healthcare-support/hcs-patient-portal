@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Today there are THREE competing ways to produce a Patient, and a Patient cannot exist
 without an IdentityUser. The standalone admin "New Patient" form is an orphan that demands a
 pre-existing IdentityUserId; booking silently auto-mints a login account with a shared
@@ -16,6 +17,7 @@ hardcoded password; and a separate invite path emails a claim link. The patient 
 lives under Doctor Management.
 
 Desired end-state (simplify):
+
 - Patient is a RECORD that may exist with NO login (the workers'-comp patient is routinely a
   third party booked by an attorney/CE/adjuster who never logs in).
 - Relocate Patients under User Management (re-parent nav + re-path the route).
@@ -28,6 +30,7 @@ Desired end-state (simplify):
   Management.
 
 ## Current behavior (from investigation)
+
 - PATH 1 admin "New Patient" form: `PatientsAppService.CreateAsync` REQUIRES a non-empty
   IdentityUserId (throws "IdentityUser field is required" when Guid.Empty), creates NO
   IdentityUser, assigns NO role, sends NO email -- `PatientsAppService.cs:486-495`. The form
@@ -63,7 +66,9 @@ Desired end-state (simplify):
   NEW-SEC-04.
 
 ## Relevant code locations
+
 Backend:
+
 - `src/.../Application/Patients/PatientsAppService.cs` -- CreateAsync (`:486-495`),
   GetOrCreatePatientForAppointmentBookingAsync (`:138-322`, shared-password at `:245`),
   UpdatePatientForAppointmentBookingAsync (`:324-371`), UpdateMyProfileAsync (`:517-551`).
@@ -85,11 +90,12 @@ Frontend (relocation + form retirement):
   `home.component.ts:253`, `patient-profile.component.ts:177`.
 - `route.provider.ts:35-64` -- the User Management parent (relocation target).
 - `patients/patient/components/patient-detail.component.html` + `patient.component.html:5-13`
-  + `patient-detail.abstract.service.ts` -- retire the standalone create form / drop the
+  - `patient-detail.abstract.service.ts` -- retire the standalone create form / drop the
   required IdentityUser lookup.
 - `angular/src/app/proxy/` -- regenerate after DTO changes (never hand-edit).
 
 ## Phase 3 cross-reference
+
 - SEC-05 / Q-12 / NEW-SEC-04 -- shared hardcoded AdminPasswordDefaultValue at booking; killed
   outright here (root cause removed, not patched). Un-skip `PatientsAppServiceTests.cs:474`.
 - OBS-39 (seed-patient-blank-name) -- the blank-name Patient row that surfaces in this list is
@@ -106,6 +112,7 @@ Frontend (relocation + form retirement):
   invite-as-create UX. Verify defaults are sane when reusing the invite flow.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - InvitationManager token pipeline already built and audited (one-time, 7-day TTL,
     256-bit token, SHA256 at rest) -- reuse, do not invent. Driven from
@@ -123,6 +130,7 @@ Frontend (relocation + form retirement):
   retained).
 
 ## Approaches considered (with tradeoffs)
+
 - Option B (minimal): keep booking auto-create but swap the shared password for an
   invite-token claim (locked account + emailed claim link). Pros: smallest change, no
   migration, removes the security defect fast. REJECTED as the end-state because it still
@@ -143,7 +151,9 @@ Frontend (relocation + form retirement):
   form retirement (Option C's UX) folds in naturally once record-only exists.
 
 ## Decision (locked 2026-06-03)
+
 Patient is a RECORD that may exist with no login.
+
 - Relocate Patients under User Management: re-parent nav (`::Menu:DoctorManagement` ->
   `::Menu:UserManagement`) and re-path `/doctor-management/patients` ->
   `/user-management/patients`; update `app.routes.ts:128, :136`, the three hardcoded
@@ -160,6 +170,7 @@ Patient is a RECORD that may exist with no login.
 - Keep it SIMPLE: one record path + one opt-in claim path. ALL deletes remain soft.
 
 ## Implementation outline (no code)
+
 1. Domain: `PatientManager.CreateAsync` accepts a nullable identityUserId (drop Check.NotNull
    at `:25`); `Patient.IdentityUserId` becomes nullable. (server enforcement)
 2. Domain: `Appointment.IdentityUserId` becomes nullable; `AppointmentManager.CreateAsync`
@@ -186,6 +197,7 @@ Patient is a RECORD that may exist with no login.
     booking produces a record with null IdentityUserId; assert link-by-email on register.
 
 ## Dependencies
+
 - BLOCKS UM4 (this is its named upstream dependency -- the relocated Patients section + invite
   flow live under the User Management surface UM4 builds).
 - Depends on the E1/E2/E3 email model (appointment-request email carries the login/register
@@ -194,6 +206,7 @@ Patient is a RECORD that may exist with no login.
 - Touches the same RegisterAsync redemption path as OBS-25 (auto-confirm) -- land together.
 
 ## Residual open questions
+
 - Auto-email the claim link at booking vs only when staff explicitly grants portal access.
   Default to the appointment-request email's existing link (no extra contact); confirm no
   separate "send portal invite" trigger is needed for Phase 1. (minor; UX timing only)

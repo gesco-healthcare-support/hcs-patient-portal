@@ -47,7 +47,7 @@ Document A is eight rejections, each with what the pattern **would** buy stated 
 Four phases, run as a deterministic workflow rather than as a conversation, so the structure was
 fixed before any result could bias it.
 
-```
+```text
 Phase 1  DESIGN SPACE     14 agents, one per area, BLIND to the current system's gap list
                           |
 Phase 2  VERIFY           14 agents, one per area, each re-fetching every URL its area cited

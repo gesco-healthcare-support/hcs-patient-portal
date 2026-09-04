@@ -39,6 +39,7 @@ if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
 ```
 
 Submission-side at the same file lines 908-915 reinforces the same matrix server-bound:
+
 ```js
 const firmName = getFirstValue(form, ['#external-firm-name', 'input[name="FirmName"]']);
 const isAttorney = userType === 3 || userType === 4;
@@ -50,4 +51,5 @@ const payload = {
 ```
 
 ## Related
+
 - [[BUG-012]] (Firm Name's missing `required` attribute when it does appear) -- in-flight on branch `fix/registration-firmname-required` as of 2026-05-22.

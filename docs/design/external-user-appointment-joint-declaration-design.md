@@ -48,7 +48,7 @@ OLD route: `/appointment-joint-declarations/:appointmentId` (separate full page)
 In OLD, a separate `/appointment-joint-declarations/:appointmentId` page shows the JDF
 upload form:
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Joint Declaration Form       [Back]             |
 +-------------------------------------------------------+

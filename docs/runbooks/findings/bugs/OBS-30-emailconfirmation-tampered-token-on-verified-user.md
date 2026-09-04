@@ -2,13 +2,16 @@
 id: OBS-30
 title: /Account/EmailConfirmation returns success flash for tampered token when target user is already verified
 severity: observation
-status: open
+issue: 567
 found: 2026-05-23 hardening HRD-P1.C.2
 flow: email-verification-edge-cases
 component: src/HealthcareSupport.CaseEvaluation.AuthServer/Pages/Account/EmailConfirmation.cshtml.cs (suspected OnGetAsync)
 ---
 
 # OBS-30 - Tampered token on already-verified user returns success flash
+
+> Tracked in [#567](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/567). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
@@ -56,6 +59,7 @@ attacker can't tell the difference from a legitimate idempotent re-click.
 
 The attack-value of "tampered token returns success flash on already-
 verified user" is essentially zero. The attacker:
+
 - Did NOT obtain a valid login session.
 - Did NOT learn whether the userId exists (R2.14 anti-enumeration
   covers that case for unverified users).

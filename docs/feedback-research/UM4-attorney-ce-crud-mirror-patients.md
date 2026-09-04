@@ -16,6 +16,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Make the Applicant Attorney and Defense Attorney CRUD -- and the net-new Claim Examiner
 master CRUD -- mirror the simplified record-based Patients model from IP6: a record can be
 created and edited WITHOUT a linked login account, First/Last Name are first-class
@@ -25,6 +26,7 @@ mirrored (attorneys/CE hold no SSN). The CE master is structurally identical to 
 attorney masters but without firm-specific fields.
 
 ## Current behavior (from investigation)
+
 BUG-042 is only HALF done. The fix landed at the entity + read-DTO layer but never reached
 the write path or the UI:
 
@@ -54,7 +56,9 @@ the write path or the UI:
   note), so the invite-to-register path that links identity-by-email already understands CE.
 
 ## Relevant code locations
+
 Attorneys (write path + UI):
+
 - `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ApplicantAttorneys/ApplicantAttorneyCreateDto.cs:35` (add names, nullable identity)
 - `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ApplicantAttorneys/ApplicantAttorneyUpdateDto.cs:36` (same)
 - `src/HealthcareSupport.CaseEvaluation.Application.Contracts/DefenseAttorneys/` (symmetric Create/Update DTOs)
@@ -67,6 +71,7 @@ Attorneys (write path + UI):
 - `angular/src/app/proxy/` (REGENERATE -- never hand-edit)
 
 Claim Examiner (NET-NEW, parallel to ApplicantAttorney):
+
 - `src/.../Domain/ClaimExaminers/ClaimExaminer.cs` + `ClaimExaminerManager.cs` + repo interface
 - `src/.../Domain.Shared/ClaimExaminers/ClaimExaminerConsts.cs` (field max-lengths)
 - `src/.../Application.Contracts/ClaimExaminers/` (Dto/Create/Update/Input/IAppService + permission)
@@ -77,6 +82,7 @@ Claim Examiner (NET-NEW, parallel to ApplicantAttorney):
 - `angular/src/app/claim-examiners/` feature + `route.provider.ts` nav entry (UM3 places it under User Management)
 
 ## Phase 3 cross-reference
+
 - BUG-042 (attorney-name-not-persisted): finish it here. Entity + read DTO are done; this item
   closes the write path (Create/Update DTOs, mapper, manager, UI inputs). Do NOT re-add columns.
 - OBS-32 (booker-aa-section-prefill-first-name-only): same single-name-field defect at booking
@@ -88,6 +94,7 @@ Claim Examiner (NET-NEW, parallel to ApplicantAttorney):
   when wiring CE, but do not reopen D-2 here.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - Patients (IP6) is the canonical mirror: record-based, no required identity, identity linked
     on self-registration by email. Reuse that decision verbatim, minus SSN.
@@ -107,6 +114,7 @@ Claim Examiner (NET-NEW, parallel to ApplicantAttorney):
     hand-edit `angular/src/app/proxy/`).
 
 ## Approaches considered (with tradeoffs)
+
 1. CHOSEN: Finish BUG-042 write path on AA/DA + build a parallel firm-less ClaimExaminer
    master, all three record-based with identity-linked-on-registration.
    - Pros: matches IP6 mental model exactly; one consistent record+claim model across all
@@ -125,8 +133,10 @@ Claim Examiner (NET-NEW, parallel to ApplicantAttorney):
      admin unable to create an attorney/CE for a third party who never logs in.
 
 ## Decision (locked 2026-06-03)
+
 Mirror the simplified Patients model (IP6) for Applicant Attorney, Defense Attorney, and a
 NET-NEW Claim Examiner master:
+
 - Add FirstName/LastName to the AA/DA Create + Update DTOs, map them through Mapperly, assign
   them in the manager, and add the inputs to the Angular detail forms (BUG-042 write path).
 - Drop the required identityUserId: Create/Update DTOs use `Guid?`; the Angular forms drop
@@ -139,6 +149,7 @@ NET-NEW Claim Examiner master:
   under User Management and places the CE nav entry there).
 
 ## Implementation outline (no code)
+
 1. (Prereq) Confirm IP6 has pinned the Patients record-based shape and UM3 has the CE nav slot.
 2. AA/DA write path (closes BUG-042):
    a. Add `string? FirstName`, `string? LastName` to ApplicantAttorney + DefenseAttorney
@@ -172,6 +183,7 @@ NET-NEW Claim Examiner master:
 6. Build + verify Mapperly compile, run migration, smoke the three CRUDs in Docker.
 
 ## Dependencies
+
 - DEPENDS ON IP6 (Patients record-based shape is the mirror target) -- sequence AFTER.
 - DEPENDS ON UM3 (relocates AA/DA under User Management; defines the CE nav slot) -- sequence AFTER.
 - COMPLETES BUG-042 (write path) and unblocks OBS-32 (two-name booker prefill).
@@ -179,6 +191,7 @@ NET-NEW Claim Examiner master:
   appointment): the CE master here is the lookup source for that per-appointment CE selection.
 
 ## Residual open questions
+
 - Migration must seed nothing for the new ClaimExaminer table (per no-seed rules); confirm the
   CE table is fine empty at first run.
 - Minor: whether the CE master keeps StateId (no firm, but a mailing state may still apply) --

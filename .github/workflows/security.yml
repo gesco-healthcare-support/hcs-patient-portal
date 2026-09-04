@@ -5,6 +5,16 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+# Least-privilege default (phase 2 item 2.3, 2026-09-03). Scorecard
+# `TokenPermissionsID`: a workflow with no top-level block inherits the
+# repository default, which is more than any job here needs.
+#
+# Every job in this file declares its own `permissions`, and a job-level block
+# REPLACES this one rather than merging with it -- so this line cannot reduce
+# any existing job's access. It sets the default for jobs added later.
+permissions:
+  contents: read
+
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -16,8 +26,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: "10.0.x"
       - name: Generate NuGet.Config
@@ -34,8 +44,8 @@ jobs:
       run:
         working-directory: angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: "20"
       - run: corepack enable
@@ -49,10 +59,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
-      - uses: trufflesecurity/trufflehog@v3.94.3
+      - uses: trufflesecurity/trufflehog@47e7b7cd74f578e1e3145d48f669f22fd1330ca6  # v3.94.3
         with:
           extra_args: --only-verified
 
@@ -63,11 +73,11 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4.37.9
         with:
           languages: csharp, javascript-typescript
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: "10.0.x"
       - name: Generate NuGet.Config
@@ -86,4 +96,4 @@ jobs:
             fi
           done
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4.37.9

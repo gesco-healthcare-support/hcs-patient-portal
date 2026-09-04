@@ -29,7 +29,7 @@ to begin a hardening run. The agent will load the suite, confirm
 prereqs, walk Phase 0 through Phase 10 and Rounds 1-3, file findings, and
 pause at every WAIT marker until Adrian confirms.
 
-```
+```text
 You are executing the Patient Portal Hardening Test Suite at
 docs/runbooks/HARDENING-TEST-SUITE.md.
 
@@ -171,7 +171,7 @@ preserves progress; reruns resume from the last completed step. Adrian's
 
 ### Happy-path scenario (Round 1, Phases 0-10)
 
-```
+```text
 HRD-<phase>.<n>  <Title>
 Role            <which logged-in user, by state.users[<key>]>
 Booker / actor  <who initiates>
@@ -192,7 +192,7 @@ On fail -> file <BUG-NNN candidate or "raise new BUG">
 
 ### Failure-mode scenario (Round 2)
 
-```
+```text
 HRD-R2.<n>  <Title>
 Endpoint        <method + path>
 Auth            <role token from state.users[<key>], or anonymous>
@@ -206,7 +206,7 @@ On fail -> file <BUG-NNN candidate>
 
 ### Replay scenario (Round 3)
 
-```
+```text
 HRD-R3.<finding-id>  <Title from the finding file>
 Repro           <copied verbatim from docs/runbooks/findings/bugs/<id>.md>
 Expected if fixed <what a passing run looks like now>
@@ -229,7 +229,7 @@ fails, document and skip dependents (note the cascade in the finding).
 Adrian's directive: NEVER seed the doctor. Every slot used downstream is
 created in this phase via the staff-supervisor-driven UI / API path.
 
-```
+```text
 HRD-P0.1  Generate equal slots for every active AppointmentType x active Location
 Role        stafsuper1@gesco.com
 Inputs
@@ -288,7 +288,7 @@ them.
 
 #### Phase 1.A - Manual self-register (2 users)
 
-```
+```text
 HRD-P1.A.1  Manual self-register: Patient (patient1@gesco.com / Daniel Harper)
 Inputs (synthetic; from Part 5 dictionary)
   - email     = patient1@gesco.com
@@ -334,7 +334,7 @@ On fail
     DataProtection key sharing.
 ```
 
-```
+```text
 HRD-P1.A.2  Manual self-register: Applicant Attorney (appatty1@gesco.com / Marcus Bennett)
 Identical shape to P1.A.1, but:
   - userType  = 3 (Applicant Attorney)
@@ -347,7 +347,7 @@ Persist:
 
 #### Phase 1.B - Invite-flow register (2 users)
 
-```
+```text
 HRD-P1.B.1  Invite-flow register: Defense Attorney (defatty1@gesco.com / Gregory Stone)
 Role        stafsuper1@gesco.com (issues the invite)
 Inputs
@@ -398,7 +398,7 @@ On fail
     is not atomic.
 ```
 
-```
+```text
 HRD-P1.B.2  Invite-flow register: Claim Examiner (claimE1@gesco.com / Henry Caldwell)
 Identical shape to P1.B.1, but:
   - inviteRole = "ClaimExaminer"
@@ -418,7 +418,7 @@ These apply to any of the 4 verified users from 1.A + 1.B. The agent picks
 one (preferably patient1 since it goes through the standard SPA register
 form, which has the broadest surface).
 
-```
+```text
 HRD-P1.C.1  Idempotent re-click of same verify URL
 Steps
   1. Open state.verifications[patient1].url in a new tab.
@@ -430,7 +430,7 @@ On fail -> EmailConfirmationModel.OnGetAsync is missing the
            already-confirmed early-return; check the PageModel source.
 ```
 
-```
+```text
 HRD-P1.C.2  Tampered verify token
 Steps
   1. Take state.verifications[patient1].url, mutate one character of the
@@ -472,7 +472,7 @@ external form is exercised. Document any UI gap encountered.
 
 **Per-scenario template (use for every row above):**
 
-```
+```text
 HRD-P3.<n>
 Inputs (synthetic; from Part 5 dictionary + state.*)
   - appointmentTypeId = <resolved by GET /api/app/appointment-types
@@ -545,6 +545,7 @@ Preserved structure; appointment IDs come from state.
 Persist `state.appointments.<key>.approvedAt` or `.rejectedAt` after each.
 
 Verify SQL after Phase 5:
+
 ```sql
 SELECT RequestConfirmationNumber, AppointmentStatus, RejectionNotes
 FROM AppAppointments
@@ -555,17 +556,19 @@ ORDER BY RequestConfirmationNumber
 ### Phase 6 - Packet generation + recipient routing + partial-failure isolation
 
 Adrian's directive: he reviews packet CONTENT manually. The suite checks:
+
 1. Each packet kind reaches the correct recipient.
 2. If one packet kind fails, the other two still generate AND their
    emails still fire (this is a SUSPECTED CURRENT BUG; confirm).
 
 For each Approve in Phase 5, expect 3 packet rows auto-created in
 `AppAppointmentPackets`:
+
 - Kind=1 (patient), Status=2 (Completed)
 - Kind=2 (doctor), Status=2
 - Kind=3 (attorneyclaimexaminer), Status=2
 
-```
+```text
 HRD-P6.1  Recipient routing per packet kind
 For every approved appointment (state.appointments.* where approvedAt != null):
   Step 1. Pull AppAppointmentPackets rows for the appointment.
@@ -603,7 +606,7 @@ On fail (Status=4 or missing rows): file new BUG; check Gotenberg logs.
 On fail (wrong recipient): HIGH severity (HIPAA / leakage); file new BUG.
 ```
 
-```
+```text
 HRD-P6.2  Partial-failure isolation (SUSPECTED CURRENT BUG - confirm)
 Per episodic memory 2026-05-15, a duplicate-key on Kind=3 packet has
 blocked Kind=3 email dispatch in the past while Kind=1 and Kind=2 packets
@@ -645,6 +648,7 @@ On outcome
 
 Driver limitation [[OBS-20]]: Playwright DataTransfer file injection
 does NOT trigger the Angular upload pipeline. Either:
+
 - Run this phase by hand in a real browser, OR
 - Skip and mark as "manually verified once" (acceptable if a Patient
   upload was confirmed in an earlier session).
@@ -689,7 +693,7 @@ concurrent sessions. No MFA today. Multi-session is intentional (locked
 2026-05-01) -- the concurrent-session probe asserts the policy, not a
 single-session limit.
 
-```
+```text
 HRD-P9.1  Lockout after N failed logins
 Inputs
   - target user: state.users.patient1
@@ -721,7 +725,7 @@ On fail
   - User-existence leak via timing -> raise HIGH-severity BUG.
 ```
 
-```
+```text
 HRD-P9.2  Password reset round-trip + edge cases
 Inputs
   - target user: state.users.patient1 (state.users.patient1.password
@@ -785,7 +789,7 @@ Expected
 On fail -> rate limiter regressed; cite PR #197 family of fixes.
 ```
 
-```
+```text
 HRD-P9.3  Refresh-token rotation
 Steps
   1. Log in as state.users.patient1 via OpenIddict password grant:
@@ -813,7 +817,7 @@ On fail
   - Step 3 returns 200 -> old token NOT revoked on rotation. Same severity.
 ```
 
-```
+```text
 HRD-P9.4  Concurrent sessions (multi-session intentional)
 Steps
   1. Log in as state.users.patient1 in Playwright session A.
@@ -858,7 +862,7 @@ The 5-item rubric (each = pass | fail per template):
 5. **Non-redundancy**: subject and first body paragraph do not duplicate
    more than 70% of tokens (case-insensitive, ignore stopwords).
 
-```
+```text
 HRD-P10.1  Rubric review per template
 Inputs
   - Set: all 59 codes in NotificationTemplateConsts (16 DB-managed +
@@ -912,7 +916,7 @@ section once parity is achieved.
 
 ### Registration validation (R2.1 - R2.3)
 
-```
+```text
 HRD-R2.1  Duplicate email
 Endpoint  POST /api/public/external-signup/register
 Body      { email: state.users.patient1.email, password, confirmPassword,
@@ -925,7 +929,7 @@ Anti-checks      response body does not contain the email string;
 On fail -> [[BUG-001]] resurrected (it's currently `status: fixed`)
 ```
 
-```
+```text
 HRD-R2.2  ConfirmPassword mismatch
 Endpoint  POST /api/public/external-signup/register
 Body      { email: new, password: X, confirmPassword: Y (X != Y), ... }
@@ -934,7 +938,7 @@ Expected code:   CaseEvaluation:Registration.ConfirmPasswordMismatch
 On fail (status 403) -> [[BUG-023]] still open as expected
 ```
 
-```
+```text
 HRD-R2.3  Attorney without FirmName
 Body      userType: 3 (Applicant Attorney), firmName omitted
 Expected status: 400
@@ -944,14 +948,14 @@ On fail (status 403) -> [[BUG-023]] still open
 
 ### Booking validation (R2.4 - R2.5)
 
-```
+```text
 HRD-R2.4  Empty body
 Endpoint  POST /api/app/appointments  (auth: any logged-in user)
 Body      {}
 Expected status: 400 with validationErrors array
 ```
 
-```
+```text
 HRD-R2.5  Date past max horizon
 Body      doctorAvailabilityId pointing at a slot > today + 60d (non-AME)
           or > today + 90d (AME)
@@ -965,7 +969,7 @@ Anti-checks      response data.maxTimeDays equals the seeded
 
 ### Permission + scope rejection (R2.6 - R2.9)
 
-```
+```text
 HRD-R2.6  Patient deep-links non-owned appointment
 Auth      state.users.patient1
 Endpoint  GET /api/app/appointments/<id from state.appointments.p3.3>
@@ -975,7 +979,7 @@ Expected code:   CaseEvaluation:Appointment.AccessDenied
 Anti-checks      response body does not contain another patient's name
 ```
 
-```
+```text
 HRD-R2.7  Patient privilege escalation (approve own)
 Auth      state.users.patient1
 Endpoint  POST /api/app/appointments/<state.appointments.p3.1.id>/approve
@@ -983,7 +987,7 @@ Body      { responsibleUserId: <patient1.id>, notes: "x" }
 Expected status: 403
 ```
 
-```
+```text
 HRD-R2.8  DA accesses non-scope
 Auth      state.users.defatty1
 Endpoint  GET /api/app/appointments/<state.appointments.p3.4.id>
@@ -991,7 +995,7 @@ Endpoint  GET /api/app/appointments/<state.appointments.p3.4.id>
 Expected status: 403 AccessDenied
 ```
 
-```
+```text
 HRD-R2.9  Anonymous booking attempt
 Auth      no Authorization header
 Endpoint  POST /api/app/appointments
@@ -1001,7 +1005,7 @@ Expected status: 401
 
 ### State-machine rejection (R2.10 - R2.11)
 
-```
+```text
 HRD-R2.10 Re-approve already-Approved appointment
 Auth      state.users.clistaff1
 Endpoint  POST /api/app/appointments/<state.appointments.p3.1.id>/approve
@@ -1011,7 +1015,7 @@ Expected data: { from: 2, trigger: 1 }
 Status:   400 expected; actual 403 (same [[BUG-023]] pattern)
 ```
 
-```
+```text
 HRD-R2.11 Approve a Rejected appointment
 Auth      state.users.clistaff1
 Endpoint  POST /api/app/appointments/<state.appointments.p3.3.id>/approve
@@ -1021,7 +1025,7 @@ Expected code: AppointmentInvalidTransition with from: 3
 
 ### Rejection + upload validation (R2.12)
 
-```
+```text
 HRD-R2.12 Reject without reason
 Auth      state.users.clistaff1
 Endpoint  POST /api/app/appointments/<a pending id>/reject
@@ -1034,7 +1038,7 @@ On fail (status 200) -> [[BUG-024]] still open
 
 ### Email confirmation endpoint (R2.13 - R2.15)
 
-```
+```text
 HRD-R2.13 Empty params on /Account/EmailConfirmation
 Endpoint  GET http://falkinstein.localhost:44368/Account/EmailConfirmation
 Auth      anonymous
@@ -1046,7 +1050,7 @@ On fail (status 500) -> [[BUG-014]] / B-2 regressed; full ABP dev page
                         is leaking
 ```
 
-```
+```text
 HRD-R2.14 Fake userId + token (anti-enumeration)
 Endpoint  GET /Account/EmailConfirmation?userId=11111111-1111-1111-1111-111111111111
           &confirmationToken=abc
@@ -1057,7 +1061,7 @@ Anti-checks      same redirect target as R2.13 (no leak of whether the
                  userId existed); response timing should be similar
 ```
 
-```
+```text
 HRD-R2.15 HEAD request on /Account/EmailConfirmation
 Endpoint  HEAD /Account/EmailConfirmation?userId=<real-unverified>
           &confirmationToken=<real>
@@ -1076,7 +1080,8 @@ The upload size limit is a code-review check, not a runtime test
 finding).
 
 Verify:
-```
+
+```text
 Grep src/.../AppointmentDocumentsAppService.cs for "MaxFileSize" or
 "fileSize >" -> there should be an upper-bound check.
 ```
@@ -1097,7 +1102,8 @@ are not candidates for replay.
 
 The agent MUST regenerate this list at run-time by globbing the bugs
 directory:
-```
+
+```text
 Glob: docs/runbooks/findings/bugs/*.md
 For each file: read frontmatter, keep iff status in {open, open-low}.
 ```
@@ -1140,7 +1146,7 @@ flip its status to `fixed`.
 
 ### Round 3 scenario template
 
-```
+```text
 HRD-R3.<finding-id>  <Title from finding>
 Source            docs/runbooks/findings/bugs/<finding-id>.md
 Repro
@@ -1171,18 +1177,18 @@ MRN / DOB. The values below are documented and reusable across runs.
 
 | Role | UserName | Real name | Password | Seeded? | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Patient | patient1@gesco.com | Daniel Harper | `1q2w3E*r` | NO | Phase 1.A.1 (manual self-register) |
-| Patient | patient2@gesco.com | Olivia Turner | `1q2w3E*r` | NO | Spare; not registered this run |
-| Applicant Attorney | appatty1@gesco.com | Marcus Bennett | `1q2w3E*r` | NO | Phase 1.A.2 (manual self-register), firmName "Bennett & Associates" |
-| Applicant Attorney | appatty2@gesco.com | Tiffany Lawson | `1q2w3E*r` | NO | Spare |
-| Defense Attorney | defatty1@gesco.com | Gregory Stone | `1q2w3E*r` | NO | Phase 1.B.1 (invite flow), firmName "Stone Defense LLC" |
-| Defense Attorney | defatty2@gesco.com | Alicia Perez | `1q2w3E*r` | NO | Spare |
-| Claim Examiner | claimE1@gesco.com | Henry Caldwell | `1q2w3E*r` | NO | Phase 1.B.2 (invite flow) |
-| Claim Examiner | claimE2@gesco.com | Jasmine Reid | `1q2w3E*r` | NO | Spare |
-| Staff Supervisor | stafsuper1@gesco.com | Patrick O'Neal | `1q2w3E*r` | YES | Phase 0 driver; issues invites in Phase 1.B |
-| Staff Supervisor | stafsuper2@gesco.com | Denise Fowler | `1q2w3E*r` | NO | Spare |
-| Clinic Staff | clistaff1@gesco.com | Rachel Kim | `1q2w3E*r` | YES | Phase 5 approver |
-| Clinic Staff | clistaff2@gesco.com | Luis Mendoza | `1q2w3E*r` | NO | Spare |
+| Patient | <patient1@gesco.com> | Daniel Harper | `1q2w3E*r` | NO | Phase 1.A.1 (manual self-register) |
+| Patient | <patient2@gesco.com> | Olivia Turner | `1q2w3E*r` | NO | Spare; not registered this run |
+| Applicant Attorney | <appatty1@gesco.com> | Marcus Bennett | `1q2w3E*r` | NO | Phase 1.A.2 (manual self-register), firmName "Bennett & Associates" |
+| Applicant Attorney | <appatty2@gesco.com> | Tiffany Lawson | `1q2w3E*r` | NO | Spare |
+| Defense Attorney | <defatty1@gesco.com> | Gregory Stone | `1q2w3E*r` | NO | Phase 1.B.1 (invite flow), firmName "Stone Defense LLC" |
+| Defense Attorney | <defatty2@gesco.com> | Alicia Perez | `1q2w3E*r` | NO | Spare |
+| Claim Examiner | <claimE1@gesco.com> | Henry Caldwell | `1q2w3E*r` | NO | Phase 1.B.2 (invite flow) |
+| Claim Examiner | <claimE2@gesco.com> | Jasmine Reid | `1q2w3E*r` | NO | Spare |
+| Staff Supervisor | <stafsuper1@gesco.com> | Patrick O'Neal | `1q2w3E*r` | YES | Phase 0 driver; issues invites in Phase 1.B |
+| Staff Supervisor | <stafsuper2@gesco.com> | Denise Fowler | `1q2w3E*r` | NO | Spare |
+| Clinic Staff | <clistaff1@gesco.com> | Rachel Kim | `1q2w3E*r` | YES | Phase 5 approver |
+| Clinic Staff | <clistaff2@gesco.com> | Luis Mendoza | `1q2w3E*r` | NO | Spare |
 
 After Phase 1 completes, state.users.* is populated for the 4 newly-
 registered users; the 6 "Spare" rows remain unused unless a future
@@ -1204,7 +1210,7 @@ do not collide.
 Pre-defined synthetic block (use verbatim; vary only the scenario
 suffix in the FirmName):
 
-```
+```text
 AA  uses state.users.appatty1 (email, full name, firmName)
     fax: 5550001<n>12   phone: 5550001<n>11
     street: "100 AA St"        city: San Francisco   state: CA   zip: 94101

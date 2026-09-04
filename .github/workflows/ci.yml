@@ -34,48 +34,115 @@ jobs:
     permissions:
       pull-requests: read
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      shared: ${{ steps.filter.outputs.shared }}
+      backend: ${{ steps.classify.outputs.backend }}
+      frontend: ${{ steps.classify.outputs.frontend }}
+      shared: ${{ steps.classify.outputs.shared }}
+      unclassified: ${{ steps.classify.outputs.unclassified }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'src/**'
-              - 'test/**'
-              - '*.sln'
-              - '*.slnx'
-              - 'Directory.Build.props'
-              - 'NuGet.Config.template'
-              - 'common.props'
-              - 'global.json'
-            frontend:
-              - 'angular/**'
-            shared:
-              - '.github/**'
-              - 'docs/**'
-              - '.editorconfig'
-              - '.gitleaks.toml'
-              - '.markdownlint.json'
-              - 'README.md'
-              - 'CONTRIBUTING.md'
-              - 'CHANGELOG.md'
+      # DENY BY DEFAULT (phase 2 item 0.5, 2026-09-03).
+      #
+      # This replaced `dorny/paths-filter` with an explicit classifier for one
+      # reason: the filters were an ALLOWLIST WITH NO CATCH-ALL. 28 tracked
+      # top-level paths matched none of the three groups -- all three compose
+      # files, `docker/`, `scripts/`, `tools/`, `etc/`, `BannedSymbols.txt`,
+      # `.gitignore`, `.env.example` among them. A pull request touching only
+      # those set every output to false, so every downstream job's `if:`
+      # evaluated false and every job SKIPPED.
+      #
+      # A skipped job reports "Success" and does NOT block a merge, even when it
+      # is a required check. So such a pull request satisfied every required
+      # check on `main` and `development` -- where ALL required checks are
+      # conditional on this job -- having run none of them.
+      #
+      # The `*)` arm below is the fix and it is the whole point: anything this
+      # classifier does not RECOGNISE is treated as affecting everything, so the
+      # full suite runs. A new top-level directory added next year is covered
+      # without anyone remembering to come back here. An allowlist cannot
+      # self-heal; a fallback can.
+      #
+      # Keep the genuine saving: a `src/`-only change still skips the frontend
+      # jobs, and vice versa.
+      - name: Classify the changed paths
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          files=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+
+          # Absent input is a hard failure, never a silent pass. An empty list
+          # here would classify everything as false and skip the whole suite --
+          # exactly the defect this job was rewritten to remove.
+          if [ -z "$files" ]; then
+            echo "::error::No changed files reported for this pull request. Refusing to classify."
+            exit 1
+          fi
+
+          backend=false
+          frontend=false
+          shared=false
+          unclassified=false
+
+          while IFS= read -r f; do
+            case "$f" in
+              src/* | test/* | *.sln | *.slnx | Directory.Build.props | \
+              NuGet.Config.template | common.props | global.json)
+                backend=true
+                ;;
+              angular/*)
+                frontend=true
+                ;;
+              .github/* | docs/* | .editorconfig | .gitleaks.toml | \
+              .markdownlint.json | README.md | CONTRIBUTING.md | CHANGELOG.md)
+                shared=true
+                ;;
+              *)
+                # Deny by default. Unrecognised path -> run everything.
+                unclassified=true
+                echo "unclassified path, will run the full suite: $f"
+                ;;
+            esac
+          done <<< "$files"
+
+          {
+            echo "backend=$backend"
+            echo "frontend=$frontend"
+            echo "shared=$shared"
+            echo "unclassified=$unclassified"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "### Changed-path classification" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Group | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ----- | ----- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| backend | \`$backend\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| frontend | \`$frontend\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| shared | \`$shared\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unclassified | \`$unclassified\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$files" | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
 
   backend-build:
     name: "Backend: Build"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): the classifier's OWN failure must not skip this job. If it
+    # cannot classify, run -- the same deny-by-default rule as `unclassified`.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/common.props') }}
@@ -96,14 +163,136 @@ jobs:
             fi
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      # Phase 2.1 (2026-09-02): the separate informational `-warnaserror` build was
+      # removed here, per its own instruction. It said to remove it once
+      # Directory.Build.props set <TreatWarningsAsErrors>true</TreatWarningsAsErrors>,
+      # which happened in Phase B-6 PR-0 (see Directory.Build.props:9,:21). The build
+      # below therefore already enforces warnings-as-errors, so the extra step was a
+      # duplicate full-solution build on every back-end submission.
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
-      - name: Backend Build (warnings-as-errors, informational)
-        continue-on-error: true
-        run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release -warnaserror
-        # Phase A informational step — surfaces the pre-existing warnings that
-        # Phase B #3 will resolve. Does not block merge. When Phase C flips
-        # Directory.Build.props <TreatWarningsAsErrors> to true, this separate
-        # step is removed and -warnaserror folds into the primary build above.
+
+      # PHASE 2 ITEM 2.6 -- fail the build on a model change with no migration.
+      #
+      # Pinned to the version the mechanism was actually verified with, not to
+      # "latest". Newer 10.0.x exist; an unpinned tool means the gate's behaviour
+      # can change without anyone changing this file.
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.7
+
+      # TWO STEPS, ONE PER CONTEXT, DELIBERATELY NEVER COMBINED.
+      #
+      # This repo has two schemas: `CaseEvaluationDbContext` (host, Migrations/)
+      # and `CaseEvaluationTenantDbContext` (tenant, TenantMigrations/, one
+      # database per office). Most entities are mapped in BOTH.
+      #
+      # A single combined check passes when one of the two is missing, and the
+      # ONE-SIDED case is the one that actually breaks here: a migration added to
+      # the host set and forgotten in the tenant set produces an office database
+      # missing a table, which surfaces as a runtime exception in front of a
+      # user. That has shipped before. Two steps means two exit codes, two check
+      # lines in the log, and a message naming the right folder -- a generic
+      # failure sends people to the wrong migration set.
+      #
+      # `--no-build` is NOT used, though the Release build above would allow it.
+      # The command form below is the one whose exit codes were verified (0 on a
+      # clean tree, 1 on a pending change, per context); adding --no-build is an
+      # unproven variant, and the cost of being wrong here is a gate that cannot
+      # fail. The extra compile is the price of that certainty.
+      # A NOTE ON EXIT 1, which is why these steps are not a bare `if`.
+      #
+      # `has-pending-model-changes` exits 1 for a pending model change AND for
+      # any tooling failure -- a broken build, a context it cannot find, a
+      # design-time factory that throws. Treating every exit 1 as "you forgot a
+      # migration" would print a confident, specific, wrong diagnosis and send
+      # someone to write a migration that was never missing.
+      #
+      # So the output is inspected as well as the exit code. Both outcomes still
+      # FAIL: the distinction changes only the message, never the verdict, so a
+      # wrong guess about the marker string cannot manufacture a false pass.
+      - name: "Migrations: host schema is current"
+        run: |
+          # `set +e` FIRST, and the gate is worthless without it. GitHub invokes
+          # this step as `bash -e {0}`, and `set -uo pipefail` does NOT clear
+          # that -e. An assignment from a command substitution takes the
+          # substitution's exit status, so under -e the shell dies the instant
+          # `dotnet ef` exits 1 -- which is the ONE case this whole step exists
+          # to detect. The step would still go red, so it would look correct,
+          # while every line below became unreachable: no `migrations add`
+          # command, no folder name, no distinction from a tooling failure.
+          # Caught in CI on the run-B probe, which failed this exact way.
+          set +e
+          set -uo pipefail
+          P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationDbContext -p "$P" 2>&1)
+          rc=$?
+          printf '%s\n' "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "Host schema matches its migrations."
+            exit 0
+          fi
+          # Case-SENSITIVE, and that is the whole point. EF's two messages are
+          # "Changes have been made to the model since the last migration." and
+          # "No changes have been made to the model since the last migration."
+          # -- verified against Microsoft.EntityFrameworkCore.Design.dll 10.0.0,
+          # the version this repo references. A case-insensitive match treats
+          # those opposites as identical. It is unreachable today because the
+          # success message comes with exit 0 and this branch only runs on a
+          # non-zero exit, but a matcher that cannot tell "changed" from "not
+          # changed" is one refactor away from being wrong.
+          if printf '%s' "$out" | grep -q "Changes have been made to the model"; then
+            m="The HOST model has changes with no migration in Migrations/."
+            m="$m Add one with: dotnet ef migrations add <Name>"
+            m="$m -c CaseEvaluationDbContext -o Migrations -p $P"
+          else
+            m="The host migration check could not complete (exit $rc) and this is"
+            m="$m NOT a missing-migration report. Read the output above before"
+            m="$m adding any migration."
+          fi
+          echo "::error::$m"
+          exit 1
+
+      - name: "Migrations: tenant schema is current"
+        # Runs even when the host step failed. These are two independent
+        # schemas, and the ONE-SIDED case is the whole reason this item exists;
+        # letting the host failure short-circuit the tenant check would hide
+        # exactly half of what the gate is for.
+        if: always()
+        run: |
+          # See the note on the host step. `set +e` is required here for the same
+          # reason, and it matters more: the tenant check is the one that catches
+          # the one-sided case, so losing its message loses the item's point.
+          set +e
+          set -uo pipefail
+          P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationTenantDbContext -p "$P" 2>&1)
+          rc=$?
+          printf '%s\n' "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "Tenant schema matches its migrations."
+            exit 0
+          fi
+          # Case-SENSITIVE, and that is the whole point. EF's two messages are
+          # "Changes have been made to the model since the last migration." and
+          # "No changes have been made to the model since the last migration."
+          # -- verified against Microsoft.EntityFrameworkCore.Design.dll 10.0.0,
+          # the version this repo references. A case-insensitive match treats
+          # those opposites as identical. It is unreachable today because the
+          # success message comes with exit 0 and this branch only runs on a
+          # non-zero exit, but a matcher that cannot tell "changed" from "not
+          # changed" is one refactor away from being wrong.
+          if printf '%s' "$out" | grep -q "Changes have been made to the model"; then
+            m="The TENANT model has changes with no migration in TenantMigrations/."
+            m="$m Every office has its own database, so a missing tenant migration"
+            m="$m is a runtime failure in front of a user, not a build problem."
+            m="$m Add one with: dotnet ef migrations add <Name>"
+            m="$m -c CaseEvaluationTenantDbContext -o TenantMigrations -p $P"
+          else
+            m="The tenant migration check could not complete (exit $rc) and this"
+            m="$m is NOT a missing-migration report. Read the output above before"
+            m="$m adding any migration."
+          fi
+          echo "::error::$m"
+          exit 1
 
   docs-structure:
     name: "Docs: Structure Check"
@@ -112,8 +301,8 @@ jobs:
     if: needs.changes.outputs.shared == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.x"
       - name: Verify documentation structure
@@ -128,14 +317,17 @@ jobs:
     name: "Backend: Test"
     runs-on: ubuntu-latest
     needs: [changes, backend-build]
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    # Gated on its build, whose condition already encodes the path logic.
+    # always() so a failed classifier does not skip it; the build must have
+    # SUCCEEDED, so a skipped or failed build still skips the test.
+    if: ${{ always() && needs.backend-build.result == 'success' }}
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/common.props') }}
@@ -156,31 +348,66 @@ jobs:
             fi
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      # PINNED (2026-09-03). This install was added UNPINNED in item 2.10, one
+      # item before 2.2 pinned all 69 action references -- the same supply-chain
+      # class, introduced by the same hand, inside the coverage gate itself.
+      #
+      # 18.11.0 is not "latest today": it is the version CI actually installed on
+      # the run that produced this gate's verified figures, read from that run's
+      # own log -- "Tool 'dotnet-coverage' (version '18.11.0') was successfully
+      # installed". So the pin locks in the toolchain that measured 73.61% over
+      # 887 files, rather than whatever the registry happens to serve next.
+      - name: Install dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage --version 18.11.0
+      # Item 2.10. This mirrors the WRAPPING pattern at sonarcloud.yml:148, not
+      # its format. That line emits `-f xml` (the Visual Studio format) because
+      # SonarCloud reads it via sonar.cs.vscoveragexml.reportsPaths; the floors
+      # gate parses Cobertura. Two workflows, two artefacts, two formats -- both
+      # gitignored. The inner command is single-quoted so its own --logger
+      # quotes survive being passed through as one argument.
       - name: Test
         run: >
-          dotnet test HealthcareSupport.CaseEvaluation.slnx
+          dotnet-coverage collect
+          'dotnet test HealthcareSupport.CaseEvaluation.slnx
           --no-restore -c Release
           --logger "trx;LogFileName=results.trx"
-          --results-directory ./test-results
-      - uses: actions/upload-artifact@v4
+          --results-directory ./test-results'
+          -f cobertura -o coverage.cobertura.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         if: always()
         with:
           name: backend-test-results
           path: ./test-results
+          retention-days: 14
+      # if: always() is load-bearing, not defensive. The gate must be able to
+      # tell "the test job failed" apart from "the report is absent". Uploading
+      # only on success collapses those into one indistinguishable state, which
+      # is the exact hole item 2.10 exists to close.
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        if: always()
+        with:
+          name: backend-coverage
+          path: coverage.cobertura.xml
           retention-days: 14
 
   frontend-build:
     name: "Frontend: Build"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): see the note on backend-build.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 15
     defaults:
       run:
         working-directory: angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "yarn"
@@ -195,14 +422,19 @@ jobs:
     name: "Frontend: Lint"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): see the note on backend-build.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 10
     defaults:
       run:
         working-directory: angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "yarn"
@@ -217,14 +449,15 @@ jobs:
     name: "Frontend: Test"
     runs-on: ubuntu-latest
     needs: [changes, frontend-build]
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # See the note on backend-test.
+    if: ${{ always() && needs.frontend-build.result == 'success' }}
     timeout-minutes: 25
     defaults:
       run:
         working-directory: angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "yarn"
@@ -256,20 +489,42 @@ jobs:
       - name: Run tests with coverage
         if: steps.check-tests.outputs.has_tests == 'true'
         run: yarn test --watch=false --browsers=ChromeHeadless --code-coverage
+      # Item 2.10. `path` is repo-relative on purpose: defaults.run.working-directory
+      # applies to `run` steps only, never to `uses` steps, so `coverage/**` here
+      # would resolve against the workspace root and silently upload nothing.
+      #
+      # if: always() for the reason given in backend-test, plus one specific to
+      # this job: the coverage step above is gated on has_tests, so if the specs
+      # ever disappear it is SKIPPED while the job still reports success and no
+      # lcov is written. That is a check reporting success without having run.
+      # Uploading unconditionally is what lets the gate see the absence and fail
+      # on it rather than inherit the false green.
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        if: always()
+        with:
+          name: frontend-coverage
+          path: angular/coverage/**/lcov.info
+          retention-days: 14
 
   backend-format:
     name: "Backend: Format Check"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): the classifier's OWN failure must not skip this job. If it
+    # cannot classify, run -- the same deny-by-default rule as `unclassified`.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 10
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/common.props') }}
@@ -296,15 +551,19 @@ jobs:
     name: "Frontend: Format Check"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    # always(): see the note on backend-build.
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     timeout-minutes: 10
-    continue-on-error: true
     defaults:
       run:
         working-directory: angular
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "yarn"
@@ -314,3 +573,309 @@ jobs:
       - run: corepack enable
       - run: yarn install
       - run: yarn format:check
+
+  coverage-floors:
+    name: "Coverage: Floors"
+    runs-on: ubuntu-latest
+    needs: [changes, backend-test, frontend-test]
+    # `if: always()` with NO further condition, and that is the whole point of
+    # this job. Every other job in this file is conditional, and a SKIPPED job
+    # reports "Success" and does not block a merge even when it is a required
+    # check (catalogue instance 12). A coverage gate that inherits that
+    # conditionality passes by not running, which is the single defect item 2.10
+    # exists to prevent. So this job always runs and decides applicability
+    # itself, below, where absent input is a hard failure rather than an absent
+    # constraint.
+    if: always()
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # Absolute per-stack line coverage floors, measured through the shared
+      # .coverage-exclusions list that sonarcloud.yml also consumes. One list,
+      # two readers: two lists drift, and a drift means two gates disagree with
+      # nobody able to say which is right.
+      #
+      # ============================================================
+      # WHOLE NUMBERS ONLY. Adrian's rule, 2026-09-03. DO NOT "TIGHTEN"
+      # THESE BACK TO FRACTIONAL VALUES -- that reintroduces a real defect.
+      # ============================================================
+      #
+      # What the fractional version cost us. The gate prints a figure ROUNDED to
+      # two places; the comparison uses the unrounded value. Two runs of the SAME
+      # code measured:
+      #
+      #   33197/45098 = 73.6108%   both print as "73.61%"
+      #   33195/45098 = 73.6064%
+      #
+      # A floor of 73.61 -- the printed figure, and the obvious thing to copy in
+      # -- PASSES the first and FAILS the second. Two lines of ordinary test
+      # nondeterminism is 0.0044 points, so any floor set from the display sits
+      # inside the display's own rounding error and the gate goes red on
+      # unchanged code. It would be blamed on the gate, not on the rounding.
+      #
+      # A whole number cannot be tripped by that: it removes the failure mode
+      # rather than managing it with a hand-picked margin.
+      #
+      # THE COST, stated so it is not discovered later:
+      #
+      #   backend   measured 73.6064%   floor 73   slack 0.61 pts  ~273 lines
+      #   frontend  measured 20.97%     floor 20   slack 0.97 pts   ~88 lines
+      #
+      # ~273 backend lines could go uncovered before the absolute floor fires.
+      # That is real, and it is acceptable for one reason: THE ABSOLUTE FLOORS
+      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 90% on the lines
+      # each submission touches, and it catches new uncovered code per pull
+      # request, long before it could accumulate into a 273-line drift. The
+      # absolute floors are a backstop against slow erosion.
+      #
+      # FRONTEND -- measured, never guessed:
+      #   scripts/coverage-gate.py --measure-only \
+      #     --lcov angular/coverage/CaseEvaluation/lcov.info --lcov-prefix angular
+      #   -> frontend: 20.97% (1900/9062 lines over 269 files)
+      #
+      # 69 UNTIL 2026-09-04, AND THAT FIGURE WAS NOT A HIGHER STANDARD -- it was
+      # a smaller sample. It described 82 files because karma only instruments
+      # what a spec reaches, so 184 of the 269 application sources were
+      # invisible to coverage rather than uncovered by it. Item 2.13 widened the
+      # karma target's `include` and tsconfig.spec.json so every source is
+      # instrumented; the same tests, all 667 still passing, then measure 20.97%
+      # over the whole application.
+      #
+      # So this is not a regression and must not be read as one. The covered
+      # line count went UP (1713 -> 1900): karma executes a file's top-level
+      # code when it loads it as an entry point, so imports and declarations in
+      # the newly visible files register as hit. The denominator is what
+      # actually changed, from a third of the app to all of it.
+      #
+      # Trustworthy for the same reason the old figure was: the UNFILTERED read
+      # of that same report reproduces karma's own summary exactly (20.73%,
+      # 2049/9881), which validates the parser rather than merely the number.
+      FLOOR_FRONTEND: "20"
+      # BACKEND -- MEASURED, by the mechanism this job was built around. It was
+      # deliberately unset until 2026-09-03 so the gate's own first run would
+      # fail and print the figure, which is exactly what happened:
+      #
+      #   run 97ea9356  backend: measured 73.61% (33197/45098 lines over 887 files)
+      #
+      # 887 is the load-bearing number, not the percentage. It is the count of
+      # this repo's tracked, non-excluded .cs files present in the report, and it
+      # confirms both contamination exclusions matched: 1082 would mean neither,
+      # 951 only the third-party one, 1012 only the generated one.
+      FLOOR_BACKEND: "73"
+      # The changed-lines floor, per Adrian's settled decision and the EARS
+      # criterion in 02-enforcement.md. Unlike the two absolute floors this one
+      # is a fixed policy number rather than a measurement, so it is set here
+      # rather than discovered by a first run.
+      FLOOR_CHANGED: "90"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          # Required by the changed-lines floor: it diffs against the merge base
+          # with the base branch, which a shallow clone does not contain. The
+          # step below fails loudly rather than silently measuring nothing if
+          # the base ref is somehow still unresolvable.
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.x"
+
+      # continue-on-error belongs on these two steps and nowhere else in this
+      # job. A stack that legitimately did not run has no artefact, and
+      # download-artifact failing is not itself the verdict -- the verdict is
+      # reached explicitly in "Evaluate floors", which fails when a report is
+      # absent while its stack is applicable. This is STEP level: job-level
+      # continue-on-error would mask the job's conclusion, the opposite of what
+      # this gate is for.
+      - name: Download backend coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: backend-coverage
+          path: artifacts/backend
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: frontend-coverage
+          path: artifacts/frontend
+
+      - name: Evaluate floors
+        env:
+          CLASSIFIER_RESULT: ${{ needs.changes.result }}
+          CHANGED_BACKEND: ${{ needs.changes.outputs.backend }}
+          CHANGED_FRONTEND: ${{ needs.changes.outputs.frontend }}
+          CHANGED_SHARED: ${{ needs.changes.outputs.shared }}
+          CHANGED_UNCLASSIFIED: ${{ needs.changes.outputs.unclassified }}
+          BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
+          FRONTEND_TEST_RESULT: ${{ needs.frontend-test.result }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          # Deny by default, exactly as backend-build's own `if:` does. If the
+          # classifier did not itself succeed we cannot trust a word of its
+          # output, so every stack is treated as applicable and must produce a
+          # report. `unclassified` is included for the same reason: item 0.5
+          # made an unrecognised path run the full suite, so this gate has to
+          # agree with that or it contradicts the classifier it depends on.
+          applicable() {
+            [ "$CLASSIFIER_RESULT" != "success" ] && return 0
+            [ "$1" = "true" ] && return 0
+            [ "$CHANGED_SHARED" = "true" ] && return 0
+            [ "$CHANGED_UNCLASSIFIED" = "true" ] && return 0
+            return 1
+          }
+
+          fail=0
+
+          # Resolve by search rather than by a fixed path. upload-artifact@v4
+          # roots an artefact at the least common ancestor of the files it
+          # matched, so a glob matching one file yields a different layout than
+          # one matching two. Searching by name is indifferent to that.
+          #
+          # Three deliberate details, each of which was wrong in a first draft:
+          #  - NO `2>/dev/null`. Suppressing find's stderr would report "no
+          #    report" for a permission error exactly as for a genuine absence,
+          #    and the gate would then fail for the wrong stated reason. The
+          #    only EXPECTED absence is the directory itself, so that is tested
+          #    explicitly and everything else stays loud.
+          #  - `-print -quit` rather than `| head -1`. Under `pipefail` a pipe
+          #    into head fails the whole pipeline when find is killed by SIGPIPE
+          #    after the first match, which `set -e` would turn into a silent
+          #    step abort with no diagnostic at all.
+          #  - returns empty, not an error, when the directory is missing. That
+          #    is the normal case for a stack whose job was skipped, and the
+          #    verdict on it belongs to check_stack, not here.
+          find_report() {
+            if [ ! -d "$1" ]; then
+              return 0
+            fi
+            find "$1" -type f -name "$2" -print -quit
+          }
+
+          BACKEND_REPORT="$(find_report artifacts/backend coverage.cobertura.xml)"
+          FRONTEND_REPORT="$(find_report artifacts/frontend lcov.info)"
+
+          check_stack() {
+            label="$1"; changed="$2"; result="$3"; report="$4"
+            if applicable "$changed"; then
+              echo "$label: APPLICABLE (classifier=$CLASSIFIER_RESULT changed=$changed shared=$CHANGED_SHARED unclassified=$CHANGED_UNCLASSIFIED)"
+              if [ "$result" != "success" ]; then
+                # Built across several assignments purely to keep the source
+                # lines short; the annotation itself must stay on ONE line,
+                # because a literal newline inside ::error:: truncates it.
+                m="$label coverage is applicable to this change, but its test"
+                m="$m job reported '$result' rather than 'success'. Refusing to"
+                m="$m draw a coverage conclusion from a run that did not complete."
+                echo "::error::$m"
+                fail=1
+                return 0
+              fi
+              if [ -z "$report" ]; then
+                m="$label coverage is applicable and its test job succeeded, yet"
+                m="$m no coverage report was uploaded. A missing report is a"
+                m="$m FAILURE here, never an absent constraint -- that is"
+                m="$m precisely how a gate comes to pass without measuring anything."
+                echo "::error::$m"
+                fail=1
+                return 0
+              fi
+              echo "$label: report at $report"
+            else
+              echo "$label: NOT APPLICABLE"
+              # 'skipped' is the only coherent result for a stack this change
+              # does not touch. 'failure' or 'cancelled' means something ran and
+              # went wrong, and must never be read as "nothing to check here".
+              if [ "$result" != "skipped" ]; then
+                m="$label coverage is not applicable to this change, so its test"
+                m="$m job should have been 'skipped', but it reported '$result'."
+                m="$m That combination is incoherent and is treated as a failure"
+                m="$m rather than as an absent constraint."
+                echo "::error::$m"
+                fail=1
+              fi
+            fi
+            return 0
+          }
+
+          check_stack backend "$CHANGED_BACKEND" "$BACKEND_TEST_RESULT" "$BACKEND_REPORT"
+          check_stack frontend "$CHANGED_FRONTEND" "$FRONTEND_TEST_RESULT" "$FRONTEND_REPORT"
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Coverage gate failed on input validity before any floor was evaluated."
+            exit 1
+          fi
+
+          args=()
+          if applicable "$CHANGED_BACKEND"; then
+            # --cobertura-prefix is left at its empty default pending the first
+            # real CI run. The path shape dotnet-coverage writes into Cobertura
+            # has not been observed here, and the shared exclusions only match
+            # if it is repo-relative. The measured line and file counts printed
+            # below are what confirm it: a wrong prefix shows up as an
+            # implausible file count, not as an error.
+            args+=(--cobertura "$BACKEND_REPORT" --floor-backend "$FLOOR_BACKEND")
+          fi
+          if applicable "$CHANGED_FRONTEND"; then
+            # karma writes `SF:src\app\...` -- backslashes, and relative to
+            # angular/, not to the repo root. Without this prefix the
+            # `angular/src/app/proxy/**` exclusion matches nothing, and the 55
+            # ABP-generated proxy files in the report are graded as ours:
+            # 20.74% over 324 files instead of 20.97% over 269. Passed
+            # explicitly even though the script defaults to it, so the value CI
+            # relies on is visible here rather than only in the script.
+            #
+            # Measured 2026-09-04, after item 2.13 widened instrumentation. The
+            # percentages are now close because the proxy files are largely
+            # uncovered too, so the reason to keep this is WHOSE code is being
+            # graded, not the size of the number it moves.
+            args+=(--lcov "$FRONTEND_REPORT" --lcov-prefix angular --floor-frontend "$FLOOR_FRONTEND")
+          fi
+
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "Neither stack is applicable to this change; both test jobs were correctly skipped."
+            echo "Coverage floors: nothing to evaluate." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # The changed-lines floor. Added only once at least one stack is
+          # applicable, because 90% of the changed lines is a question about
+          # coverage reports, and with none of them present there is nothing to
+          # ask it of.
+          #
+          # `...` is deliberate: two dots would also attribute every change that
+          # landed on the base branch since this one was cut. The empty case is
+          # handled inside the gate, which exits 0 when no CHANGED line is
+          # coverable -- a docs-only submission must not fail this.
+          base="origin/${BASE_REF}"
+          if ! git rev-parse --verify --quiet "$base" >/dev/null; then
+            m="cannot resolve '$base', so the changed-lines floor has nothing to"
+            m="$m diff against. This needs fetch-depth: 0 on checkout. Failing"
+            m="$m rather than skipping the check, which would pass silently."
+            echo "::error::$m"
+            exit 1
+          fi
+          git diff --unified=0 --diff-filter=ACMR "$base...HEAD" > changed.diff
+          echo "changed-lines: diffed against $base"
+          args+=(--changed-diff changed.diff --floor-changed "$FLOOR_CHANGED")
+
+          # NOT piped into tee, and the exit code is carried by hand. Under
+          # `pipefail` a failing gate would abort the step immediately and the
+          # step summary below would never be written -- and the first run of
+          # this job FAILS BY DESIGN, so that is precisely the run whose measured
+          # backend figure somebody needs to read.
+          set +e
+          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" > gate-output.txt 2>&1
+          gate_rc=$?
+          set -e
+          cat gate-output.txt
+          {
+            echo "### Coverage floors"
+            echo ""
+            echo '```text'
+            cat gate-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$gate_rc"

@@ -14,6 +14,7 @@ defer_trigger: SMS provider integrated (Twilio or Azure Communication Services S
 ---
 
 ## 1. ID & Summary
+
 OLD reminder jobs sent a Twilio SMS leg in addition to email for reminders 1, 2, 4,
 5, 6 (`SchedulerDomain.cs:105, 137, 191, 218, 249`). NEW delivers email only -- no
 SMS is sent anywhere in the job/notification pipeline. Classed as an intent deviation
@@ -22,6 +23,7 @@ channels reach the recipient. Deferred until the SMS provider rollout lands; thi
 the reminder-job-side slice of the same SMS work tracked by G-04-01.
 
 ## 2. Docs Reviewed
+
 - docs/parity-v2/05-jobs-scheduler.md (section "### G-05-INTENT-01", lines 228-256).
 - docs/parity-review-log.csv lines 23 (G-04-01), 36, 37 (this item) -- confirms
   cross-ref and the ~3-month (by 2026-08-29) plan.
@@ -29,7 +31,9 @@ the reminder-job-side slice of the same SMS work tracked by G-04-01.
 - OLD: SchedulerDomain.cs, TwilioSmsService.cs (read-only).
 
 ## 3. Affected Code (brief: where the gap is + gating dependency)
+
 Gap location (NEW):
+
 - `src/HealthcareSupport.CaseEvaluation.Application/Notifications/NotificationDispatcher.cs:61-126`
   -- `DispatchAsync` renders `BodySms` but only calls `EnqueueEmailAsync`; no SMS
   sender is invoked. Lines 19-28 document the deliberate deferral (Volo.Abp.Sms +
@@ -40,12 +44,14 @@ Gap location (NEW):
   contract comment overstates current behavior; worth aligning when SMS lands.
 
 Gating dependency:
+
 - `Volo.Abp.Sms` is present only as a TRANSITIVE package in lock files
   (HttpApi.Host/Application/AuthServer packages.lock.json) -- NOT a referenced module,
   NO `ISmsSender` registration, NO provider (Twilio/ACS) wired. Grep under `src\` for
   `Twilio|SendSms|SmsService` returns only comments and the `BodySms` template field.
 
 OLD behavior (ground truth):
+
 - `PatientAppointment.Domain/Core/SchedulerDomain.cs:24,27` inject `ITwilioSmsService`;
   `:105` and `:137` call `TwilioSmsService.SendSms(item.PhoneList.Replace("-",""), smsBody)`
   (doc cites all five legs: 105, 137, 191, 218, 249). Reminders 3 and 9 were
@@ -55,6 +61,7 @@ OLD behavior (ground truth):
   AWS infra; this is the behavioral spec, not the implementation to copy.
 
 ## 4. Expected vs Actual
+
 - Expected (parity with OLD): reminders 1, 2, 4, 5, 6 each emit an SMS (phone number
   normalized by stripping dashes) in addition to the email; reminders 3 and 9 stay
   email-only.
@@ -62,6 +69,7 @@ OLD behavior (ground truth):
   the text) but never delivered.
 
 ## 5. Repro Status
+
 not-reproduced-static-confirmed. Confirmed statically: NEW dispatcher only enqueues
 email (NotificationDispatcher.cs:85-88 -> EnqueueEmailAsync), no `ISmsSender` exists in
 `src\`, and `Volo.Abp.Sms` is transitive-only. A true runtime repro (triggering a
@@ -70,14 +78,17 @@ and firing a Hangfire job -- state mutation, out of scope for read-only research
 confirmation is sufficient and unambiguous here.
 
 ## 6. Search Strings
+
 - NEW: `Twilio|SendSms|SmsService|BodySms|ISmsSender` under `src\`.
 - NEW: `DispatchAsync` / `EnqueueEmailAsync` in NotificationDispatcher.cs.
 - OLD: `TwilioSmsService.SendSms` / `ITwilioSmsService` in SchedulerDomain.cs.
 - CSV: `G-04-01`, `G-05-INTENT-01` in docs/parity-review-log.csv.
 
 ## 7. Candidate Solution (high-level; deep sourcing deferred)
+
 HOLD deep external sourcing until the upstream SMS provider lands -- stated explicitly.
 High-level approach once unblocked (do this with G-04-01, not standalone):
+
 1. Add an SMS provider module to the host (ABP supports `Volo.Abp.Sms.ISmsSender`;
    provider = Twilio or Azure Communication Services per master-plan 18.3). Register
    creds via settings/secrets, not hardcoded.
@@ -95,6 +106,7 @@ TwilioSmsService.cs:12-47. ABP `ISmsSender` / provider SDK docs to be sourced wh
 provider choice is finalized (deferred).
 
 ## 8. Root-Cause Hypothesis
+
 Not a defect -- a documented, deliberate Phase 1 scope cut. SMS delivery was intentionally
 left unwired because no SMS provider (Twilio/ACS) credentials or module exist in the NEW
 solution yet (`Volo.Abp.Sms` is transitive-only). The dispatcher was built email-first
@@ -103,6 +115,7 @@ provider lands. Confidence: high (the deferral is explicitly stated in code comm
 the CSV decision log, and OLD behavior is directly cited).
 
 ## 9. Open Questions (incl. the defer trigger / what Adrian must confirm)
+
 - Defer trigger: SMS provider integrated (G-04-01's dependency) -- planned ~3 months out
   (by 2026-08-29). When that lands, un-defer and implement the reminder-job SMS legs in
   the same slice.

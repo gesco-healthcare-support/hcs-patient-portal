@@ -9,11 +9,13 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Appointment Management -> Appointment Types must expose CRUD to Staff Supervisor and above;
 Clinic Staff cannot CRUD. The CRUD machinery already exists end-to-end -- this is a
 role-GRANT change plus a security-tightening of the read surface, NOT a build-CRUD task.
 
 ## Current behavior (from investigation)
+
 - Full CRUD UI and backend already exist. Create/Edit/Delete buttons are gated on
   `CaseEvaluation.AppointmentTypes.Create/Edit/Delete`
   (appointment-type.component.html:5, 157, 165; bulk-delete line 77). Button visibility is
@@ -40,6 +42,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
   Staff Supervisor CAN be granted them (Locations proves this end-to-end).
 
 ## Relevant code locations
+
 - src/HealthcareSupport.CaseEvaluation.Domain/Identity/InternalUserRoleDataSeedContributor.cs
   (StaffSupervisorGrants; mirror the Locations Create+Edit at lines 308-309)
 - src/HealthcareSupport.CaseEvaluation.Application/AppointmentTypes/AppointmentTypesAppService.cs:18,30-44
@@ -50,6 +53,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
   (no change -- buttons already react to granted policies)
 
 ## Phase 3 cross-reference
+
 - Bundle the read-anomaly fix (bare `[Authorize]` -> `[Authorize(...AppointmentTypes.Default)]`)
   with this grant change: it is the same file family, same audit, and closing the grant gap
   without tightening read leaves an external-readable lookup -- fix both in one pass.
@@ -60,6 +64,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
   -- do not fold seed mutation into this role-grant note.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - Locations already grants Staff Supervisor Create+Edit (no Delete) via StaffSupervisorGrants
     (InternalUserRoleDataSeedContributor.cs:308-309). This is the exact additive pattern and
@@ -75,6 +80,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
     in the DefinitionProvider. (Confidence HIGH -- grounded in repo code, not inference.)
 
 ## Approaches considered (with tradeoffs)
+
 - CHOSEN: Add AppointmentTypes Create + Edit + soft-Delete to StaffSupervisorGrants(); leave
   Clinic Staff on the read-only LookupReadEntities loop; tighten the bare class `[Authorize]`
   to `AppointmentTypes.Default`.
@@ -95,6 +101,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
   is one line and same-file.
 
 ## Decision (locked 2026-06-03)
+
 1. Grant Staff Supervisor `AppointmentTypes.Create`, `.Edit`, and soft-`Delete` in
    StaffSupervisorGrants(), mirroring the Locations grant. Delete stays SOFT (FullAudited/
    ISoftDelete -- audit trail preserved); no destructive hard-delete is built.
@@ -110,6 +117,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
 4. This overrides master-data-crud-design.md's IT-Admin-only assignment for AppointmentTypes.
 
 ## Implementation outline (no code)
+
 1. Backend role grant: in StaffSupervisorGrants() (InternalUserRoleDataSeedContributor.cs),
    add AppointmentTypes.Create, .Edit, .Delete to the Staff Supervisor grant set (mirror the
    Locations entries at lines 308-309). This is the IR1 role-model change -- coordinate so
@@ -131,6 +139,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
    still populates.
 
 ## Dependencies
+
 - DEPENDS ON IR1 (3-role model: Staff Supervisor as top tenant role with soft-Delete on all
   tenant entities + the Delete-grant loop). Implement the grant change as part of / after IR1
   so AppointmentTypes is folded into the IR1 grant structure, not bolted on separately.
@@ -138,6 +147,7 @@ role-GRANT change plus a security-tightening of the read surface, NOT a build-CR
   shape; can share the IR1 grant loop. IP4 (Locations) already done.
 
 ## Residual open questions
+
 - Confirm at build time that NO anonymous/external caller (beyond the booking form, already
   cleared) depends on AppointmentTypesAppService.GetList/GetAsync before tightening the read
   guard. Low risk; verify rather than assume.

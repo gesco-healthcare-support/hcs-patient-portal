@@ -23,6 +23,7 @@ Variable substitution utility: `Domain/Notifications/TemplateVariableSubstitutor
 
 Always address templates by the string constants in `NotificationTemplateConsts.Codes`, never
 by inline string literals. Codes split into three origin groups:
+
 - DB-managed codes (OLD `TemplateCode` int enum).
 - On-disk HTML codes (OLD `EmailTemplate` static class / `wwwroot/EmailTemplates/`).
 - NEW codes added post-OLD (Phase 2.A per-recipient dispatch + invite/internal-user welcome).

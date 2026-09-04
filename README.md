@@ -11,15 +11,18 @@ platform, maintained by Gesco.
 [![Node](https://img.shields.io/badge/Node-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=alert_status)](https://sonarcloud.io/dashboard?id=gesco-healthcare-support_hcs-patient-portal)
-[![Codecov](https://img.shields.io/badge/coverage-pending-lightgrey)](#known-issues-and-roadmap)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=coverage)](https://sonarcloud.io/component_measures?id=gesco-healthcare-support_hcs-patient-portal&metric=coverage)
 
-> The Codecov badge is a placeholder until that service is wired up; SonarCloud
-> is live and gates new-code coverage on PRs. See
-> [Known Issues and Roadmap](#known-issues-and-roadmap).
+> The coverage badge reads `main`, because SonarCloud analyses only `main` in
+> this project. It is therefore the shipped figure, not the figure for any open
+> pull request. Two separate gates enforce coverage on a PR: SonarCloud's
+> new-code quality gate, and the `Coverage: Floors` check in `ci.yml`, which
+> measures each stack independently and fails on a missing report rather than
+> passing without one.
 
 Healthcare support staff use this portal to book patients with IME doctors at
 specific locations and time slots, then track each appointment through a
-13-state lifecycle from initial request through billing. The system is a
+15-state lifecycle from initial request through billing. The system is a
 multi-tenant platform where each doctor practice operates as an isolated
 tenant, while shared reference data (locations, appointment types, languages,
 states, WCAB offices) is managed centrally by the host organisation.
@@ -52,20 +55,25 @@ states, WCAB offices) is managed centrally by the host organisation.
 
 This repository is in **active feature development**. The foundation
 (documentation, CI/CD, hooks, Docker), database-per-office multi-tenancy, and
-in-house LAN hosting support are all in place; the remaining gate is the first
-external server rollout (see [Docker and Deployment](#docker-and-deployment)).
+in-house LAN hosting are all in place. The stack is **deployed and running on an
+internal LAN server** (see [Docker and Deployment](#docker-and-deployment)); the
+remaining gate is staff go-live.
 
-| Aspect                  | Status                                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Stage                   | Pre-production, localhost / Docker only                                                                                               |
-| Deployed environments   | None                                                                                                                                  |
-| Tracked issues          | 29 across security, data integrity, bugs, incomplete features, architecture -- see [docs/issues/OVERVIEW.md](docs/issues/OVERVIEW.md) |
-| Automated test coverage | 1,109 backend test methods (230 files) + 46 Angular specs -- see [docs/devops/TEST-CATALOG.md](docs/devops/TEST-CATALOG.md)           |
-| HIPAA readiness         | Safeguards in place, gaps documented -- see [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md)                    |
-| Maintainer              | Gesco (single developer at this time)                                                                                                 |
-| Repository visibility   | Proprietary -- see [LICENSE](LICENSE)                                                                                                 |
+| Aspect                  | Status                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Stage                   | Deployed to an internal LAN environment; staff go-live not yet done                                                                        |
+| Deployed environments   | One internal VM running `docker-compose.prod.yml` from `development`. Corporate network only, never publicly reachable                     |
+| Production data         | **No real patient data.** Every record on that server is synthetic and created for testing                                                 |
+| Tracked issues          | 124 open -- see [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues), the single source for what is open |
+| Automated test coverage | ~1,749 backend test methods (242 files) + 68 Angular specs                                                                                 |
+| HIPAA readiness         | Safeguards in place, gaps documented -- see [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md)                         |
+| Maintainer              | Gesco                                                                                                                                      |
+| Repository visibility   | Proprietary -- see [LICENSE](LICENSE)                                                                                                      |
 
-For the full narrative read [docs/executive-summary.md](docs/executive-summary.md).
+For the current runtime and data profile read
+[docs/devops/RUNTIME-AND-DATA-PROFILE.md](docs/devops/RUNTIME-AND-DATA-PROFILE.md).
+For the latest narrative status read
+[docs/status-reports/2026-08-26-engineering-status.md](docs/status-reports/2026-08-26-engineering-status.md).
 
 ---
 
@@ -86,7 +94,7 @@ For the full narrative read [docs/executive-summary.md](docs/executive-summary.m
 | Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
 | Package manager (Node) | Yarn                                                | 1.x                               | `yarn.lock` committed                               |
 | CI / CD                | GitHub Actions                                      | 17 workflows                      | See [CI / CD](#ci--cd)                              |
-| Containerisation       | Docker Compose                                      | --                                | 6-service stack                                     |
+| Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
 
 ---
 
@@ -134,8 +142,8 @@ Four runtime processes:
 
 Deep dives:
 [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md) (system design),
-[docs/architecture/DDD-LAYERS.md](docs/architecture/DDD-LAYERS.md) (DDD layer
-rules),
+[docs/architecture/SYSTEM-ARCHITECTURE-BASELINE.md](docs/architecture/SYSTEM-ARCHITECTURE-BASELINE.md)
+(architecture baseline),
 [docs/architecture/ABP-FRAMEWORK.md](docs/architecture/ABP-FRAMEWORK.md) (ABP
 module system),
 [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md)
@@ -155,12 +163,11 @@ tracks those appointments end-to-end.
 - **5 user roles**: Patient, Applicant Attorney, Defense Attorney, Claim
   Examiner, Admin. See
   [docs/business-domain/USER-ROLES-AND-ACTORS.md](docs/business-domain/USER-ROLES-AND-ACTORS.md).
-- **13-state appointment lifecycle**: Pending -> Approved -> CheckedIn ->
+- **15-state appointment lifecycle**: Pending -> Approved -> CheckedIn ->
   CheckedOut -> Billed, with alternate branches for reschedule, cancellation,
   and no-show. See
   [docs/business-domain/APPOINTMENT-LIFECYCLE.md](docs/business-domain/APPOINTMENT-LIFECYCLE.md).
-- **15 domain features**, each with a `CLAUDE.md` in its Domain folder and a
-  companion doc under [docs/features/](docs/features/).
+- **29 domain features**, each with a `CLAUDE.md` in its Domain folder.
 
 Plain-language introduction:
 [docs/business-domain/DOMAIN-OVERVIEW.md](docs/business-domain/DOMAIN-OVERVIEW.md).
@@ -185,7 +192,7 @@ hcs-case-evaluation-portal/
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
 ├── test/                                      4 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
-├── docs/                                      350+ markdown docs
+├── docs/                                      400+ markdown docs
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
@@ -198,9 +205,7 @@ hcs-case-evaluation-portal/
 └── LICENSE                                    Proprietary
 ```
 
-File-level map: [docs/repo-map/map.md](docs/repo-map/map.md). Solution/csproj
-commentary:
-[docs/architecture/SOLUTION-STRUCTURE.md](docs/architecture/SOLUTION-STRUCTURE.md).
+File-level map: [docs/repo-map/map.md](docs/repo-map/map.md).
 
 ---
 
@@ -337,14 +342,22 @@ the `main -> development` PR, and `deploy-dev.yml` opens the
 approvals. Promotion PRs between long-lived branches must use **rebase**,
 never a merge commit.
 
-### Branch Protection (Progressive Hardening)
+### Branch Protection
 
-| Branch        | Required checks                    | Approvals |
-| ------------- | ---------------------------------- | --------- |
-| `main`        | Backend Build, Frontend Build      | 1         |
-| `development` | + Backend Test, Frontend Lint      | 1         |
-| `staging`     | + Frontend Test, Dependency Review | 1         |
-| `production`  | + Secret Detection                 | 2         |
+**The same 17 checks are required on all four branches**, each with "up to date
+with base" enforced. There is no per-branch gradient: a change that cannot merge
+to `main` cannot merge anywhere. Only the approval count varies.
+
+| Branch        | Required checks | Approvals |
+| ------------- | --------------- | --------- |
+| `main`        | all 17          | 1         |
+| `development` | all 17          | 1         |
+| `staging`     | all 17          | 1         |
+| `production`  | all 17          | **2**     |
+
+The checks are listed individually, with what each covers, in
+[CONTRIBUTING.md](CONTRIBUTING.md#branch-protection) -- deliberately in one place
+only, because this table and that one were duplicates and drifted apart.
 
 ### Commits
 
@@ -391,9 +404,8 @@ cd angular && yarn lint
 Current coverage: ~1,100 backend test methods across 230 files, plus 46 Angular
 specs, spanning appointments, multi-tenancy, notifications, patients, and the
 supporting domains -- see
-[docs/devops/TEST-CATALOG.md](docs/devops/TEST-CATALOG.md) for the full
-catalogue and [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md)
-for test patterns and the `CaseEvaluationTestBase<TModule>` chain.
+[docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md) for test
+patterns and the `CaseEvaluationTestBase<TModule>` chain.
 
 EF Core tests use SQLite in-memory (`AbpEntityFrameworkCoreSqliteModule`) and
 require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
@@ -446,23 +458,26 @@ flowchart LR
 - **Housekeeping** -- `auto-pr-dev.yml` keeps `main` and `development` in
   sync; `pr-size.yml` and `labeler.yml` annotate every PR.
 
-Sources in [.github/workflows/](.github/workflows/). Design rationale:
-[docs/devops/CICD-DOCKER-MASTER-PLAN.md](docs/devops/CICD-DOCKER-MASTER-PLAN.md).
+Sources in [.github/workflows/](.github/workflows/). What each check does:
+[docs/devops/CI-TESTS-AND-CHECKS.md](docs/devops/CI-TESTS-AND-CHECKS.md).
 
 ---
 
 ## Docker and Deployment
 
-The Compose stack (`docker-compose.yml`) runs six services:
+The local Compose stack (`docker-compose.yml`) runs nine services:
 
-| Service       | Image / Build                                | Port            | Role                                         |
-| ------------- | -------------------------------------------- | --------------- | -------------------------------------------- |
-| `sql-server`  | `mcr.microsoft.com/mssql/server:2022-latest` | `1434 -> 1433`  | Primary database                             |
-| `redis`       | `redis:7-alpine`                             | `6379`          | Cache                                        |
-| `db-migrator` | local build                                  | --              | Runs once; applies migrations and seeds data |
-| `authserver`  | local build                                  | `44368 -> 8080` | OpenIddict OAuth server                      |
-| `api`         | local build                                  | `44327 -> 8080` | REST API                                     |
-| `angular`     | local build                                  | `4200 -> 80`    | nginx-served production build                |
+| Service           | Image / Build                                | Port            | Role                                         |
+| ----------------- | -------------------------------------------- | --------------- | -------------------------------------------- |
+| `sql-server`      | `mcr.microsoft.com/mssql/server:2022-latest` | `1434 -> 1433`  | Primary database                             |
+| `redis`           | `redis:7-alpine`                             | `6379`          | Cache                                        |
+| `minio`           | MinIO                                        | `9000`          | Object store for uploaded documents          |
+| `minio-init`      | MinIO client                                 | --              | Runs once; creates the buckets               |
+| `db-migrator`     | local build                                  | --              | Runs once; applies migrations and seeds data |
+| `authserver`      | local build                                  | `44368 -> 8080` | OpenIddict OAuth server                      |
+| `api`             | local build                                  | `44327 -> 8080` | REST API                                     |
+| `packet-renderer` | local build                                  | --              | Renders appointment packets to PDF           |
+| `angular`         | local build                                  | `4200 -> 80`    | nginx-served production build                |
 
 Rebuild a single service after code changes:
 
@@ -470,12 +485,35 @@ Rebuild a single service after code changes:
 docker compose build api && docker compose up -d api
 ```
 
-There is **no staging or production deployment** yet. The stack is intended
-for local development and automated CI smoke tests only. See
-[docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md) for operations and
-troubleshooting, and [etc/docker/README.md](etc/docker/README.md) for the
-infrastructure-only compose variant. Local Kubernetes charts live under
-[etc/helm/README.md](etc/helm/README.md).
+### Deployed environment
+
+`docker-compose.prod.yml` is the deployed configuration and adds a
+`reverse-proxy` (nginx) that terminates TLS and routes by subdomain -- ten
+services in total. It is **running on an internal LAN server**, deployed from
+the `development` branch. That environment is on the corporate network only and
+is never publicly reachable, and it holds no real patient data.
+
+Deployment is **manual over SSH, building on the server**. No GitHub Actions
+workflow deploys anything -- `deploy-dev.yml` validates a push to `development`
+and opens the promotion PR to `staging`; it does not touch a server.
+
+Two operational rules that are easy to get wrong and fail silently:
+
+- **Every Compose command on the server needs `--env-file secrets/env.prod`.**
+  There is no `.env` there, so Compose auto-loads nothing and every secret
+  resolves to a blank string -- it warns and carries on, recreating containers
+  with no database password, no TLS paths and no base domain. Use
+  `scripts/hosting/dc.sh`, which injects the flags and refuses to run without
+  the env file.
+- **Force-recreate the reverse proxy after any backend rebuild.** nginx resolves
+  upstream container names once at worker start and caches the IPs, so routing
+  breaks silently once the backends move.
+
+Configuration reference: [env.prod.example](env.prod.example). Operations and
+troubleshooting: [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md).
+Backup and restore: [docs/runbooks/hosting-backup-restore.md](docs/runbooks/hosting-backup-restore.md).
+Infrastructure-only compose variant: [etc/docker/README.md](etc/docker/README.md).
+Local Kubernetes charts: [etc/helm/README.md](etc/helm/README.md).
 
 ---
 
@@ -503,7 +541,7 @@ Known gaps (documented, not yet remediated):
 - One API endpoint exposes user data without an authorisation check.
 - Password complexity policy is weaker than HIPAA-recommended defaults.
 
-Full audit: [docs/issues/SECURITY.md](docs/issues/SECURITY.md). Threat model:
+Open findings: [docs/production-hardening/](docs/production-hardening/). Threat model:
 [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md). Data flows:
 [docs/security/DATA-FLOWS.md](docs/security/DATA-FLOWS.md). HIPAA technical
 safeguards inventory:
@@ -520,26 +558,26 @@ Do not file public issues for vulnerabilities.
 This README is the landing page. The deep material lives in
 [docs/](docs/). Start at [docs/INDEX.md](docs/INDEX.md) for the full map.
 
-### I want to...
+### I want to
 
-| Goal                                 | Start here                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| Get the 30-second summary            | [docs/executive-summary.md](docs/executive-summary.md)                             |
-| Get the app running locally          | [docs/onboarding/GETTING-STARTED.md](docs/onboarding/GETTING-STARTED.md)           |
-| Troubleshoot local dev failures      | [docs/runbooks/LOCAL-DEV.md](docs/runbooks/LOCAL-DEV.md)                           |
-| Run the app in Docker                | [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md)                         |
-| Understand the architecture          | [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md)                     |
-| Understand the business domain       | [docs/business-domain/DOMAIN-OVERVIEW.md](docs/business-domain/DOMAIN-OVERVIEW.md) |
-| See all API endpoints                | [docs/api/ENDPOINTS-REFERENCE.md](docs/api/ENDPOINTS-REFERENCE.md)                 |
-| Learn the database schema            | [docs/backend/ENTITY-RELATIONSHIPS.md](docs/backend/ENTITY-RELATIONSHIPS.md)       |
-| Understand multi-tenancy             | [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md)           |
-| Add a new entity                     | [docs/onboarding/COMMON-TASKS.md](docs/onboarding/COMMON-TASKS.md)                 |
-| Find PHI data flows and threat model | [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md)                     |
-| Respond to a security incident       | [docs/runbooks/INCIDENT-RESPONSE.md](docs/runbooks/INCIDENT-RESPONSE.md)           |
-| See accepted architecture decisions  | [docs/decisions/README.md](docs/decisions/README.md)                               |
-| Navigate the codebase                | [docs/repo-map/map.md](docs/repo-map/map.md)                                       |
-| See every known bug and gap          | [docs/issues/OVERVIEW.md](docs/issues/OVERVIEW.md)                                 |
-| Look up a term                       | [docs/GLOSSARY.md](docs/GLOSSARY.md)                                               |
+| Goal                                 | Start here                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Get the current status               | [docs/status-reports/](docs/status-reports/)                                           |
+| Get the app running locally          | [docs/onboarding/GETTING-STARTED.md](docs/onboarding/GETTING-STARTED.md)               |
+| Troubleshoot local dev failures      | [docs/runbooks/LOCAL-DEV.md](docs/runbooks/LOCAL-DEV.md)                               |
+| Run the app in Docker                | [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md)                             |
+| Understand the architecture          | [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md)                         |
+| Understand the business domain       | [docs/business-domain/DOMAIN-OVERVIEW.md](docs/business-domain/DOMAIN-OVERVIEW.md)     |
+| Understand the API surface           | [docs/api/API-ARCHITECTURE.md](docs/api/API-ARCHITECTURE.md)                           |
+| Learn the application services       | [docs/backend/APPLICATION-SERVICES.md](docs/backend/APPLICATION-SERVICES.md)           |
+| Understand multi-tenancy             | [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md)               |
+| Add a new entity                     | [docs/onboarding/COMMON-TASKS.md](docs/onboarding/COMMON-TASKS.md)                     |
+| Find PHI data flows and threat model | [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md)                         |
+| Back up or restore the database      | [docs/runbooks/hosting-backup-restore.md](docs/runbooks/hosting-backup-restore.md)     |
+| See accepted architecture decisions  | [docs/decisions/README.md](docs/decisions/README.md)                                   |
+| Navigate the codebase                | [docs/repo-map/map.md](docs/repo-map/map.md)                                           |
+| See every known bug and gap          | [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues) |
+| Look up a term                       | [docs/GLOSSARY.md](docs/GLOSSARY.md)                                                   |
 
 ### Entry points by role
 
@@ -547,10 +585,9 @@ This README is the landing page. The deep material lives in
   then [docs/onboarding/COMMON-TASKS.md](docs/onboarding/COMMON-TASKS.md).
 - **Security reviewer** -- [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md),
   [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md),
-  [docs/issues/SECURITY.md](docs/issues/SECURITY.md).
-- **Product / manager** -- [docs/executive-summary.md](docs/executive-summary.md).
-- **Feature work** -- the `CLAUDE.md` in the feature's Domain folder, plus
-  [docs/features/](docs/features/).
+  [docs/production-hardening/](docs/production-hardening/).
+- **Product / manager** -- [docs/status-reports/](docs/status-reports/).
+- **Feature work** -- the `CLAUDE.md` in the feature's Domain folder.
 - **Architecture discussion** -- [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md)
   and [docs/decisions/README.md](docs/decisions/README.md).
 - **Debugging local failures** --
@@ -564,21 +601,25 @@ Sub-project READMEs: [angular/README.md](angular/README.md),
 
 ## Known Issues and Roadmap
 
-Twenty-nine tracked issues across five categories: security, data integrity,
-confirmed bugs, incomplete features, architecture. Start at
-[docs/issues/OVERVIEW.md](docs/issues/OVERVIEW.md). The executive summary at
-[docs/executive-summary.md](docs/executive-summary.md) groups issues by
-severity.
+Work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues) -- 124 open, labelled by `severity/*`,
+`type/*` and `source/*`. That is the single answer to "what is open".
+
+The supporting files are still there and still worth reading, but they no longer record
+status: `docs/runbooks/findings/bugs/` holds the reproduction steps and diagnosis for each
+finding and links its issue, and `docs/production-hardening/` carries the phased security
+and quality programme. Status lives in the issue only, so the two cannot disagree.
 
 Pre-deployment TODOs still open (summary):
 
-- Codecov wiring (the coverage badge above is a placeholder until it is
-  configured; SonarCloud is live and gates new-code coverage on PRs).
+- Set the backend coverage floor in `ci.yml`'s `Coverage: Floors` job. It is
+  deliberately unset, so that job fails until the figure its own first CI run
+  measures is filled in. Codecov is not being wired up; SonarCloud plus that
+  check cover it.
 - Seven Angular XSS advisories blocked on ABP Commercial 10.3+ releases
   becoming available.
 - Polish of the auto-PR workflow and expansion of the disabled
   `doc-check.yml` placeholder.
-- First staging deployment.
+- Staff go-live on the internal LAN environment.
 - Coverage expansion beyond Doctors and Books.
 
 Release history and forward-looking notes: [CHANGELOG.md](CHANGELOG.md).

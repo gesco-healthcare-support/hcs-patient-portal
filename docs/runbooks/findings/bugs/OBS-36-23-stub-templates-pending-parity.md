@@ -2,13 +2,16 @@
 id: OBS-36
 title: 23 of 64 active DB-managed notification templates are TODO stubs with placeholder subject + body
 severity: observation
-status: open
+issue: 572
 found: 2026-05-21 hardening HRD-P10.1
 flow: notification-templates
 component: AppNotificationTemplates DB rows + (per-template phases) parity feature work
 ---
 
 # OBS-36 - 23 stub templates pending parity
+
+> Tracked in [#572](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/572). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 > 2026-05-24: renamed from `OBS-27-23-stub-templates-pending-parity.md` to free `OBS-27` for the invite-email-empty-greeting observation that main concurrently filed during the hardening run.
 
@@ -68,6 +71,7 @@ The 23 stubs likely correspond to feature areas in the OLD app (`P:\PatientPorta
 ## Functional impact
 
 If any of these 23 templates is referenced by a Hangfire job in production:
+
 - Subject in inbox: `[AccessorAppointmentBooked] -- TODO: parity-correct subject` -- looks broken to the recipient.
 - Body text: `Stub body for AccessorAppointmentBooked. Per-feature phases will replace with parity-correct content.` -- clearly placeholder, useless.
 

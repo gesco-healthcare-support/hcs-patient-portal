@@ -18,6 +18,7 @@ remains uncommitted/local.
 ## Verification status
 
 PASS (verified in the rebuilt live stack):
+
 - **Build/boot gate:** full `docker compose up -d --build` from the committed code succeeded
   (exit 0) -- backend + Angular both compiled clean (incl. the new migration, the
   AppointmentsAppService change, and the Angular auto-approve change which also passed
@@ -31,6 +32,7 @@ PASS (verified in the rebuilt live stack):
   only AME / IME / Panel QME.
 
 BLOCKED (could not complete -- environment, not code):
+
 - **F1/F2, F3, F4 end-to-end UI verification** was interrupted by repeated Docker Desktop
   engine crashes (the `docker-desktop` WSL2 VM died 3 times -- once during the rebuild, twice
   shortly after the stack started serving requests). The engine recovered each time via a

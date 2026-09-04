@@ -46,7 +46,7 @@ Internal users do not see a Back button.
 
 ## 3. Page Header
 
-```
+```text
 New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset][Back]
 ```
 
@@ -60,7 +60,7 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 
 ## 4. Section 1: Appointment Details
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Appointment Details                      |
 +-----------------------------------------------+
@@ -77,28 +77,34 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 ### Field details (Section 1)
 
 **Appointment Type (required):**
+
 - `formControlName="appointmentTypeId"`
 - Select from `appointmentTypeLookups` (5 types: PQME=1, AME=2, PQME-REVAL=3, AME-REVAL=4, OTHER=5)
 - `(change)="showRevelForm(userTypeId);AutoJump()"`: triggers REVAL state + scrolls to next field
 
 **Confirmation Number (REVAL only):**
+
 - `*ngIf="isRevolutionForm"` (true when PQME-REVAL or AME-REVAL selected)
 - `formControlName="requestConfirmationNumber"`, placeholder "Confirmation Number"
 - Search button: `[disabled]="!isValidRevelForm()"` -> `getRevelAppointmentForm()` which loads the original appointment and prefills the entire form
 
 **Panel Number:**
+
 - Two variants: `*ngIf="isReadOnlyPanelNumber"` (disabled) / `*ngIf="!isReadOnlyPanelNumber"` (editable)
 - `isReadOnlyPanelNumber` is set when loading a REVAL form (panel number carried from original)
 
 **Location (required):**
+
 - Select from `doctorPreferredLocationLookUp` (locations the doctor serves for this appointment type)
 - `(change)="getTimeSlotByLocation();AutoJump()"`: fetches available time slots filtered by location
 
 **Responsible User (internal only):**
+
 - `*ngIf="isResponsibleMemberShow"` -- visible to internal users only (Intake Staff booking on behalf)
 - Select from `appointmentLookupGroup.internalUserNameLookUps`
 
 **Appointment Date (required, conditional):**
+
 - `*ngIf="checkForAppointmentTypeSelected"` -- shown after Appointment Type + Location are selected
 - Custom date picker (`rx-date`) with 3-month view
 - `[datesAvailable]="datesAvailable"` -- available slots highlighted in green
@@ -107,6 +113,7 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 - `(onSelected)="getDoctorsAvailabilities($event)"` -- fetches time slots for selected date
 
 **Appointment Time (required, conditional):**
+
 - `*ngIf="showDoctorAvailabity"` -- shown after Appointment Date is selected and slots exist
 - Select from `doctorsAvailabilitiesLookUps` (time slots for selected date+location)
 - Value: `doctorsAvailabilityId`, display: `appointmenTime` (typo in OLD -- keep in proxy binding)
@@ -116,7 +123,7 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 
 ## 5. Section 2: Patient Demographics
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Patient Demographics                     |
 +-----------------------------------------------+
@@ -140,65 +147,78 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 All fields are under `formGroupName="patient"`.
 
 **Last Name, First Name, Middle Name (required):**
+
 - `type="text"`, standard form controls
 
 **Gender (required):**
+
 - Radio group from `appointmentLookupGroup.genderLookUps`
 - `applicationObjectId` / `applicationObjectName` properties
 
 **Date of Birth (required):**
+
 - `rx-date` picker, placeholder "MM/DD/YYYY"
 - `(blur)="checkDateValidation($event)"` + `(onSelected)="checkDateValidation($event)"`
 - Validates patient is not in the future; sets age-related fields
 
 **Email (required):**
+
 - `[readonly]="isPatient && userRoleId != roleEnum.ITAdmin"`
 - When booked by a Patient, their own email pre-fills and is read-only
 - IT Admin can override the email even for Patient bookings
 
 **Cell Phone Number (required):**
+
 - `rx-mask` with mask "999-999-9999", formControlName `cellPhoneNumner` (typo in OLD -- keep for proxy)
 
 **Phone Number + Phone Number Type:**
+
 - `rx-mask` with mask "999-999-9999"
 - Radio group from `appointmentLookupGroup.phoneNumberTypeLookUps` (Home, Work, Mobile)
 - `(change)="phoneNumberTypeValidation(appointmentFormGroup)"` toggles validation on Phone
 - `(onComplete)="selectPhoneNumberType()"` sets type when phone is completed
 
 **Social Security # (optional):**
+
 - `rx-mask` with mask "999-99-9999"
 
 **Street, Unit #, City, State, Zip:**
+
 - Standard address fields. Street is `<textarea>`.
 - State is a `<select>` from `appointmentLookupGroup.statesLookUps`
 - Zip: `rx-mask` mask "99999"
 
 **Language (required):**
+
 - Select from `appointmentLookupGroup.languageLookUps`
 - `(change)="$event.target.value==7 ? otherLanguage(true) : otherLanguage(false)"` -- language ID=7 triggers the other-language name field
 
 **Language Name (conditional):**
+
 - `*ngIf="appointmentFormGroup.value.patient.isOther"` (set when language=7 "Other")
 - `formControlName="othersLanguageName"`, placeholder "Language Name"
 
 **Interpreter question (required):**
+
 - Label changes by role: "Do you need an interpreter?" (Patient) vs "Does the patient need an interpreter?" (other roles)
 - Radio: Yes / No
 - `(change)="setValidator(true/false)"` adds/removes validation on Interpreter Vendor field
 - `isInterpreter` property tracks current value
 
 **Interpreter Vendor (conditional):**
+
 - `*ngIf="appointmentFormGroup.value.patient.isInterpreter"`
 - `formControlName="interpreterVendorName"`, placeholder "Interpreter Vendor"
 
 **Referred By (optional):**
+
 - `formControlName="referredBy"`, placeholder "Referred By"
 
 ---
 
 ## 6. Section 3: Employer Details
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Employer Details                         |
 +-----------------------------------------------+
@@ -223,7 +243,7 @@ The most complex section. Uses an in-page Bootstrap modal (`#myModal`) rather th
 a separate popup dialog. The main page shows a summary table of added injuries;
 clicking "Add +" or "Edit Claim" opens the modal overlay.
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Claim Information        [Add + button]  |
 |   "Please add injury and body part details"   |  <- warning if isInjuryDetailExist
@@ -236,7 +256,7 @@ clicking "Add +" or "Edit Claim" opens the modal overlay.
 
 The Bootstrap modal (`#myModal`) contains:
 
-```
+```text
 +-----------------------------------------------+
 | [Modal] Claim Information               [X]  |
 | --- Claim Info sub-card ---                  |
@@ -264,36 +284,45 @@ The Bootstrap modal (`#myModal`) contains:
 ### Field details (Section 4)
 
 **Cumulative Trauma Injury:**
+
 - Radio: Yes (`[value]="true"`) / No (`[value]="false"`, pre-checked)
 - `(change)="isCumulativeTraumaInjury(true/false)"` -- toggling shows/hides "To Date" field
 
 **Date Of Injury / From Date:**
+
 - Label changes: "Date Of Injury" (non-cumulative) or "From Date" (cumulative)
 - `rx-date`, `formControlName="dateOfInjury"`
 
 **To Date (conditional):**
+
 - `*ngIf="appointmentInjuryDetailFormGroup.value.isCumulativeInjury"`
 - `formControlName="toDateOfInjury"`
 
 **Claim Number:**
+
 - `formControlName="claimNumber"`, placeholder "Claim Number"
 
 **WCAB Office (Venue):**
+
 - Select from `appointmentLookupGroup.wcabofficeLookUps`
 
 **ADJ#:**
+
 - `formControlName="wcabAdj"`, placeholder "ADJ#"
 
 **Body Parts:**
+
 - `<textarea>`, `formControlName="bodyParts"`, placeholder "Body Parts"
 
 **Insurance section (togglable):**
+
 - Header: "Insurance" with toggle switcher
 - `(change)="addValidationForPrimaryInsurance(...)"` adds/removes required validators
 - Disabled when `isAdjusterLogin` (Adjusters cannot edit insurance -- they ARE the examiner)
 - Fields: `name` (Company Name), `attention`, `phoneNumber`, `faxNumber`, `street`, `insuranceNumber` (STE), `city`, `stateId`, `zip`
 
 **Claim Examiner section (togglable):**
+
 - Header: "Claim Examiner" with toggle switcher
 - `(change)="addValidationForClaimExaminer(...)"`
 - Disabled when `isAdjusterLogin`
@@ -301,6 +330,7 @@ The Bootstrap modal (`#myModal`) contains:
 - Fields: `name`, `email`, `phoneNumber`, `fax`, `street`, `claimExaminerNumber` (STE), `city`, `stateId`, `zip`
 
 **Add/Save button:**
+
 - `*ngIf="!isInjuryUpdate"` shows "Add" button -> `addInjury()` pushes a new row into the FormArray
 - `*ngIf="isInjuryUpdate"` shows "Save" button -> `editInjuryDetail()` updates the existing row
 
@@ -312,7 +342,7 @@ The Bootstrap modal (`#myModal`) contains:
 
 Visible only when `showFormBaseOnRole` is true (non-Adjuster roles; TO VERIFY exact condition).
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Additional Authorized User  [Add button] |
 +-----------------------------------------------+
@@ -333,7 +363,7 @@ Visible only when `showFormBaseOnRole` is true (non-Adjuster roles; TO VERIFY ex
 
 Visible only when `showFormBaseOnRole` is true.
 
-```
+```text
 +-----------------------------------------------+
 | [H5] Applicant Attorney Details  [toggle]     |
 +-----------------------------------------------+
@@ -358,7 +388,7 @@ Visible only when `showFormBaseOnRole` is true.
 
 Visible only when `showFormBaseOnRole` is true.
 
-```
+```text
 +-----------------------------------------------+
 | [H5] Defense Attorney Details  [toggle]       |
 +-----------------------------------------------+
@@ -378,7 +408,7 @@ Visible only when `showFormBaseOnRole` is true.
 Visible only when `isCustomeFileds` is true (set when `SystemParameter.IsCustomField == true`
 AND the appointment type has configured custom fields).
 
-```
+```text
 +-----------------------------------------------+
 | [H6] Additional Details                       |
 +-----------------------------------------------+
@@ -416,6 +446,7 @@ AND the appointment type has configured custom fields).
 ## 13. Auto-Scroll (`AutoJump`) Behavior
 
 The form auto-scrolls to the next unanswered field after certain selections:
+
 - After Appointment Type: scroll to Location
 - After Location: scroll to Appointment Date
 - After Appointment Date (time selected): scroll to Patient Demographics
@@ -428,6 +459,7 @@ This is a UX quality-of-life feature in OLD using `document.querySelector(...).s
 ## 14. REVAL Form Pre-Fill
 
 When Appointment Type = PQME-REVAL (3) or AME-REVAL (4):
+
 1. `isRevolutionForm = true` -- shows Confirmation Number field + Search button
 2. User enters original appointment's `requestConfirmationNumber`
 3. Clicks "Search" -> `getRevelAppointmentForm()` calls backend to load original

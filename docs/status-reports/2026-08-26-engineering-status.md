@@ -10,7 +10,7 @@
 | Repository                    | `gesco-healthcare-support/hcs-patient-portal` (**public**)                                                                                        |
 | `origin/main` at audit        | `bc4f2029` -- `docs(requirements): close two open requirement questions (#487)`                                                                |
 | `origin/development` at audit | `8695cd72` -- `ci(sync): promote main to development (#467)`, 2026-08-25                                                                       |
-| Deployed (LAN box)            | `development @ 8695cd72`, containers rebuilt 2026-08-25. **Not re-verified in this pass** -- see [Unverified](#what-this-audit-did-not-verify) |
+| Deployed (LAN box)            | `development @ 8695cd72`, containers rebuilt 2026-08-25. **Not re-verified in this pass** -- see [Unverified](#11-what-this-audit-did-not-verify) |
 | Method                        | `git`, `gh` (PRs, runs, alerts, branch protection), SonarCloud public API, direct file reads                                                   |
 
 ---
@@ -26,7 +26,7 @@
 | Backend tests                      | **2,261 executed** -- 2,244 pass, 16 skipped, **1 failing (flaky)** |
 | Frontend tests                     | **581 executed, 581 pass**                                          |
 | SonarCloud quality gate            | **ERROR (failing)**                                                 |
-| Coverage (SonarCloud)              | **52.2%** -- backend only, see [4.1](#41-sonarcloud)                |
+| Coverage (SonarCloud)              | **52.2%** -- backend only, see [5.1](#51-sonarcloud)                |
 | CodeQL open alerts                 | **23** (3 high, 20 medium)                                          |
 | OpenSSF Scorecard open alerts      | **109**                                                             |
 | Dependabot open alerts             | **88** (1 critical, 43 high, 37 medium, 7 low) -- all npm           |
@@ -115,7 +115,7 @@ lines over 17,464 file-changes** (inflated by generated ABP proxy code and lockf
 
 `main` is effectively single-author across four git identities:
 
-```
+```text
 483  Adrian <adriang@gesco.com>
 311  AdrianG <arajeev@gesco.com>
  91  Adriang <arajeev@gesco.com>
@@ -153,7 +153,7 @@ the box is updated by hand over SSH. There is **no CD**.
 
 **Branch protection on `main` is thin.** `gh api .../branches/main/protection`:
 
-```
+```text
 strict (up-to-date required): true
 REQUIRED CHECKS (2):
    - Backend: Build
@@ -185,7 +185,7 @@ since set `TreatWarningsAsErrors=true` repo-wide, so the separate informational
 | `security.yml`   | last 10 weekly | green since 2026-07-27; failed 2026-06-22, 06-29, 07-06, 07-20 |
 
 Of the 6 `ci.yml` failures, **2 were on `main`** (the cascade PRs of 2026-08-23 and 2026-08-25).
-Both failed the same way -- see [6.1](#61-one-flaky-backend-test).
+Both failed the same way -- see [6.1](#one-flaky-backend-test).
 
 ---
 
@@ -336,7 +336,7 @@ Domain 528, EFCore 130); `[Theory]` expansion accounts for the difference.
 `MultiOfficeAppointmentChildCascadeTests.Copies_custom_field_values` failed on **both** the
 2026-08-23 and 2026-08-25 cascade PRs, identically:
 
-```
+```text
 Microsoft.Data.Sqlite.SqliteException : SQLite Error 19:
 'UNIQUE constraint failed: AppAppointments.TenantId, AppAppointments.RequestConfirmationNumber'
   at ...MultiOfficeAppointmentChildCascadeTests.RunCopyAsync(...):line 286
@@ -356,7 +356,7 @@ Because `Backend: Test` is not a required check, **both failing runs merged anyw
 581 specs across 66 `*.spec.ts` files, 206 `describe` blocks. Latest run:
 `TOTAL: 581 SUCCESS` on Chrome Headless 151. No failures, no skips.
 
-Coverage is collected (`--code-coverage`) but, per [5.1](#41-sonarcloud), excluded from the
+Coverage is collected (`--code-coverage`) but, per [5.1](#51-sonarcloud), excluded from the
 Sonar metric and not published anywhere else. **The frontend has no coverage number.**
 
 `ci.yml:248` still contains a `find src -name "*.spec.ts"` guard that skips the test step
@@ -372,7 +372,7 @@ Riok.Mapperly, Stateless (state machine), QuestPDF, MailKit/MimeKit, MinIO blob 
 
 **Projects** (10 src, 5 test):
 
-```
+```text
 src/  Application, Application.Contracts, AuthServer, DbMigrator, Domain,
       Domain.Shared, EntityFrameworkCore, HttpApi, HttpApi.Client, HttpApi.Host
 test/ Application.Tests, Domain.Tests, EntityFrameworkCore.Tests,
@@ -393,7 +393,7 @@ aggregation. Health check UI state does not survive a restart.
 **Rate limiting** is narrow, not global: `ConfigurePasswordResetRateLimiter` in
 `CaseEvaluationHttpApiHostModule.cs:625` partitions per-email/per-IP fixed windows, applied to
 password reset, public document upload, and external account endpoints. Everything else is
-unthrottled at the app tier, and nginx adds none (see [8](#8-database)).
+unthrottled at the app tier, and nginx adds none (see [9](#9-database)).
 
 ---
 
@@ -464,14 +464,14 @@ is one-way in practice.
    There is no path to production that has ever been exercised. ([2.1](#21-branch-cascade))
 4. **No CD, no deploy automation.** `deploy-dev.yml` does not deploy. The only environment is
    updated by hand over SSH. ([4.0](#40-two-structural-observations))
-5. **31 security hotspots untriaged**, including 9 HIGH csrf/auth. ([5.1](#41-sonarcloud))
+5. **31 security hotspots untriaged**, including 9 HIGH csrf/auth. ([5.1](#51-sonarcloud))
 6. **Frontend has no coverage measurement at all**, and backend sits at 52.2% against an
-   80% gate that does not enforce. ([5.1](#41-sonarcloud), [6.2](#62-frontend))
+   80% gate that does not enforce. ([5.1](#51-sonarcloud), [6.2](#62-frontend))
 7. **253 form inputs without labels.** An accessibility obligation for a public patient-facing
-   portal, not just a lint score. ([5.1](#41-sonarcloud))
+   portal, not just a lint score. ([5.1](#51-sonarcloud))
 8. **Per-tenant migration has no error handling** -- a partial migration leaves offices on
    split schema versions silently. ([9](#9-database))
-9. **One flaky backend test** tied to the 2026-08-21 unique-index change. ([6.1](#61-one-flaky-backend-test))
+9. **One flaky backend test** tied to the 2026-08-21 unique-index change. ([6.1](#one-flaky-backend-test))
 10. **`README.md` overstates the gate** ("SonarCloud ... gates new-code coverage on PRs") and
     badges the wrong Node version.
 

@@ -2,7 +2,7 @@
 id: BUG-045
 title: Internal / auto-approved booking 409s the post-create attorney + claim attach and silently drops Applicant Attorney, Defense Attorney, Claim Examiner, and the entire injury/claim; external (Pending) bookings persist everything
 severity: high
-status: open
+issue: 560
 found: 2026-06-02 (UI-seed population run; live-replicated as supervisor + API-GET-verified)
 flow: appointment-booking (internal / auto-approved path)
 component: angular/src/app/appointments/appointment-add.component.ts (post-create attach calls); src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs (UpsertApplicantAttorneyForAppointmentAsync, UpsertDefenseAttorneyForAppointmentAsync, injury-details create); src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs (CreateAsync internal auto-approve fast-path that stamps AppointmentApproveDate / sets initial Status=Approved)
@@ -10,6 +10,9 @@ parity: data-loss regression -- OLD persisted attorney + claim for staff-entered
 ---
 
 # BUG-045 - Internal auto-approved booking drops attorney + claim via a post-create 409
+
+> Tracked in [#560](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/560). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
@@ -32,12 +35,14 @@ synthetic data.
 ## Evidence
 
 Browser console at submit:
-```
+
+```http
 POST /api/app/appointments/{id}/applicant-attorney  -> 409 Conflict
 ```
 
 API container log at the same moment:
-```
+
+```text
 [17:37:28 WRN] ... Volo.Abp.Data.AbpDbConcurrencyException:
   The database operation was expected to affect 1 row(s), but actually
   affected 0 row(s); data may have been modified or deleted since
@@ -45,11 +50,13 @@ API container log at the same moment:
 ```
 
 Post-hoc API GETs against A00001 (data-loss confirmed):
-```
+
+```http
 GET /api/app/appointments/{id}/applicant-attorney  -> 204 (empty)
 GET /api/app/appointments/{id}/defense-attorney    -> 204 (empty)
 GET /api/app/appointment-injury-details/by-appointment/{id} -> [] (empty)
 ```
+
 PERSISTED: appointment core (QME / date / time / location), patient
 (name + SSN), employer. DROPPED: applicant attorney, defense attorney,
 claim examiner, claim number, body parts, insurance.
@@ -59,11 +66,13 @@ claim examiner, claim number, body parts, insurance.
 Booking the SAME fully-populated appointment as an EXTERNAL user
 (`patient@falkinstein.test`) -> appointment `df7b3474-...` -> the attach
 calls returned cleanly:
-```
+
+```http
 POST /api/app/appointments/{id}/applicant-attorney  -> 204
 POST /api/app/appointments/{id}/defense-attorney    -> 204
 POST /api/app/appointment-injury-details            -> 200
 ```
+
 No concurrency exception; attorney + claim fully persisted and visible on
 the view. External bookings land **Pending** (no auto-approve).
 

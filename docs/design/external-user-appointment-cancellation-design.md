@@ -45,7 +45,7 @@ no dedicated route. NEW preserves the modal pattern:
 
 ### Cancel modal (statusId == Cancelled branch)
 
-```
+```text
 +--------------------------------------------------------+
 |  Cancellation Request                          [X]     |
 |  Please provide a reason for the cancellation request. |
@@ -80,7 +80,7 @@ with the verbatim OLD message "You cannot cancel or reschedule an
 appointment within {N} days of the appointment date." (cite Phase 15
 impl in parity audit).
 
-```
+```text
 +---------------------------------------------+
 |  Validation                              [X] |
 +---------------------------------------------+
@@ -215,7 +215,7 @@ preserved.
 
 ## 11. OLD source citations (consolidated)
 
-```
+```text
 - patientappointment-portal/src/app/components/appointment-request/appointment-change-requests/add/appointment-change-request-add.component.html
 - patientappointment-portal/src/app/components/appointment-request/appointment-change-requests/add/appointment-change-request-add.component.ts
 - patientappointment-portal/src/app/components/appointment-request/appointment-change-requests/add/appointment-change-request-add.service.ts

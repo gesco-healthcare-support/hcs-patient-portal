@@ -15,6 +15,7 @@ IdentityUser), and self-service profile for the logged-in patient.
 ## Entity shape
 
 See `Patient.cs` for all fields. Key structural facts:
+
 - `SocialSecurityNumber` is `string? [max 20]`, stored plaintext (PII; see SSN gotcha).
 - `RefferedBy` is `string? [max 50]` -- the typo propagates to the DB column name; fixing it
   requires a migration.
