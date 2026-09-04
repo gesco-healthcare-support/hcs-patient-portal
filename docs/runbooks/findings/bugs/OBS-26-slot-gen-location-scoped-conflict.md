@@ -2,13 +2,16 @@
 id: OBS-26
 title: Slot-gen UI rejects overlapping time windows at same location across different AppointmentTypes
 severity: observation
-status: open
+issue: 563
 found: 2026-05-23 hardening HRD-P0 (combo 2)
 flow: slot-generation
 component: src/HealthcareSupport.CaseEvaluation.Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs GeneratePreviewAsync (conflict check ~lines 320-363)
 ---
 
 # OBS-26 - Slot conflict check is location-scoped, not type-scoped
+
+> Tracked in [#563](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/563). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

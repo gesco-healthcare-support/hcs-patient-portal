@@ -2,13 +2,16 @@
 id: OBS-32
 title: When attorney logs in to book, AA section prefills ATTORNEY NAME with first name only (not full name)
 severity: observation
-status: open
+issue: 569
 found: 2026-05-23 hardening HRD-P3.2
 flow: booking-form-prefill
 component: angular/src/app/appointments/appointment-add.component.ts (currentUser-to-AA-section binding)
 ---
 
 # OBS-32 - AA section prefill uses only first name
+
+> Tracked in [#569](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/569). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
