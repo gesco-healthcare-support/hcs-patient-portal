@@ -32,6 +32,8 @@ each key. The "Deployed location" column names the variable in that file.
 | Case Tracker tokens | `.env` at repo root | `CASE_TRACKER_INTAKE_TOKEN` (issued to us), `CASE_TRACKER_INTEGRATION_TOKEN` (issued by us) | gitignored |
 | TLS wildcard cert + key | `scripts/hosting/gen-local-certs.sh` (mkcert) | `TLS_CERT_PATH`, `TLS_KEY_PATH`, pointing at files under `secrets/` | `secrets/` gitignored |
 
+**Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).
+
 ### What `STRING_ENCRYPTION_PASSPHRASE` actually protects
 
 Nothing persisted in the database is encrypted with it **in this codebase**. No entity
@@ -58,8 +60,6 @@ startup outside Development if `ConnectionStrings:Default`,
 `App:SelfUrl` is blank or still a placeholder, plus `AuthServer:CertificatePassPhrase` when
 a signing certificate is required. It names the offending keys and deliberately does not
 print their values.
-
-**Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).
 
 ---
 
@@ -114,9 +114,24 @@ and signs every user out.
 ## Gaps
 
 1. **No secret rotation runbook.** If any secret is exposed, there is no documented process for rotating it and invalidating cached tokens / sessions.
-2. **PFX certificate rotation.** After SEC-01 remediation, the signing cert should be regenerated to invalidate any copies derived from the historical password. Not yet done.
+2. **PFX certificate rotation -- CLOSED for production (2026-07-15).** This gap predates the
+   server rollout and no longer applies to the deployed environment. `secrets/openiddict.pfx` on
+   the server was generated fresh on the box via `scripts/hosting/gen-openiddict-cert.sh`, from an
+   `AUTHSERVER_CERT_PASSPHRASE` generated on the box and never committed. No `.pfx` file has ever
+   been committed to this repository, so the historically exposed passphrase opens nothing that
+   exists. **Do not regenerate the production certificate** -- the same PFX serves as both the
+   OpenIddict signing and encryption certificate, so replacing it invalidates every issued token
+   and signs every user out. Local development certificates generated before 2026-07 are dev-only
+   and gitignored.
 3. **No secret store, and a single copy.** There is no Azure Key Vault / AWS Secrets Manager integration and no company vault. `secrets/env.prod` on the server is effectively the only copy of the deployed secrets, with no rotation process and no access audit.
-4. **Historical git commits still contain secrets.** SEC-01 calls this out; history rewrite (`git filter-repo` or similar) required to scrub.
+4. **Historical git commits still contain secrets.** The initial commit carried real values for
+   `AuthServer:CertificatePassPhrase` and `StringEncryption:DefaultPassPhrase`; both are
+   placeholders on `main` today, but the originals remain in history and this repository is public.
+   Residual risk is low rather than nil: the SQL SA password and the OpenIddict passphrase were
+   both replaced during the 2026-07 server rollout, and the string-encryption passphrase protects
+   nothing persisted (see above). A `git filter-repo` scrub is still wanted and is **deliberately
+   deferred** -- rewriting history invalidates every open branch, PR and the server checkout, so it
+   is scheduled for a point when no epic is in flight. Rotate rather than wait.
 
 ---
 
