@@ -6,7 +6,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { AuthService } from '@abp/ng.core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { performFullLogout } from '../../auth/full-logout';
@@ -107,14 +106,19 @@ export class AppHttpErrorComponent {
   /**
    * Session-timeout CTA. The post-login redirect guard already sends anonymous
    * users to AuthServer before any API call, so a 401 reaching this screen is
-   * an expired mid-session token. Clear all client session state, then start a
-   * fresh login. navigateToLogin redirects the browser, so the overlay does not
-   * need an explicit dismiss.
+   * an expired mid-session token.
+   *
+   * 1.8b (2026-09-01) -- this is the LIVE TRIGGER for the silent sign-out defect: a 401
+   * here means the stored token is gone, which is exactly the state in which
+   * `revokeTokenAndLogout()` used to early-return without redirecting. The old code
+   * compensated with a chained `AuthService.navigateToLogin()`, which sent the browser to
+   * the AuthServer while its SSO cookie was still live -- so the user was silently signed
+   * back in. `performFullLogout` now drives the end-session redirect itself, and that flow
+   * already lands on `/Account/Login`, so the chained call is gone: it would be a second
+   * navigation racing the first.
    */
   private signIn(): void {
-    void performFullLogout(this.injector).then(() =>
-      this.injector.get(AuthService).navigateToLogin(),
-    );
+    void performFullLogout(this.injector);
   }
 
   private goHome(): void {

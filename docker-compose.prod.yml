@@ -24,9 +24,31 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "5"
 
+# IMAGE VERSIONS ARE PINNED TO WHAT IS ACTUALLY DEPLOYED (item 2.14, 2026-09-04).
+# Read from the running stack, not from a registry.
+#
+# Three of these were floating: `minio/minio:latest`, `minio/mc:latest` and
+# `mcr.microsoft.com/mssql/server:2022-latest`. A `docker compose pull` could
+# therefore change the object store or the database engine with no commit, no
+# review and no way to say afterwards what had been running.
+#
+# Explicit VERSION tags rather than digests, and the short `-alpine` form rather
+# than `-alpine3.x`: the aim is a reproducible deploy, not a freeze, so base-OS
+# security rebuilds should still arrive.
+#
+# THESE RECORD REALITY, THEY DO NOT IMPROVE IT. Redis is 2 patch releases behind
+# current and nginx 3; MinIO and its client are already current. Catching the two
+# stale ones up is a separate, deliberate change, not a side effect of this one.
+
 services:
   sql-server:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  # 2022-CU25-GDR2 is the SECURITY-ONLY servicing branch, not a cumulative
+  # update: build 16.0.4262.2 sits BETWEEN CU25 (16.0.4255.1) and CU26
+  # (16.0.4265.3), which is why it does not appear among the CU tags. Pinning to
+  # whatever `2022-latest` means today would not have been an upgrade -- it would
+  # have moved the database off the security-only branch onto the cumulative
+  # branch, silently, from a commit whose purpose was to stop things moving.
+    image: mcr.microsoft.com/mssql/server:2022-CU25-GDR2-ubuntu-22.04
     restart: unless-stopped
     # T6: cap the container so SQL cannot starve the app tier on the 16 GB box.
     mem_limit: ${SQL_MEM_LIMIT:-10g}
@@ -53,7 +75,7 @@ services:
       start_period: 30s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.9-alpine
     restart: unless-stopped
     mem_limit: 512m
     # AOF persistence: the DataProtection keyring (login + email-confirmation tokens,
@@ -70,7 +92,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     mem_limit: 1g
     command: server /data --console-address ":9001"
@@ -92,7 +114,7 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
@@ -348,7 +370,12 @@ services:
       start_period: 10s
 
   reverse-proxy:
-    image: nginx:alpine
+    # Deliberately NOT the same version as the digest pinned in
+    # angular/Dockerfile (1.31.5). That one is a build input for an image
+    # rebuilt on every deploy; this one is a container that gets PULLED, so
+    # moving it would restart the only public-facing service on a version it
+    # has never run. Aligning them is a separate decision.
+    image: nginx:1.31.2-alpine
     restart: unless-stopped
     mem_limit: 256m
     environment:

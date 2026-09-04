@@ -9,27 +9,104 @@ Ordinary RPE plans still belong in `docs/plans/` and stay gitignored. This is a 
 a living programme record, not a spec that dies when its work ships.
 
 Branch `feat/production-hardening`, worktree `C:/src/patient-portal/feat-production-hardening`,
-created off `main` at `a5234d25` on 2026-08-31.
+created off `main` at `5c83553c` on 2026-08-31.
+
+> **Corrected 2026-09-03.** This said `a5234d25`, which is a real commit on `main` (#494) but not
+> this branch's fork point. `a5234d25` was the base of `docs/production-hardening-record`, the
+> branch that carried #496, and it was copied here by mistake. The actual fork point is `5c83553c`
+> (#496, "commit the production hardening execution record").
+>
+> ```bash
+> git merge-base feat/production-hardening origin/main   # -> 5c83553c
+> ```
+>
+> Related loose end, explained so nobody re-investigates it: `origin/docs/production-hardening-record`
+> shows as contained in no branch because it was squash-merged, so its original SHA is not an
+> ancestor of `main`. That is expected. **Branches are not deleted here without explicit approval.**
 
 ## Progress
 
 Update this table as each phase closes. It is the first thing a successor will read.
 
-| Phase                    | Status             | Landed                     | Baseline delta                |
-| ------------------------ | ------------------ | -------------------------- | ----------------------------- |
-| 1 Blockers               | NOT STARTED        | --                         | --                            |
-| 2 Enforcement            | NOT STARTED        | --                         | --                            |
-| 3 Critical-path coverage | NOT STARTED        | --                         | --                            |
-| 4 CodeQL sensitive-info  | NOT STARTED        | --                         | --                            |
-| 5 Security hotspots      | NOT STARTED        | --                         | --                            |
-| 6 Dependencies           | NOT STARTED        | --                         | --                            |
-| 7 Rule families          | NOT STARTED        | --                         | --                            |
-| 8 Coverage expansion     | NOT STARTED        | --                         | --                            |
-| 9 System design intake   | TRIAGE IN PROGRESS | report received 2026-08-31 | 4 claims refuted, 3 confirmed |
+| Phase                    | Status                                                        | Landed                                                                                  | Baseline delta                                                                                                          |
+| ------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1 Blockers               | **COMPLETE (7/7)**                                            | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b, dc134222, e91be9f1, df705ad8          | 5 of 6 flagged were false alarms; 3 real defects found UNFLAGGED. See the closing note.                                 |
+| 2 Enforcement            | **COMPLETE (12/12)** -- 9 merged, 2.1 cancelled, 2.5 deferred | #514, #518, #516, #519, #529, #530, #532, #534, #538; 2.11 applied as branch protection | Anti-gate settings **11 -> 5**. 17 checks now REQUIRED on all four branches. Coverage honestly measured on both stacks. |
+| 3 Critical-path coverage | NOT STARTED -- research done, see the note below              | --                                                                                      | Researched 2026-09-04: **no test asserts the tenant resolver chain** (0 of 323 backend test files).                     |
+| 4 CodeQL sensitive-info  | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 5 Security hotspots      | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 6 Dependencies           | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 7 Rule families          | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 8 Coverage expansion     | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 9 System design intake   | TRIAGE IN PROGRESS                                            | report received 2026-08-31                                                              | 4 claims refuted, 3 confirmed                                                                                           |
 
-**Open decision blocking phase 2:** the SonarCloud new-code coverage gate is set to 80% and is
-currently admin-overridden on every PR. It must be either enforced at 80% or lowered to a threshold
-that will be respected. See [02-enforcement.md](02-enforcement.md) 2.1.
+## TRIGGER: when 2.13, 2.14 and phase 3 close, RE-RUN THE SWEEP IMPORT -- see issue #672
+
+**Work tracking moved to GitHub Issues on 2026-09-04.** Phases 1-3 were deliberately EXCLUDED from
+that import because this epic had them in flight; only phases 4+ became issues, under milestones
+`Hardening phase N`.
+
+**Roughly 200 static-analysis findings are held back because this epic owns their paths.** They are
+tracked NOWHERE until released:
+
+| Paths held                             | Findings | Released by     |
+| -------------------------------------- | -------- | --------------- |
+| `test/`, `tests/`                      | 93       | phase 3         |
+| `scripts/`, `docker/`, `**/Dockerfile` | 104      | item 2.14       |
+| `.github/`                             | 54       | items 2.2 / 2.6 |
+| Angular build config                   | a few    | item 2.13       |
+
+**`gh issue view 672` recovers the full procedure.** It lives on GitHub precisely so it cannot be lost
+to a compaction in any session. Counts above were measured 2026-09-04 and move as work lands --
+**re-derive them rather than trusting this table.**
+
+**Two things that are easy to get wrong:**
+
+- **`.github/` is gated separately** by 2.2 / 2.6, so it can be released on its own without waiting
+  for phase 3.
+- **"2.14 is done" does NOT mean those directories are clean.** Completing it fixes the PINNING
+  alerts in `scripts/` and the Dockerfiles; the ordinary findings that also live there -- shell code
+  smells, clear-text protocol warnings -- are untouched. Closing the item unblocks the paths; it does
+  not clear them. That is the whole reason the re-run matters.
+
+The import script is `scripts/maintenance/import-issues.py` on `chore/issue-import`, **PR #671, open
+and ungated -- Adrian decides that merge.** If he declines it, #672 needs rewriting rather than
+silently becoming unactionable; flag it to him rather than assuming.
+
+**Two items were opened OUT of phase 2 and are not part of its 12:** **2.13** (instrument the Angular
+sources coverage could not see -- merged `1ca6c078`, front-end floor 69 -> 20) and **2.14** (container
+images, `curl | bash`, npm/pip). Both are in `02-enforcement.md`.
+
+**Read the phase 1 delta carefully -- the BLOCKER count is a bad proxy for progress here.** It stands
+at 5, down from 6, and that single drop was a False Positive marking, not a defect repaired. All six
+are now triaged: **five issues (four distinct findings, since the PowerShell pair is one false
+positive twice) were false alarms, and exactly ONE was a real defect.** In one case -- the packet
+renderer -- doing what the scanner asked would have broken PDF generation.
+
+The count will barely move as this phase closes, for two reasons that are both correct: dismissals
+need an administrative marking that is batched to the end, and 1.2's issue stays open by design
+because its rule fires on a code pattern that was made safe rather than removed. Anyone reading a
+falling BLOCKER count as defects repaired will draw the wrong conclusion about this epic --
+the triage log is the only honest ledger of what was real. See [00-triage-log.md](00-triage-log.md).
+
+**The phase 1 denominator has changed twice, and neither change was an item quietly disappearing.**
+7 -> 8 when 1.8 was added, spawned by 1.3's research rather than by a scanner. Then 8 -> 7 on
+2026-09-01 when **1.6 was moved out of the epic entirely** by Adrian's decision -- it became its own
+piece of work on `main`, written up at
+[`docs/security/SESSION-KEY-ENCRYPTION.md`](../security/SESSION-KEY-ENCRYPTION.md). 1.6 was a REAL
+finding; it left because fixing it requires designing certificate custody and a loss-recovery
+override, which is a design exercise rather than a hardening task. Section 1.6 in
+[01-blockers.md](01-blockers.md) is kept as a pointer rather than deleted, so the trail survives.
+
+**The SonarCloud coverage-gate decision is CLOSED (2026-09-02) and phase 2 is not blocked.** This
+paragraph previously said the 80% new-code gate was "the open decision blocking phase 2". Adrian
+ruled: **the 80% threshold stays and must not be changed.** A separate, version-controlled CI
+coverage check is being built instead -- [02-enforcement.md](02-enforcement.md) item **2.10**. The
+cancelled design and the three reasons it was wrong are recorded under item **2.1**.
+
+**Phase 2's live blockers are two decisions, neither of which blocks work:** whether observed-red is
+required for the gates that cannot be cheaply poisoned, and the precondition on the `production`
+branch requirement. Both are recorded in 02-enforcement.md; work continues around them.
 
 **Phase 9 has no fixed slot.** It runs whenever the external system-design report arrives, takes an
 hour or two of triage, and dissolves its findings into the phases above. It must not interrupt a
@@ -41,7 +118,7 @@ phase in flight, and it is not a reason to reorder -- see
 > "If I setup and have a strong base, the future developers working on this will always follow it
 > and that will lead to less issues in future when this program is in production and way more
 > complex to fix the foundation."
-
+>
 > "It is okay if I cannot complete it all and have to handoff but that is the direction we will go
 > in. [...] it is not necessary that we will fix all of the issues 100%, some of them may be
 > impossible to fix, but I want to fix as many as I can."
@@ -82,17 +159,17 @@ That is a change from the first draft, made because of this question, and it is 
 
 ## Ordering
 
-| #   | Phase                                                       | Items                       | Why here                                                                                       |
-| --- | ----------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | [Blockers](01-blockers.md)                                  | 4 real (of 6 flagged)       | Hours of work, security-relevant, includes an open redirect in the tenancy path                |
-| 2   | [Enforcement](02-enforcement.md)                            | ~5 gates                    | Everything after lands behind a gate rather than in front of one. Highest durability per hour. |
-| 3   | [Critical-path coverage](03-critical-path-coverage.md)      | 5 areas                     | The safety net for phases 4-8. Must precede the dependency bumps.                              |
-| 4   | [CodeQL sensitive information](04-codeql-sensitive-info.md) | 19 alerts, 6 files          | Highest value per unit on a PHI system                                                         |
-| 5   | [Security hotspots](05-security-hotspots.md)                | 31 to review (9 HIGH)       | Review-and-decide, not necessarily fix                                                         |
-| 6   | [Dependencies](06-dependencies.md)                          | 87 patchable of 88          | Now guarded by phase 3                                                                         |
-| 7   | [Rule families](07-rule-families.md)                        | ~1,249 in 100 families      | Bulk. Largest families first; 72% sits in the top 15.                                          |
-| 8   | [Coverage expansion](08-coverage-expansion.md)              | 52.4% -> as high as reached | Open-ended. Degrades gracefully because phase 2 stops backsliding.                             |
-| 9   | [System design intake](09-system-design-intake.md)          | Received 2026-08-31         | No fixed slot. Triage and routing only; findings dissolve into the phases above.               |
+| #   | Phase                                                       | Items                                | Why here                                                                                       |
+| --- | ----------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| 1   | [Blockers](01-blockers.md)                                  | 4 real (of 6 flagged)                | Hours of work, security-relevant, includes an open redirect in the tenancy path                |
+| 2   | [Enforcement](02-enforcement.md)                            | 11 items                             | Everything after lands behind a gate rather than in front of one. Highest durability per hour. |
+| 3   | [Critical-path coverage](03-critical-path-coverage.md)      | 5 areas                              | The safety net for phases 4-8. Must precede the dependency bumps.                              |
+| 4   | [CodeQL sensitive information](04-codeql-sensitive-info.md) | 19 alerts, 6 files                   | Highest value per unit on a PHI system                                                         |
+| 5   | [Security hotspots](05-security-hotspots.md)                | 31 to review (9 HIGH)                | Review-and-decide, not necessarily fix                                                         |
+| 6   | [Dependencies](06-dependencies.md)                          | 87 patchable of 88                   | Now guarded by phase 3                                                                         |
+| 7   | [Rule families](07-rule-families.md)                        | ~1,249 in 100 families               | Bulk. Largest families first; 72% sits in the top 15.                                          |
+| 8   | [Coverage expansion](08-coverage-expansion.md)              | 52.4% (`main`) -> as high as reached | Open-ended. Degrades gracefully because phase 2 stops backsliding.                             |
+| 9   | [System design intake](09-system-design-intake.md)          | Received 2026-08-31                  | No fixed slot. Triage and routing only; findings dissolve into the phases above.               |
 
 Running record of what was NOT fixed and why: [00-triage-log.md](00-triage-log.md).
 
@@ -127,7 +204,7 @@ Re-measure at the end of each phase; these are the numbers to beat.
 
 | Metric                  | Value                                                      |
 | ----------------------- | ---------------------------------------------------------- |
-| Coverage                | 52.4%                                                      |
+| Coverage                | 52.4% (`main` -- the only branch SonarCloud analyses)      |
 | Lines of code           | 116,210                                                    |
 | Sonar issues open       | 1,280 (922 smell / 338 bug / 20 vulnerability)             |
 | Sonar by severity       | 6 BLOCKER / 67 CRITICAL / 496 MAJOR / 387 MINOR / 324 INFO |
