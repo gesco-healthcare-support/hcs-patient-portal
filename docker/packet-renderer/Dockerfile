@@ -16,6 +16,8 @@
 
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
 # that pair is the form Dependabot updates; see .github/dependabot.yml.
+# SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
+# argument for keeping them is with the docker ecosystem entry in that file.
 FROM python:3.12-slim-trixie@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
 # WeasyPrint runtime (Pango / HarfBuzz / fontconfig) + the template font stack + curl (for the

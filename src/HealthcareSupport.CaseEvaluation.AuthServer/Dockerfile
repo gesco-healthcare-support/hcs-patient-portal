@@ -124,6 +124,8 @@ ENTRYPOINT ["sh", "-c", "\
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
 # that pair is the form Dependabot updates; see .github/dependabot.yml for why
 # the sdk build/dev stages above are deliberately left on tags.
+# SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
+# argument for keeping them is with the docker ecosystem entry in that file.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app

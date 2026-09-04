@@ -37,6 +37,16 @@ version: 2
 # security updates at all -- version updates are the ONLY thing that will ever
 # refresh these pins.
 #
+# WHY `image:tag@sha256:digest` AND NOT THE DIGEST ALONE. SonarCloud's
+# docker:S8431 says to use one or the other, and it has half a point: once a
+# digest is present the tag decides nothing, and a tag edited without its digest
+# would read as a lie. Kept anyway, deliberately. A digest-only reference is the
+# form Dependabot handles WORST -- it can produce no pull request at all
+# (dependabot-core#4419) -- so dropping the tag to satisfy the rule would strand
+# the pins this entry exists to keep moving. The tag also tells a reader which
+# release they are looking at, which `@sha256:a4556ed0...` does not. THE DIGEST
+# IS WHAT RESOLVES; if you change one, change both.
+#
 # The seven build- and dev-stage images stay on floating tags by Adrian's
 # decision: they never reach a shipped artefact (each prod stage is a separate
 # FROM that copies only the publish output), so they keep receiving upstream
