@@ -32,9 +32,26 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
 
 # Node + ABP CLI to restore client-side libraries (wwwroot/libs is gitignored).
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+#
+# Node arrives by COPY from an official image, NOT from a downloaded script.
+# This replaced `curl -fsSL https://deb.nodesource.com/setup_22.x | bash -`
+# (Scorecard PinnedDependenciesID / downloadThenRun): that fetched a script from
+# a third party and executed it AS ROOT at build time. Nothing here ships to the
+# prod stage -- it is `FROM aspnet` and copies only /app/publish -- but this
+# stage produces what does ship, so a compromised script could tamper with
+# wwwroot/libs or the publish output. Build integrity, not runtime surface.
+#
+# node:22-bookworm-slim is glibc 2.36; this SDK image is Ubuntu 24.04 / glibc
+# 2.39. glibc is forward-compatible, so a binary built against 2.36 runs on
+# 2.39 -- the reverse would not hold, so do not "upgrade" this to a trixie or
+# noble node tag without re-checking.
+#
+# Verified before shipping: this produces node v22.23.2 / npm 10.9.8, byte-identical
+# to what the setup script installed, so `abp install-libs` sees the same toolchain.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
 ENV PATH="$PATH:/root/.dotnet/tools"
 WORKDIR /src/src/HealthcareSupport.CaseEvaluation.AuthServer
@@ -80,9 +97,13 @@ RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSuppo
 # a compose anonymous volume re-seeds wwwroot/libs from this baked copy, so the
 # ./src bind-mount cannot hide it AND we avoid a slow install-libs writing
 # thousands of small files into a Windows bind-mount on every start.
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+#
+# Node by COPY rather than a piped setup script -- see the note on the build
+# stage for the reasoning and the glibc constraint.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
 ENV PATH="$PATH:/root/.dotnet/tools"
 WORKDIR /app/src/HealthcareSupport.CaseEvaluation.AuthServer
