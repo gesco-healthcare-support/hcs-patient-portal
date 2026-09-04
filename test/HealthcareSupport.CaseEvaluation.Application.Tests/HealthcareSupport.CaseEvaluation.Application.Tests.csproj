@@ -22,6 +22,20 @@
          InternalsVisibleTo works. Test only references the types;
          doesn't boot the module. -->
     <ProjectReference Include="..\..\src\HealthcareSupport.CaseEvaluation.HttpApi.Host\HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj" />
+    <!-- Phase 3 APP-OWN-01 (2026-09-04): the resolver-chain assertion covers BOTH
+         processes, so it needs the AuthServer assembly for InternalsVisibleTo.
+         Same shape as the HttpApi.Host reference above: the test references the
+         type, it does not boot the module.
+
+         EXPECT LOCK-FILE CHURN FROM THIS. The reference pulls OpenIddict in
+         transitively, which rewrites packages.lock.json here and in
+         EntityFrameworkCore.Tests (~443 lines across the two). That is the
+         reference doing its job, not a stray restore.
+
+         It also loads the AuthServer assembly during the test run, so its lines
+         enter the backend coverage denominator, which is why this PR carries the
+         FLOOR_BACKEND re-baseline rather than leaving it to a follow-up. -->
+    <ProjectReference Include="..\..\src\HealthcareSupport.CaseEvaluation.AuthServer\HealthcareSupport.CaseEvaluation.AuthServer.csproj" />
     <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Domain.Tests\HealthcareSupport.CaseEvaluation.Domain.Tests.csproj" />
   </ItemGroup>
 
