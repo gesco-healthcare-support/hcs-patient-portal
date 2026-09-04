@@ -4,8 +4,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Shouldly;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Users;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.MultiTenancy;
@@ -222,6 +224,37 @@ public class HostAwareDomainTenantResolveContributorTests
         context.Handled.ShouldBeFalse();
     }
 
+    // ---- APP-OWN-03: what happens when the token and the hostname disagree ----
+
+    [Fact]
+    public async Task An_office_A_token_presented_to_office_B_resolves_from_the_token()
+    {
+        // CHARACTERIZATION. This records what the system does today. It does NOT say
+        // whether that is correct -- that depends on whether anything downstream
+        // trusts the hostname for authorisation, which is an OPEN QUESTION and is not
+        // settled here, in this name, or in any assertion message below.
+        //
+        // Task 1 (TenantResolverChainTests) asserts CurrentUserTenantResolveContributor
+        // is FIRST in both processes. This asserts what being first means: the two
+        // contributors genuinely disagree about the same request, so order decides.
+        var officeA = Guid.NewGuid();
+        var currentUser = AuthenticatedUserOfOffice(officeA);
+        const string officeBHost = "officeb.auth.portal.example.test";
+
+        var fromToken = BuildResolveContext(officeBHost, currentUser);
+        await new CurrentUserTenantResolveContributor().ResolveAsync(fromToken);
+
+        fromToken.TenantIdOrName.ShouldBe(officeA.ToString());
+
+        // The same request, resolved by the host contributor alone, names office B.
+        // Asserted rather than assumed: without it, "the token wins" would rest on
+        // the belief that the host would have said something different.
+        var fromHost = BuildResolveContext(officeBHost, currentUser);
+        await new HostAwareDomainTenantResolveContributor(ProdAuthFormat).ResolveAsync(fromHost);
+
+        fromHost.TenantIdOrName.ShouldBe("officeb");
+    }
+
     // ---- helpers ----
 
     private static IConfiguration BuildConfiguration(params (string Key, string Value)[] values)
@@ -235,7 +268,13 @@ public class HostAwareDomainTenantResolveContributorTests
         return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
     }
 
-    private static ITenantResolveContext BuildResolveContext(string host)
+    // `currentUser` is OPTIONAL and defaults to not being registered at all, so every
+    // test written before 2026-09-04 behaves exactly as it did. A required parameter
+    // would have touched all 12 of them and made the diff read as a rewrite of a file
+    // whose other tests were not under review.
+    private static ITenantResolveContext BuildResolveContext(
+        string host,
+        ICurrentUser? currentUser = null)
     {
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Host = new HostString(host);
@@ -244,7 +283,29 @@ public class HostAwareDomainTenantResolveContributorTests
         services.AddSingleton<IHttpContextAccessor>(
             new HttpContextAccessor { HttpContext = httpContext });
 
+        if (currentUser is not null)
+        {
+            services.AddSingleton(currentUser);
+        }
+
         return new FakeTenantResolveContext { ServiceProvider = services.BuildServiceProvider() };
+    }
+
+    /// <summary>
+    /// An authenticated caller whose token carries office A's tenant id.
+    ///
+    /// <para>FIRST substitution of <c>ICurrentUser</c> in this test tree, so it is the
+    /// pattern whoever copies it next will follow. Both members are configured
+    /// DELIBERATELY: NSubstitute returns a stub rather than null for unconfigured
+    /// members, so an unconfigured substitute would quietly supply a plausible value
+    /// and a green test would prove nothing about what the contributor read.</para>
+    /// </summary>
+    private static ICurrentUser AuthenticatedUserOfOffice(Guid officeId)
+    {
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.IsAuthenticated.Returns(true);
+        currentUser.TenantId.Returns(officeId);
+        return currentUser;
     }
 
     // The concrete Volo.Abp.MultiTenancy.TenantResolveContext is defined in two
