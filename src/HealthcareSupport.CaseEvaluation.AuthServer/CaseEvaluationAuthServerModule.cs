@@ -501,7 +501,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         context.Services.AddCaseEvaluationAuthServerHealthChecks();
 
-        ConfigureMultiTenancy(configuration);
+        ConfigureMultiTenancy(context, configuration);
     }
 
     /// <summary>
@@ -517,9 +517,28 @@ public class CaseEvaluationAuthServerModule : AbpModule
     /// caller from sending ?__tenant=GUID and switching tenants from the URL
     /// bar. This is HIPAA-relevant: see ADR-006 Context section.
     /// </summary>
-    private void ConfigureMultiTenancy(IConfiguration configuration)
+    /// <remarks>
+    /// <c>internal static</c> so the assembled options can be asserted from
+    /// Application.Tests through this assembly's <c>InternalsVisibleTo</c>, without
+    /// booting the AuthServer. Phase 3 item APP-OWN-01 (2026-09-04).
+    ///
+    /// <para>NOTE: unlike HttpApi.Host -- where 18 <c>Configure*</c> helpers take
+    /// <c>ServiceConfigurationContext</c> and this shape is the local convention --
+    /// this is the ONLY such helper in this module, so the shape is introduced here
+    /// rather than matched. The precedent is cross-module
+    /// (<c>CaseEvaluationHttpApiHostModule.ConfigureUploadLimits</c>), which is worth
+    /// stating plainly rather than implying a convention that does not exist here.</para>
+    ///
+    /// <para>This half matters more than the API half: the AuthServer mints the token
+    /// that <c>CurrentUserTenantResolveContributor</c> later reads, so a framework
+    /// upgrade re-adding a default resolver ON THE LOGIN PATH would otherwise pass
+    /// every test in the repository.</para>
+    /// </remarks>
+    internal static void ConfigureMultiTenancy(
+        ServiceConfigurationContext context,
+        IConfiguration configuration)
     {
-        Configure<AbpTenantResolveOptions>(options =>
+        context.Services.Configure<AbpTenantResolveOptions>(options =>
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
