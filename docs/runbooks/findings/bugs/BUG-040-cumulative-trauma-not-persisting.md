@@ -2,7 +2,7 @@
 id: BUG-040
 title: Cumulative trauma flag and ToDateOfInjury not persisting on booking submit
 severity: medium
-status: open
+issue: 555
 found: 2026-05-14 hardening Phase 3.6
 promoted-from: OBS-15 (2026-05-22)
 flow: booking-claim-information-modal
@@ -10,6 +10,9 @@ component: angular/src/app/appointments/sections/appointment-add-claim-informati
 ---
 
 # BUG-040 — Cumulative trauma flag + ToDateOfInjury not persisting
+
+> Tracked in [#555](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/555). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 > 2026-05-24: renamed from `BUG-036-cumulative-trauma-not-persisting.md` to free `BUG-036` for the packet-generation soft-delete race that main concurrently filed and fixed (`BUG-036-packet-generation-silently-fails-for-some-appointments.md`).
 

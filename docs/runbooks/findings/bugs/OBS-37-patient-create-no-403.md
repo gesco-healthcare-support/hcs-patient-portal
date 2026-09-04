@@ -2,13 +2,16 @@
 id: OBS-37
 title: Patient role POST /api/app/appointments returns 400 (validation), not 403 (permission) -- intentional or gap?
 severity: observation
-status: open
+issue: 573
 found: 2026-05-25 (Mon AM hardening session, post-#250 merge)
 flow: appointments-create-permission-gate
 component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs + CaseEvaluationPermissions.Appointments.Create
 ---
 
 # OBS-37 - Patient role passes the Create-appointment permission gate
+
+> Tracked in [#573](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/573). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

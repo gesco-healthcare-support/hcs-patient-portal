@@ -2,7 +2,7 @@
 id: BUG-038
 title: /appointments/add route is missing permissionGuard; any authenticated user can reach the booking form
 severity: low
-status: open
+issue: 554
 found: 2026-05-14 hardening Phase 3.15 (raised by Adrian)
 promoted-from: OBS-18 (2026-05-22)
 flow: booking-route-guard
@@ -10,6 +10,9 @@ component: angular/src/app/app.routes.ts:113-117 (path/lineno corrected from doc
 ---
 
 # BUG-038 - /appointments/add reachable by ANY authenticated user (defense-in-depth gap)
+
+> Tracked in [#554](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/554). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 > **Promoted from OBS-18 on 2026-05-22.** Server-side authorization is in place (`AppointmentsAppService.CreateAsync` at `src/.../Application/Appointments/AppointmentsAppService.cs:534-536` carries both `[Authorize]` and `[Authorize(CaseEvaluationPermissions.Appointments.Create)]`, with the same pattern at lines 544-545 and 561-562). So the *security* posture is OK -- POST `/api/app/appointments` 403s for users without the Create permission. The remaining gap is **defense-in-depth UX**: deep-linking to `/appointments/add` renders the SPA form for any authenticated user, then the submit fails with a 403, which is a poor UX vs. the consistent 403-page treatment every other create route gets via `permissionGuard`. Promoting to a tracked-bug so it goes through RPE / a focused fix session.
 >

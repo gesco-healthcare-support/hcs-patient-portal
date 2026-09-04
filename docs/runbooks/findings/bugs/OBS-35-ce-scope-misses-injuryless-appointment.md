@@ -2,13 +2,16 @@
 id: OBS-35
 title: Claim Examiner scope filter excludes appointments with no injury row, even when top-level ClaimExaminerEmail matches
 severity: observation
-status: open
+issue: 571
 found: 2026-05-21 hardening HRD-P8.4
 flow: appointment-scope-visibility
 component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs (GetListAsync filter for ClaimExaminer role)
 ---
 
 # OBS-35 - CE scope misses injury-less appointment
+
+> Tracked in [#571](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/571). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 > 2026-05-24: renamed from `OBS-26-...` to free `OBS-26` for the slot-gen-location-scoped-conflict observation that was filed concurrently on main during the hardening run.
 

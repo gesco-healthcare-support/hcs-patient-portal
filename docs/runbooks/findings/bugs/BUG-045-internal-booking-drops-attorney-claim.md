@@ -2,7 +2,7 @@
 id: BUG-045
 title: Internal / auto-approved booking 409s the post-create attorney + claim attach and silently drops Applicant Attorney, Defense Attorney, Claim Examiner, and the entire injury/claim; external (Pending) bookings persist everything
 severity: high
-status: open
+issue: 560
 found: 2026-06-02 (UI-seed population run; live-replicated as supervisor + API-GET-verified)
 flow: appointment-booking (internal / auto-approved path)
 component: angular/src/app/appointments/appointment-add.component.ts (post-create attach calls); src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs (UpsertApplicantAttorneyForAppointmentAsync, UpsertDefenseAttorneyForAppointmentAsync, injury-details create); src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs (CreateAsync internal auto-approve fast-path that stamps AppointmentApproveDate / sets initial Status=Approved)
@@ -10,6 +10,9 @@ parity: data-loss regression -- OLD persisted attorney + claim for staff-entered
 ---
 
 # BUG-045 - Internal auto-approved booking drops attorney + claim via a post-create 409
+
+> Tracked in [#560](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/560). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

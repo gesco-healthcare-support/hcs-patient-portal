@@ -2,13 +2,16 @@
 id: BUG-018
 title: SMTP rate-limit reported as misleading "Configure ACS credentials" warning
 severity: medium
-status: open
+issue: 549
 found: 2026-05-14 during Workflow C approval flow
 flow: notification-emails
 component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Jobs/SendAppointmentEmailJob.cs:104,156
 ---
 
 # BUG-018 — Misleading "Configure ACS credentials" log on SMTP rate-limit
+
+> Tracked in [#549](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/549). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Severity
 

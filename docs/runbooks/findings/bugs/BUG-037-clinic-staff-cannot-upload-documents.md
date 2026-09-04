@@ -2,13 +2,16 @@
 id: BUG-037
 title: Clinic Staff role returns HTTP 403 on POST /api/app/appointments/{id}/documents
 severity: medium
-status: open
+issue: 553
 found: 2026-05-23 hardening HRD-P7.3
 flow: appointment-document-upload
 component: src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/AppointmentDocuments/AppointmentDocumentsController.cs + permission policy
 ---
 
 # BUG-037 - Clinic Staff cannot upload documents to appointments
+
+> Tracked in [#553](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/553). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

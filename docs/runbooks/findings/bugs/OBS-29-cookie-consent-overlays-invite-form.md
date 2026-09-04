@@ -2,13 +2,16 @@
 id: OBS-29
 title: Cookie consent banner overlays /users/invite form on first visit; form unreachable until Accept clicked
 severity: observation
-status: open
+issue: 566
 found: 2026-05-23 hardening HRD-P1.B.2
 flow: cookie-consent-ui
 component: angular/src/app/gdpr-cookie-consent/ (suspected) + global CSS z-index for the consent alert
 ---
 
 # OBS-29 - Cookie consent banner blocks /users/invite form
+
+> Tracked in [#566](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/566). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

@@ -2,13 +2,16 @@
 id: BUG-012
 title: AA/DA registration Firm Name field is server-required but missing `required` attribute client-side
 severity: medium
-status: open
+issue: 547
 found: 2026-05-14
 flow: external-user-registration
 component: AuthServer wwwroot/global-scripts.js (ensureExtraRegisterFields) + Application/ExternalSignups (server validation)
 ---
 
 # BUG-012 — Firm Name client-required attribute missing
+
+> Tracked in [#547](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/547). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Severity
 

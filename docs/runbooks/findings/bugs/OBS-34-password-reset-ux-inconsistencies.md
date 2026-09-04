@@ -2,13 +2,16 @@
 id: OBS-34
 title: Password reset flow UX inconsistencies - false sign-in promise + consumed-token form re-render
 severity: observation
-status: open
+issue: 570
 found: 2026-05-23 hardening HRD-P9.2
 flow: password-reset
 component: src/HealthcareSupport.CaseEvaluation.AuthServer/Pages/Account/ResetPassword.cshtml{,.cs}
 ---
 
 # OBS-34 - Password reset flow has two UX inconsistencies
+
+> Tracked in [#570](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/570). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

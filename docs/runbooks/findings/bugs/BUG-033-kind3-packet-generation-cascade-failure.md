@@ -2,7 +2,7 @@
 id: BUG-033
 title: AbpDbConcurrencyException on first AttyCE-packet send-completion cascades; 3 of 4 subsequent Kind=3 packets never generated
 severity: high
-status: open
+issue: 551
 found: 2026-05-21 hardening HRD-P6.1 + HRD-P6.2
 last-corroborated: 2026-06-02 (UI-seed T6; still OPEN, reproduces at scale -- see corroboration section)
 flow: appointment-packet-generation
@@ -10,6 +10,9 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Pack
 ---
 
 # BUG-033 - Kind=3 (AttorneyClaimExaminer) packet generation cascades to failure
+
+> Tracked in [#551](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/551). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
