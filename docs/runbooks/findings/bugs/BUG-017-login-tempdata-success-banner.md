@@ -2,13 +2,16 @@
 id: BUG-017
 title: Stock Login.cshtml does not render TempData[SuccessMessage]; post-reset banner missing
 severity: low
-status: open
+issue: 548
 found: 2026-05-15 during forgot-password end-to-end testing
 flow: forgot-password / reset-password
 component: stock Volo.Abp.Account.Public.Web Login.cshtml (compiled into the RCL; no local override)
 ---
 
 # BUG-017 — Stock Login Razor page swallows `TempData["SuccessMessage"]`
+
+> Tracked in [#548](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/548). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 > 2026-05-23: renamed from `BUG-021-login-tempdata-success-banner.md` to free `BUG-021` for the earlier-filed datepicker observation. See OBS-33.
 

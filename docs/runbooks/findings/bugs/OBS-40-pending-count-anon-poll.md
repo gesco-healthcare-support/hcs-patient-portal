@@ -2,13 +2,16 @@
 id: OBS-40
 title: Dashboard pending-count polls /api/app/appointments/pending-count when user is logged-out -> 401 spam
 severity: observation
-status: open
+issue: 576
 found: 2026-05-25 (Mon AM hardening, console error survey)
 flow: dashboard-pending-count-widget
 component: angular/src/app/(dashboard or shared layout)/pending-count-poll - exact location TBD
 ---
 
 # OBS-40 - pending-count polls anonymously
+
+> Tracked in [#576](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/576). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

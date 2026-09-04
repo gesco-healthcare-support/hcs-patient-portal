@@ -2,13 +2,16 @@
 id: OBS-38
 title: Existing-patient dropdown on booking form does not prepopulate Date of Birth, even though the patient row has it
 severity: observation
-status: open
+issue: 574
 found: 2026-05-25 (Mon AM hardening, during A00002 QME booking)
 flow: appointment-booking-patient-demographics-prepopulate
 component: angular/src/app/appointments/sections/appointment-add-patient-demographics.component.ts (onExistingPatientSelected handler)
 ---
 
 # OBS-38 - Existing Patient selection skips Date of Birth prepopulate
+
+> Tracked in [#574](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/574). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

@@ -2,7 +2,7 @@
 id: BUG-044
 title: Defense Attorney section is optional via an "Include" toggle; per product decision it must be mandatory in NEW
 severity: medium
-status: open
+issue: 559
 found: 2026-05-27 (userflow audit; product decision by Adrian)
 flow: appointment-booking, appointment-view
 component: angular/src/app/appointments/sections/appointment-add-attorney-section.component.html (Include switch); angular/src/app/appointments/shared/attorney-section-validators.ts (wireAttorneySectionToggle); angular/src/app/appointments/appointment-add.component.ts (defenseAttorneyEnabled); angular/src/app/appointments/appointment/components/appointment-view.component.ts (defenseAttorneyEnabled)
@@ -10,6 +10,9 @@ parity: intentional deviation from OLD (OLD had the toggle; NEW must not)
 ---
 
 # BUG-044 - Defense Attorney section must not be optional
+
+> Tracked in [#559](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/559). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom / decision
 

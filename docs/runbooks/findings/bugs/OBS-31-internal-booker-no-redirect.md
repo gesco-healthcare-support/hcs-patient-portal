@@ -2,13 +2,16 @@
 id: OBS-31
 title: Internal-staff booking via /appointments/add does not redirect after Book; appointment is created silently
 severity: observation
-status: open
+issue: 568
 found: 2026-05-23 hardening HRD-P3.5
 flow: booking-internal-vs-external
 component: angular/src/app/appointments/appointment-add.component.ts (Book button handler)
 ---
 
 # OBS-31 - Internal staff booker: no redirect after successful submit
+
+> Tracked in [#568](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/568). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

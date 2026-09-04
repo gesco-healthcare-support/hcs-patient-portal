@@ -2,7 +2,7 @@
 id: BUG-036
 title: Packet generation silently fails for some approved appointments; Hangfire reports Succeeded but no packets persisted
 severity: medium-to-high (refined 2026-05-23 after deep diagnosis)
-status: open
+issue: 552
 found: 2026-05-23 hardening HRD-P6.1
 diagnosed: 2026-05-23 -- deterministic SQL repro + ABP/EF Core research confirms 3-layer root cause
 last-replayed: 2026-05-23 (A00006 AME approval also generated ZERO packets, same pattern as A00004. So BUG-036 affects multiple types, not just Deposition. Approval emails to all 4 parties still fire correctly via the partial-failure-isolation path; Kind=3 AttyCE packet attachment for AME types is MISSING.)
@@ -11,6 +11,9 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Jobs
 ---
 
 # BUG-036 - Packet generation silently fails on some appointments
+
+> Tracked in [#552](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/552). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

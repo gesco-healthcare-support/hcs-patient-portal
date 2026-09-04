@@ -2,29 +2,64 @@
 
 # Secrets Management
 
-> Purpose: Inventory of secrets, injection points, and operator setup requirements. Audience: developers and operators. Last verified: 2026-06-01 vs main.
+> Purpose: Inventory of secrets, injection points, and operator setup requirements. Audience: developers and operators. Last verified: 2026-09-03 vs main.
 
 > For known security vulnerabilities and remediation status, see [Security Issues](THREAT-MODEL.md).
 
 Inventory of where secrets live, how they are injected, and what is expected of operators. Active remediation items (SEC-01 secret rotation) are tracked in the linked issues file.
 
-**Last verified:** 2026-04-13
+**Last verified:** 2026-09-03
 
 ---
 
 ## Secret Types and Locations
 
-| Secret | Dev location | Prod location (intended) | Git status |
-|---|---|---|---|
-| ABP commercial license code | `appsettings.secrets.json` in AuthServer, HttpApi.Host, DbMigrator, TestBase | GitHub Secret `ABP_LICENSE_CODE`, injected at CI build time | `appsettings.secrets.json` **is gitignored** |
-| ABP NuGet feed API key | `NuGet.Config` (generated from `NuGet.Config.template`) | GitHub Secret `ABP_NUGET_API_KEY`, injected via `sed` in CI | `NuGet.Config` gitignored; template tracked |
-| OpenIddict PFX cert password | `appsettings.Local.json` in AuthServer | Environment variable `AuthServer__Certificate__Password` or Azure Key Vault | `appsettings.Local.json` gitignored |
-| String encryption passphrase | `appsettings.Local.json` in HttpApi.Host | Environment variable `StringEncryption__DefaultPassPhrase` | gitignored |
-| SQL SA password (Docker) | `.env` file at repo root, injected via Compose | Docker secrets or cloud DB connection string | `.env` gitignored; `.env.example` tracked |
-| SQL connection strings | `appsettings.Local.json` | Environment variable `ConnectionStrings__Default` | gitignored |
-| Kestrel cert password (Docker dev) | `.env` interpolated in compose | Not applicable in cloud (TLS termination at load balancer) | `.env` gitignored |
+On the deployed server, **every** secret below is supplied by one file:
+`secrets/env.prod`, mode 600, git-ignored and docker-ignored, passed to Compose via
+`--env-file`. `env.prod.example` at the repo root is the tracked template and documents
+each key. The "Deployed location" column names the variable in that file.
+
+| Secret | Dev location | Deployed location (`secrets/env.prod`) | Git status |
+| --- | --- | --- | --- |
+| ABP commercial license code | `appsettings.secrets.json` in AuthServer, HttpApi.Host, DbMigrator, TestBase | `ABP_LICENSE_CODE` (also a GitHub Secret of the same name, for CI) | `appsettings.secrets.json` **is gitignored** |
+| ABP NuGet feed API key | `NuGet.Config` (generated from `NuGet.Config.template`) | `ABP_NUGET_API_KEY` (also a GitHub Secret, injected via `sed` in CI) | `NuGet.Config` gitignored; template tracked |
+| OpenIddict PFX passphrase | `appsettings.Local.json` in AuthServer | `AUTHSERVER_CERT_PASSPHRASE` -> `AuthServer__CertificatePassPhrase` | `secrets/` gitignored |
+| String encryption passphrase | `appsettings.Local.json` in HttpApi.Host | `STRING_ENCRYPTION_PASSPHRASE` -> `StringEncryption__DefaultPassPhrase` | gitignored |
+| SQL SA password | `.env` at repo root, injected via Compose | `MSSQL_SA_PASSWORD` | `.env` gitignored; `.env.example` tracked |
+| SQL connection strings | `appsettings.Local.json` | Composed from `MSSQL_SA_PASSWORD` in `docker-compose.prod.yml` | gitignored |
+| MinIO root credentials | `.env` at repo root | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | gitignored |
+| SMTP relay credentials | `docker/appsettings.secrets.json` (`Settings:Abp.Mailing.Smtp.*`) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS` -> `Settings__Abp.Mailing.Smtp.*` | gitignored |
+| Case Tracker tokens | `.env` at repo root | `CASE_TRACKER_INTAKE_TOKEN` (issued to us), `CASE_TRACKER_INTEGRATION_TOKEN` (issued by us) | gitignored |
+| TLS wildcard cert + key | `scripts/hosting/gen-local-certs.sh` (mkcert) | `TLS_CERT_PATH`, `TLS_KEY_PATH`, pointing at files under `secrets/` | `secrets/` gitignored |
 
 **Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).
+
+### What `STRING_ENCRYPTION_PASSPHRASE` actually protects
+
+Nothing persisted in the database is encrypted with it **in this codebase**. No entity
+column uses it, `IStringEncryptionService` has no call site in `src/`, and the one setting
+ABP would otherwise encrypt (`Abp.Mailing.Smtp.Password`) is explicitly set to
+`IsEncrypted = false` in `CaseEvaluationSettingDefinitionProvider.cs:175`, with the
+rationale in the comment above it.
+
+Two caveats that keep this a real secret rather than a formality:
+
+- The ABP Commercial modules are closed-source, so it cannot be proven that none of them
+  declares an encrypted setting.
+- ABP ships a **published default passphrase**, so leaving it unset is equivalent to
+  having no secret at all.
+
+Treat it as a value to set deliberately and not to change casually, rather than as a value
+whose loss destroys stored data.
+
+### Fail-fast validation
+
+`HostingConfigValidator` (`src/HealthcareSupport.CaseEvaluation.Domain/Hosting/`) throws at
+startup outside Development if `ConnectionStrings:Default`,
+`StringEncryption:DefaultPassPhrase`, `Redis:Configuration`, `AuthServer:Authority` or
+`App:SelfUrl` is blank or still a placeholder, plus `AuthServer:CertificatePassPhrase` when
+a signing certificate is required. It names the offending keys and deliberately does not
+print their values.
 
 ---
 
@@ -49,9 +84,22 @@ If either secret is absent, the CI step still creates an empty `{}` secrets file
 4. If using Docker Compose, copy `.env.example` to `.env` and fill in `SA_PASSWORD`, `CERT_PASSWORD`, and any other variables.
 5. If using Docker secrets file, copy `docker/appsettings.secrets.json.example` to `docker/appsettings.secrets.json` with ABP license.
 
-### Production (intended; not yet deployed)
+### Deployed server
 
-Secrets must be injected via environment variables or a cloud secret store. Application uses ASP.NET Core configuration providers, which merge environment variables over `appsettings.json` values. Variable naming uses double-underscore for nesting (e.g., `ConnectionStrings__Default`).
+Copy `env.prod.example` to `secrets/env.prod`, fill in every `CHANGE_ME_*`, and `chmod 600`
+it. Every Compose command must then pass `--env-file secrets/env.prod`, or all of these
+resolve to blank strings and the stack is recreated unconfigured. Use
+`scripts/hosting/dc.sh`, which injects the flag and refuses to run without the file.
+
+Secrets reach the app as environment variables. ASP.NET Core configuration providers merge
+those over `appsettings.json`, with double-underscore for nesting (e.g.
+`ConnectionStrings__Default`).
+
+Certificates are generated on the server, never committed: `scripts/hosting/gen-openiddict-cert.sh`
+produces `secrets/openiddict.pfx` from `AUTHSERVER_CERT_PASSPHRASE`. Note that the same PFX
+serves as **both** the OpenIddict signing and encryption certificate
+(`CaseEvaluationAuthServerModule.cs:180`), so regenerating it invalidates every issued token
+and signs every user out.
 
 ---
 
@@ -66,9 +114,24 @@ Secrets must be injected via environment variables or a cloud secret store. Appl
 ## Gaps
 
 1. **No secret rotation runbook.** If any secret is exposed, there is no documented process for rotating it and invalidating cached tokens / sessions.
-2. **PFX certificate rotation.** After SEC-01 remediation, the signing cert should be regenerated to invalidate any copies derived from the historical password. Not yet done.
-3. **No cloud secret store integration.** Azure Key Vault / AWS Secrets Manager integration is not wired. Required before any production deploy.
-4. **Historical git commits still contain secrets.** SEC-01 calls this out; history rewrite (`git filter-repo` or similar) required to scrub.
+2. **PFX certificate rotation -- CLOSED for production (2026-07-15).** This gap predates the
+   server rollout and no longer applies to the deployed environment. `secrets/openiddict.pfx` on
+   the server was generated fresh on the box via `scripts/hosting/gen-openiddict-cert.sh`, from an
+   `AUTHSERVER_CERT_PASSPHRASE` generated on the box and never committed. No `.pfx` file has ever
+   been committed to this repository, so the historically exposed passphrase opens nothing that
+   exists. **Do not regenerate the production certificate** -- the same PFX serves as both the
+   OpenIddict signing and encryption certificate, so replacing it invalidates every issued token
+   and signs every user out. Local development certificates generated before 2026-07 are dev-only
+   and gitignored.
+3. **No secret store, and a single copy.** There is no Azure Key Vault / AWS Secrets Manager integration and no company vault. `secrets/env.prod` on the server is effectively the only copy of the deployed secrets, with no rotation process and no access audit.
+4. **Historical git commits still contain secrets.** The initial commit carried real values for
+   `AuthServer:CertificatePassPhrase` and `StringEncryption:DefaultPassPhrase`; both are
+   placeholders on `main` today, but the originals remain in history and this repository is public.
+   Residual risk is low rather than nil: the SQL SA password and the OpenIddict passphrase were
+   both replaced during the 2026-07 server rollout, and the string-encryption passphrase protects
+   nothing persisted (see above). A `git filter-repo` scrub is still wanted and is **deliberately
+   deferred** -- rewriting history invalidates every open branch, PR and the server checkout, so it
+   is scheduled for a point when no epic is in flight. Rotate rather than wait.
 
 ---
 

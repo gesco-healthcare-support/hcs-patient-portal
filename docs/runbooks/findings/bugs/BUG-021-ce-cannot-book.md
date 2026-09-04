@@ -2,13 +2,16 @@
 id: BUG-021
 title: Datepicker shows all dates disabled while slot fetch is in flight (no loading indicator on day cells)
 severity: low
-status: open-low
+issue: 550
 found: 2026-05-14 hardening Phase 3.14
 flow: booking-form-ux
 component: angular/src/app/appointments/appointment-add.component.ts (markAppointmentDateDisabled)
 ---
 
 # BUG-021 - Datepicker shows all dates disabled during initial slot fetch
+
+> Tracked in [#550](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/550). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Severity downgrade
 

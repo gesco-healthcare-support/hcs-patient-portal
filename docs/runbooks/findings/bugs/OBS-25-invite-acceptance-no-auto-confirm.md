@@ -2,13 +2,16 @@
 id: OBS-25
 title: Invite acceptance does not auto-confirm email; second verification email + click required
 severity: observation
-status: open
+issue: 562
 found: 2026-05-23 hardening HRD-P1.B (reconfirmed; first observed in 2026-05-21 run)
 flow: invite-registration
 component: src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs + InvitationManager.AcceptAsync
 ---
 
 # OBS-25 - Invite-accept does not auto-confirm email
+
+> Tracked in [#562](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/562). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

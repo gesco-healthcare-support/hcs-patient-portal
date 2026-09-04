@@ -2,13 +2,16 @@
 id: OBS-28
 title: "Send invite" button on /users/invite produces no success toast or visible confirmation
 severity: observation
-status: open
+issue: 565
 found: 2026-05-23 hardening HRD-P1.B.1
 flow: invite-external-user-ui
 component: angular/src/app/external-users/components/invite-external-user.component.{ts,html}
 ---
 
 # OBS-28 - Send invite UX is silent
+
+> Tracked in [#565](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/565). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

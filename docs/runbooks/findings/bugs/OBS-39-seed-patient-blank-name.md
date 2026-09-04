@@ -2,13 +2,16 @@
 id: OBS-39
 title: ExternalUsersDataSeedContributor's patient@falkinstein.test creates a Patient row with empty FirstName + LastName
 severity: observation
-status: open
+issue: 575
 found: 2026-05-25 (Mon AM hardening, post-#250 merge)
 flow: tenant-seed-contributors
 component: test/HealthcareSupport.CaseEvaluation.TestBase/Data/ + ExternalUsersDataSeedContributor in DbMigrator
 ---
 
 # OBS-39 - Seed patient row missing FirstName + LastName
+
+> Tracked in [#575](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/575). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

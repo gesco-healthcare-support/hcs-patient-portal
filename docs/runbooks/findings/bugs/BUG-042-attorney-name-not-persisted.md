@@ -2,7 +2,7 @@
 id: BUG-042
 title: Attorney "Name" captured at booking is dropped on persist; appointment view shows attorney details only when the attorney is a registered IdentityUser
 severity: high
-status: open
+issue: 557
 found: 2026-05-27 (userflow audit; live-replicated as stafsuper1 + DB-verified)
 flow: appointment-booking, appointment-view
 component: angular/src/app/appointments/sections/appointment-add-attorney-section.component.html; src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs (UpsertApplicantAttorneyForAppointmentAsync, GetAppointmentApplicantAttorneyAsync, GetAppointmentDefenseAttorneyAsync); src/.../Domain/ApplicantAttorneys/ApplicantAttorney.cs + DefenseAttorneys/DefenseAttorney.cs
@@ -10,6 +10,9 @@ parity: regression -- OLD stored a single `attorneyName`; NEW dropped the column
 ---
 
 # BUG-042 - Attorney name dropped on persist; view requires a registered IdentityUser
+
+> Tracked in [#557](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/557). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

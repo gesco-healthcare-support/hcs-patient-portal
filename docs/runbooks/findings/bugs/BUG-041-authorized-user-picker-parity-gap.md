@@ -2,7 +2,7 @@
 id: BUG-041
 title: Authorized User picker restricts to 2 pre-existing roles; OLD allowed free-text email for any role
 severity: medium
-status: open
+issue: 556
 found: 2026-05-14 hardening Phase 3.9
 promoted-from: OBS-16 (2026-05-22, after OLD-parity verification)
 flow: booking-authorized-users-modal
@@ -10,6 +10,9 @@ component: src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/Exte
 ---
 
 # BUG-041 — Authorized User picker parity gap (NEW dropdown vs OLD free-text)
+
+> Tracked in [#556](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/556). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 > 2026-05-24: renamed from `BUG-037-authorized-user-picker-parity-gap.md` to free `BUG-037` for the clinic-staff-document-upload-403 bug that main concurrently filed during the hardening run (`BUG-037-clinic-staff-cannot-upload-documents.md`).
 
