@@ -107,8 +107,14 @@ def parse_lcov(path: Path, prefix: str) -> dict[str, dict[int, int]]:
 
     Per-line rather than the LF/LH aggregates, because the changed-lines floor
     needs to ask about specific line numbers. Verified equivalent on this repo's
-    report before the change was made: the DA records total 2663/1796, exactly
-    the LF/LH totals, so the absolute floor still reads 69.46% after exclusions.
+    report before the change was made: the DA records totalled 2663/1796,
+    exactly the LF/LH totals of the report at the time.
+
+    Re-checked 2026-09-04 against the widened report from item 2.13, because a
+    parser that agreed on 99 files is not thereby proven on 324: reading it with
+    no prefix, so no exclusion applies, gives 2049/9881 -- karma's own summary
+    for the same run prints 20.73% (2049/9881). The parser is measured against
+    an independent count of the same file rather than trusted.
 
     A line repeated across records takes the MAXIMUM hit count. Covered by one
     suite and missed by another is covered.
@@ -306,9 +312,26 @@ def unmeasured_changed(per_file: dict[str, dict[int, int]],
     and replaying commit 216a2d04 (PR #493) through this check: 33 changed
     files, 6 with a record, 27 without.
 
-    Reported, deliberately NOT failed: at those proportions failing would block
-    essentially every submission, which is a decision for the epic to take
-    explicitly, not one for this script to impose.
+    THE DECISION THIS ASKED FOR HAS BEEN TAKEN. Until 2026-09-04 this docstring
+    said the proportions above made failing impossible, and that whether to fail
+    was "a decision for the epic to take explicitly, not one for this script to
+    impose". Adrian took it on 2026-09-04, in item 2.13, and the answer was to
+    remove the proportions rather than to keep excusing them: the Angular blind
+    spot was closed at its source by widening the karma target's `include` and
+    `tsconfig.spec.json`, so the 184 previously invisible sources now carry
+    records and their changed lines are subject to the changed-lines floor like
+    any others. His reasoning, kept because a successor will need it:
+
+        A rule that only applies to files which already have tests creates an
+        incentive never to write the first one -- the worst files stay the
+        safest to touch. One uniform rule is also what someone inheriting this
+        should learn: we cover what we touch.
+
+    So this check is no longer a standing excuse for a whole stack. It remains
+    because it is still the honest report for anything a coverage run genuinely
+    cannot see -- a file the build excludes, a stack whose report failed to
+    generate, a language with no instrumentation -- and because a count that
+    creeps back up is the first symptom of the blind spot reopening.
     """
     extensions = {Path(p).suffix for p in per_file if Path(p).suffix}
     if not extensions:

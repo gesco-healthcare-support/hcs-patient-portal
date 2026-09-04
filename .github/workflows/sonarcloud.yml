@@ -92,9 +92,11 @@ jobs:
           yarn test --watch=false --browsers=ChromeHeadless --code-coverage
         # Phase 2.1 (2026-09-02): `|| true` removed. Its comment claimed this
         # tolerated a silent skip because "most features have no specs yet" --
-        # stale. The suite runs 667 specs and emits coverage (67.44% of lines on
-        # the run checked), so the tolerance was masking nothing and would have
-        # hidden a genuine frontend-test failure from the analysis.
+        # stale. The suite runs 667 specs and emits coverage, so the tolerance
+        # was masking nothing and would have hidden a genuine frontend-test
+        # failure from the analysis. (The figure once quoted here, 67.44%, was
+        # superseded by item 2.13 on 2026-09-04, which widened instrumentation
+        # from 82 files to 269; the argument never depended on the number.)
         # LCOV lands in angular/coverage/**/lcov.info.
 
       # ONE LIST, TWO CONSUMERS -- and until 2026-09-03 that was only half true.

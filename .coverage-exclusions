@@ -15,9 +15,15 @@
 #
 # WHY ONE FILE. Two lists drift, and a drift here means two gates measuring the
 # same code disagree with nobody able to say which is right. That is not
-# hypothetical: measured on 2026-09-03, the Angular front end reads 67.44% from
+# hypothetical: measured on 2026-09-03, the Angular front end read 67.44% from
 # the raw lcov, 69.46% with this list applied, and 77.1% in SonarCloud's own
 # counting. Ten points of spread over one stack.
+#
+# Those three figures are superseded -- item 2.13 (2026-09-04) widened Angular
+# instrumentation from 82 files to 269, and the same suite now reads 20.74% raw
+# and 20.97% with this list applied. The SPREAD is the point and it survives:
+# the list still decides whether 55 ABP-generated proxy files are graded as
+# ours, and SonarCloud still counts differently again.
 #
 # Patterns are repo-relative and glob-style: `**/` matches any leading
 # directories, `/**` any trailing ones, `*` anything but a path separator.
