@@ -30,6 +30,7 @@ manually. Omitting this filter exposes PHI across tenants. See docs/security/DAT
 ### Repo registration
 
 A new `IRepository<T>` for a custom type requires both:
+
 1. An `EfCore{Entity}Repository` class in the appropriate feature folder.
 2. An `options.AddRepository<T, EfCore{Entity}Repository>()` call in the module.
 
@@ -40,6 +41,7 @@ Missing step 2 means DI resolves the untyped default repo, bypassing your custom
 
 The index on `(TenantId, AppointmentId, Kind)` carries the filter
 `[IsDeleted] = 0 AND [TenantId] IS NOT NULL`. Both conditions are required:
+
 - `IsDeleted = 0` -- lets a soft-deleted row be replaced by a regenerated INSERT (BUG-036).
 - `TenantId IS NOT NULL` -- excludes any host-scoped test rows from the constraint.
 This index is declared in both DbContexts.

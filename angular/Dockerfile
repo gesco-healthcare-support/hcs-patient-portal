@@ -29,7 +29,12 @@ ARG NG_CONFIG=docker
 RUN yarn ng build --configuration "${NG_CONFIG}"
 
 # ---- prod (DEFAULT): static nginx image ----
-FROM nginx:alpine AS prod
+# Digest-pinned because this image SHIPS. The tag stays alongside the digest --
+# that pair is the form Dependabot updates; see .github/dependabot.yml for why
+# the base/deps/build/dev stages above are deliberately left on tags.
+# SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
+# argument for keeping them is with the docker ecosystem entry in that file.
+FROM nginx:alpine@sha256:72ba65eb42c10344912a84ff42408db7d34f2feb642204570ab8fc5ffd29f1d3 AS prod
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY dynamic-env.json /usr/share/nginx/html
 # In-house hosting (2026-07-09, T4): regenerate dynamic-env.json from env vars at
@@ -45,7 +50,17 @@ COPY --from=build /app/dist/CaseEvaluation/browser /usr/share/nginx/html
 # No node_modules or source baked in -- they come from the compose bind-mount and
 # the named volume. `serve` provides a static SPA server (index.html fallback).
 FROM base AS dev
-RUN npm install -g serve
+# Version-pinned for the same reason the CI tool installs are (item 2.2): an
+# unpinned global install resolves to whatever is current at build time, so two
+# builds of the same commit can differ. Dev-only -- prod is the nginx stage.
+#
+# `--ignore-scripts` for the OTHER half of that item, which pinning alone does
+# not cover (docker:S6505): a lifecycle script in the package or any of its
+# dependencies runs as root at build time, so pinning decides WHICH code runs
+# while this decides WHETHER arbitrary install-time code runs at all. Item 2.2
+# made exactly this change to the markdownlint install in lint-meta.yml; the
+# first version of this line pinned the version and left the hole open.
+RUN npm install -g --ignore-scripts serve@14.2.6
 ENV NG_CONFIG=docker
 COPY dev-entrypoint.sh /app/dev-entrypoint.sh
 RUN chmod +x /app/dev-entrypoint.sh
