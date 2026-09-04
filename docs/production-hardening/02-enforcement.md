@@ -45,14 +45,37 @@ gh pr list --repo gesco-healthcare-support/hcs-patient-portal --state open --bas
 
 ### Next, in order
 
-**Phase 2 as numbered is CLOSED.** What remains came out of it:
+**Phase 2 is CLOSED, and so are 2.13 and 2.14. The epic reached `main` as `e9c9bd86` on
+2026-09-04.** What remains:
 
-1. **2.13** -- instrument the Angular sources the coverage report cannot see. 194 of 276 real sources
-   are invisible to both the gate and SonarCloud. Adrian ruled: own item, gate keeps PRINTING the
-   count, does not fail on it. See its section.
-2. **2.14** -- container images, `curl | bash`, npm/pip. **Open with the two `curl | bash` lines, not
-   the images** -- they are the larger exposure. ~18 actionable after triage, not 31.
-3. **Phase 3** -- critical-path coverage, the safety net phases 4-8 depend on.
+1. **Phase 3** -- critical-path coverage, the safety net phases 4-8 depend on. Researched but not
+   started. **Its headline: NOTHING asserts the tenant resolver chain.**
+
+   ```bash
+   git grep -ln "TenantResolvers" -- 'test/**/*.cs'   # -> no output, across 323 test files
+   ```
+
+   `AuthServer:524` and `HttpApi.Host:404` both `Clear()` then `Add(new
+CurrentUserTenantResolveContributor())`, and that contributor has no test file at all. The
+   mechanism that stops a caller switching office via `?__tenant=` is unasserted on a system whose
+   failure mode is cross-office PHI exposure.
+
+2. **When 2.13, 2.14 and phase 3 close, RE-RUN THE SWEEP IMPORT** -- `gh issue view 672`. Two of the
+   three are now done. ~200 static-analysis findings are tracked nowhere until it runs. See the
+   README's TRIGGER section.
+
+> **A CORRECTION, and it is the third instance today of this shape.** This entry previously said
+> **"194 of 276 real sources"**. Both figures were wrong: the population included `main.ts`,
+> `polyfills.ts`, `test.ts` and `environments/`, which are bootstrap rather than application code, and
+> the invisible count was derived by SUBTRACTING against an lcov rather than counted. **The honest
+> figures are 184 of 269**, and 184 is what the TypeScript compiler errored on when the program was
+> widened -- counted, not inferred.
+>
+> **It was correct when written and silently wrong after our own work changed what it described**, with
+> nothing in the record able to notice. The same shape hit a backlog entry whose urgency argument our
+> own action pinning had already defused, and a scanner undercount copied without checking. **A record
+> is not self-maintaining, and the failure is invisible precisely because the entry still reads
+> plausibly.**
 
 ### Decisions that were open and are now closed
 
@@ -67,7 +90,7 @@ gh pr list --repo gesco-healthcare-support/hcs-patient-portal --state open --bas
 
 ### The one lens that has paid off more than any other
 
-A check that reports success without having run. **Twenty-four** instances are catalogued at the end
+A check that reports success without having run. **Twenty-nine** instances are catalogued at the end
 of this file, fifteen found in this epic's own work -- and three of those CORRECTED earlier entries
 rather than adding to them. **Assume the class exists in whatever you are about to trust until you
 have disproven it**, including in your own prior conclusions.
@@ -106,8 +129,8 @@ expected; the commits are immutable and this table is the bridge.
 | **2.10** | Build a separate CI coverage check                 | **MERGED** (`17745194`, #532)          |
 | **2.11** | Require the checks in branch protection            | **APPLIED 2026-09-03** -- see below    |
 | **2.12** | Make `Lint: Markdown` repo-wide blocking           | **MERGED** (`855a5f7c`, #529)          |
-| **2.13** | Instrument the Angular sources coverage cannot see | **OPEN** -- Adrian's ruling, see below |
-| **2.14** | Pin container images, `curl \| bash`, npm/pip      | **OPEN** -- split out of 2.2           |
+| **2.13** | Instrument the Angular sources coverage cannot see | **MERGED** (`1ca6c078`)                |
+| **2.14** | Pin container images, `curl \| bash`, npm/pip      | **MERGED** (`722e16ae`, `38e3b2ad`)    |
 
 **PHASE 2 IS COMPLETE at 12 of 12** as originally numbered. 2.13 and 2.14 were opened FROM this
 phase's findings and are new work, not outstanding work -- do not read the phase as unfinished
@@ -1257,7 +1280,71 @@ stale was the half nobody had re-checked.
 
 ---
 
-## 2.13 Instrument the Angular sources the coverage report cannot see (opened 2026-09-03)
+## 2.13 -- MERGED `1ca6c078`. The front end is honestly measured; the figure fell 69 -> 20
+
+**Two configuration lines, and the obvious approaches were all dominated by them.**
+
+```text
+angular.json   karma `include` widened, plus exclude: ["app/proxy/**"]
+tsconfig.spec.json   include widened to src/**/*.ts
+```
+
+**One alone FAILS.** Widening the builder without the tsconfig produces 184 errors of _"is missing
+from the TypeScript compilation"_ -- files reachable from a spec are in the program, nothing else is.
+**That error is also the cleanest measurement of the blind spot we ever got: 184, counted by the
+compiler rather than inferred.**
+
+```text
+scripts/coverage-gate.py --exclusions .coverage-exclusions \
+  --lcov angular/coverage/CaseEvaluation/lcov.info --lcov-prefix angular
+
+before  69.46%  (1713/2466 lines over  82 files)
+after   20.97%  (1900/9062 lines over 269 files)   CI and local IDENTICAL
+backend unchanged at 73.61% over 887 files
+cost    +7 seconds  (17s -> 24s), against Backend: Test at 686-776s
+667 tests before, 667 after
+```
+
+**THREE THINGS THAT ARE MISREADABLE ALONE, so state all three together:**
+
+1. **20.97% is not a regression.** Same tests, same passes, same covered code. 187 files stopped being
+   invisible. Anyone reading the drop as falling quality has it backwards.
+2. **The covered count RISES, 1713 -> 1900.** Karma executes a newly-included file's top-level code
+   when it loads it as an entry point -- imports, decorators, class declarations count as hit though
+   no test exercises the behaviour. Roughly one line per newly visible file. **An artefact of
+   instrumentation, not the number being gamed.** Somebody will notice and ask.
+3. **The files were INVISIBLE, not uncovered.** A source with no spec contributed to neither side of
+   the ratio, in the gate AND in SonarCloud, which imports the same lcov.
+
+### The decision this took, which was Adrian's and is the part a successor needs
+
+**`FLOOR_CHANGED: 90` now reaches those 184 files.** Touching any previously-untested Angular file
+requires covering the lines you touch. His reasoning, verbatim in effect:
+
+> A rule that only applies to files which already have tests creates an incentive never to write the
+> first one -- the worst files stay the safest to touch.
+
+`unmeasured_changed()` still prints its count and still does not fail: it is the honest report for
+anything a run genuinely cannot see, and **a count creeping back up is the first symptom of the blind
+spot reopening.**
+
+### Routes rejected, with why -- so nobody re-proposes them
+
+- **A generated barrel** -- same mechanism, but pays a generated file, a staleness check and visible
+  ugliness to achieve what one glob achieves.
+- **The Vitest builder** -- claimed to instrument untested files directly. **It does not**, at
+  20.3.24: it starts Vitest with `config: false`, so no config file is resolved, and sets
+  `coverage.include` to the BUILT OUTPUT rather than `src/`. It has the same `include` option, so the
+  fix is the option, not the runner.
+- **Merging a fabricated zero-coverage baseline into the lcov** -- proposed first and argued against
+  by its own proposer. It fabricates a denominator: istanbul's coverable-line set comes from
+  instrumenting the builder's transpiled output and remapping, so a standalone instrument produces a
+  SIMILAR set, not the same one. The day a file gains its first spec, its fabricated record is
+  replaced by a real one with a different line count and the percentage moves for reasons unrelated to
+  any code. **A floor that moves when a file gains a test is the same defect class as one that moves
+  when a dependency moves.**
+
+### Original research notes (opened 2026-09-03)
 
 **karma/istanbul instruments only files reachable from a spec.** A source file with no spec is not
 "uncovered" -- it is INVISIBLE, absent from the gate AND from SonarCloud.
@@ -1269,6 +1356,16 @@ grep -c '^SF:' angular/coverage/CaseEvaluation/lcov.info                        
 grep '^SF:' angular/coverage/CaseEvaluation/lcov.info | grep -vc 'proxy'              # 82
 # 276 real - 82 with a record = 194 INVISIBLE
 ```
+
+> **SUPERSEDED -- these two figures are WRONG and are kept only because the method is the finding.**
+> `276` counted `main.ts`, `polyfills.ts`, `test.ts` and `environments/`, which are bootstrap rather
+> than application code. `194` was DERIVED BY SUBTRACTING against an lcov rather than counted.
+> **The honest figures are 269 real sources and 184 invisible**, and 184 is the number the TypeScript
+> compiler errored on when the program was widened -- counted, not inferred.
+>
+> **Left in place deliberately.** Deleting it would hide that a subtraction against a report is a
+> weaker instrument than a compiler, which is the transferable half. See catalogue instance 29: this
+> block was correct-looking and wrong for a day, in the file that exists to catch exactly that.
 
 Replaying PR #493 through the finished gate: **33 changed files, 6 with any coverage record, 27 with
 none.** SonarCloud shares the blind spot -- for TypeScript it imports the lcov, so absent files
@@ -1289,7 +1386,83 @@ files report 0% and are still counted, so uncovered code IS in the denominator; 
 then RESOLVED -- 9-line empty subclasses whose methods live in a generic base and are instrumented
 there, zero `[Fact]` among them. **Closed, not a live thread.**
 
-## 2.14 Pin container images, `curl | bash`, npm and pip (opened 2026-09-03)
+## 2.14 -- MERGED `722e16ae` (#543) and `38e3b2ad` (#545)
+
+### What shipped
+
+**The piped-script installs are gone.** `AuthServer/Dockerfile:35` and `:83` each ran
+`curl -fsSL https://deb.nodesource.com/setup_22.x | bash -` as root at build time. Replaced by
+`COPY --from=node:22-bookworm-slim`, which **removes the external repository and its signing key
+entirely** rather than making one fetch verifiable.
+
+**A constraint written into the Dockerfile so a tidy-up cannot undo it silently:** the SDK image is
+Ubuntu 24.04 / glibc 2.39; `node:22-bookworm-slim` is glibc 2.36 and forward compatibility is what
+makes the copy work. **A trixie or noble node tag would break it.**
+
+**Node never shipped** -- prod is `FROM aspnet:10.0` + `COPY --from=build /app/publish .`. So this was
+build INTEGRITY (a compromised script could tamper with `wwwroot/libs` and the publish output, both
+copied forward), not a runtime surface. The stronger reading was wrong and is corrected here.
+
+**Five shipping images pinned as `image:tag@sha256:digest`; seven build/dev stages deliberately left
+on tags.** Adrian's reasoning: strictness belongs where the consequence is -- build-stage drift
+self-corrects as a broken build, a tampered shipping image is a product problem.
+
+**The compose stack pinned to WHAT IS DEPLOYED, not what the tags mean today:**
+
+```text
+mcr.microsoft.com/mssql/server:2022-CU25-GDR2-ubuntu-22.04
+redis:7.4.9-alpine        (2 patch releases behind current)
+nginx:1.31.2-alpine       (3 behind)
+minio/minio:RELEASE.2025-09-07T16-13-09Z   already current
+minio/mc:RELEASE.2025-08-13T08-35-41Z      already current
+```
+
+**THE FINDING THAT JUSTIFIED READING THE SERVER RATHER THAN THE REGISTRY.** The database is not on a
+cumulative-update build at all. It is on **`CU25-GDR2`, the security-only servicing branch** -- build
+`16.0.4262.2`, which sits BETWEEN CU25 (`16.0.4255.1`) and CU26 (`16.0.4265.3`), which is why
+searching the CU tags found nothing. **Pinning to `2022-latest` would not have been an upgrade; it
+would have moved production off the security-only branch onto the cumulative branch**, silently,
+inside a commit whose purpose was to stop things moving.
+
+**This records reality rather than improving it.** Catching redis and nginx up is a separate,
+deliberate decision.
+
+**The proxy nginx (1.31.2) and the Dockerfile nginx (1.31.5) diverge DELIBERATELY.** The Dockerfile
+one is a build input to an image rebuilt every deploy; the compose one is a container that gets
+pulled. **Aligning them is a deploy, not a pin** -- it restarts the only service with published ports.
+Logged as such.
+
+### The Dependabot trap: the documented way produces a silent no-op
+
+`docker` scans a DIRECTORY, and four of the five pinned images share directories with build stages
+left on tags. Two `dependency-name` ignores separate them -- **but the names must be UNQUALIFIED.**
+
+```ruby
+# dependabot-core, shared_file_parser.rb
+23  REGISTRY = /(?<registry>...)/          # distinct capture
+43  source[:registry] = parsed_line.fetch("registry")
+60  name: T.must(details.fetch("image"))   # the NAME is the image ALONE
+```
+
+**GitHub's options reference says to match "the full name of the repository".** Following it gives
+`mcr.microsoft.com/dotnet/sdk`, **which matches nothing** -- the config would parse, apply to nothing,
+and read as though it excluded the seven stages. `dotnet/sdk` and `node` are correct. **The vendor's
+own documentation was the misleading source**, which is a first for this catalogue.
+
+**Verified working:** #674 and #675 (`actions/cache`, `actions/checkout`) appeared on
+`chore/dependency-updates` minutes after the epic merged. The refresh path is observed, not assumed.
+
+### Scanner findings, all adjudicated -- a RED badge here is expected
+
+- **`docker:S6505`** -- FIXED. `npm install -g serve@14.2.6` omitted `--ignore-scripts`. **The same
+  class 2.2 fixed one item earlier, reintroduced in the same line that pinned the version.**
+- **`docker:S8431` x5** -- KEPT. Sonar wants tag OR digest, not both; `tag@digest` is what Dependabot
+  handles most reliably and the tag is what a human reads. Argument committed beside the code.
+- **`docker:S6471` x4** -- BACKLOGGED. Prod images run as root. **The scanner UNDER-reports: all five
+  run as root, `angular/Dockerfile` is simply not flagged.** Anyone using its list to decide what is
+  left will miss one.
+
+### Original research notes (opened 2026-09-03)
 
 Split out of 2.2 by Adrian's ruling. Of the 97 `PinnedDependenciesID` findings, 2.2 closed the 66 that
 are actions. **After triage this item is ~18 actionable, not 31:**
@@ -1332,37 +1505,42 @@ trade, unlike the actions half. Either add the ecosystem or accept the freeze de
 
 ## CATALOGUE: checks that reported success without having run
 
-**This is the most useful artefact the epic has produced.** Twenty-four instances in four days,
+**This is the most useful artefact the epic has produced.** Twenty-nine instances in five days,
 fifteen of them in this epic's own work -- in its tooling, its counts, its merges, its handoffs, its
 verification harness and its own prior claims. The lesson is not "tools lie" -- it is that a green
 result is evidence only if you know what was examined.
 
-| #   | Instance                                                               | How it presented             |
-| --- | ---------------------------------------------------------------------- | ---------------------------- |
-| 1   | A cancelled job read as a pass                                         | green                        |
-| 2   | A run-level conclusion masking a failed job                            | green                        |
-| 3   | `continue-on-error: true` -- **2 of 11, see the correction below**     | green                        |
-| 4   | A validation hook failing open under load                              | green                        |
-| 5   | `markdownlint` passing while linting **zero files**                    | green                        |
-| 6   | A stub check green by construction (`doc-check.yml`, see 2.4)          | green                        |
-| 7   | Four unit tests passing against a premise false at runtime             | green                        |
-| 8   | A `\|\| true` on a test run                                            | green                        |
-| 9   | A partial grep presented as an enumeration                             | plausible count              |
-| 10  | `git cat-file -e <branch>:<path>` in Git Bash, stderr suppressed       | confident **false ABSENT**   |
-| 11  | "These 11 checks cannot fail" -- itself unverified, and wrong for 9    | a confident **false alarm**  |
-| 12  | **A SKIPPED job reports Success and does not block, even if required** | green                        |
-| 13  | A correct command run against a **stale worktree**                     | correct-looking wrong answer |
-| 14  | `"allow_different_nesting"` is not a markdownlint option -- ignored    | looked configured            |
-| 15  | A background launcher's `exit 0`, unrelated to the job it launched     | reported success             |
-| 16  | A **verified** claim restated wrongly from memory two messages later   | plausible, and wrong         |
-| 17  | A **clean auto-merge** that silently duplicated 96 lines of the record | no conflict markers          |
-| 18  | A **trigger-list claim in the handoff**, inherited and repeated twice  | a confident **false alarm**  |
-| 19  | A gate's error naming a figure it exited before printing               | red, with no figure          |
-| 20  | An empty file failed where **empty is the legitimate case**            | a hard fail on nothing       |
-| 21  | A harness run under a **different shell than CI uses**                 | "8 of 8", all vacuous        |
-| 22  | Third-party and generated source graded as ours in a coverage figure   | a plausible percentage       |
-| 23  | A shared list one of its two stated consumers **never read**           | byte-identical copies        |
-| 24  | An ecosystem declared and **capped at zero** -- grep says covered      | looked configured            |
+| #   | Instance                                                               | How it presented               |
+| --- | ---------------------------------------------------------------------- | ------------------------------ |
+| 1   | A cancelled job read as a pass                                         | green                          |
+| 2   | A run-level conclusion masking a failed job                            | green                          |
+| 3   | `continue-on-error: true` -- **2 of 11, see the correction below**     | green                          |
+| 4   | A validation hook failing open under load                              | green                          |
+| 5   | `markdownlint` passing while linting **zero files**                    | green                          |
+| 6   | A stub check green by construction (`doc-check.yml`, see 2.4)          | green                          |
+| 7   | Four unit tests passing against a premise false at runtime             | green                          |
+| 8   | A `\|\| true` on a test run                                            | green                          |
+| 9   | A partial grep presented as an enumeration                             | plausible count                |
+| 10  | `git cat-file -e <branch>:<path>` in Git Bash, stderr suppressed       | confident **false ABSENT**     |
+| 11  | "These 11 checks cannot fail" -- itself unverified, and wrong for 9    | a confident **false alarm**    |
+| 12  | **A SKIPPED job reports Success and does not block, even if required** | green                          |
+| 13  | A correct command run against a **stale worktree**                     | correct-looking wrong answer   |
+| 14  | `"allow_different_nesting"` is not a markdownlint option -- ignored    | looked configured              |
+| 15  | A background launcher's `exit 0`, unrelated to the job it launched     | reported success               |
+| 16  | A **verified** claim restated wrongly from memory two messages later   | plausible, and wrong           |
+| 17  | A **clean auto-merge** that silently duplicated 96 lines of the record | no conflict markers            |
+| 18  | A **trigger-list claim in the handoff**, inherited and repeated twice  | a confident **false alarm**    |
+| 19  | A gate's error naming a figure it exited before printing               | red, with no figure            |
+| 20  | An empty file failed where **empty is the legitimate case**            | a hard fail on nothing         |
+| 21  | A harness run under a **different shell than CI uses**                 | "8 of 8", all vacuous          |
+| 22  | Third-party and generated source graded as ours in a coverage figure   | a plausible percentage         |
+| 23  | A shared list one of its two stated consumers **never read**           | byte-identical copies          |
+| 24  | An ecosystem declared and **capped at zero** -- grep says covered      | looked configured              |
+| 25  | `cd "$TMPDIR"` with the var unset -- `cd ""` **succeeds**              | silent no-op, fallback skipped |
+| 26  | `grep` stripping the CR **before `cat -A` could show it**              | a clean, wrong diagnosis       |
+| 27  | A POSIX path between two Windows binaries that resolve it differently  | file written, file not found   |
+| 28  | The VENDOR'S OWN DOCS naming a field the parser does not use           | a config that matches nothing  |
+| 29  | A record entry **correct when written**, wrong after our own work      | still reads plausibly          |
 
 **Instances 10, 11, 13, 15, 16, 17, 18, 19, 21, 22, 23 and 24 are self-inflicted rather than
 inherited** -- committed by the tooling and the sessions doing the verifying, not found in the
@@ -1608,6 +1786,46 @@ only by an advisory.
 pending ABP Commercial supporting Angular 20.3+. **But that is an npm reason applied blanket to a
 github-actions ecosystem it has nothing to do with.** Inherited, not decided. Adrian lifted it for
 `github-actions` only, in 2.2; the other three stay at 0 with their reason intact.
+
+**25-28 -- FOUR COMMANDS THAT SUCCEEDED WITHOUT DOING ANYTHING, and where they all fired.**
+
+```bash
+cd "$TMPDIR" 2>/dev/null || cd /tmp   # TMPDIR unset -> `cd ""` -> SUCCESS, fallback never runs
+grep -n ... | cat -A                  # grep strips the CR; cat -A cannot show what was removed
+python -c "...open('/tmp/x')" ; gh api --input /tmp/x
+                                      # python -> C:\tmp\x   gh -> C:\Users\...\AppData\Local\Temp\x
+```
+
+Plus the vendor case: **GitHub's own options reference says to match a Docker dependency by "the full
+name of the repository"; the parser sets `name` to the image ALONE.** A registry-qualified ignore
+parses, applies to nothing, and reads as though it worked.
+
+**THE GENERALISATION THAT MATTERS MORE THAN ANY ENTRY.** All four fired in **throwaway scaffolding
+written to check the work** -- never in the work itself. Piping a build through `tail` to watch it.
+Resolving action SHAs. Writing a note to the backlog. Inspecting line endings. **Nobody is careful
+about scaffolding, because the scaffolding is not the point.**
+
+- **The rule: the moment of highest risk is not doing the risky thing -- it is writing the disposable
+  command that checks it.**
+- **And: do not inspect a property through a pipeline that may normalise it. Read the bytes.**
+
+This reframes what the catalogue is for. **These entries are consulted when planning work and ignored
+when writing the next throwaway line**, which is why writing them down has now failed four times
+against people who had read them.
+
+**29 -- a record entry that was correct when written and silently wrong after our own work.** Three
+instances in one day, all in this epic's own documents:
+
+- A backlog entry arguing a break would "arrive unannounced" because the action floated on `@v4` --
+  **item 2.2 SHA-pinned it the next day**, so it can now only arrive as a PR someone reads. The entry
+  did not notice its own premise had been removed.
+- `docker:S6471` logged as four images from the scanner's list. **All five run as root**; the scanner
+  under-reports.
+- This file's own `194 of 276`, corrected above to `184 of 269`.
+
+- **The rule: a record is not self-maintaining, and the failure is invisible because the entry still
+  reads plausibly.** Nothing in a document notices that the world moved. Each of these was found by
+  coincidence -- a warning appearing twice in one day, a count that happened to be re-derived.
 
 **How to count this table:** the total is **the number of rows in it**. Do not increment from
 memory -- that error has already happened once and vacated a slot behind it.
