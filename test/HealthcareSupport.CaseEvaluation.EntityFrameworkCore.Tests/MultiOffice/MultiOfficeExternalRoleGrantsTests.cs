@@ -50,6 +50,17 @@ public class MultiOfficeExternalRoleGrantsTests : CaseEvaluationMultiOfficeTestB
     /// <para>DELIBERATELY A LITERAL, not read from the seeder. Deriving it from the code
     /// under test would make this assertion vacuous -- the list and the loop would move
     /// together and the test could never fail. The duplication is the point.</para>
+    ///
+    /// <para><b>AND THE CONSTRAINT SURVIVES ANY FUTURE UNIFICATION OF THE ROLE LISTS.</b>
+    /// Four literals of these names exist (`AppointmentAccessorRules.RecognizedExternalRoles`,
+    /// the `EnsureRoleAsync` calls above the grant loop, the grant loop's own array, and
+    /// `BookingFlowRoles.ExternalAccessorManagerRoles`), and unifying them is a live design
+    /// question. If they are unified, THIS LIST MUST NOT BECOME A READ OF THE UNIFIED
+    /// SOURCE. A naive unification that this test then reads from would move the assertion
+    /// and the code under test together and silently restore the vacuity -- the tidier the
+    /// production code becomes, the more this duplication is load-bearing, not less.
+    /// The requirement is not "do not derive this list"; it is "the assertion's source must
+    /// stay independent of the code under test".</para>
     /// </summary>
     private static readonly string[] ExternalBookingRoles =
     {
