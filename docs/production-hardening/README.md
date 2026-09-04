@@ -28,17 +28,54 @@ created off `main` at `5c83553c` on 2026-08-31.
 
 Update this table as each phase closes. It is the first thing a successor will read.
 
-| Phase                    | Status                                                       | Landed                                                                         | Baseline delta                                                                           |
-| ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| 1 Blockers               | **COMPLETE (7/7)**                                           | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b, dc134222, e91be9f1, df705ad8 | 5 of 6 flagged were false alarms; 3 real defects found UNFLAGGED. See the closing note.  |
-| 2 Enforcement            | **IN PROGRESS** -- 5 closed, 1 deferred, 5 open | 8096966d (#514), f41b6954 (#518), #516, 2d3f656b (#519)                         | Anti-gate settings **11 -> 5**. True coverage measured. 2.1 cancelled, replaced by 2.10. |
-| 3 Critical-path coverage | NOT STARTED                                                  | --                                                                             | --                                                                                       |
-| 4 CodeQL sensitive-info  | NOT STARTED                                                  | --                                                                             | --                                                                                       |
-| 5 Security hotspots      | NOT STARTED                                                  | --                                                                             | --                                                                                       |
-| 6 Dependencies           | NOT STARTED                                                  | --                                                                             | --                                                                                       |
-| 7 Rule families          | NOT STARTED                                                  | --                                                                             | --                                                                                       |
-| 8 Coverage expansion     | NOT STARTED                                                  | --                                                                             | --                                                                                       |
-| 9 System design intake   | TRIAGE IN PROGRESS                                           | report received 2026-08-31                                                     | 4 claims refuted, 3 confirmed                                                            |
+| Phase                    | Status                                                        | Landed                                                                                  | Baseline delta                                                                                                          |
+| ------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1 Blockers               | **COMPLETE (7/7)**                                            | 046f44f1, ad4cb0d7, fd875d67, 870f5ecf, 14c3f84b, dc134222, e91be9f1, df705ad8          | 5 of 6 flagged were false alarms; 3 real defects found UNFLAGGED. See the closing note.                                 |
+| 2 Enforcement            | **COMPLETE (12/12)** -- 9 merged, 2.1 cancelled, 2.5 deferred | #514, #518, #516, #519, #529, #530, #532, #534, #538; 2.11 applied as branch protection | Anti-gate settings **11 -> 5**. 17 checks now REQUIRED on all four branches. Coverage honestly measured on both stacks. |
+| 3 Critical-path coverage | NOT STARTED -- research done, see the note below              | --                                                                                      | Researched 2026-09-04: **no test asserts the tenant resolver chain** (0 of 323 backend test files).                     |
+| 4 CodeQL sensitive-info  | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 5 Security hotspots      | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 6 Dependencies           | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 7 Rule families          | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 8 Coverage expansion     | NOT STARTED                                                   | --                                                                                      | --                                                                                                                      |
+| 9 System design intake   | TRIAGE IN PROGRESS                                            | report received 2026-08-31                                                              | 4 claims refuted, 3 confirmed                                                                                           |
+
+## TRIGGER: when 2.13, 2.14 and phase 3 close, RE-RUN THE SWEEP IMPORT -- see issue #672
+
+**Work tracking moved to GitHub Issues on 2026-09-04.** Phases 1-3 were deliberately EXCLUDED from
+that import because this epic had them in flight; only phases 4+ became issues, under milestones
+`Hardening phase N`.
+
+**Roughly 200 static-analysis findings are held back because this epic owns their paths.** They are
+tracked NOWHERE until released:
+
+| Paths held                             | Findings | Released by     |
+| -------------------------------------- | -------- | --------------- |
+| `test/`, `tests/`                      | 93       | phase 3         |
+| `scripts/`, `docker/`, `**/Dockerfile` | 104      | item 2.14       |
+| `.github/`                             | 54       | items 2.2 / 2.6 |
+| Angular build config                   | a few    | item 2.13       |
+
+**`gh issue view 672` recovers the full procedure.** It lives on GitHub precisely so it cannot be lost
+to a compaction in any session. Counts above were measured 2026-09-04 and move as work lands --
+**re-derive them rather than trusting this table.**
+
+**Two things that are easy to get wrong:**
+
+- **`.github/` is gated separately** by 2.2 / 2.6, so it can be released on its own without waiting
+  for phase 3.
+- **"2.14 is done" does NOT mean those directories are clean.** Completing it fixes the PINNING
+  alerts in `scripts/` and the Dockerfiles; the ordinary findings that also live there -- shell code
+  smells, clear-text protocol warnings -- are untouched. Closing the item unblocks the paths; it does
+  not clear them. That is the whole reason the re-run matters.
+
+The import script is `scripts/maintenance/import-issues.py` on `chore/issue-import`, **PR #671, open
+and ungated -- Adrian decides that merge.** If he declines it, #672 needs rewriting rather than
+silently becoming unactionable; flag it to him rather than assuming.
+
+**Two items were opened OUT of phase 2 and are not part of its 12:** **2.13** (instrument the Angular
+sources coverage could not see -- merged `1ca6c078`, front-end floor 69 -> 20) and **2.14** (container
+images, `curl | bash`, npm/pip). Both are in `02-enforcement.md`.
 
 **Read the phase 1 delta carefully -- the BLOCKER count is a bad proxy for progress here.** It stands
 at 5, down from 6, and that single drop was a False Positive marking, not a defect repaired. All six
