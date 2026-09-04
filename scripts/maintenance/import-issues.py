@@ -64,6 +64,16 @@ BATCH_MIN = 12
 """Below this a directory is grouped with its siblings rather than getting its
 own issue, so the tracker does not fill with three-finding batches."""
 
+DROPPED_KEYS = {
+    # Near-duplicates surfaced by the dry run and dropped by Adrian 2026-09-04.
+    # The backlog is append-only, so the same finding was recorded more than once
+    # on different dates in different words; exact-title dedup does not catch that.
+    "BL-25": "duplicate of BL-10 (dependency-review deny-licenses)",
+    "BL-41": "duplicate of BL-10 (dependency-review deny-licenses)",
+    "BL-40": "duplicate of BL-13 (untracked session-handoff files)",
+    "BL-36": "duplicate of BL-28 (PacketsCompleteHandler publish race)",
+}
+
 # Directories owned by the hardening sessions. A batch must never claim these,
 # or two people end up in the same file, which is the whole thing we are
 # avoiding. Revisit when phases 2 and 3 close.
@@ -339,6 +349,10 @@ def assert_disjoint(issues: list[dict]) -> None:
 
 def generate() -> None:
     issues = collect_findings() + collect_hardening() + collect_backlog() + collect_sweeps()
+    dropped = [i for i in issues if i["key"] in DROPPED_KEYS]
+    issues = [i for i in issues if i["key"] not in DROPPED_KEYS]
+    for i in dropped:
+        print(f"  dropped {i['key']}: {DROPPED_KEYS[i['key']]}")
     assert_disjoint(issues)
     OUT.write_text(json.dumps(issues, indent=1), encoding="utf-8")
     counts = collections.Counter(
@@ -385,6 +399,22 @@ def ensure_labels() -> None:
     print(f"ensured {len(LABELS)} labels")
 
 
+def ensure_milestones(issues: list[dict]) -> None:
+    """Create any milestone an issue references.
+
+    `gh issue create --milestone` fails if the milestone does not already exist,
+    which would abort the run partway through. The hardening phases are a real
+    sequence with a dependency order, so the milestone is what stops that order
+    being lost when the phases are flattened into a list.
+    """
+    wanted = {i["milestone"] for i in issues if i.get("milestone")}
+    for title in sorted(wanted):
+        subprocess.run(["gh", "api", f"repos/{REPO}/milestones", "-f", f"title={title}"],
+                       capture_output=True, text=True)  # 422 if it exists; harmless
+    if wanted:
+        print(f"ensured {len(wanted)} milestones")
+
+
 def apply() -> None:
     """Create the issues, one at a time, stopping at the first failure.
 
@@ -393,14 +423,17 @@ def apply() -> None:
     """
     issues, done = load(), already_created()
     pending = [i for i in issues if i["key"] not in done]
-    print(f"creating {len(pending)} issues ({len(done)} already exist)")
+    print(f"creating {len(pending)} issues ({len(done)} already exist)", flush=True)
     ensure_labels()
+    ensure_milestones(pending)
     with MAP.open("a", encoding="utf-8") as fh:
         for n, issue in enumerate(pending, 1):
             cmd = ["gh", "issue", "create", "--repo", REPO,
                    "--title", issue["title"], "--body", issue["body"]]
             for label in issue["labels"]:
                 cmd += ["--label", label]
+            if issue.get("milestone"):
+                cmd += ["--milestone", issue["milestone"]]
             res = subprocess.run(cmd, capture_output=True, text=True)
             if res.returncode != 0:
                 sys.exit(f"\nFAILED on {issue['key']}: {res.stderr.strip()}\n"
@@ -408,7 +441,7 @@ def apply() -> None:
             url = res.stdout.strip()
             fh.write(f"{issue['key']}\t{url}\n")
             fh.flush()
-            print(f"  [{n}/{len(pending)}] {issue['key']}  {url}")
+            print(f"  [{n}/{len(pending)}] {issue['key']}  {url}", flush=True)
             time.sleep(THROTTLE_SECONDS)
     print("done")
 
