@@ -37,6 +37,15 @@ RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.
 
 # Pinned for reproducibility. weasyprint + pikepdf match the verified template toolchain;
 # Flask + gunicorn serve the HTTP surface.
+#
+# VERSION-pinned, not HASH-pinned, and that is a decision rather than an oversight
+# (item 2.14, 2026-09-04). OpenSSF Scorecard's pinned-dependencies check wants
+# `--require-hashes` against a requirements.txt carrying a hash for every transitive
+# dependency. Declined: PyPI does not permit an existing version to be re-published
+# with different content, so the residual risk hashes close here is a registry
+# compromise -- against which the cost is a generated lock file that must be
+# regenerated, in full, on every bump of any of the four. Revisit if the service
+# grows a real dependency tree or if PyPI's immutability guarantee changes.
 RUN pip install --no-cache-dir \
       weasyprint==69.0 \
       pikepdf==10.7.2 \

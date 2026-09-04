@@ -48,7 +48,10 @@ COPY --from=build /app/dist/CaseEvaluation/browser /usr/share/nginx/html
 # No node_modules or source baked in -- they come from the compose bind-mount and
 # the named volume. `serve` provides a static SPA server (index.html fallback).
 FROM base AS dev
-RUN npm install -g serve
+# Version-pinned for the same reason the CI tool installs are (item 2.2): an
+# unpinned global install resolves to whatever is current at build time, so two
+# builds of the same commit can differ. Dev-only -- prod is the nginx stage.
+RUN npm install -g serve@14.2.6
 ENV NG_CONFIG=docker
 COPY dev-entrypoint.sh /app/dev-entrypoint.sh
 RUN chmod +x /app/dev-entrypoint.sh
