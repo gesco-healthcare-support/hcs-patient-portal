@@ -201,6 +201,15 @@ public class HostAwareDomainTenantResolveContributorTests
         // TreatWarningsAsErrors turns that into a build failure, so the realistic
         // regression has to silence it with `!` deliberately.
         //
+        // BUT THAT THIRD DEFENCE IS A SETTING, NOT A PROPERTY OF THE LANGUAGE, and
+        // it is not permanent. It rests on Directory.Build.props:17 <Nullable>enable
+        // and :21 <TreatWarningsAsErrors>true. That second one has been FALSE
+        // before -- the file's own note at :9 records it being "flipped to true in
+        // Phase B-6 PR-0 after B-2.1 closed out the 480 nullability warnings". Relax
+        // it again and CS8604 drops back to a warning, the compiler stops refusing
+        // the deletion, and nothing reports that the defence went. So this is two
+        // defences plus a setting, not three permanent ones.
+        //
         // So this is defence in depth, and the test is an outcome pin rather than a
         // line guard. Recorded precisely because "guards the abstention" would read
         // as more protection than exists.
