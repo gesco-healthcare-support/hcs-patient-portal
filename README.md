@@ -340,14 +340,22 @@ the `main -> development` PR, and `deploy-dev.yml` opens the
 approvals. Promotion PRs between long-lived branches must use **rebase**,
 never a merge commit.
 
-### Branch Protection (Progressive Hardening)
+### Branch Protection
 
-| Branch        | Required checks                    | Approvals |
-| ------------- | ---------------------------------- | --------- |
-| `main`        | Backend Build, Frontend Build      | 1         |
-| `development` | + Backend Test, Frontend Lint      | 1         |
-| `staging`     | + Frontend Test, Dependency Review | 1         |
-| `production`  | + Secret Detection                 | 2         |
+**The same 17 checks are required on all four branches**, each with "up to date
+with base" enforced. There is no per-branch gradient: a change that cannot merge
+to `main` cannot merge anywhere. Only the approval count varies.
+
+| Branch        | Required checks | Approvals |
+| ------------- | --------------- | --------- |
+| `main`        | all 17          | 1         |
+| `development` | all 17          | 1         |
+| `staging`     | all 17          | 1         |
+| `production`  | all 17          | **2**     |
+
+The checks are listed individually, with what each covers, in
+[CONTRIBUTING.md](CONTRIBUTING.md#branch-protection) -- deliberately in one place
+only, because this table and that one were duplicates and drifted apart.
 
 ### Commits
 
