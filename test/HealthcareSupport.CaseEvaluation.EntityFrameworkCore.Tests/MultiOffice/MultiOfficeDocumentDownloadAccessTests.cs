@@ -27,25 +27,37 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 ///
 /// <para>The guard works. What was missing is anything that would catch its removal.</para>
 ///
-/// <para><b>WHAT DELETING THE GUARD ACTUALLY DOES, measured rather than predicted.</b>
-/// Removing <c>EnsureCanReadAsync</c> from <c>DownloadAsync</c> and re-running this test
-/// on 2026-09-04: it does not throw a different exception -- <b>it does not throw at
-/// all.</b> The call returns a <c>DownloadResult</c> to a caller who is not a party to
-/// the appointment. So the assertion that catches the break is
-/// <c>Should.ThrowAsync&lt;BusinessException&gt;</c> itself.</para>
+/// <para><b>WHAT DELETING THE GUARD ACTUALLY DOES, measured 2026-09-04.</b> The call runs
+/// on past the missing guard to <c>_blobContainer.GetAsync</c>, and this test fails with:</para>
+/// <code>
+/// should throw  Volo.Abp.BusinessException
+/// but threw     Minio.Exceptions.InternalClientException
+/// </code>
+/// <para>Blob storage here is MinIO, configured by the main module, with no test double and
+/// no reachable server (<c>No such host is known. (minio:9000)</c>). <b>So what catches the
+/// break is the exception TYPE, not the error code</b> -- the <c>Code</c> assertion below is
+/// never reached in the break case.</para>
 ///
-/// <para>(An earlier draft of this comment predicted the storage fallback would throw
-/// <c>UserFriendlyException("Document file is missing from storage.")</c> instead. It does
-/// not, and the prediction is corrected here rather than left standing -- a comment
-/// asserting behaviour the code does not have is the defect this phase keeps finding.)</para>
+/// <para><b>WHAT THAT DOES AND DOES NOT SHOW.</b> It shows the request passed every access
+/// check, because the blob fetch is downstream of all of them. It does NOT show what a real
+/// caller receives: with storage reachable, the remaining statements are a null check and a
+/// <c>DownloadResult</c>, so a non-party would get the file. <b>That last step is read from
+/// the code, not measured</b>, and is written here as inference so nobody later cites it as
+/// a result.</para>
 ///
-/// <para><b>THE ERROR-CODE ASSERTION IS STILL DELIBERATE, for a different reason than
-/// first written.</b> <c>UserFriendlyException</c> derives from <c>BusinessException</c>,
-/// and this method's storage fallback throws one. If a future change made storage fail
-/// before the guard, a type-only assertion would report the storage fallback while
-/// appearing to prove access control. The code check keeps those apart. It is defence
-/// against a case that did NOT occur in this measurement, kept on its own merits rather
-/// than because it is what caught the break.</para>
+/// <para>(TWO corrections, both left visible. The first draft predicted the storage fallback
+/// would throw <c>UserFriendlyException("Document file is missing from storage.")</c>. The
+/// second recorded that the break "does not throw at all" and returns a result -- also
+/// wrong, and wrong in a more dangerous way, because it read as a completed measurement. A
+/// comment asserting behaviour the code does not have is the exact defect this phase keeps
+/// finding, and it is no less a defect for being in the comment that says so.)</para>
+///
+/// <para><b>WHY THE ERROR-CODE ASSERTION STAYS ANYWAY.</b> Not because it catches this
+/// break -- it does not. <c>UserFriendlyException</c> derives from <c>BusinessException</c>,
+/// and this method's storage fallback throws one, so if a future change made storage fail
+/// BEFORE the guard, a type-only assertion would report the storage fallback while appearing
+/// to prove access control. It is defence against a reordering that has not happened, kept
+/// on that merit alone.</para>
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
 public class MultiOfficeDocumentDownloadAccessTests : CaseEvaluationMultiOfficeTestBase
@@ -95,9 +107,10 @@ public class MultiOfficeDocumentDownloadAccessTests : CaseEvaluationMultiOfficeT
 
     /// <summary>
     /// Attaches a document row to the office's seeded appointment. The blob is never
-    /// written: this test asserts the request is refused BEFORE storage is reached, and
-    /// seeding a real blob would make the storage fallback indistinguishable from success.
-    /// Synthetic values throughout (HIPAA).
+    /// written, for two reasons: this test asserts the request is refused BEFORE storage is
+    /// reached, and it could not be written anyway -- the harness has no reachable MinIO, so
+    /// a seeding attempt dies in the helper rather than in the test. Synthetic values
+    /// throughout (HIPAA).
     /// </summary>
     private Task SeedDocumentAsync(SeededOffice office, Guid documentId) =>
         WithUnitOfWorkAsync(async () =>
