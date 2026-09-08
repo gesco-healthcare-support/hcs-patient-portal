@@ -4,7 +4,42 @@
 writing a test reveals a defect, that is a finding -- log it and fix it as its own task, do not fold
 a behaviour change into a coverage commit.
 
-**Baseline: 52.4% across 116,210 lines. Target: as high as reached before handoff.**
+**Baseline: 37.1% across 117,310 lines. Target: as high as reached before handoff.**
+
+> **Corrected 2026-09-08. This said 52.4% across 116,210 lines, which is now wrong by fifteen
+> points.** The number did not get worse -- the measurement got honest, and it happened in work that
+> has already merged. Item 2.13 widened the Angular instrumentation so a source file with no spec is
+> COUNTED AS UNCOVERED instead of being invisible to the report. 184 files left that blind spot and
+> the front end fell 69.46% -> 20.97%; the combined figure followed it down.
+>
+> ```bash
+> curl -s "https://sonarcloud.io/api/measures/component?component=gesco-healthcare-support_hcs-patient-portal&metricKeys=coverage,line_coverage,branch_coverage,ncloc"
+> # coverage 37.1   line_coverage 41.0   branch_coverage 17.5   ncloc 117310     (2026-09-08)
+> ```
+>
+> **The split matters more than the headline, because it says where this phase's work actually is:**
+>
+> | Half      | Covered  | Of           |
+> | --------- | -------- | ------------ |
+> | Back end  | ~72%     | 45,891 lines |
+> | Front end | **~21%** | 9,062 lines  |
+>
+> **Branch coverage, 17.5%, is the weakest figure in the repository** -- the decision points, which is
+> to say the error and edge paths, against 41.0% of lines. **Line coverage alone will overstate how
+> much of this phase is done.**
+>
+> One artefact to carry so nobody reads it as gaming: roughly one line per newly visible Angular file
+> counts as hit merely because karma executes a file's top-level code when it loads it as an entry
+> point. Covered lines rose 1,713 -> 1,900 when 187 files became visible **with no new tests**. So
+> real behavioural coverage on the front end is somewhat below 21%. Item 2.13 in
+> [02-enforcement.md](02-enforcement.md) carries the measurement and the three readings that mislead
+> when taken alone.
+
+**Adrian's ruling, 2026-09-08: this phase stays UNTARGETED.** He was offered 90%+ overall, a
+front-end-only target, and a branch-coverage target. Reaching 90% was measured at roughly **14,300
+lines to bring under test, about 84% of everything currently uncovered** -- very likely larger than
+the remaining phases combined. He chose to keep the stopping rule below and revisit when the phase
+starts. **Do not seed a target from the baseline above; it is a measurement, not an objective.**
 
 This is the open-ended phase and the one certain to be incomplete. That is by design and it is
 safe, because phase 2 stops the number sliding backwards while this runs.
@@ -130,7 +165,10 @@ npx ng test --watch=false --browsers=ChromeHeadless
 Re-measure:
 
 ```bash
-curl -s "https://sonarcloud.io/api/measures/component?component=gesco-healthcare-support_hcs-patient-portal&metricKeys=coverage,ncloc"
+curl -s "https://sonarcloud.io/api/measures/component?component=gesco-healthcare-support_hcs-patient-portal&metricKeys=coverage,line_coverage,branch_coverage,ncloc"
 ```
 
-Baseline: `coverage=52.4`, `ncloc=116210`.
+Baseline, MEASURED 2026-09-08: `coverage=37.1`, `line_coverage=41.0`, `branch_coverage=17.5`,
+`ncloc=117310`. **Read all three coverage metrics, not just the headline** -- the headline blends
+lines and branches, and this repository's branch figure is less than half its line figure, so the two
+move at very different rates.
