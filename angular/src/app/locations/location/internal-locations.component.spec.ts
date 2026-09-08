@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { InternalLocationsComponent } from './internal-locations.component';
@@ -23,7 +24,14 @@ describe('InternalLocationsComponent Escape handling (sweep #658)', () => {
   function create() {
     TestBed.configureTestingModule({
       providers: [
-        { provide: LocationService, useValue: {} },
+        {
+          provide: LocationService,
+          useValue: {
+            getStateLookup: () => of({ items: [], totalCount: 0 }),
+            getAppointmentTypeLookup: () => of({ items: [], totalCount: 0 }),
+            getList: () => of({ items: [], totalCount: 0 }),
+          },
+        },
         { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
       ],
     });
@@ -89,5 +97,39 @@ describe('InternalLocationsComponent Escape handling (sweep #658)', () => {
     c.probe.form.set({ name: 'Ontario' });
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(c.readForm()).toBeNull();
+  });
+
+  /**
+   * Escape must survive the real bubble path, not just the binding.
+   *
+   * The actions cell carries a stopPropagation guard so Enter on a row button
+   * does not also fire the row's own (keydown.enter). Both buttons that OPEN a
+   * modal -- openEdit and askDelete -- live inside that cell, and there is no
+   * focus management here, so focus stays on the button after activation.
+   *
+   * A document-level HostListener sits at the END of the bubble path, so an
+   * unconditional (keydown) guard swallows Escape before it arrives. Dispatching
+   * straight at `document` cannot see that, because it starts the event AT the
+   * listener and skips the path a real keypress travels.
+   */
+  it('closes the edit form on Escape pressed from inside the actions cell', () => {
+    const c = create();
+    // First detectChanges runs ngOnInit, which loads lookups and clears loading.
+    // Seeding rows before it would be overwritten by load().
+    c.fixture.detectChanges();
+    (c.probe as unknown as { rows: { set(v: unknown[]): void } }).rows.set([
+      { location: { id: 'loc-1', name: 'Ontario', isActive: true }, appointmentTypes: [] },
+    ]);
+    c.fixture.detectChanges();
+
+    const host = c.fixture.nativeElement as HTMLElement;
+    const button = host.querySelector('.ra-rowbtn') as HTMLButtonElement | null;
+    expect(button).withContext('row action button should render').not.toBeNull();
+
+    c.probe.form.set({ name: 'Ontario' });
+    button!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(c.readForm())
+      .withContext('Escape from inside the actions cell must reach the document')
+      .toBeNull();
   });
 });
