@@ -180,7 +180,20 @@ curl -s "https://sonarcloud.io/api/hotspots/search?projectKey=gesco-healthcare-s
 
 Baseline: 31 TO_REVIEW. Target: 0 TO_REVIEW, every one carrying a recorded decision.
 
-**MET 2026-09-08: 0 TO_REVIEW, 53 REVIEWED/SAFE.** 46 were adjudicated at source and dispositioned
-per site in #578-#587; 20 of those were marked through the SonarCloud UI by Adrian across two
-batches, and 7 were resolved by code so they no longer match their rules. The marking is the
-sign-off, which is why it stayed on his account rather than being automated behind a token.
+**MET 2026-09-08: 0 TO_REVIEW, 53 REVIEWED/SAFE.** This phase's **27** hotspots were adjudicated at
+source and dispositioned per site in #581-#584: **20** marked through the SonarCloud UI by Adrian
+across two batches, and **7** resolved by code so they no longer match their rules. All four lanes
+are closed. The marking is the sign-off, which is why it stayed on his account rather than being
+automated behind a token.
+
+**Phase 5 only. Phases 4 and 6 are NOT closed by this, and neither is a SonarCloud phase.**
+
+- **Phase 4** (`04-codeql-sensitive-info.md`, #578-#580) -- 19 CodeQL alerts. Every one is
+  **adjudicated** at source, with per-alert verdicts in the issue bodies: 18 safe, **1 real**. Do
+  not re-read them. What remains is acting on that record -- dismissing the 18 in GitHub code
+  scanning, and fixing the real one: a **full email address reaching a Warning log** at
+  `CaseEvaluationAccountEmailer.cs:205`, which breaches the repo's own redaction rule. **Open.**
+- **Phase 6** (`06-dependencies.md`, #585-#587) -- 97 Dependabot advisories. **Open**, and only
+  scoped, not adjudicated.
+
+Adjudicated is not resolved. A hotspot count at zero says nothing about either phase.
