@@ -17,6 +17,10 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
     modal: { set(value: unknown): void };
     isBusy: { set(value: boolean): void };
     onEscapeKey(): void;
+    confirmDate(): void;
+    resendConsent(): void;
+    confirmApprove(): void;
+    confirmReject(): void;
   }
 
   function create() {
@@ -68,5 +72,33 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
     c.probe.modal.set(anyModal);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(c.readModal()).toBeNull();
+  });
+
+  /**
+   * The four entry points whose `!m || m.kind !== 'x'` guard was collapsed to
+   * `m?.kind !== 'x'` in this sweep (Sonar typescript:S6582). Each guard is the
+   * first statement in its method, so calling it with no modal open exercises
+   * exactly the changed line.
+   *
+   * `not.toThrow()` is the assertion on purpose, and it is stronger than it
+   * looks: the approval service is stubbed as an empty object, so a method that
+   * failed to return early would call a function that does not exist and throw.
+   * Passing therefore proves the guard short-circuited before touching it.
+   */
+  describe('nullish-modal guards (sweep #656)', () => {
+    it('returns early from every guarded action when no modal is open', () => {
+      const c = create();
+      expect(() => c.probe.confirmDate()).not.toThrow();
+      expect(() => c.probe.resendConsent()).not.toThrow();
+      expect(() => c.probe.confirmApprove()).not.toThrow();
+      expect(() => c.probe.confirmReject()).not.toThrow();
+    });
+
+    it('returns early when a modal of the wrong kind is open', () => {
+      // confirmReject wants kind 'reject'; the approve modal must not satisfy it.
+      const c = create();
+      c.probe.modal.set({ kind: 'approve', row: { id: 'cr-1' } });
+      expect(() => c.probe.confirmReject()).not.toThrow();
+    });
   });
 });
