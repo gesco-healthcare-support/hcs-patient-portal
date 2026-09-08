@@ -26,15 +26,18 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IBlobContainer<AppointmentPacketsContainer> _blobContainer;
+    private readonly AppointmentReadAccessGuard _readAccessGuard;
 
     public AppointmentPacketsAppService(
         IRepository<AppointmentPacket, Guid> packetRepository,
         IRepository<Appointment, Guid> appointmentRepository,
-        IBlobContainer<AppointmentPacketsContainer> blobContainer)
+        IBlobContainer<AppointmentPacketsContainer> blobContainer,
+        AppointmentReadAccessGuard readAccessGuard)
     {
         _packetRepository = packetRepository;
         _appointmentRepository = appointmentRepository;
         _blobContainer = blobContainer;
+        _readAccessGuard = readAccessGuard;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentPackets.Default)]
@@ -51,6 +54,13 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         {
             return null;
         }
+        // 2026-09-08: gate by the parent appointment. PacketVisibility above answers
+        // "may this ROLE see this KIND" -- it takes no appointment and no caller
+        // identity, so it cannot answer "is this caller a party to THIS appointment".
+        // Same guard, same reason as AppointmentDocumentsAppService (issue #114).
+        // Placed BEFORE the query deliberately: gating afterwards would let a
+        // non-party distinguish "exists but is not yours" from "does not exist".
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         // Phase 1A.1 backward-compat: existing UI fetches one packet per
         // appointment. Filter to Kind=Patient so this surface keeps
         // returning the single Patient packet until Phase 1D.9 expands
@@ -74,6 +84,9 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         {
             throw new AbpAuthorizationException("You are not allowed to access this packet.");
         }
+        // Party gate -- see GetByAppointmentAsync above for why the role/kind check
+        // is not one, and why this runs before the query rather than after it.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         var queryable = await _packetRepository.GetQueryableAsync();
         var packet = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == PacketKind.Patient)
             ?? throw new EntityNotFoundException(typeof(AppointmentPacket), appointmentId);
@@ -107,6 +120,9 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         // allowed to see (Patient -> Patient; AA/DA/CE -> Attorney-CE;
         // internal -> all three; no external role sees the Doctor packet).
         var allowedKinds = PacketVisibility.AllowedKinds(CurrentUser.Roles);
+        // Party gate -- see GetByAppointmentAsync above. AllowedKinds narrows WHICH kinds
+        // a role may see; it does not establish that this caller may see this appointment.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         var queryable = await _packetRepository.GetQueryableAsync();
         var entities = queryable
             .Where(x => x.AppointmentId == appointmentId)
@@ -131,6 +147,9 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         {
             throw new AbpAuthorizationException("You are not allowed to access this packet.");
         }
+        // Party gate -- see GetByAppointmentAsync above. The kind is caller-supplied here,
+        // so the role/kind check constrains WHAT is asked for, never WHOSE it is.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         var queryable = await _packetRepository.GetQueryableAsync();
         var packet = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == kind)
             ?? throw new EntityNotFoundException(typeof(AppointmentPacket), $"{appointmentId}/{kind}");

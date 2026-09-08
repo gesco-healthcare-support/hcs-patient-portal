@@ -88,6 +88,45 @@ angular/src/app/proxy/**
 # FluentValidation files and zero files of ours.
 **/_/**
 
+# ALSO NOT OUR CODE. Added 2026-09-04 (phase 3 item APP-OWN-01) after measuring,
+# not after assuming -- and it was found only because the measurement was run
+# TWICE, against a control.
+#
+# Referencing the AuthServer from Application.Tests (so the tenant-resolver chain
+# can be asserted in both processes) loads assemblies that drag MessagePack's
+# source-generator source into the report via SourceLink, rooted at
+# `/home/runner/work/MessagePack-CSharp/...`. It is not caught by `**/_/**`
+# above, because that matches FluentValidation's SourceLink root and this is a
+# different one.
+#
+# Measured on two full `dotnet-coverage collect` runs, CI's pinned 18.11.0:
+#
+#   CONTROL, unmodified tree : 73.61% (33195/45098 over 887 files)
+#     -- reproduces CI exactly, so the probe below is trustworthy
+#   PROBE, AuthServer loaded : 68.25% (33831/49566 over 961 files)
+#     of which NOT OURS      : 17.13% (  635/ 3706 over  45 files)
+#     our code only          : 72.39% (33196/45860 over 916 files)
+#
+# So five of those points were never AuthServer. Without this line the backend
+# floor would have been set from 68.25% and would then DRIFT on every MessagePack
+# bump -- a floor that moves when a dependency moves, which is the same sentence
+# the FluentValidation entry above already uses.
+#
+# WHY THE LEADING `**/`, same reasoning as `**/_/**`: the raw Cobertura path has a
+# LEADING SLASH. `MessagePack-CSharp/**` would match only after normalise() strips
+# it, so it would work today and silently stop matching if --cobertura-prefix were
+# ever set. `**/MessagePack-CSharp/**` matches the leading-slash form, the stripped
+# form AND a prefixed form, so it does not depend on a normalisation step it does
+# not control.
+#
+# THIS IS THE THIRD NAMED VENDOR AND THAT IS THE PROBLEM, not the solution.
+# SourceLink roots differ per vendor, so the next dependency will match none of
+# these patterns and nothing will report it. Issue #683 tracks the class-level fix
+# (assert every counted file is repo-tracked); Adrian decided to name this one now
+# so the tenancy work lands with an honest floor, and to sequence the general fix
+# separately rather than as a rider on this pull request.
+**/MessagePack-CSharp/**
+
 # Build output. `**/obj/**` is the one that mattered -- 64 Riok.Mapperly
 # generated mappers were being graded as our source. `**/bin/**` matches nothing
 # in today's report and is here because it is the SAME CLASS, and the reason obj/
