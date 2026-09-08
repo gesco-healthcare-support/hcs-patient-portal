@@ -33,9 +33,13 @@ public static class TenantNaming
     public const int MaxSlugLength = 63;
 
     // Lowercase DNS label: alphanumeric ends, optional internal hyphens.
+    // A match timeout is supplied as defense-in-depth (ReDoS hardening) even though
+    // this pattern has no catastrophic-backtracking risk and IsValidSlug rejects
+    // anything over MaxSlugLength before the pattern ever runs.
     private static readonly Regex SlugPattern = new(
         "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
-        RegexOptions.CultureInvariant);
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// Derives the office slug from its name by lowercasing + trimming, then

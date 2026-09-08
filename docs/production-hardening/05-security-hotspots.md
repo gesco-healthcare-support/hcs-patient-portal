@@ -7,15 +7,15 @@ change only where the review finds a real problem.
 **31 hotspots, all TO_REVIEW.** None has ever been reviewed, which is why the count equals the
 total.
 
-| Probability | Category | Count | Note |
-| --- | --- | --- | --- |
-| HIGH | csrf | 6 | Review first |
-| HIGH | auth | 3 | Review first |
-| MEDIUM | dos | 6 | Ties to the rate-limiting gap |
-| MEDIUM | permission | 5 | Ties to deny-by-default |
-| LOW | encrypt-data | 6 | |
-| LOW | others | 3 | |
-| LOW | insecure-conf | 2 | |
+| Probability | Category      | Count | Note                          |
+| ----------- | ------------- | ----- | ----------------------------- |
+| HIGH        | csrf          | 6     | Review first                  |
+| HIGH        | auth          | 3     | Review first                  |
+| MEDIUM      | dos           | 6     | Ties to the rate-limiting gap |
+| MEDIUM      | permission    | 5     | Ties to deny-by-default       |
+| LOW         | encrypt-data  | 6     |                               |
+| LOW         | others        | 3     |                               |
+| LOW         | insecure-conf | 2     |                               |
 
 ---
 
@@ -40,8 +40,20 @@ them. Any conclusion of the form "the API handles this" is wrong for the auth fl
 
 ## 5.2 DoS (6, MEDIUM)
 
-These will almost certainly resolve to the known rate-limiting gap rather than to individual code
-defects.
+**RESOLVED 2026-09-08. The prediction below was wrong -- recorded rather than deleted so nobody
+re-derives it.** These are not rate-limiting findings at all. All six are `csharpsquid:S6444`
+(_"Pass a timeout to limit the execution time"_) on `new Regex(...)` constructions. S6444 is a
+blanket rule that fires on every timeout-less constructor regardless of the pattern, so the count
+measured nothing about exposure.
+
+Adjudicated per site in [#582](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/582):
+not one of the six contains a nested quantifier, and the only attacker-reachable pattern
+(`TenantNaming.SlugPattern`, fed by a request subdomain) is additionally bounded by the
+`MaxSlugLength = 63` check that runs before it. All six were resolved by passing
+`TimeSpan.FromSeconds(1)`, matching the existing precedent at `LocationManager.cs:33` -- satisfying
+the rule uniformly rather than re-arguing it each time a `new Regex` is added.
+
+The rate-limiting gap is real and still open, but it belongs to the edge design, not here:
 
 **Established facts, already verified -- do not re-derive:**
 
