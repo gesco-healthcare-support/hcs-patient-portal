@@ -1,11 +1,34 @@
 # Phase 4 -- CodeQL sensitive-information alerts
 
-**Change class:** mixed. Triage each site first; most will be deliberate behaviour change
-(test WITH the fix), a few may be false positives (triage log, no code change).
+**Change class:** mixed, and **triage inverted the original expectation.** Triage each site first.
 
-**19 real alerts in 6 files.** These are the highest-value findings in the whole epic per unit of
-work, because they are the only ones CodeQL raises about _this system's own handling of sensitive
-data_, on a system whose entire content is PHI.
+**19 alerts in 6 files. ONE is real.**
+
+This block read _"19 real alerts in 6 files"_, and the change class read _"most will be deliberate
+behaviour change (test WITH the fix), a few may be false positives"_, until 2026-09-08. Triage at
+source that day found **1 real defect and 18 that are false positives or safe-intentional** -- close
+to the exact inverse. Corrected rather than silently rewritten, because this file is TRACKED while
+the correction lived only in the issue bodies: anyone planning from the repo alone would have scoped
+nineteen fixes and repeated phase 1's mistake at scale.
+
+| Issue | Alerts | Real | Disposition |
+| ----- | ------ | ---- | ----------- |
+| #578 | 5 | **1** | Alert 211 writes a full email address into a Warning-level log. The 3 HIGH alerts match the word "Password" inside template IDENTIFIER constants. |
+| #579 | 13 | 0 | Seed passwords behind a fail-closed `IsDevelopment()` gate, verified present and called in all four contributors. |
+| #580 | 1 | 0 | `CopiedGroupCounts.Total` is an `int`; field-insensitive taint through a record of ten ints. |
+
+**Severity is not a triage signal here: all three HIGH alerts are name matches.** Acting on them
+would be phase 1's mistake repeated -- there, doing what the scanner asked would have broken PDF
+generation.
+
+**The scanner also UNDER-reports.** `InternalUsersDataSeedContributor.cs:35` declares the same
+`DefaultPassword` and was never flagged, so "13 alerts" is the scanner's view rather than the size of
+the surface. It changes no verdict, since all four contributors are gated. Same shape as the
+`docker:S6471` under-report in the phase 2 catalogue.
+
+These remain the highest-value findings in the epic per unit of work, because they are the only ones
+CodeQL raises about _this system's own handling of sensitive data_, on a system whose entire content
+is PHI. The 1-in-19 ratio is the finding, not a reason to have skipped the phase.
 
 Reminder from [00-triage-log.md](00-triage-log.md): the other 109 "CodeQL alerts" are OpenSSF
 Scorecard findings and belong to phase 2. Do not conflate them.
@@ -102,6 +125,17 @@ dotnet test
 
 Then confirm the alerts actually close: re-run CodeQL on the PR and check the alert count for `cs/`
 rules drops as expected. A fix that satisfies a reviewer but not the query has not closed the alert.
+
+**State the arithmetic before running it, because the obvious misreading is built in.** Baseline is
+19. After the alert-211 fix ALONE, expect **18, not 0** -- the other 18 close by DISMISSAL, which
+moves them out of `state=="open"` without any code change. "Still 18" is success here; "0" before the
+dismissals have happened would mean something unexpected occurred.
+
+**Do not branch on the exit code of the pipeline below.** `grep -c` exits 1 on zero matches, which is
+indistinguishable from `gh api` having failed -- a failed enumeration and a genuine zero produce the
+same status. `pipefail` does not rescue it, because the rightmost non-zero status wins and grep's
+legitimate no-match 1 is the rightmost. Read the printed count, having separately confirmed that the
+`gh api` call itself succeeded.
 
 ```bash
 gh api repos/gesco-healthcare-support/hcs-patient-portal/code-scanning/alerts --paginate \
