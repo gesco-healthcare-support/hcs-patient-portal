@@ -89,6 +89,7 @@
         (click)="toggle(row)"
         (keydown.enter)="toggle(row)"
         tabindex="0"
+        role="button"
       >
         <span class="cr-row__type" [ngClass]="isReschedule(row) ? 'tint-amber' : 'tint-red'">
           <app-icon [name]="isReschedule(row) ? 'refresh' : 'x'" [size]="18" />

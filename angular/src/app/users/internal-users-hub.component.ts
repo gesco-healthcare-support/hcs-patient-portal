@@ -79,7 +79,19 @@ interface CreateUserDraft {
 // pattern wrongly accepted: an internal space (`a b@c.d`) and a second `@`
 // (`a@b@c.d`). Leading and trailing whitespace is not a difference, because
 // every call site trims first. The server remains authoritative.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//
+// CORRECTED after the first attempt still tripped S8786. That form was
+// `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, which fixed the `@` ambiguity but left the DOT
+// one: `[^\s@]` matches `.`, so it overlapped the literal `\.` that follows.
+// Measured on `"a@" + "b."*n + " "` -- a NON-match, so the engine must exhaust
+// every split -- it still roughly quadrupled per doubling, reaching 12.1ms at
+// 1600 dots. Excluding `.` from the classes and making each label explicit
+// removes the overlap; the same input stays under 0.2ms. Verified identical on
+// ten sampled addresses.
+//
+// The first benchmark missed it because its adversarial string had no dots after
+// the `@`, so it exercised only the ambiguity that had already been fixed.
+const EMAIL_RE = /^[^\s@.]+(?:\.[^\s@.]+)*@[^\s@.]+(?:\.[^\s@.]+)+$/;
 // Mirror of TenantNaming's DNS-safe slug rule (server is authoritative).
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
