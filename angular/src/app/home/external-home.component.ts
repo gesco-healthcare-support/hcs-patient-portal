@@ -17,7 +17,10 @@ import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.en
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '../shared/ui/empty-state/empty-state.component';
-import { StatusPillComponent } from '../shared/ui/status-pill/status-pill.component';
+import {
+  AppointmentPillStatus,
+  StatusPillComponent,
+} from '../shared/ui/status-pill/status-pill.component';
 import { ExternalNavbarComponent } from '../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../user-queries/submit-query-modal.component';
 import {
@@ -26,7 +29,6 @@ import {
   appointmentStatusToPill,
   appointmentStatusToSegment,
 } from '../shared/ui/status-pill/appointment-status.util';
-import { AppointmentPillStatus } from '../shared/ui/status-pill/status-pill.component';
 import { performFullLogout } from '../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../shared/auth/external-user-display-name';
 import { avatarColor, avatarInitials } from '../shared/ui/avatar.util';
@@ -342,10 +344,14 @@ export class ExternalHomeComponent implements OnInit {
     );
   }
   protected get typeOptions(): string[] {
-    return [...new Set(this.rows().map((r) => r.type))].filter((t) => t && t !== '—').sort();
+    return [...new Set(this.rows().map((r) => r.type))]
+      .filter((t) => t && t !== '—')
+      .sort((a, b) => a.localeCompare(b));
   }
   protected get locationOptions(): string[] {
-    return [...new Set(this.rows().map((r) => r.location))].filter((l) => l && l !== '—').sort();
+    return [...new Set(this.rows().map((r) => r.location))]
+      .filter((l) => l && l !== '—')
+      .sort((a, b) => a.localeCompare(b));
   }
 
   // ---- navigation / actions (all hit real routes) ----
