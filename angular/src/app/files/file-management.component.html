@@ -20,6 +20,8 @@
   <div class="ia-search">
     <app-icon name="search" [size]="16" />
     <input
+      id="fm-search"
+      aria-label="Search this folder"
       placeholder="Search this folder..."
       [ngModel]="query()"
       (ngModelChange)="query.set($event)"
@@ -52,7 +54,12 @@
       </thead>
       <tbody>
         @for (row of shown(); track row.id) {
-          <tr [class.fm-folderrow]="row.isDirectory" (click)="open(row)">
+          <tr
+            [class.fm-folderrow]="row.isDirectory"
+            (click)="open(row)"
+            (keydown.enter)="open(row)"
+            tabindex="0"
+          >
             <td>
               <span class="fm-fname">
                 <span class="fi" [class.folder]="row.isDirectory" [class.file]="!row.isDirectory">
@@ -70,7 +77,11 @@
                 row.lastModificationTime ? (row.lastModificationTime | pacificDate: 'medium') : '--'
               }}
             </td>
-            <td style="text-align: right" (click)="$event.stopPropagation()">
+            <td
+              style="text-align: right"
+              (click)="$event.stopPropagation()"
+              (keydown)="$event.stopPropagation()"
+            >
               @if (row.isDirectory) {
                 <span class="ia-sub fm-open">
                   Open
@@ -134,11 +145,12 @@
       </div>
       <div class="ra-modal__body">
         <div class="ra-field col-12">
-          <label>
+          <label for="fm-folder-name">
             Folder name
             <span class="req">*</span>
           </label>
           <input
+            id="fm-folder-name"
             class="ra-input"
             placeholder="e.g. 2026-07"
             [ngModel]="folderName()"
@@ -174,11 +186,12 @@
       </div>
       <div class="ra-modal__body">
         <div class="ra-field col-12">
-          <label>
+          <label for="fm-file-name">
             File name
             <span class="req">*</span>
           </label>
           <input
+            id="fm-file-name"
             class="ra-input fm-num"
             [ngModel]="folderName()"
             (ngModelChange)="folderName.set($event)"
