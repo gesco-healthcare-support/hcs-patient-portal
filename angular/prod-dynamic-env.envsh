@@ -26,6 +26,27 @@ APP_API_URL_VALUE="${APP_API_URL:-http://localhost:44327}"
 APP_NAME_VALUE="${APP_NAME:-Appointment Portal}"
 APP_REQUIRE_HTTPS_VALUE="${APP_REQUIRE_HTTPS:-true}"
 
+# Production hardening 1.7 (2026-09-01). baseHost is interpolated into a URL authority
+# by the SPA (tenant-bootstrap.ts), so a value carrying a scheme, path, credentials or
+# whitespace produces wrong tenant routing that looks like an application bug.
+#
+# This FAILS THE CONTAINER START rather than warning, unlike the SPA's own check which
+# starts and shows a banner. The difference is the audience: nothing is being served yet
+# at this point, and the person who sees this message is the operator running the deploy,
+# who can act on it. A container that serves misrouted tenants is worse than one that
+# refuses to start.
+#
+# It cannot fire on a currently-valid deployment: the :- default above already turns an
+# unset or empty APP_BASE_HOST into "localhost", so only malformed values reach here.
+case "${APP_BASE_HOST_VALUE}" in
+    *[!A-Za-z0-9._-]*)
+        echo "ERROR: APP_BASE_HOST is not a bare hostname: '${APP_BASE_HOST_VALUE}'" >&2
+        echo "       Expected something like 'portal.example.com' -- no scheme, no path," >&2
+        echo "       no port, no credentials, no spaces. Fix BASE_DOMAIN and redeploy." >&2
+        exit 1
+        ;;
+esac
+
 cat > /usr/share/nginx/html/dynamic-env.json <<EOF
 {
   "production": true,

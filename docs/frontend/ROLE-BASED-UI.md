@@ -130,6 +130,7 @@ export class TopHeaderNavbarComponent {
 ```
 
 Used in:
+
 - `HomeComponent` -- with `profileClick` navigating to `/doctor-management/patients/my-profile`
 - `AppointmentAddComponent` -- with same profile navigation
 
@@ -165,6 +166,7 @@ flowchart TD
 ### Unauthenticated Users
 
 Shows a simple landing page wrapped in `<abp-page>`:
+
 - "Appointment Scheduling Portal" heading
 - "Click to login or register" message
 - Login button that calls `authService.navigateToLogin()`
@@ -247,6 +249,7 @@ ngOnDestroy(): void {
 ---
 
 **Related Documentation:**
+
 - [Routing & Navigation](ROUTING-AND-NAVIGATION.md)
 - [Permissions](../backend/PERMISSIONS.md)
 - [User Roles & Actors](../business-domain/USER-ROLES-AND-ACTORS.md)

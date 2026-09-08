@@ -5,6 +5,7 @@ No code changed for this. Written so it can be routed to the multi-tenant (db-pe
 and sequenced without conflicts.
 
 ## TL;DR
+
 A re-evaluation (`Request a Re-evaluation` -> wizard at `?type=2`) cannot be submitted from the
 Review step UNLESS the booker first loads a prior APPROVED appointment via the "Load prior
 appointment" lookup on the Schedule step. The submit is correctly GATED on that source, but the
@@ -14,6 +15,7 @@ nothing visible (no POST, no toast, no error). The feature WORKS when the source
 created A00019 via create-reval). This is a frontend-only UX defect.
 
 ## Symptom (what a user sees)
+
 - Home -> "Request a Re-evaluation" -> fill all 9 wizard steps -> Review -> click "Submit request".
 - Nothing happens: no network call, no error, no navigation. Button is enabled; form has no invalid
   controls; no console error/warning. Looks like a broken button.
@@ -21,6 +23,7 @@ created A00019 via create-reval). This is a frontend-only UX defect.
   NOT the reval anchor; only the Schedule step's "Load prior appointment" sets the anchor.)
 
 ## Root cause (exact)
+
 Frontend only. The submit is gated on a loaded source confirmation number.
 
 1. Re-eval mode + the source lookup live in the wizard:
@@ -30,6 +33,7 @@ Frontend only. The submit is gated on a loaded source confirmation number.
    - Template `appointment-wizard.component.html` (~73-99): only inside `@case ('schedule')` and
      `@if (isReevaluation)` does it render the "Prior confirmation number" input + "Load prior
      appointment" button + the `sourceLoadMessage`:
+
      ```html
      @case ('schedule') {
        @if (isReevaluation) {
@@ -41,11 +45,13 @@ Frontend only. The submit is gated on a loaded source confirmation number.
        <app-appointment-add-schedule .../>
      }
      ```
+
 2. `loadRevalSource` -> `loadSourceForPrefill(conf,'reval')` (`appointment-add.component.ts` ~1348):
    looks up the source by confirmation #, enforces a status gate (reval needs Approved --
    `checkSourceStatusForFlow` ~1408), prefills the form, and on success sets
    `this.sourceConfirmationNumber = confirmationNumber` (~1392).
 3. The submit guard (`onSubmit`, `appointment-add.component.ts:1810`):
+
    ```csharp
    if (this.bookingMode !== 'new' && !this.sourceConfirmationNumber) {
        if (this.bookingMode === 'reval')
@@ -55,17 +61,20 @@ Frontend only. The submit is gated on a loaded source confirmation number.
        return;                       // <-- returns; no POST
    }
    ```
+
 4. Create routing (`createAppointmentForCurrentMode`, ~1733) only calls
    `createReval(this.sourceConfirmationNumber, payload)` when the source is set; otherwise a reval
    would fall through to a plain create -- which is exactly what the guard above exists to PREVENT.
 
 The two UX gaps that make the guard a silent dead-end:
+
 - (a) No step gating: `stepState()` / the stepper let you advance through all steps to Review with
   no source loaded (no "error" state on the Schedule step, no block on Continue).
 - (b) Wrong-screen feedback: `sourceLoadMessage` is only in the Schedule-step template. Submitting
   from Review sets it off-screen, so the user gets no feedback where they are.
 
 ## Reproduction (clean)
+
 1. External user -> home -> "Request a Re-evaluation" (`/appointments/request?type=2`).
 2. On Schedule, DO NOT use "Load prior appointment". Fill type/location/date/time. Continue.
 3. Fill all remaining steps (you may use "Find Existing Patient" on the Patient step -- it does NOT
@@ -78,7 +87,9 @@ Control (works): on Schedule, type an APPROVED appointment's confirmation # (e.g
 cascade. (Verified this run: produced A00019.)
 
 ## The fix (frontend-only) -- small + contained
+
 In the wizard (`appointment-wizard.component.*`) and/or `AppointmentAddComponent`:
+
 1. Surface the blocker where the user acts: when `isReevaluation && !sourceConfirmationNumber`, either
    disable the Review "Submit request" button (with a tooltip / inline note) OR show the
    `sourceLoadMessage` on the Review step.
@@ -89,6 +100,7 @@ No backend change required for the UX fix. Add a wizard spec: reval with no sour
 visible blocker on Review and does not POST; reval with a loaded approved source -> create-reval fires.
 
 ## Secondary observation (separate, BACKEND -- flag for the same session)
+
 The reval child created via `create-reval/{conf}` has `OriginalAppointmentId = NULL` -- it is NOT
 linked back to its source appointment via that column (reschedule children DO set
 `OriginalAppointmentId`). So a re-evaluation is currently untraceable to the prior appointment via
@@ -97,6 +109,7 @@ lives in the appointment app-service / `createReval` path -- the SAME backend ar
 work may touch, so it IS conflict-relevant (see below).
 
 ## Relationship to the multi-tenant (db-per-tenant) work -- the decision to make
+
 - The PRIMARY fix is FRONTEND ONLY (Angular wizard template + `AppointmentAddComponent` submit-gate
   UX + stepper). The multi-tenant epic is BACKEND (IMultiTenant entities, EF, migrations,
   Disable<IMultiTenant> sites). These do NOT overlap -- UNLESS the multi-tenant branch also edits
@@ -108,10 +121,12 @@ work may touch, so it IS conflict-relevant (see below).
   same service; otherwise do it as a separate backend follow-up after the merge.
 
 ## Severity
+
 MED (UX). Re-evaluation is a top-level external action; today it dead-ends silently for any booker who
 does not discover the Schedule-step "Load prior appointment" lookup. Not data-corruption or security.
 The feature itself works once the source is loaded.
 
 ## Not a conflict with F-H01
+
 Unrelated to F-H01 (attorney register-after-booking 500). Different surface (wizard UX vs
 ExternalSignupAppService).

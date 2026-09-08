@@ -18,6 +18,7 @@ Used by admin staff (CRUD), bookers (full booking flow), and accessor-scoped att
 ## Entity shape
 
 See `Appointment.cs` for all fields. Key structural facts:
+
 - All 5 required FKs (`PatientId`, `IdentityUserId`, `AppointmentTypeId`, `LocationId`,
   `DoctorAvailabilityId`) are `OnDelete: NoAction`.
 - `RequestConfirmationNumber` is auto-generated as `"A#####"`; client value is ignored.

@@ -117,6 +117,7 @@ For each leadership-facing claim, the actual code that backs it. If a claim coul
 Status of every BUG/OBS entry that was open at session start:
 
 **Fixed today (2026-05-19, on `feat/replicate-old-app`):**
+
 - BUG-013 (CORS on ConfirmUser) — **fixed by redesign** (B-3 work removed the surface)
 - BUG-016 (OpenIddict subdomain wildcards) — **fixed by redesign** (`AbpOpenIddictWildcardDomainOptions`)
 - BUG-020 (SMTP password decrypt noise) — **fixed** (IsEncrypted=false override). Also closes OBS-11
@@ -125,6 +126,7 @@ Status of every BUG/OBS entry that was open at session start:
 - BUG-026 (DuplicateEmail literal `{0}`) — **fixed** (en.json wording)
 
 **Fixed after last refresh (2026-05-24, PR refs):**
+
 - BUG-012 (AA/DA Firm Name client-required + localized server error) — **fixed PR #238** (2026-05-24). See struck-through row in table below.
 - BUG-036 (packet generation silently fails / Hangfire succeeds but zero packet rows) — **fixed PR #247** (2026-05-24). Filtered unique index on `IsDeleted = 0` + `EnqueueAsync` wrapped in `OnCompleted` to close the Hangfire UoW race.
 
@@ -148,6 +150,7 @@ Status of every BUG/OBS entry that was open at session start:
 | OBS-15..19 | observation | Booking-flow UX / role-section visibility | `angular/src/app/appointments/` | All in the booking-flow neighborhood; fold into Slot Phases 4-5 where the picker is being rewritten anyway |
 
 **Seed data gaps:**
+
 - **SEED-2** (open) — no `DemoDoctorDataSeedContributor`. OLD has no "+ New Doctor" UI, so doctors MUST come from seed. **Hard blocker for booking on fresh DBs.** Spec drafted inside the doc.
 - **SEED-3** (open) — non-AME slots missing from seed. Downstream of SEED-2; same PR.
 - **OBS-10** — seeded appointment types may miss Re-Eval, Consultation per OLD. Pair with SEED-2/3.
@@ -163,6 +166,7 @@ Mirrors the status report's Stage 1 with file-level scope. Total effort: 17-27 w
 **Effort:** 1-2 days  
 **Plan:** `docs/plans/SlotGenerationRework/2026-05-15-doctor-invariant-enforcement.md` (status: draft, sequence 1 of 7)  
 **Files:**
+
 - `src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorsAppService.cs` (guards on Create / Delete)
 - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs` (two new codes)
 - `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs` (400 mappings)
@@ -178,12 +182,14 @@ Mirrors the status report's Stage 1 with file-level scope. Total effort: 17-27 w
 **Effort:** 7-11 days  
 **Plans:** Umbrella `docs/plans/2026-05-15-slot-generation-rework.md` + six phase docs `docs/plans/SlotGenerationRework/2026-05-15-slot-rework-phase-{1-6}-*.md`  
 **Sequence (hard chain, declared in each plan's frontmatter):**
-```
+
+```text
 Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
   → Phase 3 (generation API) → Phase 4 (gen UI) → Phase 5 (picker UI) → Phase 6 (tests)
 ```
 
 **Per-phase one-liner + key files:**
+
 - **Phase 1 schema**: add `Capacity` col, new `DoctorAvailabilityAppointmentType` join entity, drop `AppointmentTypeId`. Migration `Phase20_DoctorAvailabilityCapacityAndTypeSet`. Bundles a pre-flight fix to `Directory.Build.props` + `docker-compose.yml` named-volume cache that also closes OBS-22's bind-mount race.
 - **Phase 2 domain logic**: `IAppointmentRepository.GetActiveCountForSlotAsync`, capacity-aware bookable predicate, three new error codes (`AppointmentBookingSlotFull/SlotClosed/SlotTypeMismatch`), repurpose `Reserved` status, retire `SlotCascadeHandler.cs` stamping logic. Migration `Phase21_RepurposeReservedAndBackfill` (no Down — data-migration cliff).
 - **Phase 3 generation API**: rewrite `DoctorAvailabilityGenerateInputDto` (single object, `SelectedDays`, `TimeRanges[]`, `Capacity`, `AppointmentTypeIds[]`). New `CreateRangeAsync` batched insert. Existing `CreateAsync` kept for single-slot edit.
@@ -192,6 +198,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 - **Phase 6 tests + hardening**: HRD-R1.12.{1-6} + HRD-R2.10.{1-3} + unit + integration + Playwright. Concurrency tests need real SQL Server (`[Trait("Backend", "SqlServer")]`).
 
 **Open questions inside the plans (decide before starting Phase 1):**
+
 1. `Reserved` semantic repurpose vs new `Closed` enum? Plan recommends repurpose.
 2. Seat numbers for multi-capacity? Plan recommends "any seat".
 3. Visually mark wildcard slots in picker? Plan recommends no.
@@ -203,6 +210,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 
 **Effort:** 4-6 days. **No plan exists.** Net-new feature.  
 **Files (to create / modify):**
+
 - `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs` — new methods `CheckInAsync`, `CheckOutAsync`, `MarkNoShowAsync`, `MarkBilledAsync`
 - `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs` — state-machine triggers (statuses 9, 10, 4, 11 already in `AppointmentStatusType.cs`)
 - `src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/Appointments/AppointmentController.cs` — 4 new endpoints
@@ -216,6 +224,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 
 **Effort:** 2-3 days  
 **Files + bugs:**
+
 - BUG-021 (ce-cannot-book): `appointment-add.component.ts:1057-1074`
 - BUG-017 (login-tempdata): new `src/HealthcareSupport.CaseEvaluation.AuthServer/Pages/Account/Login.cshtml` override
 - BUG-011: re-verify reproducibility post-PR-#201 first; if real, route to AuthServer Razor reset
@@ -228,6 +237,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 
 **Effort:** 1 day  
 **Files:**
+
 - `src/HealthcareSupport.CaseEvaluation.Application/AppointmentDocuments/AppointmentDocumentsAppService.cs` — enforce the existing `MaxFileSizeBytes = 25 MB` constant + new content-type allowlist (PDF/DOCX/PNG/JPG)
 - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs` — new `FileTooLarge` + `FileTypeNotAllowed`
 - `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs` — 400 mappings + Kestrel form-options tuning
@@ -236,6 +246,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 ### Task 6 — Verify reschedule + cancellation submission screens
 
 **Effort:** 1-2 days. Action paths already work end to end. Build the missing SPA submission UI:
+
 - `angular/src/app/appointments/appointment/components/` — new reschedule + cancellation submit components
 - Existing proxies: `angular/src/app/proxy/appointment-change-requests/` (auto-generated, do not edit)
 - Backend already supports the action; this is pure UI work.
@@ -254,6 +265,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 The status report has the full breakdown. Engineering scopes for the items most likely to surprise:
 
 **Stage 2:**
+
 - Email template branding (#8, 5-8 days): touches `Domain/NotificationTemplates/` seeders + `Domain.Shared/NotificationTemplates/NotificationTemplateConsts.cs`. 41 templates to migrate per audit §1.
 - Internal notes (#9): new `Domain/AppointmentNotes/` aggregate + AppService + Angular thread UI. Parity doc exists.
 - "Ask us a question" widget (#10): new `Domain/UserQueries/` + SubmitQueryAppService + floating-button Angular component.
@@ -262,6 +274,7 @@ The status report has the full breakdown. Engineering scopes for the items most 
 - Accessor invite when invitee unregistered (#17, 1-3d uncertain): bridge `AccessorInvitedEmailHandler.cs` to `Domain/Invitations/InvitationManager.cs`.
 
 **Stage 3:**
+
 - Cumulative-trauma date-range UX (#19): OBS-15 territory, in `appointments/sections/appointment-add-claim-information.component.*`.
 - Cross-appointment audit log view (#20): new Angular admin route over ABP's existing audit infrastructure.
 
@@ -272,6 +285,7 @@ The status report has the full breakdown. Engineering scopes for the items most 
 ### 5.1 Parallel-eligible work
 
 These can land in any order alongside the slot chain — no overlap with the slot-rework file set:
+
 - **BUG-008**, **BUG-014/15**, **BUG-018**, **BUG-025** — isolated files
 - `docs/plans/2026-05-15-invite-external-user.md` — already shipped via PR #202; just needs frontmatter `status: shipped`
 

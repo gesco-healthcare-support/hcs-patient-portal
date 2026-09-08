@@ -1274,7 +1274,7 @@ only five, one of which is new and one of which has moved.
 
 ### Component boundaries and trust zones
 
-```
+```text
                         PUBLIC INTERNET  (anonymous traffic reaches registration,
                         login, password reset, consent response, document upload)
                                        |
@@ -1654,6 +1654,7 @@ then **replace the estimate with a measured number - the wall-clock of a rehears
 performed by one developer against the written runbook.** A recovery point near zero is achievable
 with continuous replication and adds a failure mode this team cannot debug. **Prefer the objective
 that is provable by rehearsal over the objective that is better on paper.**
+
 ## 20. Not recommended: patterns that are standard elsewhere and wrong here
 
 Each of these is a defensible choice at a different organisation. Each is rejected here for a
@@ -1853,6 +1854,7 @@ the archive above rather than a replacement for it.
 | **Autoscaling on request volume** | 11 medical practices booking appointments during business hours is a predictable, bounded workload. Autoscaling adds a mechanism that can misfire, and its failure mode - scaling down mid-request, or scaling up into connection-pool exhaustion across 34 tenant pools - is subtle. Size for peak and alert on saturation |
 | **A dedicated observability platform stack, self-hosted** | Running the monitoring is a second production system. If the monitoring is self-hosted on the same infrastructure, it is also down when it is most needed |
 | **Infrastructure as code covering everything** | Addressed in area 10. The proportionate level is real, and "everything" is above it |
+
 ---
 
 ## 21. Contradictions in the research body, and how this document resolves them

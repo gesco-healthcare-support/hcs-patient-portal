@@ -117,7 +117,7 @@ during a bulk sweep.
 
 Per family, matching the layers it touches:
 
-```
+```bash
 dotnet format --verify-no-changes
 dotnet build -warnaserror
 dotnet test

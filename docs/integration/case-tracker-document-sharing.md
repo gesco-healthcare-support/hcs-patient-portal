@@ -39,6 +39,7 @@ There are two layers. This split is the most important thing to understand.
 Every file is described by a row in the portal's per-office SQL database. There are two kinds:
 
 Uploaded documents (patient/staff-provided files) - one row per file, with these fields:
+
 - `Id` (GUID) - stable, unique, immutable. Use this as the document identity.
 - `AppointmentId` (GUID), `TenantId` (GUID)
 - `DocumentName` (label), `FileName` (original upload name, e.g. `records.pdf`)
@@ -52,6 +53,7 @@ Uploaded documents (patient/staff-provided files) - one row per file, with these
   them until the patient uploads. Do not try to fetch these.
 
 Generated packets (PDFs the portal renders per appointment) - one row per (appointment, kind):
+
 - `Id` (GUID), `AppointmentId` (GUID), `TenantId` (GUID)
 - `Kind`: `Patient` | `Doctor` | `AttorneyClaimExaminer` (all three are generated per appointment)
 - `BlobName` (storage key), `Status`: `Generating` | `Generated` | `Failed`
@@ -169,6 +171,7 @@ Generated packets (PDFs the portal renders per appointment) - one row per (appoi
 ```
 
 Field notes for the implementer:
+
 - `objectKey` is fully-qualified within `bucket`; use it verbatim with the MinIO/S3 client. Never
   build or parse it.
 - `source` distinguishes generated packets (`packet`, always has `kind`) from uploaded files
@@ -248,6 +251,7 @@ Mechanism (portal pushes deltas; Case Tracker upserts):
   was missed. This makes the integration self-healing without relying on perfect event delivery.
 
 Status semantics for Case Tracker:
+
 - Show/allow only `Accepted` (documents) and `Generated` (packets) by default, if you want to mirror
   what the portal treats as final. `Uploaded` documents are awaiting portal review; `Rejected` ones
   were declined. Carry the status through so the case view can reflect it.

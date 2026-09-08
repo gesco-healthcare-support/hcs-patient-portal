@@ -2,7 +2,7 @@
 id: OBS-41
 title: Injury body parts stored as a single free-text BodyPartsSummary string; OLD used structured per-body-part rows; AppAppointmentBodyParts entity exists but is dormant
 severity: medium
-status: open
+issue: 577
 found: 2026-05-27 (userflow audit; code + DB + OLD parity confirmed)
 flow: appointment-booking, appointment-injury-details
 component: angular/src/app/appointments/sections/appointment-add-claim-information.component.* (Body Parts textarea); src/HealthcareSupport.CaseEvaluation.Application/AppointmentInjuryDetails/AppointmentInjuryDetailsAppService.cs (BodyPartsSummary only); src/.../HttpApi/Controllers/AppointmentBodyParts/AppointmentBodyPartController.cs (dormant)
@@ -10,6 +10,9 @@ parity: simplification -- OLD structured rows reduced to a summary string
 ---
 
 # OBS-41 - Body parts captured as free text, not structured rows
+
+> Tracked in [#577](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/577). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Observation
 

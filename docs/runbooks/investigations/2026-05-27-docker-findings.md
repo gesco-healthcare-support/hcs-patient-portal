@@ -147,9 +147,9 @@ or `ng build` (Angular) inside the container.
   > base swap alone is worth ~0.9 GB, not ~2.8 GB -- still real, but the bigger
   > .NET win is Issue 2 (the baked restore), not the base.
 - **Source.** MS Learn, *Run an ASP.NET Core app in Docker containers*
-  (https://learn.microsoft.com/aspnet/core/host-and-deploy/docker/building-net-docker-images?view=aspnetcore-10.0);
+  (<https://learn.microsoft.com/aspnet/core/host-and-deploy/docker/building-net-docker-images?view=aspnetcore-10.0>);
   MS Learn, *Official .NET Docker images*
-  (https://learn.microsoft.com/dotnet/architecture/microservices/net-core-net-framework-containers/official-net-docker-images).
+  (<https://learn.microsoft.com/dotnet/architecture/microservices/net-core-net-framework-containers/official-net-docker-images>).
   **Official guidance.**
 
 ### Issue 2 -- A full `dotnet restore` + build is baked in, then redone at runtime
@@ -168,9 +168,9 @@ or `ng build` (Angular) inside the container.
   `find src -name project.assets.json -delete ... ; dotnet restore ... ; dotnet
   run --no-restore`.
 - **Source.** Layer immutability: Docker Docs, *Understanding image layers*
-  (https://docs.docker.com/get-started/docker-concepts/building-images/understanding-image-layers/);
+  (<https://docs.docker.com/get-started/docker-concepts/building-images/understanding-image-layers/>);
   qmacro, *Immutable layers, file deletion and image size*
-  (https://qmacro.org/blog/posts/2024/10/26/immutable-layers-file-deletion-and-image-size-in-docker/).
+  (<https://qmacro.org/blog/posts/2024/10/26/immutable-layers-file-deletion-and-image-size-in-docker/>).
   **Community + official.**
 
 ### Issue 3 -- Application logs leak into the .NET images (~388 MB) -- also a PHI angle
@@ -194,7 +194,7 @@ or `ng build` (Angular) inside the container.
   so **shipping them inside an image is a PHI-exposure path** (the image is a
   redistributable artifact). Treat as a security finding, not just size.
 - **Source.** `.dockerignore` pattern anchoring + per-context location: Docker
-  Docs, *Build context* (https://docs.docker.com/build/concepts/context/).
+  Docs, *Build context* (<https://docs.docker.com/build/concepts/context/>).
   **Official.**
 
 ### Issue 4 -- The Angular image carries node_modules ~3x and a 1.8 GB yarn cache
@@ -217,10 +217,10 @@ or `ng build` (Angular) inside the container.
   `angular/Dockerfile.dev.dockerignore`) excluding `node_modules`, `dist`,
   `.angular`; and `yarn cache clean` in the same `RUN` as `yarn install`.
 - **Source.** Per-context / per-Dockerfile `.dockerignore`: Docker Docs, *Build
-  context* (https://docs.docker.com/build/concepts/context/). Cache/cleanup in
+  context* (<https://docs.docker.com/build/concepts/context/>). Cache/cleanup in
   the same layer: Docker Docs *Understanding image layers* (above) + Baeldung,
   *Removing Files in Different Docker Layers*
-  (https://www.baeldung.com/ops/docker-layers-delete-files-directories).
+  (<https://www.baeldung.com/ops/docker-layers-delete-files-directories>).
   **Official + community.**
 
 ### Issue 5 -- The WSL `docker_data.vhdx` is 72 GB and never auto-shrinks
@@ -239,9 +239,9 @@ or `ng build` (Angular) inside the container.
   ~20.8 GB is reclaimable** (`docker builder du`). Active distro: `docker-desktop`
   (WSL v2).
 - **Source.** Microsoft Q&A, *WSL2 sparse vhd does not shrink*
-  (https://learn.microsoft.com/en-us/answers/questions/1526083/in-wsl2-with-sparse-vhd-the-storage-usage-does-not);
+  (<https://learn.microsoft.com/en-us/answers/questions/1526083/in-wsl2-with-sparse-vhd-the-storage-usage-does-not>);
   Hanselman, *Shrink your WSL2 Virtual Disks*
-  (https://www.hanselman.com/blog/shrink-your-wsl2-virtual-disks-and-docker-images-and-reclaim-disk-space).
+  (<https://www.hanselman.com/blog/shrink-your-wsl2-virtual-disks-and-docker-images-and-reclaim-disk-space>).
   **Official + reputable community.**
 
 ### Issue 6 -- The host cannot fit two cold builds at once (memory)
@@ -507,21 +507,24 @@ volume + drop redundant restore), Option 4 (host-dev backend).
 ### Sources
 
 Official:
-- MS Learn -- Run an ASP.NET Core app in Docker containers: https://learn.microsoft.com/aspnet/core/host-and-deploy/docker/building-net-docker-images?view=aspnetcore-10.0
-- MS Learn -- Official .NET Docker images (dev vs prod): https://learn.microsoft.com/dotnet/architecture/microservices/net-core-net-framework-containers/official-net-docker-images
-- MS Learn -- .NET container images (size-optimised: Alpine/chiseled): https://learn.microsoft.com/dotnet/core/docker/container-images
-- Docker Docs -- Build context & .dockerignore: https://docs.docker.com/build/concepts/context/
-- Docker Docs -- Understanding image layers: https://docs.docker.com/get-started/docker-concepts/building-images/understanding-image-layers/
-- Docker Docs -- Bind mounts: https://docs.docker.com/engine/storage/bind-mounts/ ; Volumes: https://docs.docker.com/engine/storage/volumes/
-- Microsoft Q&A -- WSL2 sparse vhd does not shrink: https://learn.microsoft.com/en-us/answers/questions/1526083/in-wsl2-with-sparse-vhd-the-storage-usage-does-not
+
+- MS Learn -- Run an ASP.NET Core app in Docker containers: <https://learn.microsoft.com/aspnet/core/host-and-deploy/docker/building-net-docker-images?view=aspnetcore-10.0>
+- MS Learn -- Official .NET Docker images (dev vs prod): <https://learn.microsoft.com/dotnet/architecture/microservices/net-core-net-framework-containers/official-net-docker-images>
+- MS Learn -- .NET container images (size-optimised: Alpine/chiseled): <https://learn.microsoft.com/dotnet/core/docker/container-images>
+- Docker Docs -- Build context & .dockerignore: <https://docs.docker.com/build/concepts/context/>
+- Docker Docs -- Understanding image layers: <https://docs.docker.com/get-started/docker-concepts/building-images/understanding-image-layers/>
+- Docker Docs -- Bind mounts: <https://docs.docker.com/engine/storage/bind-mounts/> ; Volumes: <https://docs.docker.com/engine/storage/volumes/>
+- Microsoft Q&A -- WSL2 sparse vhd does not shrink: <https://learn.microsoft.com/en-us/answers/questions/1526083/in-wsl2-with-sparse-vhd-the-storage-usage-does-not>
 
 Community (reputable):
-- Hanselman -- Shrink your WSL2 Virtual Disks: https://www.hanselman.com/blog/shrink-your-wsl2-virtual-disks-and-docker-images-and-reclaim-disk-space
-- qmacro -- Immutable layers, file deletion and image size: https://qmacro.org/blog/posts/2024/10/26/immutable-layers-file-deletion-and-image-size-in-docker/
-- Baeldung -- Removing files in different Docker layers: https://www.baeldung.com/ops/docker-layers-delete-files-directories
+
+- Hanselman -- Shrink your WSL2 Virtual Disks: <https://www.hanselman.com/blog/shrink-your-wsl2-virtual-disks-and-docker-images-and-reclaim-disk-space>
+- qmacro -- Immutable layers, file deletion and image size: <https://qmacro.org/blog/posts/2024/10/26/immutable-layers-file-deletion-and-image-size-in-docker/>
+- Baeldung -- Removing files in different Docker layers: <https://www.baeldung.com/ops/docker-layers-delete-files-directories>
 - GitHub: dotnet/aspnetcore#26492, docker/for-win#8749, dotnet/sdk#53337 (dotnet watch / polling over bind mounts on Windows)
 
 Internal:
+
 - `docs/runbooks/findings/bugs/OBS-22-docker-watch-misses-bind-mount-edits.md`
 - `docker-compose.yml`; `src/.../{AuthServer,HttpApi.Host}/Dockerfile{,.dev,.local}`;
   `src/.../DbMigrator/Dockerfile`; `angular/Dockerfile{,.dev}`,

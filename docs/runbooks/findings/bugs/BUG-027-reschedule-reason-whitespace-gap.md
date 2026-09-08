@@ -21,7 +21,6 @@ related:
 > file once docker returns and live-test via SPA fetch with `{ "reScheduleReason": "   " }`
 > to confirm HTTP 400 instead of HTTP 500.
 
-
 # BUG-027 - Reschedule endpoint accepts whitespace-only ReScheduleReason
 
 ## Symptom
@@ -47,12 +46,14 @@ Three gates SHOULD reject empty reasons, but each has a hole:
 1. **DTO `[Required]` attribute** at `RequestRescheduleDto.cs:26-28`. Catches null and empty string (`""`), but NOT whitespace-only (`"   "`). Standard .NET data-annotation behavior.
 2. **DTO `[StringLength(ReasonMaxLength)]`** — only a max-length cap; no `MinimumLength`.
 3. **AppService gate** at `AppointmentChangeRequestsAppService.cs:88-91`:
+
    ```csharp
    if (input == null)
    {
        throw new UserFriendlyException(L["The {0} field is required.", L["ReScheduleReason"]]);
    }
    ```
+
    Only checks `input == null`. Doesn't inspect `input.ReScheduleReason`.
 
 Whitespace-only payload slips past all three. It reaches `AppointmentChangeRequestManager.SubmitRescheduleAsync` → entity constructor `AppointmentChangeRequest.cs:115` → `Check.NotNullOrWhiteSpace(reScheduleReason, ...)` → `AbpException`. The default exception handler maps `AbpException` to HTTP 500.
@@ -64,12 +65,14 @@ Low severity — the UI never sends whitespace-only (clients trim before submit)
 - Direct API callers (automation, security testers, malicious clients) get a HTTP 500. 500 leaks the implementation: "your code crashed", not "your input was bad."
 - Audit-trail symmetry: BUG-024 fixed the equivalent path for appointment rejection. The reschedule path was the same shape and was missed in that PR.
 - The cancellation path at `AppointmentChangeRequestsAppService.cs:60-63` ALREADY has the correct guard:
+
   ```csharp
   if (input == null || string.IsNullOrWhiteSpace(input.Reason))
   {
       throw new UserFriendlyException(L["The {0} field is required.", L["CancellationReason"]]);
   }
   ```
+
   Reschedule should mirror this.
 
 ## Fix

@@ -33,6 +33,7 @@ appointment type. This is a direct, deliberate reversal of the OBS-23 fix that s
 `L["Appointment:AmeRequiresAttorneyRole"]`.
 
 The supporting scaffolding:
+
 - `BookingFlowRoles.IsAttorneyCaller` (`BookingFlowRoles.cs:117-137`) -- matches "Applicant
   Attorney" / "Defense Attorney".
 - `BookingFlowRoles.IsAmeAppointmentType` (`BookingFlowRoles.cs:146-153`) -- broad

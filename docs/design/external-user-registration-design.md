@@ -41,7 +41,7 @@ both and forwards to ABP `IAccountAppService.VerifyEmailAsync`.
 
 ### Registration form (default state, role not yet selected)
 
-```
+```text
 +--------------------------------------------------------+
 | login-bg.jpg image (full viewport)                     |
 | + dark scrim (rgba(0,0,0,.25))                          |
@@ -73,7 +73,7 @@ NEW: NEW UI not yet built.
 
 ### Registration form (role = Patient | Adjuster -- non-attorney)
 
-```
+```text
 +----------------------------------+
 |   [Doctor.png logo, centered]    |
 |   [User Type: Patient        v]  |
@@ -92,7 +92,7 @@ OLD: ./screenshots/old/external-user-registration/02-patient-role.png
 
 ### Registration form (role = Applicant Attorney | Defense Attorney)
 
-```
+```text
 +----------------------------------+
 |   [Doctor.png logo, centered]    |
 |   [User Type: Applicant Atty  v] |
@@ -122,7 +122,7 @@ NEW preserves the toast copy verbatim and the 1000ms delay-then-redirect.
 
 ### Verify-email screen (success state)
 
-```
+```text
 +------------------------+
 |  [Doctor.png logo]     |
 |                        |
@@ -140,7 +140,7 @@ OLD: ./screenshots/old/external-user-registration/04-verify-success.png
 
 ### Verify-email screen (failure state)
 
-```
+```text
 +----------------------------+
 |  [Doctor.png logo]         |
 |                            |
@@ -226,7 +226,8 @@ The T&C modal opens from `openTermaAndConidition()` (OLD typo
 exception, OLD typo, fixed for correctness**, see Section 10).
 
 The T&C content is per-tenant (see `docs/parity/terms-and-conditions.md`
-+ `_branding.md` -- `branding.termsAndConditions` config field).
+
+- `_branding.md` -- `branding.termsAndConditions` config field).
 
 ## 6. Buttons + actions
 
@@ -321,7 +322,7 @@ This design.md drives the future build. The implementer should:
 
 ## 11. OLD source citations (consolidated)
 
-```
+```text
 - patientappointment-portal/src/app/components/login/verify-email/verify-email.component.html
 - patientappointment-portal/src/app/components/login/verify-email/verify-email.component.ts
 - patientappointment-portal/src/app/components/term-and-condition/term-and-condition.component.ts

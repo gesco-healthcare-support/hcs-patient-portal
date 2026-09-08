@@ -2,7 +2,7 @@
 id: OBS-40
 title: Dashboard pending-count polls /api/app/appointments/pending-count when user is logged-out -> 401 spam
 severity: observation
-status: open
+issue: 576
 found: 2026-05-25 (Mon AM hardening, console error survey)
 flow: dashboard-pending-count-widget
 component: angular/src/app/(dashboard or shared layout)/pending-count-poll - exact location TBD
@@ -10,11 +10,14 @@ component: angular/src/app/(dashboard or shared layout)/pending-count-poll - exa
 
 # OBS-40 - pending-count polls anonymously
 
+> Tracked in [#576](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/576). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
+
 ## Symptom
 
 While clicking around the SPA, the browser console shows repeated:
 
-```
+```text
 Failed to load resource: the server responded with a status of 401 (Unauthorized)
 @ http://falkinstein.localhost:44327/api/app/appointments/pending-count:0
 ```
@@ -26,6 +29,7 @@ continues at its interval regardless of auth state.
 ## Expected
 
 The pending-count poll should:
+
 1. Check `oAuthService.hasValidAccessToken()` (or equivalent) before
    firing, OR
 2. Be gated behind the dashboard route guard so it only mounts when

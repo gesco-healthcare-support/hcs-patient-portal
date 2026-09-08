@@ -63,7 +63,7 @@ widen the task and do not raise it in your report unless it blocks you.
 Send this back to Session A on completion. Every field, every time -- Session A verifies
 mechanically against it, and a missing field means a round trip.
 
-```
+```text
 TASK: <id from the dispatch>
 STATUS: DONE | BLOCKED | TRIAGED-NO-FIX
 BRANCH: <name>

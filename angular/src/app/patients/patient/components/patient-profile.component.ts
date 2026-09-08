@@ -1,9 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  AuthService,
   AutofocusDirective,
   ConfigStateService,
   LocalizationPipe,
@@ -28,6 +27,7 @@ import {
   NgbNavModule,
 } from '@ng-bootstrap/ng-bootstrap';
 import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
+import { performFullLogout } from '../../../shared/auth/full-logout';
 
 import { PhoneNumberDirective } from '../../../shared/phone-number.directive';
 @Component({
@@ -60,7 +60,7 @@ export class PatientProfileComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
-  private readonly authService = inject(AuthService);
+  private readonly injector = inject(Injector);
 
   readonly title = '::MyProfile';
   readonly genderOptions = genderOptions;
@@ -178,8 +178,14 @@ export class PatientProfileComponent implements OnInit {
     this.router.navigateByUrl('/user-management/patients/my-profile');
   }
 
+  /**
+   * 1.8b (2026-09-01) -- was `authService.logout().subscribe()`, which
+   * `angular/src/app/shared/CLAUDE.md:131` forbids: it leaves the `__tenant` and
+   * `XSRF-TOKEN` cookies in place. Repointed onto the shared helper, matching
+   * `PatientProfileRedesignComponent.onLogout()`, the subclass that is actually routed.
+   */
   logout(): void {
-    this.authService.logout().subscribe();
+    void performFullLogout(this.injector);
   }
 
   private loadMyProfile(): void {

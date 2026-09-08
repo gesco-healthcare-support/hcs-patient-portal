@@ -9,12 +9,14 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Staff Supervisors (and roles above them) should have an "add internal users" form under the
 User Management section, parallel to the "Invite External User" section. The FORM and its
 placement already exist -- this is an AUTHORIZATION change (grant the create permission to
 Staff Supervisor), not a build-form task.
 
 ## Current behavior (from investigation)
+
 - An internal-user add form ALREADY EXISTS and is ALREADY under User Management.
   `InternalUsersFormComponent` (angular/src/app/internal-users/components/internal-users-form.component.ts)
   posts to `POST /api/app/internal-users`, branches host-IT-Admin (editable tenant picker) vs
@@ -39,6 +41,7 @@ Staff Supervisor), not a build-form task.
   Staff Supervisor cannot see/use the form today.
 
 ## Relevant code locations
+
 - src/HealthcareSupport.CaseEvaluation.Domain/Identity/InternalUserRoleDataSeedContributor.cs
   (StaffSupervisorGrants -- add InternalUsers.Create; this is part of the IR1 role-model change)
 - src/HealthcareSupport.CaseEvaluation.Application/InternalUsers/InternalUsersAppService.cs:70-71
@@ -49,6 +52,7 @@ Staff Supervisor), not a build-form task.
   (permission already defined; reconcile the IT-Admin-only doc-comment)
 
 ## Phase 3 cross-reference
+
 - No existing BUG/OBS/SEED maps directly. This is the internal-user sibling of UM1 (invite names)
   under the same User Management nav node; the two share the User Management surface but are
   independent changes.
@@ -57,6 +61,7 @@ Staff Supervisor), not a build-form task.
   role decision supersedes them.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - The form, the Hangfire temp-password welcome-email flow, and the User Management nav
     placement are all already built; this mirrors exactly the IP1/IP2/IP5 pattern where the
@@ -71,6 +76,7 @@ Staff Supervisor), not a build-form task.
     permission definition is needed. (Confidence HIGH -- grounded in repo code.)
 
 ## Approaches considered (with tradeoffs)
+
 - CHOSEN: grant `InternalUsers.Create` to Staff Supervisor in StaffSupervisorGrants() (folded
   into the IR1 role-model change); keep the existing creatable-role allow-list (Clinic Staff +
   Staff Supervisor) so a Supervisor can create Supervisors + Clinic Staff but NOT IT Admins.
@@ -85,6 +91,7 @@ Staff Supervisor), not a build-form task.
   explicitly supersedes that parity stance; the comment must be reconciled, not followed.
 
 ## Decision (locked 2026-06-03)
+
 1. Grant `CaseEvaluation.InternalUsers.Create` to Staff Supervisor (as part of the IR1
    3-role model change).
 2. Keep the server-side creatable-role allow-list as Clinic Staff + Staff Supervisor so a
@@ -95,6 +102,7 @@ Staff Supervisor), not a build-form task.
 4. No form/UI change -- the existing InternalUsersFormComponent renders once the policy is held.
 
 ## Implementation outline (no code)
+
 1. Backend role grant: add `InternalUsers.Create` to StaffSupervisorGrants()
    (InternalUserRoleDataSeedContributor.cs). Do this inside the IR1 grant work so it is one
    coherent role-model edit, not a separate bolt-on.
@@ -112,12 +120,14 @@ Staff Supervisor), not a build-form task.
    sent), cannot create an IT Admin; log in as Clinic Staff -> form not available.
 
 ## Dependencies
+
 - DEPENDS ON IR1 (3-role model; Staff Supervisor as top tenant role). Implement this grant as
   part of the IR1 grant set rather than separately.
 - Sibling surface with UM1 (invite external user names) under User Management; independent
   change, no ordering constraint between them.
 
 ## Residual open questions
+
 - None. "And above" resolves to: Staff Supervisor + IT Admin hold InternalUsers.Create; a
   Supervisor may create Supervisors + Clinic Staff (approved A.c); IT Admin remains seed-only
   and host-scoped.

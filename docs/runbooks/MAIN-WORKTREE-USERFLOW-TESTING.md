@@ -230,17 +230,17 @@ trailing `r`).
 
 | Role | Email | Subdomain to sign in on |
 | --- | --- | --- |
-| **Host admin** | admin@abp.io | `localhost:44368` (no subdomain) |
-| **IT Admin** | it.admin@hcs.test | `localhost:44368` |
-| **Tenant admin** | admin@falkinstein.test | `falkinstein.localhost:44368` |
-| **Tenant admin (extra)** | SoftwareOne@evaluators.com | `falkinstein.localhost:44368` |
-| **Tenant admin (extra)** | SoftwareTwo@evaluators.com | `falkinstein.localhost:44368` |
-| **Staff Supervisor** | supervisor@falkinstein.test | `falkinstein.localhost:44368` |
-| **Clinic Staff** | staff@falkinstein.test | `falkinstein.localhost:44368` |
-| **Patient (synthetic)** | patient@falkinstein.test | `falkinstein.localhost:44368` |
-| **Applicant Attorney (synth)** | applicant.attorney@falkinstein.test | `falkinstein.localhost:44368` |
-| **Defense Attorney (synth)** | defense.attorney@falkinstein.test | `falkinstein.localhost:44368` |
-| **Claim Examiner (synth)** | adjuster@falkinstein.test | `falkinstein.localhost:44368` |
+| **Host admin** | <admin@abp.io> | `localhost:44368` (no subdomain) |
+| **IT Admin** | <it.admin@hcs.test> | `localhost:44368` |
+| **Tenant admin** | <admin@falkinstein.test> | `falkinstein.localhost:44368` |
+| **Tenant admin (extra)** | <SoftwareOne@evaluators.com> | `falkinstein.localhost:44368` |
+| **Tenant admin (extra)** | <SoftwareTwo@evaluators.com> | `falkinstein.localhost:44368` |
+| **Staff Supervisor** | <supervisor@falkinstein.test> | `falkinstein.localhost:44368` |
+| **Clinic Staff** | <staff@falkinstein.test> | `falkinstein.localhost:44368` |
+| **Patient (synthetic)** | <patient@falkinstein.test> | `falkinstein.localhost:44368` |
+| **Applicant Attorney (synth)** | <applicant.attorney@falkinstein.test> | `falkinstein.localhost:44368` |
+| **Defense Attorney (synth)** | <defense.attorney@falkinstein.test> | `falkinstein.localhost:44368` |
+| **Claim Examiner (synth)** | <adjuster@falkinstein.test> | `falkinstein.localhost:44368` |
 
 ### NOT seeded -- self-register for real-inbox tests
 
@@ -251,10 +251,10 @@ email will land in the real Gmail inbox Adrian has access to.
 
 | Role | Email |
 | --- | --- |
-| **Patient** | SoftwareThree@gesco.com |
-| **Applicant Attorney** | SoftwareFour@gesco.com |
-| **Defense Attorney** | SoftwareFive@gesco.com |
-| **Claim Examiner** | SoftwareSix@gesco.com |
+| **Patient** | <SoftwareThree@gesco.com> |
+| **Applicant Attorney** | <SoftwareFour@gesco.com> |
+| **Defense Attorney** | <SoftwareFive@gesco.com> |
+| **Claim Examiner** | <SoftwareSix@gesco.com> |
 
 The canonical email -> role mapping for these four is preserved as
 the `InboxedExternalUsers` constant in
@@ -287,17 +287,17 @@ AA flow that expects an email, check Junk if the inbox is empty.
 
 | What | URL | Notes |
 | --- | --- | --- |
-| OLD app | http://localhost:4202 | Read-only reference |
-| AuthServer (NEW) | http://localhost:44368 | Razor pages for login / register / verify-email / password reset |
-| API (NEW) | http://localhost:44327 | REST endpoints, Hangfire dashboard at `/hangfire` |
-| Angular SPA (NEW) | http://localhost:4200 | Standalone components |
-| Tenant subdomain (NEW) | http://falkinstein.localhost:{port} | The `falkinstein.` prefix triggers the subdomain tenant resolver |
+| OLD app | <http://localhost:4202> | Read-only reference |
+| AuthServer (NEW) | <http://localhost:44368> | Razor pages for login / register / verify-email / password reset |
+| API (NEW) | <http://localhost:44327> | REST endpoints, Hangfire dashboard at `/hangfire` |
+| Angular SPA (NEW) | <http://localhost:4200> | Standalone components |
+| Tenant subdomain (NEW) | <http://falkinstein.localhost:{port}> | The `falkinstein.` prefix triggers the subdomain tenant resolver |
 | SQL Server (NEW) | localhost:1434 | sa / `MSSQL_SA_PASSWORD` from `docker/.env` |
-| MinIO (NEW) | http://localhost:9000 (API), :9001 (console) | minioadmin / minioadmin |
+| MinIO (NEW) | <http://localhost:9000> (API), :9001 (console) | minioadmin / minioadmin |
 | Redis (NEW) | localhost:6379 | No password |
-| Gotenberg (NEW) | http://localhost:3000 | DOCX → PDF |
-| Hangfire dashboard | http://localhost:44327/hangfire | Background job state |
-| Health check | http://localhost:44327/health-status | API health composite |
+| Gotenberg (NEW) | <http://localhost:3000> | DOCX → PDF |
+| Hangfire dashboard | <http://localhost:44327/hangfire> | Background job state |
+| Health check | <http://localhost:44327/health-status> | API health composite |
 
 ### Tenant subdomain wildcard DNS
 
@@ -331,6 +331,7 @@ ones already implemented in NEW. The remaining ~12 are internal-user
 slices that need audit docs (your secondary deliverable).
 
 Naming convention:
+
 - `external-user-*.md` — Patient / AA / DA / CE flows
 - `clinic-staff-*.md` — Clinic Staff flows
 - `internal-user-*.md` — admin / Staff Supervisor flows
@@ -428,6 +429,7 @@ After every user-facing flow, call `browser_console_messages` at level
 "error". Any uncaught JS error during a clean flow is a bug. File it.
 
 A few known noisy warnings are acceptable:
+
 - `aspnetcore-browser-refresh.js: WebSocket failed` (dotnet watch
   reload channel, not relevant to user)
 - DOM autocomplete suggestions
@@ -513,7 +515,7 @@ All Patient flows above, plus:
 
 | Flow | OLD ref | NEW path | Parity doc |
 | --- | --- | --- | --- |
-| Login | AuthServer | -- |
+| Login | AuthServer | -- | -- |
 | View appointment queue (Pending + others) | OLD's dashboard | SPA `/appointments` | `clinic-staff-appointment-approval.md` |
 | Approve / reject pending appointment | `AppointmentDomain.Approve` | SPA appointment view | `clinic-staff-appointment-approval.md` |
 | Review uploaded documents | `AppointmentDocumentDomain.Approve` | SPA doc review | `clinic-staff-document-review.md` |
@@ -693,7 +695,7 @@ replicate it. Per the project CLAUDE.md "Bug and deviation policy":
 
 - **Clear bug** -- fix in NEW silently (no flag needed).
 - **Ambiguous** -- replicate verbatim AND add a `PARITY-FLAG` comment
-  + a row in `docs/parity/_parity-flags.md` so a human can decide
+  - a row in `docs/parity/_parity-flags.md` so a human can decide
   later.
 
 ---
@@ -1047,8 +1049,8 @@ When you need a decision:
 - [ ] Smoke-test the three URLs in Part 3.
 - [ ] Confirm Falkinstein tenant id with the resolve-tenant curl.
 - [ ] Verify the 16 seeded users via SQL (Part 9 query).
-- [ ] Open OLD at http://localhost:4202 in one browser context.
-- [ ] Open NEW at http://falkinstein.localhost:4200 in another.
+- [ ] Open OLD at <http://localhost:4202> in one browser context.
+- [ ] Open NEW at <http://falkinstein.localhost:4200> in another.
 - [ ] Create `docs/runbooks/findings/{TODAY}-userflow-findings.md`
       with an empty bug list.
 - [ ] Pick your first flow (recommend: Patient register + login, since

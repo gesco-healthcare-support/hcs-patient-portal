@@ -45,6 +45,24 @@ const DEFAULT_BASE_HOST = 'localhost';
 const ADMIN_SLUG = 'admin';
 
 /**
+ * The subset of `window.location` this module reads, plus the navigation it issues.
+ *
+ * Injected rather than referenced directly so the redirect path can be unit-tested:
+ * `window.location.replace` cannot be spied on in Chrome (Location members are
+ * non-configurable), and invoking the real one would navigate the karma runner out of
+ * the suite mid-run. Production passes `window.location` via the default argument.
+ */
+export interface TenantBootstrapLocation {
+  readonly hostname: string;
+  readonly protocol: string;
+  readonly port: string;
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+  replace(url: string): void;
+}
+
+/**
  * Returns the resolved office slug ('falkinstein', 'admin', etc.) or `null` when the
  * page has been redirected (caller should abort bootstrap on null).
  *
@@ -52,17 +70,29 @@ const ADMIN_SLUG = 'admin';
  * - bare base host              -> redirect to `admin.<baseHost>` (host surface)
  * - IPv4 / numeric / IPv6 host  -> redirect to `admin.<baseHost>` (no usable slug)
  * - `<slug>.<baseHost>` host    -> return the leftmost label as the slug
+ *
+ * Not an open redirect, despite Sonar `tssecurity:S6105` flagging the `replace` call.
+ * The destination's AUTHORITY is `admin.<baseHost>`, where `admin` is a literal and
+ * `baseHost` is deployment config (docker-compose `BASE_DOMAIN` -> prod-dynamic-env.envsh
+ * -> same-origin dynamic-env.json -> main.ts). The only caller-influenceable parts are
+ * pathname/search/hash, and for an http(s) document `location.pathname` always begins
+ * with '/' per the WHATWG URL spec, so they are appended strictly AFTER the authority
+ * and cannot relocate the origin. Proven by the "destination origin is not
+ * caller-controlled" specs in tenant-bootstrap.spec.ts; full triage in
+ * docs/production-hardening/00-triage-log.md. Preserving path/query/hash is deliberate:
+ * it is what keeps an emailed deep link working across the canonicalising redirect.
  */
 export function detectTenantSlugAndMaybeRedirect(
   baseHost: string = DEFAULT_BASE_HOST,
+  loc: TenantBootstrapLocation = window.location,
 ): string | null {
-  const hostname = window.location.hostname;
+  const hostname = loc.hostname;
 
   // Bare base host, a numeric IPv4, or IPv6 loopback -> no usable office slug.
   if (hostname === baseHost || /^[0-9.]+$/.test(hostname) || hostname === '::1') {
-    const port = window.location.port ? `:${window.location.port}` : '';
-    const target = `${window.location.protocol}//${ADMIN_SLUG}.${baseHost}${port}${window.location.pathname}${window.location.search}${window.location.hash}`;
-    window.location.replace(target);
+    const port = loc.port ? `:${loc.port}` : '';
+    const target = `${loc.protocol}//${ADMIN_SLUG}.${baseHost}${port}${loc.pathname}${loc.search}${loc.hash}`;
+    loc.replace(target);
     return null;
   }
 

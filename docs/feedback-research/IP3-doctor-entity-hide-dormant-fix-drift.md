@@ -85,7 +85,7 @@ construction and the IdentityUserId references are dead.
   per-Doctor-row -- corroborates "tenant IS the doctor"; reference, no change needed.
 - Do NOT touch the abstract list component file (`doctor.abstract.component.ts`); ABP Suite
   regeneration depends on it (per angular/src/app/CLAUDE.md). Edit only concrete templates
-  + the detail service.
+  - the detail service.
 
 ## Research findings
 
@@ -143,7 +143,7 @@ re-enters scope -- at which point Option A (superseding ADR + drop) or C becomes
 1. Angular -- remove dead controls (UI-only affordance cleanup, no server mirror needed):
    - `doctor-detail.abstract.service.ts`: delete the `identityUserId` and `tenantId` form
      controls (lines 67-68) and their destructured reads; remove/replace the stale comment
-     + broken citation (22-27). No `getTenantLookup` consumer should remain.
+     - broken citation (22-27). No `getTenantLookup` consumer should remain.
    - `doctor-detail.component.html`: remove the identityUser lookup control (80-84).
    - `doctor.component.html`: remove the identityUser filter (54-63) and the Identity User
      and Tenant columns (188-200).

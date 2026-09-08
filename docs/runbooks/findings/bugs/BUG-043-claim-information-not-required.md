@@ -2,7 +2,7 @@
 id: BUG-043
 title: Booking form submits with zero Claim Information; no form-level rule requires at least one injury/claim
 severity: medium
-status: open
+issue: 558
 found: 2026-05-27 (userflow audit; A00001 + A00002 both submitted with no claim info)
 flow: appointment-booking
 component: angular/src/app/appointments/appointment-add.component.ts (injuryDrafts, submit path); angular/src/app/appointments/sections/appointment-add-claim-information.component.ts
@@ -10,6 +10,9 @@ parity: regression -- OLD blocked submit when no injury detail existed
 ---
 
 # BUG-043 - Claim Information not required at booking
+
+> Tracked in [#558](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/558). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 

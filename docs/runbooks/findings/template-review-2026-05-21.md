@@ -66,6 +66,7 @@
 | UserRegistered | You have registered successfully - Patient Appointment porta | 61 | subj-too-long |
 
 ## Summary
+
 Total templates: 64
 Pass (0 failures): 9
 1 failure: 32

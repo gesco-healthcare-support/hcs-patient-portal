@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48  # v4.9.0
         with:
           fail-on-severity: critical
           comment-summary-in-pr: always
@@ -32,4 +32,40 @@ jobs:
             AGPL-3.0-only,
             AGPL-3.0-or-later,
             SSPL-1.0
-        continue-on-error: true
+          # SCOPED EXCEPTION, added in phase 2 item 2.2 (2026-09-03). AGPL-3.0
+          # stays denied above and nothing else is relaxed.
+          #
+          # trufflesecurity/trufflehog is AGPL-3.0 (confirmed from GitHub's API,
+          # not inferred). The obligation does not attach here on the same kind
+          # of reasoning as the LGPL-3.0 note above: it is a BUILD-TIME SCANNER,
+          # invoked as a separate program in CI, never linked into the product
+          # and never distributed with it. Copyleft attaches to conveying the
+          # work, and nothing here conveys it.
+          #
+          # HOW IT WAS FOUND, because it says something about the gate. This
+          # check only evaluates dependencies that CHANGE in a pull request.
+          # Trufflehog had sat at @v3.94.3 unchanged since it was added, so it
+          # was never examined -- the licence gate was green because it had
+          # never looked, not because it found nothing. Pinning every action to
+          # a SHA in this item made it a changed dependency, and the gate read it
+          # for the first time in the repository's life. It is the sibling of the
+          # KNOWN GAP recorded below: that one is a licence this gate cannot
+          # parse, this one is a licence it never read.
+          #
+          # DELIBERATELY NOT VERSION-PINNED. The purl form allows `@<version>`,
+          # which would force a fresh approval on every trufflehog bump -- and
+          # this item just enabled weekly github-actions updates, so those bumps
+          # are now routine. The argument above is about what the tool IS, not
+          # about any version of it, so pinning the exception would manufacture a
+          # recurring red that someone eventually silences by deleting the
+          # version and losing this reasoning with it.
+          allow-dependencies-licenses: pkg:githubactions/trufflesecurity/trufflehog
+        # Phase 2.1 (2026-09-02): BLOCKING. Proven by poisoning on a throwaway PR --
+        # adding pm2@7.0.4 (SPDX AGPL-3.0) produced:
+        #   angular/package.json » pm2@7.0.4 - License: AGPL-3.0
+        #   ##[error]Dependency review detected incompatible licenses.
+        #
+        # KNOWN GAP, not fixed here: the deny-list matches SPDX expressions only. A
+        # package declaring its licence as a URL sails through -- itext7 on NuGet
+        # declares "https://www.gnu.org/licenses/agpl.html" and this check PASSED it
+        # while listing it in the diff. Recorded as a phase 6 item.

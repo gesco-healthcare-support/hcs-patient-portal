@@ -44,6 +44,7 @@ the new model ignores it for capacity purposes.
 `GeneratePreviewAsync` is stateless and read-only. It generates consecutive non-overlapping
 slots of `AppointmentDurationMinutes` (default 15) starting at `FromTime`, stopping when
 `currentTime + duration > ToTime`. Overlap detection is scoped to `LocationId`:
+
 - Overlap with `Booked` or `Reserved`: `IsConflict=true`, "Time slot is already booked or
   reserved at this location."
 - Overlap with `Available`: `IsConflict=true`, "Time slot already exists at this location."
@@ -54,6 +55,7 @@ at a time via `CreateAsync`; preview and create are not atomic.
 ## Bulk-delete modes
 
 Three modes, all requiring `DoctorAvailabilities.Delete`:
+
 1. `DeleteAsync` -- single id.
 2. `DeleteBySlotAsync` -- location + date + exact `FromTime`/`ToTime`.
 3. `DeleteByDateAsync` -- location + date, all slots that day.

@@ -44,7 +44,7 @@ for Phase 10 implementation)".
 
 ### Forgot-password form
 
-```
+```text
 +--------------------------------------------------------+
 | login-bg.jpg image (full viewport) + dark scrim         |
 |                                                        |
@@ -76,7 +76,7 @@ The instructional `<p>` text is verbatim from OLD line 14-16:
 
 ### Reset-password form (success path)
 
-```
+```text
 +--------------------------------------------------------+
 | login-bg.jpg image + dark scrim                         |
 |                                                        |
@@ -267,7 +267,7 @@ backend; only the chrome moves to LeptonX.
 
 ## 11. OLD source citations (consolidated)
 
-```
+```text
 - patientappointment-portal/src/app/components/login/forgot-password/forgot-password.component.html
 - patientappointment-portal/src/app/components/login/forgot-password/forgot-password.component.ts
 - patientappointment-portal/src/app/components/login/login.service.ts

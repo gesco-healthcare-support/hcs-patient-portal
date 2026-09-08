@@ -1,25 +1,39 @@
 name: Lint Meta
 
 # YAML workflow and Markdown documentation lint. Fast feedback on CI / docs
-# drift. Both jobs are `continue-on-error: true` during Phase A; Phase C flips
-# them to blocking.
+# drift.
+#
+# Both jobs BLOCK as of 2026-09-02 (production-hardening phase 2.1). They were
+# `continue-on-error: true` pending "Phase C"; that condition has been met.
+#
+# yamllint was verified green on recent runs before being flipped. markdownlint
+# was NOT: it only appeared green because it was linting zero files. It blocks
+# on the markdown a submission CHANGES -- see the job comment below.
 
 on:
   pull_request:
-    branches: [main, development, staging, production, chore/dependency-updates, 'feat/**', 'fix/**']
+    branches:
+      [
+        main,
+        development,
+        staging,
+        production,
+        chore/dependency-updates,
+        "feat/**",
+        "fix/**",
+      ]
 
 permissions:
   contents: read
 
 jobs:
   yamllint:
-    name: 'Lint: YAML workflows'
+    name: "Lint: YAML workflows"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: ibiqlik/action-yamllint@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
         with:
           file_or_dir: .github/workflows/
           config_data: |
@@ -31,13 +45,67 @@ jobs:
               comments-indentation: disable
 
   markdownlint:
-    name: 'Lint: Markdown'
+    name: "Lint: Markdown"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v16
-        with:
-          globs: 'docs/**/*.md README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md'
-          config: '.markdownlint.json'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      # REPO-WIDE as of 2026-09-03 (phase 2 item 2.12). No longer changed-files-only.
+      #
+      # History, because the shape of this check has been wrong in both directions.
+      # The globs were once a single space-separated string, which matched nothing:
+      # "Linting: 0 file(s) / 0 error(s)", permanently GREEN while checking nothing.
+      # Fixing that revealed a large backlog, which would have made it permanently
+      # RED -- equally uninformative. So 2.8 scoped it to changed files, which
+      # landed a real gate immediately and left the backlog for later.
+      #
+      # The backlog is now zero, so the scoping is no longer needed and the gate
+      # covers everything. Changed-files-only remains a documented reusable pattern
+      # in 02-enforcement.md for phases that still have backlogs -- it is retired
+      # HERE, not withdrawn as an idea.
+      #
+      # NOTE on the exclusions below: they are command-line globs, NOT a
+      # `.markdownlintignore` file. markdownlint-cli2 does NOT read that file --
+      # verified, it linted 1,830 files with one present and 444 with these globs.
+      # An inert ignore file would be the third "looks configured, is not" defect
+      # this epic has found, so it is deliberately not used.
+      #
+      # Every exclusion is NAMED with a reason. A named exclusion states what it
+      # protects; a wildcard states nothing and grows.
+      # githubactions:S6505 (phase 2 item 2.2, 2026-09-03). This step used
+      # `npx --yes markdownlint-cli2@0.13.0`, and a pinned VERSION does not close
+      # that finding: `npx --yes` resolves the package from the registry AT RUN
+      # TIME and executes its lifecycle scripts, so third-party code still
+      # arrives and RUNS during the job. It is the same supply-chain class as an
+      # unpinned action, which is why it was routed into 2.2 -- but it needs a
+      # different remedy, because SHA-pinning does not apply to npm.
+      #
+      # `--ignore-scripts` removes the execution surface: the package is still
+      # fetched, which is unavoidable, but nothing from it runs except the linter
+      # binary invoked below. Installed under RUNNER_TEMP rather than the
+      # workspace so no node_modules appears in the checkout.
+      #
+      # Verified equivalent before shipping: this form reports
+      # "markdownlint-cli2 v0.13.0 ... Linting: 444 file(s) ... 0 error(s)",
+      # identical to the npx form it replaces.
+      - name: Install markdownlint-cli2 without running lifecycle scripts
+        run: >
+          npm install --no-save --no-audit --no-fund --ignore-scripts
+          --prefix "$RUNNER_TEMP/mdlint" markdownlint-cli2@0.13.0
+
+      - name: Lint every markdown file in the repository
+        run: |
+          "$RUNNER_TEMP/mdlint/node_modules/.bin/markdownlint-cli2" --config .markdownlint.json \
+            '**/*.md' \
+            '!**/node_modules/**' \
+            '!design_handoff_appointment_portal/**' \
+            '!design_handoff_part_B/**' \
+            '!scripts/Test-Report.md' \
+            '!docs/plans/**'
+        # node_modules            -- dependencies, never ours
+        # design_handoff_*        -- third-party design deliverables committed as
+        #                            received in #321; the repo's value in keeping
+        #                            them is that they are the untouched artefact
+        # scripts/Test-Report.md  -- generated output; a fix is undone on regeneration
+        # docs/plans/**           -- gitignored working artefacts, absent from a CI
+        #                            checkout; listed so a local run matches CI

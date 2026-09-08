@@ -4,8 +4,12 @@ Committed and append-only. Every finding NOT fixed, with the evidence for why.
 
 **Why this file matters most.** A successor inheriting this epic will re-run the same scanners and
 see the same numbers this document was written against. Without this log they re-investigate every
-item already settled, or worse, "fix" a false positive and call it progress. Two of the six original
-Sonar blockers were false positives, so that is not a hypothetical risk.
+item already settled, or worse, "fix" a false positive and call it progress. That is not a
+hypothetical risk, and the finished tally proves it: of the six original Sonar BLOCKERs, **five
+issues -- four distinct findings -- were false alarms, and exactly ONE was a real defect.** All six
+are now triaged. A mechanical sweep would have changed working code in four places, and in one of
+them (the packet renderer) it would have broken PDF generation outright. Per-rule breakdown with the
+command that produces it is in the phase 1.4 entry below.
 
 Never delete an entry. If a dismissal turns out to be wrong, add a superseding entry explaining what
 changed -- the reversal is as informative as the original call.
@@ -167,6 +171,296 @@ compose an off-origin URL today, because nothing validates `baseHost` after the
 `Object.assign` merge. That is a config-integrity concern, not the reported vulnerability, and the
 attacker in it is the operator. It was NOT built, because the epic's rule is not to change code to
 satisfy a scanner and the reported defect is absent. Session A's call.
+
+---
+
+## REAL -- Sonar `typescript:S6268` (BLOCKER), phase 1.2. Fixed, but the issue stays OPEN
+
+**Where:** `angular/src/app/shared/ui/icon/icon.component.ts:58`
+**Verdict:** the one genuinely real BLOCKER of the six so far. Fixed in `ad4cb0d7` (#502).
+**Why it is in a log of things NOT fixed:** because the ISSUE is not resolved even though the DEFECT
+is. The fix constrains every input but deliberately keeps the `bypassSecurityTrustHtml` call, and the
+rule fires on the call's presence, so `AZ76eJ5Af85aalgSOdg0` remains OPEN and will keep appearing in
+the BLOCKER count. A successor who sees it open and assumes nothing was done will redo this work.
+
+**What was real and what was not.** Three values are interpolated into the trusted markup:
+
+- `name` -- **LIVE path from server data.** `DashboardActivityItemDto.icon` (the only icon field in
+  the entire generated proxy tree) reaches it through an unchecked `as IconName` cast at
+  `src/app/dashboard/internal-dashboard.component.ts:291`. The registry is a plain object literal, so
+  a lookup keyed on an inherited member returned a function or object that `?? ''` cannot catch, and
+  native-code text rendered into the page. Real, and reachable.
+- `size` -- no live path (all 45 call sites pass numeric literals), but the pre-fix test PROVED a
+  string value closes the `width` attribute and injects a working `onload`. Demonstrated, never live.
+- `label` -- no dynamic binding exists anywhere; the existing escaping is correct for a
+  double-quoted attribute. Pinned by a test, not changed.
+
+**Practical consequence had it shipped untouched:** occasional stray internal text on the dashboard.
+It could not execute code and could not leak data.
+
+**THE DISTINCTION THAT KEEPS 1.1 AND 1.2 CONSISTENT.** 1.1 declined to add a guard; 1.2 added one to
+`size` even though nothing feeds it. That is not a reversal:
+
+> **Structural guarantees do not need guards. Conventions do.**
+
+On 1.1 the redirect origin is fixed by a STRUCTURAL property -- the WHATWG URL Standard guarantees a
+special-scheme path serialises with a leading `/` -- so no future caller can break it and a guard
+would defend against something that cannot happen. On `size` the safety rested on CALLER DISCIPLINE
+across 45 sites and a TypeScript annotation that is erased at runtime, so one
+`[size]="cfg.iconSize"` commit makes it live. The test is that, not "did the scanner complain".
+
+**Action:** the transition is **Accept (won't fix)**, NOT False Positive. The code genuinely does
+disable sanitization, so dismissing it as a false positive would be a lie in the record -- unlike
+1.1, where the scanner was simply wrong. Needs admin rights. It did NOT fire on #502: Sonar matched
+the edit to the pre-existing issue rather than raising a new one, so the PR gate passed with 0 issues
+attributed and no transition was required to merge.
+
+**FOLLOW-UP QUEUED -- remove the bypass entirely.** Restructure the registry from raw SVG fragment
+strings into structured data rendered by Angular template bindings, which deletes the
+`bypassSecurityTrustHtml` call rather than securing it, and closes S6268 by construction. Approved by
+Adrian as SEPARATE work. Deliberately given no phase-1 section: once the issue is accepted it is no
+longer a blocker, and inventing a slot would distort the phase.
+
+---
+
+## FALSE POSITIVE -- Sonar `typescript:S2699` (BLOCKER), phase 1.3
+
+**Where:** `angular/src/app/shared/auth/full-logout.spec.ts:47`
+**Claim:** "Add at least one assertion to this test case."
+**Verdict:** False positive. The test asserts, and the assertion has teeth. Proven by mutation, not
+argued. Issue key `AZ-Au9J_eUr9gP0iFbsb`.
+
+**The phase file's original premise was also wrong** and has been corrected in
+[01-blockers.md](01-blockers.md): it read "The test passes unconditionally. It is worse than no
+test." It does not pass unconditionally.
+
+**Evidence.** The flagged `it(...)` opens at `:47` and its assertion is at `:55`:
+
+```ts
+await expectAsync(performFullLogout(injectorFor(oauth))).toBeResolved();
+```
+
+`toBeResolved()` fails the spec if the promise rejects. "Never rejects" is precisely the documented
+contract of `performFullLogout` (`full-logout.ts:27-29`) -- a failed revocation must still land the
+user on the login page -- so this is the correct assertion for that test, not a missing one.
+
+**Why the rule fires.** S2699 looks for `expect(` and does not recognise `expectAsync`. Supporting
+correspondence, each counted by command:
+
+```bash
+# open S2699 issues project-wide -> 1
+curl -s ".../api/issues/search?...&rules=typescript:S2699&resolved=false"
+# occurrences of expectAsync in every spec under src -> 1
+grep -rn "expectAsync" --include=*.spec.ts src/
+```
+
+Both point at the same file. The single test in the application written with `expectAsync` is the
+single test the rule flagged. That is corroboration at n=1, not proof, which is why the mutation
+below is the actual evidence.
+
+**Mutation proof.** A `throw` was added after the try/catch in `performFullLogout`, breaking the
+never-reject contract, and the scoped spec was re-run:
+
+```text
+performFullLogout never rejects even if both revocation and the fallback throw FAILED
+    Expected a promise to be resolved but it was rejected with Error: mutation: performFullLogout now rejects.
+TOTAL: 8 FAILED, 0 SUCCESS
+```
+
+The flagged spec fails on its own assertion. Mutation reverted; `git diff` on the implementation is
+empty and a residue grep returns 0.
+
+**Action:** mark **False Positive** in SonarCloud citing this entry. No implementation change.
+
+**FOUR OF THE SIX ORIGINAL BLOCKER ISSUES ARE NOW FALSE POSITIVES** -- which is THREE distinct
+findings, because the two `secrets:S7539` PowerShell hits are the same false positive twice. Stating
+it both ways deliberately: "three" and "four" are both true of different units, and an unqualified
+number here is exactly what a successor would re-check and distrust.
+
+Per-rule state, counted by the API rather than by memory:
+
+```bash
+for r in secrets:S7539 tssecurity:S6105 typescript:S2699 typescript:S6268 python:S8392; do
+  curl -s ".../api/issues/search?componentKeys=...&rules=$r&severities=BLOCKER"
+done
+```
+
+| Rule               | n   | Verdict                                                              |
+| ------------------ | --- | -------------------------------------------------------------------- |
+| `secrets:S7539`    | 2   | false positive, still OPEN in SonarCloud (not yet marked)            |
+| `tssecurity:S6105` | 1   | false positive, RESOLVED/FALSE-POSITIVE                              |
+| `typescript:S2699` | 1   | false positive (this entry), still OPEN                              |
+| `typescript:S6268` | 1   | **the one real defect**, fixed in `ad4cb0d7`, OPEN pending an Accept |
+| `python:S8392`     | 1   | not yet triaged (1.4)                                                |
+
+So of six flagged BLOCKERs, exactly ONE has so far turned out to be a real defect, and that one was
+narrower than advertised. This is a finding about the tool, not the code: a mechanical sweep would
+have changed working code in three places to satisfy a scanner. Open BLOCKERs today:
+
+```bash
+curl -s ".../api/issues/search?...&resolved=false&severities=BLOCKER&ps=1"   # total -> 5
+```
+
+**THE REAL GAP WAS NEXT TO IT, and no scanner raised it.** Sign-out expires `__tenant` and
+`XSRF-TOKEN` before redirecting, because the end-session flow does not clear them and, quoting
+`full-logout.ts:22-23`, "a stale `__tenant` can leak the prior user's tenant into a fresh
+registration on the same browser". On a shared machine in a medical office that is a patient-data
+boundary. Before this task NOTHING tested either cookie -- counted by command:
+
+```bash
+git grep -l "__tenant\|XSRF-TOKEN" e19c46ed -- 'angular/src/**/*.spec.ts' | wc -l   # -> 0
+```
+
+and `full-logout.ts:33` is the only place `__tenant` is cleared (the other two references, at
+`app.config.ts:149,151`, are comments). Five characterization specs now cover it, including the
+inverse case that the theme and culture cookies are deliberately PRESERVED, so a future
+"clear everything on logout" change fails loudly instead of resetting every user's preferences.
+
+The cookie specs passed on first run, which is the point of a characterization test: the clearing
+works today and is now pinned. Had they failed, that would have been a live defect on the leak path
+rather than a test to iterate on.
+
+**WHAT FULL LOGOUT GUARANTEES, AND WHAT CAN HONESTLY BE ASSERTED.** From the doc comment at
+`full-logout.ts:4-30`, five guarantees. Coverage after this task, stated precisely, because two of
+them are NOT OBSERVABLE under the current test architecture and pretending otherwise would be the
+exact false confidence this item was raised about:
+
+| #   | Guarantee                                          | Covered?                                                                                       |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1   | Revoke access and refresh tokens (RFC 7009)        | Yes -- spy asserted called once                                                                |
+| 2   | angular-oauth2-oidc clears its local token storage | **NOT OBSERVABLE.** `logOut()` is a test double; the real storage clearing is library-internal |
+| 3   | Redirect to the discovered `end_session_endpoint`  | **NOT OBSERVABLE**, same reason                                                                |
+| 4   | Expire `__tenant` and `XSRF-TOKEN` first           | Yes -- 5 new specs, real `document.cookie`                                                     |
+| 5   | Never reject                                       | Yes -- the very assertion S2699 says does not exist                                            |
+
+For 2 and 3 the honest ceiling is **asserting that we delegate**, not that the effect happened.
+Do not let a future change quietly upgrade "we called `logOut()`" into "the token store was
+cleared" -- observing that needs a real `OAuthService` against a fake storage, which is a different
+and larger test architecture. Called from 8 sites.
+
+**A SEPARATE DEFECT FOUND WHILE READING THIS, not fixed here.** In angular-oauth2-oidc 20.0.2,
+`revokeTokenAndLogout()` returns early when local storage holds no access token:
+
+```js
+// fesm2022/angular-oauth2-oidc.mjs:2954, early return at :2958
+const accessToken = this.getAccessToken();
+if (!accessToken) {
+  return Promise.resolve();
+}
+// :2642  getAccessToken() { return this._storage ? this._storage.getItem('access_token') : null; }
+```
+
+It RESOLVES rather than throwing, and `performFullLogout` catches only, so the `logOut()` fallback
+never fires either. Guarantees 1, 2 and 3 all silently fail while the function reports success --
+clicking Sign Out in that state expires the two cookies and does nothing else.
+
+**Stated as a caveat, not a finding:** the mechanical behaviour above is certain and verified at the
+library source. What is NOT established is the user-facing exposure. The end-session redirect does
+not occur, so the server-side session is not explicitly terminated; whether it remains valid depends
+on its own lifetime, which is **unmeasured**. Do not repeat "the SSO cookie survives" as fact -- that
+is an inference from the redirect not happening, not an observation.
+
+Queued as its own item 1.8, to be done immediately AFTER 1.3 and not folded into it: 1.3 preserves
+behaviour, 1.8 changes it on an auth path, and the epic's decision rule separates those deliberately.
+These cookie specs become 1.8's safety net, which is the whole reason for that ordering.
+
+---
+
+## NOT A DEFECT -- Sonar `python:S8392` (BLOCKER), phase 1.4
+
+**Where:** `docker/packet-renderer/app.py:116`
+**Claim:** "Avoid binding the application to all network interfaces."
+**Verdict:** Not a defect. The renderer is unreachable from the host or the LAN in production, the
+`0.0.0.0` bind is REQUIRED for it to work at all, and the flagged line is not even the production
+bind. No code change. Changing it to loopback would break packet generation outright.
+
+**First: the flagged line is not what production runs.** `app.py:114-117`:
+
+```python
+if __name__ == "__main__":
+    # Local debugging only; the container runs gunicorn (see Dockerfile CMD).
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "3001")))
+```
+
+It sits inside an `if __name__ == "__main__":` guard that the container never takes. The real bind is
+`docker/packet-renderer/Dockerfile:63`:
+
+```dockerfile
+CMD ["gunicorn", "--bind", "0.0.0.0:3001", "--workers", "2", "--timeout", "120", "app:app"]
+```
+
+So even a "fix" at line 116 would change nothing about how the service actually listens. Sonar
+flagged dev-only dead code.
+
+**Second: nothing publishes the port.** Checked every compose file rather than only the one the phase
+file named:
+
+```bash
+for f in docker-compose.yml docker-compose.prod.yml docker-compose.prod.localseed.yml; do
+  awk '/^  packet-renderer:/{f=1} f&&/^  [a-z][a-z0-9-]*:$/&&!/packet-renderer/{f=0} f' "$f" \
+    | grep -nE "ports:|expose:"
+done
+```
+
+| File                                | Result                                                          |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `docker-compose.prod.yml`           | **no `ports:`, no `expose:`** -- not reachable from host or LAN |
+| `docker-compose.prod.localseed.yml` | none either (the override adds no port)                         |
+| `docker-compose.yml` (dev)          | `- "127.0.0.1:${PACKET_RENDERER_PORT:-3001}:3001"`              |
+
+The dev publish is bound to **127.0.0.1**, not `0.0.0.0`, so even in development it is loopback-only
+and not exposed to the LAN. That is a deliberately careful binding, not an oversight.
+
+**Third: no indirect exposure.** No reverse proxy routes to it --
+`grep -rniE "packet.renderer|:3001" docker/nginx-proxy/ angular/nginx.conf` returns nothing. The only
+way in is the compose network.
+
+**Fourth, and the reason a "fix" would be actively harmful: the bind is necessary.** The API reaches
+the renderer by compose service name, `docker-compose.prod.yml:264`:
+
+```yaml
+PacketRenderer__Url: "http://packet-renderer:3001"
+```
+
+Consumed by `WeasyPrintPacketRenderer` / `GenerateAppointmentPacketJob`. Binding to `127.0.0.1`
+inside the container would make it unreachable from the api container and packet generation would
+stop. This is exactly the trap the phase file warned about: "binding loopback in a container is a
+classic way to break a working service in the name of a scanner."
+
+**On the PHI concern.** It is true that this sidecar renders PHI-bearing PDFs, which is why the
+question was worth asking rather than waving away. But the exposure premise does not hold: in
+production the service has no host port at all, so there is no network path to it from outside the
+compose network. The PHI stakes raise the cost of being wrong, and the answer was checked in four
+independent places for that reason.
+
+**Action:** mark **False Positive** in SonarCloud citing this entry. No code change. Optional tidy,
+NOT required and not done here: delete the dead `if __name__ == "__main__":` block, which would also
+silence the rule at source -- but it is genuinely useful for running the renderer standalone while
+developing templates, so removing it costs a real convenience to satisfy a scanner. Left alone.
+
+**THIS COMPLETES THE TRIAGE OF ALL SIX ORIGINAL BLOCKERS.** Final tally, counted per rule by the API:
+
+```bash
+for r in secrets:S7539 tssecurity:S6105 typescript:S2699 typescript:S6268 python:S8392; do
+  curl -s ".../api/issues/search?componentKeys=...&rules=$r&severities=BLOCKER"
+done
+```
+
+| Rule               | n   | Item | Verdict                                       |
+| ------------------ | --- | ---- | --------------------------------------------- |
+| `secrets:S7539`    | 2   | --   | false alarm (grep pattern, not a credential)  |
+| `tssecurity:S6105` | 1   | 1.1  | false alarm (origin not caller-controlled)    |
+| `typescript:S2699` | 1   | 1.3  | false alarm (rule blind to `expectAsync`)     |
+| `python:S8392`     | 1   | 1.4  | false alarm (this entry)                      |
+| `typescript:S6268` | 1   | 1.2  | **REAL** -- the only one, fixed in `ad4cb0d7` |
+
+**FIVE of the six issues were false alarms** -- four distinct findings, since the two PowerShell hits
+are one false positive twice. **Exactly ONE was a real defect**, and it was narrower than advertised
+(stray text, not executable script). A mechanical sweep of this list would have changed working code
+in four places, and in this case would have broken PDF generation.
+
+That is the single most useful number in this epic for anyone deciding how much to trust a scanner's
+headline severity count.
 
 ---
 

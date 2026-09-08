@@ -2,7 +2,7 @@
 id: BUG-036
 title: Packet generation silently fails for some approved appointments; Hangfire reports Succeeded but no packets persisted
 severity: medium-to-high (refined 2026-05-23 after deep diagnosis)
-status: open
+issue: 552
 found: 2026-05-23 hardening HRD-P6.1
 diagnosed: 2026-05-23 -- deterministic SQL repro + ABP/EF Core research confirms 3-layer root cause
 last-replayed: 2026-05-23 (A00006 AME approval also generated ZERO packets, same pattern as A00004. So BUG-036 affects multiple types, not just Deposition. Approval emails to all 4 parties still fire correctly via the partial-failure-isolation path; Kind=3 AttyCE packet attachment for AME types is MISSING.)
@@ -11,6 +11,9 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/Jobs
 ---
 
 # BUG-036 - Packet generation silently fails on some appointments
+
+> Tracked in [#552](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/552). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
@@ -21,7 +24,7 @@ AME / Panel-QME (the only types that also generate `Kind=3 AttyCE`).
 
 DB observation:
 
-```
+```sql
 SELECT a.RequestConfirmationNumber, p.Kind, p.[Status]
 FROM AppAppointments a LEFT JOIN AppAppointmentPackets p ON p.AppointmentId = a.Id
 WHERE a.IsDeleted = 0 AND a.AppointmentStatus = 2
@@ -40,7 +43,7 @@ A00004 has ZERO packet rows.
 
 Hangfire job ledger:
 
-```
+```text
 Job 63 | Succeeded | 2026-05-23 18:32:45.650
        Arguments: {"AppointmentId":"097e2788-686a-f430-1a89-3a216842d1c2",
                   "TenantId":"d2b03683-2ad9-e7c6-7d97-3a2167dbfded"}
@@ -106,7 +109,7 @@ So "packets never generate" is wrong. The remaining bug is:
 Confirmed by direct SQL inspection of
 `IX_AppAppointmentPackets_TenantId_AppointmentId_Kind`:
 
-```
+```text
 INDEX_NAME                                       is_unique filter_definition
 IX_AppAppointmentPackets_TenantId_AppointmentId_Kind  1   ([TenantId] IS NOT NULL)
 ```
@@ -143,7 +146,7 @@ if (existing == null)
 
 This is the EXACT failure path captured in Hangfire's exception trace:
 
-```
+```text
 at AppointmentPacketManager.EnsureGeneratingAsync(...) line 42
 at GenerateAppointmentPacketJob.GenerateKindAsync(...) line 156
 ```
@@ -160,9 +163,10 @@ Research finding from ABP framework GitHub + ABP support threads:
 > the outer ABP UoW later rolls back.
 
 Sources:
-- https://abp.io/support/questions/3685/Hangfire-background-job-does-not-work-with-unit-of-work-properly
-- https://abp.io/support/questions/10072/How-to-make-Hangfire-job-creation-part-of-transaction
-- https://github.com/aspnetboilerplate/aspnetboilerplate/issues/3375
+
+- <https://abp.io/support/questions/3685/Hangfire-background-job-does-not-work-with-unit-of-work-properly>
+- <https://abp.io/support/questions/10072/How-to-make-Hangfire-job-creation-part-of-transaction>
+- <https://github.com/aspnetboilerplate/aspnetboilerplate/issues/3375>
 
 `PacketGenerationOnApprovedHandler.HandleEventAsync` at line 44 calls
 `_backgroundJobManager.EnqueueAsync` directly inside `[UnitOfWork]`
@@ -173,6 +177,7 @@ change.
 
 On the very first packet-generation run after Approve, the job can
 race the parent UoW's commit. Within the racy window:
+
 - Job's `_appointmentRepository.GetAsync(args.AppointmentId)` may
   succeed (appointment row already exists at Status=Pending).
 - Job's `EnsureGeneratingAsync.InsertAsync` ATTEMPTS to insert a new
@@ -194,13 +199,14 @@ than `DbUpdateException`, because EF's batch executor's
 counts rows-affected mismatch.
 
 This is documented as won't-fix in EF Core issues:
-- https://github.com/dotnet/efcore/issues/20649 (EF Core 3.1.2)
-- https://github.com/dotnet/efcore/issues/35043 (EF Core 8.0.10)
+
+- <https://github.com/dotnet/efcore/issues/20649> (EF Core 3.1.2)
+- <https://github.com/dotnet/efcore/issues/35043> (EF Core 8.0.10)
 
 ABP wraps `DbUpdateConcurrencyException` as
 `Volo.Abp.Data.AbpDbConcurrencyException`. So the chain is:
 
-```
+```text
 SqlException (2601 - duplicate key)
   -> DbUpdateConcurrencyException
     -> AbpDbConcurrencyException
@@ -226,6 +232,7 @@ VALUES (NEWID(), '<existing-tenant-id>', '<existing-appt-id>', 3,
 ```
 
 E2E repro (would require IT Admin permission to trigger Regenerate):
+
 1. Approve an AME-type appointment as Clinic Staff. Wait for packet job
    retry to complete (60 s).
 2. Verify Patient + Doctor + AttyCE packets exist.
@@ -286,12 +293,12 @@ Land fix #1 (filtered unique index) FIRST as the cheap +
 self-contained fix. Then fix #2 (OnCompleted) to remove the Hangfire
 race. Fix #3 is optional defense-in-depth.
 
-## Hypothesis (3 in priority order)
+## Hypothesis (3 in priority order) - confirmed by Hangfire state history
 
 Hangfire state-history inspection for the failing packet jobs (Job 63 for
 A00004, Job 87 for A00006) shows the EXACT failure path:
 
-```
+```text
 63 Enqueued     2026-05-23T18:32:45.648
 63 Processing  2026-05-23T18:32:45.663
 63 Failed      2026-05-23T18:32:45.771
@@ -317,6 +324,7 @@ or `MarkFailedAsync` (line 79). All three call `UpdateAsync` on an entity
 whose `ConcurrencyStamp` no longer matches the DB row.
 
 Likely sequence on the first attempt that fails:
+
 1. Worker dequeues job, ExecuteAsync starts inside [UnitOfWork] +
    tenant scope.
 2. `EnsureGeneratingAsync` finds an existing row (from a PRIOR PARTIAL
@@ -331,6 +339,7 @@ Likely sequence on the first attempt that fails:
 6. Hangfire reschedules attempt 2.
 
 On attempt 2:
+
 - `EnsureGeneratingAsync.FirstOrDefault` may again return null (because
   the prior insert rolled back). InsertAsync creates a new row.
 - The catch filter (line 216: only IOException / InvalidOperationException
@@ -341,6 +350,7 @@ On attempt 2:
   rolled back.
 
 Suspected fix paths:
+
 - Widen `catch when (ex is IOException || ...)` to also catch
   `AbpDbConcurrencyException` + `DbUpdateConcurrencyException` ->
   MarkFailed + don't rethrow.
@@ -350,7 +360,7 @@ Suspected fix paths:
 - Or wrap the per-kind packet-row write in its own SCOPED UoW so
   the surrounding rollback doesn't undo the row.
 
-## Hypothesis (3 in priority order)
+## Hypothesis (3 in priority order) - initial triage
 
 1. **EnsureGeneratingAsync race / silent swallow** - per the 2026-05-15
    episodic context, `EnsureGeneratingAsync` is a query+insert sequence
@@ -362,9 +372,11 @@ Suspected fix paths:
    catching ALL exceptions including the "appointment not found" ones,
    logging a warning but marking the Hangfire job as Succeeded. Need
    to inspect job container logs:
-   ```
+
+   ```bash
    docker logs main-api-1 --since 2026-05-23T18:32:00 | grep -i "packet\|appointmentid\|generate"
    ```
+
 3. **Single-row pre-check returns empty** - if the job's first step
    reads `AppAppointmentPackets` to check existence and the query
    somehow returns "exists" for an empty result set (column-comparison

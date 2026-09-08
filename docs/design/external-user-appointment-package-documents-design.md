@@ -58,7 +58,7 @@ different action button visibility based on `canApprove` permission).
 In OLD, external users accessed package documents via a separate full page at
 `/appointment-documents/:appointmentId`:
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Appointment Documents        [Back]             |
 +-------------------------------------------------------+
@@ -84,7 +84,7 @@ The `AppointmentDocumentsComponent` displays all documents (package + ad-hoc) in
 unified list. Package documents are distinguished by having `IsAdHoc = false` and a
 linked `DocumentPackageId`.
 
-```
+```text
 +-------------------------------------------------------+
 | Appointment Documents                                |
 +-------------------------------------------------------+
@@ -129,7 +129,7 @@ Parity audit: `docs/parity/external-user-appointment-package-documents.md`
 
 Below the document list, the `AppointmentPacketComponent` shows the assembled PDF packet:
 
-```
+```text
 +-------------------------------------------------------+
 | [H4] Doctor Packet                    [Refresh icon] |
 +-------------------------------------------------------+

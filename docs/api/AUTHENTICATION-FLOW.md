@@ -60,7 +60,7 @@ Configured in `OpenIddictDataSeedContributor.CreateApplicationsAsync()`:
 
 ### API Scope
 
-```
+```text
 Name: CaseEvaluation
 DisplayName: CaseEvaluation API
 Resources: ["CaseEvaluation"]

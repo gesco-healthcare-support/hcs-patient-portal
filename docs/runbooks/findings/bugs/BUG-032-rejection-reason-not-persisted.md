@@ -15,7 +15,8 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentM
 ## Symptom
 
 HRD-P5.3 called:
-```
+
+```text
 POST http://falkinstein.localhost:44327/api/app/appointments/22FA225C-D14E-3EA8-11AE-3A215DE39F48/reject
 Body: { "reason": "Invalid claim number" }
 Auth: Bearer <clistaff1's token>
@@ -48,29 +49,37 @@ Most likely (1): pure mapping hole. The [[BUG-024]] fix added the validation att
 
 1. Pick any Pending appointment id (e.g., from HRD-P3.3).
 2. Get a clinic-staff or supervisor bearer token from localStorage after login.
-3. ```
+
+3. Reject via the API:
+
+   ```bash
    curl -X POST http://falkinstein.localhost:44327/api/app/appointments/<id>/reject \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer <token>" \
      -d '{"reason": "Invalid claim number"}'
    ```
+
    -> 200 OK.
 4. SQL:
+
    ```sql
    SELECT AppointmentStatus, RejectionNotes
    FROM AppAppointments WHERE Id = '<id>'
    ```
+
    -> status=3, RejectionNotes=NULL.
 
 ## Recommended fix
 
 Step 1: Locate the rejection handler:
+
 ```bash
 grep -rn "RejectAsync\|RejectAppointment\|RejectInput" src/HealthcareSupport.CaseEvaluation.Application/
 grep -rn "RejectionNotes" src/
 ```
 
 Step 2: In the handler, confirm assignment exists:
+
 ```csharp
 appointment.RejectionNotes = input.Reason;
 appointment.RejectedById = currentUser.Id;
@@ -79,6 +88,7 @@ appointment.RejectedById = currentUser.Id;
 Step 3: If the assignment is missing -- add it. If present but a Mapperly partial method is overriding it, fix the Mapperly definition.
 
 Step 4: Add an integration test under `test/HealthcareSupport.CaseEvaluation.Application.Tests/` that:
+
 1. POSTs reject with a known reason.
 2. Asserts `appointment.RejectionNotes == reason` in DB.
 
@@ -113,6 +123,7 @@ it up. The Approve branch existed because of an explicit
 Reject branch was missing.
 
 The bug was route-specific under the prior code:
+
 - `/api/app/appointments/{id}/reject` (Session A surface) -- BROKEN.
   AppService only calls the manager; manager drops the reason.
 - `/api/app/appointment-approvals/{id}/reject` (Phase 12 surface) --

@@ -216,6 +216,7 @@ Route order in `app.routes.ts` matters. Notable ordering decisions:
 ---
 
 **Related Documentation:**
+
 - [Angular Architecture](ANGULAR-ARCHITECTURE.md)
 - [Role-Based UI](ROLE-BASED-UI.md)
 - [Permissions](../backend/PERMISSIONS.md)

@@ -16,6 +16,7 @@ Scope: three loosely-related surfaces grouped by the audit plan:
    external users, and the email-to-staff fan-out that follows submit.
 
 OLD anchors read in full:
+
 - `PatientAppointment.Api\Controllers\Api\Core\DashboardController.cs`
   (`POST /api/Dashboard/post` -> `EXEC spm.spDashboardCounters @UserTypeId`).
 - `PatientAppointment.Api\Controllers\Api\Note\NotesController.cs`
@@ -27,7 +28,7 @@ OLD anchors read in full:
 - `PatientAppointment.Domain\NoteModule\NoteDomain.cs`
   (Add edit-chain logic: on `EditNoteId>0` the prior row is soft-deleted
   (`StatusId=Delete`, `IsLatest=false`) and a new row inserted; created-date
-  + edit-id carried forward across multi-edit chains).
+  - edit-id carried forward across multi-edit chains).
 - `PatientAppointment.Domain\UserQueryModule\UserQueryDomain.cs`
   (Add: stamps CreatedBy/Date, looks up the Approved appointment by
   `AppointmentId`, builds a patient/claim/ADJ subject line, sends email to
@@ -62,6 +63,7 @@ OLD anchors read in full:
   `WHERE 1=0` stub; real proc lives only in the production DB).
 
 NEW anchors checked:
+
 - `src\HealthcareSupport.CaseEvaluation.Application\Dashboards\DashboardAppService.cs`
   (`GET /api/app/dashboard` -> `DashboardCountersDto`; host vs tenant branch).
 - `src\...Application.Contracts\Dashboards\DashboardCountersDto.cs`,
@@ -165,6 +167,7 @@ external-role headcounts) are MISSING entirely.
 ## Behavioral gaps
 
 ### G-09-01 -- Dashboard external-role headcount counters dropped
+
 - **Class:** Missing behavior
 - **OLD:** `dashboard.component.{ts:64-67,html:119-171}` -- four cards:
   Patient, Claim Examiner (Adjuster), Applicant Attorney (PatientAttorney),
@@ -186,6 +189,7 @@ external-role headcounts) are MISSING entirely.
   owner whether headcounts belong on the staff dashboard.
 
 ### G-09-02 -- Submit-Query / Contact-Us ("Help / Need Question?") absent
+
 - **Class:** Missing behavior
 - **OLD:** `top-bar.component.{ts:56-58,html:79}` ("Help" link, external-
   only) -> `user-query-add.component` modal -> `UserQueriesController.Post`
@@ -210,6 +214,7 @@ external-role headcounts) are MISSING entirely.
   modal, and the email fan-out (see G-09-03 for the routing rule).
 
 ### G-09-03 -- UserQuery email routing (primary-responsible vs IT-Admin) absent
+
 - **Class:** Missing behavior
 - **OLD:** `UserQueryDomain.cs:77-105` -- if a confirmation number is
   present AND an Approved appointment matches, email goes to that
@@ -231,6 +236,7 @@ external-role headcounts) are MISSING entirely.
   concept maps to the appointment's owning internal user in the NEW model.
 
 ### G-09-04 -- Internal per-appointment Notes (latent in OLD, absent in NEW)
+
 - **Class:** Partial behavior
 - **OLD:** `NotesController.cs`, `NoteDomain.cs`, `Note.cs`,
   `appointment-info.component.{ts,html}` -- a "Notes" modal with a textarea,
@@ -257,6 +263,7 @@ external-role headcounts) are MISSING entirely.
   if it were live.
 
 ### G-09-05 -- Approved/Rejected counters re-scoped from all-time to "this week"
+
 - **Class:** Partial behavior
 - **OLD:** `spDashboardCounters` returns `UpcomingAppointment` and
   `RejectedAppointment` as (per the click-through semantics and labels)
@@ -279,6 +286,7 @@ external-role headcounts) are MISSING entirely.
   see Open Questions.
 
 ### G-09-06 -- Counter click-through coverage reduced
+
 - **Class:** Partial behavior
 - **OLD:** every counter is a deep link -- 7 status counters go to
   `/appointment-search?appointmentStatusId=N`, 4 role counters go to
@@ -297,6 +305,7 @@ external-role headcounts) are MISSING entirely.
   click-through is wired when each placeholder is populated.
 
 ### G-09-07 -- "Approved" card maps to status filter 2 but uses "upcoming" intent
+
 - **Class:** Intent deviation
 - **OLD:** the Approved card key is `UpcomingAppointment` and its
   click-through filters `AppointmentStatusTypeEnums.Approved`

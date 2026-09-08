@@ -21,6 +21,7 @@ alongside the manual controller, causing 500s on ambiguous route resolution.
 ## Manual controllers
 
 Every AppService needs a paired controller:
+
 - Extends `AbpController` and implements `I<Entity>AppService`
 - Route: `[Route("api/app/<entity-plural>")]` (kebab-case plural)
 - The controller is thin -- it delegates every method to the AppService; no logic lives here
@@ -28,6 +29,7 @@ Every AppService needs a paired controller:
 ## Mapperly mappers
 
 IMPORTANT: Use Riok.Mapperly only. Never `ObjectMapper.Map<>` or AutoMapper.
+
 - Mappers are `partial class` annotated `[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]`
 - Extend `MapperBase<TSource, TDest>` and register in `CaseEvaluationApplicationMappers.cs`
 - Mapper source-gen runs at build time; missing member mappings are compile errors, not runtime errors

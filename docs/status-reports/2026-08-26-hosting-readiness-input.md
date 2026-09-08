@@ -30,7 +30,7 @@ office gets its own SQL Server database (`CaseEvaluation_<office>`); a single ho
 **Tenancy is resolved from the Host header only.** There is no tenant switcher, no path prefix,
 no query parameter. The subdomain layout is load-bearing:
 
-```
+```text
 {office}.<BASE_DOMAIN>          -> Angular SPA
 {office}.api.<BASE_DOMAIN>      -> ASP.NET Core API  (HttpApi.Host)
 {office}.auth.<BASE_DOMAIN>     -> OpenIddict / ABP identity UI (AuthServer)
@@ -69,7 +69,7 @@ numbers as accurate to 2026-08-25.
 
 ### 2.2 Domain and TLS -- the single biggest blocker to going public
 
-```
+```text
 BASE_DOMAIN = appointment-portal.pfd.tbc.local
 ```
 
@@ -284,7 +284,7 @@ single largest cost variable in the whole exercise.**
 
 Every service connects as `sa`:
 
-```
+```text
 ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
 ```
 

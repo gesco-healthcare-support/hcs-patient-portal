@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 For AME and IME (every non-PQME type), Panel Number is not relevant. The control must be
 disabled/blocked from entry and any value cleared when a non-PQME type is selected, on both
 the add booking form and the view/edit form. Server-side defense-in-depth: reject a
@@ -16,8 +17,10 @@ PanelNumber submitted against a non-PQME type. This is the "off" half of one sta
 AF4 is the "on" half (PQME makes Panel Number required).
 
 ## Current behavior (from investigation)
+
 Panel Number is unconditionally optional and always editable on every surface (findings
 wzbyujjsd.output:168).
+
 - Add form control: `panelNumber: [null, [Validators.maxLength(50)]]` --
   `appointment-add.component.ts:386`. Only a length check; no type-dependent logic.
 - Rendered as a plain text input with `maxlength=50` and no `[readonly]`/`[disabled]` binding
@@ -36,6 +39,7 @@ wzbyujjsd.output:168).
   `Check.Length`, no required/conditional logic anywhere.
 
 ## Relevant code locations
+
 - `angular/src/app/appointments/appointment-add.component.ts:386` -- panelNumber control decl.
 - `angular/src/app/appointments/appointment-add.component.ts:512-518` -- appointmentTypeId
   valueChanges subscriber (the hook point shared with AF4).
@@ -52,6 +56,7 @@ wzbyujjsd.output:168).
   -- domain manager Create/Update paths; add the PQME-identity conditional check here.
 
 ## Phase 3 cross-reference
+
 - OBS-24 -- server-side defense-in-depth gap (UI enforces, server does not). Fix here by
   touching the DTO/manager, not just Angular. This item exists partly to NOT repeat that gap.
 - BUG-043 -- Claim Information conditional-required-before-submit precedent on this same
@@ -61,6 +66,7 @@ wzbyujjsd.output:168).
   wiring locus matters for the AF3 disable path on edit.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - The `appointmentDate` cascade (`appointment-add.component.ts:2449-2459`) already does
     exactly the four-step move this needs: `setValidators([...])` / `clearValidators()`,
@@ -85,6 +91,7 @@ wzbyujjsd.output:168).
     in the TS subscriber; the HTML keeps only a visual affordance. Confidence HIGH.
 
 ## Approaches considered (with tradeoffs)
+
 1. Programmatic `disable()` + clear value, keyed off PQME seed GUID (CHOSEN).
    - Pros: single source of truth in the parent subscriber; reuses the proven appointmentDate
      pattern; `disable()` keeps the control out of `form.value` so a stale value cannot leak;
@@ -103,7 +110,9 @@ wzbyujjsd.output:168).
      request could persist a Panel Number on an AME/IME appointment.
 
 ## Decision (locked 2026-06-03)
+
 Net-new conditional state machine on Panel Number, paired with AF4:
+
 - When the selected appointment type is NOT PQME (keyed off the PQME seed GUID), disable the
   `panelNumber` control and clear its value on BOTH the add form and the view/edit form.
 - When the type IS PQME, enable it (AF4 adds the required validator).
@@ -112,6 +121,7 @@ Net-new conditional state machine on Panel Number, paired with AF4:
   manager + DTO) AND mirrored in the UI.
 
 ## Implementation outline (no code)
+
 1. Expose the PQME seed GUID identity to the Angular layer (shared constant aligned with
    `CaseEvaluationSeedIds.AppointmentTypes`; final mapping owned by AF1). Add an
    `isPanelType(appointmentTypeId)` helper in `AppointmentAddComponent`.
@@ -138,12 +148,14 @@ Net-new conditional state machine on Panel Number, paired with AF4:
    is introduced (Domain.Shared en.json before any `L()` reference).
 
 ## Dependencies
+
 - AF1 (final AME/IME/PQME type mapping + seed GUID identity) -- BLOCKS AF3: the conditional
   keys off the PQME seed GUID, which AF1 finalizes.
 - AF4 (PQME requires Panel Number) -- SHARED state machine; build AF3 + AF4 together in the same
   subscriber branch and the same server-side check.
 
 ## Residual open questions
+
 - None. The three findings open questions are resolved by the locked decision: clear (not just
   lock) the value; apply on both add AND view/edit forms; key off the PQME seed GUID; enforce
   server-side as defense-in-depth.

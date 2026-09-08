@@ -19,6 +19,7 @@ ClaimExaminer; removed Doctor role) are EXPECTED and listed under
 ## Coverage
 
 OLD anchors read in full:
+
 - `PatientAppointment.Api\Controllers\Api\Core\UserAuthenticationController.cs`
 - `PatientAppointment.Api\Controllers\Api\Core\UserAuthorizationController.cs`
 - `PatientAppointment.Api\Controllers\Api\User\UsersController.cs`
@@ -35,6 +36,7 @@ OLD anchors read in full:
 - `_local\{fix-permissions.sql,seed-external-user-roles.sql}` (dev-seed context)
 
 NEW anchors read in full:
+
 - `Application\ExternalSignups\ExternalSignupAppService.cs`
 - `Application\ExternalAccount\{ExternalAccountAppService,PasswordResetGate}.cs`
 - `Application\Appointments\{BookingFlowRoles,BookingPolicyValidator,AppointmentReadAccessGuard}.cs`
@@ -311,6 +313,7 @@ NEW anchors read in full:
 | B-06-05 | Forgot-password account-enumeration leak -- distinct messages for not-found / unverified / inactive expose account state. | `UserAuthenticationDomain.cs:157-179` | Not ported; NEW returns a single generic message (G-06-03). The PasswordResetGate even documents this as the OLD-bug-fix it replaces. |
 
 Additional OLD oddities observed (context, not in the prompt's list):
+
 - `UserAuthorizationController.Post` passes `ClaimTypes.Role` (the RoleId) into
   `GetAccessModules(applicationModuleId, userId)` whose second param is NAMED `userId`
   but is actually used as a role key throughout `UserAuthorization.cs` -- a misleading

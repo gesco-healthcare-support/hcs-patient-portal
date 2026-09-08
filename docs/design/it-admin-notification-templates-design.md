@@ -40,7 +40,7 @@ an IT Admin section.
 
 ## 3. Page Layout (List)
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Notification Templates          [Search input]  |
 +-------------------------------------------------------+
@@ -68,13 +68,15 @@ OLD source: `list/template-list.component.html:1-65`
 | Action | -- | Pencil (edit) + trash (delete) icons |
 
 Commented out in OLD (intentionally hidden from list):
+
 - `templateCode` raw field (hidden; code resolved to name via custom template)
 - `templateTypeName`
 - `subject`
 - `description`
 
 NEW should show the same visible set: Template Code name + Email Body + SMS Body
-+ Status + Action. Email Body column may truncate to ~80 chars with a "show more"
+
+- Status + Action. Email Body column may truncate to ~80 chars with a "show more"
 tooltip since bodies are long HTML strings.
 
 OLD source: `list/template-list.component.html:32-56`
@@ -83,7 +85,7 @@ OLD source: `list/template-list.component.html:32-56`
 
 Header: "Template Details" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Template Details            [X]  |
 +-----------------------------------+
@@ -99,6 +101,7 @@ Header: "Template Details" (no subtitle)
 ### 5a. Form Fields (Add)
 
 **Template Code select (required):**
+
 - Label: "Template Code"
 - `<select>` bound to `TEMPLATE_CODE_LIST` (16 codes for DB-managed templates)
 - `(change)="setSubject()"` -- auto-fills Subject from the selected code's fixed
@@ -111,34 +114,40 @@ names from the parity audit (e.g., "Rejected Joint Declaration Document" not
 "Rejected Join Declaration Document").
 
 **Subject (auto-filled, readonly):**
+
 - Label: "Subject"
 - `type="text"`, `readonly`
 - Pre-filled by `setSubject()` when Template Code is selected
 - Not user-editable in Add flow
 
 **Description:**
+
 - Label: "Description"
 - `type="text"`, editable
 - No max length in OLD
 
 **Body SMS:**
+
 - Label: "Body SMS"
 - `<textarea>`, control `bodySms`
 - Plain text
 
 **Body Email (COMMENTED OUT in OLD -- NEW adds it):**
+
 - OLD: TinyMCE `<editor>` with TinyMCE API key `0glqyfe3m14pnnt38oz544qwfurnhnq1l0dimaxvhqf9svv7`
   was commented out in OLD HTML (line 50-66 of add component). No email body
   editor existed in OLD's UI. Email bodies came from seed data and were
   not editable from the portal.
 - NEW: surface a `<textarea>` (plain HTML or basic rich-text via Angular Material
-  + a simple WYSIWYG if available). At minimum, raw HTML textarea so IT Admin
+  - a simple WYSIWYG if available). At minimum, raw HTML textarea so IT Admin
   can paste / edit email bodies. See Exception 1.
 
 **Buttons:** Save (`btn btn-primary`) / Cancel (`btn btn-secondary`)
+
 - Save: `[disabled]="!templateFormGroup.valid"`
 
 **Template Type select (commented out in OLD):**
+
 - Not shown in ADD. OLD silently defaults to templateTypeId=1 (Email). NEW should
   set it based on context (all NEW templates support both Email + SMS bodies in
   one record, following NEW's unified model).
@@ -149,7 +158,7 @@ OLD source: `add/template-add.component.html:1-75`
 
 Header: "Template Details" (no subtitle)
 
-```
+```text
 +-----------------------------------+
 | Template Details            [X]  |
 +-----------------------------------+

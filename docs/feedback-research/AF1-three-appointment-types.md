@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Offer exactly three appointment types -- AME, IME, PQME -- and remove all others for now.
 UI labels exactly: "Agreed Medical Examination (AME)", "Independent Medical Examination
 (IME)", "Panel Qualified Medical Examination (PQME)". Internal code keys/abbreviations stay
@@ -17,6 +18,7 @@ Deposition, and Supplemental Medical Report are removed. Booking horizon becomes
 60 days from today for all types, replacing the name-substring horizon router.
 
 ## Current behavior (from investigation)
+
 - Six types are seeded host-wide (skips when `context.TenantId != null`) in
   `AppointmentTypeDataSeedContributor.cs:44-64`: QME, Panel QME, AME, Record Review,
   Deposition, Supplemental Medical Report. Seed is idempotent upsert-by-ID
@@ -43,6 +45,7 @@ Deposition, and Supplemental Medical Report are removed. Booking horizon becomes
   - `JointDeclarationAutoCancelJob.cs:115` references `Ame` (a KEPT type) -- unaffected.
 
 ## Relevant code locations
+
 - Seed: `AppointmentTypeDataSeedContributor.cs:44-64`; GUIDs `CaseEvaluationSeedIds.cs:20-29`.
 - Location default FK: `LocationDataSeedContributor.cs:42,55` (must re-point off Qme).
 - Lookup / allow-list: `AppointmentsAppService.cs:508-521`.
@@ -56,6 +59,7 @@ Deposition, and Supplemental Medical Report are removed. Booking horizon becomes
   plus seeded slots (SEED-3, keyed per date,time,type).
 
 ## Phase 3 cross-reference
+
 - SEED-3 -- slots are seeded per (date, time, type); removing four types orphans/strands
   seeded slots that point at them. Fix the slot seed in the SAME change so removed types
   leave no bookable slots and the new IME type gets slots.
@@ -65,6 +69,7 @@ Deposition, and Supplemental Medical Report are removed. Booking horizon becomes
   that pattern for the type-seed trim.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - Seed is upsert-by-ID and "continue if exists" -- it never deletes. Simply dropping the
     four tuples from `Seeds` leaves existing rows in the DB on already-seeded environments;
@@ -80,6 +85,7 @@ Deposition, and Supplemental Medical Report are removed. Booking horizon becomes
   seeding remains responsible for inserting the new IME row and renaming Panel QME -> PQME.
 
 ## Approaches considered (with tradeoffs)
+
 1. Hard-delete the four removed type rows + re-point inbound FKs (CHOSEN). Cleanest demo
    surface: no hidden/orphan types, dropdown trims naturally, horizon logic simplifies.
    Cost: a migration to delete rows and fix `Location` defaults + seeded slots; must verify
@@ -97,6 +103,7 @@ Note: renaming away from the "AME"/"PQME" name shapes is precisely what forces t
 rework; this is why the horizon change is bundled into AF1 rather than treated separately.
 
 ## Decision (locked 2026-06-03)
+
 - Final three types only: AME (existing Ame row), IME (NEW row), PQME (renamed from the
   PanelQme row). UI labels exactly as specified; code keys AME/IME/PQME.
 - Hard-delete QME, Record Review, Deposition, Supplemental Medical Report from the seed and
@@ -109,6 +116,7 @@ rework; this is why the horizon change is bundled into AF1 rather than treated s
   name substrings.
 
 ## Implementation outline (no code)
+
 1. Domain.Shared / seed IDs: add `Ime` GUID to `CaseEvaluationSeedIds.AppointmentTypes`
    (`CaseEvaluationSeedIds.cs:20-29`). Keep Ame and PanelQme constants; the four removed
    constants can stay as references for the migration delete, then be pruned.
@@ -143,6 +151,7 @@ rework; this is why the horizon change is bundled into AF1 rather than treated s
     it is server-driven.
 
 ## Dependencies
+
 - Blocks AF3 (panel-number blocked for AME/IME) and AF4 (panel-number required for PQME):
   both must key off the final seed GUIDs decided here (PanelQme GUID = PQME identity; new
   Ime GUID).
@@ -151,6 +160,7 @@ rework; this is why the horizon change is bundled into AF1 rather than treated s
 - Touches OBS-10 (close/update the 6-type-seed observation).
 
 ## Residual open questions
+
 - IME row: confirm IME is a brand-new row (new GUID) rather than a relabel of an existing
   removed type. Locked decision says "IME is NEW", so a new GUID is the default.
 - Admin CRUD lockdown: should `/appointment-types` be restricted to the three for now, or

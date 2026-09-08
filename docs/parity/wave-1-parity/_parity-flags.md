@@ -6,6 +6,7 @@ project CLAUDE.md, every flag here pairs with a `// PARITY-FLAG:`
 comment on the relevant C#/TypeScript line.
 
 Status legend:
+
 - `needs-test` — replicated OLD; manual test pending to confirm intent
 - `parity-plus` — NEW deliberately exceeds OLD; OLD did not have this
 - `bug-fix` — silently corrected an OLD bug; not preserved

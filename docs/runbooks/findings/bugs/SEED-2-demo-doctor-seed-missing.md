@@ -22,21 +22,26 @@ component: Domain/DoctorManagement/* (new seed contributor needed)
 > model returns to scope (see ADR-004). Historical analysis retained below for context.
 
 ## Severity
+
 n/a (data seeding gap)
 
 ## Status
+
 **Needs rehydration / not yet implemented.**
 
 ## What's known from earlier session
+
 - NEW has no `DemoDoctorDataSeedContributor`.
 - Prior session inline-SQL-inserted 1 Demo Doctor + 42 availabilities; these get wiped on every `docker compose down -v`.
 - Adrian wants doctors seeded automatically so testing workflows can begin from a known state without manual SQL.
 
 ## OLD parity (CONFIRMED 2026-05-14)
+
 Per `InternalUsersDataSeedContributor.cs:19-21`: *"Doctor is a non-user reference entity managed by Staff Supervisor; no Doctor user role exists."*
 
 **Confirmed via OLD source inspection on 2026-05-14:**
 `P:\PatientPortalOld\patientappointment-portal\src\app\components\doctor-management\doctors\` contains ONLY:
+
 - `doctors.module.ts`
 - `doctors.routing.ts`
 - `doctors.service.ts`
@@ -48,7 +53,9 @@ There is NO `add/` subfolder. **OLD never creates doctors via the UI** — only 
 The implication: doctors MUST come from a seed contributor at DB bootstrap, since there is no UI path to create them. Without SEED-2 written, fresh DBs have zero doctors and the entire booking flow is blocked.
 
 ## Recommended fix
+
 Write `DemoDoctorDataSeedContributor : IDataSeedContributor` that:
+
 1. Per-tenant only (gated on `context.TenantId != null`).
 2. Development-only (gated on `ASPNETCORE_ENVIRONMENT=Development`).
 3. Idempotent (skip if any AppDoctors row already exists in this tenant).
@@ -59,12 +66,15 @@ Write `DemoDoctorDataSeedContributor : IDataSeedContributor` that:
    - Availabilities: 5-10 dates per type, 2-3 slots per date, spread across the next 30-60 days
 
 ## Blocker scope
+
 SEED-2 is now a hard blocker for the multi-user-workflow plan. Until the seed contributor lands:
+
 - Prep 2 (Doctor Management UI walk) cannot complete via UI (no Add Doctor button by design).
 - Workflow B (Patient books) cannot proceed (no doctor availabilities → empty date picker).
 - Workflows C/D/etc are downstream of Workflow B.
 
 ## To do (for the fix session)
+
 - Confirm with Adrian which appointment types and how many doctors to seed.
 - Write `DemoDoctorDataSeedContributor : IDataSeedContributor` per the recommended fix above.
 - Update `docs/runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md` Part 4 with the seeded-doctor expectation.

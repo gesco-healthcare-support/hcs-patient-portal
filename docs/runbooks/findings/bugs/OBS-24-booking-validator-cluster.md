@@ -2,7 +2,7 @@
 id: OBS-24
 title: Cluster of OLD booking-time validators not ported to NEW server-side
 severity: low-to-medium (UI enforces; server-side defense-in-depth missing)
-status: open
+issue: 561
 found: 2026-05-20 (triage of `_remaining-from-old-audit-2026-05-15.md` booking-validator rows)
 flow: appointment-booking, appointment-reschedule, injury-details
 component:
@@ -15,6 +15,9 @@ related:
 ---
 
 # OBS-24 - Six OLD booking-time validators have no NEW server-side equivalent
+
+> Tracked in [#561](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/561). Status lives in the issue; this file holds the
+> reproduction and diagnosis.
 
 ## Symptom
 
@@ -147,7 +150,7 @@ Three options:
 
 - **B** -- Build a single `BookingDomainValidators` static class with
   all 7 rules + 7 facts. One PR. Cleanest. ~50 lines of pure logic
-  + 7 tests + 1 wiring change per call site (CreateAsync, UpdateAsync,
+  - 7 tests + 1 wiring change per call site (CreateAsync, UpdateAsync,
   InjuryDetailManager, ChangeRequestManager).
 
 - **C** -- Defer all 7 until alpha testing exposes which ones actually

@@ -19,6 +19,7 @@ component: angular/src/app/patients/me + Application/Patients/PatientAppService.
 > - No `If-Match`/ETag, but the pattern is the standard ABP "stamp in body" flow.
 >
 > **Residual concerns:**
+>
 > - Original repro (page reload required) was never re-tested against the canonical-port stack.
 > - If the first submit fails with 409 *before* any successful response, `selected.patient` is never refreshed -- that subpath would still require a page reload. Worth confirming whether the SPA error handler rehydrates from the 409 response body.
 > - No automated regression test exists for the two-submit case.
@@ -26,23 +27,29 @@ component: angular/src/app/patients/me + Application/Patients/PatientAppService.
 > **Action: live-verify, then close.** Repro: login as Patient, edit profile, submit, edit again without reloading, submit. If both 200, close BUG-008 with `status: fixed-by-redesign` and add an Application-tier test asserting the response `concurrencyStamp` differs from the input stamp. If the second submit still 409s, treat as OPEN -- the suspect would be the spread-merge ordering or proxy-DTO key casing rather than missing server-side stamp regeneration.
 
 ## Severity
+
 medium
 
 ## Status
+
 **Needs rehydration.** Documented in earlier session compact summary; full repro/evidence to be added when re-encountered.
 
 ## What's known from earlier session
+
 - Patient profile PUT to `/api/app/patients/me` returns **409 Conflict** on the second submit when the first submit had already succeeded.
 - ConcurrencyStamp from the first response isn't being threaded back into the form's hidden field, so retry payload carries the original (stale) stamp.
 - Workaround: reload the page (loses form state).
 
 ## To do
+
 - Re-trigger the flow against canonical-port stack.
 - Capture network request bodies + ConcurrencyStamp values across both submits.
 - Verify whether the bug is client-side (form-state stale) or server-side (response not returning the new stamp).
 
 ## Suspected root cause
+
 The `UpdateMeAsync` response DTO may not include the new ConcurrencyStamp, OR the SPA's form-state management doesn't merge the response stamp back into the form before allowing resubmit.
 
 ## Workaround
+
 Reload the page after a successful submit before any subsequent edit.

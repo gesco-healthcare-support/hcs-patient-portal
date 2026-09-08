@@ -24,7 +24,7 @@ component: src/HealthcareSupport.CaseEvaluation.Application/ExternalAccount/Exte
 
 After a fresh `docker compose down -v && up -d --build` on the `main` stack, registered `patient1@gesco.com` via the SPA at `http://falkinstein.localhost:4200`. The Hangfire job queued during the register POST (Job Id=1, CreatedAt 16:50:56) contains an email body with this confirmation URL:
 
-```
+```text
 http://localhost:44368/Account/EmailConfirmation?userId=b726a379-32fc-7a7b-cecf-3a215d9f543f&confirmationToken=CfDJ8Lh0%2B3UEH7lMiwDHOsBU2XBLVnyGK3cvFlhTc5WhFT1xIFfE1SP1d2A9RHsnAwZFjD9lmGyb%2FO4cyAR6sMkIzR5LKUchYg6DjiIkFXC8qd89NGVO5F1P1RT1a%2FvotpsVt79aX2eADCLNgFO%2FtuiQBP1yPNz9323rkuXxBNAgjxf5GEhDLi29LW8tKuiv2IiKmkRHwaSzCMqqv9tFHBaWu52D5PG%2FTm%2BhXSQt1GW3mz%2BxTxEIovF73lp2oVvmRv5pcA%3D%3D
 ```
 
@@ -32,7 +32,7 @@ Host is `localhost`, no tenant subdomain.
 
 Clicking that URL hits `EmailConfirmationModel.OnGetAsync`. AuthServer log shows:
 
-```
+```text
 EmailConfirmationModel: user b726a379-32fc-7a7b-cecf-3a215d9f543f not found; redirecting with generic flash.
 ```
 
@@ -42,7 +42,7 @@ Yet `SELECT Id, UserName, TenantId, EmailConfirmed FROM AbpUsers WHERE Id='b726a
 
 By contrast, after navigating to the Razor resend page at `http://falkinstein.localhost:44368/Account/ResendVerification?context=register&email=...&autosend=1`, the same user's _next_ email (delivered to SMTP, no Hangfire row created) contains the working URL:
 
-```
+```text
 http://falkinstein.localhost:44368/Account/EmailConfirmation?userId=b726a379-32fc-7a7b-cecf-3a215d9f543f&confirmationToken=<different-token>
 ```
 
@@ -68,11 +68,11 @@ That URL resolves the user correctly (subdomain-resolved tenant = Falkinstein), 
 
 ## Token is host-agnostic (workaround proven 2026-05-21 17:17)
 
-A second register (HRD-P1.A.2 -- appatty1@gesco.com) produced the SAME broken URL pattern (`host=localhost`) in Adrian's inbox, and this time only one email arrived (because no Resend page autosend was manually triggered as in the patient1 case). Confirmed: every fresh register sends a broken first email.
+A second register (HRD-P1.A.2 -- <appatty1@gesco.com>) produced the SAME broken URL pattern (`host=localhost`) in Adrian's inbox, and this time only one email arrived (because no Resend page autosend was manually triggered as in the patient1 case). Confirmed: every fresh register sends a broken first email.
 
 I rewrote the broken URL by swapping `localhost` -> `falkinstein.localhost` while keeping the same token, then loaded it. AuthServer log:
 
-```
+```text
 EmailConfirmationModel: user 8db7b2a5-3dc0-1658-eddf-3a215daec7c7 email confirmed; redirecting to login.
 ```
 

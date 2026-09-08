@@ -37,6 +37,7 @@ See Exception 1.
 | Per-appointment change log | Not a dedicated route (accessed from appointment-view) | `/appointments/change-log/:id` (or embedded in appointment-view) |
 
 Guard:
+
 - OLD: `canActivate: [PageAccess]` `applicationModuleId: 14`
 - NEW: `canActivate: [authGuard, permissionGuard]`; `CaseEvaluation.AppointmentChangeLogs`
 
@@ -52,7 +53,7 @@ Internal-user authenticated shell (side-nav + top-bar).
 
 ### 3a. Layout
 
-```
+```text
 +----------------------------------------------------------+
 | [H2] Change Logs       [Search input] [Reset]           |
 | [Advanced Search accordion]                             |
@@ -105,6 +106,7 @@ Already implemented at:
 ### 4a. Data Source
 
 Uses ABP's `AuditLogsService.getEntityChangesWithUsername()` with:
+
 - `entityId` = appointment ID (from route param `:id`)
 - `entityTypeFullName` = `'HealthcareSupport.CaseEvaluation.Appointments.Appointment'`
 
@@ -114,7 +116,7 @@ ABP audit logging records changes automatically for `[Audited]` entities.
 
 | Column | Notes |
 |---|---|
-| When | `entityChange.changeTime` (Angular `| date:'short'`) |
+| When | `entityChange.changeTime` (Angular `\| date:'short'`) |
 | Who | `entry.userName` |
 | Type | `changeTypeLabel()` → "Created" / "Updated" / "Deleted" |
 | Property | `prop.propertyName` (field name) |

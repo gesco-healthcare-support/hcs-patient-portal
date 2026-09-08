@@ -32,7 +32,7 @@ Given a documentation file path as input:
 
 4. **Report results** in this format (keep under 300 words total):
 
-```
+```text
 Verified: {doc file path}
 
 | # | Claim | Source | Result |
@@ -45,6 +45,7 @@ Verdict: {ACCURATE / NEEDS_UPDATE / INACCURATE}
 ```
 
 **Rules:**
+
 - Do NOT modify any files — read-only verification only
 - Do NOT read files outside `src/`, `angular/`, `test/`, `docs/`, or `.claude/`
 - If a file path uses `src/.../` shorthand, expand it to the full path starting with `src/HealthcareSupport.CaseEvaluation.`

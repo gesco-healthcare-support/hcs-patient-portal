@@ -1,10 +1,11 @@
 # Patient Portal -- E2E QA Findings (2026-06-23)
 
-Branch feat/frontend-rework. Driver: Playwright against http://falkinstein.localhost:4250.
+Branch feat/frontend-rework. Driver: Playwright against <http://falkinstein.localhost:4250>.
 Severity scale: blocker > high > medium > low > cosmetic.
 Status: COMPLETE (interactive run; Adrian present throughout).
 
 ## Top issues (read first)
+
 1. F-017 (HIGH) -- NEW 2026-06-23 (lifecycle round 2). Approving a reschedule DROPS the slot
    time-of-day. The new appointment's AppointmentDate is stored at midnight, so it renders
    "12:00 AM" on the detail header, the my-appointments list, AND the rescheduled-appointment
@@ -41,11 +42,13 @@ Status: COMPLETE (interactive run; Adrian present throughout).
    low/cosmetic F-001..F-016 (see below). F-007 NOT reproducible with real data (see its entry).
 
 ## Blockers
+
 (none yet)
 
 ## High
 
 ### F-013 (HIGH) -- [FIXED + VERIFIED 2026-06-23] attorney-of-record & patient get 403 requesting changes on a paralegal-booked appointment
+
 - Flow: paralegal books on behalf (A00001: booker=paralegal defatty1, attorney-of-record=defatty2);
   attorney defatty2 logs in, sees A00001, clicks Cancel (or Reschedule).
 - Repro: login defatty2 -> A00001 (Approved) -> Cancel -> enter reason -> submit.
@@ -74,6 +77,7 @@ Status: COMPLETE (interactive run; Adrian present throughout).
 ## High (cont.)
 
 ### F-014 (HIGH, design) -- [FIXED + VERIFIED 2026-06-23] opposing-consent gating is bypassed/unreachable in the paralegal flow
+
 - Context: ConsentGatingEnabled=true is meant to require the OPPOSING attorney's consent before a
   reschedule/cancel is finalized.
 - Repro: booker = paralegal defatty1 (NOT a named party on A00001; defatty2 is the named DA).
@@ -97,6 +101,7 @@ Status: COMPLETE (interactive run; Adrian present throughout).
   who clicks request?). Pairs with F-013.
 
 ### F-017 (HIGH, data correctness) -- [NEW 2026-06-23] reschedule approval drops the slot time-of-day
+
 - Flow: external requests a reschedule to a new slot -> opposing consent -> supervisor
   approve-reschedule -> a NEW appointment is cloned at the new slot, source -> Rescheduled.
 - Repro: A00007 (8:30 AM slot) rescheduled to a 8:30 AM slot on Jul 21 -> child A00017.
@@ -118,6 +123,7 @@ Status: COMPLETE (interactive run; Adrian present throughout).
   (== slot FromTime). api rebuilt + restarted clean.
 
 ### F-018 (LOW-MEDIUM, server-side validation) -- [NEW 2026-06-23] resubmit not gated server-side on flagged fields
+
 - Flow: staff Send Back flags fields (A00003: cellPhoneNumber + documents) -> external user fixes
   -> "Resubmit to clinic" (InfoRequested -> Pending).
 - Expected: server rejects resubmit until the flagged fields are actually addressed (the UI
@@ -135,6 +141,7 @@ Status: COMPLETE (interactive run; Adrian present throughout).
   "documents" unmet -> 403; after PDF upload -> 204. Files: AppointmentInfoRequestsAppService.cs.
 
 ## Lifecycle round 2 (2026-06-23) -- API bookings to 16 + full lifecycle (all PASS)
+
 - Booking: A00007-A00016 booked via API (faithful: get-or-create patient + create + injury +
   active CE), so each passes the REAL approval gates. 16 total. Booker mix DA 9 (56%) / AA 3 (19%)
   / Patient 1 / CE 2 / staff 1; attorney bookings 92% paralegal (booker != named AoR). A00007-A00012
@@ -168,6 +175,7 @@ Status: COMPLETE (interactive run; Adrian present throughout).
   %PDF-1.4 file -> 200). Good server-side file-type enforcement.
 
 ### F-015 -- CONFIRMED still present (consent page grammar)
+
 - The public consent page reads "A request to **cancellation** appointment A00009 has been
   submitted..." Should be "A request to cancel" (or "A request for cancellation of"). Cosmetic.
 
@@ -193,12 +201,13 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   full attorney name/firm/email -- CONFIRMING that UI bookings create the link records while the
   round-2 API bookings (A00007-A00018) did not (they show "Not provided"). Backfill is optional
   (cosmetic/demo only; consent + notifications work off the appointment's scalar email fields).
-- Candidate (NEW): on A00019 the internal "Booker (identity)" shows patient2@gesco.com (the patient)
+- Candidate (NEW): on A00019 the internal "Booker (identity)" shows <patient2@gesco.com> (the patient)
   rather than the actual booker defatty1. Relates to F-011 (the field binds to the wrong identity).
 
 ## Medium
 
 ### F-006 (medium, data consistency) -- Applicant Attorney master FirmName not persisted (Defense is)
+
 - Flow: external registration (self-signup + invite), Phase 1 setup.
 - Repro: register an Applicant Attorney with a firm name (appatty1 via API firmName="Bennett
   Lawson Law"; appatty3 via invite UI firm="Rogers Jones Law"). Then inspect masters.
@@ -219,6 +228,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   (manager already supported them), mirroring the DA branch. api rebuilt clean.
 
 ### F-019 (MEDIUM, data integrity) -- [FIXED + cleaned up 2026-06-23] duplicate Applicant Attorney master records
+
 - Symptom (Adrian): 6 AppApplicantAttorneys masters for 3 attorneys (appatty1/2/3) -- a null-email
   master + a populated master each -- while Defense + Patient correctly had one per person.
 - Root cause: the F-006 null-email AA registration master could not be matched by the booking's
@@ -239,17 +249,19 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   produces a duplicate PROFILE row, never a duplicate login account (AbpUser email is unique).
 
 ### F-011 (medium, data accuracy) -- internal "Booker (identity)" shows responsible user, not actual booker
+
 - Flow: internal appointment detail (stafsuper1) > "Internal -- staff only" > Booker (identity).
 - Repro: open an APPROVED appointment whose PrimaryResponsibleUserId differs from BookedByUserId
   (A00001: booked by defatty1, approved with responsible user stafsuper1).
-- Expected: "Booker (identity)" = defatty1@gesco.com (the actual booker; DB BookedByUserId=defatty1).
-- Actual: shows stafsuper1@gesco.com (the responsible user/approver). A00002 (Pending, no
+- Expected: "Booker (identity)" = <defatty1@gesco.com> (the actual booker; DB BookedByUserId=defatty1).
+- Actual: shows <stafsuper1@gesco.com> (the responsible user/approver). A00002 (Pending, no
   responsible user) correctly shows its booker (appatty1), so the field appears to bind to the
   responsible user once set, instead of the booker.
 - Impact: misrepresents who booked the appointment -- exactly the paralegal/firm audit info that
   matters for the book-on-behalf model. Medium. Likely a small binding fix.
 
 ## Positive results (lifecycle + linking SPINE)
+
 - REGISTER-AFTER LINKING (the headline): patient2/appatty2/claimE2 registered AFTER A00002/A00004
   were booked naming their emails. On registration: patient2 master got IdentityUserId set;
   appatty2 got an AA-link row for A00002. Logged in as patient2 -> home shows exactly A00002 +
@@ -265,10 +277,12 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 - Reject email subject is rich + clear: "(Patient ... Claim ... ADJ ...) ... rejected by our clinic staff."
 
 ## CANDIDATE (verify) -- 409 user-facing message
+
 - The PQME panel-strike-list and injury-detail rules return 409 with a domain code; confirm the
   UI shows a friendly toast (not just a silent console 409). Toast faded before capture.
 
 ## Positive results (internal actions)
+
 - Internal appointment detail (Staff Supervisor): full PHI + all party sections + claim info +
   packets + authorized users + internal-only block. Actions: Approve / Reject / Reschedule /
   Cancel / Request info / Edit details / Change log / Demographics.
@@ -278,6 +292,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 ## Low / Cosmetic / Dev-tooling
 
 ### F-001 (low, dev-tooling) -- dev/delete-test-users soft-deletes and can't clean partial users
+
 - Flow: Phase 1 setup (DB clean via POST /api/public/external-signup/dev/delete-test-users).
 - Repro: POST with emails [appatty1, claimE1, defatty1, patient1, defatty2, verify.ce, verify.da].
 - Expected: listed test users fully removed so emails are reusable.
@@ -288,6 +303,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 - Impact: dev-only helper; does not ship. Note for whoever maintains the test harness.
 
 ### F-002 (low, cosmetic) -- vestigial "Doctor" concept causes repeated false "missing prerequisite"
+
 - Flow: Phase 0 investigation / any schema inspection.
 - Detail: availabilities are decoupled from doctors (AppDoctorAvailabilities has no DoctorId;
   booking path never touches AppDoctors; generate input has no doctorId). AppDoctors is empty
@@ -300,6 +316,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   Adrian chose note-and-proceed for this run.
 
 ### F-004 (low, a11y) -- Generate Slots appointment-type toggles lack aria-pressed
+
 - Flow: Doctor Availabilities > Generate slots.
 - Detail: the AME/IME/PQME type toggles track state via a `data-on` attribute but expose no
   `aria-pressed` and no role state; a screen reader user cannot tell which types are selected.
@@ -309,6 +326,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 - Impact: accessibility gap on a staff-only config screen. Low.
 
 ### F-005 (low, cosmetic/UX inconsistency) -- invite form vs self-register form diverge for attorneys
+
 - Flow: Users & Access > Invite External User (vs /Account/Register self-signup).
 - Detail: (1) On self-register, selecting an attorney role HIDES First/Last name and shows
   only Firm name. On the invite form, First/Last name stay visible AND a Firm name field is
@@ -318,6 +336,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 - Impact: inconsistent UX; wasted firm entry on invite. Low.
 
 ### F-003 (low) -- stafsuper2 / clistaff2 not seeded
+
 - Flow: Phase 1 setup.
 - Expected (per account list): two Staff Supervisors + two Intake Staff.
 - Actual: only stafsuper1 (Staff Supervisor) + clistaff1 (Intake Staff) seeded. stafsuper2 /
@@ -326,6 +345,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 - Impact: minor test-coverage limitation; using the single seeded internal of each kind.
 
 ### F-007 (low, data consistency) -- dashboard "Requests over time" shows stale count
+
 - Flow: internal dashboard (stafsuper1) on a clean DB.
 - Actual: "Requests over time" chart shows 1 received / 1 approved (~May) while stat cards +
   "Status breakdown" all show 0 and there are 0 appointments. Inconsistent aggregate source.
@@ -336,11 +356,13 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   artifact. Effectively resolved; no code change indicated.
 
 ### F-008 (cosmetic) -- external avatar initials wrong for firm names
+
 - Flow: external DA home (defatty1 = "Stone & Perez Defense LLP").
 - Actual: avatar shows "SL" (appears to take first + last token incl. "LLP"); expected "SP"
   or "S". Cosmetic; verify across other firms.
 
 ## Positive results (working as intended)
+
 - Self-register UX (firm-aware: attorney=firm name, patient/CE=first/last), email
   verification link, and login all work.
 - Invite flow: staff invite -> inline link + email -> invite registration (role locked,
@@ -352,6 +374,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   appatty1, claimE1, stafsuper1, defatty1 (booker). Every party notified. CONFIRMED.
 
 ### F-009 (candidate, medium -- VERIFY) -- patient email: no wizard required-marker but API rejects empty
+
 - Flow: booking wizard step 2 (Patient), submit.
 - Observed: the get-or-create patient call (`/api/app/patients/for-appointment-booking/get-or-create`)
   returned 400 AbpValidationException (ModelState invalid) when submitted with an empty patient
@@ -362,6 +385,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   no friendly client-side validation. If confirmed: client/server required-ness mismatch.
 
 ## Positive results (U2 / AA booker A00002)
+
 - PQME selection ENABLES + REQUIRES the Panel Number field (disabled for AME). Correct.
 - Demo Clinic South (no availability) shows a clear empty-state message instead of a dead calendar.
 - Cumulative Trauma = Yes + multiple body parts (Neck, Right shoulder) accepted.
@@ -371,10 +395,12 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   Approve/Reject notifications to BOTH stafsuper1 and clistaff1. All register-after parties emailed.
 
 ## Test-harness note
+
 - JS-driven form fill via input events is UNRELIABLE for some controls (email didn't bind -> 400).
   Using Playwright real typing or verifying bound values before submit for remaining UI bookings.
 
 ### F-012 (candidate, privacy -- VERIFY) -- SSN field shown to opposing external attorney
+
 - Flow: external attorney detail (defatty2 viewing A00001) > Patient section shows an "SSN" field
   (displayed "Not provided" since none was entered).
 - Concern: if a real SSN is on file, is it shown to the OPPOSING defense attorney (and applicant
@@ -384,6 +410,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
   role should see.
 
 ## Positive results (lifecycle continued)
+
 - CANCEL lifecycle (booker-initiated): defatty1 (booker) requests cancel on A00001 -> all parties
   emailed "Cancellation request received" -> supervisor Change Requests queue -> Approve
   cancellation (billing outcome No bill/Late) -> A00001 CancelledNoBill -> all parties emailed
@@ -396,6 +423,7 @@ DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it thro
 ## Coverage summary (tested vs not)
 
 TESTED / VERIFIED:
+
 - Setup: clean DB, 57 availabilities, 12 external accounts via 3 paths (4 self-signup, 3 invite,
   5 register-after), internal seeds.
 - Registration: self-signup (firm-aware), invite flow, register-after-booking + AutoLink.
@@ -410,17 +438,20 @@ TESTED / VERIFIED:
 - Change request: cancel request (booker) -> supervisor approve -> Cancelled.
 
 DRIVEN IN ROUND 2 (2026-06-23) -- see "Lifecycle round 2" section:
+
 - Reschedule request + approve (A00007) and reject (A00008); cancel reject (A00009); direct staff
   cancel (A00010); patient-initiated change (A00012); resubmit completion (A00003); volume
   approve/reject/send-back (A00016/A00013/A00014); re-evaluation wizard smoke; opposing-consent
   happy path (now reachable post-fix) in all routing directions; patient pathway (no 403).
 
 STILL NOT DRIVEN (with reasons):
+
 - No-Show / Check-In / Check-Out / Bill: not implemented in the UI (state-machine only).
 - Reschedule via the in-app date-picker UI: driven via the API endpoint instead (the picker needs
   real click/select, a harness limitation, not an app bug). The same AppService path is exercised.
 
 FIDELITY CAVEAT (test method, not a bug) -- RESOLVED 2026-06-23:
+
 - Round-2 appointments were booked via the bare Appointments CreateAsync, which stores the party
   EMAILS + (separately) injury + CE, but does NOT create the attorney LINK records
   (AppAppointmentApplicantAttorneys / *DefenseAttorneys), EmployerDetails, or PrimaryInsurance that
@@ -431,9 +462,9 @@ FIDELITY CAVEAT (test method, not a bug) -- RESOLVED 2026-06-23:
   A00007-A00018) via the app's own create endpoints -- appointment-applicant-attorneys (link to the
   attorney master + identity user), appointment-defense-attorneys, appointment-employer-details,
   appointment-primary-insurances. ALL 20 appointments now carry AA + DA + Employer + Insurance + CE
-  + Injury (DB audit: 0 incomplete). Verified in the UI: A00007 detail now renders Marcus Bennett /
+  - Injury (DB audit: 0 incomplete). Verified in the UI: A00007 detail now renders Marcus Bennett /
   Alicia Perez / Acme Logistics Inc / Pacific Mutual (screenshot A00007-complete-records-after-backfill.png).
 - LESSON for future API-driven test data: a faithful appointment = CreateAsync + injury + ACTIVE CE
-  + applicant-attorney link + defense-attorney link + employer-details + primary-insurance. The
+  - applicant-attorney link + defense-attorney link + employer-details + primary-insurance. The
   attorney links reference the attorney MASTER id + the attorney's identity-user id (both obtainable
   from any existing complete appointment's link rows), not free-text.

@@ -20,6 +20,7 @@ screenshots: pending
 > **DEFERRED / NOT IMPLEMENTED (IP3, 2026-06-05).** The Doctor entity is kept DORMANT and the
 > Doctors nav item is hidden -- nothing operational reads a Doctor row. The following claims in
 > this draft are NOT in the product and must not be relied on:
+>
 > - **Doctor Identity-User link / lookup** -- the `IdentityUserId` FK was dropped (migration
 >   `20260502000305_Drop_Doctor_IdentityUserId`); there is no identity-user field on the Doctor
 >   form and a Doctor is a non-user reference entity.
@@ -63,6 +64,7 @@ it does not read the Doctor entity's M2M assignments or `DoctorPreferredLocation
 | Location add/edit | `/locations/add` or `/locations/edit/:id` | modal overlay from list row action |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` per route with `applicationModuleId` matching the module.
   Doctor edit: `applicationModuleId: X`; Availability: `applicationModuleId: Y`.
 - NEW: `canActivate: [authGuard, permissionGuard]`; requires Staff Supervisor or IT Admin role.
@@ -74,6 +76,7 @@ Guards:
 ## 2. Shell
 
 Internal-user authenticated shell (side-nav + top-bar). Side-nav items:
+
 - "Doctor Management" section (Staff Supervisor + IT Admin only)
   - Doctors
   - Doctor Availabilities
@@ -88,7 +91,7 @@ Internal-user authenticated shell (side-nav + top-bar). Side-nav items:
 In OLD there is no doctor list page. Staff Supervisor navigates directly to
 `/doctors/:doctorId`. The edit page is a full-page form:
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Manage Doctor Details          [Edit User]      |
 +---------------------------+---------------------------+
@@ -111,6 +114,7 @@ OLD source: `doctors/edit/doctor-edit.component.html:1-60`
 ### 3b. OLD Doctor -- Appointment Types (child component)
 
 `<app-doctors-appointment-type-list>` inline in the doctor-edit page:
+
 - Displays all available appointment types as a list.
 - Each row has a toggle (checkbox or active/inactive toggle) to include or exclude.
 - Saves immediately per-toggle or on "Save" for the parent form.
@@ -120,6 +124,7 @@ OLD source: `doctor-management/doctors-appointment-types/` component.
 ### 3c. OLD Doctor -- Preferred Locations (child component)
 
 `<app-doctor-preferred-location-list>` inline in the doctor-edit page:
+
 - Simple checkbox list of all clinic locations.
 - Checked = doctor accepts appointments at this location.
 - Saves as `DoctorPreferredLocation` records.
@@ -132,7 +137,7 @@ OLD source: `doctor-preferred-locations/list/doctor-preferred-location-list.comp
 
 NEW introduces a full doctor list (ABP DataTable):
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Doctors                   [Create] [Refresh]    |
 | [ABP Advanced Filters]                               |
@@ -157,7 +162,7 @@ NEW source: `doctors/doctor/components/doctor.component.html:1-210`
 
 Opens via "Create" button or "Edit" action:
 
-```
+```text
 +-------------------------------------------------------+
 | Doctor Details                                 [X]   |
 | [Tab: Doctor] [Tab: Appointment Types] [Tab: Locations] |
@@ -200,7 +205,7 @@ NEW source: `doctors/doctor/components/doctor-detail.component.html:1-140`
 
 ### 4a. OLD Availability List
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Doctor Availability      [Add + button]         |
 | [Advanced Search accordion]                          |
@@ -221,6 +226,7 @@ Parent row summarizes: `AvailableSlot`, `BookedSlot`, `ReservedSlot`, `TotalSlot
 Clicking expands to show individual time slots with status badge and delete action.
 
 Status badges:
+
 - Available: pending-style badge (yellow/blue)
 - Booked: billed-style badge (purple)
 - Reserved: rejected-style badge (red)
@@ -231,7 +237,7 @@ OLD source: `doctors-availabilities/list/doctors-availability-list.component.htm
 
 Functionally identical to OLD; implemented with plain HTML table + NGBootstrap pagination.
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Doctor Availabilities    [Generate] [Refresh]   |
 | [ABP Advanced Filters]                               |
@@ -252,6 +258,7 @@ Functionally identical to OLD; implemented with plain HTML table + NGBootstrap p
 ```
 
 **Delete actions:**
+
 - "Delete group" button: deletes all slots for a date+location pair. Blocked if any slot is Booked or Reserved.
 - "Delete slot" icon (per child row): deletes single slot. Blocked if referenced by an appointment or change request.
 
@@ -268,7 +275,7 @@ Two slot-generation modes toggled by radio button:
 **Slot By Date(s):** specify an explicit date range.
 **Slot By Weekdays:** specify a month + day-of-week range.
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Generate Doctor Availability  [Back]            |
 +-------------------------------------------------------+
@@ -345,7 +352,7 @@ for doctor-management context.
 
 ### 6a. OLD Locations List
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Locations                   [Add + button]      |
 | ( ) Location  ( ) WCAB Office   [radio toggle]       |
@@ -365,6 +372,7 @@ OLD source: `doctor-management/locations/list/location-list.component.html:1-99`
 ### 6b. NEW Locations List
 
 ABP standard list with filters:
+
 - Filters: Name, City, ZipCode, Min/Max ParkingFee, IsActive
 - Table columns: Name, Address, City, ZipCode, ParkingFee, IsActive
 - Create / Edit modal fields: Name (required), Address, City, ZipCode, ParkingFee (required), IsActive
@@ -433,7 +441,7 @@ Token definitions: `_design-tokens.md`.
 | 6 | Availability filters | Location, From Date, To Date only | Adds booking status, time range, appointment type filters | Enhancement; OLD's 3 filters preserved as subset |
 | 7 | WCAB Offices in Locations list | Radio toggle switches Location/WCAB in same list component | WCAB Offices are a separate list module | Architectural separation; same data, different navigation path |
 | 8 | Slot conflict check scope | Conflict detection per location per date (time overlap) | Same rule implemented in `BookingPolicyValidator` | Strict parity: `existingFromTime < newToTime AND existingToTime > newFromTime` |
-| 9 | Appointment Type on slot | Nullable -- null means any type accepted | Same nullable field; booking form filters slots by type match (type-specific OR null) | Match OLD exactly: `slot.AppointmentTypeId == null || slot.AppointmentTypeId == requestedTypeId` |
+| 9 | Appointment Type on slot | Nullable -- null means any type accepted | Same nullable field; booking form filters slots by type match (type-specific OR null) | Match OLD exactly: `slot.AppointmentTypeId == null \|\| slot.AppointmentTypeId == requestedTypeId` |
 
 ---
 

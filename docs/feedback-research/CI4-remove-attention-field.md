@@ -42,12 +42,14 @@ the Claim Examiner section has no Attention field, and the appointment-view neve
 ## Relevant code locations
 
 Frontend:
+
 - `angular/src/app/appointments/sections/appointment-add-claim-information.component.html:263-272`
 - `angular/src/app/appointments/sections/appointment-add-claim-information.component.ts:44,190,250,343`
 - `angular/src/app/appointments/appointment-add.component.ts:2764`
 - `angular/src/app/proxy/appointment-primary-insurances/models.ts:7,21,36` (regen, do not hand-edit)
 
 Backend:
+
 - `src/HealthcareSupport.CaseEvaluation.Domain/AppointmentPrimaryInsurances/AppointmentPrimaryInsurance.cs:33-34`
 - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/AppointmentPrimaryInsurances/AppointmentPrimaryInsuranceConsts.cs:15`
 - `src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/EntityFrameworkCore/CaseEvaluationTenantDbContext.cs:556`

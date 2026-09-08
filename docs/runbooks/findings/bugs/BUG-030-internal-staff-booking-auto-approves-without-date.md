@@ -17,6 +17,7 @@ component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentM
 HRD-P3.5: clistaff1 deep-linked to `/appointments/add`, picked existing patient1 from the "Existing Patients" dropdown, filled type=Record Review / location=Demo Clinic North / date=2026-05-25 / time=09:00 AM, plus AA (appatty1), DA (defatty1), and a claim with Insurance + CE (claimE1).
 
 Clicking "Book an appointment" produced confirmation number A00005. DB row:
+
 | field | value |
 |---|---|
 | `RequestConfirmationNumber` | `A00005` |

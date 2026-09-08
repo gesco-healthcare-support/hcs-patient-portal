@@ -289,7 +289,7 @@ objects, no user data.
 - **Reversibility:** trivial. Revert the commit. No data cleanup.
   Containers pick up reverted `main.ts` on next ng-watch cycle.
 - **Production:** unaffected; this is dev-stack-only (`Dockerfile.dev`
-  + dev-entrypoint.sh). A production Angular Dockerfile, when it
+  - dev-entrypoint.sh). A production Angular Dockerfile, when it
   lands, must apply the same pattern OR bake URLs into its image at
   build time using build-args.
 

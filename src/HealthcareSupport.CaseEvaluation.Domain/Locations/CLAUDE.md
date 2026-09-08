@@ -26,6 +26,7 @@ call that omits it will fail at the DB level. The Angular form enforces `Validat
 on this field.
 
 **FK asymmetry: cascade vs. NoAction.**
+
 - `DoctorLocation.LocationId` -> **Cascade** -- deleting a Location auto-removes doctor
   association join rows. Configured in both host and tenant DbContexts.
 - `DoctorAvailability.LocationId` -> **NoAction** (both DbContexts, required FK) --

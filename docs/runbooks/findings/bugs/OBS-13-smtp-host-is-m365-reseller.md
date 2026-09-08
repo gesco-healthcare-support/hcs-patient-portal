@@ -18,7 +18,7 @@ flow: notification-emails
 
 **MX records** point to SpamExperts (N-able Mail Assure), a generic outbound anti-spam frontend used by many shared hosts:
 
-```
+```text
 mx10.antispam.mailspamprotection.com   (preference 10)  -> 34.149.79.66    (Google Cloud)
 mx20.antispam.mailspamprotection.com   (preference 20)  -> 34.120.156.61   (Google Cloud)
 mx30.antispam.mailspamprotection.com   (preference 30)  -> 34.111.121.216  (Google Cloud)
@@ -28,7 +28,7 @@ Microsoft 365 MX records always point to `*.mail.protection.outlook.com`. These 
 
 **SMTP banner** on `mail.securemailprotocol.com:587`:
 
-```
+```text
 220-gcam1225.siteground.biz ESMTP #2
 ```
 
@@ -36,7 +36,7 @@ Microsoft 365 MX records always point to `*.mail.protection.outlook.com`. These 
 
 **SPF record:**
 
-```
+```text
 v=spf1 +a +mx include:securemailprotocol.com.spf.auto.dnssmarthost.net ~all
 ```
 
@@ -48,7 +48,7 @@ References `dnssmarthost.net` (an outbound-relay anti-spam service). M365 SPF wo
 
 The original rejection error this doc cited:
 
-```
+```text
 4.5.127 Message rejected. Excessive message rate from sender.
 For more information see https://aka.ms/EXOSmtpErrors.
 ```
@@ -59,7 +59,7 @@ So the original conclusion ("the sender host is a M365 reseller") was a misread 
 
 ### Actual provider chain and real limits
 
-```
+```text
 Our app (HttpApi.Host / AuthServer)
   -> mail.securemailprotocol.com:587      (SiteGround shared host, submission port)
   -> antispam.mailspamprotection.com      (SpamExperts outbound filter)
@@ -97,7 +97,7 @@ Our app (HttpApi.Host / AuthServer)
 
 The app's `appsettings.secrets.json` points `Abp.Mailing.Smtp.Host` at `mail.securemailprotocol.com:587`. Despite the branding suggesting a self-contained "secure mail" provider, the SMTP rejection error from this host explicitly references Microsoft's documentation:
 
-```
+```text
 4.5.127 Message rejected. Excessive message rate from sender.
 For more information see https://aka.ms/EXOSmtpErrors.
 ```

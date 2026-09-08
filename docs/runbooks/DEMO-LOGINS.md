@@ -12,14 +12,14 @@ Copy-paste cheat sheet for manual testing and demos. All users below were create
 
 | Item | Value |
 | --- | --- |
-| Login URL | http://localhost:4200 |
-| Swagger | http://localhost:44327/swagger/index.html |
-| AuthServer | http://localhost:44368 |
+| Login URL | <http://localhost:4200> |
+| Swagger | <http://localhost:44327/swagger/index.html> |
+| AuthServer | <http://localhost:44368> |
 | Password (ALL users below) | `1q2w3E*` |
 
 **How to log in as a tenant user** (Angular UI):
 
-1. Open http://localhost:4200 -> Login
+1. Open <http://localhost:4200> -> Login
 2. On the AuthServer login page, click the current tenant label (top/right, default is "Not selected")
 3. Enter the tenant name from the headers below (e.g. `Dr Nakamura 1`) -> Save
 4. Enter email + `1q2w3E*` -> Login
@@ -111,17 +111,17 @@ Has: 0 appointments, no role users (tenant admin only). Empty-tenant smoke test.
 
 ## Demo scenarios by role
 
-Need to demo | Log in as
---- | ---
-Host-wide admin panel, tenant management | `admin@abp.io` (host)
-Doctor scheduling their own availability | any `Tenant Admin / Doctor` above
-Patient booking an appointment | T1 Patient 1 (`jose.watanabe@hcs.test`)
-Claim Examiner review workflow | T1 Claim Examiner (`yuki.rodriguez@hcs.test`)
-Applicant Attorney accessing linked appointments | T1 Applicant Attorney (`andrew.poghosyan@hcs.test`)
-Defense Attorney accessing appointments | T1 Defense Attorney (`lucia.reyes@hcs.test`)
-Multi-tenant isolation (same role, different tenant) | T1 CE vs T2 CE vs T3 CE
-Empty-tenant UX | `andrew.wu@hcs.test` on `Dr Wu 5`
-Null-patient edge case | `gabriela.taylor@hcs.test` on `Dr Tanaka 4`
+| Need to demo | Log in as |
+| --- | --- |
+| Host-wide admin panel, tenant management | `admin@abp.io` (host) |
+| Doctor scheduling their own availability | any `Tenant Admin / Doctor` above |
+| Patient booking an appointment | T1 Patient 1 (`jose.watanabe@hcs.test`) |
+| Claim Examiner review workflow | T1 Claim Examiner (`yuki.rodriguez@hcs.test`) |
+| Applicant Attorney accessing linked appointments | T1 Applicant Attorney (`andrew.poghosyan@hcs.test`) |
+| Defense Attorney accessing appointments | T1 Defense Attorney (`lucia.reyes@hcs.test`) |
+| Multi-tenant isolation (same role, different tenant) | T1 CE vs T2 CE vs T3 CE |
+| Empty-tenant UX | `andrew.wu@hcs.test` on `Dr Wu 5` |
+| Null-patient edge case | `gabriela.taylor@hcs.test` on `Dr Tanaka 4` |
 
 ---
 

@@ -190,5 +190,6 @@ All of the following use the full abstract/concrete generation pattern:
 ---
 
 **Related Documentation:**
+
 - [Angular Architecture](ANGULAR-ARCHITECTURE.md)
 - [ABP Framework](../architecture/ABP-FRAMEWORK.md)

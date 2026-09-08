@@ -5,12 +5,53 @@ version: 2
 # docs/superpowers/specs/2026-05-21-dependency-integration-branch-design.md
 # for the policy.
 #
-# Version-update PRs are disabled via open-pull-requests-limit: 0 until ABP
-# Commercial supports Angular 20.3+. Security advisories (configured in repo
-# settings, independent of this file) continue to flow into the integration
-# branch regardless of the limit. The limit was briefly raised in #212 to
-# recover four orphan PRs after the target-branch change; this PR restores
-# it to 0 so future weekly scans do not surface unwanted bumps.
+# PACKAGE version-update PRs (nuget, both npm) are disabled via
+# open-pull-requests-limit: 0 until ABP Commercial supports Angular 20.3+.
+# Security advisories (configured in repo settings, independent of this file)
+# continue to flow into the integration branch regardless of the limit. The
+# limit was briefly raised in #212 to recover four orphan PRs after the
+# target-branch change; it was restored to 0 so future weekly scans do not
+# surface unwanted bumps. THAT CONSTRAINT IS STILL LIVE -- do not raise those
+# three.
+#
+# GITHUB-ACTIONS IS DIFFERENT, and was changed in phase 2 item 2.2 (2026-09-03).
+# It had inherited the same 0 without the reason applying: the ABP/Angular
+# constraint is an npm concern and says nothing about GitHub Actions. The
+# ecosystem was DECLARED but produced no update pull requests at all, so a grep
+# for "github-actions" reported it covered while nothing was ever opened.
+#
+# That mattered the moment 2.2 pinned all 69 `uses:` references to commit SHAs.
+# A SHA pin is immutable by design, so without version updates nothing would
+# ever propose moving one, and the pins would freeze until a security advisory
+# happened to fire -- discovered, if ever, by someone asking why an action had
+# not moved in a year. Pinning without a refresh path is a slow freeze rather
+# than a supply-chain improvement.
+#
+# Adrian ruled: lift the cap for this ecosystem ONLY, accepting the weekly PR
+# cost because they land on chore/dependency-updates rather than the main line.
+#
+# DOCKER was added in phase 2 item 2.14 (2026-09-04), for the same reason as
+# github-actions: item 2.14 pinned the five SHIPPING images to
+# `image:tag@sha256:digest`, and a digest is immutable, so without version
+# updates nothing would ever propose moving one. Docker gets no Dependabot
+# security updates at all -- version updates are the ONLY thing that will ever
+# refresh these pins.
+#
+# WHY `image:tag@sha256:digest` AND NOT THE DIGEST ALONE. SonarCloud's
+# docker:S8431 says to use one or the other, and it has half a point: once a
+# digest is present the tag decides nothing, and a tag edited without its digest
+# would read as a lie. Kept anyway, deliberately. A digest-only reference is the
+# form Dependabot handles WORST -- it can produce no pull request at all
+# (dependabot-core#4419) -- so dropping the tag to satisfy the rule would strand
+# the pins this entry exists to keep moving. The tag also tells a reader which
+# release they are looking at, which `@sha256:a4556ed0...` does not. THE DIGEST
+# IS WHAT RESOLVES; if you change one, change both.
+#
+# The seven build- and dev-stage images stay on floating tags by Adrian's
+# decision: they never reach a shipped artefact (each prod stage is a separate
+# FROM that copies only the publish output), so they keep receiving upstream
+# patches automatically and cost no review. The `ignore` list below is what
+# keeps this entry from proposing bumps for exactly those seven.
 
 updates:
   - package-ecosystem: "nuget"
@@ -44,6 +85,50 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+    # 5 is Dependabot's own default, not a number picked here. It is what keeps
+    # the SHA pins in .github/workflows/ refreshable; see the note at the top of
+    # this file for why this ecosystem alone is not 0.
+    open-pull-requests-limit: 5
     labels: ["dependencies", "ci"]
     target-branch: "chore/dependency-updates"
+
+  - package-ecosystem: "docker"
+    # An explicit list, not a glob. `directories` accepts `*`, but how glob
+    # expansion treats a directory with no Dockerfile was not verified, and the
+    # five paths are stable. `directory: "/"` would NOT work: the fetcher reads
+    # one directory and does not recurse, and the repository root holds no
+    # Dockerfile -- the entry would fail rather than find nothing quietly.
+    directories:
+      - "/angular"
+      - "/docker/packet-renderer"
+      - "/src/HealthcareSupport.CaseEvaluation.AuthServer"
+      - "/src/HealthcareSupport.CaseEvaluation.DbMigrator"
+      - "/src/HealthcareSupport.CaseEvaluation.HttpApi.Host"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "docker"]
+    target-branch: "chore/dependency-updates"
+    ignore:
+      # The build- and dev-stage images, left on floating tags deliberately.
+      #
+      # THESE NAMES ARE UNQUALIFIED ON PURPOSE. DO NOT ADD THE REGISTRY.
+      # Dependabot parses a FROM line into separate `registry` and `image`
+      # captures and names the dependency from the image ALONE, putting the
+      # registry in the requirement source (dependabot-core,
+      # docker/lib/dependabot/shared/shared_file_parser.rb: `name:
+      # details.fetch("image")`). So `mcr.microsoft.com/dotnet/sdk` matches
+      # NOTHING: the config would still parse, this list would still read as
+      # though it excluded the sdk stages, and Dependabot would open bumps for
+      # them anyway. GitHub's own options reference says to match Docker
+      # dependencies by "the full name of the repository", which is what leads
+      # to writing the registry-qualified form. It is wrong here.
+      - dependency-name: "dotnet/sdk"
+      # Only angular/Dockerfile's `base` stage today. The four
+      # `COPY --from=node:22-bookworm-slim` lines in the AuthServer image are
+      # invisible to Dependabot regardless -- its FROM regex is anchored at
+      # `^FROM` and never matches a COPY -- so that Node reference has no
+      # automated refresh path and moving it is a human's job. This entry stays
+      # so the exclusion is still correct if a `FROM node:` is ever added.
+      - dependency-name: "node"

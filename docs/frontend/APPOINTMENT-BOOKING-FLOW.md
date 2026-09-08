@@ -202,6 +202,7 @@ to auto-fill the CE name + email on each new injury modal (OLD parity:
 `appointment-add.component.ts:145-149`).
 
 Lookups loaded on first modal open:
+
 - `GET /api/app/appointment-injury-details/wcab-office-lookup` (WCAB offices)
 - `GET /api/app/applicant-attorneys/state-lookup` (states for insurance/CE address)
 
@@ -367,6 +368,7 @@ adding / editing records.
 ---
 
 **Related Documentation:**
+
 - [Application Services](../backend/APPLICATION-SERVICES.md)
 - [Appointment Lifecycle](../business-domain/APPOINTMENT-LIFECYCLE.md)
 - [Doctor Availability](../business-domain/DOCTOR-AVAILABILITY.md)

@@ -52,6 +52,7 @@ matching OLD parity. The domain only guards slot availability and source-appoint
 ### Two AppServices, single feature folder
 
 The Application.Contracts layer splits this into two interfaces:
+
 - `IAppointmentChangeRequestsAppService` -- external-user submit (cancel, reschedule).
 - `IAppointmentChangeRequestsApprovalAppService` -- supervisor approve / reject.
 

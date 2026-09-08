@@ -19,7 +19,7 @@ the invite email greeting. This directly fixes OBS-27.
 
 - Form collects only email + userType. The reactive form group has no name controls
   (invite-external-user.component.ts:51-54; invite-external-user.component.html:16-54 -- Email
-  + Role select only).
+  - Role select only).
 - Input DTO carries only Email + UserType (InviteExternalUserDto.cs:24-38; verified: properties
   are exactly `Email` [Required/EmailAddress/StringLength(256)] and `UserType` [Required]).
 - The Invitation aggregate persists Email, UserType, TokenHash, ExpiresAt, AcceptedAt,
@@ -41,10 +41,12 @@ the invite email greeting. This directly fixes OBS-27.
 ## Relevant code locations
 
 Frontend:
+
 - angular/src/app/external-users/components/invite-external-user.component.ts:51-54 (form group)
 - angular/src/app/external-users/components/invite-external-user.component.html:16-54 (template)
 
 Backend:
+
 - src/.../Application.Contracts/ExternalSignups/InviteExternalUserDto.cs:24-38 (input DTO)
 - src/.../Domain/Invitations/Invitation.cs:30-108 (aggregate: add columns + ctor params)
 - src/.../Domain/Invitations/InvitationManager.cs (IssueAsync signature threads names)
@@ -91,7 +93,7 @@ Backend:
 1. Persist names on the Invitation aggregate (CHOSEN). New nullable FirstName/LastName columns,
    threaded end to end. Pros: durable; available to the email greeting AND any later accept-time
    prefill; single source of truth; matches how Email/UserType already flow. Cons: schema change
-   + migration on both contexts.
+   - migration on both contexts.
 2. Pass names only as transient email variables, do not persist. Pros: no migration. Cons: names
    would be lost if the email is re-sent/resent (resend = new invite, Invitations CLAUDE.md), and
    they could not prefill registration later. Rejected: loses the durable value for marginal

@@ -21,6 +21,7 @@ In OLD, a single `DashboardComponent` serves all internal roles with 12 counter 
 data layer (Intake Staff sees their assigned appointments; Supervisor sees all).
 
 In NEW, the dashboard is split into two role-specific components:
+
 - **Host Dashboard** (IT Admin / ABP Host role): ABP commercial analytics widgets
   (error rate, execution duration, editions usage, latest tenants). No appointment counters.
 - **Tenant Dashboard** (Intake Staff / Staff Supervisor / Doctor): 13 counter cards.
@@ -36,6 +37,7 @@ In NEW, the dashboard is split into two role-specific components:
 | External user home | `/home` (separate component) | `/home` (separate component) |
 
 Guards:
+
 - OLD: `canActivate: [PageAccess]` with `applicationModuleId` for dashboard.
 - NEW: Root `DashboardComponent` uses `*abpPermission` directives:
   - `CaseEvaluation.Dashboard.Host` → renders `<app-host-dashboard>`
@@ -56,7 +58,7 @@ The dashboard is the default landing page after login for all internal roles.
 
 Responsive Bootstrap grid: `col-sm-6 col-xl-3` (4 cards per row on desktop, 2 per row on tablet).
 
-```
+```text
 +-----+-----+-----+-----+
 |  1  |  2  |  3  |  4  |
 +-----+-----+-----+-----+
@@ -96,6 +98,7 @@ Responsive Bootstrap grid: `col-sm-6 col-xl-3` (4 cards per row on desktop, 2 pe
 | 12 | Defense Attorney | `defenseAttorneyCount` | `/users?userRoleTypeId=DefenseAttorney` |
 
 **Counter card anatomy:**
+
 - Top-left: lnr icon (e.g., `lnr-apartment`, `lnr-users`)
 - Center: large counter number (e.g., "42")
 - Bottom: label text (e.g., "Pending Appointment")
@@ -124,7 +127,7 @@ OLD source: `dashboard/dashboard.service.ts` (role-aware query in POST body)
 
 ABP commercial analytics widgets; no appointment-specific counters.
 
-```
+```text
 +-------------------------------------------------------+
 | [H2] Dashboard                                       |
 | [Date Range Picker]                                  |
@@ -149,7 +152,7 @@ NEW source: `dashboard/host-dashboard/host-dashboard.component.html`
 Bootstrap grid: `col-md-3 col-sm-6` (4 cards per row on desktop).
 Placeholder cards styled with `.placeholder-card` CSS class.
 
-```
+```text
 +--------+--------+--------+--------+
 | Pend.  | Approv.| Reject.| Pend.  |
 | Req.   | Week   | Week   | Change |
@@ -201,6 +204,7 @@ deviation; functionally equivalent -- see Exception 2).
 ### 5d. Drill-Down Navigation
 
 Card clicks call `openByStatus(statusId)`:
+
 - Routes to `/appointments?appointmentStatus={statusId}` (pre-filtered list).
 - Pending Change Requests → `/appointments?hasChangePending=true` (TBD).
 - Approaching Legal Deadline → `/appointments?approachingDeadline=true` (TBD).

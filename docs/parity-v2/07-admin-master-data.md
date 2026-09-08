@@ -356,7 +356,7 @@ These are NOT gaps (outcome-equivalent on the modern stack):
    `AddValidation/Add/UpdateValidation/Update/DeleteValidation/Delete` +
    `HashSet<string>` messages, paging via stored procs (`spAppointmentTypes`,
    `spLocations`, `spTemplates`, `spDoctorsAvailabilities`). NEW: ABP AppService
-   + Manager + EF repository + `PagedResultDto`. Same effect.
+   - Manager + EF repository + `PagedResultDto`. Same effect.
 2. **AppointmentType CRUD + unique-name guard.** OLD `AppointmentTypeDomain`
    blocks duplicate `AppointmentTypeName`; NEW `AppointmentTypesAppService` does
    standard CRUD. (NEW drops the explicit uniqueness check -- noted as a minor

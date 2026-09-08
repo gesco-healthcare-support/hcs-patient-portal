@@ -112,7 +112,7 @@ post-merge gate. Neither has run meaningfully since `staging` and `production` s
 
 `gh api repos/.../branches/main/protection`:
 
-```
+```text
 strict (branch must be up to date): true
 REQUIRED CHECKS (2):
    - Backend: Build
@@ -258,7 +258,7 @@ Three layers: `gitleaks` locally (pre-commit staged, pre-push full), TruffleHog 
 
 `Directory.Build.props` applies repo-wide:
 
-```
+```text
 LangVersion            latest
 Nullable               enable
 ImplicitUsings         enable

@@ -24,6 +24,14 @@ import { OAuthService } from 'angular-oauth2-oidc';
  * `LPX_THEME` / `abp_user_culture` are deliberately preserved (UI preferences, not
  * session state).
  *
+ * 2026-09-01 (production hardening 1.8b) -- sign-out used to do NOTHING when local
+ * storage held no access token. `revokeTokenAndLogout()` early-returns a RESOLVED
+ * promise in that state (angular-oauth2-oidc@20.0.2 fesm2022 :2958), so the catch below
+ * never fired, the fallback never ran, no end-session request was sent, and the
+ * AuthServer SSO cookie survived -- for 14 days on a sliding window, meaning the next
+ * person at that workstation was signed straight back in. The token is now checked
+ * first so the redirect happens either way.
+ *
  * @returns a Promise that resolves before the end-session navigation; it never
  * rejects -- if revocation fails (e.g. the session is already gone) it falls back to
  * a plain end-session redirect so the user still lands on the login page.
@@ -36,9 +44,22 @@ export async function performFullLogout(injector: Injector): Promise<void> {
 
   const oAuthService = injector.get(OAuthService);
   try {
-    // Revokes the tokens then calls logOut(), which clears local token storage and
-    // redirects to the end_session_endpoint (from the discovery document).
-    await oAuthService.revokeTokenAndLogout();
+    // The branch deliberately MIRRORS the library's own `!accessToken` condition, which
+    // is an internal. That is guarded by spec, not by this comment: full-logout.spec.ts
+    // asserts the no-token case still calls logOut(), so an upstream change to that
+    // condition fails a test instead of silently restoring the silent sign-out.
+    if (oAuthService.getAccessToken()) {
+      // Revokes the tokens then calls logOut() ITSELF, which clears local token storage
+      // and redirects to the end_session_endpoint (from the discovery document). Calling
+      // logOut() again here would navigate twice.
+      await oAuthService.revokeTokenAndLogout();
+    } else {
+      // Nothing to revoke (RFC 7009 needs a token), but the end-session redirect is the
+      // half that clears the server's SSO cookie, and it does not need one: ABP's
+      // /connect/endsession calls SignInManager.SignOutAsync() unconditionally, and
+      // logOut() omits id_token_hint rather than bailing when no id_token is stored.
+      oAuthService.logOut();
+    }
   } catch {
     // Revocation endpoint unreachable / session already gone: still drive the
     // end-session redirect so the user lands on the login page. logOut() clears the

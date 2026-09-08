@@ -217,9 +217,11 @@ Layer 2. Phase 2 verifies the composer end-to-end.
 
 1. Bring down replicate-old-app's stack: `cd /w/patient-portal/replicate-old-app && docker compose down` (NO `-v`, keep volume).
 2. In `docker-compose.yml` on `feat/parallel-worktree-stacks`, temporarily replace the AuthServer env var with a sentinel:
+
    ```yaml
    Settings__CaseEvaluation__Notifications__PortalBaseUrl: "http://test.example.com/sentinel-A"
    ```
+
 3. `cd /w/patient-portal/main && docker compose up -d --build`.
 4. Log in as `SoftwareThree@gesco.com` (verified Falkinstein patient per 2026-05-14 memory). Trigger resend-verification on a previously-registered unverified user.
 5. Tail authserver logs: `docker compose logs -f authserver | grep -i sentinel`.

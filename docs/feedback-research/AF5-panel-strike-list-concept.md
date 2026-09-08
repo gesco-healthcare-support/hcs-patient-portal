@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 PQME appointments need a "panel strike list" document. Internal staff use it for MANUAL
 venue verification (confirming the appointment was booked at the correct doctor office that
 appears on the panel). The portal has no way to mark one uploaded document as "the panel
@@ -18,6 +19,7 @@ This note is the CONCEPT/data-model item. It defines the flag that AF6 (the book
 checkbox + mandatory-upload gate) and AF7 (pre-submit upload mechanism) build on.
 
 ## Current behavior (from investigation)
+
 - No panel-strike-list concept exists. `AppointmentDocument` carries no document-type field
   -- only two domain booleans plus a free-text name (findings AF5 current_behavior, line
   223).
@@ -38,6 +40,7 @@ checkbox + mandatory-upload gate) and AF7 (pre-submit upload mechanism) build on
   `appointment-view.component.html:940-944` (`<app-appointment-documents>`).
 
 ## Relevant code locations
+
 - `src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/AppointmentDocument.cs`
   -- add the new flag next to `IsAdHoc` / `IsJointDeclaration` (lines 71, 78); decide the
   constructor/factory surface.
@@ -55,6 +58,7 @@ checkbox + mandatory-upload gate) and AF7 (pre-submit upload mechanism) build on
 - `angular/src/app/proxy/` -- regenerate after the DTO change (never hand-edit).
 
 ## Phase 3 cross-reference
+
 - BUG-037 (staff 403 on upload): internal staff are the ones who read the panel strike list
   for venue verification; if staff cannot reliably upload/view documents the flag is
   cosmetic. Confirm BUG-037 is in the AF6/AF7 build window so the strike-list path is
@@ -64,6 +68,7 @@ checkbox + mandatory-upload gate) and AF7 (pre-submit upload mechanism) build on
   deferral stays intentional, not forgotten.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - The boolean-flag-per-document-kind pattern is already in the codebase TWICE (`IsAdHoc`
     71, `IsJointDeclaration` 78). Each replaced an OLD sibling table. `IsPanelStrikeList`
@@ -80,6 +85,7 @@ checkbox + mandatory-upload gate) and AF7 (pre-submit upload mechanism) build on
     are acceptable as `false` (they are -- no historical doc is a strike list).
 
 ## Approaches considered (with tradeoffs)
+
 1. NEW boolean `IsPanelStrikeList` on `AppointmentDocument` (CHOSEN). Mirrors the two
    existing flags exactly; one nullable-safe column; one migration; trivial Mapperly/DTO/
    proxy delta. Cost: a third boolean accretes on the entity (acceptable -- still well under
@@ -104,6 +110,7 @@ badge it), reuses a pattern the codebase has committed to twice, and keeps the d
 document-type master deferred.
 
 ## Decision (locked 2026-06-03)
+
 Add a NEW boolean flag `IsPanelStrikeList` on `AppointmentDocument`, mirroring `IsAdHoc` /
 `IsJointDeclaration`. No new table. No `AppointmentDocumentType` master. The flag marks the
 one uploaded document that internal staff use for manual venue verification on PQME
@@ -111,6 +118,7 @@ appointments. This note is the data-model foundation for AF6 (checkbox + mandato
 gate, keyed off the PQME seed GUID) and AF7 (pre-submit upload mechanism).
 
 ## Implementation outline (no code)
+
 1. Domain: add `public virtual bool IsPanelStrikeList { get; set; }` to
    `AppointmentDocument.cs` beside the existing flags (71/78); add matching XML docstring.
    Decide whether to thread it through the public constructor or set it post-construct on the
@@ -126,12 +134,13 @@ gate, keyed off the PQME seed GUID) and AF7 (pre-submit upload mechanism).
 5. Server enforcement (deferred specifics to AF6): the "exactly one strike list when PQME"
    and "mandatory before submit" rules are SERVER-side gates owned by AF6; this note only
    guarantees the flag is persisted and queryable. Note the seam so AF6 enforces in the DTO
-   + domain manager and mirrors in UI.
+   - domain manager and mirrors in UI.
 6. Proxy: FLAG `abp generate-proxy` after the DTO change; delete any inline DTO copy.
 7. Angular display: in `appointment-documents.component.ts`, render a badge/label when
    `isPanelStrikeList` is true so internal staff can spot it for venue verification.
 
 ## Dependencies
+
 - BLOCKS AF6 (mandatory-upload gate needs this queryable flag) and AF7 (the create path that
   sets the flag pre-submit).
 - DEPENDS ON: the locked appointment-type decision (PQME seed GUID identity) for AF6's
@@ -139,5 +148,6 @@ gate, keyed off the PQME seed GUID) and AF7 (pre-submit upload mechanism).
 - Coordinate constructor/factory surface with AF7's pre-submit upload mechanism.
 
 ## Residual open questions
+
 - Whether to expose the flag on the public constructor vs set-after-create -- resolve jointly
   with AF7's create-then-upload (Option A) shape. Minor; does not change the data model.

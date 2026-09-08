@@ -65,6 +65,7 @@ the active `PackageDetail`(s) for the appointment's type (union of their active
 appointment has an `AppointmentDocument` whose `SourceDocumentId` matches the master
 Document id AND whose `Status == Accepted`; otherwise it is reported in its most-actionable
 state (`RequiredDocumentState`: AwaitingReview > Rejected > NotUploaded). The pure matching
+
 + state logic lives in `RequiredDocumentEvaluator` and is unit-tested; the AppService only
 fetches the inputs and wraps them in `MissingRequiredDocumentsResultDto` (required count +
 missing list) so the UI can distinguish "no package", "all received", and "outstanding".
@@ -93,26 +94,26 @@ still matches OLD exactly.
 
 ### Blob containers used
 
-- `appointment-documents` -- uploaded files.
-- `appointment-packets` -- generated PDF packets.
-- `anonymous-uploads` -- temporary landing zone for unauthenticated patient uploads before
++ `appointment-documents` -- uploaded files.
++ `appointment-packets` -- generated PDF packets.
++ `anonymous-uploads` -- temporary landing zone for unauthenticated patient uploads before
   they are moved to `appointment-documents`.
 
 ## Gotchas
 
-- `PacketGenerationStatus` enum starts at 1 to avoid the `default(int) = 0` trap
++ `PacketGenerationStatus` enum starts at 1 to avoid the `default(int) = 0` trap
   mapping an unset enum to a valid value. Do not add a `0` member.
-- `GenerateAppointmentPacketJob` catches `IOException | InvalidOperationException |
++ `GenerateAppointmentPacketJob` catches `IOException | InvalidOperationException |
   ArgumentException | AbpDbConcurrencyException` per kind and calls `MarkFailedAsync`
   WITHOUT rethrowing, so one failing kind does not block the others. Transport failures
   from the packet-renderer sidecar are NOT caught -- they propagate and let Hangfire
   retry the whole job.
-- Composite unique index `(TenantId, AppointmentId, Kind)` on `AppointmentPackets` is
++ Composite unique index `(TenantId, AppointmentId, Kind)` on `AppointmentPackets` is
   filtered; `EnsureGeneratingAsync` relies on it for safe upsert.
-- `PacketGeneratedEto` publish is deferred to `UoW.OnCompleted` inside the job to avoid
++ `PacketGeneratedEto` publish is deferred to `UoW.OnCompleted` inside the job to avoid
   the email handler querying the packet row before `MarkGeneratedAsync` commits.
 
 ## Related
 
-- docs/business-domain/APPOINTMENT-LIFECYCLE.md
-- docs/parity/_parity-flags.md
++ docs/business-domain/APPOINTMENT-LIFECYCLE.md
++ docs/parity/_parity-flags.md

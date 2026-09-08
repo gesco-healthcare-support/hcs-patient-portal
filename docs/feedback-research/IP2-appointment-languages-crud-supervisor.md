@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Staff Supervisor and above must be able to Create / Edit / soft-Delete Appointment Languages
 via the existing Appointment Management -> Appointment Languages page. Clinic Staff stays
 read-only. The CRUD page, controller, AppService, manager, and permission definitions already
@@ -17,6 +18,7 @@ form and bulk-delete column (the Languages list is the thinnest of the four look
 documented here as a minor follow-on, not required for the role change.
 
 ## Current behavior (from investigation)
+
 - All four permissions (`AppointmentLanguages.Default/Create/Edit/Delete`) are defined and
   registered: `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissions.cs:46-52`
   and `.../CaseEvaluationPermissionDefinitionProvider.cs:31-34` (no `MultiTenancySides`
@@ -51,18 +53,20 @@ documented here as a minor follow-on, not required for the role change.
   below IT Admin should be able to seed the demo tenant's languages.
 
 ## Relevant code locations
+
 - `src/HealthcareSupport.CaseEvaluation.Domain/Identity/InternalUserRoleDataSeedContributor.cs`
   -- the ONLY required edit: extend `StaffSupervisorGrants()` to yield
   Create/Edit/Delete("AppointmentLanguages") (mirroring the existing Locations exception at
   line 308-309). Clinic Staff loop untouched (stays read-only via LookupReadEntities).
 - (Optional list polish) `angular/src/app/appointment-languages/appointment-language/components/appointment-language.component.html`
-  + `appointment-language.abstract.component.ts` -- add filter form + bulk-delete column to
+  - `appointment-language.abstract.component.ts` -- add filter form + bulk-delete column to
   match the Locations pattern.
 - (Optional bulk delete) `.../HttpApi/Controllers/AppointmentLanguages/AppointmentLanguageController.cs`
-  + `AppointmentLanguagesAppService.cs` -- no bulk-delete endpoint exists today; one would be
+  - `AppointmentLanguagesAppService.cs` -- no bulk-delete endpoint exists today; one would be
   net-new if the list polish is taken.
 
 ## Phase 3 cross-reference
+
 - IP1 (Appointment Types CRUD for Staff Supervisor) is the identical pattern on a sibling
   lookup; do both in the same seeder edit + same migration-free deploy to keep the role
   matrix coherent.
@@ -73,6 +77,7 @@ documented here as a minor follow-on, not required for the role change.
   no action here.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - The seeder already has the exact precedent: Locations is in `LookupReadEntities` (read for
     all tenant roles) yet `StaffSupervisorGrants()` adds `Create("Locations")` + `Edit("Locations")`
@@ -89,6 +94,7 @@ documented here as a minor follow-on, not required for the role change.
     existing contributor structure in this file.)
 
 ## Approaches considered (with tradeoffs)
+
 - Chosen -- explicit per-entity yields in `StaffSupervisorGrants()` (Create/Edit/Delete for
   AppointmentLanguages), Clinic Staff unchanged. Smallest diff, mirrors the Locations
   precedent, no migration, no new permission strings (all four already defined). Wins on
@@ -106,6 +112,7 @@ documented here as a minor follow-on, not required for the role change.
   grants them. No frontend change is needed for the role behavior.
 
 ## Decision (locked 2026-06-03)
+
 Grant Staff Supervisor full CRUD (Create + Edit + soft-Delete) on AppointmentLanguages by
 adding explicit yields in `StaffSupervisorGrants()`, mirroring the Locations exception.
 Clinic Staff stays read-only (unchanged). IT Admin already has full CRUD. Server enforcement
@@ -114,6 +121,7 @@ list-page filter + bulk-delete polish is noted but NOT required for this item. D
 alongside IP1 and after IR1's role-model grants land.
 
 ## Implementation outline (no code)
+
 1. (After IR1 seeder structure is settled) In `InternalUserRoleDataSeedContributor.cs`,
    inside `StaffSupervisorGrants()` add three yields: `Create("AppointmentLanguages")`,
    `Edit("AppointmentLanguages")`, `Delete("AppointmentLanguages")` -- placed next to the
@@ -130,11 +138,13 @@ alongside IP1 and after IR1's role-model grants land.
    surface (no bulk-delete endpoint exists today) -- scope/defer with IP1/IP4 list-UX work.
 
 ## Dependencies
+
 - Depends on: IR1 (role-model consolidation; defines Staff Supervisor grant structure and
   soft-Delete-on-all-tenant-entities rule).
 - Sibling of: IP1 (Appointment Types CRUD) -- same seeder edit, do together.
 
 ## Residual open questions
+
 - none (the prior conflict with master-data-crud-design.md Section 7, which assigned Languages
   CRUD to IT Admin only, is superseded by the locked 2026-06-03 decision granting Staff
   Supervisor full CRUD; that doc should be updated to match when touched).

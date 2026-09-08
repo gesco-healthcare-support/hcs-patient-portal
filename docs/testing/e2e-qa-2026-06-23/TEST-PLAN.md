@@ -2,7 +2,7 @@
 
 - Date: 2026-06-23
 - Branch: feat/frontend-rework
-- Driver: Playwright MCP against http://falkinstein.localhost:4250 (api 44377, auth 44418, sql 1439)
+- Driver: Playwright MCP against <http://falkinstein.localhost:4250> (api 44377, auth 44418, sql 1439)
 - Tenant: Falkinstein (09f46f32-6119-0d8f-f552-3a2202649ed3)
 - Run mode: INTERACTIVE. Adrian reachable throughout. Per-bug gating (see Bug Protocol).
 
@@ -61,6 +61,7 @@ RescheduledNoBill(7) RescheduledLate(8) CheckedIn(9) CheckedOut(10) Billed(11)
 RescheduleRequested(12) CancellationRequested(13) InfoRequested(14)
 
 Who does what:
+
 - External (Patient/AA/DA/CE): request reschedule, request cancellation, resubmit from
   InfoRequested, re-request from Rejected, request re-eval. (Edit is accessor-scoped.)
 - Intake Staff (= "Clinic Staff"): approve, reject, send-back (request info) on Pending.
@@ -70,10 +71,12 @@ Who does what:
 ## 5. Accounts and firm map (password 1q2w3E*r for all)
 
 Internal (already seeded; verify):
+
 - stafsuper1 Patrick O'Neal (Staff Supervisor), stafsuper2 Denise Fowler (Staff Supervisor)
 - clistaff1 Rachel Kim (Intake Staff), clistaff2 Luis Mendoza (Intake Staff)
 
 External (register fresh in Phase 1). Firm groupings (synthetic firm names):
+
 - Defense firm "Stone & Perez Defense LLP": defatty1 Gregory Stone, defatty2 Alicia Perez
 - Defense firm "Norris Barret Defense LLP": defatty3 Darla Norris, defatty4 Skye Barret
 - Applicant firm "Bennett Lawson Applicants LLP": appatty1 Marcus Bennett, appatty2 Tiffany Lawson

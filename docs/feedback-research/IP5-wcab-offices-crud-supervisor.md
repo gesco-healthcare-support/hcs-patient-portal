@@ -9,6 +9,7 @@ decision: approved-2026-06-03
 ---
 
 ## Issue / desired change
+
 Add CRUD for WCAB Offices available to Staff Supervisor and above; Clinic Staff cannot
 create/edit/delete (read-only). The CRUD machinery (AppService, controller, Angular pages,
 Excel export) already exists end to end; only the role grants need to change. Per the locked
@@ -16,6 +17,7 @@ role model, "delete" means SOFT delete (every tenant entity is FullAudited/ISoft
 hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment Languages).
 
 ## Current behavior (from investigation)
+
 - WcabOffices is granted to Staff Supervisor AND Clinic Staff as **Default (read) only** --
   both roles include it via `LookupReadEntities` (`InternalUserRoleDataSeedContributor.cs:197-204`,
   read-loop at `:304-307` for Supervisor). Neither tenant role gets Create/Edit/Delete.
@@ -38,6 +40,7 @@ hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment
   so no new permission strings are needed.
 
 ## Relevant code locations
+
 - `src/HealthcareSupport.CaseEvaluation.Domain/Identity/InternalUserRoleDataSeedContributor.cs`
   -- the ONE file that must change: move WcabOffices Create/Edit/(soft)Delete to Staff Supervisor.
 - `angular/src/app/wcab-offices/wcab-office/components/wcab-office.component.html` (list +
@@ -48,9 +51,10 @@ hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment
   (nav, requiredPolicy CaseEvaluation.WcabOffices), `app.routes.ts:95`.
 - Backend (no change expected, listed for grounding): `WcabOfficesAppService.cs`,
   `HttpApi/Controllers/WcabOffices/WcabOfficeController.cs`, `Domain/WcabOffices/WcabOfficeManager.cs`
-  + `WcabOffice.cs`, `Application.Contracts/WcabOffices/WcabOfficeCreateDto.cs`.
+  - `WcabOffice.cs`, `Application.Contracts/WcabOffices/WcabOfficeCreateDto.cs`.
 
 ## Phase 3 cross-reference
+
 - **IP5 nav relocation:** route currently lives under "Doctor Management"
   (`wcab-office-base.routes.ts:10-18`). The DOCTOR decision HIDES the Doctors nav/page. If
   "Doctor Management" disappears, WcabOffices must reparent (logical home: a master-data /
@@ -61,6 +65,7 @@ hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment
   but flag while in this file in case access-control review wants it bundled.
 
 ## Research findings
+
 - Internal patterns / prior art:
   - This is the SAME grant-only change as IP1/IP2. The seeder already separates Supervisor
     grants (`StaffSupervisorGrants()` `:300-362`) from IT Admin (`ItAdminGrants()` `:219-287`).
@@ -78,6 +83,7 @@ hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment
   existing ABP permission grants applied via the data-seed contributor.
 
 ## Approaches considered (with tradeoffs)
+
 1. **Grant-only in the seeder (CHOSEN).** Add WcabOffices Create/Edit/Delete to
    `StaffSupervisorGrants()`; leave Clinic Staff at Default (read). Zero new code, zero
    migration, soft-delete already works, server guards already enforce. Smallest blast radius.
@@ -94,12 +100,14 @@ hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment
    concern. Documented as a residual question, not a blocker.
 
 ## Decision (locked 2026-06-03)
+
 Grant Staff Supervisor Create + Edit + soft-Delete on WcabOffices via the data-seed
 contributor, exactly like Locations and the IP1/IP2 lookups. Clinic Staff stays read-only
 (Default), unchanged. No hard-delete. No backend/AppService/migration changes. Depends on IR1
 (the role-consolidation / Supervisor grant rework) landing the grant scaffolding.
 
 ## Implementation outline (no code)
+
 1. **(IR1 dependency)** Ensure IR1's Staff Supervisor grant rework is in place; IP5 piggybacks
    on it. Decide with IR1 whether master-data Create/Edit/Delete grants are factored into a
    shared "supervisor-mutable lookups" set or yielded one-off per entity (Locations style).
@@ -123,6 +131,7 @@ contributor, exactly like Locations and the IP1/IP2 lookups. Clinic Staff stays 
    Staff Supervisor CRUD instead of IT-Admin-only.
 
 ## Dependencies
+
 - Depends on: **IR1** (Staff Supervisor grant rework / role consolidation scaffolding).
 - Sibling (bundle to keep seeder DRY): **IP1** (Appointment Types), **IP2** (Appointment
   Languages), and any IP4 master-data grant -- same one-file seeder edit pattern.
@@ -130,6 +139,7 @@ contributor, exactly like Locations and the IP1/IP2 lookups. Clinic Staff stays 
   WcabOffices route must reparent.
 
 ## Residual open questions
+
 - Nav reparent target once "Doctor Management" is hidden (User Management vs Appointment
   Management vs a master-data group). Minor; pick the group matching Locations/Types.
 - Acceptable that a tenant Staff Supervisor mutates host-scoped WcabOffice data shared across

@@ -23,6 +23,7 @@ This is a **technical inventory**, not a legal compliance document. It catalogue
 | Encryption and Decryption (at rest) | **Not implemented** | No TDE on SQL Server; no field-level PHI encryption |
 
 **Gaps:**
+
 - Field-level encryption for SSN, DOB not implemented.
 - SQL Server TDE not enabled (dev); not verified for cloud deploy.
 - No break-glass procedure for emergency PHI access.
@@ -40,6 +41,7 @@ This is a **technical inventory**, not a legal compliance document. It catalogue
 | Tamper evidence | Not implemented | Audit logs are regular DB rows; no hash chain or append-only store |
 
 **Gaps:**
+
 - No documented audit log retention or review process.
 - No tamper-evident audit trail.
 
@@ -53,6 +55,7 @@ This is a **technical inventory**, not a legal compliance document. It catalogue
 | PHI modification detection | Partial | Audit logs record changes but without cryptographic integrity |
 
 **Gaps:**
+
 - Not all PHI entities have concurrency tokens.
 - No cryptographic hash to detect out-of-band DB modification.
 
@@ -68,6 +71,7 @@ This is a **technical inventory**, not a legal compliance document. It catalogue
 | Account lockout | Implemented | ABP Identity lockout after N failures |
 
 **Gaps:**
+
 - 2FA not required for admin or host users.
 - Password complexity values not audited against HIPAA guidance.
 
@@ -82,6 +86,7 @@ This is a **technical inventory**, not a legal compliance document. It catalogue
 | Intra-service TLS | Not configured | Dev Docker Compose uses plaintext between containers |
 
 **Gaps:**
+
 - HTTP Strict Transport Security (HSTS) headers: verify enforcement.
 - Intra-cluster TLS (API to DB, API to Redis) not configured.
 

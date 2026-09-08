@@ -48,7 +48,7 @@ Modal overlay. Accessible from the unauthenticated registration form shell.
 
 ## 3. OLD Modal Layout
 
-```
+```text
 +------------------------------------------+
 | Terms & Conditions              [X]      |
 +------------------------------------------+
