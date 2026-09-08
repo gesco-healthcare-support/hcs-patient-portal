@@ -25,8 +25,10 @@ public class EmailBodySanitizer : IEmailBodySanitizer, ISingletonDependency
 {
     // A bare merge placeholder occupying an entire URL attribute value, e.g.
     // href="##ResetUrl##". Mirrors TemplateVariableSubstitutor's ##Var## syntax.
+    // A match timeout is supplied as defense-in-depth (ReDoS hardening) even though
+    // this anchored pattern has no catastrophic-backtracking risk.
     private static readonly Regex MergeToken =
-        new("^##[A-Za-z0-9_]+##$", RegexOptions.Compiled);
+        new("^##[A-Za-z0-9_]+##$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private readonly HtmlSanitizer _sanitizer;
 
