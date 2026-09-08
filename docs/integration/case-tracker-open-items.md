@@ -51,10 +51,10 @@ Still undeployed: phase 6 (`86ab3e80`), which is the only commit on `main` and n
 
 ## 4. DOCS
 
-- **D1. STILL OPEN** -- phase 6 did not write this down; it remains inferred rather than stated.
-  Contract: a non-200 reconcile response carries NO document information and must never drive
-  pruning. He has ACCEPTED this and is not asking us to weaken the 404 ambiguity, so it is the agreed
-  fix -- write it down rather than leave it inferred.
+- **D1. DONE, phase 6 (2026-08-08)** -- this entry was STALE. The rule IS written down, in contract
+  section F, and even carries the marker "(D1, written down 2026-08-08)". A non-200 reconcile
+  response carries NO document information and must never drive pruning. Found already present on
+  2026-09-08 while looking for somewhere to add it; corrected rather than duplicated.
 - **D2. DONE, phase 6 (2026-08-08)** -- now stated in contract section A. It had been assigned to 4e,
   which shipped without it. Contract: record that every push is a FULL SNAPSHOT and never slim. This is what makes his
   null-writing upsert safe, and it is currently only true by construction rather than by statement.
@@ -80,7 +80,7 @@ Strict order: I3 -> I4 -> I5. I2 is pointless before I1.
 | I4 | Scoped MinIO policy: read-only on `case-evaluation-documents`, read/write+delete on `case-tracker-documents` | Zero custom policies; only MinIO's five built-ins. BLOCKED BY I3                                                                                                                                                                                                                                                                                                                                               |
 | I5 | MinIO user/key for that policy, secret out of band                                                           | Zero non-root users. BLOCKED BY I4                                                                                                                                                                                                                                                                                                                                                                             |
 | I6 | Joint DNS request with their IT (Rod)                                                                        | Not visible on the server. **GATES THEIR DEPLOY** -- highest leverage of the six                                                                                                                                                                                                                                                                                                                               |
-| I7 | Issue `CaseTracker:IntegrationToken`                                                                         | **DONE on our side (verified live 2026-09-04).** The token is set in `secrets/env.prod`, the api container carries it, and the endpoint authenticates: no token and a wrong token both 401, the correct token reaches the handler. What remains is the Case Tracker configuring the matching header. This row previously said "still EMPTY in production", which was wrong and cost a reader a false diagnosis |
+| I7 | Issue `CaseTracker:IntegrationToken`                                                                         | **DONE on our side (verified live 2026-09-04).** The token is set in `secrets/env.prod`, the api container carries it, and the endpoint authenticates: no token and a wrong token both 401, the correct token reaches the handler. This row previously said "still EMPTY in production", which was wrong and cost a reader a false diagnosis. **That same token gates ATTENDANCE, which is NOT behind `portal.reconcile.enabled` -- so a blank value on either side silently disables the only route by which NoShow / NotSeen can enter the portal.** Their side holds it as `portal.reconcile.token` in `/home/casetrkadmin/caseProject/application-secret.properties` (mode 600, outside git, deliberately absent from their prod profile). **UPDATED 2026-09-08: their token IS set (64 chars, confirmed in their startup log since 2026-08-17) and they ARE authenticating** -- 2,565 attendance attempts since 2026-08-19 with zero 401s. So the remaining work is token configuration on neither side. The live blocker is that every one of those attempts fails non-2xx and their 96-hour give-up window never fires, so a real No Show from 2026-08-19 has retried silently for twenty days. See BUG-046 and issue #694 |
 
 ## 7. COORDINATION
 
