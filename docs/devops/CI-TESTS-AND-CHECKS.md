@@ -134,6 +134,36 @@ Consequences, stated plainly:
 
 **Net: only a compile failure can stop a change reaching `main`.**
 
+### Cascade PRs report BEHIND permanently -- do not "fix" it
+
+Every environment promotion PR (`main -> development`, and each one downstream of it) shows
+**BEHIND**, always, and it is not a state to correct. Measured 2026-09-08:
+
+```text
+main-only commits:          5
+development-only commits:  13   <- all 13 are ci(sync) promote merge commits, 2 parents each
+```
+
+Each cascade merge leaves a merge commit on the DOWNSTREAM branch that the upstream branch never
+receives. So `main` is permanently behind `development` in git terms, and `development` carries
+`strict = true`, which means the up-to-date requirement can never be satisfied by any amount of
+updating.
+
+**The trap.** Update-branch merges the BASE into the HEAD. On the `main -> development` PR the base is
+`development` and the head is `main`, so updating it would **merge `development` into `main`** and
+drag every accumulated sync commit backwards into the trunk -- permanently, and visibly in `main`'s
+history. There is no clean undo.
+
+**BEHIND here is a true statement that is not a problem.** The tooling renders "stale, update me" and
+"structurally impossible, ignore me" identically, and nothing on the PR distinguishes them, so anyone
+reading branch state alone will reach the wrong action. It looks most attractive under deadline
+pressure, which is exactly when cascade PRs get merged.
+
+**Cascade PRs merge with `--merge --admin`: never `--squash`, and never after an update-branch.**
+`--admin` is structurally required rather than a convenience -- it is the only way past `strict`, and
+the same account cannot approve a PR it authored. That the established shape is a merge commit is
+checkable rather than asserted: all 13 existing promotes have two parents.
+
 ---
 
 ## 5. Tests
