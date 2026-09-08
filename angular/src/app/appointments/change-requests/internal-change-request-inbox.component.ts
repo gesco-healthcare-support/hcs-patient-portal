@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnInit,
   computed,
   inject,
@@ -297,6 +298,28 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     this.reason.set('');
     this.modal.set({ kind: 'reject', row });
   }
+  /**
+   * Escape closes the modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim`
+   * backdrop. The keyboard equivalent belongs on the document, not the
+   * backdrop: a div is not focusable, so `(keydown.escape)` bound to the scrim
+   * would never fire, and giving it a tabindex would put a tab stop on a
+   * decorative overlay. The `.ra-modal` container must NOT gain a keydown
+   * guard either -- it sits between the document and the dialog, so stopping
+   * keydown there would swallow this.
+   *
+   * Delegates to closeModal so its isBusy guard is inherited: Escape must not
+   * discard an approval or rejection that is still in flight.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.modal()) {
+      this.closeModal();
+    }
+  }
+
   protected closeModal(): void {
     if (this.isBusy()) {
       return;
@@ -410,7 +433,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
    */
   protected confirmDate(): void {
     const m = this.modal();
-    if (!m || m.kind !== 'approve' || !m.row.id || this.isBusy() || !this.isReschedule(m.row)) {
+    if (m?.kind !== 'approve' || !m.row.id || this.isBusy() || !this.isReschedule(m.row)) {
       return;
     }
     if (!this.canConfirm(m.row)) {
@@ -441,7 +464,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   /** Re-asks whoever has not answered yet, without changing the date. */
   protected resendConsent(): void {
     const m = this.modal();
-    if (!m || m.kind !== 'approve' || !m.row.id || this.isBusy()) {
+    if (m?.kind !== 'approve' || !m.row.id || this.isBusy()) {
       return;
     }
     this.isBusy.set(true);
@@ -510,7 +533,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   protected confirmApprove(): void {
     const m = this.modal();
     const out = this.outcome();
-    if (!m || m.kind !== 'approve' || !m.row.id || out === null || this.isBusy()) {
+    if (m?.kind !== 'approve' || !m.row.id || out === null || this.isBusy()) {
       return;
     }
     // Defense-in-depth: the Approve button is disabled when consent blocks
@@ -556,7 +579,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   protected confirmReject(): void {
     const m = this.modal();
     const text = this.reason().trim();
-    if (!m || m.kind !== 'reject' || !m.row.id || !text || this.isBusy()) {
+    if (m?.kind !== 'reject' || !m.row.id || !text || this.isBusy()) {
       return;
     }
     this.isBusy.set(true);
