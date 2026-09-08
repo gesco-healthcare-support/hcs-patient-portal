@@ -36,17 +36,24 @@ def is_excluded(path: Path) -> bool:
     return any(part in EXCLUDE_PARTS for part in path.parts)
 
 
+def _md_files_under(root: Path) -> list[Path]:
+    """Markdown files under one root, minus the excluded paths.
+
+    Split out of gather_md_files purely to flatten nesting: the four-deep
+    for/if/for/if scored 16 on cognitive complexity against a limit of 15
+    (Sonar python:S3776). Behaviour is unchanged.
+    """
+    if not root.is_dir():
+        return []
+    return [p for p in root.rglob("*.md") if not is_excluded(p)]
+
+
 def gather_md_files() -> list[Path]:
     files: set[Path] = set()
     for root in SCAN_DIRS:
-        if root.is_dir():
-            for p in root.rglob("*.md"):
-                if not is_excluded(p):
-                    files.add(p)
+        files.update(_md_files_under(root))
     for pattern in CLAUDE_GLOBS:
-        for p in REPO_ROOT.glob(pattern):
-            if not is_excluded(p):
-                files.add(p)
+        files.update(p for p in REPO_ROOT.glob(pattern) if not is_excluded(p))
     return sorted(files)
 
 
