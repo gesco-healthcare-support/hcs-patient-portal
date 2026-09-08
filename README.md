@@ -59,16 +59,16 @@ in-house LAN hosting are all in place. The stack is **deployed and running on an
 internal LAN server** (see [Docker and Deployment](#docker-and-deployment)); the
 remaining gate is staff go-live.
 
-| Aspect                  | Status                                                                                                                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stage                   | Deployed to an internal LAN environment; staff go-live not yet done                                                                               |
-| Deployed environments   | One internal VM running `docker-compose.prod.yml` from `development`. Corporate network only, never publicly reachable                            |
-| Production data         | **No real patient data.** Every record on that server is synthetic and created for testing                                                        |
-| Tracked issues          | 31 open findings -- see [docs/runbooks/findings/bugs/](docs/runbooks/findings/bugs/) and [docs/production-hardening/](docs/production-hardening/) |
-| Automated test coverage | ~1,749 backend test methods (242 files) + 68 Angular specs                                                                                        |
-| HIPAA readiness         | Safeguards in place, gaps documented -- see [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md)                                |
-| Maintainer              | Gesco                                                                                                                                             |
-| Repository visibility   | Proprietary -- see [LICENSE](LICENSE)                                                                                                             |
+| Aspect                  | Status                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Stage                   | Deployed to an internal LAN environment; staff go-live not yet done                                                                        |
+| Deployed environments   | One internal VM running `docker-compose.prod.yml` from `development`. Corporate network only, never publicly reachable                     |
+| Production data         | **No real patient data.** Every record on that server is synthetic and created for testing                                                 |
+| Tracked issues          | 124 open -- see [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues), the single source for what is open |
+| Automated test coverage | ~1,749 backend test methods (242 files) + 68 Angular specs                                                                                 |
+| HIPAA readiness         | Safeguards in place, gaps documented -- see [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md)                         |
+| Maintainer              | Gesco                                                                                                                                      |
+| Repository visibility   | Proprietary -- see [LICENSE](LICENSE)                                                                                                      |
 
 For the current runtime and data profile read
 [docs/devops/RUNTIME-AND-DATA-PROFILE.md](docs/devops/RUNTIME-AND-DATA-PROFILE.md).
@@ -560,24 +560,24 @@ This README is the landing page. The deep material lives in
 
 ### I want to
 
-| Goal                                 | Start here                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| Get the current status               | [docs/status-reports/](docs/status-reports/)                                       |
-| Get the app running locally          | [docs/onboarding/GETTING-STARTED.md](docs/onboarding/GETTING-STARTED.md)           |
-| Troubleshoot local dev failures      | [docs/runbooks/LOCAL-DEV.md](docs/runbooks/LOCAL-DEV.md)                           |
-| Run the app in Docker                | [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md)                         |
-| Understand the architecture          | [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md)                     |
-| Understand the business domain       | [docs/business-domain/DOMAIN-OVERVIEW.md](docs/business-domain/DOMAIN-OVERVIEW.md) |
-| Understand the API surface           | [docs/api/API-ARCHITECTURE.md](docs/api/API-ARCHITECTURE.md)                       |
-| Learn the application services       | [docs/backend/APPLICATION-SERVICES.md](docs/backend/APPLICATION-SERVICES.md)       |
-| Understand multi-tenancy             | [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md)           |
-| Add a new entity                     | [docs/onboarding/COMMON-TASKS.md](docs/onboarding/COMMON-TASKS.md)                 |
-| Find PHI data flows and threat model | [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md)                     |
-| Back up or restore the database      | [docs/runbooks/hosting-backup-restore.md](docs/runbooks/hosting-backup-restore.md) |
-| See accepted architecture decisions  | [docs/decisions/README.md](docs/decisions/README.md)                               |
-| Navigate the codebase                | [docs/repo-map/map.md](docs/repo-map/map.md)                                       |
-| See every known bug and gap          | [docs/runbooks/findings/bugs/](docs/runbooks/findings/bugs/)                       |
-| Look up a term                       | [docs/GLOSSARY.md](docs/GLOSSARY.md)                                               |
+| Goal                                 | Start here                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Get the current status               | [docs/status-reports/](docs/status-reports/)                                           |
+| Get the app running locally          | [docs/onboarding/GETTING-STARTED.md](docs/onboarding/GETTING-STARTED.md)               |
+| Troubleshoot local dev failures      | [docs/runbooks/LOCAL-DEV.md](docs/runbooks/LOCAL-DEV.md)                               |
+| Run the app in Docker                | [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md)                             |
+| Understand the architecture          | [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md)                         |
+| Understand the business domain       | [docs/business-domain/DOMAIN-OVERVIEW.md](docs/business-domain/DOMAIN-OVERVIEW.md)     |
+| Understand the API surface           | [docs/api/API-ARCHITECTURE.md](docs/api/API-ARCHITECTURE.md)                           |
+| Learn the application services       | [docs/backend/APPLICATION-SERVICES.md](docs/backend/APPLICATION-SERVICES.md)           |
+| Understand multi-tenancy             | [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md)               |
+| Add a new entity                     | [docs/onboarding/COMMON-TASKS.md](docs/onboarding/COMMON-TASKS.md)                     |
+| Find PHI data flows and threat model | [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md)                         |
+| Back up or restore the database      | [docs/runbooks/hosting-backup-restore.md](docs/runbooks/hosting-backup-restore.md)     |
+| See accepted architecture decisions  | [docs/decisions/README.md](docs/decisions/README.md)                                   |
+| Navigate the codebase                | [docs/repo-map/map.md](docs/repo-map/map.md)                                           |
+| See every known bug and gap          | [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues) |
+| Look up a term                       | [docs/GLOSSARY.md](docs/GLOSSARY.md)                                                   |
 
 ### Entry points by role
 
@@ -601,11 +601,13 @@ Sub-project READMEs: [angular/README.md](angular/README.md),
 
 ## Known Issues and Roadmap
 
-Thirty-one open findings, tracked as individual files with `id`, `severity` and
-`status` frontmatter. Start at
-[docs/runbooks/findings/bugs/](docs/runbooks/findings/bugs/) (79 findings,
-31 open). Security and quality remediation is queued separately in
-[docs/production-hardening/](docs/production-hardening/).
+Work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues) -- 124 open, labelled by `severity/*`,
+`type/*` and `source/*`. That is the single answer to "what is open".
+
+The supporting files are still there and still worth reading, but they no longer record
+status: `docs/runbooks/findings/bugs/` holds the reproduction steps and diagnosis for each
+finding and links its issue, and `docs/production-hardening/` carries the phased security
+and quality programme. Status lives in the issue only, so the two cannot disagree.
 
 Pre-deployment TODOs still open (summary):
 
