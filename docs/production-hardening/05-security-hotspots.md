@@ -4,18 +4,39 @@
 judge without knowing intent. The deliverable is a **decision with evidence** for each, and a code
 change only where the review finds a real problem.
 
-**31 hotspots, all TO_REVIEW.** None has ever been reviewed, which is why the count equals the
-total.
+## COMPLETE as of 2026-09-08 -- 0 TO_REVIEW, 53 REVIEWED/SAFE
 
-| Probability | Category      | Count | Note                          |
-| ----------- | ------------- | ----- | ----------------------------- |
-| HIGH        | csrf          | 6     | Review first                  |
-| HIGH        | auth          | 3     | Review first                  |
-| MEDIUM      | dos           | 6     | Ties to the rate-limiting gap |
-| MEDIUM      | permission    | 5     | Ties to deny-by-default       |
-| LOW         | encrypt-data  | 6     |                               |
-| LOW         | others        | 3     |                               |
-| LOW         | insecure-conf | 2     |                               |
+Every hotspot in this phase now carries a recorded decision. Re-measure before quoting:
+
+```bash
+curl -s "https://sonarcloud.io/api/hotspots/search?projectKey=gesco-healthcare-support_hcs-patient-portal&status=TO_REVIEW&ps=1" | head -c 200
+```
+
+| Category      | Opened with | Outcome                                                        | Lane       |
+| ------------- | ----------- | -------------------------------------------------------------- | ---------- |
+| csrf          | 6           | 6 Safe -- JWT-bearer only, no cookie scheme; 3 are anonymous   | 5.1 (#581) |
+| auth          | 3           | 3 Safe -- dev-stage ARG, key never reaches a shipped image     | 5.1 (#581) |
+| dos           | 6           | 6 **fixed in code** -- match timeouts, PR #722 (`770e4478`)    | 5.2 (#582) |
+| permission    | 1           | 1 Safe -- dev stage; **see #701**, all five images run as root | 5.3 (#583) |
+| encrypt-data  | 6           | 6 Safe -- dev URLs, in-cluster sidecar, TLS at nginx           | 5.4 (#584) |
+| others        | 3           | 2 Safe (cookie deletion) + 1 **fixed** -- PR #724 (`0a8a9917`) | 5.4 (#584) |
+| insecure-conf | 2           | 2 Safe -- cookie deletion, not creation                        | 5.4 (#584) |
+
+**This file opened claiming 31, and the real number was 27** -- kept here rather than silently
+corrected. The entire 4-hotspot gap is the `permission` row, recorded as 5 and measured as 1; the
+other six rows were exact. (#583's title carried the same stale 5 and was corrected to 1 on
+2026-09-08. Whether the 5 was wrong when written or 4 were resolved earlier by unrelated work was
+not established, so no cause is claimed here.)
+
+The 7 code-fixed hotspots do not appear as REVIEWED at all -- they stopped matching their rules,
+so nobody had to attest to them. 53 REVIEWED/SAFE = 33 resolved before this phase + 20 marked
+during it.
+
+**Three open issues sit adjacent to findings marked Safe and are NOT closed by this phase:**
+**#701** (no Dockerfile sets `USER`), **#702** (no per-token throttle on the public endpoints --
+the real risk on those, not CSRF), **#703** (move the ABP NuGet key to a BuildKit secret). One
+marking is conditional: `CaseEvaluationDomainModule.cs:119` is safe under single-host topology
+only, because that leg carries packet HTML (PHI) unencrypted on the docker network.
 
 ---
 
@@ -72,7 +93,18 @@ produce. Record that reasoning rather than marking them safe.
 
 ---
 
-## 5.3 Permission (5, MEDIUM)
+## 5.3 Permission (1, MEDIUM)
+
+**REVIEWED 2026-09-08 -- and the count was 1, not the 5 this heading carried.** Issue #583 was
+retitled `5 -> 1`; this heading had not been. The single hotspot is `angular/Dockerfile:52`, which
+is `FROM base AS dev` -- the development stage. Production is the digest-pinned nginx stage at
+`:37`, so the flagged stage is never deployed. Marked Safe.
+
+**That marking is not a statement that containers run as non-root.** They do not: no Dockerfile in
+this repository sets `USER`, so all five images -- production stages included -- run as root. The
+scanner under-reports it and flags only this dev stage. Tracked as **#701**.
+
+The anticipated angle below did not apply -- no permission hotspot pointed at an app service:
 
 Cross-reference phase 3.2. If critical-path authorization coverage lands first, these reviews get
 much cheaper -- there will be tests demonstrating what the permission actually does.
@@ -147,3 +179,8 @@ curl -s "https://sonarcloud.io/api/hotspots/search?projectKey=gesco-healthcare-s
 ```
 
 Baseline: 31 TO_REVIEW. Target: 0 TO_REVIEW, every one carrying a recorded decision.
+
+**MET 2026-09-08: 0 TO_REVIEW, 53 REVIEWED/SAFE.** 46 were adjudicated at source and dispositioned
+per site in #578-#587; 20 of those were marked through the SonarCloud UI by Adrian across two
+batches, and 7 were resolved by code so they no longer match their rules. The marking is the
+sign-off, which is why it stayed on his account rather than being automated behind a token.
