@@ -295,6 +295,11 @@
   font-family: var(--font-num);
 }
 .ext-seg[data-on='true'] .cnt {
+  // Sonar css:S7924 flags this as low contrast by reading the translucent
+  // background literally, i.e. white on near-white. It does not composite
+  // against the parent, which is --blue-700 (#055495). The real backdrop is
+  // #3c7aac, giving white 4.59:1 -- above the 4.5:1 AA floor. Left as is:
+  // --blue-700 is marked BRAND PRIMARY -- exact and must not be retuned.
   background: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
@@ -304,7 +309,12 @@
   background: #fdf3ea;
 }
 .ext-seg.alert .cnt {
-  background: #f6dcc4;
+  // #f6dcc4 gave 4.14:1 against #9a5a18, below the 4.5:1 AA floor for
+  // normal text (Sonar css:S7924). Lightened to 4.64:1. The text colour is
+  // deliberately unchanged: #9a5a18 is repeated in six places across three
+  // directories and wants to become a token, which is a wider change than
+  // this file.
+  background: #fbead9;
   color: #9a5a18;
 }
 
