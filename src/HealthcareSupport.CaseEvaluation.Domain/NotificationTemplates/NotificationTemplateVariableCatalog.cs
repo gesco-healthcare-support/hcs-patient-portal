@@ -28,13 +28,23 @@ public static class NotificationTemplateVariableCatalog
     // Same grammar TemplateVariableSubstitutor replaces: ##Name## where Name is
     // one or more ASCII word characters. Ordinal/invariant so token discovery
     // does not shift across host locales.
+    // A match timeout is supplied as defense-in-depth (ReDoS hardening) even though
+    // this pattern has no catastrophic-backtracking risk.
     private static readonly Regex TokenPattern =
-        new(@"##([A-Za-z0-9_]+)##", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        new(
+            @"##([A-Za-z0-9_]+)##",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
 
     // Spacer for Humanize: inserts a space before an uppercase letter that
     // follows a lowercase letter or digit ("ExpiresAt" -> "Expires At").
+    // A match timeout is supplied as defense-in-depth (ReDoS hardening) even though
+    // this pattern has no catastrophic-backtracking risk.
     private static readonly Regex CamelBoundary =
-        new("(?<=[a-z0-9])([A-Z])", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        new(
+            "(?<=[a-z0-9])([A-Z])",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// Distinct <c>##Var##</c> token names found in <paramref name="text"/>, in
