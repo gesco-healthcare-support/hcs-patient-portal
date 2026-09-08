@@ -157,6 +157,16 @@
   align-items: flex-start;
 }
 .ad-actions .af-btn--glass {
+  /* Sonar css:S7924 is RIGHT here, unlike the other translucent reports in this
+     sweep. White composites to #ad8e24 over the lightest banner variant (#a07c00)
+     and measures 3.15:1 -- under the 4.5:1 AA floor for normal text, and this is a
+     button label.
+
+     NOT changed here, because no white tint can fix it: even alpha 0 reaches only
+     3.90:1 against that banner. Reaching AA means a BLACK tint instead -- 0.18 gives
+     5.43:1 -- which inverts the effect from a light frost to a dark scrim across all
+     six .ad-banner variants. That is a visual-design decision, not a lint fix.
+     Raised for a design call rather than changed unilaterally. */
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -688,14 +698,15 @@
     padding: 3px 9px;
     border-radius: 7px;
     text-decoration: line-through;
-    word-break: break-word;
+    /* `word-break: break-word` is deprecated. Per spec it is exactly `overflow-wrap: anywhere`, NOT `overflow-wrap: break-word` -- the latter does not allow breaking to reduce a container's min-content width, so swapping to it would narrow where these can wrap. Kept exact (Sonar css:S1874). */
+    overflow-wrap: anywhere;
   }
   .new {
     color: var(--green-700);
     background: var(--green-50);
     padding: 3px 9px;
     border-radius: 7px;
-    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   .arr {
     color: var(--n-300);
@@ -763,7 +774,7 @@
   font-size: 13.5px;
   color: var(--n-900);
   font-weight: 600;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   line-height: 1.4;
 }
 .ad-field .v.mono {
@@ -872,6 +883,14 @@
 // <app-appointment-documents> + <app-appointment-packet> render Bootstrap
 // markup; scope these overrides under .ad so they adopt the redesign look
 // inside this page only (the legacy view page is not under .ad).
+// Sonar css:S4666 reports this as a duplicate of the `.ad` block at the top of
+// the file. NOT merged, deliberately. That block is the page's own base styling;
+// this one scopes Bootstrap overrides for appointment-documents / appointment-packet,
+// which is a different concern and is documented as such above. Folding them
+// together would move roughly eighty lines of overrides ahead of the rules
+// between them, changing cascade order for equal-specificity selectors, and would
+// lose the separation the comments exist to explain. Needs won't-fix triage
+// rather than a code change.
 .ad {
   .card {
     background: #fff;

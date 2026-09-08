@@ -342,6 +342,8 @@
   flex: 1;
 }
 .dh-bars {
+  /* position establishes the containing block for .dh-overlay, which is absolutely positioned. Folded up from a second .dh-bars rule that sat beside .dh-overlay (Sonar css:S4666); nothing between the two targeted .dh-bars, so the cascade is unchanged. */
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 10px;
@@ -390,9 +392,6 @@
 // 0-100 coords share the bars' y-scale; non-scaling stroke keeps the line width
 // constant under the preserveAspectRatio="none" stretch. pointer-events:none so
 // the bars keep their hover tooltip.
-.dh-bars {
-  position: relative;
-}
 .dh-overlay {
   position: absolute;
   top: 10px;

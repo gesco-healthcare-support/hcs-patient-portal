@@ -111,14 +111,15 @@
   padding: 3px 9px;
   border-radius: 7px;
   text-decoration: line-through;
-  word-break: break-word;
+  /* `word-break: break-word` is deprecated. Per spec it is exactly `overflow-wrap: anywhere`, NOT `overflow-wrap: break-word` -- the latter does not allow breaking to reduce a container's min-content width, so swapping to it would narrow where these can wrap. Kept exact (Sonar css:S1874). */
+  overflow-wrap: anywhere;
 }
 .clg-diff .new {
   color: var(--green-700);
   background: var(--green-50);
   padding: 3px 9px;
   border-radius: 7px;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .clg-diff .arr {
   color: var(--n-300);

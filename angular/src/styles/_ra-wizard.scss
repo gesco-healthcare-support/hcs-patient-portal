@@ -71,6 +71,8 @@
 // glass treatment; distinct from the footer step-Back. Shown for both audiences
 // so external users (no sidebar) are never stranded on the wizard.
 .ra-back {
+  /* Sonar css:S7924 false positive: composites to #2570ac over the .ra-head gradient's
+     lightest stop, 5.26:1 for white. */
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -869,15 +871,13 @@ textarea.ra-input {
   color: var(--n-900);
   margin: 0;
 }
-.ra-modal__head .x {
-  margin-left: auto;
-}
 // Prompt 14 (2026-06-15): give the modal close button a real ghost-icon style.
 // Redesigned modals mark it up as `<button class="ext-iconbtn x">`, but
 // .ext-iconbtn is emulated-scoped to the external navbar and never applied on
 // internal-shell pages, so the button rendered bare. Styling the `.x` here
 // covers every ra-modal (Prompts 12-14) consistently.
 .ra-modal__head .x {
+  margin-left: auto;
   width: 32px;
   height: 32px;
   border: 0;
@@ -954,6 +954,14 @@ textarea.ra-input {
 // look (cards, fields, inputs, selects, buttons, tables) without touching
 // their logic. app-lookup-select renders <select class="form-select">, so the
 // select rules below cover every dropdown too.
+// Sonar css:S4666 reports this as a duplicate of the `.ra` block at the top of
+// the file. NOT merged, deliberately. That block is the page's own base styling;
+// this one scopes Bootstrap overrides for app-lookup-select and the Bootstrap form markup,
+// which is a different concern and is documented as such above. Folding them
+// together would move roughly eighty lines of overrides ahead of the rules
+// between them, changing cascade order for equal-specificity selectors, and would
+// lose the separation the comments exist to explain. Needs won't-fix triage
+// rather than a code change.
 .ra {
   .card {
     background: #fff;
