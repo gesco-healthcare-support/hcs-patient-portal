@@ -30,7 +30,7 @@ describe('FileManagementComponent (sweep #657)', () => {
       providers: [
         { provide: DirectoryDescriptorService, useValue: { getContent: () => of({ items: [] }) } },
         { provide: FileDescriptorService, useValue: {} },
-        { provide: PermissionService, useValue: { getGrantedPolicy: () => false } },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
         { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
       ],
     });
@@ -99,5 +99,40 @@ describe('FileManagementComponent (sweep #657)', () => {
       { id: 'b', name: 'intake' },
     ]);
     expect(c.current().name).toBe('intake');
+  });
+
+  /**
+   * Escape must survive the real bubble path, not just the binding.
+   *
+   * The actions cell carries a stopPropagation guard so Enter on a row button
+   * does not also fire the row's own (keydown.enter)="open(row)". openRename and
+   * openDelete live inside that cell, and there is no focus management here, so
+   * focus stays on the button after activation.
+   *
+   * A document-level HostListener sits at the END of the bubble path, so an
+   * unconditional (keydown) guard swallows Escape before it arrives. Dispatching
+   * straight at `document` cannot see that: it starts the event AT the listener
+   * and skips the path a real keypress travels.
+   *
+   * The row must be a FILE -- the cell renders Open for a directory and the
+   * rename/delete buttons only in the @else branch, behind canManage().
+   */
+  it('closes the rename modal on Escape pressed from inside the actions cell', () => {
+    const c = create();
+    // The constructor already ran load(), so content can be seeded directly.
+    (c.probe as unknown as { content: { set(v: unknown[]): void } }).content.set([
+      { id: 'f-1', name: 'intake.pdf', isDirectory: false, size: 2048 },
+    ]);
+    c.fixture.detectChanges();
+
+    const host = c.fixture.nativeElement as HTMLElement;
+    const button = host.querySelector('button[title="Rename"]') as HTMLButtonElement | null;
+    expect(button).withContext('rename button should render for a file').not.toBeNull();
+
+    c.probe.modal.set('rename');
+    button!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(c.readModal())
+      .withContext('Escape from inside the actions cell must reach the document')
+      .toBeNull();
   });
 });

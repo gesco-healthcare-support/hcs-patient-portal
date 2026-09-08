@@ -77,10 +77,21 @@
                 row.lastModificationTime ? (row.lastModificationTime | pacificDate: 'medium') : '--'
               }}
             </td>
+            <!--
+              Enter ONLY on the keydown guard below, deliberately. It exists so that
+              Enter on a button in this cell does not also fire the row's own
+              (keydown.enter)="open(row)". An unconditional (keydown) additionally
+              swallows Escape: openRename and openDelete live in here, there is no
+              focus management, so focus stays on the button after activation -- and
+              the Escape handler is a document-level HostListener at the END of the
+              bubble path. Broadening this back to (keydown) makes the rename and
+              delete modals impossible to dismiss by keyboard (newfolder is opened
+              from the toolbar and is unaffected). Pinned by the bubble-path spec.
+            -->
             <td
               style="text-align: right"
               (click)="$event.stopPropagation()"
-              (keydown)="$event.stopPropagation()"
+              (keydown.enter)="$event.stopPropagation()"
             >
               @if (row.isDirectory) {
                 <span class="ia-sub fm-open">
