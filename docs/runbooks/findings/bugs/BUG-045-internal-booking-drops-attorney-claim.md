@@ -128,7 +128,7 @@ record are all degraded. Invisible unless someone re-opens the appointment.
 The dropped blocks are pushed onward, and the receiving system cannot detect
 the loss:
 
-- The Case Tracker stores all six field groups as **one opaque JSON blob**
+- The Case Tracker stores all SEVEN party groups as **one opaque JSON blob**
   (`pending_intake.portal_party_data`, a single TEXT column) captured verbatim.
   It never enumerates or validates a sub-field, so a BUG-045 record and a
   legitimately sparse record are **identical in shape** to them.
@@ -142,7 +142,17 @@ the loss:
 - Their frontend has zero references to any of these fields, so their intake
   staff cannot spot a gap at confirmation either.
 
-Where it eventually surfaces: those six field groups build page one of their
+CONFIRMED by the Case Tracker maintainer 2026-09-08, from their code rather than
+from this analysis. Two corrections came back with it. The column holds SEVEN
+groups, not six -- applicant attorney, defense attorney, `primaryInsurances[]`,
+`claimExaminers[]`, `injuries[]`, employer and occupation (`location_state` is a
+separate column). And the opacity is deliberate rather than accidental: nothing
+can drop a field it never names, which is what makes their hand-built test
+fixtures harmless. Their preservation of the subtree is unconditional, and the
+held-then-omitted guard arms itself the moment the portal starts sending the
+groups -- so the blind spot closes on its own once this defect is fixed.
+
+Where it eventually surfaces: those party groups build page one of their
 cancellation / no-show letter -- the document that bills the parties and can
 reach opposing counsel and the WCAB. A dropped block renders as a blank on a
 draft their Case Manager hand-edits, so a human does see it, but only at
