@@ -62,6 +62,8 @@
         <div class="af-search ext-search">
           <app-icon name="search" [size]="16" />
           <input
+            id="ext-search"
+            aria-label="Search appointments"
             placeholder="Search type, confirmation #, claim, patient…"
             [ngModel]="q()"
             (ngModelChange)="q.set($event)"
@@ -103,8 +105,9 @@
       <div class="ext-filters">
         <div class="ext-filters__grid">
           <div class="ap-field">
-            <label>Appointment type</label>
+            <label for="ext-filter-type">Appointment type</label>
             <select
+              id="ext-filter-type"
               class="ap-select"
               [ngModel]="draft()['type'] || ''"
               (ngModelChange)="setDraft('type', $event)"
@@ -116,8 +119,9 @@
             </select>
           </div>
           <div class="ap-field">
-            <label>Confirmation #</label>
+            <label for="ext-filter-conf">Confirmation #</label>
             <input
+              id="ext-filter-conf"
               class="ap-input"
               placeholder="e.g. PQ-24817"
               [ngModel]="draft()['conf'] || ''"
@@ -125,8 +129,9 @@
             />
           </div>
           <div class="ap-field">
-            <label>Location</label>
+            <label for="ext-filter-location">Location</label>
             <select
+              id="ext-filter-location"
               class="ap-select"
               [ngModel]="draft()['location'] || ''"
               (ngModelChange)="setDraft('location', $event)"
@@ -138,8 +143,9 @@
             </select>
           </div>
           <div class="ap-field">
-            <label>Claim #</label>
+            <label for="ext-filter-claim">Claim #</label>
             <input
+              id="ext-filter-claim"
               class="ap-input"
               placeholder="e.g. WC24-10480"
               [ngModel]="draft()['claim'] || ''"
@@ -147,8 +153,9 @@
             />
           </div>
           <div class="ap-field">
-            <label>ADJ # (EAMS)</label>
+            <label for="ext-filter-adj">ADJ # (EAMS)</label>
             <input
+              id="ext-filter-adj"
               class="ap-input"
               placeholder="e.g. ADJ-4471102"
               [ngModel]="draft()['adj'] || ''"

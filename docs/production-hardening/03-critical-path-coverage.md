@@ -289,7 +289,7 @@ guarantee rather than a downstream symptom, revert, confirm green.
 | ---- | -------------------------------------------- | -------------------------------------------------------- |
 | 3.2  | `ExternalUserRoleGrantsTests.cs:25-38`       | remove a permission from `BookingBaselineGrants()`       |
 | 3.3  | `OutboxDrainServiceTests.cs:118`             | make the drain ignore `NotificationsPolicy.EmailEnabled` |
-| 3.4  | `PacketVisibilityUnitTests.cs:26-67`         | make `AllowedKinds` return all three kinds for Doctor    |
+| 3.4  | `PacketVisibilityUnitTests.cs:26-67`         | **STRUCK -- see the correction below. The break named here is tautological.** |
 | 3.5  | `MultiOfficeAtomicBookingSubmitTests.cs:134` | remove the transaction boundary around child writes      |
 
 **3.2 carries a PREDICTION, and it is still a prediction.**
@@ -299,12 +299,131 @@ Removing `"Defense Attorney"` from that array is predicted to fail no test. **Ru
 records it as a fact.** If it holds, the accurate statement is "the role set is unasserted" -- NOT
 "roles are unprotected".
 
+### THE 3.4 BREAK IN THE TABLE ABOVE IS STRUCK, and the reason generalises
+
+**Corrected 2026-09-08, by measurement rather than by reading.** The prescribed break -- make
+`AllowedKinds` return all three kinds for Doctor -- cannot do the job, for two independent reasons:
+
+1. **Its premise no longer exists.** `PacketVisibility.AllowedKinds` has a Patient arm, a combined
+   Applicant Attorney / Defense Attorney / Claim Examiner arm, and `Array.Empty<PacketKind>()` as
+   the fallback. **There is no Doctor arm.** IR1 (2026-06-03) retired Doctor as an internal persona,
+   so a Doctor-only caller already falls through to empty.
+2. **It is the wrong direction.** This phase catches a guard being REMOVED. Adding a permissive
+   branch is an addition, and the two are not symmetric.
+
+Applied anyway as a control, it fails exactly one test: `PacketVisibilityUnitTests.cs:38-42`, the
+unit test pinning the very line changed. **It proves the unit test tests the unit, and nothing else.**
+
+```text
+CONTROL, unmodified    Application 1127 passed / Domain 693 passed / MultiOffice 105 passed
+BREAK A (the struck one)   Application Failed: 1 -- PacketVisibilityUnitTests.AllowedKinds_Doctor_ReturnsNone
+                           Domain and MultiOffice unmoved
+BREAK B (the real gap)     1127 / 693 / 105 -- ZERO failures, build clean
+```
+
+**BREAK B is the break this row should always have named.** `AppointmentPacketsAppService`
+`GetListByAppointmentAsync` reads the allow-list at `:122` and filters with it at `:131`. **Delete
+`:131` alone -- leaving the `:122` call so the helper still looks used -- and zero of 1,925 tests
+fail.** Packet-kind filtering can be removed entirely and the suite stays green.
+
+**The generalisable form, and it is the most valuable thing 3.4 produced:**
+
+> A rule can be thoroughly tested where it is DEFINED and completely unasserted at the boundary
+> where it is RELIED UPON. Coverage of the helper reads as coverage of the behaviour, and it is not.
+
+This is a different shape from the catalogue's usual entry. It is not a test that cannot fail; it is
+a test that guards the right thing one layer below where the guarantee actually matters.
+
+**It is a class, not a coincidence -- a second instance surfaced the same afternoon.** `PacificTime
+.TodayFrom` is covered by `Domain.Tests/Timing/PacificTimeTests.cs:115`, while `PacketTokenResolver`,
+the only production caller, is executed by no test at all. See task 6.2 below.
+
+**And the population it lives in was measured**, so nobody has to guess how far it reaches:
+
+```bash
+curl -s "https://sonarcloud.io/api/measures/component_tree?component=gesco-healthcare-support_hcs-patient-portal&metricKeys=coverage&ps=500&qualifiers=FIL"
+# 20 of 52 files named *AppService* report 0.0% coverage -- 3,658 lines
+```
+
+**That is context, not a phase 3 work item.** Phase 8 already lists "application services with no
+tests at all" as its second priority and instructs a successor to re-derive the list; this is that
+list, derived. Phase 3 does not grow by discovery.
+
 **The per-path file counts previously cited (17 / 74 / 9 / 13) are STRUCK.** They came from research
 that recorded its own classification as "indicative rather than exact" and did not carry the glob,
 and they do not reproduce together: 3.3 and 3.4 do, 3.2 and 3.5 do not, and no single method produces
 all four. They were context for finding candidates, never the unit of work.
 
 ---
+
+## WHAT LANDED -- 3.2, 3.3 and 3.4, on 2026-09-08
+
+| Task | Path | PR             | What it pins                                                    |
+| ---- | ---- | -------------- | ----------------------------------------------------------------- |
+| 4    | 3.2  | #693           | the external booking role set, as an independent literal          |
+| 5    | 3.3  | #697, **#705** | document download; packet download, where a REAL defect was found |
+| 6.1  | 3.4  | #709           | the per-role packet KIND filter at the boundary that uses it      |
+| 6.3  | 3.4  | #711           | the kind gate on the patient packet email handler                 |
+
+### 3.2 -- the prediction was RUN, and it HELD
+
+Removing `"Defense Attorney"` from the grant loop failed **zero of 1,919 tests**. The role is still
+created, still assignable, and holds nothing; a user given it logs in and every booking action is
+refused, presenting as a permissions bug on a correctly-configured-looking role. Now pinned.
+
+**Tracked as #692 for unification, with one constraint that must survive it:**
+`MultiOfficeExternalRoleGrantsTests` keeps a DELIBERATE, INDEPENDENT literal role list. Whoever
+unifies the three production lists must NOT make that test read from the unified one -- doing so
+moves the assertion and the code under test together and silently restores the vacuity. It will look
+like finishing the job.
+
+### 3.3 -- this path contained a REAL DEFECT, not only a test gap
+
+- **Document download** had no test anywhere (`git grep -n "DownloadAsync" -- 'test/'` returned
+  nothing) while being the only thing separating one external party from another's documents. **The
+  guard existed and worked**; what was missing was anything that would catch its removal. #697.
+- **Packet download was an actual hole.** All four public methods of `AppointmentPacketsAppService`
+  took a caller-supplied `appointmentId` with **no party-level check at all**, and every external
+  role is granted `{Group}.AppointmentPackets` in the booking baseline, so the permission gate
+  admitted every external party by design. Within one office, any valid appointment id returned
+  another party's packet. Fixed in #705; each of the four guards was then deleted individually and
+  each produced a failure in its own method's test.
+- **Signature download is structurally safe** and needs no fix: `UserSignatureAppService
+  .DownloadAsync()` takes no parameter and reads the current user's own extension property, so there
+  is no caller-supplied identity to confuse. It has zero tests, which is a coverage gap rather than a
+  hole, and is logged rather than chased.
+- Notification email and the SSN reveal already had adequate guardians; breaks were run on both.
+
+### 3.4 -- task 6.2 could NOT be written honestly, and was not written
+
+Pinning the Pacific date stamp is **blocked, and deliberately left blocked**. `IClock` is injected
+and substitutable, so the clock was never the obstacle. `PacketTokenResolver` has **22 constructor
+dependencies**, no test constructs it, and `DateNow` is assigned inline with `FormatDate` private
+static -- so no narrower seam exists. With the real clock the only reachable assertion is
+`DateNow == FormatDate(PacificTime.TodayFrom(now))`, **which compares the code to itself and passes
+forever, including with the Pacific conversion deleted.**
+
+**Tracked as #710.** The guarantee it would have pinned is one that ALREADY BROKE in production -- a
+packet generated after roughly 4-5pm Pacific was stamped with tomorrow's date, on the legal artefact.
+It remains unguarded, and that is stated rather than papered over.
+
+The standing rule applied here: **a needed seam is a flag to raise, not a cost to absorb** -- applied
+to test infrastructure rather than production code, which is the same principle.
+
+### The finding that outgrew this phase: no permission attribute can be regression-tested
+
+Both test harnesses call `AddAlwaysAllowAuthorization()` (`CaseEvaluationTestBaseModule.cs:27`,
+`CaseEvaluationMultiOfficeTestModule.cs:103`), and every test project inherits one of them. So the
+authorization interceptor always succeeds and **243 permission-bearing `[Authorize]` attributes
+across 49 files are inert under test.** Delete any one and the suite stays green.
+
+**This is not a vulnerability** -- the checks work in production, and always-allow is ABP's own
+template default. What is absent is any regression guard, over an entire category of guard, in the
+phase built to eliminate exactly that.
+
+**Tracked as #707, in the `Blocks public hosting` milestone by Adrian's instruction 2026-09-08**, so
+it must be resolved before the portal is exposed to the public internet. It carries a four-layer
+design; it needs a harness, not a test, which is why it is not a phase 3 item.
 
 ## Validation loop
 
