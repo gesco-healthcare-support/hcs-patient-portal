@@ -119,10 +119,20 @@
             }
           }
         </div>
+        <!--
+          Enter ONLY on the keydown guard below, deliberately. It exists so that Enter
+          on a button in this container does not also fire the row's own
+          (keydown.enter)="toggle(row)". An unconditional (keydown) additionally
+          swallows Escape: openApprove and openReject live in here, there is no focus
+          management, so focus stays on the button after activation -- and the Escape
+          handler is a document-level HostListener at the END of the bubble path.
+          Broadening this back to (keydown) makes the modal impossible to dismiss by
+          keyboard. Pinned by the bubble-path spec.
+        -->
         <div
           class="cr-row__acts"
           (click)="$event.stopPropagation()"
-          (keydown)="$event.stopPropagation()"
+          (keydown.enter)="$event.stopPropagation()"
         >
           <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="view(row)">
             <app-icon name="eye" [size]="14" />

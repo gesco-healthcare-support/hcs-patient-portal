@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { Router } from '@angular/router';
 import { ToasterService } from '@abp/ng.theme.shared';
 
@@ -26,7 +27,10 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
   function create() {
     TestBed.configureTestingModule({
       providers: [
-        { provide: AppointmentChangeRequestApprovalService, useValue: {} },
+        {
+          provide: AppointmentChangeRequestApprovalService,
+          useValue: { getPending: () => of({ items: [], totalCount: 0 }) },
+        },
         {
           provide: Router,
           useValue: { navigate: () => undefined, navigateByUrl: () => undefined },
@@ -36,7 +40,7 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
     });
     const fixture = TestBed.createComponent(InternalChangeRequestInboxComponent);
     const inst = fixture.componentInstance as unknown as Probe & { modal(): unknown };
-    return { probe: inst as Probe, readModal: () => inst.modal() };
+    return { fixture, probe: inst as Probe, readModal: () => inst.modal() };
   }
 
   /** Shape only matters insofar as the handler checks truthiness. */
@@ -99,6 +103,50 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
       const c = create();
       c.probe.modal.set({ kind: 'approve', row: { id: 'cr-1' } });
       expect(() => c.probe.confirmReject()).not.toThrow();
+    });
+  });
+
+  /**
+   * Escape must survive the real bubble path, not just the binding.
+   *
+   * The actions container carries a stopPropagation guard so that Enter on a
+   * row button does not also fire the row's own (keydown.enter). Both buttons
+   * that OPEN the modal live inside that container, and there is no focus
+   * management here -- no autofocus, no ViewChild().focus(), no focus trap --
+   * so after activating one, focus stays on the button, inside the guard.
+   *
+   * A document-level HostListener sits at the END of the bubble path. So an
+   * unconditional (keydown) guard on the container swallows Escape before it
+   * arrives, and the modal cannot be dismissed by keyboard at all. Dispatching
+   * straight at `document` cannot see this, because it starts the event AT the
+   * listener and skips the path entirely.
+   */
+  describe('Escape survives the bubble path from the actions container', () => {
+    it('closes the modal when Escape is pressed with focus inside the actions container', () => {
+      const c = create();
+      // This first detectChanges runs ngOnInit -> load(), which sets `rows` from
+      // the service and clears `loading`. Seeding rows before it would be undone.
+      c.fixture.detectChanges();
+      // Now seed one row so the real actions container and its buttons render.
+      // The default tab is 'all', so visibleRows() applies no filter.
+      (c.probe as unknown as { rows: { set(v: unknown[]): void } }).rows.set([
+        {
+          id: 'cr-1',
+          appointmentConfirmationNumber: 'A00001',
+          creationTime: '2026-09-01T00:00:00Z',
+        },
+      ]);
+      c.fixture.detectChanges();
+
+      const host = c.fixture.nativeElement as HTMLElement;
+      const button = host.querySelector('.cr-row__acts button') as HTMLButtonElement | null;
+      expect(button).withContext('actions container button should render').not.toBeNull();
+
+      c.probe.modal.set({ kind: 'approve', row: { id: 'cr-1' } });
+      button!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(c.readModal())
+        .withContext('Escape from inside the actions container must reach the document')
+        .toBeNull();
     });
   });
 });
