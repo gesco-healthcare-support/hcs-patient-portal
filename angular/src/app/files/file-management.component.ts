@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  HostListener,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PermissionService } from '@abp/ng.core';
@@ -66,7 +73,10 @@ export class FileManagementComponent {
 
   protected readonly current = computed<Crumb>(() => {
     const p = this.path();
-    return p[p.length - 1];
+    // .at(-1) rather than p[p.length - 1] (Sonar typescript:S7755). Safe here:
+    // strictNullChecks is off in this project, so .at() is typed Crumb rather
+    // than Crumb | undefined and the computed<Crumb> signature still holds.
+    return p.at(-1);
   });
   protected readonly shown = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -107,6 +117,17 @@ export class FileManagementComponent {
   }
 
   // ---- formatting ----
+  /**
+   * Sonar typescript:S7760 asks for a default parameter here instead of the
+   * `?? 0`. NOT APPLIED, because it would be a regression rather than a
+   * refactor: a default parameter applies only to `undefined`, so an explicit
+   * `null` would flow straight through and render as "null B". Verified:
+   * `f(b = 0)` returns "null B" for null where `b ?? 0` returns "0 B".
+   *
+   * The signature accepts null deliberately. DirectoryContentDto types `size`
+   * as non-nullable, but strictNullChecks is off in this project so that is
+   * not enforced, and the value comes straight off a server response.
+   */
   protected sizeLabel(bytes: number | null | undefined): string {
     const value = bytes ?? 0;
     if (value < 1024) {
@@ -266,6 +287,28 @@ export class FileManagementComponent {
         },
         error: () => undefined,
       });
+  }
+
+  /**
+   * Escape closes whichever of the three modals is open.
+   *
+   * All three ('newfolder', 'rename', 'delete') could previously be dismissed
+   * only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on their `.ra-scrim`
+   * backdrops. The keyboard equivalent belongs on the document, not the
+   * backdrop: a div is not focusable, so `(keydown.escape)` bound to the scrim
+   * would never fire, and giving it a tabindex would put a tab stop on a
+   * decorative overlay.
+   *
+   * Delegates to closeModal so its isBusy guard is inherited -- Escape must not
+   * discard an upload or a rename that is still in flight. One handler covers
+   * all three because they share the single `modal` signal.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.modal()) {
+      this.closeModal();
+    }
   }
 
   protected closeModal(): void {

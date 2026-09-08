@@ -34,7 +34,7 @@
       </thead>
       <tbody>
         @for (row of displayRows(); track row.id) {
-          <tr (click)="onRowClick(row)">
+          <tr (click)="onRowClick(row)" (keydown.enter)="onRowClick(row)" tabindex="0">
             @if (meta().key === 'types') {
               <td>
                 <span
@@ -74,7 +74,18 @@
                 }
               </span>
             </td>
-            <td style="text-align: right" (click)="$event.stopPropagation()">
+            <!--
+              Enter ONLY on the keydown guard, deliberately. It stops Enter on a button
+              in this cell also firing the row's own (keydown.enter). An unconditional
+              (keydown) would additionally swallow Escape before it reached the
+              document-level HostListener that closes the modal, since that listener
+              sits at the END of the bubble path and focus stays on the button.
+            -->
+            <td
+              style="text-align: right"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="$event.stopPropagation()"
+            >
               <span style="display: inline-flex; gap: 6px; justify-content: flex-end">
                 @if (meta().key === 'types' && canEditFieldConfig) {
                   <button
@@ -189,6 +200,8 @@
                           </button>
                         </span>
                         <input
+                          [id]="'cf-default-' + field.key"
+                          [attr.aria-label]="field.label + ' default value'"
                           class="dv"
                           placeholder="Pre-filled value -- blank for none"
                           [disabled]="fieldOf(field.key).hidden"
@@ -238,11 +251,12 @@
             [class.col-6]="meta().hasDescription"
             [class.col-12]="!meta().hasDescription"
           >
-            <label>
+            <label for="cf-name">
               Name
               <span class="req">*</span>
             </label>
             <input
+              id="cf-name"
               class="ra-input"
               maxlength="100"
               [ngModel]="f.name"
@@ -251,8 +265,9 @@
           </div>
           @if (meta().hasDescription) {
             <div class="ra-field col-6">
-              <label>Description</label>
+              <label for="cf-description">Description</label>
               <input
+                id="cf-description"
                 class="ra-input"
                 maxlength="200"
                 [ngModel]="f.description"

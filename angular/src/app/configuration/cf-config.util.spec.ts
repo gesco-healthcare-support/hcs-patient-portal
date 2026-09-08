@@ -52,21 +52,21 @@ describe('cf-config.util', () => {
           keys.push(field.key);
         }
       }
-      expect(keys.length).toBe(71);
+      expect(keys).toHaveSize(71);
       expect(new Set(keys).size).toBe(71);
     });
 
     it('keeps the Patient Demographics group together', () => {
       const patient = buildFieldCatalog().find((g) => g.group === 'Patient Demographics')!;
       expect(patient.fields.map((f) => f.key)).toContain('socialSecurityNumber');
-      expect(patient.fields.length).toBe(18);
+      expect(patient.fields).toHaveSize(18);
     });
   });
 
   describe('emptyFieldState', () => {
     it('returns a default state for every catalog key', () => {
       const state = emptyFieldState();
-      expect(Object.keys(state).length).toBe(71);
+      expect(Object.keys(state)).toHaveSize(71);
       expect(state['panelNumber']).toEqual({
         hidden: false,
         readOnly: false,
@@ -118,7 +118,7 @@ describe('cf-config.util', () => {
       ];
       const state = fieldStateFromConfigs(configs);
       expect(state['someRetiredField']).toBeUndefined();
-      expect(Object.keys(state).length).toBe(71);
+      expect(Object.keys(state)).toHaveSize(71);
     });
   });
 
@@ -136,7 +136,7 @@ describe('cf-config.util', () => {
         defaultValue: '   ',
       };
       const batch = fieldStateToBatch(state);
-      expect(batch.length).toBe(1);
+      expect(batch).toHaveSize(1);
       expect(batch[0].fieldName).toBe('panelNumber');
       expect(batch[0].hidden).toBe(true);
       expect(batch[0].defaultValue).toBeNull();
@@ -151,7 +151,7 @@ describe('cf-config.util', () => {
         defaultValue: '  English  ',
       };
       const batch = fieldStateToBatch(state);
-      expect(batch.length).toBe(1);
+      expect(batch).toHaveSize(1);
       expect(batch[0].fieldName).toBe('appointmentLanguageId');
       expect(batch[0].required).toBe(true);
       expect(batch[0].defaultValue).toBe('English');
@@ -168,7 +168,7 @@ describe('cf-config.util', () => {
         },
       ];
       const batch = fieldStateToBatch(fieldStateFromConfigs(configs));
-      expect(batch.length).toBe(1);
+      expect(batch).toHaveSize(1);
       expect(batch[0]).toEqual({
         fieldName: 'street',
         hidden: false,
