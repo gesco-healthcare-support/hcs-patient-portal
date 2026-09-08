@@ -115,6 +115,54 @@ loses all of it without an error surfaced to the user (the appointment still
 "succeeds"). Downstream AttyCE packets, attorney-facing emails, and the claim
 record are all degraded. Invisible unless someone re-opens the appointment.
 
+### Downstream impact in the Case Tracker (confirmed with their maintainer, 2026-09-04)
+
+> The creation-side mechanism was fixed 2026-08-21 -- the child groups are now
+> written inline during creation (`AppointmentsAppService.cs:786`) rather than by
+> a post-create call that could 409 -- and [#560](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/560) was closed verified-fixed on
+> 2026-09-04. This section is retained because the detection gap it documents is a
+> property of the integration rather than of this defect, and because records
+> pushed before the fix were never re-checked. Carried forward as
+> [#695](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/695).
+
+The dropped blocks are pushed onward, and the receiving system cannot detect
+the loss:
+
+- The Case Tracker stores all SEVEN party groups as **one opaque JSON blob**
+  (`pending_intake.portal_party_data`, a single TEXT column) captured verbatim.
+  It never enumerates or validates a sub-field, so a BUG-045 record and a
+  legitimately sparse record are **identical in shape** to them.
+- Their only guard warns when a subtree they previously held is later omitted.
+  BUG-045 drops the fields *before the first push*, so they never held them:
+  zero warnings have fired and none ever would. **Their silence is not
+  evidence that this is not happening.**
+- They cannot separate internal- from external-booked records -- they do not
+  store `BookedByUserId` and it is not in the payload. That correlation can
+  only come from the portal side.
+- Their frontend has zero references to any of these fields, so their intake
+  staff cannot spot a gap at confirmation either.
+
+CONFIRMED by the Case Tracker maintainer 2026-09-08, from their code rather than
+from this analysis. Two corrections came back with it. The column holds SEVEN
+groups, not six -- applicant attorney, defense attorney, `primaryInsurances[]`,
+`claimExaminers[]`, `injuries[]`, employer and occupation (`location_state` is a
+separate column). And the opacity is deliberate rather than accidental: nothing
+can drop a field it never names, which is what makes their hand-built test
+fixtures harmless. Their preservation of the subtree is unconditional, and the
+held-then-omitted guard arms itself the moment the portal starts sending the
+groups -- so the blind spot closes on its own once this defect is fixed.
+
+Where it eventually surfaces: those party groups build page one of their
+cancellation / no-show letter -- the document that bills the parties and can
+reach opposing counsel and the WCAB. A dropped block renders as a blank on a
+draft their Case Manager hand-edits, so a human does see it, but only at
+letter-generation time, potentially weeks after intake. `IN_PERSON_EVAL` only.
+
+Real-world blast radius is currently zero: their intake volume is single-digit
+and synthetic, and nothing has been billed or served from an affected record.
+This becomes billing-facing at staff go-live, which is why the severity should
+not be relaxed on the strength of "no reports".
+
 ## Recommended fix (high level)
 
 - Do NOT auto-approve-on-create in a way that bumps the appointment stamp
