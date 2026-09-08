@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  HostListener,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -222,8 +229,33 @@ export class InternalConfigurationComponent {
       return 'All types';
     }
     const count = row.appointmentTypeIds?.length ?? 0;
-    return count === 0 ? 'No types' : `${count} type${count === 1 ? '' : 's'}`;
+    if (count === 0) {
+      return 'No types';
+    }
+    // Pluralisation lifted out of the return: the nested ternary tripped Sonar
+    // typescript:S3358 and read poorly inside a template literal.
+    const plural = count === 1 ? '' : 's';
+    return `${count} type${plural}`;
   }
+  /**
+   * Escape closes the modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim` backdrop.
+   * The keyboard equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to the scrim would never fire, and a tabindex would
+   * put a tab stop on a decorative overlay. Matches the five components already
+   * using this pattern, submit-query-modal being the closest.
+   *
+   * Delegates to closeModal so its isBusy guard is inherited.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.form()) {
+      this.closeModal();
+    }
+  }
+
   protected closeModal(): void {
     if (!this.isBusy()) {
       this.form.set(null);
