@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  HostListener,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -61,7 +68,18 @@ interface CreateUserDraft {
   phoneNumber: string;
 }
 
-const EMAIL_RE = /.+@.+\..+/;
+// Anchored and whitespace/at-free rather than `/.+@.+\..+/` (Sonar
+// typescript:S8786). The old form was genuinely quadratic, not just untidy:
+// `.+` can match `@` and `.`, so every split has to be retried. Measured on
+// `"a@" + "b"*40 + "!"*n`, doubling n roughly quadrupled the time --
+// 8.8ms at 1k, 83ms at 4k, 617ms at 16k -- while this form stays flat at
+// under 0.1ms.
+//
+// Stricter in exactly two ways, both of which are invalid addresses the old
+// pattern wrongly accepted: an internal space (`a b@c.d`) and a second `@`
+// (`a@b@c.d`). Leading and trailing whitespace is not a difference, because
+// every call site trims first. The server remains authoritative.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Mirror of TenantNaming's DNS-safe slug rule (server is authoritative).
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
@@ -415,6 +433,35 @@ export class InternalUsersHubComponent {
       this.createForm.set({ ...current, ...partial });
     }
   }
+  /**
+   * Escape closes whichever modal is open.
+   *
+   * Both could previously be dismissed only with the mouse, which is what
+   * Sonar's MouseEventWithoutKeyboardEquivalentCheck reports on their
+   * `.ra-scrim` backdrops. The keyboard equivalent belongs on the document: a
+   * div is not focusable, so `(keydown.escape)` bound to a scrim would never
+   * fire, and a tabindex would put a tab stop on a decorative overlay. Matches
+   * the five components already using this pattern.
+   *
+   * Delegates to the existing close methods so their isBusy guard is inherited
+   * and Escape cannot discard a save in flight. The tenant form is checked
+   * first: it is the narrower of the two and can be opened over the user list.
+   *
+   * Note there is no keydown stopPropagation guard anywhere in this template,
+   * so nothing intercepts the event on its way up. That is deliberate -- an
+   * unconditional one would swallow this, as it did in #719 and #720.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.tenantForm()) {
+      this.closeTenant();
+      return;
+    }
+    if (this.createForm()) {
+      this.closeCreateUser();
+    }
+  }
+
   protected closeCreateUser(): void {
     if (!this.isBusy()) {
       this.createForm.set(null);
