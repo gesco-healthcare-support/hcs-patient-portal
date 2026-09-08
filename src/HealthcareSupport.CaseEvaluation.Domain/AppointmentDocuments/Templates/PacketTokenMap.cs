@@ -17,10 +17,14 @@ public static class PacketTokenMap
     /// <summary>
     /// Matches <c>##Group.Field##</c> (group + field each start with a letter, then letters /
     /// digits / underscores). Compiled because both renderers run it over large documents.
+    ///
+    /// <para>A match timeout is supplied as defense-in-depth (ReDoS hardening) even though this
+    /// pattern has no catastrophic-backtracking risk.</para>
     /// </summary>
     public static readonly Regex TokenRegex = new(
         @"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled,
+        TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// The signature placeholder is intentionally excluded from <see cref="Build"/>: the DOCX

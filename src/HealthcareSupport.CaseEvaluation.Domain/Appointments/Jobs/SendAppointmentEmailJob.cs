@@ -53,8 +53,13 @@ public class SendAppointmentEmailJob :
     // rendered email body so notification links can be logged. Excludes
     // whitespace + HTML attribute delimiters so href="..." values are
     // captured cleanly.
+    // A match timeout is supplied as defense-in-depth (ReDoS hardening) even though
+    // this pattern has no catastrophic-backtracking risk.
     private static readonly Regex LinkPattern =
-        new(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        new(
+            @"https?://[^\s""'<>]+",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
 
     public SendAppointmentEmailJob(
         IEmailSender emailSender,
