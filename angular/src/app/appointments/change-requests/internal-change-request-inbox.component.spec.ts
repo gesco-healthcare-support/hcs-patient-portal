@@ -18,6 +18,8 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
     modal: { set(value: unknown): void };
     isBusy: { set(value: boolean): void };
     onEscapeKey(): void;
+    outcome: { set(value: unknown): void };
+    reason: { set(value: string): void };
     confirmDate(): void;
     resendConsent(): void;
     confirmApprove(): void;
@@ -147,6 +149,62 @@ describe('InternalChangeRequestInboxComponent Escape handling (sweep #656)', () 
       expect(c.readModal())
         .withContext('Escape from inside the actions container must reach the document')
         .toBeNull();
+    });
+  });
+
+  /**
+   * Each guard is a chain of clauses, and the specs above only ever take the
+   * FIRST one (wrong kind). The later clauses are the ones that stop a
+   * double-submit or a write with missing data, so they are worth pinning in
+   * their own right -- and until they are, Sonar reports the guards as
+   * partially covered even though every LINE is executed, because new_coverage
+   * counts conditions and not just lines.
+   *
+   * The approval service is stubbed as an empty object, so any of these
+   * reaching past its guard would call a function that does not exist and
+   * throw. not.toThrow() therefore asserts the guard held.
+   */
+  describe('later guard clauses (sweep #656)', () => {
+    const approve = { kind: 'approve', row: { id: 'cr-1' } };
+
+    it('blocks every guarded action while a request is in flight', () => {
+      const c = create();
+      c.probe.modal.set(approve);
+      c.probe.outcome.set(1);
+      c.probe.isBusy.set(true);
+      expect(() => c.probe.confirmDate()).not.toThrow();
+      expect(() => c.probe.resendConsent()).not.toThrow();
+      expect(() => c.probe.confirmApprove()).not.toThrow();
+
+      c.probe.modal.set({ kind: 'reject', row: { id: 'cr-1' } });
+      c.probe.reason.set('needs a new date');
+      expect(() => c.probe.confirmReject()).not.toThrow();
+    });
+
+    it('blocks when the row carries no id', () => {
+      const c = create();
+      c.probe.modal.set({ kind: 'approve', row: {} });
+      c.probe.outcome.set(1);
+      expect(() => c.probe.confirmDate()).not.toThrow();
+      expect(() => c.probe.resendConsent()).not.toThrow();
+      expect(() => c.probe.confirmApprove()).not.toThrow();
+    });
+
+    it('blocks approval until an outcome is chosen', () => {
+      const c = create();
+      c.probe.modal.set(approve);
+      c.probe.outcome.set(null);
+      expect(() => c.probe.confirmApprove()).not.toThrow();
+    });
+
+    it('blocks rejection on a blank or whitespace-only reason', () => {
+      const c = create();
+      c.probe.modal.set({ kind: 'reject', row: { id: 'cr-1' } });
+      c.probe.reason.set('');
+      expect(() => c.probe.confirmReject()).not.toThrow();
+      // Whitespace is trimmed before the check, so it must not pass either.
+      c.probe.reason.set('   ');
+      expect(() => c.probe.confirmReject()).not.toThrow();
     });
   });
 });
