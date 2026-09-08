@@ -23,7 +23,7 @@ export function changeRequestAgeDays(
     return 0;
   }
   const days = Math.floor((nowMs - created) / 86_400_000);
-  return days < 0 ? 0 : days;
+  return Math.max(days, 0);
 }
 
 /** Age-pill bucket (prototype rule): >=7 crit, >=4 warn, else ok. */
@@ -76,10 +76,10 @@ export function changeRequestConsentView(
     return { show: false, label: '', cls: '' };
   }
   const inPlay = [sideA, sideB].filter(sideInPlay);
-  if (inPlay.some((s) => s === ChangeRequestConsentStatus.Rejected)) {
+  if (inPlay.includes(ChangeRequestConsentStatus.Rejected)) {
     return { show: true, label: 'Consent declined', cls: 'declined' };
   }
-  if (inPlay.some((s) => s === ChangeRequestConsentStatus.Expired)) {
+  if (inPlay.includes(ChangeRequestConsentStatus.Expired)) {
     return { show: true, label: 'Consent expired', cls: 'declined' };
   }
   if (inPlay.every((s) => s === ChangeRequestConsentStatus.Approved)) {
