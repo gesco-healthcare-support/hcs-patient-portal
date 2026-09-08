@@ -100,9 +100,19 @@ NG_CONFIG=local
 ENV
 
 # Install deps for direct dotnet-run paths (optional for compose users).
+#
+# `--mutex network` was a Yarn 1 flag and this repo moved to Yarn 4 in #310.
+# Yarn 4 rejects unknown options outright ("Unsupported option name") rather
+# than ignoring them, and `set -e` above turns that into an aborted setup, so
+# the flag had to go regardless of the hardening finding.
+#
+# Yarn 4 has no `--ignore-scripts`; the equivalent is the enableScripts setting,
+# which .yarnrc.yml turns on repo-wide. Overriding it per invocation keeps a
+# dependency's postinstall from executing on a developer machine (shell:S6505)
+# without changing what CI and the Docker build do.
 cd "$TARGET"
 dotnet restore
-(cd angular && yarn install --mutex network)
+(cd angular && YARN_ENABLE_SCRIPTS=false yarn install)
 
 cat <<NOTE
 
