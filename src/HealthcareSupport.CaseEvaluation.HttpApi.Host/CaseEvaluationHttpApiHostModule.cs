@@ -107,7 +107,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigurePasswordResetRateLimiter(context);
         ConfigureUploadLimits(context);
         ConfigureForwardedHeaders(context);
-        ConfigureMultiTenancy(configuration);
+        ConfigureMultiTenancy(context, configuration);
 
         // OLD-parity label overrides: inject extra JSON into AbpUi +
         // AbpAccount resources so the SPA's /api/abp/application-localization
@@ -397,9 +397,19 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// QueryString, Cookie, Route, and Header resolvers are dropped so
     /// ?__tenant=GUID cannot override the URL.
     /// </summary>
-    private void ConfigureMultiTenancy(IConfiguration configuration)
+    /// <remarks>
+    /// <c>internal static</c> for the same reason as <see cref="ConfigureUploadLimits"/>:
+    /// so the assembled options can be asserted from Application.Tests through this
+    /// assembly's <c>InternalsVisibleTo</c>, without booting the ABP host. Phase 3
+    /// item APP-OWN-01 (2026-09-04) -- until then NOTHING asserted this chain, and the
+    /// claim that `?__tenant=` cannot override the hostname rested entirely on reading
+    /// these lines. See TenantResolverChainTests.
+    /// </remarks>
+    internal static void ConfigureMultiTenancy(
+        ServiceConfigurationContext context,
+        IConfiguration configuration)
     {
-        Configure<AbpTenantResolveOptions>(options =>
+        context.Services.Configure<AbpTenantResolveOptions>(options =>
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
