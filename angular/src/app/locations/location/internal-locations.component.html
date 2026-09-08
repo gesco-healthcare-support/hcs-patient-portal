@@ -32,7 +32,12 @@
       </thead>
       <tbody>
         @for (row of displayRows(); track row.location?.id) {
-          <tr (click)="openEdit(row)" style="cursor: pointer">
+          <tr
+            (click)="openEdit(row)"
+            (keydown.enter)="openEdit(row)"
+            tabindex="0"
+            style="cursor: pointer"
+          >
             <td>
               <b style="color: var(--n-900)">{{ row.location?.name }}</b>
             </td>
@@ -62,7 +67,11 @@
                 {{ row.location?.isActive ? 'Active' : 'Inactive' }}
               </span>
             </td>
-            <td style="text-align: right" (click)="$event.stopPropagation()">
+            <td
+              style="text-align: right"
+              (click)="$event.stopPropagation()"
+              (keydown)="$event.stopPropagation()"
+            >
               <span style="display: inline-flex; gap: 6px">
                 <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(row)">
                   <app-icon name="doc" [size]="14" />
@@ -96,11 +105,12 @@
       <div class="ra-modal__body">
         <div class="ra-grid">
           <div class="ra-field col-6">
-            <label>
+            <label for="loc-name">
               Name
               <span class="req">*</span>
             </label>
             <input
+              id="loc-name"
               class="ra-input"
               maxlength="50"
               [ngModel]="f.name"
@@ -109,11 +119,12 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>
+            <label for="loc-facility-id">
               Facility ID
               <span class="req">*</span>
             </label>
             <input
+              id="loc-facility-id"
               class="ra-input"
               maxlength="50"
               [ngModel]="f.facilityId"
@@ -122,8 +133,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Address</label>
+            <label for="loc-address">Address</label>
             <input
+              id="loc-address"
               class="ra-input"
               maxlength="100"
               [ngModel]="f.address"
@@ -132,8 +144,9 @@
             />
           </div>
           <div class="ra-field col-4">
-            <label>City</label>
+            <label for="loc-city">City</label>
             <input
+              id="loc-city"
               class="ra-input"
               maxlength="50"
               [ngModel]="f.city"
@@ -142,8 +155,9 @@
             />
           </div>
           <div class="ra-field col-4">
-            <label>State</label>
+            <label for="loc-state">State</label>
             <select
+              id="loc-state"
               class="ra-select"
               [ngModel]="f.stateId"
               [ngModelOptions]="{ standalone: true }"
@@ -156,8 +170,9 @@
             </select>
           </div>
           <div class="ra-field col-4">
-            <label>Zip code</label>
+            <label for="loc-zip-code">Zip code</label>
             <input
+              id="loc-zip-code"
               class="ra-input"
               maxlength="15"
               [ngModel]="f.zipCode"
@@ -166,11 +181,12 @@
             />
           </div>
           <div class="ra-field col-4">
-            <label>
+            <label for="loc-parking-fee">
               Parking fee ($)
               <span class="req">*</span>
             </label>
             <input
+              id="loc-parking-fee"
               class="ra-input"
               type="number"
               min="0"
