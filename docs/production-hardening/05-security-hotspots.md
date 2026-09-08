@@ -7,15 +7,15 @@ change only where the review finds a real problem.
 **31 hotspots, all TO_REVIEW.** None has ever been reviewed, which is why the count equals the
 total.
 
-| Probability | Category | Count | Note |
-| --- | --- | --- | --- |
-| HIGH | csrf | 6 | Review first |
-| HIGH | auth | 3 | Review first |
-| MEDIUM | dos | 6 | Ties to the rate-limiting gap |
-| MEDIUM | permission | 5 | Ties to deny-by-default |
-| LOW | encrypt-data | 6 | |
-| LOW | others | 3 | |
-| LOW | insecure-conf | 2 | |
+| Probability | Category      | Count | Note                          |
+| ----------- | ------------- | ----- | ----------------------------- |
+| HIGH        | csrf          | 6     | Review first                  |
+| HIGH        | auth          | 3     | Review first                  |
+| MEDIUM      | dos           | 6     | Ties to the rate-limiting gap |
+| MEDIUM      | permission    | 5     | Ties to deny-by-default       |
+| LOW         | encrypt-data  | 6     |                               |
+| LOW         | others        | 3     |                               |
+| LOW         | insecure-conf | 2     |                               |
 
 ---
 
@@ -72,9 +72,40 @@ Known constraint: inherited ABP identity app services cannot be re-gated, so som
 
 ## 5.4 encrypt-data (6, LOW), others (3), insecure-conf (2)
 
-Lowest priority, but note the overlap with phase 4: SSN-at-rest encryption is a known deferred item
-already tracked in `docs/plans/`. If an `encrypt-data` hotspot points at SSN storage, link it rather
-than opening a parallel thread.
+**REVIEWED 2026-09-08. The SSN overlap this section anticipated does not exist** -- kept rather than
+deleted so nobody goes looking for it. Not one `encrypt-data` hotspot points at SSN storage; all six
+are `http://` URLs (three dev-fallback localhost URLs, one in-cluster sidecar default, two
+`--urls http://+:8080` ENTRYPOINT lines behind the nginx TLS terminator). SSN-at-rest encryption
+remains a separate deferred item and is untouched by this lane.
+
+Per-site verdicts are recorded in
+[#584](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/584): **10 of 11
+safe-intentional, 1 real.**
+
+### The one real finding, fixed here
+
+`scripts/worktrees/add-worktree.sh:105` ran `yarn install --mutex network`. Two defects in one line:
+
+- **`--mutex` is a Yarn 1 flag.** The repo moved to Yarn 4.16.0 on 2026-06-13 (#310) while the flag
+  dates from 2026-04-23 (#116). Yarn 4 rejects unknown options (`Unsupported option name`) instead
+  of ignoring them, and the script runs under `set -euo pipefail`, so **it aborted at this line**
+  and never reached the port summary it ends with.
+- **Lifecycle scripts (`shell:S6505`).** Note that `--ignore-scripts`, which #584 originally
+  prescribed, **does not exist in Yarn 4** -- `yarn install` accepts only `--json`,
+  `--immutable`, `--immutable-cache`, `--refresh-lockfile`, `--check-cache`, `--check-resolutions`,
+  `--inline-builds` and `--mode`. The Yarn 4 equivalent is the `enableScripts` setting, overridden
+  per invocation with `YARN_ENABLE_SCRIPTS=false`.
+
+The precedent #584 cited does not extend here: `angular/Dockerfile:63`'s `--ignore-scripts` is on
+`npm install -g serve@14.2.6`, an npm global tool install. The project's own dependency install at
+`Dockerfile:23` is `yarn install --immutable`, with scripts enabled.
+
+### The repo-wide setting is out of scope for this lane
+
+`angular/.yarnrc.yml` carries `enableScripts: true`, which applies to CI, the Docker build,
+`dev-entrypoint.sh` and every developer machine -- a much larger surface than one worktree helper.
+Flipping it can break any package that needs a postinstall build, so it is tracked separately rather
+than ridden in on a shell-script fix.
 
 ---
 
