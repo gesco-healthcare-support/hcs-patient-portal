@@ -51,10 +51,10 @@ Still undeployed: phase 6 (`86ab3e80`), which is the only commit on `main` and n
 
 ## 4. DOCS
 
-- **D1. STILL OPEN** -- phase 6 did not write this down; it remains inferred rather than stated.
-  Contract: a non-200 reconcile response carries NO document information and must never drive
-  pruning. He has ACCEPTED this and is not asking us to weaken the 404 ambiguity, so it is the agreed
-  fix -- write it down rather than leave it inferred.
+- **D1. DONE, phase 6 (2026-08-08)** -- this entry was STALE. The rule is written down, in contract
+  section F, and even carries the marker "(D1, written down 2026-08-08)". A non-200 reconcile
+  response carries NO document information and must never drive pruning. Found already present on
+  2026-09-08 while looking for somewhere to add it; corrected rather than duplicated.
 - **D2. DONE, phase 6 (2026-08-08)** -- now stated in contract section A. It had been assigned to 4e,
   which shipped without it. Contract: record that every push is a FULL SNAPSHOT and never slim. This is what makes his
   null-writing upsert safe, and it is currently only true by construction rather than by statement.
@@ -80,7 +80,7 @@ Strict order: I3 -> I4 -> I5. I2 is pointless before I1.
 | I4  | Scoped MinIO policy: read-only on `case-evaluation-documents`, read/write+delete on `case-tracker-documents` | Zero custom policies; only MinIO's five built-ins. BLOCKED BY I3                                                                                                                                                                |
 | I5  | MinIO user/key for that policy, secret out of band                                                           | Zero non-root users. BLOCKED BY I4                                                                                                                                                                                              |
 | I6  | Joint DNS request with their IT (Rod)                                                                        | Not visible on the server. **GATES THEIR DEPLOY** -- highest leverage of the six                                                                                                                                                |
-| I7  | Issue `CaseTracker:IntegrationToken`                                                                         | Still EMPTY in production, failing closed, so the reconcile GET rejects everything. His whole reconcile section concerns an endpoint he cannot currently call                                                                   |
+| I7  | Issue `CaseTracker:IntegrationToken`                                                                         | **CORRECTED 2026-09-04 -- the PORTAL side is SET, not empty.** Verified on the box: no token 401, wrong token 401, correct token 404. The open unknown is the CASE TRACKER side. Their `portal.reconcile.token` lives in `/home/casetrkadmin/caseProject/application-secret.properties` (mode 600, outside git, deliberately not in the prod profile) and no record exists of anyone confirming it is set there. That same token gates ATTENDANCE, which is NOT behind `portal.reconcile.enabled` -- so a blank value silently disables the only route by which NoShow / NotSeen can enter the portal. See BUG-046 and issue #694.                                                                   |
 
 ## 7. COORDINATION
 
