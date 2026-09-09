@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RestService } from '@abp/ng.core';
 import { firstValueFrom } from 'rxjs';
@@ -193,7 +193,7 @@ export interface OfficePushState {
     `,
   ],
 })
-export class CaseTrackerOfficesComponent {
+export class CaseTrackerOfficesComponent implements OnInit {
   private readonly rest = inject(RestService);
 
   protected readonly offices = signal<OfficePushState[]>([]);
@@ -203,7 +203,12 @@ export class CaseTrackerOfficesComponent {
   /** Office whose toggle is in flight, so only that row's button disables. */
   protected readonly saving = signal<string | null>(null);
 
-  constructor() {
+  /**
+   * Sweep #644 (S7059): the load used to run from the constructor. Angular constructs a
+   * component before it is part of the view, so a fetch started there races the first
+   * render and cannot be stopped by a test that has not called detectChanges yet.
+   */
+  ngOnInit(): void {
     void this.load();
   }
 

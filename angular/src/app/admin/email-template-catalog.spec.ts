@@ -13,7 +13,7 @@ describe('email-template-catalog', () => {
 
   describe('completeness guard', () => {
     it('lists 64 unique backend template codes', () => {
-      expect(KNOWN_TEMPLATE_CODES.length).toBe(64);
+      expect(KNOWN_TEMPLATE_CODES).toHaveSize(64);
       expect(new Set(KNOWN_TEMPLATE_CODES).size).toBe(KNOWN_TEMPLATE_CODES.length);
     });
 

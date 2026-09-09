@@ -147,7 +147,7 @@ export interface PreviewSegment {
 
 // ##Name## where Name is one or more ASCII word characters -- matches the
 // server-side TemplateVariableSubstitutor grammar exactly.
-const TOKEN_RE = /##([A-Za-z0-9_]+)##/g;
+const TOKEN_RE = /##(\w+)##/g;
 
 /**
  * Splits template text into plain + variable segments for the live preview.
@@ -209,22 +209,26 @@ export function auditMethodClass(method: string | null | undefined): string {
 }
 
 export function auditStatusClass(status: number | null | undefined): string {
-  const code = status ?? 0;
-  if (code >= 500) {
+  if (status == null) {
+    return 's2';
+  }
+  if (status >= 500) {
     return 's5';
   }
-  if (code >= 400) {
+  if (status >= 400) {
     return 's4';
   }
   return 's2';
 }
 
 export function auditResultLabel(status: number | null | undefined): string {
-  const code = status ?? 0;
-  if (code >= 500) {
+  if (status == null) {
+    return 'Success';
+  }
+  if (status >= 500) {
     return 'Server error';
   }
-  if (code >= 400) {
+  if (status >= 400) {
     return 'Denied / throttled';
   }
   return 'Success';
@@ -257,9 +261,9 @@ const AUDIT_CSV_HEADER = [
 
 /** RFC-4180-ish CSV (quote fields containing comma, quote, or newline). */
 export function buildAuditCsv(rows: AuditCsvRow[]): string {
-  const escape = (value: unknown): string => {
+  const escape = (value: string | number | null | undefined): string => {
     const text = String(value ?? '');
-    return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+    return /[",\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
   };
   const lines = [AUDIT_CSV_HEADER.join(',')];
   for (const row of rows) {
@@ -371,3 +375,85 @@ export const SP_GROUPS: SpGroup[] = [
     ],
   },
 ];
+
+/** A single permission node in the role matrix (item 10 Part B nesting). */
+export interface PermNode {
+  name: string;
+  displayName: string;
+}
+
+/** A parent permission with its (possibly empty) child actions, for the nested matrix. */
+export interface PermParentNode {
+  parent: PermNode;
+  children: PermNode[];
+}
+
+/** The shape this module needs from ABP's permission DTO. */
+export interface PermissionLike {
+  name?: string | null;
+  displayName?: string | null;
+  parentName?: string | null;
+}
+
+/**
+ * Splits a group's flat permission list into top-level parents and their children.
+ *
+ * <p>Nesting is by ABP's `parentName`. A permission with no name is skipped rather than
+ * given a blank one: it could not be toggled, and a blank row in the matrix is worse than
+ * an absent one.</p>
+ */
+export function splitPermissionNodes(permissions: readonly PermissionLike[] | null | undefined): {
+  parents: PermNode[];
+  childrenByParent: Map<string, PermNode[]>;
+} {
+  const childrenByParent = new Map<string, PermNode[]>();
+  const parents: PermNode[] = [];
+
+  for (const p of permissions ?? []) {
+    if (!p.name) {
+      continue;
+    }
+    const node: PermNode = { name: p.name, displayName: p.displayName ?? p.name };
+    if (p.parentName) {
+      const list = childrenByParent.get(p.parentName) ?? [];
+      list.push(node);
+      childrenByParent.set(p.parentName, list);
+    } else {
+      parents.push(node);
+    }
+  }
+
+  return { parents, childrenByParent };
+}
+
+/**
+ * Applies the matrix search to one group's parents.
+ *
+ * <p>A matching PARENT keeps all of its children, so ticking "Appointments" still shows
+ * Create/Edit/Delete underneath it. A non-matching parent keeps only the children that match
+ * themselves, and drops out entirely when none do.</p>
+ */
+export function filterPermParents(
+  parents: readonly PermNode[],
+  childrenByParent: ReadonlyMap<string, PermNode[]>,
+  query: string,
+): PermParentNode[] {
+  const out: PermParentNode[] = [];
+
+  for (const parent of parents) {
+    const children = childrenByParent.get(parent.name) ?? [];
+    if (!query) {
+      out.push({ parent, children });
+      continue;
+    }
+    const parentMatch = parent.displayName.toLowerCase().includes(query);
+    const shownChildren = parentMatch
+      ? children
+      : children.filter((c) => c.displayName.toLowerCase().includes(query));
+    if (parentMatch || shownChildren.length > 0) {
+      out.push({ parent, children: shownChildren });
+    }
+  }
+
+  return out;
+}
