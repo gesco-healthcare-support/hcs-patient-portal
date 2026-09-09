@@ -37,7 +37,7 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v16
+      - uses: DavidAnson/markdownlint-cli2-action@v24
         with:
           globs: 'docs/**/*.md README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md'
           config: '.markdownlint.json'
