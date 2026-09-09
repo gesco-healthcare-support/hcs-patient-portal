@@ -60,7 +60,7 @@ CurrentUserTenantResolveContributor())`, and that contributor has no test file a
    mechanism that stops a caller switching office via `?__tenant=` is unasserted on a system whose
    failure mode is cross-office PHI exposure.
 
-2. **When 2.13, 2.14 and phase 3 close, RE-RUN THE SWEEP IMPORT** -- `gh issue view 672`. Two of the
+2. **When 2.13, 2.14 and phase 3 close, RE-RUN THE CODE-CLEANUP IMPORT** -- `gh issue view 672`. Two of the
    three are now done. ~200 static-analysis findings are tracked nowhere until it runs. See the
    README's TRIGGER section.
 
