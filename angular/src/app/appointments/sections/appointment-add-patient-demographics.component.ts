@@ -35,8 +35,11 @@ import { PhoneNumberDirective } from '../../shared/phone-number.directive';
  *                touching method (loadCurrentPatientProfile,
  *                loadPatientByEmail, loadPatientProfile,
  *                getOrCreatePatientForAppointment,
- *                formatDateOfBirthForApi, normalizePatientDateOfBirth,
- *                onPatientSelected, onPatientEmailInputChanged). Submit-
+ *                onPatientSelected, onPatientEmailInputChanged). The two
+ *                date-of-birth helpers that were listed here,
+ *                formatDateOfBirthForApi and normalizePatientDateOfBirth,
+ *                moved to shared/date-of-birth.util.ts (#620) when three
+ *                copies were deduplicated. Submit-
  *                time logic still reads `this.form.getRawValue()` and
  *                `this.currentPatientProfile`, so nothing changes about
  *                where that data lives.

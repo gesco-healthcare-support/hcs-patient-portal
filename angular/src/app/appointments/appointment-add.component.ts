@@ -75,6 +75,7 @@ import {
 } from './sections/appointment-add-documents.component';
 import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
 import { isStrikeListGateBlocked } from '../appointment-documents/strike-list-gate';
+import { formatDateOfBirthForApi, normalizePatientDateOfBirth } from '../shared/date-of-birth.util';
 
 /**
  * Placeholder for a child row's `appointmentId` in a submit request. The appointment does not exist
@@ -1860,7 +1861,7 @@ export class AppointmentAddComponent {
         middleName: patient.middleName ?? null,
         email: patient.email ?? null,
         genderId: this.normalizePatientGender(patient.genderId),
-        dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+        dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
         cellPhoneNumber: patient.cellPhoneNumber ?? null,
         phoneNumber: patient.phoneNumber ?? null,
         phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -1951,7 +1952,7 @@ export class AppointmentAddComponent {
   private buildPatientCreateInput(
     raw: ReturnType<typeof this.form.getRawValue>,
   ): AppointmentSubmitDto['patient'] {
-    const dateOfBirth = this.formatDateOfBirthForApi(raw.dateOfBirth);
+    const dateOfBirth = formatDateOfBirthForApi(raw.dateOfBirth);
     if (!dateOfBirth) {
       throw new Error('Date of birth is required for new patient.');
     }
@@ -2843,7 +2844,7 @@ export class AppointmentAddComponent {
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
           genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -2907,9 +2908,7 @@ export class AppointmentAddComponent {
           middleName: profile.patient.middleName ?? null,
           email: profile.patient.email ?? null,
           genderId: this.normalizePatientGender(profile.patient.genderId),
-          dateOfBirth: this.normalizePatientDateOfBirth(
-            profile.patient.dateOfBirth as string | null,
-          ),
+          dateOfBirth: normalizePatientDateOfBirth(profile.patient.dateOfBirth as string | null),
           cellPhoneNumber: profile.patient.cellPhoneNumber ?? null,
           phoneNumber: profile.patient.phoneNumber ?? null,
           phoneNumberTypeId: (profile.patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -2939,32 +2938,6 @@ export class AppointmentAddComponent {
     } finally {
       this.isProfileLoading = false;
     }
-  }
-
-  private formatDateOfBirthForApi(value: unknown): string | null {
-    if (!value) return null;
-    if (typeof value === 'string') return value;
-    const obj = value as { year?: number; month?: number; day?: number };
-    if (obj?.year && obj?.month && obj?.day) {
-      const d = new Date(obj.year, obj.month - 1, obj.day);
-      return d.toISOString().split('T')[0];
-    }
-    return null;
-  }
-
-  private normalizePatientDateOfBirth(value: string | null | undefined): string | null {
-    if (!value) return null;
-    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-    if (!match) return null;
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    if (year < 1900) return null;
-    const today = new Date();
-    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) {
-      return null;
-    }
-    return value;
   }
 
   /**
@@ -3043,7 +3016,7 @@ export class AppointmentAddComponent {
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
           genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
