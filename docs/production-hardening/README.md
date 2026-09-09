@@ -40,7 +40,7 @@ Update this table as each phase closes. It is the first thing a successor will r
 | 8 Coverage expansion     | NOT STARTED                                                   | --                                                                                      | --                                                                                                                                                                                |
 | 9 System design intake   | TRIAGE IN PROGRESS                                            | report received 2026-08-31                                                              | 4 claims refuted, 3 confirmed                                                                                                                                                     |
 
-## TRIGGER: when 2.13, 2.14 and phase 3 close, RE-RUN THE SWEEP IMPORT -- see issue #672
+## TRIGGER: when 2.13, 2.14 and phase 3 close, RE-RUN THE CODE-CLEANUP IMPORT -- see issue #672
 
 **Work tracking moved to GitHub Issues on 2026-09-04.** Phases 1-3 were deliberately EXCLUDED from
 that import because this epic had them in flight; only phases 4+ became issues, under milestones

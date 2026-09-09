@@ -31,7 +31,7 @@ hardening  Numbered items in phases 4 onward only. Phases 1 and 2 are complete
            being done.
 backlog    docs/backlog.md, which is gitignored and therefore a NEW disclosure
            rather than a re-publication. Redacted before import: see `redact`.
-sweep      One batch per directory tree, carrying every static-analysis finding
+cleanup    One code-cleanup issue per directory tree, carrying every static-analysis
            for it. Batching by directory rather than by rule is what lets two
            people work in parallel without touching the same file.
 
@@ -287,7 +287,7 @@ def _finding_counts_by_file() -> collections.Counter:
 
 
 def _is_held(f: str) -> bool:
-    """True when a hardening session owns this path, so no sweep may claim it."""
+    """True when a hardening session owns this path, so no code-cleanup issue may claim it."""
     if any(f.startswith(p) for p in HELD_PREFIXES) or f in HELD_FILES:
         return True
     return "Dockerfile" in f or "/" not in f
@@ -312,8 +312,8 @@ def _owning_directory(f: str) -> str:
     return p[0]
 
 
-def _sweep_severity(count: int) -> str:
-    """Severity band for a sweep, by how much work it represents."""
+def _cleanup_severity(count: int) -> str:
+    """Severity band for a code-cleanup issue, by how much work it represents."""
     if count >= 60:
         return SEV_HIGH
     return SEV_MEDIUM if count >= 25 else SEV_LOW
@@ -339,8 +339,8 @@ def _group_into_batches(live: collections.Counter) -> list[tuple[str, list[str],
     return groups
 
 
-def collect_sweeps() -> list[dict]:
-    """One batch per directory tree, carrying every static-analysis finding.
+def collect_code_cleanup() -> list[dict]:
+    """One code-cleanup issue per directory tree, carrying every static-analysis finding.
 
     Batching by directory rather than by rule family is the whole point: a rule
     batch spans the repository, so two people working two rule batches collide
@@ -357,22 +357,29 @@ def collect_sweeps() -> list[dict]:
     for idx, (name, paths, count) in enumerate(_group_into_batches(live), 1):
         listed = "\n".join(f"- `{p}`" for p in sorted(paths))
         issues.append({
-            "key": f"SWEEP-{idx:02d}", "title": f"Static-analysis sweep: {name} ({count})",
-            "labels": [_sweep_severity(count), TYPE_SWEEP, SRC_SWEEP],
+            # The SWEEP-NN key and the two *_SWEEP label constants are machine
+            # identifiers, deliberately NOT renamed with the human-facing text
+            # (2026-09-08). The key is the idempotency ledger's primary key in
+            # .issue-map.tsv, which holds 42 SWEEP-NN rows; renaming it without
+            # migrating that file makes already_created() miss every row and
+            # re-create all 43 issues as duplicates. The label constants hold the
+            # live label names `type/sweep` / `source/sweep`, which were kept.
+            "key": f"SWEEP-{idx:02d}", "title": f"Code cleanup: {name} ({count} findings)",
+            "labels": [_cleanup_severity(count), TYPE_SWEEP, SRC_SWEEP],
             "body": (f"{count} open Sonar issues, security hotspots and CodeQL alerts in the "
-                     f"paths below.\n\n**Paths (this batch owns these exclusively):**\n{listed}\n\n"
+                     f"paths below.\n\n**Paths (this issue owns these exclusively):**\n{listed}\n\n"
                      f"Assigning yourself is the claim. Do not edit files outside these paths -- "
-                     f"comment here instead. Path sets across all sweeps are verified disjoint, so "
-                     f"two people on two sweeps cannot touch the same file.\n\n"
-                     f"Held back and not in any sweep: paths owned by the hardening sessions "
-                     f"({held_by})."),
+                     f"comment here instead. Path sets across all code-cleanup issues are verified "
+                     f"disjoint, so two people on two issues cannot touch the same file.\n\n"
+                     f"Held back and not in any code-cleanup issue: paths owned by the hardening "
+                     f"sessions ({held_by})."),
             "paths": paths,
         })
     return issues
 
 
 def assert_disjoint(issues: list[dict]) -> None:
-    """Fail loudly if two sweeps could ever touch the same file.
+    """Fail loudly if two code-cleanup issues could ever touch the same file.
 
     This is the guarantee the whole batching scheme rests on, so it is checked
     rather than assumed. It has caught two real grouping bugs already.
@@ -386,7 +393,7 @@ def assert_disjoint(issues: list[dict]) -> None:
 
 
 def generate() -> None:
-    issues = collect_findings() + collect_hardening() + collect_backlog() + collect_sweeps()
+    issues = collect_findings() + collect_hardening() + collect_backlog() + collect_code_cleanup()
     dropped = [i for i in issues if i["key"] in DROPPED_KEYS]
     issues = [i for i in issues if i["key"] not in DROPPED_KEYS]
     for i in dropped:
