@@ -9,8 +9,11 @@
   <div class="card-body">
     <div class="row">
       <div class="col-md-4 mb-3">
-        <label class="form-label fw-semibold">Employer Name *</label>
+        <label for="appointment-employer-name" class="form-label fw-semibold">
+          Employer Name *
+        </label>
         <input
+          id="appointment-employer-name"
           class="form-control"
           formControlName="employerName"
           maxlength="255"
@@ -24,8 +27,11 @@
         }
       </div>
       <div class="col-md-4 mb-3">
-        <label class="form-label fw-semibold">Occupation *</label>
+        <label for="appointment-employer-occupation" class="form-label fw-semibold">
+          Occupation *
+        </label>
         <input
+          id="appointment-employer-occupation"
           class="form-control"
           formControlName="employerOccupation"
           maxlength="255"
@@ -39,8 +45,11 @@
         }
       </div>
       <div class="col-md-4 mb-3">
-        <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
+        <label for="appointment-employer-phone-number" class="form-label fw-semibold">
+          {{ '::PhoneNumber' | abpLocalization }}
+        </label>
         <input
+          id="appointment-employer-phone-number"
           appPhoneNumber
           class="form-control"
           formControlName="employerPhoneNumber"
@@ -57,8 +66,11 @@
         ></app-address-autocomplete>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+        <label for="appointment-employer-city" class="form-label fw-semibold">
+          {{ '::City' | abpLocalization }}
+        </label>
         <input
+          id="appointment-employer-city"
           class="form-control"
           formControlName="employerCity"
           maxlength="255"
@@ -77,8 +89,11 @@
         ></app-lookup-select>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+        <label for="appointment-employer-zip-code" class="form-label fw-semibold">
+          {{ '::ZipCode' | abpLocalization }}
+        </label>
         <input
+          id="appointment-employer-zip-code"
           class="form-control"
           formControlName="employerZipCode"
           maxlength="10"

@@ -81,19 +81,36 @@
         <div class="modal-body" [formGroup]="authorizedUserForm">
           <div class="row g-3">
             <div class="col-md-3">
-              <label class="form-label fw-semibold">First Name</label>
-              <input class="form-control" type="text" formControlName="firstName" maxlength="64" />
+              <label for="appointment-authorized-user-first-name" class="form-label fw-semibold">
+                First Name
+              </label>
+              <input
+                id="appointment-authorized-user-first-name"
+                class="form-control"
+                type="text"
+                formControlName="firstName"
+                maxlength="64"
+              />
             </div>
             <div class="col-md-3">
-              <label class="form-label fw-semibold">Last Name</label>
-              <input class="form-control" type="text" formControlName="lastName" maxlength="64" />
+              <label for="appointment-authorized-user-last-name" class="form-label fw-semibold">
+                Last Name
+              </label>
+              <input
+                id="appointment-authorized-user-last-name"
+                class="form-control"
+                type="text"
+                formControlName="lastName"
+                maxlength="64"
+              />
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">
+              <label for="appointment-authorized-user-email" class="form-label fw-semibold">
                 Email
                 <span class="text-danger">*</span>
               </label>
               <input
+                id="appointment-authorized-user-email"
                 class="form-control"
                 type="email"
                 formControlName="email"
@@ -107,11 +124,15 @@
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">
+              <label for="appointment-authorized-user-user-role" class="form-label fw-semibold">
                 User Role
                 <span class="text-danger">*</span>
               </label>
-              <select class="form-select" formControlName="userRole">
+              <select
+                id="appointment-authorized-user-user-role"
+                class="form-select"
+                formControlName="userRole"
+              >
                 <option value="">Select role</option>
                 @for (role of roleOptions; track role) {
                   <option [value]="role">{{ role }}</option>
@@ -125,8 +146,17 @@
               }
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-semibold">Rights</label>
-              <select class="form-select" formControlName="accessTypeId">
+              <label
+                for="appointment-authorized-user-access-type-id"
+                class="form-label fw-semibold"
+              >
+                Rights
+              </label>
+              <select
+                id="appointment-authorized-user-access-type-id"
+                class="form-select"
+                formControlName="accessTypeId"
+              >
                 @for (option of accessTypeOptions; track option.value) {
                   <option [value]="option.value">{{ option.label }}</option>
                 }
