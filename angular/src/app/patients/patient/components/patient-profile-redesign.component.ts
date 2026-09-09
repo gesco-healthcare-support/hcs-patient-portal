@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Injector, OnInit, inject } from '@angular/core';
+import { Component, HostListener, Injector, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
@@ -90,14 +90,14 @@ export class PatientProfileRedesignComponent extends PatientProfileComponent imp
   protected get initials(): string {
     const parts = this.profileDisplayName.trim().split(/\s+/).filter(Boolean);
     const a = parts[0]?.charAt(0) ?? '?';
-    const b = parts.length > 1 ? (parts[parts.length - 1].charAt(0) ?? '') : '';
+    const b = parts.length > 1 ? (parts.at(-1)?.charAt(0) ?? '') : '';
     return (a + b).toUpperCase();
   }
   protected get avatarColor(): string {
     const name = this.profileDisplayName || 'User';
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
-      hash = (hash * 31 + name.charCodeAt(i)) % 360;
+      hash = (hash * 31 + (name.codePointAt(i) ?? 0)) % 360;
     }
     return `hsl(${hash}, 42%, 42%)`;
   }
@@ -173,6 +173,17 @@ export class PatientProfileRedesignComponent extends PatientProfileComponent imp
   protected requestSave(): void {
     this.confirmVisible = true;
   }
+  /**
+   * Sweep #645: the confirm modal could be dismissed only with the mouse. Escape closes it,
+   * matching the handler already on the internal detail, locations and users hubs.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.confirmVisible) {
+      this.cancelConfirm();
+    }
+  }
+
   protected cancelConfirm(): void {
     this.confirmVisible = false;
   }
