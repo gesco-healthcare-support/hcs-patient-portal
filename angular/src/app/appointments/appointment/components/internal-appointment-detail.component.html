@@ -351,8 +351,9 @@
                   <div class="v">{{ apptTypeName || '—' }}</div>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Panel number</label>
+                  <label for="iad-panel-number">Panel number</label>
                   <input
+                    id="iad-panel-number"
                     class="ra-input"
                     formControlName="panelNumber"
                     maxlength="50"
@@ -409,16 +410,28 @@
             @if (editMode) {
               <div class="ra-grid">
                 <div class="ra-field col-3">
-                  <label>Last name</label>
-                  <input class="ra-input" formControlName="patientLastName" />
+                  <label for="iad-patient-last-name">Last name</label>
+                  <input
+                    id="iad-patient-last-name"
+                    class="ra-input"
+                    formControlName="patientLastName"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>First name</label>
-                  <input class="ra-input" formControlName="patientFirstName" />
+                  <label for="iad-patient-first-name">First name</label>
+                  <input
+                    id="iad-patient-first-name"
+                    class="ra-input"
+                    formControlName="patientFirstName"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Middle name</label>
-                  <input class="ra-input" formControlName="patientMiddleName" />
+                  <label for="iad-patient-middle-name">Middle name</label>
+                  <input
+                    id="iad-patient-middle-name"
+                    class="ra-input"
+                    formControlName="patientMiddleName"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Gender</label>
@@ -436,8 +449,9 @@
                   </div>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Date of birth</label>
+                  <label for="iad-patient-date-of-birth">Date of birth</label>
                   <input
+                    id="iad-patient-date-of-birth"
                     class="ra-input"
                     readonly
                     formControlName="patientDateOfBirth"
@@ -450,16 +464,31 @@
                   />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Email</label>
-                  <input class="ra-input" formControlName="patientEmail" readonly />
+                  <label for="iad-patient-email">Email</label>
+                  <input
+                    id="iad-patient-email"
+                    class="ra-input"
+                    formControlName="patientEmail"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Cell phone</label>
-                  <input appPhoneNumber class="ra-input" formControlName="patientCellPhoneNumber" />
+                  <label for="iad-patient-cell-phone-number">Cell phone</label>
+                  <input
+                    id="iad-patient-cell-phone-number"
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="patientCellPhoneNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Phone number</label>
-                  <input appPhoneNumber class="ra-input" formControlName="patientPhoneNumber" />
+                  <label for="iad-patient-phone-number">Phone number</label>
+                  <input
+                    id="iad-patient-phone-number"
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="patientPhoneNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Social Security #</label>
@@ -472,16 +501,20 @@
                   ></app-ssn-input>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Street</label>
-                  <input class="ra-input" formControlName="patientStreet" />
+                  <label for="iad-patient-street">Street</label>
+                  <input id="iad-patient-street" class="ra-input" formControlName="patientStreet" />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Unit #</label>
-                  <input class="ra-input" formControlName="patientApptNumber" />
+                  <label for="iad-patient-appt-number">Unit #</label>
+                  <input
+                    id="iad-patient-appt-number"
+                    class="ra-input"
+                    formControlName="patientApptNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>City</label>
-                  <input class="ra-input" formControlName="patientCity" />
+                  <label for="iad-patient-city">City</label>
+                  <input id="iad-patient-city" class="ra-input" formControlName="patientCity" />
                 </div>
                 <div class="ra-field col-3">
                   <label>State</label>
@@ -492,8 +525,12 @@
                   ></app-lookup-select>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Zip code</label>
-                  <input class="ra-input" formControlName="patientZipCode" />
+                  <label for="iad-patient-zip-code">Zip code</label>
+                  <input
+                    id="iad-patient-zip-code"
+                    class="ra-input"
+                    formControlName="patientZipCode"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Appointment language</label>
@@ -504,8 +541,12 @@
                   ></app-lookup-select>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Referred by</label>
-                  <input class="ra-input" formControlName="patientRefferedBy" />
+                  <label for="iad-patient-reffered-by">Referred by</label>
+                  <input
+                    id="iad-patient-reffered-by"
+                    class="ra-input"
+                    formControlName="patientRefferedBy"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>Needs interpreter</label>
@@ -530,8 +571,12 @@
                 </div>
                 @if (needsInterpreter) {
                   <div class="ra-field col-6">
-                    <label>Interpreter vendor</label>
-                    <input class="ra-input" formControlName="patientInterpreterVendorName" />
+                    <label for="iad-patient-interpreter-vendor-name">Interpreter vendor</label>
+                    <input
+                      id="iad-patient-interpreter-vendor-name"
+                      class="ra-input"
+                      formControlName="patientInterpreterVendorName"
+                    />
                   </div>
                 }
               </div>
@@ -632,24 +677,37 @@
             @if (editMode) {
               <div class="ra-grid">
                 <div class="ra-field col-4">
-                  <label>Employer name</label>
-                  <input class="ra-input" formControlName="employerName" />
+                  <label for="iad-employer-name">Employer name</label>
+                  <input id="iad-employer-name" class="ra-input" formControlName="employerName" />
                 </div>
                 <div class="ra-field col-4">
-                  <label>Occupation</label>
-                  <input class="ra-input" formControlName="employerOccupation" />
+                  <label for="iad-employer-occupation">Occupation</label>
+                  <input
+                    id="iad-employer-occupation"
+                    class="ra-input"
+                    formControlName="employerOccupation"
+                  />
                 </div>
                 <div class="ra-field col-4">
-                  <label>Phone number</label>
-                  <input appPhoneNumber class="ra-input" formControlName="employerPhoneNumber" />
+                  <label for="iad-employer-phone-number">Phone number</label>
+                  <input
+                    id="iad-employer-phone-number"
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="employerPhoneNumber"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Street</label>
-                  <input class="ra-input" formControlName="employerStreet" />
+                  <label for="iad-employer-street">Street</label>
+                  <input
+                    id="iad-employer-street"
+                    class="ra-input"
+                    formControlName="employerStreet"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>City</label>
-                  <input class="ra-input" formControlName="employerCity" />
+                  <label for="iad-employer-city">City</label>
+                  <input id="iad-employer-city" class="ra-input" formControlName="employerCity" />
                 </div>
                 <div class="ra-field col-3">
                   <label>State</label>
@@ -660,8 +718,12 @@
                   ></app-lookup-select>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Zip code</label>
-                  <input class="ra-input" formControlName="employerZipCode" />
+                  <label for="iad-employer-zip-code">Zip code</label>
+                  <input
+                    id="iad-employer-zip-code"
+                    class="ra-input"
+                    formControlName="employerZipCode"
+                  />
                 </div>
               </div>
             } @else {
@@ -710,8 +772,9 @@
               @if (!isApplicantAttorney && !form.get('applicantAttorneyIdentityUserId')?.value) {
                 <div class="ra-grid" style="margin-bottom: 12px">
                   <div class="ra-field col-6">
-                    <label>Look up by email</label>
+                    <label for="iad-applicant-attorney-email-search">Look up by email</label>
                     <input
+                      id="iad-applicant-attorney-email-search"
                       class="ra-input"
                       type="email"
                       placeholder="Enter email to load"
@@ -735,48 +798,81 @@
               }
               <div class="ra-grid">
                 <div class="ra-field col-3">
-                  <label>First name</label>
-                  <input class="ra-input" formControlName="applicantAttorneyFirstName" readonly />
+                  <label for="iad-applicant-attorney-first-name">First name</label>
+                  <input
+                    id="iad-applicant-attorney-first-name"
+                    class="ra-input"
+                    formControlName="applicantAttorneyFirstName"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Last name</label>
-                  <input class="ra-input" formControlName="applicantAttorneyLastName" readonly />
+                  <label for="iad-applicant-attorney-last-name">Last name</label>
+                  <input
+                    id="iad-applicant-attorney-last-name"
+                    class="ra-input"
+                    formControlName="applicantAttorneyLastName"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Email</label>
-                  <input class="ra-input" formControlName="applicantAttorneyEmail" readonly />
+                  <label for="iad-applicant-attorney-email">Email</label>
+                  <input
+                    id="iad-applicant-attorney-email"
+                    class="ra-input"
+                    formControlName="applicantAttorneyEmail"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Firm name</label>
-                  <input class="ra-input" formControlName="applicantAttorneyFirmName" />
+                  <label for="iad-applicant-attorney-firm-name">Firm name</label>
+                  <input
+                    id="iad-applicant-attorney-firm-name"
+                    class="ra-input"
+                    formControlName="applicantAttorneyFirmName"
+                  />
                 </div>
                 <div class="ra-field col-6">
-                  <label>Web address</label>
-                  <input class="ra-input" formControlName="applicantAttorneyWebAddress" />
+                  <label for="iad-applicant-attorney-web-address">Web address</label>
+                  <input
+                    id="iad-applicant-attorney-web-address"
+                    class="ra-input"
+                    formControlName="applicantAttorneyWebAddress"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Phone</label>
+                  <label for="iad-applicant-attorney-phone-number">Phone</label>
                   <input
+                    id="iad-applicant-attorney-phone-number"
                     appPhoneNumber
                     class="ra-input"
                     formControlName="applicantAttorneyPhoneNumber"
                   />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Fax</label>
+                  <label for="iad-applicant-attorney-fax-number">Fax</label>
                   <input
+                    id="iad-applicant-attorney-fax-number"
                     appPhoneNumber
                     class="ra-input"
                     formControlName="applicantAttorneyFaxNumber"
                   />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Street</label>
-                  <input class="ra-input" formControlName="applicantAttorneyStreet" />
+                  <label for="iad-applicant-attorney-street">Street</label>
+                  <input
+                    id="iad-applicant-attorney-street"
+                    class="ra-input"
+                    formControlName="applicantAttorneyStreet"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>City</label>
-                  <input class="ra-input" formControlName="applicantAttorneyCity" />
+                  <label for="iad-applicant-attorney-city">City</label>
+                  <input
+                    id="iad-applicant-attorney-city"
+                    class="ra-input"
+                    formControlName="applicantAttorneyCity"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>State</label>
@@ -787,8 +883,12 @@
                   ></app-lookup-select>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Zip</label>
-                  <input class="ra-input" formControlName="applicantAttorneyZipCode" />
+                  <label for="iad-applicant-attorney-zip-code">Zip</label>
+                  <input
+                    id="iad-applicant-attorney-zip-code"
+                    class="ra-input"
+                    formControlName="applicantAttorneyZipCode"
+                  />
                 </div>
               </div>
             } @else {
@@ -853,8 +953,9 @@
               @if (!isDefenseAttorney && !form.get('defenseAttorneyIdentityUserId')?.value) {
                 <div class="ra-grid" style="margin-bottom: 12px">
                   <div class="ra-field col-6">
-                    <label>Look up by email</label>
+                    <label for="iad-defense-attorney-email-search">Look up by email</label>
                     <input
+                      id="iad-defense-attorney-email-search"
                       class="ra-input"
                       type="email"
                       placeholder="Enter email to load"
@@ -877,48 +978,81 @@
               }
               <div class="ra-grid">
                 <div class="ra-field col-3">
-                  <label>First name</label>
-                  <input class="ra-input" formControlName="defenseAttorneyFirstName" readonly />
+                  <label for="iad-defense-attorney-first-name">First name</label>
+                  <input
+                    id="iad-defense-attorney-first-name"
+                    class="ra-input"
+                    formControlName="defenseAttorneyFirstName"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Last name</label>
-                  <input class="ra-input" formControlName="defenseAttorneyLastName" readonly />
+                  <label for="iad-defense-attorney-last-name">Last name</label>
+                  <input
+                    id="iad-defense-attorney-last-name"
+                    class="ra-input"
+                    formControlName="defenseAttorneyLastName"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Email</label>
-                  <input class="ra-input" formControlName="defenseAttorneyEmail" readonly />
+                  <label for="iad-defense-attorney-email">Email</label>
+                  <input
+                    id="iad-defense-attorney-email"
+                    class="ra-input"
+                    formControlName="defenseAttorneyEmail"
+                    readonly
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Firm name</label>
-                  <input class="ra-input" formControlName="defenseAttorneyFirmName" />
+                  <label for="iad-defense-attorney-firm-name">Firm name</label>
+                  <input
+                    id="iad-defense-attorney-firm-name"
+                    class="ra-input"
+                    formControlName="defenseAttorneyFirmName"
+                  />
                 </div>
                 <div class="ra-field col-6">
-                  <label>Web address</label>
-                  <input class="ra-input" formControlName="defenseAttorneyWebAddress" />
+                  <label for="iad-defense-attorney-web-address">Web address</label>
+                  <input
+                    id="iad-defense-attorney-web-address"
+                    class="ra-input"
+                    formControlName="defenseAttorneyWebAddress"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Phone</label>
+                  <label for="iad-defense-attorney-phone-number">Phone</label>
                   <input
+                    id="iad-defense-attorney-phone-number"
                     appPhoneNumber
                     class="ra-input"
                     formControlName="defenseAttorneyPhoneNumber"
                   />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Fax</label>
+                  <label for="iad-defense-attorney-fax-number">Fax</label>
                   <input
+                    id="iad-defense-attorney-fax-number"
                     appPhoneNumber
                     class="ra-input"
                     formControlName="defenseAttorneyFaxNumber"
                   />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Street</label>
-                  <input class="ra-input" formControlName="defenseAttorneyStreet" />
+                  <label for="iad-defense-attorney-street">Street</label>
+                  <input
+                    id="iad-defense-attorney-street"
+                    class="ra-input"
+                    formControlName="defenseAttorneyStreet"
+                  />
                 </div>
                 <div class="ra-field col-3">
-                  <label>City</label>
-                  <input class="ra-input" formControlName="defenseAttorneyCity" />
+                  <label for="iad-defense-attorney-city">City</label>
+                  <input
+                    id="iad-defense-attorney-city"
+                    class="ra-input"
+                    formControlName="defenseAttorneyCity"
+                  />
                 </div>
                 <div class="ra-field col-3">
                   <label>State</label>
@@ -929,8 +1063,12 @@
                   ></app-lookup-select>
                 </div>
                 <div class="ra-field col-3">
-                  <label>Zip</label>
-                  <input class="ra-input" formControlName="defenseAttorneyZipCode" />
+                  <label for="iad-defense-attorney-zip-code">Zip</label>
+                  <input
+                    id="iad-defense-attorney-zip-code"
+                    class="ra-input"
+                    formControlName="defenseAttorneyZipCode"
+                  />
                 </div>
               </div>
             } @else {
@@ -1349,19 +1487,30 @@
           <div class="ra-modal__body" [formGroup]="authorizedUserForm">
             <div class="ra-grid">
               <div class="ra-field col-6">
-                <label>First name</label>
-                <input class="ra-input" formControlName="firstName" maxlength="64" />
+                <label for="iad-first-name">First name</label>
+                <input
+                  id="iad-first-name"
+                  class="ra-input"
+                  formControlName="firstName"
+                  maxlength="64"
+                />
               </div>
               <div class="ra-field col-6">
-                <label>Last name</label>
-                <input class="ra-input" formControlName="lastName" maxlength="64" />
+                <label for="iad-last-name">Last name</label>
+                <input
+                  id="iad-last-name"
+                  class="ra-input"
+                  formControlName="lastName"
+                  maxlength="64"
+                />
               </div>
               <div class="ra-field col-6">
-                <label>
+                <label for="iad-email">
                   Email
                   <span class="req">*</span>
                 </label>
                 <input
+                  id="iad-email"
                   class="ra-input"
                   type="email"
                   formControlName="email"
@@ -1370,11 +1519,11 @@
                 />
               </div>
               <div class="ra-field col-6">
-                <label>
+                <label for="iad-user-role">
                   User role
                   <span class="req">*</span>
                 </label>
-                <select class="ra-select" formControlName="userRole">
+                <select id="iad-user-role" class="ra-select" formControlName="userRole">
                   <option value="">Select role</option>
                   @for (role of roleOptions; track role) {
                     <option [value]="role">{{ role }}</option>
@@ -1382,8 +1531,8 @@
                 </select>
               </div>
               <div class="ra-field col-6">
-                <label>Rights</label>
-                <select class="ra-select" formControlName="accessTypeId">
+                <label for="iad-access-type-id">Rights</label>
+                <select id="iad-access-type-id" class="ra-select" formControlName="accessTypeId">
                   @for (option of accessTypeOptions; track option.value) {
                     <option [ngValue]="option.value">{{ option.label }}</option>
                   }
