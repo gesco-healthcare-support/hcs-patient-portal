@@ -23,7 +23,6 @@ using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.Timing;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
-using Microsoft.Extensions.Logging;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -85,7 +84,6 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IdentityUserManager _userManager;
     private readonly IBlobContainer<UserSignaturesContainer> _userSignaturesContainer;
-    private readonly ILogger<PacketTokenResolver> _logger;
     private readonly IClock _clock;
 
     public PacketTokenResolver(
@@ -109,7 +107,6 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         IRepository<IdentityUser, Guid> identityUserRepository,
         IdentityUserManager userManager,
         IBlobContainer<UserSignaturesContainer> userSignaturesContainer,
-        ILogger<PacketTokenResolver> logger,
         IClock clock)
     {
         _appointmentRepository = appointmentRepository;
@@ -132,7 +129,6 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         _identityUserRepository = identityUserRepository;
         _userManager = userManager;
         _userSignaturesContainer = userSignaturesContainer;
-        _logger = logger;
         _clock = clock;
     }
 
