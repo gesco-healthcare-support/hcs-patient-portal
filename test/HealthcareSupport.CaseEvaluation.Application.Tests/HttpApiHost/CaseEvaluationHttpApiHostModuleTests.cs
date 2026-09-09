@@ -1,11 +1,13 @@
 using System.Net;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -370,5 +372,197 @@ public class CaseEvaluationHttpApiHostModuleTests
         // limit prevents. If someone lowers this to a password-reset-sized value,
         // that trade has been forgotten.
         CaseEvaluationHttpApiHostModule.IntegrationRequestsPerHour.ShouldBeGreaterThanOrEqualTo(100);
+    }
+
+    // ------------------------------------------------------------------
+    // #702 -- public opposing-consent limiter
+    //
+    // These assert the PARTITIONING decisions, not end-to-end throttling.
+    // Driving real 429s needs a booted host with a live limiter, which this
+    // fixture deliberately does not stand up (see the class docstring).
+    // ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("POST")]
+    public void IsChangeRequestConsentPath_MatchesBothVerbs(string method)
+    {
+        // Load-bearing, and the reason this matcher does not filter by verb like
+        // three of its four neighbours do: the cost being bounded is the token-hash
+        // lookup, which the GET landing page performs just as the POST decision does.
+        // Matching POST only would leave the database load reachable through GET.
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Method = method;
+        ctx.Request.Path = "/api/public/change-request-consent/some-raw-token";
+
+        CaseEvaluationHttpApiHostModule.IsChangeRequestConsentPath(ctx).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsChangeRequestConsentPath_DoesNotMatchNeighbouringPublicPaths()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/api/public/appointment-documents/abc/upload-by-code/xyz";
+
+        CaseEvaluationHttpApiHostModule.IsChangeRequestConsentPath(ctx).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ConsentPath_MatchesNoOtherLimiterPartition_WhichIsWhyItWasUnthrottled()
+    {
+        // THE REGRESSION GUARD FOR #702, and the one worth reading.
+        //
+        // The consent controller's docstring, issue #702 and the phase 5.1 hotspot
+        // rationale all claimed this endpoint fell back to "ABP's global IP
+        // fixed-window limiter". No such fallback exists: the chained limiter names
+        // four prefixes and returns GetNoLimiter for everything else. This pins that
+        // the consent path is matched by NONE of those four, so if someone deletes
+        // IsChangeRequestConsentPath from the limiter the endpoint silently returns
+        // to being completely unthrottled rather than degrading to a per-IP cap.
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Method = "POST";
+        ctx.Request.Path = "/api/public/change-request-consent/some-raw-token";
+
+        CaseEvaluationHttpApiHostModule.IsPasswordResetPath(ctx).ShouldBeFalse();
+        CaseEvaluationHttpApiHostModule.IsDocumentUploadByCodePath(ctx).ShouldBeFalse();
+        CaseEvaluationHttpApiHostModule.IsExternalSignupRegisterPath(ctx).ShouldBeFalse();
+        CaseEvaluationHttpApiHostModule.IsIntegrationPath(ctx).ShouldBeFalse();
+
+        // ...and is matched by the one added for it.
+        CaseEvaluationHttpApiHostModule.IsChangeRequestConsentPath(ctx).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ResolveClientIpPartitionKey_PrefixesIpAddress()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("198.51.100.23");
+
+        CaseEvaluationHttpApiHostModule.ResolveClientIpPartitionKey(ctx).ShouldBe("ip:198.51.100.23");
+    }
+
+    [Fact]
+    public void ResolveClientIpPartitionKey_FallBackToGlobalWhenIpUnknown()
+    {
+        var ctx = new DefaultHttpContext();
+
+        CaseEvaluationHttpApiHostModule.ResolveClientIpPartitionKey(ctx).ShouldBe("global");
+    }
+
+    [Fact]
+    public void ResolveClientIpPartitionKey_DoesNotVaryWithTheSuppliedCredential()
+    {
+        // The defect #702 actually found: the document-upload partition keys on the
+        // SUPPLIED CODE, so a guessing run opens a fresh bucket per attempt and is
+        // never capped. Two requests from one address carrying different credentials
+        // must share a bucket, or this partition repeats that mistake.
+        var first = new DefaultHttpContext();
+        first.Request.Path = "/api/public/change-request-consent/token-aaaa";
+        first.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.9");
+
+        var second = new DefaultHttpContext();
+        second.Request.Path = "/api/public/change-request-consent/token-bbbb";
+        second.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.9");
+
+        CaseEvaluationHttpApiHostModule.ResolveClientIpPartitionKey(first)
+            .ShouldBe(CaseEvaluationHttpApiHostModule.ResolveClientIpPartitionKey(second));
+    }
+
+    [Fact]
+    public void ResolveDocumentUploadPartitionKey_VariesWithTheCode_WhichIsWhyTheIpBucketWasAdded()
+    {
+        // Characterises the EXISTING behaviour rather than asserting it is desirable.
+        // Its comment claimed brute-force attempts shared a bucket; they do not. This
+        // pins the real behaviour so the per-IP partition beside it is not later
+        // removed as redundant.
+        var first = new DefaultHttpContext();
+        first.Request.Path = "/api/public/appointment-documents/abc/upload-by-code/guess-one";
+
+        var second = new DefaultHttpContext();
+        second.Request.Path = "/api/public/appointment-documents/abc/upload-by-code/guess-two";
+
+        CaseEvaluationHttpApiHostModule.ResolveDocumentUploadPartitionKey(first)
+            .ShouldNotBe(CaseEvaluationHttpApiHostModule.ResolveDocumentUploadPartitionKey(second));
+    }
+
+    // ------------------------------------------------------------------
+    // #702 -- the limiter WIRING, not just the predicates.
+    //
+    // The predicate tests above are necessary and not sufficient: deleting the
+    // consent branch from the partitioner leaves every one of them green while
+    // the endpoint silently returns to unthrottled. These two drive the real
+    // configured limiter, so they fail when the wiring goes.
+    // ------------------------------------------------------------------
+
+    private static PartitionedRateLimiter<HttpContext> BuildConfiguredGlobalLimiter()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        var context = new ServiceConfigurationContext(services);
+
+        CaseEvaluationHttpApiHostModule.ConfigurePasswordResetRateLimiter(context);
+
+        var options = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<RateLimiterOptions>>().Value;
+        options.GlobalLimiter.ShouldNotBeNull();
+        return options.GlobalLimiter!;
+    }
+
+    private static DefaultHttpContext ConsentRequestFrom(string ip)
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Method = "GET";
+        ctx.Request.Path = "/api/public/change-request-consent/some-raw-token";
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(ip);
+        return ctx;
+    }
+
+    [Fact]
+    public void ConsentEndpoint_IsThrottledOnceTheLimitIsExceeded_FromOneAddress()
+    {
+        // Before #702 this path matched no partition, so the limiter returned
+        // GetNoLimiter and EVERY attempt was acquired. That is what this fails on
+        // if the consent branch is removed from the partitioner.
+        var limiter = BuildConfiguredGlobalLimiter();
+
+        RateLimitLease? last = null;
+        for (var i = 0; i <= CaseEvaluationHttpApiHostModule.ConsentRequestsPerHour; i++)
+        {
+            last = limiter.AttemptAcquire(ConsentRequestFrom("203.0.113.5"));
+        }
+
+        last.ShouldNotBeNull();
+        last!.IsAcquired.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ConsentEndpoint_ThrottlesPerAddress_NotGlobally()
+    {
+        // The honest inverse of #702's stated done bar. That bar asked for N+1
+        // attempts "from DIFFERENT source addresses" to be rejected -- correct for
+        // the per-token control the issue assumed, and wrong for the per-IP control
+        // actually built, because varying the address is precisely what must NOT
+        // share a bucket. A limiter that failed this would lock every recipient out
+        // as soon as any one source got noisy.
+        var limiter = BuildConfiguredGlobalLimiter();
+
+        for (var i = 0; i <= CaseEvaluationHttpApiHostModule.ConsentRequestsPerHour; i++)
+        {
+            limiter.AttemptAcquire(ConsentRequestFrom("198.51.100.77"));
+        }
+
+        var fromElsewhere = limiter.AttemptAcquire(ConsentRequestFrom("192.0.2.200"));
+
+        fromElsewhere.IsAcquired.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ConsentRequestsPerHour_StaysAboveRealRecipientTraffic()
+    {
+        // Intent, not the number. This limiter bounds unauthenticated database load;
+        // it is not a guessing control, because the token is ~256 bits. Tightening it
+        // to a per-code-sized value would lock out a law firm or insurer behind one
+        // NAT while protecting nothing extra.
+        CaseEvaluationHttpApiHostModule.ConsentRequestsPerHour.ShouldBeGreaterThanOrEqualTo(50);
     }
 }
