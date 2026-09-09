@@ -124,6 +124,17 @@ export class AppointmentDocumentsComponent implements OnChanges {
   isLoading = false;
   isUploading = false;
   documentName = '';
+  /**
+   * True while `documentName` holds a name WE derived from the chosen file rather than one
+   * the user typed (#612).
+   *
+   * <p>Without this the two are indistinguishable, and the derive step has to guess. It used
+   * to guess by emptiness -- "only fill the name if the box is blank" -- which is right on the
+   * first pick and wrong on every one after it: a failed upload deliberately keeps the form
+   * populated so the user can retry, so the box is no longer blank, so choosing a DIFFERENT
+   * file left the previous file's name in place and uploaded the new file under it.</p>
+   */
+  private isDocumentNameAutoDerived = false;
   selectedFile: File | null = null;
 
   // G-03-03 (PR2): document-type picker. Options are the active, non-system
@@ -290,11 +301,30 @@ export class AppointmentDocumentsComponent implements OnChanges {
     });
   }
 
+  /**
+   * Derives the document name from the chosen file, without ever clobbering one the user
+   * typed themselves (#612). An empty box and a box we filled are both fair game; a name the
+   * user entered is theirs and survives any number of file changes.
+   */
+  private deriveDocumentNameFrom(file: File): void {
+    if (this.documentName.trim() && !this.isDocumentNameAutoDerived) {
+      return;
+    }
+    this.documentName = file.name.replace(/\.[^.]+$/, '');
+    this.isDocumentNameAutoDerived = true;
+  }
+
+  /** Anything typed into the name box is the user's, so stop treating it as ours (#612). */
+  onDocumentNameInput(value: string): void {
+    this.documentName = value;
+    this.isDocumentNameAutoDerived = false;
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.selectedFile = input.files?.[0] ?? null;
-    if (this.selectedFile && !this.documentName.trim()) {
-      this.documentName = this.selectedFile.name.replace(/\.[^.]+$/, '');
+    if (this.selectedFile) {
+      this.deriveDocumentNameFrom(this.selectedFile);
     }
   }
 
@@ -308,9 +338,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
     }
     // One document per upload here, so a multi-file drop takes the first.
     this.selectedFile = files[0];
-    if (!this.documentName.trim()) {
-      this.documentName = this.selectedFile.name.replace(/\.[^.]+$/, '');
-    }
+    this.deriveDocumentNameFrom(this.selectedFile);
   }
 
   upload(): void {
@@ -352,6 +380,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
         next: () => {
           this.toaster.success('Document uploaded.');
           this.documentName = '';
+          this.isDocumentNameAutoDerived = false;
           this.selectedFile = null;
           this.selectedDocumentTypeId = '';
           this.otherDocumentTypeName = '';
