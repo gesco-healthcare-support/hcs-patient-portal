@@ -8,6 +8,9 @@ import re
 import pikepdf
 from pikepdf import Pdf, Name, Dictionary, Array
 
+# PDF dictionary key for a widget's child annotations (python:S1192).
+_KIDS = "/Kids"
+
 RADIO = 1 << 15        # 32768  (Radio flag)
 NOTOGGLE = 1 << 14     # 16384  (NoToggleToOff)
 PUSHBUTTON = 1 << 16   # 65536  (Pushbutton)
@@ -37,7 +40,13 @@ def circle(cx, cy, r):
 _BLANK = "q 1 1 1 rg 0 0 0.01 0.01 re f Q"
 
 
-def cb_off(w, h):
+# The four state painters share one signature so the call site reads as a pair --
+# `rb_off(w, h) if is_radio else cb_off(w, h)` beside its `_on` twin. The two "off"
+# painters ignore the box size; underscore-prefixed rather than removed, because dropping
+# the parameters would break that symmetry and both call sites (python:S1172).
+
+
+def cb_off(_w, _h):
     return _BLANK
 
 
@@ -46,7 +55,7 @@ def cb_on(w, h):
     return f"0 0 0 rg {0.27 * w:.2f} {0.27 * h:.2f} {0.46 * w:.2f} {0.46 * h:.2f} re f"
 
 
-def rb_off(w, h):
+def rb_off(_w, _h):
     return _BLANK
 
 
@@ -163,7 +172,7 @@ def fix(path):
         if ff & RADIO:
             if ff & NOTOGGLE:
                 f[Name.Ff] = ff & ~NOTOGGLE          # allow deselect
-            for k in f.get("/Kids", []):
+            for k in f.get(_KIDS, []):
                 # WeasyPrint mis-tags each radio kid with its own /T (= the group name),
                 # yielding a malformed 'group.group' fully-qualified name and pypdf
                 # 'already parsed' warnings. Kids are widgets, not sub-fields -- strip /T.
@@ -175,7 +184,7 @@ def fix(path):
             highlights += 1 if hl else 0
             radios += 0 if hl else 1
         else:
-            for w in (list(f.Kids) if "/Kids" in f else [f]):
+            for w in (list(f.Kids) if _KIDS in f else [f]):
                 set_hl_ap(pdf, w) if hl else set_ap(pdf, w, False)
             highlights += 1 if hl else 0
             checkboxes += 0 if hl else 1
@@ -208,7 +217,7 @@ def fix(path):
 
 def activate(f):
     """Turn a button field ON (checkbox -> checked; radio -> first option)."""
-    if "/Kids" in f:
+    if _KIDS in f:
         first = True
         for k in f.Kids:
             on = onstate_of(k)
