@@ -135,7 +135,12 @@
   font-family: var(--font-num);
 }
 .ia-chip[data-on='true'] .cnt {
-  background: rgba(255, 255, 255, 0.24);
+  /* 0.24 put white on an effective #417dae = 4.40:1, just under the 4.5:1 AA floor
+     for normal text (Sonar css:S7924). 0.18 gives 5.06:1 over --blue-700 and is
+     visually all but identical. Note the same pattern at 0.22 elsewhere measures
+     4.59:1 and passes -- the margin here is genuinely that thin, so do not raise
+     this back without recomputing. */
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
 
@@ -247,6 +252,9 @@
   gap: 8px;
 }
 .ia-bulk .af-btn--ghost {
+  /* Sonar css:S7924 reports this, but it composites to #286ca4 over --blue-700 and
+     measures 5.57:1 for white -- comfortably past the 4.5:1 AA floor. Sonar reads the
+     translucent value literally and does not composite against the parent. Left as is. */
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.3);

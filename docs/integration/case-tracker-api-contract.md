@@ -952,9 +952,39 @@ it produces a `200` and not a `409`. Both entries are corrected below.
 
 `409` means the portal did not apply the outcome and nothing changed. `Approved` is the ONLY status
 an attendance outcome may be recorded from, so a `409` always means the appointment was in some
-other status when you called. Whether retrying helps depends on which, and the response
-deliberately does not tell you which -- hence a bounded retry rather than a decision at the call
-site.
+other status when you called.
+
+**CORRECTED 2026-09-08 -- THE TEXT THIS REPLACES WAS FALSE, AND THE RECEIVER BUILT AGAINST IT.** It
+said "the response deliberately does not tell you which -- hence a bounded retry rather than a
+decision at the call site". That stopped being true on 2026-08-18, when the conflict body was agreed
+and shipped, but this document was never updated to match. The receiver therefore built a blanket
+96-hour retry and discards the `409` body unread. The `409` DOES tell you which:
+
+```json
+{ "status": "RescheduleRequested", "retryable": true }
+```
+
+- `status` -- the appointment's current `AppointmentStatusType` NAME. For your logs and for a human
+  reading a stuck case. Do NOT branch on it.
+- `retryable` -- **the single field to branch on.** The portal computes it in
+  `AttendanceConflictPolicy`, beside the lifecycle it describes, so the rule can change without
+  renegotiating this contract.
+
+`retryable: false` means the same call can NEVER succeed: stop immediately and log with the
+appointment id. Do not run a time budget out against it. On a shared 300/hour allowance a permanent
+conflict retried every 15 minutes across a 96-hour budget is about 384 wasted requests for ONE
+appointment, and roughly 75 such appointments would exhaust the entire per-IP budget -- which the
+reconcile GET shares. That is the concrete cost of the paragraph above having been wrong.
+
+`retryable: true` means the report arrived ahead of our staff. Retry with backoff bounded on ELAPSED
+TIME rather than attempt count, because the window is "until our staff approve" and that is
+wall-clock.
+
+The two lists below are what `retryable` is computed from. They remain accurate, and are now
+reference for a human rather than something the caller must re-derive.
+
+A `404` stays BODYLESS: its ambiguity is what stops a token holder enumerating offices and
+appointments. Only the `409` carries a body.
 
 **Transient -- a retry WILL eventually succeed:**
 

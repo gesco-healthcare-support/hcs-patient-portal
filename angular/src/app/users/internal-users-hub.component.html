@@ -38,12 +38,13 @@
                  picker is hidden inside an office (tenant is then implicit). -->
             @if (tenantPickerRequired()) {
               <div class="ra-field col-6">
-                <label>
+                <label for="uh-invite-tenant">
                   <!-- UI label: 'Practice' (code: office) -->
                   Practice
                   <span class="req">*</span>
                 </label>
                 <select
+                  id="uh-invite-tenant"
                   class="ra-select"
                   [ngModel]="invite().tenantId"
                   (ngModelChange)="patchInvite({ tenantId: $event })"
@@ -64,8 +65,9 @@
                  two surfaces intentionally differ. Firm name is added for the
                  attorney roles below. -->
             <div class="ra-field col-6">
-              <label>First name</label>
+              <label for="uh-invite-first-name">First name</label>
               <input
+                id="uh-invite-first-name"
                 class="ra-input"
                 [ngModel]="invite().firstName"
                 (ngModelChange)="patchInvite({ firstName: $event })"
@@ -73,8 +75,9 @@
               />
             </div>
             <div class="ra-field col-6">
-              <label>Last name</label>
+              <label for="uh-invite-last-name">Last name</label>
               <input
+                id="uh-invite-last-name"
                 class="ra-input"
                 [ngModel]="invite().lastName"
                 (ngModelChange)="patchInvite({ lastName: $event })"
@@ -82,11 +85,12 @@
               />
             </div>
             <div class="ra-field col-6">
-              <label>
+              <label for="uh-invite-email">
                 Email
                 <span class="req">*</span>
               </label>
               <input
+                id="uh-invite-email"
                 class="ra-input"
                 type="email"
                 [ngModel]="invite().email"
@@ -96,11 +100,12 @@
               />
             </div>
             <div class="ra-field col-6">
-              <label>
+              <label for="uh-invite-role">
                 Role
                 <span class="req">*</span>
               </label>
               <select
+                id="uh-invite-role"
                 class="ra-select"
                 [ngModel]="invite().userType"
                 (ngModelChange)="patchInvite({ userType: $event })"
@@ -113,8 +118,9 @@
             </div>
             @if (showFirm()) {
               <div class="ra-field col-6">
-                <label>Firm name</label>
+                <label for="uh-invite-firm-name">Firm name</label>
                 <input
+                  id="uh-invite-firm-name"
                   class="ra-input"
                   [ngModel]="invite().firmName"
                   (ngModelChange)="patchInvite({ firmName: $event })"
@@ -470,11 +476,12 @@
       <div class="ra-modal__body">
         <div class="ra-grid">
           <div class="ra-field col-6">
-            <label>
+            <label for="uh-create-role">
               Role
               <span class="req">*</span>
             </label>
             <select
+              id="uh-create-role"
               class="ra-select"
               [ngModel]="f.roleName"
               (ngModelChange)="patchCreate({ roleName: $event })"
@@ -486,11 +493,12 @@
             <span class="ra-hint">IT Admin accounts can't be self-created.</span>
           </div>
           <div class="ra-field col-6">
-            <label>
+            <label for="uh-create-first-name">
               First name
               <span class="req">*</span>
             </label>
             <input
+              id="uh-create-first-name"
               class="ra-input"
               [ngModel]="f.firstName"
               (ngModelChange)="patchCreate({ firstName: $event })"
@@ -498,11 +506,12 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>
+            <label for="uh-create-last-name">
               Last name
               <span class="req">*</span>
             </label>
             <input
+              id="uh-create-last-name"
               class="ra-input"
               [ngModel]="f.lastName"
               (ngModelChange)="patchCreate({ lastName: $event })"
@@ -510,11 +519,12 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>
+            <label for="uh-create-email">
               Email
               <span class="req">*</span>
             </label>
             <input
+              id="uh-create-email"
               class="ra-input"
               type="email"
               [ngModel]="f.email"
@@ -524,8 +534,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Phone</label>
+            <label for="uh-create-phone">Phone</label>
             <input
+              id="uh-create-phone"
               appPhoneNumber
               class="ra-input"
               [ngModel]="f.phoneNumber"
@@ -657,8 +668,9 @@
               </span>
             </div>
             <div class="ra-field col-12">
-              <label>Logo</label>
+              <label for="uh-tenant-logo">Logo</label>
               <input
+                id="uh-tenant-logo"
                 type="file"
                 accept="image/png,image/jpeg"
                 (change)="onTenantLogoSelected($event)"

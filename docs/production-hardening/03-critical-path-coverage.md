@@ -257,25 +257,62 @@ because it cannot be compared to a run:
 grep whose trailing `]` missed `[Fact(Skip = "...")]`. Frontend is the same shape: 667 executed
 against 614 `it()` calls, because some specs are generated in loops.
 
-### What 3.1 does NOT prove -- task 9, still open
+### What 3.1 could not prove -- task 9, CLOSED 2026-09-08
+
+**This heading read "task 9, still open" until 2026-09-08.** It was written by #712 and falsified
+by #716 twenty-three minutes later, in the same session. Corrected rather than silently rewritten,
+because the pattern is the point: an entry can be accurate when written and wrong once your own work
+changes what it described, and it goes on reading plausibly enough that nobody re-checks it.
 
 The decoy proves `Clear()` removes what is present. **It does not prove ABP's defaults ARE present at
 that moment**, because the decoy is seeded by construction -- which assumes the very ordering the
 research flagged as the class of reasoning this epic distrusts.
 
-Task 9 closes it by booting a real application (`AbpIntegratedTest`, already used at
-`CaseEvaluationTestBase.cs:12`) and reading the assembled options. **Its FIRST step is not the
-assertion but proving the fixture is non-empty:** boot the graph WITHOUT our configuration and report
-what `IOptions<AbpTenantResolveOptions>` contains. If it is empty, the booted test proves nothing and
-must not be written -- that is a finding about the harness, not a licence to force ASP.NET hosting
-into the test project.
+**That half is now closed.** `BootedTenantResolverDefaultsTests.cs` (#716, merged to the epic as
+`eb3850c7`) boots a real application and reads the assembled options. Measured 2026-09-08, a graph
+that does NOT call either host module's `ConfigureMultiTenancy` contains exactly one framework
+default:
 
-**An asymmetry to carry into it:** `CaseEvaluationHttpApiHostModule.cs:69` declares
+```text
+count=1; [CurrentUser=CurrentUserTenantResolveContributor]
+```
+
+Nothing in the harness seeds it -- neither `CaseEvaluationTestBaseModule` nor
+`CaseEvaluationMultiOfficeTestModule` mentions `TenantResolvers` or `AbpTenantResolveOptions`. So the
+framework does contribute a resolver of its own accord, and `Clear()` in the host modules removes
+something real rather than being decorative. **That is the fact task 1 could not exhibit.** The test
+asserts the exact SET rather than the count, so a swap cannot pass it; it was seen to fail by
+registering one extra resolver into the booted graph, and both of its facts failed independently.
+
+**The remaining half is now closed too, by #725.** A booted graph carrying our own
+`ConfigureMultiTenancy` was reached by extending `InternalsVisibleTo` to `EntityFrameworkCore.Tests`
+-- the grant bundled with the test that needed it, so the ABSENCE of the grant failed the build
+naturally (`CS0117` on both host modules, measured, not `CS0122` as predicted) rather than being
+proven by temporarily mutating production source.
+
+**The break did more than detect a change: it CONFIRMED the ordering.** With `Clear()` removed:
+
+```text
+should be ["CurrentUser", "HostAwareDomain"]
+but was   ["CurrentUser", "CurrentUser", "HostAwareDomain"]
+```
+
+The framework's `CurrentUser` is still present and ours is appended AFTER it. That sequence is only
+possible if the framework registered first and our callback ran second -- exactly the fact task 1 and
+the first half of task 9 could each only half-establish. **The tenancy question 3.1 opened is now
+fully answered.**
+
+**An asymmetry that remains UNMEASURED:** `CaseEvaluationHttpApiHostModule.cs:69` declares
+`AbpAspNetCoreMvcUiMultiTenancyModule`; the AuthServer declares no multi-tenancy module at all, and
+its resolved graph is still UNKNOWN.
+
+**An asymmetry that remains UNMEASURED:** `CaseEvaluationHttpApiHostModule.cs:69` declares
 `AbpAspNetCoreMvcUiMultiTenancyModule`; the AuthServer declares no multi-tenancy module at all. Its
-resolved graph is UNKNOWN -- a declared `DependsOn` list is not a resolved module graph, and three of
-its declared modules are plausible transitive carriers. **If the AuthServer's collection comes back
-empty, the finding is "no framework resolvers reach this graph today, so `Clear()` is defensive
-here", and nothing stronger.** Absent defaults is less to be protected FROM, not less protection.
+resolved graph is still UNKNOWN -- a declared `DependsOn` list is not a resolved module graph, and
+three of its declared modules are plausible transitive carriers. **If the AuthServer's collection
+comes back empty, the finding is "no framework resolvers reach this graph today, so `Clear()` is
+defensive here", and nothing stronger.** Absent defaults is less to be protected FROM, not less
+protection.
 
 ---
 
@@ -289,15 +326,72 @@ guarantee rather than a downstream symptom, revert, confirm green.
 | ---- | -------------------------------------------- | -------------------------------------------------------- |
 | 3.2  | `ExternalUserRoleGrantsTests.cs:25-38`       | remove a permission from `BookingBaselineGrants()`       |
 | 3.3  | `OutboxDrainServiceTests.cs:118`             | make the drain ignore `NotificationsPolicy.EmailEnabled` |
-| 3.4  | `PacketVisibilityUnitTests.cs:26-67`         | make `AllowedKinds` return all three kinds for Doctor    |
+| 3.4  | `PacketVisibilityUnitTests.cs:26-67`         | **STRUCK -- see the correction below. The break named here is tautological.** |
 | 3.5  | `MultiOfficeAtomicBookingSubmitTests.cs:134` | remove the transaction boundary around child writes      |
 
-**3.2 carries a PREDICTION, and it is still a prediction.**
+**3.2 carried a PREDICTION. It was RUN and it HELD** -- the result is recorded under
+"3.2 -- the prediction was RUN, and it HELD" further down this file.
+
+**This paragraph read "and it is still a prediction ... Run it before anyone records it as a fact"
+until 2026-09-08**, by which point it had already been run and recorded seventy-three lines below.
+Corrected rather than deleted, because the failure mode is worth keeping visible: a document that
+sends a reader off to establish something it already answers costs that reader the entire errand, and
+nothing about the stale sentence looked stale.
+
 `ExternalUserRoleDataSeedContributor.cs:60` grants the booking baseline by looping a hardcoded
 four-name array, and `ExternalUserRoleGrantsTests` pins the list's CONTENTS, not the ROLE SET.
-Removing `"Defense Attorney"` from that array is predicted to fail no test. **Run it before anyone
-records it as a fact.** If it holds, the accurate statement is "the role set is unasserted" -- NOT
-"roles are unprotected".
+Removing `"Defense Attorney"` from that array was predicted to fail no test, and failed none of
+1,919. The accurate statement is "the role set is unasserted" -- NOT "roles are unprotected".
+
+### THE 3.4 BREAK IN THE TABLE ABOVE IS STRUCK, and the reason generalises
+
+**Corrected 2026-09-08, by measurement rather than by reading.** The prescribed break -- make
+`AllowedKinds` return all three kinds for Doctor -- cannot do the job, for two independent reasons:
+
+1. **Its premise no longer exists.** `PacketVisibility.AllowedKinds` has a Patient arm, a combined
+   Applicant Attorney / Defense Attorney / Claim Examiner arm, and `Array.Empty<PacketKind>()` as
+   the fallback. **There is no Doctor arm.** IR1 (2026-06-03) retired Doctor as an internal persona,
+   so a Doctor-only caller already falls through to empty.
+2. **It is the wrong direction.** This phase catches a guard being REMOVED. Adding a permissive
+   branch is an addition, and the two are not symmetric.
+
+Applied anyway as a control, it fails exactly one test: `PacketVisibilityUnitTests.cs:38-42`, the
+unit test pinning the very line changed. **It proves the unit test tests the unit, and nothing else.**
+
+```text
+CONTROL, unmodified    Application 1127 passed / Domain 693 passed / MultiOffice 105 passed
+BREAK A (the struck one)   Application Failed: 1 -- PacketVisibilityUnitTests.AllowedKinds_Doctor_ReturnsNone
+                           Domain and MultiOffice unmoved
+BREAK B (the real gap)     1127 / 693 / 105 -- ZERO failures, build clean
+```
+
+**BREAK B is the break this row should always have named.** `AppointmentPacketsAppService`
+`GetListByAppointmentAsync` reads the allow-list at `:122` and filters with it at `:131`. **Delete
+`:131` alone -- leaving the `:122` call so the helper still looks used -- and zero of 1,925 tests
+fail.** Packet-kind filtering can be removed entirely and the suite stays green.
+
+**The generalisable form, and it is the most valuable thing 3.4 produced:**
+
+> A rule can be thoroughly tested where it is DEFINED and completely unasserted at the boundary
+> where it is RELIED UPON. Coverage of the helper reads as coverage of the behaviour, and it is not.
+
+This is a different shape from the catalogue's usual entry. It is not a test that cannot fail; it is
+a test that guards the right thing one layer below where the guarantee actually matters.
+
+**It is a class, not a coincidence -- a second instance surfaced the same afternoon.** `PacificTime
+.TodayFrom` is covered by `Domain.Tests/Timing/PacificTimeTests.cs:115`, while `PacketTokenResolver`,
+the only production caller, is executed by no test at all. See task 6.2 below.
+
+**And the population it lives in was measured**, so nobody has to guess how far it reaches:
+
+```bash
+curl -s "https://sonarcloud.io/api/measures/component_tree?component=gesco-healthcare-support_hcs-patient-portal&metricKeys=coverage&ps=500&qualifiers=FIL"
+# 20 of 52 files named *AppService* report 0.0% coverage -- 3,658 lines
+```
+
+**That is context, not a phase 3 work item.** Phase 8 already lists "application services with no
+tests at all" as its second priority and instructs a successor to re-derive the list; this is that
+list, derived. Phase 3 does not grow by discovery.
 
 **The per-path file counts previously cited (17 / 74 / 9 / 13) are STRUCK.** They came from research
 that recorded its own classification as "indicative rather than exact" and did not carry the glob,
@@ -305,6 +399,143 @@ and they do not reproduce together: 3.3 and 3.4 do, 3.2 and 3.5 do not, and no s
 all four. They were context for finding candidates, never the unit of work.
 
 ---
+
+## WHAT LANDED -- 3.2, 3.3, 3.4 and 3.5, on 2026-09-08
+
+| Task | Path | PR             | What it pins                                                    |
+| ---- | ---- | -------------- | ----------------------------------------------------------------- |
+| 4    | 3.2  | #693           | the external booking role set, as an independent literal          |
+| 5    | 3.3  | #697, **#705** | document download; packet download, where a REAL defect was found |
+| 6.1  | 3.4  | #709           | the per-role packet KIND filter at the boundary that uses it      |
+| 6.3  | 3.4  | #711           | the kind gate on the patient packet email handler                 |
+
+### 3.2 -- the prediction was RUN, and it HELD
+
+Removing `"Defense Attorney"` from the grant loop failed **zero of 1,919 tests**. The role is still
+created, still assignable, and holds nothing; a user given it logs in and every booking action is
+refused, presenting as a permissions bug on a correctly-configured-looking role. Now pinned.
+
+**Tracked as #692 for unification, with one constraint that must survive it:**
+`MultiOfficeExternalRoleGrantsTests` keeps a DELIBERATE, INDEPENDENT literal role list. Whoever
+unifies the three production lists must NOT make that test read from the unified one -- doing so
+moves the assertion and the code under test together and silently restores the vacuity. It will look
+like finishing the job.
+
+### 3.3 -- this path contained a REAL DEFECT, not only a test gap
+
+- **Document download** had no test anywhere (`git grep -n "DownloadAsync" -- 'test/'` returned
+  nothing) while being the only thing separating one external party from another's documents. **The
+  guard existed and worked**; what was missing was anything that would catch its removal. #697.
+- **Packet download was an actual hole.** All four public methods of `AppointmentPacketsAppService`
+  took a caller-supplied `appointmentId` with **no party-level check at all**, and every external
+  role is granted `{Group}.AppointmentPackets` in the booking baseline, so the permission gate
+  admitted every external party by design. Within one office, any valid appointment id returned
+  another party's packet. Fixed in #705; each of the four guards was then deleted individually and
+  each produced a failure in its own method's test.
+- **Signature download is structurally safe** and needs no fix: `UserSignatureAppService
+  .DownloadAsync()` takes no parameter and reads the current user's own extension property, so there
+  is no caller-supplied identity to confuse. It has zero tests, which is a coverage gap rather than a
+  hole, and is logged rather than chased.
+- Notification email and the SSN reveal already had adequate guardians; breaks were run on both.
+
+### 3.4 -- task 6.2 could NOT be written honestly, and was not written
+
+Pinning the Pacific date stamp is **blocked, and deliberately left blocked**. `IClock` is injected
+and substitutable, so the clock was never the obstacle. `PacketTokenResolver` has **22 constructor
+dependencies**, no test constructs it, and `DateNow` is assigned inline with `FormatDate` private
+static -- so no narrower seam exists. With the real clock the only reachable assertion is
+`DateNow == FormatDate(PacificTime.TodayFrom(now))`, **which compares the code to itself and passes
+forever, including with the Pacific conversion deleted.**
+
+**Tracked as #710.** The guarantee it would have pinned is one that ALREADY BROKE in production -- a
+packet generated after roughly 4-5pm Pacific was stamped with tomorrow's date, on the legal artefact.
+It remains unguarded, and that is stated rather than papered over.
+
+The standing rule applied here: **a needed seam is a flag to raise, not a cost to absorb** -- applied
+to test infrastructure rather than production code, which is the same principle.
+
+### 3.5 -- the guardian that never guarded, and a harness that cannot host one
+
+**Task 7 was scoped as a break-and-observe tick. It produced the largest finding of the phase.**
+
+`SubmitAsync` writes a patient, an appointment and six child groups atomically, and the docstring at
+`AppointmentsAppService.cs:714-726` records why: production appointments **A00010 and A00011** shipped
+as half-bookings, full attorney columns with zero join rows. The failure mode is not hypothetical.
+
+**Two tests are named for that guarantee and neither exercises it.** Both provoke their failure with a
+5,000-character body-part description against a 500-character DTO constraint
+(`AppointmentBodyPartCreateDto.cs:11`, `AppointmentBodyPartConsts.cs:12`), so ABP's validation
+interceptor rejects the request **before `SubmitAsync` runs**. Nothing is written, and the three
+"nothing survived" assertions are satisfied by a database that was never touched. The test comment
+asserted the opposite in as many words.
+
+Measured by capturing the exception the tests had been swallowing:
+
+```text
+old trigger, 5,000 chars    Volo.Abp.Validation.AbpValidationException
+new trigger, bad FK         Microsoft.EntityFrameworkCore.DbUpdateException
+```
+
+**Three breaks, one cause.** Deleting `[UnitOfWork]` from `:733`, setting `isTransactional: false`,
+and removing `AddAlwaysDisableUnitOfWorkTransaction` each moved **zero of 512 tests** -- all three
+target code that never executes in these tests.
+
+**What concealed it**, and the split in that file is exact rather than careless:
+
+```text
+ThrowAsync<BusinessException>   :189, :392, :468, :497, :590    every business-failure test
+ThrowAsync<Exception>           :157, :433                      BOTH rollback tests
+```
+
+A base-type assertion cannot distinguish "rolled back correctly" from "failed earlier and therefore
+never wrote anything". Those are the same green.
+
+**The guarantee cannot be covered in this harness at all.** A trigger that genuinely reaches the
+database was built -- a non-existent `WcabOfficeId`, a bare `Guid?` at
+`AppointmentInjuryDetailCreateDto.cs:30` with no validation attribute -- and the rewritten test
+**still fails against unmodified production code**. That is a property of the harness, and it was
+proven by control rather than argued:
+
+```text
+Control1_SingleType_RollsBackOnAPlainThrow         FAIL   count should be 0 but was 1
+Control2_TwoEntityTypes_BothRollBackOnAPlainThrow  FAIL   count should be 0 but was 1
+```
+
+One row, one entity type, one unit of work, then a plain `InvalidOperationException` -- deliberately
+NOT a database error, so nothing is confounded with the thing under test. **The row survived: this
+harness cannot roll back a single row of a single type.** Consistent with
+`CaseEvaluationMultiOfficeTestModule.cs:110-120`, which routes every DbContext to a per-request
+resolved connection string against separate named SQLite databases.
+
+**No conclusion about production follows, and none is drawn.** The read rule was fixed before the
+control ran: the row surviving means the instrument cannot measure the thing, so the booking result is
+an artefact and says nothing about the booking path's correctness.
+
+**Outcome.** The two tests were renamed to describe what they actually verify, their assertions
+tightened to the MEASURED `AbpValidationException`, and the false comment corrected (#734). The
+guarantee itself is tracked in **#732**, `Blocks public hosting`, alongside #707 -- same class: a real
+guarantee, no regression guard, blocked on test infrastructure rather than on production code.
+
+**Also settled here:** `[UnitOfWork]` at `:733` is decorative. ABP wraps application service methods
+in a unit of work by convention, so the attribute is not what supplies it, and the docstring's "what
+makes it atomic: `[UnitOfWork]` plus..." is imprecise. Proven in this codebase rather than quoted from
+ABP's documentation: with the attribute deleted, success-path tests asserting persistence still
+passed, which is impossible if `CurrentUnitOfWork` at `:770` had been null.
+
+### The finding that outgrew this phase: no permission attribute can be regression-tested
+
+Both test harnesses call `AddAlwaysAllowAuthorization()` (`CaseEvaluationTestBaseModule.cs:27`,
+`CaseEvaluationMultiOfficeTestModule.cs:103`), and every test project inherits one of them. So the
+authorization interceptor always succeeds and **243 permission-bearing `[Authorize]` attributes
+across 49 files are inert under test.** Delete any one and the suite stays green.
+
+**This is not a vulnerability** -- the checks work in production, and always-allow is ABP's own
+template default. What is absent is any regression guard, over an entire category of guard, in the
+phase built to eliminate exactly that.
+
+**Tracked as #707, in the `Blocks public hosting` milestone by Adrian's instruction 2026-09-08**, so
+it must be resolved before the portal is exposed to the public internet. It carries a four-layer
+design; it needs a harness, not a test, which is why it is not a phase 3 item.
 
 ## Validation loop
 

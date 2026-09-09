@@ -220,10 +220,13 @@
   font-family: var(--font-num);
 }
 .in-link:hover {
+  /* Sonar css:S7924 false positive: composites to #164871 over the .in-side gradient's
+     lightest stop, 9.55:1 for white. Sonar does not composite translucent layers. */
   background: rgba(255, 255, 255, 0.07);
   color: #fff;
 }
 .in-link.on {
+  /* Sonar css:S7924 false positive: composites to #1d505f, 8.88:1 for white. */
   background: rgba(157, 193, 59, 0.16);
   color: #fff;
 }

@@ -113,7 +113,8 @@
   font-family: var(--font-num);
   font-size: 10.5px;
   color: var(--n-400);
-  word-break: break-word;
+  /* `word-break: break-word` is deprecated. Per spec it is exactly `overflow-wrap: anywhere`, NOT `overflow-wrap: break-word` -- the latter does not allow breaking to reduce a container's min-content width, so swapping to it would narrow where these can wrap. Kept exact (Sonar css:S1874). */
+  overflow-wrap: anywhere;
 }
 /* editor-header variants: friendly blurb + raw code beside the type line. */
 .ra-card__head .nt-when--head {

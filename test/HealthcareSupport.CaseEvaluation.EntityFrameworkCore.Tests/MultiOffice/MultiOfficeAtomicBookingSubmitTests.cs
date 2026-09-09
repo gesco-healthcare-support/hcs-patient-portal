@@ -22,6 +22,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Security.Claims;
+using Volo.Abp.Validation;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -33,7 +34,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// <para><b>Why every group is asserted separately.</b> Bug F18 was a cascade that silently dropped
 /// 2 of 8 child groups while reporting success. A single "it worked" assertion, or an assertion on
 /// the result's <c>Total</c>, cannot catch that: two groups wrong in opposite directions still sum
-/// correctly. So each group gets its own assertion, and the rollback test proves the negative.</para>
+/// correctly. So each group gets its own assertion.</para>
+///
+/// <para><b>WHAT THIS FILE DOES NOT COVER, corrected 2026-09-08.</b> The header above once ended
+/// "and the rollback test proves the negative". It does not. The two tests that carried rollback
+/// names were rejecting an oversized DTO at the validation boundary, so <c>SubmitAsync</c> never
+/// executed and nothing was ever written -- measured as <c>AbpValidationException</c>. They are
+/// renamed to say so. <b>The all-or-nothing guarantee itself has no regression guard, and one
+/// cannot be written in this harness:</b> a control proved that a single row written in a unit of
+/// work which throws before completing SURVIVES here, so rollback is unavailable regardless of the
+/// code under test. Tracked as issue #732. Do not read any test in this file as atomicity
+/// coverage.</para>
 ///
 /// <para><b>Why the MultiOffice harness.</b> A submit needs a coherent office: catalog, location,
 /// slot, patient, booker. This harness seeds exactly that, and it books inside a tenant context --
@@ -131,8 +142,13 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         });
     }
 
+    /// <summary>
+    /// DTO-boundary rejection, NOT atomicity. Renamed 2026-09-08 from
+    /// <c>SubmitAsync_WhenAChildWriteFails_PersistsNothingAtAll</c>, which described a guarantee it
+    /// has never exercised -- see the note on the trigger below and issue #732.
+    /// </summary>
     [Fact]
-    public async Task SubmitAsync_WhenAChildWriteFails_PersistsNothingAtAll()
+    public async Task SubmitAsync_WhenABodyPartExceedsItsMaxLength_IsRejectedBeforeAnyWrite()
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
@@ -146,28 +162,48 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             slotId = await InsertSlotAsync(office, date, new TimeOnly(11, 0), new TimeOnly(12, 0));
         });
 
-        // The body part is invalid, and body parts are written LAST -- so by the time it throws the
-        // patient, the appointment and five other groups have all been written. If the transaction
-        // is not doing its job, this test finds the wreckage.
+        // WHAT ACTUALLY HAPPENS HERE. This comment previously said the patient, the appointment and
+        // five child groups were all written before the throw, so the test "finds the wreckage" if
+        // the transaction is not doing its job. That was false, and it is what kept the gap hidden.
+        //
+        // AppointmentBodyPartCreateDto.cs:11 carries [StringLength(500)]
+        // (AppointmentBodyPartConsts.cs:12), so a 5000-character description is rejected by ABP's
+        // validation interceptor BEFORE SubmitAsync executes. Nothing is written, and there is no
+        // wreckage to find. Measured 2026-09-08 by capturing the exception: it is
+        // AbpValidationException, which the old base-type ThrowAsync<Exception> accepted exactly as
+        // it would have accepted a genuine rollback failure.
+        //
+        // So this is a boundary-rejection test and it is asserted as one. THE ATOMICITY GUARANTEE
+        // ITSELF HAS NO TEST: see issue #732. It cannot be written in this harness -- a control
+        // showed a single row written in a unit of work that threw before completing SURVIVES, so
+        // rollback is not available here at all.
         var doomed = BuildSubmitDto(office, slotId, date.AddHours(11).AddMinutes(15), dayOffset: 220);
         doomed.Patient!.Email = patientEmail;
         doomed.InjuryDetails[0].Injury.ClaimNumber = claimNumber;
         doomed.InjuryDetails[0].BodyParts[0].BodyPartDescription = new string('x', 5000);
 
-        await Should.ThrowAsync<Exception>(
+        // AbpValidationException specifically, MEASURED 2026-09-08. The base type used to be
+        // asserted here, and it is what made the misnaming invisible: it accepted a DTO-validation
+        // failure exactly as it would accept a rollback failure, so the test stayed green while
+        // verifying something other than its own name. Five sibling assertions in this file already
+        // assert a specific type; this converges on that convention rather than inventing one.
+        await Should.ThrowAsync<AbpValidationException>(
             () => InOfficeAsync(office, () => _appointments.SubmitAsync(doomed)));
 
-        // Fresh unit of work: the failed one is gone, so this reads committed state only.
+        // These three confirm the rejection happened BEFORE ANY WRITE, which is a real property and
+        // is what this test verifies. They are NOT evidence of rollback: an empty database is
+        // equally consistent with a database that was never touched, and here it was never touched.
+        // Do not read them as atomicity coverage -- that is #732.
         await InOfficeAsync(office, async () =>
         {
             (await _injuryDetails.CountAsync(x => x.ClaimNumber == claimNumber))
-                .ShouldBe(0, "the injury was written before the failing body part; it must be gone");
+                .ShouldBe(0, "a DTO rejected at the boundary must not have written an injury");
 
             (await _patientRepository.CountAsync(x => x.Email == patientEmail))
-                .ShouldBe(0, "a failed booking must not leave an orphan patient behind");
+                .ShouldBe(0, "a DTO rejected at the boundary must not have created a patient");
 
             (await _appointmentRepository.CountAsync(x => x.DoctorAvailabilityId == slotId))
-                .ShouldBe(0, "no appointment may survive a failed submit");
+                .ShouldBe(0, "a DTO rejected at the boundary must not have booked the slot");
         });
     }
 
@@ -406,7 +442,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     }
 
     [Fact]
-    public async Task SubmitAsync_WhenAChildWriteFails_AlsoRollsBackTheProfileEdit()
+    public async Task SubmitAsync_WhenABodyPartExceedsItsMaxLength_RejectsBeforeApplyingTheProfileEdit()
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
@@ -425,21 +461,32 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         doomed.Patient = null;
         doomed.PatientId = seeded!.Id;
         doomed.PatientUpdate = BuildPatientUpdate(seeded, firstName: "ShouldVanish", city: "Gone");
-        // Body parts are written last, so the profile edit is long since applied when this blows.
+        // Renamed 2026-09-08. The comment here used to say body parts are written last, so the
+        // profile edit "is long since applied when this blows". That was false for the same reason
+        // as in SubmitAsync_WhenABodyPartExceedsItsMaxLength_IsRejectedBeforeAnyWrite: a
+        // 5000-character description exceeds [StringLength(500)], so ABP rejects the DTO before
+        // SubmitAsync runs and the profile edit is never applied in the first place. This test
+        // verifies that the edit is not applied when the payload is rejected -- it has never shown
+        // an applied edit being rolled back, and it cannot. See #732.
         doomed.InjuryDetails[0].BodyParts[0].BodyPartDescription = new string('x', 5000);
-
-        // Same reason as the stale-stamp test: the throw has to escape the unit of work so it is
-        // disposed without completing, which is what makes this a rollback test at all.
-        await Should.ThrowAsync<Exception>(
+        // AbpValidationException specifically, MEASURED 2026-09-08. The base type used to be
+        // asserted here, and it is what made the misnaming invisible: it accepted a DTO-validation
+        // failure exactly as it would accept a rollback failure, so the test stayed green while
+        // verifying something other than its own name. Five sibling assertions in this file already
+        // assert a specific type; this converges on that convention rather than inventing one.
+        await Should.ThrowAsync<AbpValidationException>(
             () => InOfficeAsync(office, () => _appointments.SubmitAsync(doomed)));
 
         await InOfficeAsync(office, async () =>
         {
-            // This is the assertion the whole "fold the update into the transaction" decision exists
-            // for. Before PR2 the wizard PUT the profile before the appointment POST, so a booking
-            // that failed here left the edit applied.
+            // The "fold the update into the transaction" decision is what this was written for --
+            // before PR2 the wizard PUT the profile before the appointment POST, so a failed
+            // booking left the edit applied. What this assertion actually demonstrates today is
+            // narrower: a payload rejected at the DTO boundary never reaches the update at all.
+            // The transaction half of that decision is unguarded; see #732.
             (await _patientRepository.GetAsync(seeded!.Id)).FirstName
-                .ShouldBe("Original", "a failed booking must not leave the profile edit behind");
+                .ShouldBe("Original", "a payload rejected at the DTO boundary must not have applied "
+                    + "the profile edit");
         });
     }
 
