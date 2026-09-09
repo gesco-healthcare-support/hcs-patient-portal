@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -98,6 +99,87 @@ public class CaseEvaluationAccountEmailerTests
             .BuildHostEmailConfirmationUrlAsync(Arg.Any<Guid>(), Arg.Any<string>());
         await urls.DidNotReceive()
             .BuildEmailConfirmationUrlAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// Phase 4.1 (2026-09-09) -- CodeQL alert 211. The context tag must not carry a full email
+    /// address, because it reaches a <c>LogWarning</c> on the template-missing branch, past the
+    /// empty-recipient guard.
+    ///
+    /// <para><b>This asserts the ENQUEUED JOB, not the log, and that is a deliberate proxy.</b>
+    /// The existing fixture builds the emailer with <c>NullLogger.Instance</c>, <c>LogWarning</c>
+    /// is an extension method that NSubstitute cannot intercept, and no test in this repository
+    /// asserts on logger output -- there is no pattern to mirror and inventing one for a single
+    /// assertion is not worth it.</para>
+    ///
+    /// <para><b>Why the proxy is sound rather than convenient:</b> both sinks read the SAME local,
+    /// built once at the call site. If the value reaching <c>Context</c> is masked, the value
+    /// reaching the log is the same masked string. The proxy would only mislead if the tag were
+    /// transformed between the two sinks, and it is not -- it is passed through
+    /// <c>DispatchAsync</c> untouched.</para>
+    ///
+    /// <para>Note this test needs an ACTIVE template, unlike its neighbours: the others stub the
+    /// lookup to miss so <c>DispatchAsync</c> returns early, which is exactly the path that never
+    /// reaches the enqueue.</para>
+    /// </summary>
+    [Fact]
+    public async Task SendEmailConfirmationCodeAsync_MasksTheAddressInTheContextTag()
+    {
+        var (sut, jobs) = NewEmailerWithActiveTemplate();
+
+        await sut.SendEmailConfirmationCodeAsync("adrian@example.test", "123456");
+
+        await jobs.Received(1).EnqueueAsync(
+            Arg.Is<SendAppointmentEmailArgs>(a =>
+                a.Context == "AccountEmailer/ConfirmationCode/a***@example.test"),
+            Arg.Any<BackgroundJobPriority>(),
+            Arg.Any<TimeSpan?>());
+    }
+
+    /// <summary>
+    /// The property that matters, asserted independently of the exact masked shape so a future
+    /// formatting change cannot quietly reintroduce the identifier.
+    /// </summary>
+    [Fact]
+    public async Task SendEmailConfirmationCodeAsync_NeverPutsTheLocalPartInTheContextTag()
+    {
+        var (sut, jobs) = NewEmailerWithActiveTemplate();
+
+        await sut.SendEmailConfirmationCodeAsync("averyspecificlocalpart@example.test", "123456");
+
+        await jobs.Received(1).EnqueueAsync(
+            Arg.Is<SendAppointmentEmailArgs>(a =>
+                a.Context != null && !a.Context.Contains("averyspecificlocalpart")),
+            Arg.Any<BackgroundJobPriority>(),
+            Arg.Any<TimeSpan?>());
+    }
+
+    private static (CaseEvaluationAccountEmailer Sut, IBackgroundJobManager Jobs)
+        NewEmailerWithActiveTemplate()
+    {
+        var templateRepository = Substitute.For<INotificationTemplateRepository>();
+        templateRepository
+            .FindByCodeAsync(Arg.Any<string>(), Arg.Any<System.Threading.CancellationToken>())
+            .Returns(new NotificationTemplate(
+                Guid.NewGuid(),
+                null,
+                NotificationTemplateConsts.Codes.UserRegistered,
+                Guid.NewGuid(),
+                "Subject",
+                "Body",
+                "Sms"));
+
+        var backgroundJobManager = Substitute.For<IBackgroundJobManager>();
+        var currentTenant = Substitute.For<ICurrentTenant>();
+        var urls = Substitute.For<IAccountUrlBuilder>();
+
+        var sut = new CaseEvaluationAccountEmailer(
+            templateRepository,
+            backgroundJobManager,
+            currentTenant,
+            urls,
+            NullLogger<CaseEvaluationAccountEmailer>.Instance);
+        return (sut, backgroundJobManager);
     }
 
     private static (CaseEvaluationAccountEmailer Sut, IAccountUrlBuilder Urls) NewEmailer()

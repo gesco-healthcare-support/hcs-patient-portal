@@ -157,30 +157,68 @@
   align-items: flex-start;
 }
 .ad-actions .af-btn--glass {
-  /* Sonar css:S7924 is RIGHT here, unlike the other translucent reports in this
-     sweep. White composites to #ad8e24 over the lightest banner variant (#a07c00)
-     and measures 3.15:1 -- under the 4.5:1 AA floor for normal text, and this is a
-     button label.
+  /* #744 (2026-09-09): a BLACK tint at 0.08, replacing the white frost. The previous
+     comment here recorded a decision to leave this alone pending a design call; that
+     call has been made, so the old rationale is removed rather than left to contradict
+     the value below.
 
-     NOT changed here, because no white tint can fix it: even alpha 0 reaches only
-     3.90:1 against that banner. Reaching AA means a BLACK tint instead -- 0.18 gives
-     5.43:1 -- which inverts the effect from a light frost to a dark scrim across all
-     six .ad-banner variants. That is a visual-design decision, not a lint fix.
-     Raised for a design call rather than changed unilaterally. */
-  background: rgba(255, 255, 255, 0.14);
+     All six banner variants were measured against each gradient's lightest stop, plus
+     the hover state, which the original report never covered:
+
+       - THREE of six failed, not one. --pending 3.15:1, --approved 3.73:1,
+         --no-show 4.39:1, all under the 4.5:1 AA floor for a button label.
+       - The hover state was WORSE than the resting state -- 2.70:1 on the amber banner.
+       - The white frost was itself the cause on two of the three. Remove it entirely and
+         --approved reaches 4.90:1 and --no-show 6.07:1, both passing. Only the amber
+         banner needs an actual dark tint, and it needs 0.08, not the 0.18 first proposed.
+
+     Global 0.08 leaves every variant between 4.52:1 (--pending) and 8.20:1 (--rejected),
+     so nothing is sacrificed by applying it to the variants that already passed -- six
+     per-variant rules would be maintained to avoid an aesthetic change barely perceptible
+     at this alpha. 0.18 was rejected as more than twice the tint required: that is where
+     a light frost genuinely becomes a dark scrim. Hover stays visibly darker than base,
+     so the affordance still reads.
+
+     NOTE FOR ANYONE CHANGING A BANNER GRADIENT: these ratios are computed against each
+     gradient's LIGHTEST stop. Re-measure if a stop moves. */
+  background: rgba(0, 0, 0, 0.08);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 .ad-actions .af-btn--glass:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(0, 0, 0, 0.16);
 }
 
 // next-step callout
 .ad-callout {
+  /* #756 (2026-09-09): a BLACK tint at 0.25, replacing the white frost, for the same
+     compositing reason as the glass button a few rules above -- see that comment for
+     the per-variant working rather than repeating it here.
+
+     WHY 0.25 AND NOT THE BUTTON'S 0.08, since two tints on one banner otherwise look
+     like an inconsistency to be tidied away: this panel carries DIMMED text. The
+     `span` below is rgba(255,255,255,0.8) by design, one step quieter than the bold
+     line above it. At 0.08 even PURE WHITE measures 4.51:1 on the amber banner -- it
+     clears the 4.5 floor by a hundredth -- so no dimmed text of any alpha can pass
+     there. Keeping the hierarchy therefore forces a darker panel. 0.25 is the minimum
+     that works: 0.20 leaves the span at 4.28:1.
+
+     Measured at 0.25, worst case across all six banner variants:
+       .ad-callout b     (inherits #fff)   6.24:1   floor 4.5   PASS
+       .ad-callout span  (white 0.8)       4.66:1   floor 4.5   PASS
+       .ic glyph         (white on .ic)    4.18:1   floor 3.0   PASS  (non-text)
+     .ic needs no rule of its own: it composites over THIS background, so darkening
+     the panel carries it. It measured 2.55:1 before this change and was failing.
+
+     RECORDED, NOT ASSERTED: the 1px rgba(255,255,255,0.22) border measures 1.63:1
+     against the panel it encloses. That is not read as a violation -- WCAG 1.4.11
+     covers components you interact with and graphics needed to understand content,
+     and a decorative edge on a static informational panel is neither. Noted so the
+     next person does not re-derive it. */
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--r-md);
   padding: 12px 16px;
