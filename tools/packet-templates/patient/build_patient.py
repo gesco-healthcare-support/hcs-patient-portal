@@ -25,6 +25,15 @@ import re
 
 EN_DASH = "\u2013"
 
+# DEU questionnaire field widths, repeated across many fields so a layout change is one
+# edit rather than a search (python:S1192). The CSS default for .deu-line is a separate
+# unquoted literal in the stylesheet block and is deliberately left there.
+_W_SHORT = "2.0in"
+_W_FULL = "6.6in"
+# Repeated scale label and signature-row heading.
+_NO_INTERFERE = "Does not interfere"
+_LBL_DATE = "DATE:"
+
 
 def _inline_images(html):
     """Embed local <img src="..."> files as base64 data URIs so the generated HTML is
@@ -568,11 +577,11 @@ def _adl_row(section, label, slug):
 def page_adl():
     """Activities of Daily Living Form."""
     rows = [
-        '<tr>'
-        '<th colspan="2" class="h-right">Without difficulty</th>'
-        '<th colspan="2" class="gray">With some difficulty</th>'
-        '<th>With much difficulty</th>'
-        '<th class="gray">Unable to do</th>'
+        '<tr>' +
+        '<th colspan="2" class="h-right">Without difficulty</th>' +
+        '<th colspan="2" class="gray">With some difficulty</th>' +
+        '<th>With much difficulty</th>' +
+        '<th class="gray">Unable to do</th>' +
         '</tr>'
     ]
     for idx, (label, example, slug, acts) in enumerate(ADL):
@@ -667,8 +676,8 @@ def page_cover():
         blank,
         '<p class="cl">APPOINTMENT DEPARTMENT</p>',
         blank, blank,
-        '<p class="cl center"><b>SCHEDULING: (818) 582-2600<br>'
-        'P.O. Box 261656, Encino, CA 91426<br>'
+        '<p class="cl center"><b>SCHEDULING: (818) 582-2600<br>' +
+        'P.O. Box 261656, Encino, CA 91426<br>' +
         'FAX: (818)855-2466</b></p>',
     ]
     return f'<div class="page" id="p-cover">{"".join(parts)}</div>'
@@ -798,9 +807,9 @@ def page_pregnancy():
         '<p class="pg-emh">EN CASO DE EMERJENCIA POR FAVOR NOTIFICA:</p>',
         f'<div class="pg-line">(NOMBRE) {f("em_nombre", "f-nm")} RELACION {f("em_relacion", "f-rel")}</div>',
         f'<div class="pg-line">NUMERO DE TELEFONO -  1. {f("em_tel1", "f-nm")} 2. {f("em_tel2", "f-ph")}</div>',
-        '<div class="pg-foot-wrap">'
-        '<p class="b">Mailing Address: P.O. Box 261656, Encino, CA 91426</p>'
-        '<p class="r">Phone: (818) 582-2600 \u2022 Fax: (818) 855-2466</p>'
+        '<div class="pg-foot-wrap">' +
+        '<p class="b">Mailing Address: P.O. Box 261656, Encino, CA 91426</p>' +
+        '<p class="r">Phone: (818) 582-2600 \u2022 Fax: (818) 855-2466</p>' +
         '</div>',
     ]
     return f'<div class="page" id="p-pregnancy">{"".join(parts)}</div>'
@@ -1008,25 +1017,25 @@ def page_ama2():
         qbox("C. How much does your pain interfere with your relationship with your family/partner/significant others? (Circle a number)",
              "c", "Does not interfere with relationships", "Completely Interferes with relationships"),
         qbox("D. How much does your pain interfere with your ability to do jobs around your home? (Circle a number)",
-             "d", "Does not interfere", "Completely unable to do any job around home"),
+             "d", _NO_INTERFERE, "Completely unable to do any job around home"),
         qbox("E. How much does your pain interfere with your ability to shower or bathe without help from someone else? (Circle a number)",
              "e", "Does not interfere with relationships", "My pain makes it impossible to shower or bathe without help"),
         qbox("F. How much does your pain interfere with your ability to write or type? (Circle a number)",
              "f", "Does not interfere at all", "Makes it impossible to wrote or type"),
         qbox("G. How much does your pain interfere with your ability to dress yourself? (Circle a number)",
-             "g", "Does not interfere", "Makes it impossible to dress"),
+             "g", _NO_INTERFERE, "Makes it impossible to dress"),
         qbox("H. How much does your pain interfere with your ability to engage in sexual activities? (Circle a number)",
-             "h", "Does not interfere", "impossible to engage in any sexual activity"),
+             "h", _NO_INTERFERE, "impossible to engage in any sexual activity"),
         qbox("I. How much does your pain interfere with your ability to concentrate? (Circle a number",
              "i", "Never", "All the time"),
     ]
     parts = [
         '<div class="ama-sec">II.   Activity Limitation of Interference (Cont.)</div>',
         '<table class="ama">' + ''.join(rows) + '</table>',
-        '<div class="ama-sum">Sum score of Section II:<br>'
-        'A \u2013 P = Total score for activities<br>'
-        'limitation/16 = Mean Activity<br>'
-        'Limitation =<br>'
+        '<div class="ama-sum">Sum score of Section II:<br>' +
+        'A \u2013 P = Total score for activities<br>' +
+        'limitation/16 = Mean Activity<br>' +
+        'Limitation =<br>' +
         '<input type="text" class="ama-fld" name="packet.patient.ama2.sum_section2"></div>',
         '<div class="ama-foot">Page 2 of 3</div>',
     ]
@@ -1063,8 +1072,8 @@ def page_ama3():
     parts = [
         '<div class="ama-sec">III. Individual\u2019s Report of Effect of Pain on Mood</div>',
         '<table class="ama">' + ''.join(rows) + '</table>',
-        '<div class="ama-sum">Sum score of Section III:<br>'
-        'A-E \u2013 Total pain impairment attributed to mood state/5 = Mean<br>'
+        '<div class="ama-sum">Sum score of Section III:<br>' +
+        'A-E \u2013 Total pain impairment attributed to mood state/5 = Mean<br>' +
         'Score = <input type="text" class="ama-fld" name="packet.patient.ama3.sum_section3"></div>',
         '<div class="ama-sign">PATIENT NAME (Print)  '
         f'{_tok("##Patients.FirstName##")}   {_tok("##Patients.LastName##")}</div>',
@@ -1089,11 +1098,11 @@ def page_deu1():
         return f'<div class="deu-fld">{line(name, w)}<div class="deu-lab">{label}</div></div>'
 
     parts = [
-        '<div class="deu-head">'
-        '<img class="deu-bc" src="images/deu_barcode.png" alt="form barcode">'
-        '<div class="deu-h1">STATE OF CALIFORNIA</div>'
-        '<div class="deu-h2">Division of Workers\u2019<br>Compensation Disability<br>Evaluation Unit</div>'
-        '<div class="deu-h3">EMPLOYEE\u2019S DISABILITY QUESTIONNAIRE</div>'
+        '<div class="deu-head">' +
+        '<img class="deu-bc" src="images/deu_barcode.png" alt="form barcode">' +
+        '<div class="deu-h1">STATE OF CALIFORNIA</div>' +
+        '<div class="deu-h2">Division of Workers\u2019<br>Compensation Disability<br>Evaluation Unit</div>' +
+        '<div class="deu-h3">EMPLOYEE\u2019S DISABILITY QUESTIONNAIRE</div>' +
         '</div>',
         '<div class="deu-box">This form will aid the doctor in determining your permanent '
         'impairment or disability. Please complete this form and give it to the physician who '
@@ -1106,10 +1115,10 @@ def page_deu1():
         + '</span><span class="col-mi">' + line("mi", "100%") + '</span></div>'
         '<div class="deu-row"><span class="col-fn deu-lab">First Name</span>'
         '<span class="col-mi deu-lab">MI</span></div></div>',
-        fld("last_name", "Last Name", "2.0in"),
+        fld("last_name", "Last Name", _W_SHORT),
         fld("ssn", "SSN (Numbers Only)", "6.5in"),
-        fld("street1", "Street Address 1/PO Box (Please leave blank spaces between numbers, names or words)", "6.6in"),
-        fld("street2", "Street Address 2/PO Box (Please leave blank spaces between numbers, names or words)", "6.6in"),
+        fld("street1", "Street Address 1/PO Box (Please leave blank spaces between numbers, names or words)", _W_FULL),
+        fld("street2", "Street Address 2/PO Box (Please leave blank spaces between numbers, names or words)", _W_FULL),
         fld("intl_address", "International Address (Please leave blank spaces between numbers, names or words)", "5.2in"),
         # City / State / Zip
         '<div class="deu-fld"><div class="deu-row"><span class="col-city">' + line("city", "100%")
@@ -1117,12 +1126,12 @@ def page_deu1():
         '<span class="col-zip">' + line("zip", "100%") + '</span></div>'
         '<div class="deu-row"><span class="col-city deu-lab">City</span>'
         '<span class="col-state deu-lab">State</span><span class="col-zip deu-lab">Zip code</span></div></div>',
-        '<div class="deu-date">Date of Birth: ' + line("dob", "2.0in")
+        '<div class="deu-date">Date of Birth: ' + line("dob", _W_SHORT)
         + '<div class="deu-mmdd">MM/DD/YYYY</div></div>',
-        '<div class="deu-date">Date of Injury: ' + line("doi", "2.0in")
+        '<div class="deu-date">Date of Injury: ' + line("doi", _W_SHORT)
         + '<div class="deu-mmdd">MM/DD/YYYY</div></div>',
-        fld("employer", "Employer", "6.6in"),
-        fld("nature_business", "Nature of Employers Business", "6.6in"),
+        fld("employer", "Employer", _W_FULL),
+        fld("nature_business", "Nature of Employers Business", _W_FULL),
     ]
     return f'<div class="page" id="p-deu1">{"".join(parts)}</div>'
 
@@ -1169,7 +1178,7 @@ def page_deu2():
         + inline("prior_disability", "3.2in") + '</div>',
         '<div class="dq-q">If so, when? ' + inline("prior_when", "3.0in") + '</div>',
         '<div class="dq-q">Please describe the disability?' + box("describe_disability", "0.8in") + '</div>',
-        '<div class="dq-sign">Date' + inline("date", "2.0in")
+        '<div class="dq-sign">Date' + inline("date", _W_SHORT)
         + ' MM/DD/YYYY&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Signature' + inline("signature", "3.4in") + '</div>',
     ]
     return f'<div class="page" id="p-deu2">{"".join(parts)}</div>'
@@ -1344,9 +1353,9 @@ JD2_REQUIRES = [
 JD2_SIGN = [
     ("EMPLOYER CONTACT NAME:", "employer_contact_name",
      "EMPLOYER CONTACT TITLE:", "employer_contact_title"),
-    ("EMPLOYER REPRESENTATIVE SIGNATURE:", "employer_rep_signature", "DATE:", "employer_rep_date"),
-    ("EMPLOYEE\u2019S SIGNATURE:", "employee_signature", "DATE:", "employee_date"),
-    ("QUALIFIED REHAB. REPRESENTATIVE SIGNATURE:", "qre_signature", "DATE:", "qre_date"),
+    ("EMPLOYER REPRESENTATIVE SIGNATURE:", "employer_rep_signature", _LBL_DATE, "employer_rep_date"),
+    ("EMPLOYEE\u2019S SIGNATURE:", "employee_signature", _LBL_DATE, "employee_date"),
+    ("QUALIFIED REHAB. REPRESENTATIVE SIGNATURE:", "qre_signature", _LBL_DATE, "qre_date"),
 ]
 
 
