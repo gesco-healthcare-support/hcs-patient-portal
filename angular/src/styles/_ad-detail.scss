@@ -157,22 +157,36 @@
   align-items: flex-start;
 }
 .ad-actions .af-btn--glass {
-  /* Sonar css:S7924 is RIGHT here, unlike the other translucent reports in this
-     sweep. White composites to #ad8e24 over the lightest banner variant (#a07c00)
-     and measures 3.15:1 -- under the 4.5:1 AA floor for normal text, and this is a
-     button label.
+  /* #744 (2026-09-09): a BLACK tint at 0.08, replacing the white frost. The previous
+     comment here recorded a decision to leave this alone pending a design call; that
+     call has been made, so the old rationale is removed rather than left to contradict
+     the value below.
 
-     NOT changed here, because no white tint can fix it: even alpha 0 reaches only
-     3.90:1 against that banner. Reaching AA means a BLACK tint instead -- 0.18 gives
-     5.43:1 -- which inverts the effect from a light frost to a dark scrim across all
-     six .ad-banner variants. That is a visual-design decision, not a lint fix.
-     Raised for a design call rather than changed unilaterally. */
-  background: rgba(255, 255, 255, 0.14);
+     All six banner variants were measured against each gradient's lightest stop, plus
+     the hover state, which the original report never covered:
+
+       - THREE of six failed, not one. --pending 3.15:1, --approved 3.73:1,
+         --no-show 4.39:1, all under the 4.5:1 AA floor for a button label.
+       - The hover state was WORSE than the resting state -- 2.70:1 on the amber banner.
+       - The white frost was itself the cause on two of the three. Remove it entirely and
+         --approved reaches 4.90:1 and --no-show 6.07:1, both passing. Only the amber
+         banner needs an actual dark tint, and it needs 0.08, not the 0.18 first proposed.
+
+     Global 0.08 leaves every variant between 4.52:1 (--pending) and 8.20:1 (--rejected),
+     so nothing is sacrificed by applying it to the variants that already passed -- six
+     per-variant rules would be maintained to avoid an aesthetic change barely perceptible
+     at this alpha. 0.18 was rejected as more than twice the tint required: that is where
+     a light frost genuinely becomes a dark scrim. Hover stays visibly darker than base,
+     so the affordance still reads.
+
+     NOTE FOR ANYONE CHANGING A BANNER GRADIENT: these ratios are computed against each
+     gradient's LIGHTEST stop. Re-measure if a stop moves. */
+  background: rgba(0, 0, 0, 0.08);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 .ad-actions .af-btn--glass:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(0, 0, 0, 0.16);
 }
 
 // next-step callout
