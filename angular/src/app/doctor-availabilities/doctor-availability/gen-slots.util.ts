@@ -100,7 +100,10 @@ export function buildGenerateInput(state: GenFormState): DoctorAvailabilityGener
   };
 
   if (state.mode === 'pick') {
-    return { ...base, selectedDates: [...state.selectedDates].sort() };
+    return {
+      ...base,
+      selectedDates: [...state.selectedDates].sort((a, b) => a.localeCompare(b)),
+    };
   }
 
   return {
@@ -178,7 +181,7 @@ export function countPreviewConflicts(preview: DoctorAvailabilitySlotsPreviewDto
 function dayLabel(dates: string | undefined, days: string | null | undefined): string {
   // `dates` is "MM-dd-yyyy" from the backend; `days` is the full weekday name.
   const parts = (dates ?? '').split('-');
-  const dayNum = parts.length === 3 ? Number(parts[1]) : NaN;
+  const dayNum = parts.length === 3 ? Number(parts[1]) : Number.NaN;
   const dow = (days ?? '').slice(0, 3);
   if (dow && !Number.isNaN(dayNum)) {
     return `${dow} ${dayNum}`;

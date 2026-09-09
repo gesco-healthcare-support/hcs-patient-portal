@@ -165,7 +165,7 @@ export class InternalScheduleComponent implements OnInit {
       to: `${isoDate(lastDay)}T00:00:00`,
     };
     const current = this.range();
-    if (current && current.from === next.from && current.to === next.to) {
+    if (current?.from === next.from && current?.to === next.to) {
       return;
     }
     this.range.set(next);

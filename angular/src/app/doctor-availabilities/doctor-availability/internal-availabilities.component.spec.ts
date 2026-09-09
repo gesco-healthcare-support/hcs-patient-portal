@@ -70,7 +70,78 @@ describe('InternalAvailabilitiesComponent -- all-locations view', () => {
   it('renders an "All locations" option plus one per location', () => {
     const el = create().nativeElement as HTMLElement;
     const options = el.querySelectorAll('#ia-location option');
-    expect(options.length).toBe(3);
+    expect(options).toHaveSize(3);
     expect(options[0].textContent?.trim()).toBe('All locations');
+  });
+});
+
+/**
+ * Sweep #641. The delete-day confirmation had a click-to-dismiss scrim and nothing else, so
+ * a keyboard-only user could open it and not get out.
+ *
+ * <p>Escape routes through `cancelDeleteDay` rather than clearing the signal itself, so the
+ * isBusy guard is inherited. That matters: a delete already in flight must not be
+ * dismissable, or the user is left looking at a page that is still mutating.</p>
+ */
+describe('InternalAvailabilitiesComponent Escape handling (sweep #641)', () => {
+  interface Probe {
+    confirmDay: { set(v: unknown): void; (): unknown };
+    isBusy: { set(v: boolean): void };
+    onEscapeKey(): void;
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [InternalAvailabilitiesComponent],
+      providers: [
+        {
+          provide: DoctorAvailabilityService,
+          useValue: {
+            getLocationLookup: () => of({ items: [] }),
+            getList: () => of({ items: [] }),
+            getSlotPatientNames: () => of([]),
+            delete: () => of(undefined),
+            deleteByDate: () => of({ deletedCount: 0, skippedSlotIds: [] }),
+          },
+        },
+        { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
+        { provide: Router, useValue: { navigateByUrl: () => Promise.resolve(true) } },
+      ],
+    });
+  });
+
+  function probe() {
+    const fixture = TestBed.createComponent(InternalAvailabilitiesComponent);
+    return { fixture, cmp: fixture.componentInstance as unknown as Probe };
+  }
+
+  const aDay = { iso: '2026-06-15', dow: 'Mon', dayNum: 15 };
+
+  it('closes the delete-day confirmation', () => {
+    const { cmp } = probe();
+    cmp.confirmDay.set(aDay);
+    cmp.onEscapeKey();
+    expect(cmp.confirmDay()).toBeNull();
+  });
+
+  it('does not dismiss a delete that is in flight', () => {
+    const { cmp } = probe();
+    cmp.confirmDay.set(aDay);
+    cmp.isBusy.set(true);
+    cmp.onEscapeKey();
+    expect(cmp.confirmDay()).not.toBeNull();
+  });
+
+  it('is inert when nothing is open', () => {
+    const { cmp } = probe();
+    expect(() => cmp.onEscapeKey()).not.toThrow();
+    expect(cmp.confirmDay()).toBeNull();
+  });
+
+  it('is wired to a real document Escape keypress, not just callable', () => {
+    const { cmp } = probe();
+    cmp.confirmDay.set(aDay);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(cmp.confirmDay()).toBeNull();
   });
 });

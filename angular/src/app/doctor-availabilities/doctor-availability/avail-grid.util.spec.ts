@@ -127,7 +127,7 @@ describe('avail-grid.util', () => {
 
       const cols = buildWeekColumns(items, week);
 
-      expect(cols.length).toBe(7);
+      expect(cols).toHaveSize(7);
       expect(cols[0].iso).toBe('2026-06-15');
       expect(cols[0].dow).toBe('Mon');
       expect(cols[0].slots.map((s) => s.fromTime)).toEqual(['08:30:00', '13:00:00']);

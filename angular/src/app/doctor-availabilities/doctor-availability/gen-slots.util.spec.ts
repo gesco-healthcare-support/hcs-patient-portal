@@ -154,7 +154,7 @@ describe('gen-slots.util', () => {
 
     it('maps the preview into per-day grid columns with labels', () => {
       const days = mapPreviewToDays(preview);
-      expect(days.length).toBe(2);
+      expect(days).toHaveSize(2);
       expect(days[0].label).toBe('Mon 15');
       expect(days[0].conflicts).toBe(1);
       expect(days[0].slots[1].conflict).toBeTrue();

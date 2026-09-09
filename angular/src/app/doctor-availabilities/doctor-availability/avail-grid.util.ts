@@ -163,7 +163,7 @@ export function formatWeekRange(weekDates: Date[]): string {
     return '';
   }
   const a = weekDates[0];
-  const b = weekDates[weekDates.length - 1];
+  const b = weekDates.at(-1)!;
   const mon = (d: Date) => d.toLocaleString('en-US', { month: 'short' });
   if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
     return `${mon(a)} ${a.getDate()} - ${b.getDate()}, ${b.getFullYear()}`;

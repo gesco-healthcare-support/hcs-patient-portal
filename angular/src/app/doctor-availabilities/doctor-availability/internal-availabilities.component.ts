@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnInit,
   computed,
   inject,
@@ -121,7 +122,7 @@ export class InternalAvailabilitiesComponent implements OnInit {
     this.loading.set(true);
     const week = this.weekDates();
     const min = `${this.toIso(week[0])}T00:00:00`;
-    const max = `${this.toIso(week[week.length - 1])}T23:59:59`;
+    const max = `${this.toIso(week.at(-1)!)}T23:59:59`;
     this.service
       .getList({
         locationId: locationId || undefined,
@@ -224,6 +225,18 @@ export class InternalAvailabilitiesComponent implements OnInit {
   protected askDeleteDay(col: WeekDayColumn): void {
     this.confirmDay.set(col);
   }
+  /**
+   * Sweep #641: the delete-day confirmation could only be dismissed with the mouse. Routed
+   * through cancelDeleteDay so the isBusy guard is inherited rather than reimplemented -- a
+   * delete in flight must not be dismissable.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.confirmDay()) {
+      this.cancelDeleteDay();
+    }
+  }
+
   protected cancelDeleteDay(): void {
     if (!this.isBusy()) {
       this.confirmDay.set(null);

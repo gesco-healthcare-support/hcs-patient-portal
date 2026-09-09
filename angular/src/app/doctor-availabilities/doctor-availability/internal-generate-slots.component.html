@@ -12,11 +12,12 @@
   <div class="ra-card__body" style="padding: 22px">
     <div class="ra-grid">
       <div class="ra-field col-4">
-        <label>
+        <label for="igs-location">
           Location
           <span class="req">*</span>
         </label>
         <select
+          id="igs-location"
           class="ra-select"
           [ngModel]="locationId()"
           [ngModelOptions]="{ standalone: true }"
@@ -55,11 +56,12 @@
 
       @if (mode() === 'range') {
         <div class="ra-field col-4">
-          <label>
+          <label for="igs-from-date">
             From date
             <span class="req">*</span>
           </label>
           <input
+            id="igs-from-date"
             class="ra-input"
             type="date"
             [ngModel]="fromDate()"
@@ -68,11 +70,12 @@
           />
         </div>
         <div class="ra-field col-4">
-          <label>
+          <label for="igs-to-date">
             To date
             <span class="req">*</span>
           </label>
           <input
+            id="igs-to-date"
             class="ra-input"
             type="date"
             [ngModel]="toDate()"
@@ -165,8 +168,9 @@
         @for (r of timeRanges(); track $index; let i = $index) {
           <div class="gn-range">
             <div class="ra-field">
-              <label style="font-size: 11.5px">From time</label>
+              <label style="font-size: 11.5px" [attr.for]="'igs-from-time-' + i">From time</label>
               <input
+                [id]="'igs-from-time-' + i"
                 class="ra-input"
                 type="time"
                 [value]="r.fromTime"
@@ -174,8 +178,9 @@
               />
             </div>
             <div class="ra-field">
-              <label style="font-size: 11.5px">To time</label>
+              <label style="font-size: 11.5px" [attr.for]="'igs-to-time-' + i">To time</label>
               <input
+                [id]="'igs-to-time-' + i"
                 class="ra-input"
                 type="time"
                 [value]="r.toTime"
@@ -183,11 +188,12 @@
               />
             </div>
             <div class="ra-field">
-              <label style="font-size: 11.5px">
+              <label style="font-size: 11.5px" [attr.for]="'igs-duration-' + i">
                 Duration override
                 <span class="opt">(min)</span>
               </label>
               <input
+                [id]="'igs-duration-' + i"
                 class="ra-input"
                 type="number"
                 min="1"
@@ -214,11 +220,12 @@
       </div>
 
       <div class="ra-field col-3">
-        <label>
+        <label for="igs-capacity">
           Capacity
           <span class="req">*</span>
         </label>
         <input
+          id="igs-capacity"
           class="ra-input"
           type="number"
           min="1"
@@ -229,11 +236,12 @@
         <div class="ra-hint">Appointments allowed per slot.</div>
       </div>
       <div class="ra-field col-3">
-        <label>
+        <label for="igs-default-duration">
           Default duration (min)
           <span class="req">*</span>
         </label>
         <input
+          id="igs-default-duration"
           class="ra-input"
           type="number"
           min="1"
