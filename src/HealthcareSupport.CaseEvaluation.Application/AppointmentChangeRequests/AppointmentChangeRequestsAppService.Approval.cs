@@ -309,12 +309,12 @@ public class AppointmentChangeRequestsApprovalAppService :
         if (!string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
         {
             var token = _consentManager.IssueSideConsent(round, ChangeRequestSide.SideA);
-            toNotify.Add((bothSides.SideARepEmail!, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token));
         }
         if (!string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
         {
             var token = _consentManager.IssueSideConsent(round, ChangeRequestSide.SideB);
-            toNotify.Add((bothSides.SideBRepEmail!, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
         }
 
         await _consentRoundRepository.InsertAsync(round, autoSave: true);
@@ -383,13 +383,13 @@ public class AppointmentChangeRequestsApprovalAppService :
             && !string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
         {
             var token = _consentManager.ReissueSideConsent(round, ChangeRequestSide.SideA);
-            toNotify.Add((bothSides.SideARepEmail!, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token));
         }
         if (round.SideConsentStatus(ChangeRequestSide.SideB) == ChangeRequestConsentStatus.Pending
             && !string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
         {
             var token = _consentManager.ReissueSideConsent(round, ChangeRequestSide.SideB);
-            toNotify.Add((bothSides.SideBRepEmail!, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
         }
 
         // The attempt counter is what makes the outbox idempotency key distinct. Bumping it is
@@ -751,9 +751,12 @@ public class AppointmentChangeRequestsApprovalAppService :
             createdToUtc: input.CreatedToUtc);
 
         var totalCount = filtered.Count();
-        var sorted = string.IsNullOrWhiteSpace(input.Sorting)
-            ? filtered.OrderByDescending(c => c.CreationTime)
-            : filtered.OrderByDescending(c => c.CreationTime); // SafeFallback: ABP's PagedAndSortedResultRequestDto sorting parsing requires DynamicLinq; per branch CLAUDE.md we avoid string-LINQ for new code.
+        // input.Sorting is DELIBERATELY IGNORED: ABP's PagedAndSortedResultRequestDto sorting
+        // parsing requires DynamicLinq, and the branch CLAUDE.md forbids string-LINQ in new code.
+        // This was previously written as a ternary whose two branches were byte-identical, which
+        // read as though a caller's sort order were honoured on one path. Collapsed 2026-09-09
+        // (#649) so the single ordering is visible; results are always newest-first.
+        var sorted = filtered.OrderByDescending(c => c.CreationTime);
         var paged = sorted
             .Skip(input.SkipCount)
             .Take(input.MaxResultCount)

@@ -30,10 +30,7 @@ internal static class ChangeRequestApprovalValidator
     /// </summary>
     public static void EnsurePending(AppointmentChangeRequest request)
     {
-        if (request == null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
         if (request.RequestStatus != RequestStatusType.Pending)
         {
             throw new BusinessException(

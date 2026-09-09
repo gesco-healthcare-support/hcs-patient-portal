@@ -87,7 +87,12 @@ public class PublicChangeRequestConsentAppService :
                 if (slot != null)
                 {
                     var date = slot.AvailableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                    var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second)
+                    // Kind is Unspecified deliberately: this is a throwaway carrier for a
+                    // wall-clock time-of-day, rendered straight to "h:mm tt" and never stored,
+                    // compared, or converted between zones. The date part is arbitrary. Stated
+                    // explicitly because this codebase has already shipped a UTC-vs-Pacific date
+                    // onto a legal document, so a bare DateTime here invites the wrong question.
+                    var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second, DateTimeKind.Unspecified)
                         .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
                     newDateTime = $"{date} at {time}";
                 }

@@ -28,10 +28,7 @@ internal static class ChangeRequestListFilter
         DateTime? createdFromUtc,
         DateTime? createdToUtc)
     {
-        if (source == null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentNullException.ThrowIfNull(source);
 
         var filtered = source;
 
