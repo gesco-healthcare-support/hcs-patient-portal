@@ -445,9 +445,9 @@ export class ManagedTableComponent implements OnInit, AfterContentInit {
   protected sortableColumns: ManagedTableColumn[] = [];
 
   @ContentChildren(ManagedTableCellDirective, { descendants: true })
-  private cellDirectives!: QueryList<ManagedTableCellDirective>;
+  private readonly cellDirectives!: QueryList<ManagedTableCellDirective>;
   @ContentChild(ManagedTableRowActionsDirective)
-  private rowActionsDirective?: ManagedTableRowActionsDirective;
+  private readonly rowActionsDirective?: ManagedTableRowActionsDirective;
 
   private cellTemplates = new Map<string, TemplateRef<ManagedTableRowContext>>();
 

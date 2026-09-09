@@ -43,7 +43,7 @@ describe('phoneDigits / formatPartialUsPhone', () => {
   });
 
   it('never exceeds ten digits however many are supplied', () => {
-    expect(phoneDigits('9'.repeat(30)).length).toBe(PHONE_DIGIT_COUNT);
+    expect(phoneDigits('9'.repeat(30))).toHaveSize(PHONE_DIGIT_COUNT);
   });
 });
 

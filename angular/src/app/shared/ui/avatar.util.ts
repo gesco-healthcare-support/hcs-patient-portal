@@ -13,8 +13,11 @@ const AVATAR_PALETTE = [
 
 export function avatarColor(seed: string): string {
   let h = 0;
+  // `for...of` yields whole code points, so codePointAt(0) is the matching read.
+  // charCodeAt(0) took only the lead surrogate of an astral character and dropped the
+  // rest. (Contrast users-hub.util.ts, which steps by code UNIT and refuses this rule.)
   for (const ch of seed) {
-    h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
   }
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }

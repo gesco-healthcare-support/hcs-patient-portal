@@ -113,8 +113,10 @@ export class ExternalNavbarComponent {
       '#a35a26',
     ];
     let h = 0;
+    // Same reasoning as ui/avatar.util.ts: `for...of` steps by code point, so the read
+    // must too. charCodeAt(0) discarded the low surrogate of an astral character.
     for (const ch of this.userName) {
-      h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
     }
     return palette[h % palette.length];
   }

@@ -5,7 +5,10 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
-import { InternalShellLayoutComponent } from './internal-shell-layout.component';
+import {
+  buildAuthServerUrl,
+  InternalShellLayoutComponent,
+} from './internal-shell-layout.component';
 import { InternalNavBadgeService } from '../../services/internal-nav-badge.service';
 import { BrandingService } from '../../branding/branding.service';
 import { InternalUsersService } from '../../../proxy/internal-users/internal-users.service';
@@ -165,5 +168,64 @@ describe('InternalShellLayoutComponent office-to-office switch', () => {
     c.impersonating.set(false);
 
     expect(c.roleLabel()).toBe('Administrator');
+  });
+});
+
+/**
+ * Sweep #640. `buildAuthServerUrl` composes the AuthServer Razor URL from the runtime OAuth
+ * issuer, which carries the correct host:port for the current tenant subdomain. Getting the
+ * join wrong sends a user to the wrong office's login, so it is worth pinning.
+ *
+ * <p>The trailing-slash trim used to be `replace(/\/+$/, '')`. Sonar flagged it (S8786) and
+ * was right: `+` retries every split before `$` can fail, so `"/".repeat(n) + "a"` backtracks
+ * quadratically. Scanning back from the end is linear. Exported so the replacement has a test
+ * rather than only a comment.</p>
+ */
+describe('buildAuthServerUrl (sweep #640)', () => {
+  it('joins the issuer and the path', () => {
+    expect(buildAuthServerUrl('https://admin.auth.example.test', '/Account/Manage')).toBe(
+      'https://admin.auth.example.test/Account/Manage',
+    );
+  });
+
+  it('trims a single trailing slash so the path is not doubled', () => {
+    expect(buildAuthServerUrl('https://admin.auth.example.test/', '/Account/Manage')).toBe(
+      'https://admin.auth.example.test/Account/Manage',
+    );
+  });
+
+  it('trims a run of trailing slashes', () => {
+    expect(buildAuthServerUrl('https://admin.auth.example.test///', '/Account/Manage')).toBe(
+      'https://admin.auth.example.test/Account/Manage',
+    );
+  });
+
+  it('keeps slashes that are not at the end', () => {
+    // The scan must stop at the first non-slash from the right, not strip every slash.
+    expect(buildAuthServerUrl('https://host.test/base/', '/x')).toBe('https://host.test/base/x');
+  });
+
+  it('falls back to the bare path when the issuer is empty', () => {
+    expect(buildAuthServerUrl('', '/Account/Manage')).toBe('/Account/Manage');
+  });
+
+  it('falls back to the bare path when the issuer is only slashes', () => {
+    // Trimming leaves an empty base, which must take the fallback rather than emit "//x".
+    expect(buildAuthServerUrl('///', '/Account/Manage')).toBe('/Account/Manage');
+  });
+
+  it('falls back when the issuer is null at runtime', () => {
+    expect(buildAuthServerUrl(null as unknown as string, '/Account/Manage')).toBe(
+      '/Account/Manage',
+    );
+  });
+
+  it('is linear on the input that made the old regex quadratic', () => {
+    // "/".repeat(n) + "a" is the adversarial shape for /\/+$/. The assertion is the result;
+    // the point of the case is that it returns at all rather than stalling.
+    const issuer = '/'.repeat(20000) + 'a';
+    const started = Date.now();
+    expect(buildAuthServerUrl(issuer, '/x')).toBe(issuer + '/x');
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 });

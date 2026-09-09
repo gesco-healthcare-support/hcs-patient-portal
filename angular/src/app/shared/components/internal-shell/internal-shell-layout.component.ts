@@ -256,7 +256,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     const parts = this.userName().trim().split(/\s+/).filter(Boolean);
     if (parts.length === 0) return '?';
     const first = parts[0][0] ?? '';
-    const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
+    const last = parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : '';
     return (first + last).toUpperCase() || '?';
   });
 
@@ -569,7 +569,16 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
 /** Build an AuthServer Razor URL from the runtime OAuth issuer (carries the
  *  correct host:port for the current tenant subdomain). Falls back to the bare
  *  path if the issuer is unavailable. */
-function buildAuthServerUrl(issuer: string, path: string): string {
-  const base = (issuer ?? '').replace(/\/+$/, '');
+export function buildAuthServerUrl(issuer: string, path: string): string {
+  // Trailing slashes trimmed without a regex (Sonar typescript:S8786). `/\/+$/` backtracks
+  // quadratically on a run of slashes followed by anything else -- "/".repeat(n) + "a" is the
+  // shape -- because `+` has to retry every split before `$` can fail. Scanning back from the
+  // end is linear and says the same thing.
+  const raw = issuer ?? '';
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === '/') {
+    end--;
+  }
+  const base = raw.slice(0, end);
   return base ? `${base}${path}` : path;
 }

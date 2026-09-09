@@ -116,8 +116,8 @@ export class SsnInputComponent implements ControlValueAccessor {
 
   private static readonly IdleMs = 1200;
   // I14 (2026-06-08): bullet (codepoint U+2022) used to redact hidden SSN
-  // digits. Built via fromCharCode to keep the source ASCII-only.
-  private static readonly RedactionDot = String.fromCharCode(0x2022);
+  // digits. Built from its code point to keep the source ASCII-only.
+  private static readonly RedactionDot = String.fromCodePoint(0x2022);
 
   // ----- display computeds -----
 
@@ -159,7 +159,7 @@ export class SsnInputComponent implements ControlValueAccessor {
     // I14 (2026-06-08): the DTO masks the stored value with '*' (***-**-1234);
     // render the hidden digits as bullet circles (codepoint U+2022) for a
     // cleaner redaction. The escape keeps the source ASCII-only.
-    return (this.currentMaskedSsn ?? '').replace(/\*/g, SsnInputComponent.RedactionDot);
+    return (this.currentMaskedSsn ?? '').replaceAll('*', SsnInputComponent.RedactionDot);
   }
 
   canReveal(): boolean {

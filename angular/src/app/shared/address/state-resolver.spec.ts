@@ -43,6 +43,6 @@ describe('resolveStateId', () => {
   });
 
   it('covers all 50 states + DC in the USPS map', () => {
-    expect(Object.keys(USPS_STATE_NAMES).length).toBe(51);
+    expect(Object.keys(USPS_STATE_NAMES)).toHaveSize(51);
   });
 });

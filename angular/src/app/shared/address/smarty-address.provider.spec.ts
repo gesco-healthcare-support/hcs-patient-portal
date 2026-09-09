@@ -37,7 +37,7 @@ describe('SmartyAddressProvider', () => {
 
     it('maps Smarty suggestions and sends the key + search params', (done) => {
       provider.autocomplete('100 main').subscribe((r) => {
-        expect(r.length).toBe(1);
+        expect(r).toHaveSize(1);
         expect(r[0].street).toBe('100 Main St');
         expect(r[0].city).toBe('Springfield');
         expect(r[0].state).toBe('IL');
