@@ -180,7 +180,12 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
             templateCode: NotificationTemplateConsts.Codes.UserRegistered,
             recipient: emailAddress ?? string.Empty,
             variables: BuildCodeVariables(firstName: null, lastName: null, code: code),
-            contextTag: $"AccountEmailer/ConfirmationCode/{emailAddress}");
+            // Phase 4.1 -- CodeQL alert 211. This tag reaches a LogWarning on the
+            // template-missing branch, past the empty-recipient guard, so an unmasked
+            // address here is a full patient identifier in a log. Masked at the
+            // construction site because the tag has two sinks (the Warning logs and
+            // Context on the enqueued job) and one edit cleans both.
+            contextTag: $"AccountEmailer/ConfirmationCode/{EmailAddressVisibility.Mask(emailAddress)}");
     }
 
     private async Task DispatchAsync(
