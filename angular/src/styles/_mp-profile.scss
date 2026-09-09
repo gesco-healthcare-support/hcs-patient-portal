@@ -76,7 +76,10 @@
   gap: 7px;
   margin-top: 8px;
   background: rgba(157, 193, 59, 0.22);
-  color: #d7e9ab;
+  /* #d7e9ab on the effective #28728b measured 4.17:1, under the 4.5:1 AA floor
+     (Sonar css:S7924). Lightened to 4.55:1; the green tint is kept rather than
+     going white, which would have read as a different chip. */
+  color: #e4f0c8;
   padding: 4px 12px;
   border-radius: var(--r-pill);
   font-size: 12px;
@@ -190,7 +193,8 @@
   font-size: 13.5px;
   color: var(--n-900);
   font-weight: 600;
-  word-break: break-word;
+  /* `word-break: break-word` is deprecated. Per spec it is exactly `overflow-wrap: anywhere`, NOT `overflow-wrap: break-word` -- the latter does not allow breaking to reduce a container's min-content width, so swapping to it would narrow where these can wrap. Kept exact (Sonar css:S1874). */
+  overflow-wrap: anywhere;
 }
 .mp-field .v.mono {
   font-family: var(--font-num);

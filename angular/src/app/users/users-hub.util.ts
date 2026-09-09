@@ -196,7 +196,27 @@ const AVATAR_COLORS = [
   '#c2410c',
 ];
 
-/** Deterministic avatar background from a seed string (stable per user). */
+/**
+ * Deterministic avatar background from a seed string (stable per user).
+ *
+ * Three Sonar suggestions on this function are deliberately NOT applied,
+ * because each changes behaviour rather than tidying it. Measured, not argued:
+ *
+ * - `typescript:S7767` wants `Math.trunc` instead of `| 0`. The `| 0` is
+ *   load-bearing: it wraps to a 32-bit signed integer, which is the whole
+ *   point of a rolling hash. `Math.trunc` does not wrap, so the value runs
+ *   past Number.MAX_SAFE_INTEGER -- 7.3e+25 for a normal email seed -- and
+ *   loses integer precision entirely. Two of five realistic seeds changed
+ *   colour when tried.
+ * - `typescript:S7758` wants `codePointAt` instead of `charCodeAt`. They agree
+ *   only inside the BMP. The loop steps by code UNIT, so on an astral
+ *   character the two disagree and the colour changes.
+ * - `typescript:S7760` wants a default parameter instead of `?? ''`. A default
+ *   applies only to `undefined`, so an explicit `null` would flow through to
+ *   `null.length` and THROW. The signature accepts null deliberately.
+ *
+ * All three need won't-fix triage in SonarCloud rather than a code change.
+ */
 export function avatarColor(seed: string | null | undefined): string {
   const value = seed ?? '';
   let hash = 0;

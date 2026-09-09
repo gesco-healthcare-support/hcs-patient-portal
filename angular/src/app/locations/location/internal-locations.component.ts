@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnInit,
   computed,
   inject,
@@ -176,6 +177,33 @@ export class InternalLocationsComponent implements OnInit {
       concurrencyStamp: loc?.concurrencyStamp,
     });
   }
+  /**
+   * Escape closes whichever modal is open.
+   *
+   * Both modals could previously be dismissed only with the mouse -- the
+   * backdrop click or the X button -- which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the two `.ra-scrim`
+   * divs. The keyboard equivalent belongs on the document rather than on the
+   * backdrop: a div is not focusable, so a `(keydown.escape)` bound to the
+   * scrim itself would never fire, and giving it a tabindex would put a tab
+   * stop on a decorative overlay.
+   *
+   * Delegates to the existing close methods rather than clearing the signals,
+   * so their isBusy guard is inherited and Escape cannot discard a save that
+   * is still in flight. The delete confirmation is checked first because it
+   * renders over the edit form when both are open.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.confirmDelete()) {
+      this.cancelDelete();
+      return;
+    }
+    if (this.form()) {
+      this.closeModal();
+    }
+  }
+
   protected closeModal(): void {
     if (!this.isBusy()) {
       this.form.set(null);
