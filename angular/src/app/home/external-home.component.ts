@@ -377,7 +377,8 @@ export class ExternalHomeComponent implements OnInit {
     this.router.navigateByUrl('/user-management/patients/my-profile');
   }
   protected openMyDocuments(): void {
-    // TODO(redesign slice 7): dedicated My Documents page. Route to profile for now.
+    // The dedicated My Documents page is a later redesign slice, tracked in #729;
+    // until it exists this opens the profile, which is where documents are reachable.
     this.router.navigateByUrl('/user-management/patients/my-profile');
   }
   protected openQuery(): void {
