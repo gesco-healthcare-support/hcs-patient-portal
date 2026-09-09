@@ -54,7 +54,7 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
             return null;
         }
 
-        var bytes = await _packetsContainer.GetAllBytesOrNullAsync(packet.BlobName);
+        var bytes = await _packetsContainer.GetAllBytesOrNullAsync(packet.BlobName, cancellationToken);
         if (bytes == null)
         {
             _logger.LogWarning(
