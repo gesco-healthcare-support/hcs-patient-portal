@@ -31,7 +31,7 @@ hardening  Numbered items in phases 4 onward only. Phases 1 and 2 are complete
            being done.
 backlog    docs/backlog.md, which is gitignored and therefore a NEW disclosure
            rather than a re-publication. Redacted before import: see `redact`.
-sweep      One batch per directory tree, carrying every static-analysis finding
+cleanup    One code-cleanup issue per directory tree, carrying every static-analysis
            for it. Batching by directory rather than by rule is what lets two
            people work in parallel without touching the same file.
 
@@ -287,7 +287,7 @@ def _finding_counts_by_file() -> collections.Counter:
 
 
 def _is_held(f: str) -> bool:
-    """True when a hardening session owns this path, so no sweep may claim it."""
+    """True when a hardening session owns this path, so no code-cleanup issue may claim it."""
     if any(f.startswith(p) for p in HELD_PREFIXES) or f in HELD_FILES:
         return True
     return "Dockerfile" in f or "/" not in f
@@ -312,8 +312,8 @@ def _owning_directory(f: str) -> str:
     return p[0]
 
 
-def _sweep_severity(count: int) -> str:
-    """Severity band for a sweep, by how much work it represents."""
+def _cleanup_severity(count: int) -> str:
+    """Severity band for a code-cleanup issue, by how much work it represents."""
     if count >= 60:
         return SEV_HIGH
     return SEV_MEDIUM if count >= 25 else SEV_LOW
@@ -365,7 +365,7 @@ def collect_code_cleanup() -> list[dict]:
             # re-create all 43 issues as duplicates. The label constants hold the
             # live label names `type/sweep` / `source/sweep`, which were kept.
             "key": f"SWEEP-{idx:02d}", "title": f"Code cleanup: {name} ({count} findings)",
-            "labels": [_sweep_severity(count), TYPE_SWEEP, SRC_SWEEP],
+            "labels": [_cleanup_severity(count), TYPE_SWEEP, SRC_SWEEP],
             "body": (f"{count} open Sonar issues, security hotspots and CodeQL alerts in the "
                      f"paths below.\n\n**Paths (this issue owns these exclusively):**\n{listed}\n\n"
                      f"Assigning yourself is the claim. Do not edit files outside these paths -- "
