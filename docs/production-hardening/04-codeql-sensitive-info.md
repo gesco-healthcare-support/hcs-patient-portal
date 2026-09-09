@@ -35,6 +35,108 @@ Scorecard findings and belong to phase 2. Do not conflate them.
 
 ---
 
+## COMPLETE as of 2026-09-09 -- 0 open sensitive-information alerts
+
+Final state of the whole population, measured rather than asserted:
+
+```text
+ 7  dismissed / false positive
+14  dismissed / won't fix
+18  fixed (closed by code before this phase)
+ 0  OPEN
+```
+
+Phase 4 itself fixed **1 real defect** and dismissed **18** with per-group rationale.
+
+| Lane | Alerts | Outcome |
+| ---- | ------ | ------- |
+| 4.1 emailer and dispatcher | 5 | **1 REAL**, fixed in #752; 4 dismissed |
+| 4.2 seed contributors | 13 | all safe-intentional, dismissed Won't fix |
+| 4.3 approval path | 1 | false positive, dismissed |
+
+### The one real defect
+
+`CaseEvaluationAccountEmailer.cs:183` built
+`contextTag: $"AccountEmailer/ConfirmationCode/{emailAddress}"`, and `:205` wrote that tag to a
+**Warning-level log** on the template-missing branch, past the empty-recipient guard. A full patient
+email address reached the logs.
+
+That tag has **three use sites across two sinks** -- `:196` and `:205` both log it, and `:218` puts it
+into the background-job args -- so the fix went at the construction site, which cleans all three.
+
+Fixed in **#752** by `EmailAddressVisibility.Mask`, mirroring the existing `SsnVisibility` precedent:
+`internal static`, pure, its own unit-test file, splitting on the LAST `@` because a quoted local part
+may legally contain one, and revealing no domain at all when the input is not an address.
+
+**Masking was chosen over dropping the discriminator** (2026-09-09) to keep per-invocation correlation
+on that path. That choice has a consequence nobody predicted.
+
+### THE FIX DID NOT CLOSE THE ALERT -- the phase's most transferable finding
+
+CodeQL re-analysed `main` with the fix in place (`afe83015`, 2026-09-09 22:35) and **alert 211 still
+fired**, reporting seven flow paths.
+
+**CodeQL cannot see that `Mask()` sanitizes.** Its taint tracking follows
+`emailAddress -> Mask() -> contextTag -> LogWarning`, and any function that takes tainted input and
+returns a derived string propagates taint unless the query is told otherwise.
+
+So the risk is genuinely fixed and the query is genuinely still right about the path. Dismissed as
+**Won't fix** rather than False positive, because the query is not wrong -- what closes it is our
+judgement that a masked address is not an identifier.
+
+**This file's own done-bar predicted exactly this:** _"A fix that satisfies a reviewer but not the
+query has not closed the alert."_ It is the reason a phase must not be written complete off a green
+workflow. Every surface signal said done -- three PRs merged, the cascade landed, the workflow green,
+eighteen alerts dismissed -- and the one honest measurement said otherwise.
+
+A permanent sanitizer model is tracked in **#772**, deliberately deferred. Dismissal is proportionate
+for one alert and does not scale, so the trigger recorded there is **a second masked flow**.
+
+### THE DONE-BAR HAD AN UNSTATED DEPENDENCY ON A WEEKLY JOB
+
+The validation loop below says to re-run CodeQL and watch the `cs/` count drop. **It does not say that
+on `main` that only happens on Mondays.**
+
+```text
+codeql-pr.yml    on: pull_request only
+security.yml     on: schedule "0 6 * * 1"  plus workflow_dispatch
+```
+
+A mid-week merge therefore leaves the count unchanged for up to six days, and anyone following the
+loop literally would watch a static number and reasonably conclude the fix had failed. **Dispatch
+`security.yml` manually to close the loop the same day.**
+
+### THE SCANNER UNDER-REPORTS
+
+`InternalUsersDataSeedContributor.cs:35` declares the same `DefaultPassword` as the three flagged
+contributors and carries the same fail-closed gate, and **CodeQL never flagged it**. So "13 alerts"
+was the scanner's view, not the size of the surface. Same shape as the `docker:S6471` under-report
+already in the phase 2 catalogue. It changes no verdict -- all four are gated -- but it is the reason
+never to read an alert count as a population count.
+
+### FOUND ALONGSIDE, AND FIXED
+
+Reading the code next to the flagged item produced two genuine WCAG AA failures nobody had measured:
+
+- **#744**, the banner action button. Three of six variants failing, and the hover state at 2.70:1,
+  worse than the resting state it was raised for. Fixed in #755.
+- **#756**, the banner callout, found while fixing #744. Two of six failing, plus its icon container
+  failing unmeasured at 2.55:1. Fixed in #761.
+
+That is phase 1's lesson for the fifth time in this epic: **the real defects were next to the flagged
+one**, found by reading its neighbours rather than by any check reporting them.
+
+### Delivered
+
+```text
+#752  d9a64b20  mask the address in the emailer context tag
+#755  dea8138f  tint the banner glass button for WCAG AA
+#761  2e0f3e11  darken the banner callout for WCAG AA
+#768            cascade epic -> main
+```
+
+---
+
 ## The alerts, grouped by file
 
 | Alerts | File                                                                                           | Rule                                       |
