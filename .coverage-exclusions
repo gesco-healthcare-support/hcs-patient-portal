@@ -142,3 +142,65 @@ angular/src/app/proxy/**
 # a list whose every line is supposed to carry a reason.
 **/obj/**
 **/bin/**
+
+# ---------------------------------------------------------------------------
+# Phase 8.1 (2026-09-09): the DENOMINATOR decision. Adrian's ruling.
+#
+# Phase 8 targets 90% line coverage, so before measuring anything the question
+# had to be settled: does the denominator describe application code? 1,842
+# uncovered lines sat in `tools`, `scripts`, `.claude/scripts`,
+# `docker/packet-renderer` and `tests/e2e-demo`.
+#
+# THE ANSWER WAS MOSTLY "IT BELONGS", and that is the part worth recording,
+# because the cheap move was to exclude all of it and watch the percentage rise.
+# 1,294 of the 1,842 stay IN and remain uncovered DELIBERATELY, pending Python
+# test infrastructure that does not exist in this repository yet:
+#
+#   docker/packet-renderer/app.py          44  a PRODUCTION gunicorn service --
+#                                              docker-compose.prod.yml:144, reached at
+#                                              PacketRenderer__Url, renders the
+#                                              PHI-bearing packet PDFs
+#   tools/packet-templates                882  COPIED INTO that image and RUN at build
+#                                              (Dockerfile:4, :60) -- its output ships
+#   scripts/coverage-gate.py              223  this list's own second consumer, and the
+#                                              instrument every phase 8 figure comes from
+#   .claude/scripts/verify_structure.py   145  BLOCKING CI gate (ci.yml:309, no `|| true`)
+#
+# Only 548 lines are excluded, below. Each is named, none is a wildcard.
+#
+# WHICH CONSUMER THESE ACTUALLY AFFECT, stated because the header above insists
+# every line carries a reason and warns that an entry which can never match is
+# noise. These four are NOT that case, but they are not the usual case either:
+#
+#   sonarcloud.yml      APPLIES them. Sonar analyses Python and TypeScript, counts
+#                       these files, and reports them 100% uncovered today.
+#   coverage-gate.py    READS them and they match nothing, because it ingests only
+#                       --lcov (karma, angular/src) and --cobertura (.NET). No Python
+#                       enters either report, and tests/e2e-demo is a separate
+#                       Playwright project outside the Angular lcov.
+#
+# That is different from node_modules/dist, which were deliberately left out
+# because they can match in NEITHER consumer. These match in one, which is the
+# whole reason they are here: without them Sonar's denominator counts tooling
+# that no runner will ever cover.
+
+# Manual regeneration only. docs/repo-map/README.md:47 -- "Regeneration is manual
+# via the build-repo-map.py script". Nothing invokes it at build or in CI, so a
+# test of it would protect nothing that can break the build.
+.claude/scripts/build-repo-map.py
+
+# One-shot import tool. Referenced from the phase record and from no workflow;
+# `git grep import-issues -- .github` returns nothing. Same reasoning as
+# build-repo-map.py: not on any path that can fail.
+scripts/maintenance/import-issues.py
+
+# Non-blocking BY DESIGN. ci.yml:311 runs it as `check-links.py || true`, with a
+# comment saying pre-existing broken links must not fail CI. Testing a script that
+# cannot fail the build protects nothing -- and note the contrast with its sibling
+# verify_structure.py at :309, which has no `|| true` and is therefore IN scope.
+.claude/scripts/check-links.py
+
+# Test helpers, not application code. Playwright fixtures for the demo E2E project
+# (its own package.json, outside the Angular workspace). Coverage of the instrument
+# rather than the subject; measuring it would be circular.
+tests/e2e-demo/**

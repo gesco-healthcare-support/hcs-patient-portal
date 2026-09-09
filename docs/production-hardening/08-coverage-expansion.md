@@ -79,6 +79,70 @@ Phase 3 already covered the five dangerous paths. This phase expands outward fro
 
 ---
 
+## 8.1 -- the denominator, SETTLED 2026-09-09
+
+Before any figure in this phase means anything, the denominator had to describe application code.
+**1,842 uncovered lines sat outside `src/` and `angular/`**, in `tools`, `scripts`,
+`.claude/scripts`, `docker/packet-renderer` and `tests/e2e-demo`.
+
+**The answer was mostly "it belongs", and that is the part worth recording** -- the cheap move was
+to exclude all of it and watch the percentage rise. Adrian's ruling, on measurement:
+
+| Verdict | Lines     | What                                                                                                                                        |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IN**  | **1,294** | `docker/packet-renderer/app.py` 44; `tools/packet-templates` 882; `scripts/coverage-gate.py` 223; `.claude/scripts/verify_structure.py` 145 |
+| **OUT** | **548**   | `build-repo-map.py` 204; `import-issues.py` 244; `check-links.py` 74; `tests/e2e-demo` 26                                                   |
+
+### Why the big items stayed IN
+
+- **`docker/packet-renderer/app.py` is a production service**, not tooling.
+  `docker-compose.prod.yml:144` builds it, `:286` reaches it at `PacketRenderer__Url`, and
+  `Dockerfile:76` runs it under gunicorn. It renders the PHI-bearing packet PDFs.
+- **`tools/packet-templates` is baked into that image.** `Dockerfile:4` says so outright --
+  "COPIED in and RUN at image build" -- and `:60` copies it to `/app/generators`. Its output ships.
+- **`scripts/coverage-gate.py` is the instrument** every figure in this phase comes from, and it has
+  no tests. The catalogue already records three defects in it (instances 19, 20, 21), all found by
+  ad-hoc harnesses. **A coverage gate with no tests is the shape phase 2 existed to remove.**
+- **`.claude/scripts` split by whether it gates.** `verify_structure.py` runs at `ci.yml:309` with
+  no `|| true` and can fail the build, so it is in. `check-links.py` at `:311` carries `|| true` by
+  design, so testing it protects nothing.
+
+**The 1,294 IN lines remain uncovered deliberately**, pending Python test infrastructure -- there is
+none in this repository (`git ls-files | grep -iE "pytest|conftest|tox\.ini|pyproject"` returns
+nothing). That is package **8.1b**, deliberately separated so a red CI has one candidate cause.
+**Do not read those lines as forgotten.**
+
+### One correction to the framing, and one measurement trap
+
+**The PowerShell and shell were never in the denominator.** `scripts` holds 41 `.ps1` and 11 `.sh`;
+Sonar reports `ncloc` for them and **no `lines_to_cover`**. This was always a Python and TypeScript
+question.
+
+**The per-file figures had to be queried file by file.** `api/measures/component_tree?ps=500`
+returns exactly 500 components and silently truncates -- it omitted `coverage-gate.py`,
+`verify_structure.py` and `check-links.py` entirely. A count read off that page would have been
+confidently short. Query `api/measures/component` per file, or page properly.
+
+### Where the exclusions live, and which consumer they reach
+
+In `.coverage-exclusions` -- the one list with two consumers, each entry named with its reason.
+**Neither consumer was assumed to read them:**
+
+- **`sonarcloud.yml` APPLIES them.** Its list-building command was reproduced locally; all four new
+  patterns appear in the string it passes to `sonar.coverage.exclusions`, and none of the four IN
+  paths does.
+- **`coverage-gate.py` READS them and they match nothing**, because it ingests only `--lcov`
+  (karma, `angular/src`) and `--cobertura` (.NET). No Python enters either report. Proven by
+  positive control rather than by inspection: a temporary `src/Beta/**` against a fixture moved it
+  from 25.00% (1/4 over 2 files) to 50.00% (1/2 over 1 file), then was removed and the file
+  verified byte-identical.
+
+That distinction matters against the list's own rule that an entry which can never match is noise.
+These match in one consumer, not neither -- which is precisely why they are needed: without them
+Sonar's denominator counts tooling no runner will ever cover.
+
+---
+
 ## Correct the coverage documentation first
 
 `docs/testing/coverage-status.md` declares itself "the single source of truth for backend test
