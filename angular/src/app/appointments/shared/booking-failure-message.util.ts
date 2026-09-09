@@ -67,7 +67,7 @@ function joinSections(sections: readonly string[]): string {
   if (sections.length <= 1) {
     return sections[0] ?? '';
   }
-  return `${sections.slice(0, -1).join(', ')} and ${sections[sections.length - 1]}`;
+  return `${sections.slice(0, -1).join(', ')} and ${sections.at(-1)}`;
 }
 
 /**
