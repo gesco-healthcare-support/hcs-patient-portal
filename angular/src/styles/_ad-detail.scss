@@ -177,10 +177,34 @@
 
 // next-step callout
 .ad-callout {
+  /* #756 (2026-09-09): a BLACK tint at 0.25, replacing the white frost, for the same
+     compositing reason as the glass button a few rules above -- see that comment for
+     the per-variant working rather than repeating it here.
+
+     WHY 0.25 AND NOT THE BUTTON'S 0.08, since two tints on one banner otherwise look
+     like an inconsistency to be tidied away: this panel carries DIMMED text. The
+     `span` below is rgba(255,255,255,0.8) by design, one step quieter than the bold
+     line above it. At 0.08 even PURE WHITE measures 4.51:1 on the amber banner -- it
+     clears the 4.5 floor by a hundredth -- so no dimmed text of any alpha can pass
+     there. Keeping the hierarchy therefore forces a darker panel. 0.25 is the minimum
+     that works: 0.20 leaves the span at 4.28:1.
+
+     Measured at 0.25, worst case across all six banner variants:
+       .ad-callout b     (inherits #fff)   6.24:1   floor 4.5   PASS
+       .ad-callout span  (white 0.8)       4.66:1   floor 4.5   PASS
+       .ic glyph         (white on .ic)    4.18:1   floor 3.0   PASS  (non-text)
+     .ic needs no rule of its own: it composites over THIS background, so darkening
+     the panel carries it. It measured 2.55:1 before this change and was failing.
+
+     RECORDED, NOT ASSERTED: the 1px rgba(255,255,255,0.22) border measures 1.63:1
+     against the panel it encloses. That is not read as a violation -- WCAG 1.4.11
+     covers components you interact with and graphics needed to understand content,
+     and a decorative edge on a static informational panel is neither. Noted so the
+     next person does not re-derive it. */
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--r-md);
   padding: 12px 16px;
