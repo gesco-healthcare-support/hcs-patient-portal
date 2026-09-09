@@ -46,8 +46,11 @@
     <div class="card-body">
       <div class="row">
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">First Name *</label>
+          <label [for]="role + '-attorney-first-name'" class="form-label fw-semibold">
+            First Name *
+          </label>
           <input
+            [id]="role + '-attorney-first-name'"
             class="form-control"
             [formControlName]="prefix + 'FirstName'"
             placeholder="FIRST NAME"
@@ -56,8 +59,11 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Last Name *</label>
+          <label [for]="role + '-attorney-last-name'" class="form-label fw-semibold">
+            Last Name *
+          </label>
           <input
+            [id]="role + '-attorney-last-name'"
             class="form-control"
             [formControlName]="prefix + 'LastName'"
             placeholder="LAST NAME"
@@ -66,8 +72,9 @@
           />
         </div>
         <div class="col-md-6 mb-3">
-          <label class="form-label fw-semibold">Email *</label>
+          <label [for]="role + '-attorney-email'" class="form-label fw-semibold">Email *</label>
           <input
+            [id]="role + '-attorney-email'"
             type="email"
             class="form-control"
             [formControlName]="prefix + 'Email'"
@@ -77,8 +84,11 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Firm Name *</label>
+          <label [for]="role + '-attorney-firm-name'" class="form-label fw-semibold">
+            Firm Name *
+          </label>
           <input
+            [id]="role + '-attorney-firm-name'"
             class="form-control"
             [formControlName]="prefix + 'FirmName'"
             placeholder="FIRM NAME"
@@ -98,8 +108,11 @@
           }
         </div>
         <div class="col-md-6 mb-3">
-          <label class="form-label fw-semibold">Website</label>
+          <label [for]="role + '-attorney-web-address'" class="form-label fw-semibold">
+            Website
+          </label>
           <input
+            [id]="role + '-attorney-web-address'"
             class="form-control"
             [formControlName]="prefix + 'WebAddress'"
             placeholder="WEBSITE"
@@ -107,8 +120,11 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Phone Number *</label>
+          <label [for]="role + '-attorney-phone-number'" class="form-label fw-semibold">
+            Phone Number *
+          </label>
           <input
+            [id]="role + '-attorney-phone-number'"
             class="form-control"
             [formControlName]="prefix + 'PhoneNumber'"
             placeholder="PHONE NUMBER"
@@ -117,8 +133,9 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Fax</label>
+          <label [for]="role + '-attorney-fax-number'" class="form-label fw-semibold">Fax</label>
           <input
+            [id]="role + '-attorney-fax-number'"
             class="form-control"
             [formControlName]="prefix + 'FaxNumber'"
             placeholder="FAX"
@@ -136,8 +153,9 @@
           ></app-address-autocomplete>
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">City *</label>
+          <label [for]="role + '-attorney-city'" class="form-label fw-semibold">City *</label>
           <input
+            [id]="role + '-attorney-city'"
             class="form-control"
             [formControlName]="prefix + 'City'"
             placeholder="CITY"
@@ -155,8 +173,9 @@
           ></app-lookup-select>
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Zip *</label>
+          <label [for]="role + '-attorney-zip-code'" class="form-label fw-semibold">Zip *</label>
           <input
+            [id]="role + '-attorney-zip-code'"
             class="form-control"
             [formControlName]="prefix + 'ZipCode'"
             placeholder="ZIP"
