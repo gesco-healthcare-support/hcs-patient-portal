@@ -1,7 +1,7 @@
 import { Directive, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
+import { ConfigStateService, PagedResultDto, Rest, RestService } from '@abp/ng.core';
 import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 import {
   catchError,
@@ -30,6 +30,16 @@ import {
   AUTO_APPROVE_FALLBACK_MESSAGE,
   classifyAutoApproveFailure,
 } from './shared/auto-approve-outcome';
+import {
+  ADDRESS_CHECK_SKIPPED_MESSAGE,
+  NO_SOURCE_FOUND_MESSAGE,
+  patientLoadFailureMessage,
+  SOURCE_LOADED_MESSAGE,
+  sourceLoadFailureMessage,
+  sourcePrefillWarning,
+  toPrefillFailure,
+} from './shared/booking-failure-message.util';
+import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
   AddressValidationProvider,
   AddressInput,
@@ -305,6 +315,12 @@ export class AppointmentAddComponent {
   isLoadingSource = false;
   sourceLoadMessage = '';
   /**
+   * Sub-resources that failed to load during the last prefill (#604). Cleared at the start of
+   * every `applySourceToForm` and read once by `loadSourceForPrefill` to build the message, so
+   * a partial prefill is never reported as a clean one.
+   */
+  private sourcePrefillFailures: PrefillFailure[] = [];
+  /**
    * True when the constructor kicked off a source load from a URL param (re-request
    * always; re-book when it arrives from "Book again"). Gates the booker's own
    * profile load, which would otherwise race that prefill.
@@ -539,7 +555,7 @@ export class AppointmentAddComponent {
       { apiName: 'Default' },
     );
 
-  readonly getStateLookup = (input: LookupRequestDto) =>
+  readonly getStateLookup = (input: LookupRequestDto, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<LookupDto<string>>>(
       {
         method: 'GET',
@@ -550,7 +566,7 @@ export class AppointmentAddComponent {
           maxResultCount: input.maxResultCount,
         },
       },
-      { apiName: 'Default' },
+      { apiName: 'Default', ...config },
     );
 
   readonly getAppointmentLanguageLookup = (input: LookupRequestDto) =>
@@ -1524,12 +1540,18 @@ export class AppointmentAddComponent {
     this.isLoadingSource = true;
     this.sourceLoadMessage = '';
     try {
+      // skipHandleError (#604): ABP renders a full-screen error card for 401/403/404/500 with
+      // hideCloseIcon set (`app.config.ts:164-172`), so a mistyped confirmation number used to
+      // strand the booker on a page they could not dismiss. The inline message is specific and
+      // leaves the form they already filled in on screen.
       const source = await firstValueFrom(
-        this.appointmentProxyService.getByConfirmationNumber(confirmationNumber),
+        this.appointmentProxyService.getByConfirmationNumber(confirmationNumber, {
+          skipHandleError: true,
+        }),
       );
       const appt = source?.appointment;
       if (!appt?.id) {
-        this.sourceLoadMessage = 'No appointment was found for that confirmation number.';
+        this.sourceLoadMessage = NO_SOURCE_FOUND_MESSAGE;
         return;
       }
       const gate = this.checkSourceStatusForFlow(appt.appointmentStatus, flow);
@@ -1544,11 +1566,12 @@ export class AppointmentAddComponent {
         source.primaryInsurance ?? null,
       );
       this.sourceConfirmationNumber = confirmationNumber;
+      // #604: name any sub-resource that did not copy across instead of reporting a clean load
+      // over the top of a partial one.
       this.sourceLoadMessage =
-        'Prior appointment loaded. Review the details, choose a new date and time, then submit.';
-    } catch {
-      this.sourceLoadMessage =
-        'Unable to load that appointment. Check the confirmation number and try again.';
+        sourcePrefillWarning(this.sourcePrefillFailures) ?? SOURCE_LOADED_MESSAGE;
+    } catch (err: unknown) {
+      this.sourceLoadMessage = sourceLoadFailureMessage(err);
     } finally {
       this.isLoadingSource = false;
     }
@@ -1591,10 +1614,17 @@ export class AppointmentAddComponent {
     primaryInsurance: AppointmentPrimaryInsuranceDto | null,
   ): Promise<void> {
     const id = appt.id!;
+    this.sourcePrefillFailures = [];
     const [employer, applicantAttorney, defenseAttorney, injuries, accessors] = await Promise.all([
       this.fetchSourceEmployer(id),
-      this.fetchSourceAppointmentResource(`/api/app/appointments/${id}/applicant-attorney`),
-      this.fetchSourceAppointmentResource(`/api/app/appointments/${id}/defense-attorney`),
+      this.fetchSourceAppointmentResource(
+        `/api/app/appointments/${id}/applicant-attorney`,
+        'applicant attorney',
+      ),
+      this.fetchSourceAppointmentResource(
+        `/api/app/appointments/${id}/defense-attorney`,
+        'defense attorney',
+      ),
       this.fetchSourceInjuries(id),
       this.fetchSourceAccessors(id),
     ]);
@@ -1641,6 +1671,22 @@ export class AppointmentAddComponent {
     this.form.patchValue({ appointmentTypeId: appt.appointmentTypeId ?? null });
   }
 
+  /**
+   * The five source sub-resource GETs below used to swallow every error to `null` / `[]` (#604).
+   *
+   * <p>None of these endpoints signals absence with an error. An appointment with no employer
+   * and no accessors returns an empty page, `by-appointment` injuries returns an empty list,
+   * and the two attorney endpoints return an explicit `null` with HTTP 200
+   * (`AppointmentsAppService.cs:1700-1703`). So the catch was unreachable for absent data and
+   * only ever fired on a real failure -- which it then relabelled as "the prior appointment had
+   * none of that", letting the booker submit a re-evaluation silently missing sections the
+   * source had. Downstream the Case Tracker stores the party groups as one opaque blob, so a
+   * dropped section is indistinguishable from an empty one: the BUG-045 failure mode.</p>
+   *
+   * <p>Each now records the section and lets the prefill finish, so the booking is still
+   * possible and `loadSourceForPrefill` can name what the booker has to enter by hand.
+   * `skipHandleError` keeps ABP's undismissable full-screen card off a flow that recovers.</p>
+   */
   private async fetchSourceEmployer(appointmentId: string): Promise<any> {
     try {
       const res = await firstValueFrom(
@@ -1650,22 +1696,27 @@ export class AppointmentAddComponent {
             url: '/api/app/appointment-employer-details',
             params: { appointmentId, skipCount: 0, maxResultCount: 1 },
           },
-          { apiName: 'Default' },
+          { apiName: 'Default', skipHandleError: true },
         ),
       );
       return res?.items?.[0]?.appointmentEmployerDetail ?? null;
-    } catch {
+    } catch (err: unknown) {
+      this.sourcePrefillFailures.push(toPrefillFailure('employer details', err));
       return null;
     }
   }
 
-  /** GET a nullable per-appointment sub-resource, swallowing errors to null. */
-  private async fetchSourceAppointmentResource(url: string): Promise<any> {
+  /** GET a nullable per-appointment sub-resource. Absent is 200 + null, so a throw is real. */
+  private async fetchSourceAppointmentResource(url: string, section: string): Promise<any> {
     try {
       return await firstValueFrom(
-        this.restService.request<any, any>({ method: 'GET', url }, { apiName: 'Default' }),
+        this.restService.request<any, any>(
+          { method: 'GET', url },
+          { apiName: 'Default', skipHandleError: true },
+        ),
       );
-    } catch {
+    } catch (err: unknown) {
+      this.sourcePrefillFailures.push(toPrefillFailure(section, err));
       return null;
     }
   }
@@ -1678,11 +1729,15 @@ export class AppointmentAddComponent {
             method: 'GET',
             url: `/api/app/appointment-injury-details/by-appointment/${appointmentId}`,
           },
-          { apiName: 'Default' },
+          { apiName: 'Default', skipHandleError: true },
         ),
       );
       return items ?? [];
-    } catch {
+    } catch (err: unknown) {
+      // The only one of the five behind a named permission
+      // (`AppointmentInjuryDetails.Default`), so a booker without it silently produced a
+      // re-evaluation with zero injuries -- and injuries gate approval server-side.
+      this.sourcePrefillFailures.push(toPrefillFailure('injuries', err));
       return [];
     }
   }
@@ -1696,11 +1751,12 @@ export class AppointmentAddComponent {
             url: '/api/app/appointment-accessors',
             params: { appointmentId, skipCount: 0, maxResultCount: 100 },
           },
-          { apiName: 'Default' },
+          { apiName: 'Default', skipHandleError: true },
         ),
       );
       return res?.items ?? [];
-    } catch {
+    } catch (err: unknown) {
+      this.sourcePrefillFailures.push(toPrefillFailure('authorized users', err));
       return [];
     }
   }
@@ -2392,14 +2448,24 @@ export class AppointmentAddComponent {
   private async standardizeAddressesBeforeSubmit(): Promise<void> {
     let stateOptions: StateLookupOption[];
     try {
+      // skipHandleError (#604): this runs during submit. ABP's full-screen error card would
+      // abandon a booking the user has already filled in, over a lookup that only feeds an
+      // optional formatting check.
       const res = await firstValueFrom(
-        this.getStateLookup({ maxResultCount: 1000, skipCount: 0, filter: '' }),
+        this.getStateLookup(
+          { maxResultCount: 1000, skipCount: 0, filter: '' },
+          { skipHandleError: true },
+        ),
       );
       stateOptions = (res?.items ?? []).map((i) => ({
         id: String(i.id),
         name: i.displayName ?? '',
       }));
     } catch {
+      // Handled, not swallowed: skip standardization and say so. Blocking the booking over a
+      // formatting convenience would be the worse outcome, but the booker must not be left
+      // assuming their address was checked.
+      this.toaster.warn(ADDRESS_CHECK_SKIPPED_MESSAGE);
       return;
     }
 
@@ -2408,6 +2474,7 @@ export class AppointmentAddComponent {
 
     const items: AddressDiffItem[] = [];
     const pending: { key: string; fields: AddressFieldMap; std: StandardizedAddress }[] = [];
+    let addressCheckFailed = false;
 
     for (const grp of this.addressGroupsForStandardization) {
       if (!grp.isEnabled()) continue;
@@ -2426,6 +2493,9 @@ export class AppointmentAddComponent {
       try {
         result = await firstValueFrom(this.addressProvider.validate(input));
       } catch {
+        // One address failing must not abandon the rest; the single warning after the loop
+        // reports the whole batch once rather than one toast per group (#604).
+        addressCheckFailed = true;
         continue;
       }
       if (result.status === 'error' || !result.standardized || result.matchesInput) continue;
@@ -2451,6 +2521,10 @@ export class AppointmentAddComponent {
         ),
       });
       pending.push({ key: grp.key, fields: grp.fields, std });
+    }
+
+    if (addressCheckFailed) {
+      this.toaster.warn(ADDRESS_CHECK_SKIPPED_MESSAGE);
     }
 
     if (items.length === 0) return;
@@ -2890,7 +2964,9 @@ export class AppointmentAddComponent {
             url: '/api/app/patients/for-appointment-booking/by-email',
             params: { email },
           },
-          { apiName: 'Default' },
+          // skipHandleError (#604): the inline message below is more specific than ABP's
+          // full-screen card and keeps the manual-entry path in front of the booker.
+          { apiName: 'Default', skipHandleError: true },
         ),
       );
       if (profile?.patient?.id) {
@@ -2933,9 +3009,8 @@ export class AppointmentAddComponent {
         this.patientLoadMessage =
           'No patient found with this email. Fill in the form below to create a new patient.';
       }
-    } catch {
-      this.patientLoadMessage =
-        'Unable to load patient. Please try again or fill in the form to create new.';
+    } catch (err: unknown) {
+      this.patientLoadMessage = patientLoadFailureMessage(err);
     } finally {
       this.isProfileLoading = false;
     }
