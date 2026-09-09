@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { LocalizationService, PermissionService } from '@abp/ng.core';
@@ -343,5 +343,29 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
         this.appointment = data;
       },
     });
+  }
+
+  /**
+   * Escape closes the authorized-user modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim` backdrop
+   * and its `.ra-modal` container. The keyboard equivalent belongs on the
+   * document: a div is not focusable, so `(keydown.escape)` bound to the scrim
+   * would never fire, and a tabindex would put a tab stop on a decorative
+   * overlay. Matches the pattern already used by five other components.
+   *
+   * Delegates to the inherited closeAuthorizedUserModal so Escape does exactly
+   * what the backdrop click does -- neither has a save-in-flight guard, and
+   * adding one here only would make the two paths disagree.
+   *
+   * The modal container must NOT gain a keydown stopPropagation guard: it sits
+   * between the document and the dialog, so that would swallow this.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.isAuthorizedUserModalOpen) {
+      this.closeAuthorizedUserModal();
+    }
   }
 }
