@@ -43,6 +43,7 @@ import { changeRequestConsentView, type CrConsentView } from '../../change-reque
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 import { isReBookEligibleStatus } from '../../shared/rebook-eligibility';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
+import { formatDateOfBirthForApi } from '../../../shared/date-of-birth.util';
 
 type TransitionAction = 'approve' | 'reject';
 
@@ -1067,7 +1068,7 @@ export class AppointmentViewComponent implements OnInit {
       // not isReadOnly disabled the form (and the server permission gate
       // is authoritative anyway).
       const raw = this.form.getRawValue();
-      const dateOfBirth = this.formatDateOfBirthForApi(raw.patientDateOfBirth);
+      const dateOfBirth = formatDateOfBirthForApi(raw.patientDateOfBirth);
       const patientPayload: PatientUpdateDto = {
         firstName: raw.patientFirstName,
         lastName: raw.patientLastName,
@@ -2049,17 +2050,6 @@ export class AppointmentViewComponent implements OnInit {
     );
     this.employerDetailId = created?.id ?? null;
     this.employerDetailConcurrencyStamp = created?.concurrencyStamp ?? null;
-  }
-
-  private formatDateOfBirthForApi(value: unknown): string | null {
-    if (!value) return null;
-    if (typeof value === 'string') return value;
-    const obj = value as { year?: number; month?: number; day?: number };
-    if (obj?.year && obj?.month && obj?.day) {
-      const d = new Date(obj.year, obj.month - 1, obj.day);
-      return d.toISOString().split('T')[0];
-    }
-    return null;
   }
 
   // S-5.5: inverse of formatDateOfBirthForApi. The API returns dateOfBirth as
