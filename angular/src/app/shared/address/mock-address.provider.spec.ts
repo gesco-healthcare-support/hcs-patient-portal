@@ -21,7 +21,7 @@ describe('MockAddressProvider', () => {
 
     it('returns query-echoing suggestions at 3+ characters', (done) => {
       provider.autocomplete('100').subscribe((r) => {
-        expect(r.length).toBe(2);
+        expect(r).toHaveSize(2);
         expect(r[0].street).toContain('100');
         expect(r[0].state).toBe('IL');
         expect(r[1].suite).toBe('Ste 200');

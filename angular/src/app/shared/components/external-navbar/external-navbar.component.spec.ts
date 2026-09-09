@@ -52,3 +52,47 @@ describe('ExternalNavbarComponent initials (F-008)', () => {
     expect(initialsFor('', null)).toBe('?');
   });
 });
+
+/**
+ * Sweep #640: the avatar colour hash moved from `charCodeAt(0)` to `codePointAt(0)`.
+ *
+ * <p>The loop is `for...of`, which yields whole code points, so `charCodeAt(0)` was reading
+ * only the lead surrogate of an astral character -- two names differing solely in an emoji
+ * hashed identically. (The opposite call is right in `users-hub.util.ts`, which steps by code
+ * UNIT and refuses the same rule.)</p>
+ */
+describe('ExternalNavbarComponent avatar colour (sweep #640)', () => {
+  function colourFor(name: string): string {
+    const fixture = TestBed.createComponent(ExternalNavbarComponent);
+    const cmp = fixture.componentInstance as unknown as {
+      userName: string;
+      avatarColor: string;
+    };
+    cmp.userName = name;
+    return cmp.avatarColor;
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [ExternalNavbarComponent],
+      providers: [{ provide: BrandingService, useValue: brandingStub }],
+    }).compileComponents();
+  });
+
+  it('returns a palette colour', () => {
+    expect(colourFor('Ada Lovelace')).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('is deterministic for the same name', () => {
+    expect(colourFor('Ada Lovelace')).toBe(colourFor('Ada Lovelace'));
+  });
+
+  it('distinguishes two names that differ only by an astral character', () => {
+    // Under charCodeAt(0) both hashed on the same lead surrogate and collided.
+    expect(colourFor('A\u{1F600}')).not.toBe(colourFor('A\u{1F602}'));
+  });
+
+  it('copes with an empty name', () => {
+    expect(colourFor('')).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});

@@ -53,5 +53,5 @@ export function resolveInternalRoleKey(
  */
 export function isHostScope(config: ConfigStateService): boolean {
   const tenant = config.getOne('currentTenant') as { id?: string | null } | null;
-  return !tenant || !tenant.id;
+  return !tenant?.id;
 }

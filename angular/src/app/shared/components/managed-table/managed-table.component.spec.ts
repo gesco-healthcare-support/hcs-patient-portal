@@ -68,7 +68,7 @@ describe('ManagedTableComponent (QA item B)', () => {
   const last = () => host.queries[host.queries.length - 1];
 
   it('issues the initial query (empty filter/sort, page 0, page size)', () => {
-    expect(host.queries.length).toBe(1);
+    expect(host.queries).toHaveSize(1);
     expect(last().search).toBe('');
     expect(last().sorting).toBe('');
     expect(last().skipCount).toBe(0);
@@ -108,7 +108,7 @@ describe('ManagedTableComponent (QA item B)', () => {
   it('pages forward by maxResultCount via the offset pager', () => {
     const buttons = Array.from(el().querySelectorAll('.mt__pbtn')) as HTMLButtonElement[];
     // totalCount 5 > pageSize 2 -> pager is shown (Prev + Next).
-    expect(buttons.length).toBe(2);
+    expect(buttons).toHaveSize(2);
     buttons[1].click(); // Next
     fixture.detectChanges();
     expect(last().skipCount).toBe(2);
@@ -125,6 +125,6 @@ describe('ManagedTableComponent (QA item B)', () => {
     const before = host.queries.length;
     host.reload$.next();
     fixture.detectChanges();
-    expect(host.queries.length).toBe(before + 1);
+    expect(host.queries).toHaveSize(before + 1);
   });
 });
