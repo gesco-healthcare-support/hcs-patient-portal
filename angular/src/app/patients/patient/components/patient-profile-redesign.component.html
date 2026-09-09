@@ -54,20 +54,35 @@
           @if (editingSection === 'personal') {
             <div class="ra-grid">
               <div class="ra-field col-4">
-                <label>First name</label>
-                <input class="ra-input" formControlName="firstName" maxlength="50" />
+                <label for="ppr-first-name">First name</label>
+                <input
+                  id="ppr-first-name"
+                  class="ra-input"
+                  formControlName="firstName"
+                  maxlength="50"
+                />
               </div>
               <div class="ra-field col-4">
-                <label>Last name</label>
-                <input class="ra-input" formControlName="lastName" maxlength="50" />
+                <label for="ppr-last-name">Last name</label>
+                <input
+                  id="ppr-last-name"
+                  class="ra-input"
+                  formControlName="lastName"
+                  maxlength="50"
+                />
               </div>
               <div class="ra-field col-4">
-                <label>Middle name</label>
-                <input class="ra-input" formControlName="middleName" maxlength="50" />
+                <label for="ppr-middle-name">Middle name</label>
+                <input
+                  id="ppr-middle-name"
+                  class="ra-input"
+                  formControlName="middleName"
+                  maxlength="50"
+                />
               </div>
               <div class="ra-field col-4">
-                <label>Gender</label>
-                <select class="ra-select" formControlName="genderId">
+                <label for="ppr-gender-id">Gender</label>
+                <select id="ppr-gender-id" class="ra-select" formControlName="genderId">
                   <option [ngValue]="null">-</option>
                   @for (o of genderOptions; track o.value) {
                     <option [ngValue]="o.value">{{ o.key }}</option>
@@ -75,9 +90,14 @@
                 </select>
               </div>
               <div class="ra-field col-4">
-                <label>Date of birth</label>
+                <label for="ppr-date-of-birth">Date of birth</label>
                 <div class="ra-affix">
-                  <input class="ra-input" type="date" formControlName="dateOfBirth" />
+                  <input
+                    id="ppr-date-of-birth"
+                    class="ra-input"
+                    type="date"
+                    formControlName="dateOfBirth"
+                  />
                   <button type="button" tabindex="-1">
                     <app-icon name="calendar" [size]="16"></app-icon>
                   </button>
@@ -142,15 +162,19 @@
           @if (editingSection === 'contact') {
             <div class="ra-grid">
               <div class="ra-field col-6">
-                <label>
+                <label for="ppr-email">
                   Email
                   <span class="opt">(managed by support)</span>
                 </label>
-                <input class="ra-input" formControlName="email" readonly />
+                <input id="ppr-email" class="ra-input" formControlName="email" readonly />
               </div>
               <div class="ra-field col-6">
-                <label>Phone type</label>
-                <select class="ra-select" formControlName="phoneNumberTypeId">
+                <label for="ppr-phone-number-type-id">Phone type</label>
+                <select
+                  id="ppr-phone-number-type-id"
+                  class="ra-select"
+                  formControlName="phoneNumberTypeId"
+                >
                   <option [ngValue]="null">-</option>
                   @for (o of phoneNumberTypeOptions; track o.value) {
                     <option [ngValue]="o.value">{{ o.key }}</option>
@@ -158,8 +182,9 @@
                 </select>
               </div>
               <div class="ra-field col-6">
-                <label>Phone</label>
+                <label for="ppr-phone-number">Phone</label>
                 <input
+                  id="ppr-phone-number"
                   appPhoneNumber
                   class="ra-input"
                   formControlName="phoneNumber"
@@ -167,8 +192,9 @@
                 />
               </div>
               <div class="ra-field col-6">
-                <label>Cell phone</label>
+                <label for="ppr-cell-phone-number">Cell phone</label>
                 <input
+                  id="ppr-cell-phone-number"
                   appPhoneNumber
                   class="ra-input"
                   formControlName="cellPhoneNumber"
@@ -238,20 +264,25 @@
           @if (editingSection === 'address') {
             <div class="ra-grid">
               <div class="ra-field col-6">
-                <label>Street</label>
-                <input class="ra-input" formControlName="street" maxlength="255" />
+                <label for="ppr-street">Street</label>
+                <input id="ppr-street" class="ra-input" formControlName="street" maxlength="255" />
               </div>
               <div class="ra-field col-6">
-                <label>Unit #</label>
-                <input class="ra-input" formControlName="apptNumber" maxlength="100" />
+                <label for="ppr-appt-number">Unit #</label>
+                <input
+                  id="ppr-appt-number"
+                  class="ra-input"
+                  formControlName="apptNumber"
+                  maxlength="100"
+                />
               </div>
               <div class="ra-field col-4">
-                <label>City</label>
-                <input class="ra-input" formControlName="city" maxlength="50" />
+                <label for="ppr-city">City</label>
+                <input id="ppr-city" class="ra-input" formControlName="city" maxlength="50" />
               </div>
               <div class="ra-field col-4">
-                <label>State</label>
-                <select class="ra-select" formControlName="stateId">
+                <label for="ppr-state-id">State</label>
+                <select id="ppr-state-id" class="ra-select" formControlName="stateId">
                   <option [ngValue]="null">-</option>
                   @for (o of states; track o.id) {
                     <option [ngValue]="o.id">{{ o.label }}</option>
@@ -259,8 +290,13 @@
                 </select>
               </div>
               <div class="ra-field col-4">
-                <label>Zip code</label>
-                <input class="ra-input" formControlName="zipCode" maxlength="15" />
+                <label for="ppr-zip-code">Zip code</label>
+                <input
+                  id="ppr-zip-code"
+                  class="ra-input"
+                  formControlName="zipCode"
+                  maxlength="15"
+                />
               </div>
             </div>
             <div class="mp-editfoot">
@@ -321,8 +357,12 @@
           @if (editingSection === 'preferences') {
             <div class="ra-grid">
               <div class="ra-field col-6">
-                <label>Appointment language</label>
-                <select class="ra-select" formControlName="appointmentLanguageId">
+                <label for="ppr-appointment-language-id">Appointment language</label>
+                <select
+                  id="ppr-appointment-language-id"
+                  class="ra-select"
+                  formControlName="appointmentLanguageId"
+                >
                   <option [ngValue]="null">-</option>
                   @for (o of languages; track o.id) {
                     <option [ngValue]="o.id">{{ o.label }}</option>
@@ -354,13 +394,23 @@
               </div>
               @if (needsInterpreter) {
                 <div class="ra-field col-6">
-                  <label>Interpreter vendor / language</label>
-                  <input class="ra-input" formControlName="interpreterVendorName" maxlength="255" />
+                  <label for="ppr-interpreter-vendor-name">Interpreter vendor / language</label>
+                  <input
+                    id="ppr-interpreter-vendor-name"
+                    class="ra-input"
+                    formControlName="interpreterVendorName"
+                    maxlength="255"
+                  />
                 </div>
               }
               <div class="ra-field col-6">
-                <label>Other language</label>
-                <input class="ra-input" formControlName="othersLanguageName" maxlength="100" />
+                <label for="ppr-others-language-name">Other language</label>
+                <input
+                  id="ppr-others-language-name"
+                  class="ra-input"
+                  formControlName="othersLanguageName"
+                  maxlength="100"
+                />
               </div>
             </div>
             <div class="mp-editfoot">

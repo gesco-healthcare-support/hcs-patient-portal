@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Injector, OnInit, inject } from '@angular/core';
+import { Component, HostListener, Injector, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
@@ -90,9 +90,21 @@ export class PatientProfileRedesignComponent extends PatientProfileComponent imp
   protected get initials(): string {
     const parts = this.profileDisplayName.trim().split(/\s+/).filter(Boolean);
     const a = parts[0]?.charAt(0) ?? '?';
-    const b = parts.length > 1 ? (parts[parts.length - 1].charAt(0) ?? '') : '';
+    const b = parts.length > 1 ? (parts.at(-1)?.charAt(0) ?? '') : '';
     return (a + b).toUpperCase();
   }
+  /**
+   * Deliberately `charCodeAt`, not `codePointAt` (`typescript:S7758`, won't-fix).
+   *
+   * <p>The loop steps by code UNIT, so reading a code POINT at a code-unit index is
+   * incoherent: an astral character contributes its full code point at the lead surrogate
+   * and then its low surrogate again at the next index, counted once as a character and
+   * once as half of itself. `charCodeAt` is the coherent pairing for this loop.</p>
+   *
+   * <p>Matches the same refusal on the same loop shape in `users-hub.util.ts` (PR #731),
+   * which is marked won't-fix in SonarCloud. Two opposite answers to one rule a few files
+   * apart would leave the next reader unable to tell which precedent governs.</p>
+   */
   protected get avatarColor(): string {
     const name = this.profileDisplayName || 'User';
     let hash = 0;
@@ -173,6 +185,17 @@ export class PatientProfileRedesignComponent extends PatientProfileComponent imp
   protected requestSave(): void {
     this.confirmVisible = true;
   }
+  /**
+   * Sweep #645: the confirm modal could be dismissed only with the mouse. Escape closes it,
+   * matching the handler already on the internal detail, locations and users hubs.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.confirmVisible) {
+      this.cancelConfirm();
+    }
+  }
+
   protected cancelConfirm(): void {
     this.confirmVisible = false;
   }
