@@ -633,7 +633,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit
     /// </para>
     /// </summary>
-    private static void ConfigurePasswordResetRateLimiter(ServiceConfigurationContext context)
+    // 2026-09-08 (#702): private -> internal, matching ConfigureUploadLimits and the path
+    // predicates. Testing the PREDICATES alone proved nothing about the limiter: deleting a
+    // branch from the partitioner left every predicate test green while the endpoint went
+    // back to unthrottled. The wiring is the thing worth guarding, so it has to be reachable.
+    internal static void ConfigurePasswordResetRateLimiter(ServiceConfigurationContext context)
     {
         context.Services.AddRateLimiter(options =>
         {
@@ -685,9 +689,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                         // Phase 14b (2026-05-04) -- per-verification-code
                         // rate limit on the anonymous document-upload
                         // endpoint at /api/public/appointment-documents/{id}/upload-by-code/{code}.
-                        // Partition by the code segment so brute-force
-                        // attempts against ANY document share the same
-                        // bucket per IP / per code.
+                        //
+                        // CORRECTED 2026-09-08 (#702). This said the partition made
+                        // "brute-force attempts against ANY document share the same bucket
+                        // per IP / per code". It does not: the key IS the supplied code, so
+                        // each guess opens its own bucket and a guessing run is unbounded
+                        // here. What this actually caps is repeated use of ONE known code.
+                        // The run is bounded by the per-IP partition chained in the
+                        // secondary limiter below, added by the same issue.
                         var key = ResolveDocumentUploadPartitionKey(httpContext);
                         return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
                             partitionKey: $"doc-upload:{key}",
@@ -753,14 +762,44 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                                 AutoReplenishment = true,
                             });
                     }
+                    if (IsChangeRequestConsentPath(httpContext))
+                    {
+                        // 2026-09-08 (#702) -- this prefix previously matched NO partition and
+                        // fell through to GetNoLimiter below, so the opposing-consent surface
+                        // was entirely unthrottled. Three places said otherwise: the
+                        // controller docstring, issue #702, and the phase 5.1 hotspot
+                        // rationale. There is no global IP fallback for unnamed paths.
+                        //
+                        // What this bounds is unauthenticated DATABASE load. Both the GET
+                        // landing page and the POST decision call ResolveByRawTokenAsync,
+                        // which hashes the token and searches two stores. It is NOT a
+                        // guessing control: the token is 32 cryptographic random bytes
+                        // (~256 bits), so exhausting it is not a threat a rate limit changes.
+                        var key = ResolveClientIpPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"consent:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = ConsentRequestsPerHour,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
                     return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited");
                 });
 
             // BUG-035: per-IP secondary limiter, generous threshold so
             // NAT/CGNAT-shared users don't block each other under
             // normal usage but a single IP can't fan out across 1000
-            // emails. Only applied to the password-reset prefix --
-            // other prefixes already have their own IP-based partitions.
+            // emails.
+            //
+            // CORRECTED 2026-09-08 (#702). This said "other prefixes already have their
+            // own IP-based partitions", which was not true of document-upload: its
+            // partition is per-CODE, and a per-code key cannot bound a guessing run
+            // because every guess opens its own bucket. Signup and integration ARE
+            // IP-partitioned; document-upload is now chained here so it is too.
             var perIpSecondaryLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
                 httpContext =>
                 {
@@ -772,6 +811,29 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                             {
                                 PermitLimit = 50,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    if (IsDocumentUploadByCodePath(httpContext))
+                    {
+                        // 2026-09-08 (#702) -- the per-CODE partition in the primary limiter
+                        // caps reuse of one known code; it cannot cap guessing, because a
+                        // guessing run supplies a different code each time and so opens a
+                        // fresh 5-permit bucket on every attempt. This IP partition is what
+                        // actually bounds such a run.
+                        //
+                        // Guessing is infeasible regardless -- the code is a Guid.NewGuid()
+                        // (AppointmentDocumentManager.cs:100, ~122 bits) -- so the value here
+                        // is bounding unauthenticated request cost, not protecting the code.
+                        var key = ResolveClientIpPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"doc-upload-ip:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = DocumentUploadRequestsPerHourPerIp,
                                 Window = TimeSpan.FromHours(1),
                                 QueueLimit = 0,
                                 QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
@@ -807,6 +869,38 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>Requests per hour, per source IP, allowed under <see cref="IntegrationPathPrefix"/>.</summary>
     public const int IntegrationRequestsPerHour = 300;
+
+    /// <summary>
+    /// 2026-09-08 (#702): path prefix matched by the public opposing-consent limiter.
+    /// Until this issue, the prefix matched NO partition and was therefore entirely
+    /// unthrottled -- both the controller docstring and #702 wrongly described it as
+    /// falling back to a global per-IP limiter. No such fallback exists: the chained
+    /// limiter returns <c>GetNoLimiter</c> for every path it does not name.
+    /// </summary>
+    public const string ChangeRequestConsentPathPrefix = "/api/public/change-request-consent";
+
+    /// <summary>
+    /// Requests per hour, per source IP, allowed under <see cref="ChangeRequestConsentPathPrefix"/>.
+    ///
+    /// <para>Deliberately generous. This limiter exists to bound unauthenticated DATABASE
+    /// LOAD -- every request costs a token-hash lookup across two stores -- not to stop
+    /// token guessing, which a 256-bit token already makes infeasible. The recipient of a
+    /// consent email sends one or two requests; a shared corporate NAT (a law firm, an
+    /// insurer) can legitimately send many. 100/hour caps a single source's cost while
+    /// staying far above real traffic.</para>
+    /// </summary>
+    public const int ConsentRequestsPerHour = 100;
+
+    /// <summary>
+    /// Requests per hour, per source IP, allowed under <see cref="DocumentUploadByCodePathPrefix"/>.
+    ///
+    /// <para>2026-09-08 (#702): the per-CODE partition alongside this one cannot throttle
+    /// guessing, because each guessed code lands in its own fresh bucket. This IP partition
+    /// is what actually bounds a guessing run. Matched to the password-reset IP secondary
+    /// (50/hour) rather than the per-code limit of 5, so a clinic uploading for several
+    /// patients from one address is unaffected.</para>
+    /// </summary>
+    public const int DocumentUploadRequestsPerHourPerIp = 50;
 
     /// <summary>
     /// True when the request targets one of the password-reset endpoints
@@ -870,6 +964,43 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     internal static bool IsIntegrationPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
         return httpContext.Request.Path.StartsWithSegments(IntegrationPathPrefix);
+    }
+
+    /// <summary>
+    /// 2026-09-08 (#702) -- true when the request targets the anonymous opposing-consent
+    /// surface under <see cref="ChangeRequestConsentPathPrefix"/>.
+    ///
+    /// <para>Like the integration matcher and unlike the other three, this does NOT filter
+    /// by HTTP method, and that is deliberate. The cost being bounded is the token-hash
+    /// lookup in <c>ChangeRequestConsentManager.ResolveByRawTokenAsync</c>, which BOTH the
+    /// GET landing page and the POST decision perform. Matching POST only would leave the
+    /// database load reachable through GET.</para>
+    ///
+    /// <para>The GET is prefetched by email scanners, which is why
+    /// <see cref="ConsentRequestsPerHour"/> is set far above real per-recipient traffic
+    /// rather than at the per-code limit used elsewhere: a throttle tight enough to catch
+    /// a scanner would lock out the legitimate recipient behind the same address.</para>
+    /// </summary>
+    internal static bool IsChangeRequestConsentPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        return httpContext.Request.Path.StartsWithSegments(ChangeRequestConsentPathPrefix);
+    }
+
+    /// <summary>
+    /// 2026-09-08 (#702) -- pure client-IP partition key, shared by the consent limiter and
+    /// the document-upload IP secondary. Returns <c>ip:{address}</c>, or <c>global</c> when
+    /// the address is unknown, so the limiter always has a deterministic key.
+    ///
+    /// <para>The token or code is deliberately NOT part of the key, for the same reason
+    /// <see cref="ResolveIntegrationPartitionKey"/> excludes the shared secret: keying on
+    /// the credential puts it in partition names, and -- as the existing per-code partition
+    /// on document upload shows -- a key that varies with each guess cannot throttle
+    /// guessing at all.</para>
+    /// </summary>
+    internal static string ResolveClientIpPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        return string.IsNullOrWhiteSpace(ip) ? "global" : $"ip:{ip}";
     }
 
     /// <summary>

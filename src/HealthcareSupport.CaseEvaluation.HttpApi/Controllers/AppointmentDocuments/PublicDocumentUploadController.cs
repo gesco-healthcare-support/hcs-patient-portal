@@ -16,13 +16,19 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments;
 /// <c>/api/public/appointment-documents/...</c> -- the
 /// <c>api/public</c> prefix matches the convention established by
 /// <c>ExternalSignupController</c> + <c>ExternalAccountController</c>
-/// for public-by-design routes. Rate-limited at the host module
-/// level via the same fixed-window limiter pattern as the password
-/// reset endpoint (see Phase 10) when configured per the path
-/// prefix; until that's wired explicitly here, ABP's global rate
-/// limiter still partitions per IP per the
-/// <c>CaseEvaluationHttpApiHostModule.ConfigurePasswordResetRateLimiter</c>
-/// global-limiter pattern.
+/// for public-by-design routes.
+///
+/// <para><b>Rate limiting, corrected 2026-09-08 (#702).</b> This previously described the
+/// per-path limiter as not yet wired, with "ABP's global rate limiter" partitioning per IP
+/// in the meantime. Both halves were wrong: the per-path limiter HAS been wired since Phase
+/// 14b, and there is no global per-IP fallback for unnamed paths.</para>
+///
+/// <para>Two partitions now chain in <c>CaseEvaluationHttpApiHostModule</c>: the original
+/// per-CODE bucket (5/hour), which caps reuse of one known code, and a per-IP bucket
+/// (<c>DocumentUploadRequestsPerHourPerIp</c>) added by #702. The per-code key alone could
+/// not bound a guessing run, because each guessed code opens its own bucket. Guessing is
+/// infeasible either way -- the code is a <c>Guid.NewGuid()</c>, ~122 bits -- so the per-IP
+/// cap bounds unauthenticated request cost rather than protecting the code.</para>
 /// </summary>
 [IgnoreAntiforgeryToken]
 [Area("app")]
