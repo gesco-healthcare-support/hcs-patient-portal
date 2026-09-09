@@ -23,7 +23,17 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
     public virtual async Task<DoctorWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return await (await GetDbSetAsync()).Where(b => b.Id == id).Include(x => x.AppointmentTypes).Include(x => x.Locations).Select(doctor => new DoctorWithNavigationProperties
+        // 2026-09-09 (#661): the two `.Include(...)` calls that were here are REMOVED, not
+        // replaced with `AsSplitQuery()` as the finding suggested. Captured SQL showed they
+        // were honoured AND duplicated by the projection below, giving FOUR LEFT JOINs off
+        // AppDoctors -- the two link tables joined twice each -- so row count was
+        // (|AppointmentTypes| x |Locations|) SQUARED for a single doctor.
+        //
+        // They were also dead: the Include populates Doctor.AppointmentTypes and
+        // Doctor.Locations on the entity, and DoctorDto exposes neither, so nothing
+        // downstream ever read them. The projection's own joins supply the DTO's collections.
+        // Adding AsSplitQuery instead would have kept the redundant joins and read as a fix.
+        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(doctor => new DoctorWithNavigationProperties
         {
             Doctor = doctor,
             AppointmentTypes = (
@@ -58,12 +68,12 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
 
     protected virtual IQueryable<DoctorWithNavigationProperties> ApplyFilter(IQueryable<DoctorWithNavigationProperties> query, string? filterText, string? firstName = null, string? lastName = null, string? email = null, Guid? appointmentTypeId = null, Guid? locationId = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Doctor.FirstName!.Contains(filterText!) || e.Doctor.LastName!.Contains(filterText!) || e.Doctor.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Doctor.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Doctor.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Doctor.Email!.Contains(email!)).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Doctor.AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId)).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Doctor.Locations.Any(x => x.LocationId == locationId));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Doctor.FirstName.Contains(filterText!) || e.Doctor.LastName.Contains(filterText!) || e.Doctor.Email.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Doctor.FirstName.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Doctor.LastName.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Doctor.Email.Contains(email!)).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Doctor.AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId)).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Doctor.Locations.Any(x => x.LocationId == locationId));
     }
 
     protected virtual IQueryable<Doctor> ApplyFilter(IQueryable<Doctor> query, string? filterText = null, string? firstName = null, string? lastName = null, string? email = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirstName!.Contains(filterText!) || e.LastName!.Contains(filterText!) || e.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Email!.Contains(email!));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirstName.Contains(filterText!) || e.LastName.Contains(filterText!) || e.Email.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.FirstName.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.LastName.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Email.Contains(email!));
     }
 
     public virtual async Task<List<Doctor>> GetListAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
