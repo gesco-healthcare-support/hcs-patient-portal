@@ -219,14 +219,19 @@ Time, Tickbox (single- and multi-option). The FormArray is serialized to
 
 ## Cascading Dropdown Logic
 
+> Corrected 2026-09-09 (#605). This previously showed the parent fetching via
+> `loadAvailableDatesBySelection` against `/available-dates`. Both were wrong: the fetch moved
+> into `AvailabilityCalendarComponent`, which calls `getDoctorAvailabilityLookup`
+> (`/api/app/doctor-availabilities/lookup`), and the parent method was dead code, since removed.
+
 ```mermaid
 flowchart TD
     A[User selects Location] --> B[locationId valueChanges fires]
     B --> C[updateLocationSelection<br/>isLocationSelected = true]
-    B --> D[loadAvailableDatesBySelection]
+    B --> D[AvailabilityCalendarComponent<br/>locationId Input changes]
     D --> E{locationId AND<br/>appointmentTypeId<br/>both set?}
     E -->|No| F[Clear available dates<br/>and time slots]
-    E -->|Yes| G["GET /api/app/doctor-availabilities/available-dates<br/>?locationId=X&appointmentTypeId=Y"]
+    E -->|Yes| G["GET /api/app/doctor-availabilities/lookup<br/>?locationId=X&appointmentTypeId=Y"]
     G --> H[Populate availableDateKeys Set<br/>and availableSlotsByDate Map]
     H --> I[Calendar re-renders<br/>markAppointmentDateDisabled uses availableDateKeys]
 

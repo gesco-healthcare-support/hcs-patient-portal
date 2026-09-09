@@ -52,8 +52,6 @@ import { AppointmentApprovalService } from '../proxy/appointments/appointment-ap
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import type { PatientDto, PatientWithNavigationPropertiesDto } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
-import { DoctorAvailabilityService } from '../proxy/doctor-availabilities/doctor-availability.service';
-import type { DoctorAvailabilityDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
@@ -131,7 +129,6 @@ export class AppointmentAddComponent {
   // GetDoctorAvailabilityLookupAsync, which already filters full +
   // reserved/booked slots server-side. Binary availability per locked
   // decision 2026-05-27: clients never see remaining/capacity numbers.
-  private readonly doctorAvailabilityService = inject(DoctorAvailabilityService);
   // Picker refetch + booking error feedback (plan 5). Three new booking
   // codes (BookingSlotFull / BookingSlotClosed / BookingSlotTypeMismatch)
   // from plan 2 surface inline via this toaster; matching codes also
@@ -222,8 +219,9 @@ export class AppointmentAddComponent {
   /**
    * Phase 4a (2026-08-03): DERIVED, not a stored flag.
    *
-   * <p>It used to be assigned inside `loadAvailableDatesBySelection()`. When that fetch moved into
-   * AvailabilityCalendarComponent and the parent stopped calling it, the flag stopped being set and
+   * <p>It used to be assigned inside `loadAvailableDatesBySelection()`, since removed (#605).
+   * When that fetch moved into AvailabilityCalendarComponent and the parent stopped calling
+   * it, the flag stopped being set and
    * the date/time UI never unhid -- a regression that 452 green specs did not catch and only a live
    * booking attempt surfaced. Deriving it from the form removes the possibility entirely.</p>
    */
@@ -244,7 +242,6 @@ export class AppointmentAddComponent {
     string,
     Array<{ time: string; doctorAvailabilityId: string }>
   >();
-  private availableSlotsRequestVersion = 0;
   readonly minimumBookingDays = 3;
   readonly minimumBookingRuleMessage = `You can book appointment after ${this.minimumBookingDays} days of today's date.`;
   // 2026-06-11: role-based booking horizon. External users may book at most 60
@@ -3554,82 +3551,6 @@ export class AppointmentAddComponent {
     }
   }
 
-  private loadAvailableDatesBySelection(): void {
-    const locationId = this.form.get('locationId')?.value;
-    const appointmentTypeId = this.form.get('appointmentTypeId')?.value;
-
-    if (!this.checkForAppointmentTypeSelected) {
-      this.availableDateKeys.clear();
-      this.availableSlotsByDate.clear();
-      this.form.patchValue(
-        { appointmentDate: null, appointmentTime: null, doctorAvailabilityId: null },
-        { emitEvent: false },
-      );
-      this.clearTimeSlots();
-      return;
-    }
-
-    const requestVersion = ++this.availableSlotsRequestVersion;
-    this.isAvailableDatesLoading = true;
-
-    this.fetchAllAvailableSlots(locationId as string, appointmentTypeId as string)
-      .then((items) => {
-        if (requestVersion !== this.availableSlotsRequestVersion) {
-          return;
-        }
-
-        this.availableDateKeys.clear();
-        this.availableSlotsByDate.clear();
-        (items ?? []).forEach((availability) => {
-          // Slot rework plan 5: lookup returns the flat DoctorAvailabilityDto
-          // shape (not the WithNavigationProperties envelope). The list-page
-          // shape had item.doctorAvailability.{availableDate,fromTime,id};
-          // the lookup shape exposes those fields directly.
-          const rawDate = availability?.availableDate as string | undefined;
-          const dateKey = this.toDateKeyFromApi(rawDate);
-          if (dateKey) {
-            if (this.isBeforeMinimumBookingDateKey(dateKey)) {
-              return;
-            }
-            this.availableDateKeys.add(dateKey);
-            const fromTime = (availability?.fromTime as string | undefined) ?? '';
-            const availabilityId = (availability?.id as string | undefined) ?? '';
-            if (fromTime) {
-              const existingSlots = this.availableSlotsByDate.get(dateKey) ?? [];
-              const exists = existingSlots.some(
-                (slot) => slot.time === fromTime && slot.doctorAvailabilityId === availabilityId,
-              );
-              if (!exists) {
-                existingSlots.push({ time: fromTime, doctorAvailabilityId: availabilityId });
-                this.availableSlotsByDate.set(dateKey, existingSlots);
-              }
-            }
-          }
-        });
-
-        const selectedDate = this.toDateKeyFromControl(
-          this.form.get('appointmentDate')?.value ?? null,
-        );
-        if (selectedDate && !this.availableDateKeys.has(selectedDate)) {
-          this.form.patchValue(
-            { appointmentDate: null, appointmentTime: null, doctorAvailabilityId: null },
-            { emitEvent: false },
-          );
-          this.clearTimeSlots();
-          return;
-        }
-
-        if (selectedDate) {
-          this.populateTimeSlotsForDate(selectedDate);
-        }
-      })
-      .finally(() => {
-        if (requestVersion === this.availableSlotsRequestVersion) {
-          this.isAvailableDatesLoading = false;
-        }
-      });
-  }
-
   private toDateKey(year: number, month: number, day: number): string {
     return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day
       .toString()
@@ -3821,22 +3742,6 @@ export class AppointmentAddComponent {
     // The server-side BookingPolicyValidator (Phase 11b) is authoritative
     // and reads SystemParameter.AppointmentLeadTime per-tenant.
     return selected < threshold;
-  }
-
-  // Slot rework plan 5: read from /api/app/doctor-availabilities/lookup
-  // instead of the paged list. The lookup applies tenant lead-time, hides
-  // Reserved/Booked, and excludes slots with zero remaining capacity --
-  // so the picker is binary-available by construction.
-  private async fetchAllAvailableSlots(
-    locationId: string,
-    appointmentTypeId: string,
-  ): Promise<DoctorAvailabilityDto[]> {
-    return firstValueFrom(
-      this.doctorAvailabilityService.getDoctorAvailabilityLookup({
-        locationId,
-        appointmentTypeId: appointmentTypeId || null,
-      }),
-    );
   }
 
   // #121 phase T4 (2026-05-13) -- 14 methods moved to
