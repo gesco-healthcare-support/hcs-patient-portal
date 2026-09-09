@@ -28,10 +28,13 @@ import {
   auditResultLabel,
   auditStatusClass,
   buildAuditCsv,
+  filterPermParents,
   insertVariable,
   isAdminSectionVisible,
   isLockedRole,
+  type PermParentNode,
   previewSegments,
+  splitPermissionNodes,
   SP_GROUPS,
 } from './admin-hub.util';
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
@@ -45,18 +48,6 @@ import {
   type TemplateCatalogEntry,
   type TemplateGroupView,
 } from './email-template-catalog';
-
-/** A single permission node in the role matrix (item 10 Part B nesting). */
-interface PermNode {
-  name: string;
-  displayName: string;
-}
-
-/** A parent permission with its (possibly empty) child actions, for the nested matrix. */
-interface PermParentNode {
-  parent: PermNode;
-  children: PermNode[];
-}
 
 /** A permission group shaped for the nested + searchable matrix. */
 interface PermMatrixGroup {
@@ -245,36 +236,8 @@ export class InternalAdminHubComponent {
     const query = this.permSearch().trim().toLowerCase();
     const result: PermMatrixGroup[] = [];
     for (const g of this.permGroups()) {
-      const childrenByParent = new Map<string, PermNode[]>();
-      const parents: PermNode[] = [];
-      for (const p of g.permissions ?? []) {
-        if (!p.name) {
-          continue;
-        }
-        const node: PermNode = { name: p.name, displayName: p.displayName ?? p.name };
-        if (p.parentName) {
-          const list = childrenByParent.get(p.parentName) ?? [];
-          list.push(node);
-          childrenByParent.set(p.parentName, list);
-        } else {
-          parents.push(node);
-        }
-      }
-      const parentNodes: PermParentNode[] = [];
-      for (const parent of parents) {
-        const children = childrenByParent.get(parent.name) ?? [];
-        if (!query) {
-          parentNodes.push({ parent, children });
-          continue;
-        }
-        const parentMatch = parent.displayName.toLowerCase().includes(query);
-        const shownChildren = parentMatch
-          ? children
-          : children.filter((c) => c.displayName.toLowerCase().includes(query));
-        if (parentMatch || shownChildren.length > 0) {
-          parentNodes.push({ parent, children: shownChildren });
-        }
-      }
+      const { parents, childrenByParent } = splitPermissionNodes(g.permissions);
+      const parentNodes = filterPermParents(parents, childrenByParent, query);
       if (parentNodes.length > 0) {
         result.push({ name: g.name ?? '', displayName: g.displayName ?? '', parents: parentNodes });
       }

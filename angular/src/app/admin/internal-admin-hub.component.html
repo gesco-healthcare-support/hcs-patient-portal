@@ -13,7 +13,7 @@
 </div>
 
 <div class="cf">
-  <nav class="cf-rail">
+  <nav class="cf-rail" aria-label="Admin sections">
     @for (s of sections; track s.key) {
       @if (canSee(s)) {
         <a
@@ -43,13 +43,17 @@
         <div class="ia-search" style="max-width: 280px">
           <app-icon name="search" [size]="16" />
           <input
+            id="iah-template-search"
+            aria-label="Search templates"
             placeholder="Search templates..."
             [ngModel]="ntQuery()"
             (ngModelChange)="setNtQuery($event)"
           />
         </div>
         <select
+          id="iah-template-type"
           class="ia-input"
+          aria-label="Filter templates by type"
           [ngModel]="ntTypeFilter()"
           (ngModelChange)="setNtTypeFilter($event)"
         >
@@ -124,8 +128,9 @@
               <div class="ra-card__body">
                 <div class="ra-grid">
                   <div class="ra-field col-12">
-                    <label>Subject</label>
+                    <label for="iah-template-subject">Subject</label>
                     <input
+                      id="iah-template-subject"
                       class="ra-input"
                       [ngModel]="d.subject"
                       (ngModelChange)="patchDraft({ subject: $event })"
@@ -161,11 +166,12 @@
                     ></quill-editor>
                   </div>
                   <div class="ra-field col-12">
-                    <label>
+                    <label for="iah-template-sms">
                       SMS body
                       <span class="opt">(optional)</span>
                     </label>
                     <textarea
+                      id="iah-template-sms"
                       class="ra-input"
                       rows="2"
                       [ngModel]="d.bodySms"
@@ -229,9 +235,10 @@
             <div class="sp-group__body">
               @for (f of g.fields; track f.key) {
                 <div class="sp-field">
-                  <label>{{ f.label }}</label>
+                  <label [attr.for]="'iah-param-' + f.key">{{ f.label }}</label>
                   <div class="row">
                     <input
+                      [id]="'iah-param-' + f.key"
                       type="number"
                       min="0"
                       [disabled]="!canEditParams()"
@@ -255,8 +262,9 @@
           </div>
           <div class="sp-group__body" style="grid-template-columns: 1fr">
             <div class="sp-field">
-              <label>Office notification inbox</label>
+              <label for="iah-office-email">Office notification inbox</label>
               <input
+                id="iah-office-email"
                 type="email"
                 [disabled]="!canEditParams()"
                 [ngModel]="p.officeEmail"
@@ -273,8 +281,9 @@
               }
             </div>
             <div class="sp-field">
-              <label>CC every appointment email to</label>
+              <label for="iah-cc-emails">CC every appointment email to</label>
               <input
+                id="iah-cc-emails"
                 type="text"
                 [disabled]="!canEditParams()"
                 [ngModel]="p.ccEmailIds"
@@ -329,7 +338,7 @@
     <!-- ============ Users & Roles (permission matrix) ============ -->
     @if (section() === 'roles') {
       <div class="pm">
-        <nav class="cf-rail pm-roles">
+        <nav class="cf-rail pm-roles" aria-label="Roles">
           @for (kind of roleKinds; track kind) {
             <div class="pm-kind">{{ kind }}</div>
             @for (r of rolesOfKind(kind); track r.name) {
@@ -427,13 +436,17 @@
         <div class="ia-search">
           <app-icon name="search" [size]="16" />
           <input
+            id="iah-audit-search"
+            aria-label="Search audit logs by user or URL"
             placeholder="Search by user or URL..."
             [ngModel]="auditQuery()"
             (ngModelChange)="auditQuery.set($event)"
           />
         </div>
         <select
+          id="iah-audit-method"
           class="ia-input"
+          aria-label="Filter audit logs by HTTP method"
           [ngModel]="auditMethod()"
           (ngModelChange)="applyAuditMethod($event)"
         >
@@ -487,7 +500,12 @@
           </thead>
           <tbody>
             @for (l of auditShown(); track l.id) {
-              <tr class="au-row" (click)="toggleAuditRow(l.id)">
+              <tr
+                class="au-row"
+                (click)="toggleAuditRow(l.id)"
+                (keydown.enter)="toggleAuditRow(l.id)"
+                tabindex="0"
+              >
                 <td>
                   <span class="au-caret" [class.open]="isAuditOpen(l.id)">
                     <app-icon name="chevRight" [size]="15" />

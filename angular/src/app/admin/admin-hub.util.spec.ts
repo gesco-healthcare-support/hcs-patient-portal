@@ -4,12 +4,14 @@ import {
   auditResultLabel,
   auditStatusClass,
   buildAuditCsv,
+  filterPermParents,
   firstVisibleAdminSection,
   humanizeToken,
   insertVariable,
   isAdminSectionVisible,
   isLockedRole,
   previewSegments,
+  splitPermissionNodes,
   roleKind,
   SP_GROUPS,
   SpField,
@@ -159,6 +161,23 @@ describe('admin-hub.util', () => {
       expect(auditResultLabel(429)).toBe('Denied / throttled');
       expect(auditResultLabel(503)).toBe('Server error');
     });
+
+    it('treats an absent status as a non-error, not as a 0-coded response', () => {
+      // Sweep #644 replaced `const code = status ?? 0` with an explicit null branch,
+      // because Sonar's suggested default parameter would not have fired for null at all.
+      // These pin the equivalence: both readings agree that no status is not an error.
+      expect(auditStatusClass(null)).toBe('s2');
+      expect(auditStatusClass(undefined)).toBe('s2');
+      expect(auditResultLabel(null)).toBe('Success');
+      expect(auditResultLabel(undefined)).toBe('Success');
+    });
+
+    it('still classifies the boundaries either side of 400 and 500', () => {
+      expect(auditStatusClass(399)).toBe('s2');
+      expect(auditStatusClass(400)).toBe('s4');
+      expect(auditStatusClass(499)).toBe('s4');
+      expect(auditStatusClass(500)).toBe('s5');
+    });
   });
 
   describe('buildAuditCsv', () => {
@@ -191,6 +210,97 @@ describe('admin-hub.util', () => {
       expect(
         fields.filter((f) => f.key !== 'appointmentDurationTime').every((f) => f.unit === 'days'),
       ).toBeTrue();
+    });
+  });
+});
+
+/**
+ * The permission matrix, extracted from a computed on InternalAdminHubComponent in sweep
+ * #644 to bring its cognitive complexity under the ceiling (S3776, was 23).
+ *
+ * <p>Splitting it also made it reachable: the nesting and the search were previously inside a
+ * signal on a component with a full gateway, so neither had a test. The search rule in
+ * particular is easy to get subtly wrong -- a matching parent must keep ALL of its children,
+ * or ticking "Appointments" would hide the Create/Edit/Delete rows the admin came to set.</p>
+ */
+describe('permission matrix helpers (sweep #644)', () => {
+  const perms = [
+    { name: 'CaseEvaluation.Appointments', displayName: 'Appointments' },
+    {
+      name: 'CaseEvaluation.Appointments.Create',
+      displayName: 'Create',
+      parentName: 'CaseEvaluation.Appointments',
+    },
+    {
+      name: 'CaseEvaluation.Appointments.Delete',
+      displayName: 'Delete',
+      parentName: 'CaseEvaluation.Appointments',
+    },
+    { name: 'CaseEvaluation.Patients', displayName: 'Patients' },
+  ];
+
+  describe('splitPermissionNodes', () => {
+    it('separates parents from their children', () => {
+      const { parents, childrenByParent } = splitPermissionNodes(perms);
+      expect(parents.map((p) => p.displayName)).toEqual(['Appointments', 'Patients']);
+      expect(
+        childrenByParent.get('CaseEvaluation.Appointments')!.map((c) => c.displayName),
+      ).toEqual(['Create', 'Delete']);
+    });
+
+    it('falls back to the name when a permission has no display name', () => {
+      const { parents } = splitPermissionNodes([{ name: 'X.Y' }]);
+      expect(parents[0].displayName).toBe('X.Y');
+    });
+
+    it('skips a nameless permission rather than rendering a blank row', () => {
+      // It could not be toggled, so a blank row would be worse than an absent one.
+      const { parents } = splitPermissionNodes([{ name: '', displayName: 'Ghost' }, ...perms]);
+      expect(parents.length).toBe(2);
+    });
+
+    it('copes with a null permission list', () => {
+      const { parents, childrenByParent } = splitPermissionNodes(null);
+      expect(parents).toEqual([]);
+      expect(childrenByParent.size).toBe(0);
+    });
+  });
+
+  describe('filterPermParents', () => {
+    const split = () => splitPermissionNodes(perms);
+
+    it('returns every parent with every child when the search is empty', () => {
+      const { parents, childrenByParent } = split();
+      const out = filterPermParents(parents, childrenByParent, '');
+      expect(out.length).toBe(2);
+      expect(out[0].children.length).toBe(2);
+    });
+
+    it('keeps ALL children when the parent itself matches', () => {
+      const { parents, childrenByParent } = split();
+      const out = filterPermParents(parents, childrenByParent, 'appointment');
+      expect(out.length).toBe(1);
+      expect(out[0].children.map((c) => c.displayName)).toEqual(['Create', 'Delete']);
+    });
+
+    it('keeps only the matching children when the parent does not match', () => {
+      const { parents, childrenByParent } = split();
+      const out = filterPermParents(parents, childrenByParent, 'delete');
+      expect(out.length).toBe(1);
+      expect(out[0].parent.displayName).toBe('Appointments');
+      expect(out[0].children.map((c) => c.displayName)).toEqual(['Delete']);
+    });
+
+    it('drops a parent whose children all fail to match', () => {
+      const { parents, childrenByParent } = split();
+      expect(filterPermParents(parents, childrenByParent, 'nothing-matches-this')).toEqual([]);
+    });
+
+    it('keeps a childless parent that matches on its own name', () => {
+      const { parents, childrenByParent } = split();
+      const out = filterPermParents(parents, childrenByParent, 'patients');
+      expect(out.length).toBe(1);
+      expect(out[0].children).toEqual([]);
     });
   });
 });
