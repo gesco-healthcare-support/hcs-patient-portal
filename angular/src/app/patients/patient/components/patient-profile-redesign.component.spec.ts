@@ -139,12 +139,16 @@ describe('PatientProfileRedesignComponent (sweep #645)', () => {
       expect(other).not.toBe(first);
     });
 
-    it('does not throw on a name outside the basic multilingual plane', () => {
-      // The sweep moved charCodeAt to codePointAt, which returns undefined past the end of
-      // the string; the ?? 0 keeps the hash a number rather than NaN.
+    it('still yields a finite hue for a name outside the basic multilingual plane', () => {
+      // charCodeAt is deliberate (S7758 won't-fix -- see the getter's docstring): the loop
+      // steps by code unit, so a surrogate pair contributes both halves. That is coherent and
+      // deterministic, which is all a colour hash owes anyone. This pins that an astral
+      // character yields neither NaN nor an out-of-range hue.
       const c = create();
       withName(c, 'Ada \u{1F600} Lovelace');
-      expect(c.probe.avatarColor).toMatch(/^hsl\(\d+, 42%, 42%\)$/);
+      const match = /^hsl\((\d+), 42%, 42%\)$/.exec(c.probe.avatarColor);
+      expect(match).withContext(c.probe.avatarColor).not.toBeNull();
+      expect(Number(match![1])).toBeLessThan(360);
     });
   });
 });

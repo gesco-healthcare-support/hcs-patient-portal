@@ -93,11 +93,23 @@ export class PatientProfileRedesignComponent extends PatientProfileComponent imp
     const b = parts.length > 1 ? (parts.at(-1)?.charAt(0) ?? '') : '';
     return (a + b).toUpperCase();
   }
+  /**
+   * Deliberately `charCodeAt`, not `codePointAt` (`typescript:S7758`, won't-fix).
+   *
+   * <p>The loop steps by code UNIT, so reading a code POINT at a code-unit index is
+   * incoherent: an astral character contributes its full code point at the lead surrogate
+   * and then its low surrogate again at the next index, counted once as a character and
+   * once as half of itself. `charCodeAt` is the coherent pairing for this loop.</p>
+   *
+   * <p>Matches the same refusal on the same loop shape in `users-hub.util.ts` (PR #731),
+   * which is marked won't-fix in SonarCloud. Two opposite answers to one rule a few files
+   * apart would leave the next reader unable to tell which precedent governs.</p>
+   */
   protected get avatarColor(): string {
     const name = this.profileDisplayName || 'User';
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
-      hash = (hash * 31 + (name.codePointAt(i) ?? 0)) % 360;
+      hash = (hash * 31 + name.charCodeAt(i)) % 360;
     }
     return `hsl(${hash}, 42%, 42%)`;
   }
