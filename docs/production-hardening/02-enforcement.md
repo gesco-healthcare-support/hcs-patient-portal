@@ -1313,8 +1313,10 @@ cost    +7 seconds  (17s -> 24s), against Backend: Test at 686-776s
    when it loads it as an entry point -- imports, decorators, class declarations count as hit though
    no test exercises the behaviour. Roughly one line per newly visible file. **An artefact of
    instrumentation, not the number being gamed.** Somebody will notice and ask.
-3. **The files were INVISIBLE, not uncovered.** A source with no spec contributed to neither side of
-   the ratio, in the gate AND in SonarCloud, which imports the same lcov.
+3. **The files were INVISIBLE TO THE GATE, not uncovered.** A source with no spec contributed to
+   neither side of the ratio in `coverage-gate.py`, which parses the lcov. **The SonarCloud half of
+   this claim was wrong and is corrected below** -- Sonar derives `lines_to_cover` from its own
+   analysis, so a file absent from the lcov counts at 0% and DOES enter its denominator.
 
 ### The decision this took, which was Adrian's and is the part a successor needs
 
@@ -1373,7 +1375,6 @@ contribute to neither side of the ratio (Angular added 2,873 to `lines_to_cover`
 2,663 lines over 99 files). **So "coverage rises to 55.0% when the epic lands" means backend plus the
 instrumented third of Angular, and the README badge note must say so.**
 
-
 > **ERRATA 2026-09-10 -- the SonarCloud half of the sentence above is WRONG.**
 > The gate half stands: `coverage-gate.py` parses the lcov, so a file absent from it appears on
 > neither side of the ratio. **SonarCloud does not behave that way.** It imports the lcov for
@@ -1388,10 +1389,10 @@ instrumented third of Angular, and the README badge note must say so.**
 > ```
 >
 > `main.ts` is not in the coverage bundle: `angular.json` scopes it to
-> `["**/*.spec.ts", "app/**/*.ts", "config-validation.ts", "tenant-bootstrap.ts"]`, and `main.ts` is
-> none of those. `tsconfig.spec.json`'s `src/**/*.ts` is the COMPILATION program, not the coverage
-> scope -- its own comment says so. `auth.ts` sits outside `angular/` entirely and no workflow
-> produces coverage for `tests/e2e-demo`.
+> `["**/*.spec.ts", "app/**/*.ts", "config-validation.ts", "tenant-bootstrap.ts"]`, and `main.ts`
+> is none of those. `tsconfig.spec.json`'s `src/**/*.ts` is the COMPILATION program, not the
+> coverage scope -- its own comment says so. `auth.ts` sits outside `angular/` entirely and no
+> workflow produces coverage for `tests/e2e-demo`.
 >
 > Mechanism, from `.github/workflows/sonarcloud.yml:142-145`: `sonar.*.lcov.reportPaths` supplies
 > hits, and **`sonar.coverage.exclusions` is the only lever that removes a file from the**
@@ -1405,6 +1406,7 @@ instrumented third of Angular, and the README badge note must say so.**
 >
 > Original text kept per this file's convention -- see the SUPERSEDED block above. A justification
 > is less checkable than a number, and this one read as reasoning for a week.
+
 **Adrian's ruling, 2026-09-03: own item; the gate PRINTS the count of changed files with no coverage
 record on every run and does NOT fail on it.** Failing at 27-of-33 would block every submission from
 day one, which is the permanently-red anti-gate this phase exists to remove. It did not block 2.10
