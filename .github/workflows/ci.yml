@@ -313,6 +313,31 @@ jobs:
         # docs/verification/BASELINE.md) should not fail CI. The job still
         # prints the full report for visibility.
 
+  packet-golden:
+    name: "Tools: Packet Golden Output"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # DELIBERATELY UNCONDITIONAL (#797). Two reasons.
+    #
+    # `tools/` is not one of the classifier's recognised groups, so it lands in
+    # `unclassified` and currently makes the FULL suite run. Adding a `tools`
+    # arm to classify it would remove that safety net, which is a bigger change
+    # than this job warrants -- so this job simply does not depend on the
+    # classifier at all.
+    #
+    # And a conditional job that skips reports Success. The comment on the
+    # `changes` job above exists because that behaviour once let a pull request
+    # satisfy every required check having run none of them. This check costs
+    # about two seconds and needs nothing but Python, so there is no reason to
+    # buy that risk back.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.x"
+      - name: Verify the packet generators emit byte-identical documents
+        run: python -m unittest discover -s tools/packet-templates/tests -p "test_*.py" -v
+
   backend-test:
     name: "Backend: Test"
     runs-on: ubuntu-latest
