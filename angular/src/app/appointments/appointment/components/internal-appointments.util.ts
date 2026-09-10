@@ -137,8 +137,18 @@ export function decideByInfo(
   );
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const daysLeft = Math.round((due.getTime() - todayMidnight.getTime()) / 86_400_000);
-  const level = daysLeft <= 1 ? 'crit' : daysLeft <= 2 ? 'warn' : 'ok';
-  const label = daysLeft < 0 ? 'past' : daysLeft === 0 ? 'today' : `${daysLeft}d`;
+  let level: DecideBy['level'] = 'ok';
+  if (daysLeft <= 1) {
+    level = 'crit';
+  } else if (daysLeft <= 2) {
+    level = 'warn';
+  }
+  let label = `${daysLeft}d`;
+  if (daysLeft < 0) {
+    label = 'past';
+  } else if (daysLeft === 0) {
+    label = 'today';
+  }
   return { due, daysLeft, label, level };
 }
 
@@ -150,7 +160,16 @@ export function avatarInitials(firstName?: string | null, lastName?: string | nu
   return initials || '?';
 }
 
-/** Deterministic avatar background color from a seed (stable per name). */
+/**
+ * Deterministic avatar background color from a seed (stable per name).
+ *
+ * `typescript:S7758` (prefer codePointAt over charCodeAt) is deliberately NOT
+ * applied. This is the same rolling hash, with the same code-UNIT loop, as
+ * `avatarColor` in `angular/src/app/users/users-hub.util.ts`, where the reasoning
+ * is recorded in full: the two agree only inside the BMP, so on an astral
+ * character they disagree and the colour changes. Needs won't-fix triage in
+ * SonarCloud rather than a code change -- see that file for the measurements.
+ */
 export function avatarColor(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -168,7 +187,7 @@ export function toCsvContent(
   headers: ReadonlyArray<string>,
   rows: ReadonlyArray<ReadonlyArray<string>>,
 ): string {
-  const escapeCell = (value: string): string => `"${(value ?? '').replace(/"/g, '""')}"`;
+  const escapeCell = (value: string): string => `"${(value ?? '').replaceAll('"', '""')}"`;
   const lines = [headers, ...rows].map((cells) => cells.map(escapeCell).join(','));
   return lines.join('\r\n');
 }

@@ -197,7 +197,7 @@ export class InternalAppointmentsComponent implements OnInit {
     // /appointments?appointmentStatus=N without a manual chip click).
     this.route.queryParamMap.subscribe((params) => {
       const raw = params.get('appointmentStatus');
-      const parsed = raw !== null && raw !== '' ? Number(raw) : NaN;
+      const parsed = raw !== null && raw !== '' ? Number(raw) : Number.NaN;
       const segment = Number.isNaN(parsed)
         ? 'all'
         : appointmentStatusToSegment(parsed as AppointmentStatusType);

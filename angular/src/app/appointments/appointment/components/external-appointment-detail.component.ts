@@ -277,11 +277,12 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
       (this.shellConfig.getOne('currentUser') as { roles?: string[] } | null)?.roles ?? [];
     const isAttorney = roles.includes('Applicant Attorney') || roles.includes('Defense Attorney');
     const isClaimExaminer = roles.includes('Claim Examiner');
-    const target = isAttorney
-      ? '/user-management/attorneys/my-profile'
-      : isClaimExaminer
-        ? '/user-management/claim-examiners/my-profile'
-        : '/user-management/patients/my-profile';
+    let target = '/user-management/patients/my-profile';
+    if (isAttorney) {
+      target = '/user-management/attorneys/my-profile';
+    } else if (isClaimExaminer) {
+      target = '/user-management/claim-examiners/my-profile';
+    }
     void this.shellRouter.navigateByUrl(target);
   }
   protected openDocumentsNav(): void {
@@ -420,7 +421,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
    */
   private seedEdits(): void {
     const p = this.patientNav;
-    const appt = this.appointment?.appointment as Record<string, unknown> | undefined;
+    const appt = this.appointment?.appointment;
     const insurance = (this.appointment as { primaryInsurance?: { name?: string } } | null)
       ?.primaryInsurance;
     const defense = (
@@ -438,8 +439,8 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
       zipCode: String(p?.zipCode ?? ''),
       cellPhoneNumber: String(p?.cellPhoneNumber ?? ''),
       appointmentLanguageId: String(p?.appointmentLanguageId ?? ''),
-      applicantAttorneyEmail: String(appt?.['applicantAttorneyEmail'] ?? ''),
-      appointmentClaimExaminerEmail: String(appt?.['claimExaminerEmail'] ?? ''),
+      applicantAttorneyEmail: appt?.applicantAttorneyEmail ?? '',
+      appointmentClaimExaminerEmail: appt?.claimExaminerEmail ?? '',
       appointmentInsuranceName: String(insurance?.name ?? ''),
       defenseAttorneyFirmName: String(defense?.firmName ?? ''),
     };

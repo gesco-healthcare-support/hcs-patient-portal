@@ -62,13 +62,13 @@ describe('send-back-history.util', () => {
 
       const rows = changedRows(r);
 
-      expect(rows.length).toBe(1);
+      expect(rows).toHaveSize(1);
       expect(rows[0].label).toBe('Date of birth');
       expect(rows[0].oldValue).toBe('a');
       expect(rows[0].newValue).toBe('b');
     });
     it('returns empty for a null round', () => {
-      expect(changedRows(null).length).toBe(0);
+      expect(changedRows(null)).toHaveSize(0);
     });
   });
 
@@ -93,7 +93,7 @@ describe('send-back-history.util', () => {
     });
     it('truncates a long note with an ellipsis', () => {
       const long = 'x'.repeat(100);
-      expect(notePreview(long).length).toBe(83);
+      expect(notePreview(long)).toHaveSize(83);
       expect(notePreview(long).endsWith('...')).toBeTrue();
     });
     it('handles null and undefined', () => {

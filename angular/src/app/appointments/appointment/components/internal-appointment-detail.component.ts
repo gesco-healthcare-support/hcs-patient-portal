@@ -58,6 +58,12 @@ import {
  * consent (B3, 2026-07-01) -- no auto-approve. Internal staff only; the
  * external view/:id is a separate role-split route.
  */
+/**
+ * The shape the three date getters return: the DTO gives an ISO string, the
+ * ngb pickers give a Date, and either can be absent (typescript:S4323).
+ */
+type DateLike = string | Date | null | undefined;
+
 @Component({
   selector: 'app-internal-appointment-detail',
   standalone: true,
@@ -200,13 +206,13 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   protected get confNo(): string {
     return this.appointment?.appointment?.requestConfirmationNumber ?? '';
   }
-  protected get apptDate(): string | Date | null | undefined {
+  protected get apptDate(): DateLike {
     return this.appointment?.appointment?.appointmentDate;
   }
-  protected get requestedOn(): string | Date | null | undefined {
+  protected get requestedOn(): DateLike {
     return this.appointment?.appointment?.creationTime;
   }
-  protected get modifiedOn(): string | Date | null | undefined {
+  protected get modifiedOn(): DateLike {
     return this.appointment?.appointment?.lastModificationTime;
   }
   /**
