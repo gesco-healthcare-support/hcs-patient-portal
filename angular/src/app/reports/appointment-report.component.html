@@ -46,9 +46,9 @@
       formControlName="filterText"
     />
   </div>
+  <label class="ia-datelbl" for="report-appointment-type">Appointment type</label>
   <select
     id="report-appointment-type"
-    aria-label="Appointment type"
     class="ia-input"
     formControlName="appointmentTypeId"
     style="width: 165px"
@@ -58,21 +58,16 @@
       <option [value]="t.id">{{ t.name }}</option>
     }
   </select>
-  <select
-    id="report-location"
-    aria-label="Location"
-    class="ia-input"
-    formControlName="locationId"
-    style="width: 165px"
-  >
+  <label class="ia-datelbl" for="report-location">Location</label>
+  <select id="report-location" class="ia-input" formControlName="locationId" style="width: 165px">
     <option value="">All locations</option>
     @for (l of locationOptions; track l.id) {
       <option [value]="l.id">{{ l.name }}</option>
     }
   </select>
+  <label class="ia-datelbl" for="report-appointment-status">Status</label>
   <select
     id="report-appointment-status"
-    aria-label="Appointment status"
     class="ia-input"
     formControlName="appointmentStatus"
     style="width: 160px"
