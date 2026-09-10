@@ -254,7 +254,11 @@ def build(target):
     body = "\n".join(f'<div class="page {c}">\n{p}\n</div>' for p, c in zip(pages, cls))
     html = ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
             f'<title>{target}</title>\n<style>' + CSS + '</style></head>\n<body>\n' + body + '\n</body></html>')
-    with open(f"{target}.html", "w", encoding="utf-8") as f:
+    # newline="\n" so the document is byte-identical on every platform.
+    # Without it Python's text mode emits CRLF on Windows and LF on Linux --
+    # same content, different bytes, different hash. The packet-renderer image
+    # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
+    with open(f"{target}.html", "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
     print(f"wrote {target}.html")
 

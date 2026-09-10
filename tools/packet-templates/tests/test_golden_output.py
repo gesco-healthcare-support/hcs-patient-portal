@@ -49,27 +49,21 @@ BUILDERS = {
 
 
 def _sha256(path: str) -> str:
-    r"""Hash the document with line endings normalised to LF.
+    """Hash the document exactly as written, with no normalisation.
 
-    The builders write with a bare `open(name, "w", encoding="utf-8")`, so
-    Python's default newline translation applies: every \n becomes \r\n on
-    Windows and stays \n on Linux. The generated HTML is therefore
-    PLATFORM-DEPENDENT, and a raw hash recorded on one OS can never pass on
-    the other. CI found this on the first run -- all four documents differed.
+    The builders pass newline="\\n" explicitly, so the generated file is
+    byte-identical on every platform and a raw hash is meaningful everywhere.
 
-    Normalising before hashing makes the check mean what it is meant to mean:
-    the CONTENT has not moved. It cannot catch a change that alters only line
-    endings, which is not a template regression anyone can author by accident,
-    and the alternative is a test only one operating system can run.
-
-    Worth recording separately, because it qualifies an earlier claim. The
-    byte-exact comparisons on #771, #783 and #790 were sound, but each compared
-    before against after on ONE machine -- which is the claim those PRs needed.
-    They were not comparing against the bytes the packet-renderer image
-    produces, and nobody had reason to think otherwise until this ran on Linux.
+    Deliberately NOT normalising CRLF here, though that would also make the
+    test pass. Normalising fixes the measurement and leaves the artefact
+    platform-dependent, so a developer's local copy and the one baked into the
+    packet-renderer image stay two variants that merely mean the same thing --
+    and the next consumer that compares bytes hits the same wall. Hashing raw
+    also means that if a builder ever loses its newline argument, this test
+    fails and says so; a normalising test would hide exactly that regression.
     """
     with open(path, "rb") as fh:
-        return hashlib.sha256(fh.read().replace(b"\r\n", b"\n")).hexdigest()
+        return hashlib.sha256(fh.read()).hexdigest()
 
 
 def generate() -> dict[str, str]:
@@ -124,9 +118,9 @@ def read_golden() -> dict[str, str]:
 
 def write_golden(digests: dict[str, str]) -> None:
     with open(GOLDEN, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("# SHA-256 of every document the packet generators emit,\n")
-        fh.write("# with line endings normalised to LF so the value is identical on\n")
-        fh.write("# Windows and Linux. See _sha256 in test_golden_output.py.\n")
+        fh.write("# SHA-256 of every document the packet generators emit.\n")
+        fh.write("# The builders write LF explicitly, so these are the same bytes on\n")
+        fh.write("# every platform and the same bytes the packet-renderer image ships.\n")
         fh.write("# Regenerate with:\n")
         fh.write("#   python tools/packet-templates/tests/test_golden_output.py --update\n")
         fh.write("# A change here must ship with the template edit that caused it.\n")

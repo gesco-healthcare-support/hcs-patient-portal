@@ -1,6 +1,6 @@
-# SHA-256 of every document the packet generators emit,
-# with line endings normalised to LF so the value is identical on
-# Windows and Linux. See _sha256 in test_golden_output.py.
+# SHA-256 of every document the packet generators emit.
+# The builders write LF explicitly, so these are the same bytes on
+# every platform and the same bytes the packet-renderer image ships.
 # Regenerate with:
 #   python tools/packet-templates/tests/test_golden_output.py --update
 # A change here must ship with the template edit that caused it.
