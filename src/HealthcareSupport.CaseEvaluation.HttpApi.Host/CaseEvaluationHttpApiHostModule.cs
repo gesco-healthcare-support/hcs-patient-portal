@@ -96,9 +96,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureConventionalControllers();
         ConfigureAuthentication(context, configuration);
         ConfigureSwagger(context, configuration);
-        ConfigureCache(configuration);
+        ConfigureCache();
         ConfigureVirtualFileSystem(context);
-        ConfigureDataProtection(context, configuration, hostingEnvironment);
+        ConfigureDataProtection(context, configuration);
         ConfigureDistributedLocking(context, configuration);
         ConfigureCors(context, configuration);
         ConfigureExternalProviders(context);
@@ -524,7 +524,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         });
     }
 
-    private void ConfigureCache(IConfiguration configuration)
+    private void ConfigureCache()
     {
         Configure<AbpDistributedCacheOptions>(options =>
         {
@@ -997,6 +997,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// on document upload shows -- a key that varies with each guess cannot throttle
     /// guessing at all.</para>
     /// </summary>
+    /// <para>2026-09-09 (#654): this is now the single implementation of per-IP partitioning.
+    /// Three other resolvers carried byte-identical copies of this body; they remain as named
+    /// seams -- each documents why ITS endpoint partitions by IP, and keeps the limiter config
+    /// readable -- but they delegate here so the keying rule exists once. Sharing one resolver
+    /// across policies was already this file's pattern: two policies call this method directly.
+    /// If a policy ever needs a different key, change that policy's own method, not this one.</para>
     internal static string ResolveClientIpPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
@@ -1011,10 +1017,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// scenario being contained).
     /// </summary>
     internal static string ResolveIntegrationPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
-    {
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
-        return string.IsNullOrWhiteSpace(ip) ? "global" : $"ip:{ip}";
-    }
+        => ResolveClientIpPartitionKey(httpContext);
 
     /// <summary>
     /// 2026-05-13 -- partition key for the external-signup register
@@ -1023,14 +1026,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// in some test harnesses).
     /// </summary>
     internal static string ResolveExternalSignupPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
-    {
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!string.IsNullOrWhiteSpace(ip))
-        {
-            return $"ip:{ip}";
-        }
-        return "global";
-    }
+        => ResolveClientIpPartitionKey(httpContext);
 
     /// <summary>
     /// Phase 14b -- partition key for the document-upload-by-code
@@ -1117,14 +1113,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// resolvable.
     /// </summary>
     internal static string ResolvePasswordResetIpPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
-    {
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!string.IsNullOrWhiteSpace(ip))
-        {
-            return $"ip:{ip}";
-        }
-        return "global";
-    }
+        => ResolveClientIpPartitionKey(httpContext);
 
     private static void ConfigureAuthentication(ServiceConfigurationContext context, IConfiguration configuration)
     {
@@ -1243,8 +1232,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     private static void ConfigureDataProtection(
         ServiceConfigurationContext context,
-        IConfiguration configuration,
-        IWebHostEnvironment hostingEnvironment)
+        IConfiguration configuration)
     {
         if (AbpStudioAnalyzeHelper.IsInAnalyzeMode)
         {

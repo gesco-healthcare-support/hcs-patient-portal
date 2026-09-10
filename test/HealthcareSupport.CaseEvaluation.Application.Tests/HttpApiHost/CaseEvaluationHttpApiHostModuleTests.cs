@@ -364,6 +364,33 @@ public class CaseEvaluationHttpApiHostModuleTests
         CaseEvaluationHttpApiHostModule.ResolveIntegrationPartitionKey(ctx).ShouldBe("global");
     }
 
+    // ------------------------------------------------------------------
+    // #654 -- ResolveExternalSignupPartitionKey was the one per-IP resolver
+    // with NO test. It now delegates to ResolveClientIpPartitionKey along
+    // with the other two, and a delegation that nothing exercises is a
+    // change nobody would notice breaking. Covered here to the same bar as
+    // its siblings: both the resolved-IP case and the unresolvable-IP case.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ResolveExternalSignupPartitionKey_PrefixesIpAddress()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.0.2.77");
+
+        CaseEvaluationHttpApiHostModule.ResolveExternalSignupPartitionKey(ctx).ShouldBe("ip:192.0.2.77");
+    }
+
+    [Fact]
+    public void ResolveExternalSignupPartitionKey_FallBackToGlobalWhenIpUnknown()
+    {
+        // Anonymous endpoint, so an unresolvable IP must still land in a bounded
+        // bucket rather than an unlimited one.
+        var ctx = new DefaultHttpContext();
+
+        CaseEvaluationHttpApiHostModule.ResolveExternalSignupPartitionKey(ctx).ShouldBe("global");
+    }
+
     [Fact]
     public void IntegrationRequestsPerHour_LeavesRoomForARepairSweep()
     {
