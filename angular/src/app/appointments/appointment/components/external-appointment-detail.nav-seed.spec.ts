@@ -61,7 +61,10 @@ describe('ExternalAppointmentDetailComponent nav and seed (#629)', () => {
         { provide: HttpClient, useValue: { get: () => of(null), post: () => of(null) } },
         {
           provide: ConfigStateService,
-          useValue: { getOne: (k: string) => (k === 'currentUser' ? { roles } : null), getAll: () => ({}) },
+          useValue: {
+            getOne: (k: string) => (k === 'currentUser' ? { roles } : null),
+            getAll: () => ({}),
+          },
         },
         { provide: AppointmentService, useValue: {} },
         { provide: RestService, useValue: { request: () => of(null) } },

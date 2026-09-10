@@ -41,7 +41,10 @@ describe('AppointmentViewComponent attorney snapshot overlay (#629)', () => {
       providers: [
         FormBuilder,
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
-        { provide: Router, useValue: { navigate: () => undefined, navigateByUrl: () => undefined } },
+        {
+          provide: Router,
+          useValue: { navigate: () => undefined, navigateByUrl: () => undefined },
+        },
         { provide: HttpClient, useValue: { get: () => of(null), post: () => of(null) } },
         { provide: ConfigStateService, useValue: { getOne: () => null, getAll: () => ({}) } },
         { provide: AppointmentService, useValue: {} },
@@ -53,9 +56,7 @@ describe('AppointmentViewComponent attorney snapshot overlay (#629)', () => {
         { provide: AppointmentChangeRequestService, useValue: {} },
       ],
     });
-    return TestBed.runInInjectionContext(
-      () => new AppointmentViewComponent(),
-    ) as unknown as Probe;
+    return TestBed.runInInjectionContext(() => new AppointmentViewComponent()) as unknown as Probe;
   }
 
   function withAppointment(c: Probe, fields: Record<string, unknown>): void {
