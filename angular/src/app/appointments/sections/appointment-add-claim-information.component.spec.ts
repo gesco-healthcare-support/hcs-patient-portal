@@ -49,7 +49,7 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
 
   it('seeds exactly one required body-part row when the modal opens', () => {
     component.openAddInjuryModal();
-    expect(component.bodyPartsArray.length).toBe(1);
+    expect(component.bodyPartsArray).toHaveSize(1);
     expect(component.bodyPartsArray.at(0).hasError('required')).toBe(true);
   });
 
@@ -64,7 +64,7 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
     component.saveInjuryModal();
 
     expect(component.injuryModalError).toBeNull();
-    expect(component.injuryDrafts.length).toBe(1);
+    expect(component.injuryDrafts).toHaveSize(1);
     expect(component.injuryDrafts[0].bodyParts).toEqual(['Lower back', 'Right knee', 'Left wrist']);
     expect(component.injuryDrafts[0].bodyPartsSummary).toBe('Lower back, Right knee, Left wrist');
   });
@@ -79,16 +79,16 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
 
     component.saveInjuryModal();
 
-    expect(component.injuryDrafts.length).toBe(1);
+    expect(component.injuryDrafts).toHaveSize(1);
     expect(component.injuryDrafts[0].bodyParts).toEqual(['Shoulder']);
     expect(component.injuryDrafts[0].bodyPartsSummary).toBe('Shoulder');
   });
 
   it('removeBodyPart keeps at least one row', () => {
     component.openAddInjuryModal();
-    expect(component.bodyPartsArray.length).toBe(1);
+    expect(component.bodyPartsArray).toHaveSize(1);
     component.removeBodyPart(0);
-    expect(component.bodyPartsArray.length).toBe(1);
+    expect(component.bodyPartsArray).toHaveSize(1);
   });
 });
 
@@ -212,7 +212,7 @@ describe('AppointmentAddClaimInformationComponent cumulative trauma (BUG-040 / #
     fixture.componentInstance.saveInjuryModal();
 
     expect(fixture.componentInstance.injuryModalError).toBeNull();
-    expect(drafts.length).toBe(1);
+    expect(drafts).toHaveSize(1);
     // The exact two columns the finding measured as 0 and NULL in the database.
     expect(drafts[0].isCumulativeInjury).toBeTrue();
     expect(drafts[0].toDateOfInjury).toBe('2025-12-10');
@@ -233,7 +233,7 @@ describe('AppointmentAddClaimInformationComponent cumulative trauma (BUG-040 / #
 
     fixture.componentInstance.saveInjuryModal();
 
-    expect(drafts.length).toBe(1);
+    expect(drafts).toHaveSize(1);
     expect(drafts[0].isCumulativeInjury).toBeFalse();
     expect(drafts[0].toDateOfInjury).toBeNull();
   });
@@ -256,7 +256,99 @@ describe('AppointmentAddClaimInformationComponent cumulative trauma (BUG-040 / #
 
     fixture.componentInstance.saveInjuryModal();
 
-    expect(drafts.length).toBe(0);
+    expect(drafts).toHaveSize(0);
     expect(fixture.componentInstance.injuryModalError).toContain('earlier than');
+  });
+});
+
+/**
+ * Sweep #632 replaced this method's `JSON.parse(JSON.stringify(draft))` with
+ * `structuredClone` (typescript:S7784). The swap is exact for
+ * AppointmentInjuryDraft -- every field is boolean, string, string | null or
+ * string[], and all four producers coalesce with `??`, so no Date, function or
+ * undefined can reach it -- but the method had no coverage at all, so these
+ * specs pin the edit-load contract that the clone sits inside.
+ *
+ * Note on what they do and do not prove: the draft is isolated from the form
+ * by TWO independent mechanisms -- the clone here, and buildInjuryForm mapping
+ * every field into fresh controls. The isolation spec below pins the
+ * observable contract; it would still pass if either mechanism alone were
+ * removed, and that is deliberate -- the contract is what callers rely on.
+ */
+describe('AppointmentAddClaimInformationComponent openEditInjuryModal', () => {
+  let component: AppointmentAddClaimInformationComponent;
+
+  function draft(overrides: Partial<AppointmentInjuryDraft> = {}): AppointmentInjuryDraft {
+    return {
+      isCumulativeInjury: true,
+      dateOfInjury: '2025-06-01',
+      toDateOfInjury: '2025-12-10',
+      claimNumber: 'CLM-0042',
+      wcabOfficeId: null,
+      wcabAdj: 'ADJ-0042',
+      bodyParts: ['Lower back', 'Right knee'],
+      bodyPartsSummary: 'Lower back, Right knee',
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [AppointmentAddClaimInformationComponent],
+      providers: [{ provide: RestService, useValue: { request: () => of({ items: [] }) } }],
+    });
+    component = TestBed.createComponent(AppointmentAddClaimInformationComponent).componentInstance;
+    component.injuryDrafts = [];
+  });
+
+  it('loads the selected draft into the modal form', () => {
+    component.injuryDrafts = [draft()];
+
+    component.openEditInjuryModal(0);
+
+    expect(component.isInjuryModalOpen).toBeTrue();
+    expect(component.injuryEditingIndex).toBe(0);
+    expect(component.injuryModalError).toBeNull();
+    expect(component.injuryForm.get('injuryClaimNumber')!.value).toBe('CLM-0042');
+    expect(component.injuryForm.get('injuryToDateOfInjury')!.value).toBe('2025-12-10');
+    expect(component.injuryForm.get('injuryCumulative')!.value).toBeTrue();
+    // One control per stored body part, rather than the single seeded row.
+    expect(component.bodyPartsArray).toHaveSize(2);
+    expect(component.bodyPartsArray.value).toEqual(['Lower back', 'Right knee']);
+  });
+
+  it('is a no-op for an index that holds no draft', () => {
+    component.injuryDrafts = [draft()];
+
+    component.openEditInjuryModal(7);
+
+    expect(component.isInjuryModalOpen).toBeFalse();
+    expect(component.injuryEditingIndex).toBe(-1);
+  });
+
+  it('leaves the stored draft untouched while the form is edited', () => {
+    const stored = draft();
+    component.injuryDrafts = [stored];
+
+    component.openEditInjuryModal(0);
+    component.injuryForm.get('injuryClaimNumber')!.setValue('CHANGED');
+    component.bodyPartsArray.at(0).setValue('Neck');
+
+    expect(stored.claimNumber).toBe('CLM-0042');
+    expect(stored.bodyParts).toEqual(['Lower back', 'Right knee']);
+  });
+
+  it('replaces the edited draft in place on save rather than appending', () => {
+    const drafts = [draft(), draft({ claimNumber: 'CLM-0099' })];
+    component.injuryDrafts = drafts;
+
+    component.openEditInjuryModal(0);
+    component.injuryForm.get('injuryClaimNumber')!.setValue('CLM-EDITED');
+    component.saveInjuryModal();
+
+    expect(component.injuryModalError).toBeNull();
+    expect(drafts).toHaveSize(2);
+    expect(drafts[0].claimNumber).toBe('CLM-EDITED');
+    expect(drafts[1].claimNumber).toBe('CLM-0099');
   });
 });

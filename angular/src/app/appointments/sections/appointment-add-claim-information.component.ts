@@ -205,7 +205,7 @@ export class AppointmentAddClaimInformationComponent {
   openEditInjuryModal(index: number): void {
     const existing = this.injuryDrafts[index];
     if (!existing) return;
-    const cloned: AppointmentInjuryDraft = JSON.parse(JSON.stringify(existing));
+    const cloned: AppointmentInjuryDraft = structuredClone(existing);
     this.injuryForm = this.buildInjuryForm(cloned);
     this.injuryEditingIndex = index;
     this.loadInjuryLookups();

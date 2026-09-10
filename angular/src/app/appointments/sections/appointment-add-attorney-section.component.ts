@@ -106,12 +106,13 @@ export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDest
   // would needlessly churn the OnPush child input.
   private cachedAddressFields?: AddressFieldMap;
   get addressFields(): AddressFieldMap {
-    return (this.cachedAddressFields ??= {
+    this.cachedAddressFields ??= {
       street: this.prefix + 'Street',
       city: this.prefix + 'City',
       state: this.prefix + 'StateId',
       zip: this.prefix + 'ZipCode',
-    });
+    };
+    return this.cachedAddressFields;
   }
 
   /** Card heading -- "Applicant Attorney Details" or "Defense Attorney Details". */
