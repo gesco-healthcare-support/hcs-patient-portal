@@ -22,12 +22,12 @@ const ALREADY_APPROVED = 'CaseEvaluation:Appointment.NotPendingForApproval';
  * without acting is guaranteed to fail again -- so these must NOT be retried, and the server's own
  * message is more useful than anything generic we could write here.
  */
-const GATE_CODES: readonly string[] = [
+const GATE_CODES: ReadonlySet<string> = new Set([
   'CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail',
   'CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer',
   'CaseEvaluation:Appointment.ApprovalRequiresPanelStrikeList',
   'CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser',
-];
+]);
 
 export type AutoApproveOutcome =
   /** Nothing to do: the appointment is already Approved. Report as success. */
@@ -69,7 +69,7 @@ export function classifyAutoApproveFailure(err: unknown): AutoApproveOutcome {
     return { kind: 'alreadyApproved' };
   }
 
-  if (code && GATE_CODES.includes(code)) {
+  if (code && GATE_CODES.has(code)) {
     // The server's localized message names the missing thing; ours could not.
     return { kind: 'blocked', message: message || AUTO_APPROVE_FALLBACK_MESSAGE };
   }

@@ -417,7 +417,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
         a.download = doc.fileName ?? 'document';
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
+        a.remove();
         // Revoke after the click is dispatched.
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       },

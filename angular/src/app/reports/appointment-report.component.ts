@@ -278,7 +278,7 @@ export class AppointmentReportComponent implements OnInit {
         anchor.style.display = 'none';
         document.body.appendChild(anchor);
         anchor.click();
-        document.body.removeChild(anchor);
+        anchor.remove();
       } finally {
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       }

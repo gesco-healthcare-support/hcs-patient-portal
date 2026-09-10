@@ -87,8 +87,8 @@ type UploadState = 'idle' | 'uploading' | 'success' | 'error';
   ],
 })
 export class PublicDocumentUploadComponent {
-  private route = inject(ActivatedRoute);
-  private restService = inject(RestService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly restService = inject(RestService);
 
   private readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   private readonly verificationCode = this.route.snapshot.paramMap.get('verificationCode') ?? '';
