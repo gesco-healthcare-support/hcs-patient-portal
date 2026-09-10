@@ -187,7 +187,7 @@
           @if (shouldShowApplicantAttorneySection()) {
             <app-appointment-add-attorney-section
               [form]="form"
-              role="applicant"
+              [role]="'applicant'"
               [mandatory]="isApplicantAttorney && !isItAdmin"
               [questionText]="attorneyQuestionFor('applicant')"
               [getStateLookup]="getStateLookup"
@@ -201,7 +201,7 @@
           @if (shouldShowDefenseAttorneySection()) {
             <app-appointment-add-attorney-section
               [form]="form"
-              role="defense"
+              [role]="'defense'"
               [mandatory]="isDefenseAttorney && !isItAdmin"
               [questionText]="attorneyQuestionFor('defense')"
               [getStateLookup]="getStateLookup"
