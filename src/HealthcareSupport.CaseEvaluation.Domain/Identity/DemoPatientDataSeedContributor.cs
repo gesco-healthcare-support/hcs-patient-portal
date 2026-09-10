@@ -117,7 +117,7 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
                 lastName: "Santos",
                 email: email,
                 genderId: Gender.Female,
-                dateOfBirth: new DateTime(1986, 5, 14),
+                dateOfBirth: new DateTime(1986, 5, 14, 0, 0, 0, DateTimeKind.Unspecified),
                 phoneNumberTypeId: PhoneNumberType.Home,
                 middleName: null,
                 phoneNumber: "555-010-0150",
