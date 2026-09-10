@@ -25,7 +25,7 @@ import {
 import { BookingMode, resolveBookingModeFromType } from './shared/booking-mode';
 import { isReBookEligibleStatus } from './shared/rebook-eligibility';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
-import { unitForForm, unitToDto } from './shared/patient-unit.mapper';
+import { unitForForm } from './shared/patient-unit.mapper';
 import {
   AUTO_APPROVE_FALLBACK_MESSAGE,
   classifyAutoApproveFailure,
@@ -59,11 +59,7 @@ import { AddressFieldMap } from '../shared/address/address-autocomplete.componen
 import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
 import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-address-dialog.component';
 import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
-import type {
-  AppointmentDto,
-  AppointmentInjurySubmitDto,
-  AppointmentSubmitDto,
-} from '../proxy/appointments/models';
+import type { AppointmentDto, AppointmentSubmitDto } from '../proxy/appointments/models';
 import { BookingSubmitMode } from '../proxy/enums/booking-submit-mode.enum';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
@@ -95,7 +91,7 @@ import {
 } from './sections/appointment-add-documents.component';
 import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
 import { isStrikeListGateBlocked } from '../appointment-documents/strike-list-gate';
-import { formatDateOfBirthForApi, normalizePatientDateOfBirth } from '../shared/date-of-birth.util';
+import { normalizePatientDateOfBirth } from '../shared/date-of-birth.util';
 
 /**
  * Placeholder for a child row's `appointmentId` in a submit request. The appointment does not exist
@@ -116,6 +112,16 @@ type AppointmentTypeFieldConfigDto = {
   readOnly: boolean;
   defaultValue?: string | null;
 };
+
+/**
+ * What a custom-field reactive control can hold: text and number fields give a
+ * string, the date picker gives its adapter's ISO string, a single tickbox gives
+ * a boolean and a multi tickbox gives the selected option strings. Declared
+ * rather than left as `unknown` so serializeOneCustomFieldValue can stringify
+ * without typescript:S6551 -- the rule is right that String() on an unknown can
+ * yield "[object Object]", and the fix is to say what the value actually is.
+ */
+type CustomFieldRawValue = string | number | boolean | readonly string[] | null;
 
 /**
  * Base class for the booking form. NOT a rendered component -- it has no selector and no
@@ -1333,7 +1339,7 @@ export class AppointmentAddComponent {
         customFieldId?: string;
         fieldType?: CustomFieldType;
         multipleValues?: string | null;
-        customFieldValue?: unknown;
+        customFieldValue?: CustomFieldRawValue;
       };
       if (!v.customFieldId) continue;
       const serialized = this.serializeOneCustomFieldValue(v);
@@ -1346,7 +1352,7 @@ export class AppointmentAddComponent {
   private serializeOneCustomFieldValue(v: {
     fieldType?: CustomFieldType;
     multipleValues?: string | null;
-    customFieldValue?: unknown;
+    customFieldValue?: CustomFieldRawValue;
   }): string | null {
     const raw = v.customFieldValue;
     if (raw === null || raw === undefined) return null;
@@ -3445,7 +3451,6 @@ export class AppointmentAddComponent {
     if (this.daysFromTodayKey(dateKey) > this.maxBookingDays) {
       this.showContactStaffForFurtherBooking();
       this.clearAppointmentDate();
-      return;
     }
   }
 

@@ -78,7 +78,18 @@ export class InternalUsersFormComponent implements OnInit {
     welcomeEmailQueued: boolean;
   } | null>(null);
 
-  async ngOnInit(): Promise<void> {
+  /**
+   * OnInit declares a void return, so returning a Promise here left Angular
+   * with something it silently drops (typescript:S6544). The work is still
+   * async; the discard is now explicit. Nothing can reject -- the awaited
+   * call is inside the try/catch/finally below and everything before it is
+   * synchronous -- so `void` is a statement of intent, not a swallowed error.
+   */
+  ngOnInit(): void {
+    void this.loadTenants();
+  }
+
+  private async loadTenants(): Promise<void> {
     // Branch on session scope: tenant admins are pre-bound to their
     // own tenant, host IT Admins choose from the full tenant list.
     const tenantFromSession = this.currentTenantFromSession();
