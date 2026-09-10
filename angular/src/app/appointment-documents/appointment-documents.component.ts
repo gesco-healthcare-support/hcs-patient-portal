@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   Output,
@@ -467,6 +468,27 @@ export class AppointmentDocumentsComponent implements OnChanges {
     }
     this.rejectingDoc = doc;
     this.rejectionReason = doc.rejectionReason ?? '';
+  }
+
+  /**
+   * Escape closes the document reject modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.reject-modal-backdrop` and its `.reject-modal` container. The keyboard
+   * equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to it would never fire, and a tabindex would put a
+   * tab stop on a decorative overlay. Pattern from #622.
+   *
+   * Routed through closeRejectModal rather than setting the state directly, so its existing
+   * guard is inherited and Escape cannot do something the backdrop click will
+   * not. closeRejectModal also clears isSubmittingReject, which
+   * is why Escape must not bypass it.
+   */
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.rejectingDoc) {
+      this.closeRejectModal();
+    }
   }
 
   closeRejectModal(): void {

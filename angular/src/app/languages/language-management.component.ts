@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PermissionService } from '@abp/ng.core';
@@ -93,6 +93,27 @@ export class LanguageManagementComponent {
       this.draft.set({ ...current, ...partial });
     }
   }
+  /**
+   * Escape closes the language edit modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim` and its `.ra-modal` container. The keyboard
+   * equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to it would never fire, and a tabindex would put a
+   * tab stop on a decorative overlay. Pattern from #622.
+   *
+   * Routed through close rather than setting the state directly, so its existing
+   * guard is inherited and Escape cannot do something the backdrop click will
+   * not. close() refuses while isBusy(), so Escape
+   * cannot abandon a save in flight.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.editing() !== null) {
+      this.close();
+    }
+  }
+
   protected close(): void {
     if (!this.isBusy()) {
       this.editing.set(null);
