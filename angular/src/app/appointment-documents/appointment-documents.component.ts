@@ -105,20 +105,20 @@ const PANEL_STRIKE_LIST_LABEL = 'Panel Strike List';
 })
 export class AppointmentDocumentsComponent implements OnChanges {
   @Input() appointmentId: string | null = null;
-  @Output() documentsChanged = new EventEmitter<void>();
+  @Output() readonly documentsChanged = new EventEmitter<void>();
 
-  private service = inject(AppointmentDocumentService);
-  private toaster = inject(ToasterService);
-  private permission = inject(PermissionService);
+  private readonly service = inject(AppointmentDocumentService);
+  private readonly toaster = inject(ToasterService);
+  private readonly permission = inject(PermissionService);
   // Direct REST + URL helper bypass the auto-generated upload() / download
   // helpers on AppointmentDocumentService. The proxy generator emits a
   // typed multipart wrapper (UploadAppointmentDocumentForm with IFormFile)
   // that does not produce a valid browser FormData request, and the
   // hand-edited buildDownloadUrl helper does not survive regeneration.
   // See docs/research/proxy-regen-doc-flow-fix.md (Q2).
-  private restService = inject(RestService);
-  private urls = inject(AppointmentDocumentUrls);
-  private http = inject(HttpClient);
+  private readonly restService = inject(RestService);
+  private readonly urls = inject(AppointmentDocumentUrls);
+  private readonly http = inject(HttpClient);
 
   documents: AppointmentDocumentDto[] = [];
   isLoading = false;

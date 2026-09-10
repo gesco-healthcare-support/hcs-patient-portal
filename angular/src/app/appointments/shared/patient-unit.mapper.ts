@@ -40,5 +40,5 @@ export function unitForForm(patient: PatientUnitSource | null | undefined): stri
  */
 export function unitToDto(controlValue: string | null | undefined): string | undefined {
   const trimmed = controlValue?.trim();
-  return trimmed ? trimmed : undefined;
+  return trimmed || undefined;
 }

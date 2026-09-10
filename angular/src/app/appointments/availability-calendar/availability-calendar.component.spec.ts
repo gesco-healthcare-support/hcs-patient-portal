@@ -98,7 +98,7 @@ describe('AvailabilityCalendarComponent', () => {
       fixture.nativeElement.querySelectorAll('select option'),
     ) as HTMLOptionElement[];
     // SELECT placeholder + the two slots.
-    expect(options.length).toBe(3);
+    expect(options).toHaveSize(3);
     expect(options[1].textContent?.trim()).toBe('9:00 AM');
     expect(options[2].textContent?.trim()).toBe('2:00 PM');
   });

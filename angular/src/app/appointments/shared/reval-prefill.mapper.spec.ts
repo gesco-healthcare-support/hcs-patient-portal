@@ -34,7 +34,7 @@ describe('buildRevalPrefill -- accessor role fallback (#3)', () => {
     const result = buildRevalPrefill(
       baseSources({ accessors: [accessorRow('Applicant Attorney')], authorizedUserOptions: [] }),
     );
-    expect(result.authorizedUsers.length).toBe(1);
+    expect(result.authorizedUsers).toHaveSize(1);
     expect(result.authorizedUsers[0].userRole).toBe('Applicant Attorney');
   });
 
