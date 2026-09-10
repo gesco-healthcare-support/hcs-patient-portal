@@ -47,7 +47,14 @@
       <!-- ===================== Host (IT Admin) ===================== -->
       <!-- QA item 6 (D1): 6-tile period hero -- dh-hero--host lays it out 3x2. -->
       <div class="dh-hero" [class.dh-hero--host]="isHost()">
-        <div class="dh-kpi blue" (click)="openTenants()">
+        <div
+          class="dh-kpi blue"
+          (click)="openTenants()"
+          role="button"
+          tabindex="0"
+          (keydown.enter)="openTenants()"
+          (keydown.space)="$event.preventDefault(); openTenants()"
+        >
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-blue"><app-icon name="users" [size]="18" /></span>
             <!-- UI label: 'Total Practices' (code: totalTenants) -->
@@ -156,7 +163,14 @@
     } @else {
       <!-- ===================== Tenant (Supervisor / Intake) ===================== -->
       <div class="dh-hero" [class.dh-hero--intake]="isIntake()">
-        <div class="dh-kpi amber" (click)="openByStatus(1)">
+        <div
+          class="dh-kpi amber"
+          (click)="openByStatus(1)"
+          role="button"
+          tabindex="0"
+          (keydown.enter)="openByStatus(1)"
+          (keydown.space)="$event.preventDefault(); openByStatus(1)"
+        >
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-amber"><app-icon name="clock" [size]="18" /></span>
             <span class="dh-kpi__lbl">Pending Requests</span>
@@ -181,7 +195,14 @@
         </div>
 
         @if (isIntake()) {
-          <div class="dh-kpi blue" (click)="openAppointments()">
+          <div
+            class="dh-kpi blue"
+            (click)="openAppointments()"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="openAppointments()"
+            (keydown.space)="$event.preventDefault(); openAppointments()"
+          >
             <div class="dh-kpi__top">
               <span class="dh-kpi__ic tint-blue"><app-icon name="calendar" [size]="18" /></span>
               <span class="dh-kpi__lbl">Today's Appointments</span>
@@ -189,14 +210,28 @@
             <div class="dh-kpi__num">{{ (d.todaySchedule || []).length }}</div>
           </div>
         } @else {
-          <div class="dh-kpi blue" (click)="openChangeRequests()">
+          <div
+            class="dh-kpi blue"
+            (click)="openChangeRequests()"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="openChangeRequests()"
+            (keydown.space)="$event.preventDefault(); openChangeRequests()"
+          >
             <div class="dh-kpi__top">
               <span class="dh-kpi__ic tint-blue"><app-icon name="refresh" [size]="18" /></span>
               <span class="dh-kpi__lbl">Pending Change Requests</span>
             </div>
             <div class="dh-kpi__num">{{ d.pendingChangeRequests?.value ?? 0 }}</div>
           </div>
-          <div class="dh-kpi green" (click)="openByStatus(2)">
+          <div
+            class="dh-kpi green"
+            (click)="openByStatus(2)"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="openByStatus(2)"
+            (keydown.space)="$event.preventDefault(); openByStatus(2)"
+          >
             <div class="dh-kpi__top">
               <span class="dh-kpi__ic tint-green"><app-icon name="check" [size]="18" /></span>
               <span class="dh-kpi__lbl">Approved Requests</span>
@@ -219,7 +254,14 @@
               </div>
             }
           </div>
-          <div class="dh-kpi red" (click)="openByStatus(3)">
+          <div
+            class="dh-kpi red"
+            (click)="openByStatus(3)"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="openByStatus(3)"
+            (keydown.space)="$event.preventDefault(); openByStatus(3)"
+          >
             <div class="dh-kpi__top">
               <span class="dh-kpi__ic tint-red"><app-icon name="x" [size]="18" /></span>
               <span class="dh-kpi__lbl">Rejected Requests</span>
@@ -261,7 +303,14 @@
           </div>
           <div class="dh-alert__list">
             @for (row of d.deadlines; track row.appointmentId) {
-              <div class="dh-alert__row" (click)="openDeadline(row.appointmentId)">
+              <div
+                class="dh-alert__row"
+                (click)="openDeadline(row.appointmentId)"
+                role="button"
+                tabindex="0"
+                (keydown.enter)="openDeadline(row.appointmentId)"
+                (keydown.space)="$event.preventDefault(); openDeadline(row.appointmentId)"
+              >
                 <span class="conf">{{ row.confirmationNumber }}</span>
                 <span class="pt">{{ row.patientName }}</span>
                 <span class="due">
