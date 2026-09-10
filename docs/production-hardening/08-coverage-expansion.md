@@ -143,6 +143,81 @@ Sonar's denominator counts tooling no runner will ever cover.
 
 ---
 
+## 8.1b step 1 -- the first Python coverage figure
+
+The 1,300 lines package 8.1 ruled IN were uncovered because nothing could run
+them, not because they were hard. Step 1 builds the harness and covers the first
+subject.
+
+| | |
+| --- | --- |
+| Tests | 52, passing |
+| Runner | stdlib `unittest`, no test-runner dependency |
+| Subject | `scripts/coverage-gate.py` |
+| Coverage | **57.58%** (133 of 231 lines) |
+| Gated? | **No.** Measure-only; `FLOOR_PYTHON` is step 4 (#787). |
+
+### stdlib `unittest`, not pytest -- and the reasoning is worth keeping
+
+PR #821 added the first Python tests to this repository on stdlib `unittest`
+**no dependencies at all**. This step follows that convention rather than
+introducing a second one.
+
+pytest was written first and then withdrawn on evidence: the 52 tests use
+exactly three of its features -- a session fixture, `raises`, and `tmp_path` --
+and all three have direct stdlib equivalents. The converted suite runs the same
+52 tests, reports the same 57.58%, and **all seven of its guarantees are still
+seen to fail naming the same tests**. Nothing measurable was lost, so pytest, a
+`requirements-dev.txt` and a runner config section would have been ceremony.
+
+**`coverage` is the one dependency, and it is the deliverable rather than the
+runner.** That is the whole difference between this job and #821's: producing a
+report both consumers can read is what #784 exists to do.
+
+### Why `coverage-gate.py` went first
+
+It is the instrument every figure in phase 8 comes from, and it had no tests --
+the shape phase 2 existed to remove. It is also the cheapest subject in the
+package: stdlib only, no container, no third-party dependency, a large pure core.
+
+Three defects already recorded against it (catalogue 19, 20, 21) are
+**characterized, not fixed**. `require_report()` rejects an existing-but-empty
+file, which is right for a coverage report and wrong for a diff; the test pins
+today's behaviour and says so. Fixing it is its own task, per this phase's change
+class.
+
+### The one configuration line to be careful with
+
+`[tool.coverage.run] source = ["."]`. Naming a subdirectory instead makes
+coverage report paths relative to that directory, stripping the prefix:
+
+```text
+source = ["scripts"]  ->  filename="coverage-gate.py"          patterns miss
+source = ["."]        ->  filename="scripts/coverage-gate.py"  correct
+```
+
+Both consumers match `.coverage-exclusions` on repo-relative paths, so the
+stripped form breaks exclusion matching in SonarCloud and in `coverage-gate.py`
+at once -- while still printing a figure that looks entirely reasonable. There is
+no error; only a wrong number.
+
+The cost of `["."]`: only files the tests EXECUTE are reported, because
+coverage's discovery of unexecuted files recurses only into Python packages and
+none of these directories are. That is acceptable because SonarCloud derives its
+Python denominator from its own analysis -- measured with no report in existence,
+`coverage-gate.py` already sat at 223 lines_to_cover and 0.0%.
+
+### What this does NOT do
+
+- **It does not gate.** No floor is set. A ratchet at 0 defends nothing, and the
+  value must be read off a real run rather than guessed -- item 2.10's rule.
+- **It does not feed SonarCloud yet.** `sonar.python.coverage.reportPaths` is
+  step 4.
+- **It does not change `coverage-gate.py`.** The gate learns about Python in step
+  4, deliberately last, by which time the number is real and worth defending.
+
+---
+
 ## Correct the coverage documentation first
 
 `docs/testing/coverage-status.md` declares itself "the single source of truth for backend test
