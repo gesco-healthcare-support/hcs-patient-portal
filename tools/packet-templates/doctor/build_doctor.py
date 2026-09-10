@@ -612,6 +612,32 @@ def _palpation_cells(i, palp, base, pps):
     return f'<td class="lbl">{lab}</td><td colspan="{pps}"></td><td colspan="{pps}"></td>'
 
 
+def _upper_orthopedic_cells(i, ortho, base, jt):
+    """Orthopedic cells (cols 7-11) for one Upper-Extremity body row.
+
+    Single-use, and extracted for exactly one reason: it is what brings
+    _upper_region under the cognitive-complexity threshold. #783 took it from 25
+    to 16 against a limit of 15, so this is the last point rather than a general
+    tidy-up. Unlike the Lower-Extremity equivalent this block reads only i, ortho,
+    base and jt -- there is no band/stack state to thread through a signature,
+    which is the whole reason this one is liftable and _lower_region's is not.
+
+    Returns "" for rows past the J-Tech row. Those columns are already covered by
+    the colspan-12 open band the ROM/Strength block emits, which is why the
+    original arm was a bare `pass`; the caller joins, so "" is equivalent.
+    """
+    if i <= len(ortho):
+        lab = ortho[i - 1]
+        ob = base + _SEG_ORTHO + _slug(lab)
+        return (f'<td class="lbl">{lab}</td><td class="mk" colspan="2">{pm_single(ob + ".r", 10)}</td>'
+                f'<td class="mk" colspan="2">{pm_single(ob + ".l", 10)}</td>')
+    if i == jt:
+        return f'<td class="lbl obr" colspan="5">{_jtech(base + ".jtech_str", "Muscle Strength")}</td>'
+    if i > jt:
+        return ""      # already merged into the colspan-12 open band emitted above
+    return '<td colspan="5"></td>'
+
+
 def _upper_region(twips, title, ama, rs, ortho, palp, base, pps):
     # J-Tech row sits below BOTH the ROM/Strength data and the Orthopedic items, so the
     # "Muscle Strength" checkbox (which spans the Orthopedic columns) never collides with
@@ -646,17 +672,7 @@ def _upper_region(twips, title, ama, rs, ortho, palp, base, pps):
         else:
             c.append('<td colspan="7"></td>')    # gap row: ROM done, Orthopedic still running
         # Orthopedic (cols 7-11) -- J-Tech (Muscle Strength) spans this section on the jtech row
-        if i <= len(ortho):
-            lab = ortho[i - 1]
-            ob = base + _SEG_ORTHO + _slug(lab)
-            c.append(f'<td class="lbl">{lab}</td><td class="mk" colspan="2">{pm_single(ob + ".r", 10)}</td>'
-                     f'<td class="mk" colspan="2">{pm_single(ob + ".l", 10)}</td>')
-        elif i == jt:
-            c.append(f'<td class="lbl obr" colspan="5">{_jtech(base + ".jtech_str", "Muscle Strength")}</td>')
-        elif i > jt:
-            pass   # already merged into the colspan-12 open band emitted above
-        else:
-            c.append('<td colspan="5"></td>')
+        c.append(_upper_orthopedic_cells(i, ortho, base, jt))
         # Palpation
         c.append(_palpation_cells(i, palp, base, pps))
         out.append("<tr>" + "".join(c) + "</tr>")
