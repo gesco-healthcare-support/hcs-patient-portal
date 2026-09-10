@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, Injector, OnInit, inject } from '@angular/core';
+import { Component, HostListener, Injector, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ConfigStateService as AbpConfigStateService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -594,6 +594,26 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected openResubmitConfirm(): void {
     this.resubmitConfirmVisible = true;
   }
+  /**
+   * Escape closes the resubmit confirmation modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim` backdrop and its `.ra-modal` container. The keyboard
+   * equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to it would never fire, and a tabindex would put a
+   * tab stop on a decorative overlay. Matches the pattern in
+   * internal-appointment-detail.component.ts, added for the same rule in #622.
+   *
+   * Routed through cancelResubmit so Escape does exactly what the mouse path does
+   * rather than becoming a second, subtly different close.
+   */
+  @HostListener('document:keydown.escape')
+  protected onResubmitEscapeKey(): void {
+    if (this.resubmitConfirmVisible) {
+      this.cancelResubmit();
+    }
+  }
+
   protected cancelResubmit(): void {
     this.resubmitConfirmVisible = false;
   }
