@@ -122,12 +122,9 @@ public class CaseEvaluationAuthServerModule : AbpModule
                 .Get<string[]>();
             if (configuredFormats != null && configuredFormats.Length > 0)
             {
-                foreach (var format in configuredFormats)
+                foreach (var format in configuredFormats.Where(f => !string.IsNullOrWhiteSpace(f)))
                 {
-                    if (!string.IsNullOrWhiteSpace(format))
-                    {
-                        options.WildcardDomainsFormat.Add(format);
-                    }
+                    options.WildcardDomainsFormat.Add(format);
                 }
             }
             else
