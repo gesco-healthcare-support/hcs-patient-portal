@@ -220,7 +220,11 @@
             }
           } @else {
             @for (a of rows; track a.appointmentId) {
-              <tr (click)="openAppointment(a.appointmentId)">
+              <tr
+                (click)="openAppointment(a.appointmentId)"
+                tabindex="0"
+                (keydown.enter)="openAppointment(a.appointmentId)"
+              >
                 @if (cols.conf) {
                   <td>
                     <span class="ia-conf">{{ a.requestConfirmationNumber }}</span>
