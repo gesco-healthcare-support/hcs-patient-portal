@@ -517,12 +517,12 @@ export class AppointmentWizardComponent
     }
     this.myAttorneyProfile.get().subscribe({
       next: (p) => {
-        const prefix =
-          p?.kind === 'defense'
-            ? 'defenseAttorney'
-            : p?.kind === 'applicant'
-              ? 'applicantAttorney'
-              : null;
+        let prefix: string | null = null;
+        if (p?.kind === 'defense') {
+          prefix = 'defenseAttorney';
+        } else if (p?.kind === 'applicant') {
+          prefix = 'applicantAttorney';
+        }
         if (!prefix) {
           return;
         }

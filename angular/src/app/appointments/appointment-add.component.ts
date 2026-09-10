@@ -2695,12 +2695,10 @@ export class AppointmentAddComponent {
       if (vendorCtrl?.value) {
         vendorCtrl.setValue(null, { emitEvent: false });
       }
-    } else {
       // Defensive: re-enable if some earlier state had disabled it. The English
       // branch no longer disables (I7), so this is normally a no-op.
-      if (interpreterCtrl.disabled) {
-        interpreterCtrl.enable({ emitEvent: false });
-      }
+    } else if (interpreterCtrl.disabled) {
+      interpreterCtrl.enable({ emitEvent: false });
     }
   }
 
