@@ -58,11 +58,11 @@ import type { AppointmentDto, RejectAppointmentInput } from '../../../proxy/appo
 export class RejectAppointmentModalComponent {
   @Input() appointmentId: string | null = null;
   @Input() visible = false;
-  @Output() visibleChange = new EventEmitter<boolean>();
-  @Output() succeeded = new EventEmitter<AppointmentDto>();
+  @Output() readonly visibleChange = new EventEmitter<boolean>();
+  @Output() readonly succeeded = new EventEmitter<AppointmentDto>();
 
-  private approvalService = inject(AppointmentApprovalService);
-  private toaster = inject(ToasterService);
+  private readonly approvalService = inject(AppointmentApprovalService);
+  private readonly toaster = inject(ToasterService);
 
   reason = '';
   isBusy = false;

@@ -138,6 +138,22 @@ type ApplicantAttorneyLookupResult = {
  * additionally declares `ngOnInit`, and an undecorated class using Angular features does not
  * compile. The decorator carried no providers, so only the template-only `imports` were lost.
  */
+/**
+ * Copy `val` into `patch` under `ctrl`, but only when it is actually present.
+ *
+ * Hoisted out of overlayApplicantAttorneySnapshot and
+ * overlayDefenseAttorneySnapshot, which each declared a byte-identical local
+ * copy (typescript:S4144). Deliberately a plain function rather than a shared
+ * method taking a field list: the two overlays differ only in their ten field
+ * names, so a list-driven version would read better, but this is the booking
+ * view and the boring change is the one that cannot alter behaviour.
+ */
+function setIfPresent(patch: Record<string, unknown>, ctrl: string, val: unknown): void {
+  if (val !== null && val !== undefined) {
+    patch[ctrl] = val;
+  }
+}
+
 @Directive()
 export class AppointmentViewComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
@@ -669,7 +685,7 @@ export class AppointmentViewComponent implements OnInit {
         anchor.style.display = 'none';
         document.body.appendChild(anchor);
         anchor.click();
-        document.body.removeChild(anchor);
+        anchor.remove();
       } finally {
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       }
@@ -1782,21 +1798,16 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
     const patch: Record<string, unknown> = {};
-    const set = (ctrl: string, val: unknown) => {
-      if (val !== null && val !== undefined) {
-        patch[ctrl] = val;
-      }
-    };
-    set('applicantAttorneyFirstName', a.applicantAttorneyFirstName);
-    set('applicantAttorneyLastName', a.applicantAttorneyLastName);
-    set('applicantAttorneyFirmName', a.applicantAttorneyFirmName);
-    set('applicantAttorneyWebAddress', a.applicantAttorneyWebAddress);
-    set('applicantAttorneyPhoneNumber', a.applicantAttorneyPhoneNumber);
-    set('applicantAttorneyFaxNumber', a.applicantAttorneyFaxNumber);
-    set('applicantAttorneyStreet', a.applicantAttorneyStreet);
-    set('applicantAttorneyCity', a.applicantAttorneyCity);
-    set('applicantAttorneyStateId', a.applicantAttorneyStateId);
-    set('applicantAttorneyZipCode', a.applicantAttorneyZipCode);
+    setIfPresent(patch, 'applicantAttorneyFirstName', a.applicantAttorneyFirstName);
+    setIfPresent(patch, 'applicantAttorneyLastName', a.applicantAttorneyLastName);
+    setIfPresent(patch, 'applicantAttorneyFirmName', a.applicantAttorneyFirmName);
+    setIfPresent(patch, 'applicantAttorneyWebAddress', a.applicantAttorneyWebAddress);
+    setIfPresent(patch, 'applicantAttorneyPhoneNumber', a.applicantAttorneyPhoneNumber);
+    setIfPresent(patch, 'applicantAttorneyFaxNumber', a.applicantAttorneyFaxNumber);
+    setIfPresent(patch, 'applicantAttorneyStreet', a.applicantAttorneyStreet);
+    setIfPresent(patch, 'applicantAttorneyCity', a.applicantAttorneyCity);
+    setIfPresent(patch, 'applicantAttorneyStateId', a.applicantAttorneyStateId);
+    setIfPresent(patch, 'applicantAttorneyZipCode', a.applicantAttorneyZipCode);
     if (Object.keys(patch).length > 0) {
       this.form.patchValue(patch, { emitEvent: false });
     }
@@ -1808,21 +1819,16 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
     const patch: Record<string, unknown> = {};
-    const set = (ctrl: string, val: unknown) => {
-      if (val !== null && val !== undefined) {
-        patch[ctrl] = val;
-      }
-    };
-    set('defenseAttorneyFirstName', a.defenseAttorneyFirstName);
-    set('defenseAttorneyLastName', a.defenseAttorneyLastName);
-    set('defenseAttorneyFirmName', a.defenseAttorneyFirmName);
-    set('defenseAttorneyWebAddress', a.defenseAttorneyWebAddress);
-    set('defenseAttorneyPhoneNumber', a.defenseAttorneyPhoneNumber);
-    set('defenseAttorneyFaxNumber', a.defenseAttorneyFaxNumber);
-    set('defenseAttorneyStreet', a.defenseAttorneyStreet);
-    set('defenseAttorneyCity', a.defenseAttorneyCity);
-    set('defenseAttorneyStateId', a.defenseAttorneyStateId);
-    set('defenseAttorneyZipCode', a.defenseAttorneyZipCode);
+    setIfPresent(patch, 'defenseAttorneyFirstName', a.defenseAttorneyFirstName);
+    setIfPresent(patch, 'defenseAttorneyLastName', a.defenseAttorneyLastName);
+    setIfPresent(patch, 'defenseAttorneyFirmName', a.defenseAttorneyFirmName);
+    setIfPresent(patch, 'defenseAttorneyWebAddress', a.defenseAttorneyWebAddress);
+    setIfPresent(patch, 'defenseAttorneyPhoneNumber', a.defenseAttorneyPhoneNumber);
+    setIfPresent(patch, 'defenseAttorneyFaxNumber', a.defenseAttorneyFaxNumber);
+    setIfPresent(patch, 'defenseAttorneyStreet', a.defenseAttorneyStreet);
+    setIfPresent(patch, 'defenseAttorneyCity', a.defenseAttorneyCity);
+    setIfPresent(patch, 'defenseAttorneyStateId', a.defenseAttorneyStateId);
+    setIfPresent(patch, 'defenseAttorneyZipCode', a.defenseAttorneyZipCode);
     if (Object.keys(patch).length > 0) {
       this.form.patchValue(patch, { emitEvent: false });
     }
