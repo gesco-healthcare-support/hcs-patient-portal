@@ -1373,6 +1373,38 @@ contribute to neither side of the ratio (Angular added 2,873 to `lines_to_cover`
 2,663 lines over 99 files). **So "coverage rises to 55.0% when the epic lands" means backend plus the
 instrumented third of Angular, and the README badge note must say so.**
 
+
+> **ERRATA 2026-09-10 -- the SonarCloud half of the sentence above is WRONG.**
+> The gate half stands: `coverage-gate.py` parses the lcov, so a file absent from it appears on
+> neither side of the ratio. **SonarCloud does not behave that way.** It imports the lcov for
+> coverage HITS only; `lines_to_cover` comes from its own analysis of every non-excluded source.
+> An absent file lands at 0% and DOES enter the denominator.
+>
+> Measured on two independent files, neither reachable by karma:
+>
+> ```text
+> angular/src/main.ts                      lines_to_cover=26  uncovered=26  coverage=0.0
+> tests/e2e-demo/specs/helpers/auth.ts     lines_to_cover=18  uncovered=18  coverage=0.0
+> ```
+>
+> `main.ts` is not in the coverage bundle: `angular.json` scopes it to
+> `["**/*.spec.ts", "app/**/*.ts", "config-validation.ts", "tenant-bootstrap.ts"]`, and `main.ts` is
+> none of those. `tsconfig.spec.json`'s `src/**/*.ts` is the COMPILATION program, not the coverage
+> scope -- its own comment says so. `auth.ts` sits outside `angular/` entirely and no workflow
+> produces coverage for `tests/e2e-demo`.
+>
+> Mechanism, from `.github/workflows/sonarcloud.yml:142-145`: `sonar.*.lcov.reportPaths` supplies
+> hits, and **`sonar.coverage.exclusions` is the only lever that removes a file from the**
+> **denominator**. Not being in the lcov is not exclusion.
+>
+> **This is why the two consumers disagree.** They are not two views of one number; Sonar counts a
+> population the gate cannot see. Any reconciliation between them has to start here.
+>
+> It also underwrites phase 8.1: the Python sources already sit in Sonar's denominator at 0% with
+> no coverage report existing anywhere, by exactly this mechanism.
+>
+> Original text kept per this file's convention -- see the SUPERSEDED block above. A justification
+> is less checkable than a number, and this one read as reasoning for a week.
 **Adrian's ruling, 2026-09-03: own item; the gate PRINTS the count of changed files with no coverage
 record on every run and does NOT fail on it.** Failing at 27-of-33 would block every submission from
 day one, which is the permanently-red anti-gate this phase exists to remove. It did not block 2.10
