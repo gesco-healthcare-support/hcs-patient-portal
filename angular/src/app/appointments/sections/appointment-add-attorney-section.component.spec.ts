@@ -1,3 +1,4 @@
+import { SimpleChange } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FormBuilder, FormGroup } from '@angular/forms';
 
@@ -59,5 +60,56 @@ describe('AppointmentAddAttorneySectionComponent role derivation', () => {
   it('returns the same object reference on repeated reads', () => {
     const component = make('applicant');
     expect(component.addressFields).toBe(component.addressFields);
+  });
+});
+
+/**
+ * #791 -- the component had a handler for a case its own architecture forbids.
+ * ngOnChanges explicitly watched changes['role'] and re-resolved the enabled
+ * subscription, while the memoised address map did not, so a role change would
+ * have left the two disagreeing: Defense fields rendered, Applicant address
+ * controls autocompleted.
+ *
+ * It could not happen -- the wizard gives each role its own @switch branch, so
+ * a role change means a fresh instance -- which is precisely the problem. The
+ * handler advertised support the cache did not provide, and the next person to
+ * replace that @switch would have found out the hard way.
+ */
+describe('AppointmentAddAttorneySectionComponent role change (#791)', () => {
+  function make(role: 'applicant' | 'defense'): AppointmentAddAttorneySectionComponent {
+    const fixture = TestBed.createComponent(AppointmentAddAttorneySectionComponent);
+    const component = fixture.componentInstance;
+    component.role = role;
+    component.form = TestBed.inject(FormBuilder).group({}) as FormGroup;
+    return component;
+  }
+
+  it('re-derives the address map when role changes on a live instance', () => {
+    const component = make('applicant');
+    expect(component.addressFields.street).toBe('applicantAttorneyStreet');
+
+    component.role = 'defense';
+    component.ngOnChanges({
+      role: new SimpleChange('applicant', 'defense', false),
+    });
+
+    expect(component.addressFields).toEqual({
+      street: 'defenseAttorneyStreet',
+      city: 'defenseAttorneyCity',
+      state: 'defenseAttorneyStateId',
+      zip: 'defenseAttorneyZipCode',
+    });
+  });
+
+  /** The memo must survive a change that is not `role`, or OnPush churns. */
+  it('keeps the cached reference when only the form changes', () => {
+    const component = make('applicant');
+    const before = component.addressFields;
+
+    component.ngOnChanges({
+      form: new SimpleChange(null, component.form, false),
+    });
+
+    expect(component.addressFields).toBe(before);
   });
 });
