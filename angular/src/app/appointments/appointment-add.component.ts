@@ -2388,8 +2388,14 @@ export class AppointmentAddComponent {
       return;
     }
 
-    const stateName = (id: unknown): string =>
-      stateOptions.find((o) => o.id === String(id ?? ''))?.name ?? '';
+    // typescript:S6551 -- `unknown` was wider than the truth and made String()
+    // look like it might be stringifying an object. Both call sites pass a string
+    // or nothing: resolveStateId returns `string | null`, and a state form control
+    // is `[null as string | null]`. stateOptions ids are built with String(i.id)
+    // just above, so the comparison stays string-to-string and the String() around
+    // a value now typed string was a no-op.
+    const stateName = (id: string | null | undefined): string =>
+      stateOptions.find((o) => o.id === (id ?? ''))?.name ?? '';
 
     const items: AddressDiffItem[] = [];
     const pending: { key: string; fields: AddressFieldMap; std: StandardizedAddress }[] = [];
