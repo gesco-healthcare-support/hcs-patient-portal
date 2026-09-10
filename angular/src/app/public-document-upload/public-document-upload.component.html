@@ -21,6 +21,8 @@
         (filesDropped)="onFilesDropped($event)"
       >
         <input
+          id="pdu-file"
+          aria-label="Choose a file to upload"
           type="file"
           [accept]="acceptAttribute"
           (change)="onFileSelected($event)"

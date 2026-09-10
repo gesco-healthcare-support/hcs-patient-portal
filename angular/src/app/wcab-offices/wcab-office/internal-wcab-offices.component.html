@@ -70,11 +70,12 @@
       <div class="ra-modal__body">
         <div class="ra-grid">
           <div class="ra-field col-8">
-            <label>
+            <label for="wcab-name">
               Office name
               <span class="req">*</span>
             </label>
             <input
+              id="wcab-name"
               class="ra-input"
               maxlength="100"
               [ngModel]="f.name"
@@ -83,11 +84,12 @@
             />
           </div>
           <div class="ra-field col-4">
-            <label>
+            <label for="wcab-abbreviation">
               Code
               <span class="req">*</span>
             </label>
             <input
+              id="wcab-abbreviation"
               class="ra-input"
               maxlength="50"
               [ngModel]="f.abbreviation"

@@ -116,11 +116,12 @@
         <div class="ra-modal__body">
           <div class="ra-grid">
             <div class="ra-field col-8">
-              <label>
+              <label for="lang-display-name">
                 Display name
                 <span class="req">*</span>
               </label>
               <input
+                id="lang-display-name"
                 class="ra-input"
                 maxlength="64"
                 placeholder="e.g. Spanish"
@@ -129,11 +130,12 @@
               />
             </div>
             <div class="ra-field col-4">
-              <label>
+              <label for="lang-flag-icon">
                 Flag code
                 <span class="opt">(optional)</span>
               </label>
               <input
+                id="lang-flag-icon"
                 class="ra-input lg-mono"
                 maxlength="16"
                 placeholder="ES"
@@ -142,11 +144,12 @@
               />
             </div>
             <div class="ra-field col-6">
-              <label>
+              <label for="lang-culture-name">
                 Culture
                 <span class="req">*</span>
               </label>
               <input
+                id="lang-culture-name"
                 class="ra-input lg-mono"
                 maxlength="20"
                 placeholder="es / zh-Hans"
@@ -156,11 +159,12 @@
               />
             </div>
             <div class="ra-field col-6">
-              <label>
+              <label for="lang-ui-culture-name">
                 UI culture
                 <span class="opt">(defaults to culture)</span>
               </label>
               <input
+                id="lang-ui-culture-name"
                 class="ra-input lg-mono"
                 maxlength="20"
                 placeholder="es"
