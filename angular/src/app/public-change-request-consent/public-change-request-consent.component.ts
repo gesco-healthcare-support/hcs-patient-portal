@@ -97,8 +97,8 @@ type PageState = 'loading' | 'ready' | 'submitting' | 'done' | 'error';
   ],
 })
 export class PublicChangeRequestConsentComponent {
-  private route = inject(ActivatedRoute);
-  private rest = inject(RestService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly rest = inject(RestService);
   private readonly token = this.route.snapshot.paramMap.get('token') ?? '';
 
   state: PageState = 'loading';

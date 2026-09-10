@@ -204,7 +204,7 @@ describe('submit-payload.mapper (#603)', () => {
       const dto = buildSubmitAccessors([
         { email: 'a@example.test', firstName: 'Ada', lastName: '', userRole: 3, accessTypeId: 1 },
       ] as never)!;
-      expect(dto.length).toBe(1);
+      expect(dto).toHaveSize(1);
       expect(dto[0].appointmentId).toBe(UNASSIGNED_APPOINTMENT_ID);
       expect(dto[0].firstName).toBe('Ada');
       expect(dto[0].lastName).toBeUndefined();

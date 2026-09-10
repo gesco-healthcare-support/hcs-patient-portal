@@ -44,7 +44,7 @@ describe('attorney-section-validators', () => {
 
   describe('ATTORNEY_SECTION_SUFFIXES', () => {
     it('declares 8 entries -- Fax removed 2026-06-01 (now optional)', () => {
-      expect(ATTORNEY_SECTION_SUFFIXES.length).toBe(8);
+      expect(ATTORNEY_SECTION_SUFFIXES).toHaveSize(8);
     });
 
     it('does NOT include FaxNumber (fax is optional)', () => {
