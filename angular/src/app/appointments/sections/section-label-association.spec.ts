@@ -124,7 +124,7 @@ describe('Wizard section label association (#792)', () => {
       .filter(Boolean) as string[];
 
     expect(applicant.length).toBeGreaterThan(0);
-    expect(defense.length).toBe(applicant.length);
+    expect(defense).toHaveSize(applicant.length);
     expect(applicant.filter((id) => defense.includes(id))).toEqual([]);
     // Two id shapes are in play and both encode the role: the nine inputs use
     // `role + '-attorney-...'` (#780) and the state select uses the older
