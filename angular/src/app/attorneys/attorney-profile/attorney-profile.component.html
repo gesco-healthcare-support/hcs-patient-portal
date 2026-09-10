@@ -48,44 +48,98 @@
 
           <div class="ra-grid">
             <div class="ra-field col-6">
-              <label>First name</label>
-              <input class="ra-input" type="text" formControlName="firstName" maxlength="50" />
+              <label for="attorney-profile-first-name">First name</label>
+              <input
+                id="attorney-profile-first-name"
+                class="ra-input"
+                type="text"
+                formControlName="firstName"
+                maxlength="50"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Last name</label>
-              <input class="ra-input" type="text" formControlName="lastName" maxlength="50" />
+              <label for="attorney-profile-last-name">Last name</label>
+              <input
+                id="attorney-profile-last-name"
+                class="ra-input"
+                type="text"
+                formControlName="lastName"
+                maxlength="50"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Firm name</label>
-              <input class="ra-input" type="text" formControlName="firmName" maxlength="255" />
+              <label for="attorney-profile-firm-name">Firm name</label>
+              <input
+                id="attorney-profile-firm-name"
+                class="ra-input"
+                type="text"
+                formControlName="firmName"
+                maxlength="255"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Website</label>
-              <input class="ra-input" type="text" formControlName="webAddress" maxlength="100" />
+              <label for="attorney-profile-web-address">Website</label>
+              <input
+                id="attorney-profile-web-address"
+                class="ra-input"
+                type="text"
+                formControlName="webAddress"
+                maxlength="100"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Phone</label>
-              <input appPhoneNumber class="ra-input" type="text" formControlName="phoneNumber" />
+              <label for="attorney-profile-phone-number">Phone</label>
+              <input
+                id="attorney-profile-phone-number"
+                appPhoneNumber
+                class="ra-input"
+                type="text"
+                formControlName="phoneNumber"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Fax</label>
-              <input appPhoneNumber class="ra-input" type="text" formControlName="faxNumber" />
+              <label for="attorney-profile-fax-number">Fax</label>
+              <input
+                id="attorney-profile-fax-number"
+                appPhoneNumber
+                class="ra-input"
+                type="text"
+                formControlName="faxNumber"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Email</label>
-              <input class="ra-input" type="text" [value]="email" disabled />
+              <label for="attorney-profile-email">Email</label>
+              <input
+                id="attorney-profile-email"
+                class="ra-input"
+                type="text"
+                [value]="email"
+                disabled
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Street</label>
-              <input class="ra-input" type="text" formControlName="street" maxlength="255" />
+              <label for="attorney-profile-street">Street</label>
+              <input
+                id="attorney-profile-street"
+                class="ra-input"
+                type="text"
+                formControlName="street"
+                maxlength="255"
+              />
             </div>
             <div class="ra-field col-4">
-              <label>City</label>
-              <input class="ra-input" type="text" formControlName="city" maxlength="50" />
+              <label for="attorney-profile-city">City</label>
+              <input
+                id="attorney-profile-city"
+                class="ra-input"
+                type="text"
+                formControlName="city"
+                maxlength="50"
+              />
             </div>
             <div class="ra-field col-4">
-              <label>State</label>
-              <select class="ra-select" formControlName="stateId">
+              <label for="attorney-profile-state-id">State</label>
+              <select id="attorney-profile-state-id" class="ra-select" formControlName="stateId">
                 <option [ngValue]="null">-- Select --</option>
                 @for (s of states; track s.id) {
                   <option [ngValue]="s.id">{{ s.name }}</option>
@@ -93,8 +147,14 @@
               </select>
             </div>
             <div class="ra-field col-4">
-              <label>Zip code</label>
-              <input class="ra-input" type="text" formControlName="zipCode" maxlength="15" />
+              <label for="attorney-profile-zip-code">Zip code</label>
+              <input
+                id="attorney-profile-zip-code"
+                class="ra-input"
+                type="text"
+                formControlName="zipCode"
+                maxlength="15"
+              />
             </div>
           </div>
 

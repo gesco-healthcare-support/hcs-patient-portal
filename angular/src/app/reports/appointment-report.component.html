@@ -39,24 +39,44 @@
   <div class="ia-search">
     <app-icon name="search" [size]="16" />
     <input
+      id="report-search"
+      aria-label="Search by confirmation number, panel number or patient name"
       type="text"
       placeholder="Confirmation #, panel #, or patient name…"
       formControlName="filterText"
     />
   </div>
-  <select class="ia-input" formControlName="appointmentTypeId" style="width: 165px">
+  <select
+    id="report-appointment-type"
+    aria-label="Appointment type"
+    class="ia-input"
+    formControlName="appointmentTypeId"
+    style="width: 165px"
+  >
     <option value="">All types</option>
     @for (t of typeOptions; track t.id) {
       <option [value]="t.id">{{ t.name }}</option>
     }
   </select>
-  <select class="ia-input" formControlName="locationId" style="width: 165px">
+  <select
+    id="report-location"
+    aria-label="Location"
+    class="ia-input"
+    formControlName="locationId"
+    style="width: 165px"
+  >
     <option value="">All locations</option>
     @for (l of locationOptions; track l.id) {
       <option [value]="l.id">{{ l.name }}</option>
     }
   </select>
-  <select class="ia-input" formControlName="appointmentStatus" style="width: 160px">
+  <select
+    id="report-appointment-status"
+    aria-label="Appointment status"
+    class="ia-input"
+    formControlName="appointmentStatus"
+    style="width: 160px"
+  >
     <option value="">All statuses</option>
     @for (s of statusOptions; track s.value) {
       <option [value]="s.value">{{ s.key }}</option>

@@ -125,10 +125,11 @@
           @if (showSourceLookup) {
             <div class="ra-reval">
               <div class="ra-field">
-                <label>
+                <label for="wiz-prior-confirmation-number">
                   {{ isReBook ? 'Confirmation number to book again' : 'Prior confirmation number' }}
                 </label>
                 <input
+                  id="wiz-prior-confirmation-number"
                   #revalConf
                   class="ra-input"
                   type="text"
