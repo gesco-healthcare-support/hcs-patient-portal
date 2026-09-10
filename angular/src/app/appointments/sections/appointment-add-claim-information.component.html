@@ -234,6 +234,8 @@
               @for (part of bodyPartsArray.controls; track $index) {
                 <div class="input-group mb-2">
                   <input
+                    [id]="'appointment-injury-body-part-' + $index"
+                    [attr.aria-label]="'Body part ' + ($index + 1)"
                     type="text"
                     class="form-control"
                     [formControlName]="$index"
