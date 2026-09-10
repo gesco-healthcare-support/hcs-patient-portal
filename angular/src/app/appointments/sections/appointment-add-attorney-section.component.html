@@ -144,9 +144,10 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Street *</label>
+          <label [for]="role + '-attorney-street'" class="form-label fw-semibold">Street *</label>
           <!-- F2 (2026-05-29): autocomplete fills street/city/state/zip. -->
           <app-address-autocomplete
+            [inputId]="role + '-attorney-street'"
             [group]="form"
             [fields]="addressFields"
             placeholder="STREET"
@@ -164,7 +165,7 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">State *</label>
+          <label [for]="stateSelectCid" class="form-label fw-semibold">State *</label>
           <app-lookup-select
             [cid]="stateSelectCid"
             [formControlName]="prefix + 'StateId'"

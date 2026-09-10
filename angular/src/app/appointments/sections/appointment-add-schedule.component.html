@@ -13,7 +13,9 @@
   <div class="card-body">
     <div class="row">
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::AppointmentType' | abpLocalization }} *</label>
+        <label for="appointment-appointment-type-id" class="form-label fw-semibold">
+          {{ '::AppointmentType' | abpLocalization }} *
+        </label>
         <app-lookup-select
           cid="appointment-appointment-type-id"
           formControlName="appointmentTypeId"
@@ -37,7 +39,9 @@
         />
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::Location' | abpLocalization }} *</label>
+        <label for="appointment-location-id" class="form-label fw-semibold">
+          {{ '::Location' | abpLocalization }} *
+        </label>
         <app-lookup-select
           cid="appointment-location-id"
           formControlName="locationId"
