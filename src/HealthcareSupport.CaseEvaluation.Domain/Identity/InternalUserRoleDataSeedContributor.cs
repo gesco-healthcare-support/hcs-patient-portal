@@ -49,6 +49,32 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
     private const string Group = "CaseEvaluation";
 
+    // 2026-09-09 (#633): permission-entity names as constants. The class docstring
+    // records WHY these are literals rather than references to
+    // CaseEvaluationPermissions -- the Domain layer cannot reference
+    // Application.Contracts under ABP layering, so the names are mirrored by hand and
+    // "both files must update" when one changes. These constants do not remove that
+    // constraint; they reduce this file's half of it to a single edit point per name
+    // (Appointments alone appeared 10 times, AppointmentDocuments and
+    // AppointmentChangeRequests 9 each). Values must stay byte-identical to the
+    // permission names in CaseEvaluationPermissions.cs.
+    private const string AppointmentChangeRequests = "AppointmentChangeRequests";
+    private const string AppointmentDocumentTypes = "AppointmentDocumentTypes";
+    private const string AppointmentDocuments = "AppointmentDocuments";
+    private const string AppointmentEmployerDetails = "AppointmentEmployerDetails";
+    private const string AppointmentLanguages = "AppointmentLanguages";
+    private const string AppointmentPackets = "AppointmentPackets";
+    private const string AppointmentTypes = "AppointmentTypes";
+    private const string Appointments = "Appointments";
+    private const string CustomFields = "CustomFields";
+    private const string DoctorAvailabilities = "DoctorAvailabilities";
+    private const string Locations = "Locations";
+    private const string NotificationTemplates = "NotificationTemplates";
+    private const string Patients = "Patients";
+    private const string SystemParameters = "SystemParameters";
+    private const string WcabOffices = "WcabOffices";
+
+
     private readonly IdentityRoleManager _roleManager;
     private readonly IPermissionManager _permissionManager;
     private readonly ICurrentTenant _currentTenant;
@@ -164,21 +190,21 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // removed from the definition provider; dropping it here keeps seeding
         // from granting an undefined permission.
         "States",
-        "AppointmentTypes",
+        AppointmentTypes,
         "AppointmentStatuses",
         // G-03-01 (2026-06-03): per-appointment-type document-category master.
         // IT Admin gets full CRUD here; Staff Supervisor gets Default/Create/Edit
         // via an explicit block (kept out of OperationalEntities so Intake Staff
         // does not inherit read access in PR1). Delete stays IT-Admin-only.
-        "AppointmentDocumentTypes",
-        "AppointmentLanguages",
-        "Locations",
-        "WcabOffices",
+        AppointmentDocumentTypes,
+        AppointmentLanguages,
+        Locations,
+        WcabOffices,
         "Doctors",
-        "DoctorAvailabilities",
-        "Patients",
-        "Appointments",
-        "AppointmentEmployerDetails",
+        DoctorAvailabilities,
+        Patients,
+        Appointments,
+        AppointmentEmployerDetails,
         "AppointmentAccessors",
         "ApplicantAttorneys",
         "AppointmentApplicantAttorneys",
@@ -195,8 +221,8 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // listed here -- its grants are yielded explicitly per role.
         // AppointmentChangeLogs only defines .Default (immutable audit rows);
         // also yielded explicitly per role.
-        "AppointmentDocuments",
-        "CustomFields",
+        AppointmentDocuments,
+        CustomFields,
         // Phase 5 (2026-05-03): IT Admin master Document catalog + per-
         // AppointmentType package templates. PackageDetails has an extra
         // ManageDocuments action yielded explicitly below.
@@ -207,10 +233,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     private static readonly string[] OperationalEntities =
     {
         "Doctors",
-        "DoctorAvailabilities",
-        "Patients",
-        "Appointments",
-        "AppointmentEmployerDetails",
+        DoctorAvailabilities,
+        Patients,
+        Appointments,
+        AppointmentEmployerDetails,
         "AppointmentAccessors",
         "ApplicantAttorneys",
         "AppointmentApplicantAttorneys",
@@ -225,10 +251,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     private static readonly string[] LookupReadEntities =
     {
         "States",
-        "AppointmentTypes",
-        "AppointmentLanguages",
-        "Locations",
-        "WcabOffices",
+        AppointmentTypes,
+        AppointmentLanguages,
+        Locations,
+        WcabOffices,
     };
 
     /// <summary>
@@ -261,8 +287,8 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // any patient's SSN (verification during intake / review).
         yield return $"{Group}.Patients.RevealSsn";
 
-        yield return Approve("AppointmentDocuments");
-        yield return Regenerate("AppointmentPackets");
+        yield return Approve(AppointmentDocuments);
+        yield return Regenerate(AppointmentPackets);
         yield return Default("AppointmentChangeLogs");
 
         // G-08-01 (2026-06-06) -- Appointment Request Report (read-only internal
@@ -271,15 +297,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Reports.Export";
 
         // Phase 2.5 (2026-05-01) -- approval + change-request lifecycle.
-        yield return Approve("Appointments");
-        yield return Reject("Appointments");
-        yield return Default("AppointmentChangeRequests");
-        yield return Approve("AppointmentChangeRequests");
-        yield return Reject("AppointmentChangeRequests");
-        yield return Default("NotificationTemplates");
-        yield return Edit("NotificationTemplates");
-        yield return Default("SystemParameters");
-        yield return Edit("SystemParameters");
+        yield return Approve(Appointments);
+        yield return Reject(Appointments);
+        yield return Default(AppointmentChangeRequests);
+        yield return Approve(AppointmentChangeRequests);
+        yield return Reject(AppointmentChangeRequests);
+        yield return Default(NotificationTemplates);
+        yield return Edit(NotificationTemplates);
+        yield return Default(SystemParameters);
+        yield return Edit(SystemParameters);
 
         // Phase 5 (2026-05-03) -- PackageDetails has a custom ManageDocuments
         // action that gates Link / Unlink endpoints. AllEntities yields the
@@ -485,11 +511,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             yield return Default(entity);
         }
 
-        yield return Create("Appointments");
-        yield return Edit("Appointments");
+        yield return Create(Appointments);
+        yield return Edit(Appointments);
 
-        yield return Create("Patients");
-        yield return Edit("Patients");
+        yield return Create(Patients);
+        yield return Edit(Patients);
 
         // F1 / Design B (2026-05-29) -- SSN reveal endpoint (intake staff
         // reveal any patient's SSN during phone-in intake / review).
@@ -502,9 +528,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // DeleteAsync, each gated by its own child permission. Front-desk
         // intake staff is responsible for keeping the bookable slot grid
         // current, so it gets full slot CRUD (Adrian, 2026-06-11).
-        yield return Create("DoctorAvailabilities");
-        yield return Edit("DoctorAvailabilities");
-        yield return Delete("DoctorAvailabilities");
+        yield return Create(DoctorAvailabilities);
+        yield return Edit(DoctorAvailabilities);
+        yield return Delete(DoctorAvailabilities);
 
         // W2-8 -- the booking-add SPA fires a separate POST per injury
         // draft (multi-injury support per OLD parity, see
@@ -547,7 +573,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // Create, Intake Staff's booking submit 403s on the employer POST -- the same
         // per-child-POST 403 class as the injury / CE / insurance / body-part grants
         // above. ~~Create only (no Edit), matching the sibling child grants at this tier.~~
-        yield return Create("AppointmentEmployerDetails");
+        yield return Create(AppointmentEmployerDetails);
         // 2026-08-06: Edit was the missing HALF of that same parity fix, and its absence made the
         // appointment edit form unusable for this role. The form's save calls
         // upsertEmployerDetails whenever ANY employer field has a VALUE -- hasEmployerData(), not a
@@ -556,7 +582,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // Granted rather than hidden from the form because Intake Staff already CREATE this record
         // at booking and already hold Appointments.Edit + Patients.Edit; being unable to correct
         // what they typed was a gap in the tier, not a safeguard.
-        yield return Edit("AppointmentEmployerDetails");
+        yield return Edit(AppointmentEmployerDetails);
 
         foreach (var entity in LookupReadEntities)
         {
@@ -564,12 +590,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         }
 
         // D.1 / W-I-1: document workflow + packet regeneration + audit visibility.
-        yield return Default("AppointmentDocuments");
-        yield return Approve("AppointmentDocuments");
-        yield return Default("AppointmentPackets");
-        yield return Regenerate("AppointmentPackets");
+        yield return Default(AppointmentDocuments);
+        yield return Approve(AppointmentDocuments);
+        yield return Default(AppointmentPackets);
+        yield return Regenerate(AppointmentPackets);
         yield return Default("AppointmentChangeLogs");
-        yield return Default("CustomFields");
+        yield return Default(CustomFields);
 
         // G-08-01 (2026-06-06): Appointment Request Report (read-only) + G-08-03 PDF
         // export. Intake Staff is a primary report audience (the front-desk worklist).
@@ -582,12 +608,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // cancel / reschedule outcomes in its assigned offices. The opposing-
         // consent gate (OpposingConsentValidator) still blocks non-consented
         // approvals at this tier exactly as it does for supervisors.
-        yield return Approve("Appointments");
-        yield return Reject("Appointments");
-        yield return Default("AppointmentChangeRequests");
-        yield return Approve("AppointmentChangeRequests");
-        yield return Reject("AppointmentChangeRequests");
-        yield return Default("SystemParameters");
+        yield return Approve(Appointments);
+        yield return Reject(Appointments);
+        yield return Default(AppointmentChangeRequests);
+        yield return Approve(AppointmentChangeRequests);
+        yield return Reject(AppointmentChangeRequests);
+        yield return Default(SystemParameters);
 
         // Phase A (2026-05-05) -- intake staff uploads a signature so OLD
         // packets they are responsible for include a stamped image. Mirrors
@@ -637,23 +663,23 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         {
             yield return Default(entity);
         }
-        yield return Create("Locations");
-        yield return Edit("Locations");
-        yield return Delete("Locations");
+        yield return Create(Locations);
+        yield return Edit(Locations);
+        yield return Delete(Locations);
 
         // Staff Supervisor manages the lookup masters (read via LookupReadEntities above;
         // write + soft-delete here).
-        yield return Create("AppointmentTypes");
-        yield return Edit("AppointmentTypes");
-        yield return Delete("AppointmentTypes");
+        yield return Create(AppointmentTypes);
+        yield return Edit(AppointmentTypes);
+        yield return Delete(AppointmentTypes);
 
-        yield return Create("AppointmentLanguages");
-        yield return Edit("AppointmentLanguages");
-        yield return Delete("AppointmentLanguages");
+        yield return Create(AppointmentLanguages);
+        yield return Edit(AppointmentLanguages);
+        yield return Delete(AppointmentLanguages);
 
-        yield return Create("WcabOffices");
-        yield return Edit("WcabOffices");
-        yield return Delete("WcabOffices");
+        yield return Create(WcabOffices);
+        yield return Edit(WcabOffices);
+        yield return Delete(WcabOffices);
 
         // AppointmentStatus lookup is enum-driven reference data -- VIEW only.
         yield return Default("AppointmentStatuses");
@@ -672,15 +698,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Patients.RevealSsn";
 
         // AppointmentDocuments full CRUD + Approve (no Delete -- hard-delete is IT-Admin-only).
-        yield return Default("AppointmentDocuments");
-        yield return Create("AppointmentDocuments");
-        yield return Edit("AppointmentDocuments");
-        yield return Delete("AppointmentDocuments");
-        yield return Approve("AppointmentDocuments");
+        yield return Default(AppointmentDocuments);
+        yield return Create(AppointmentDocuments);
+        yield return Edit(AppointmentDocuments);
+        yield return Delete(AppointmentDocuments);
+        yield return Approve(AppointmentDocuments);
 
         // AppointmentPackets read + regenerate.
-        yield return Default("AppointmentPackets");
-        yield return Regenerate("AppointmentPackets");
+        yield return Default(AppointmentPackets);
+        yield return Regenerate(AppointmentPackets);
 
         // Read-only audit log access.
         yield return Default("AppointmentChangeLogs");
@@ -690,28 +716,28 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Reports.Export";
 
         // Field-config access; the supervisor manages per-type field rules.
-        yield return Default("CustomFields");
-        yield return Create("CustomFields");
-        yield return Edit("CustomFields");
+        yield return Default(CustomFields);
+        yield return Create(CustomFields);
+        yield return Edit(CustomFields);
 
         // Approval surface for booking approval + cancel / reschedule requests;
         // tenant-side notification-template editing.
-        yield return Approve("Appointments");
-        yield return Reject("Appointments");
-        yield return Default("AppointmentChangeRequests");
-        yield return Approve("AppointmentChangeRequests");
-        yield return Reject("AppointmentChangeRequests");
-        yield return Default("NotificationTemplates");
-        yield return Edit("NotificationTemplates");
-        yield return Default("SystemParameters");
-        yield return Edit("SystemParameters");
+        yield return Approve(Appointments);
+        yield return Reject(Appointments);
+        yield return Default(AppointmentChangeRequests);
+        yield return Approve(AppointmentChangeRequests);
+        yield return Reject(AppointmentChangeRequests);
+        yield return Default(NotificationTemplates);
+        yield return Edit(NotificationTemplates);
+        yield return Default(SystemParameters);
+        yield return Edit(SystemParameters);
         yield return "AuditLogging.AuditLogs";
 
         // Document-category master: Default/Create/Edit (retire is soft IsActive=false;
         // hard-delete stays IT-Admin-only).
-        yield return Default("AppointmentDocumentTypes");
-        yield return Create("AppointmentDocumentTypes");
-        yield return Edit("AppointmentDocumentTypes");
+        yield return Default(AppointmentDocumentTypes);
+        yield return Create(AppointmentDocumentTypes);
+        yield return Edit(AppointmentDocumentTypes);
 
         // Signature upload (stamped on packets the supervisor is responsible for).
         yield return Default("UserSignatures");
