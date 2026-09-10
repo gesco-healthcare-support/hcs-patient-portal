@@ -204,3 +204,22 @@ scripts/maintenance/import-issues.py
 # (its own package.json, outside the Angular workspace). Coverage of the instrument
 # rather than the subject; measuring it would be circular.
 tests/e2e-demo/**
+
+# Test code, not application code -- the same reasoning as tests/e2e-demo above,
+# for the Python suite added by #784. Sonar's Python analyzer does NOT classify
+# test files as tests: it reports these five as FIL (ordinary source), unlike the
+# C# and TypeScript analyzers which give their test files UTS. So without this
+# entry their 251 lines enter `lines_to_cover` and read 0% forever, and every
+# further test written to raise a module's coverage would push its own target
+# further away.
+#
+# MEASURED, because this list forbids an entry that can never match: the gate's
+# own glob_to_regex maps `tests/python/**` onto all five files and onto none of
+# scripts/coverage-gate.py, .claude/scripts/verify_structure.py or
+# tools/packet-templates/**. And exclusion genuinely removes a file from the
+# denominator -- `**/Program.cs` is in this list and both Program.cs files report
+# ncloc with NO lines_to_cover at all.
+#
+# This is `sonar.coverage.exclusions`, NOT `sonar.exclusions`: Sonar still
+# analyses these files for issues. Only the coverage denominator changes.
+tests/python/**

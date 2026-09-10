@@ -11,11 +11,31 @@ One characterization test records a defect rather than fixing it -- see
 
 from __future__ import annotations
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
 
 from gate_loader import gate
+
+
+@contextlib.contextmanager
+def dying():
+    """Assert the gate exits, and SWALLOW the `::error::` it prints on the way.
+
+    `die()` writes a GitHub Actions workflow command to STDOUT, and Actions
+    parses those into annotations. Without this, the five guard tests below
+    stamp five red `failure` annotations onto every GREEN run of `Python: Test`
+    -- measured on the first CI run of #825, which reported 6 annotations, 5 at
+    failure level, while passing.
+
+    A check that displays errors while succeeding is the always-red signal this
+    programme exists to remove, so the tests must not manufacture one. pytest
+    captures stdout by default; stdlib unittest does not, so it is done here.
+    """
+    with contextlib.redirect_stdout(io.StringIO()):
+        yield
 
 
 def _patterns(*globs):
@@ -30,7 +50,7 @@ class TestRequireReport(unittest.TestCase):
 
     def test_a_missing_report_exits_non_zero(self):
         """A skipped job reports Success; an absent report must NOT pass."""
-        with self.assertRaises(SystemExit) as cm:
+        with dying(), self.assertRaises(SystemExit) as cm:
             gate.require_report(self.tmp_path / "nope.xml", "backend")
         self.assertEqual(cm.exception.code, 1)
 
@@ -49,7 +69,7 @@ class TestRequireReport(unittest.TestCase):
         """
         empty = self.tmp_path / "empty.xml"
         empty.write_text("", encoding="utf-8")
-        with self.assertRaises(SystemExit) as cm:
+        with dying(), self.assertRaises(SystemExit) as cm:
             gate.require_report(empty, "backend")
         self.assertEqual(cm.exception.code, 1)
 
@@ -62,15 +82,15 @@ class TestRequireReport(unittest.TestCase):
 class TestRequireFloor(unittest.TestCase):
     def test_an_unset_floor_exits_rather_than_passing(self):
         """An unconfigured threshold is a check nobody finished wiring."""
-        with self.assertRaises(SystemExit):
+        with dying(), self.assertRaises(SystemExit):
             gate.require_floor(None, "backend")
 
     def test_a_blank_floor_exits(self):
-        with self.assertRaises(SystemExit):
+        with dying(), self.assertRaises(SystemExit):
             gate.require_floor("   ", "backend")
 
     def test_a_non_numeric_floor_exits(self):
-        with self.assertRaises(SystemExit):
+        with dying(), self.assertRaises(SystemExit):
             gate.require_floor("ninety", "backend")
 
     def test_a_valid_floor_is_returned_as_a_float(self):
