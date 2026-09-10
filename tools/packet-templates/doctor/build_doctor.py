@@ -568,17 +568,57 @@ PALP_WR = [("Dorsal Carpals", "T"), ("Extensor Tendons", "T"), ("Palmer Carpals"
            ("Snuffbox", "T"), ("Thenar Pad", "T"), ("TFCC", "T"), ("Hypothenar Pad", "T")]
 
 
+def _region_table_open(twips, title, ama, pps):
+    """Opening list plus the shared header row for an extremity region table.
+
+    Byte-identical in _upper_region and _lower_region before this extraction; the only
+    difference was an f-prefix on a line with no placeholders. Extracted so the two
+    cannot drift -- a header that diverged between the Upper and Lower pages would be
+    invisible in review but wrong on the printed form.
+    """
+    out = [f'<div class="ama">{ama}</div>' if ama else "", f'<table class="sp ue">{_colgroup(twips)}']
+    out.append(f'<tr><th class="lbl">{title}</th><th colspan="3">Range of Motion</th>'
+               '<th colspan="3">Strength</th><th class="lbl">Orthopedic Testing</th>'
+               '<th colspan="2">R</th><th colspan="2">L</th><th class="lbl">Palpation</th>'
+               f'<th colspan="{pps}">R</th><th colspan="{pps}">L</th></tr>')
+    return out
+
+
+def _palpation_cells(i, palp, base, pps):
+    """Palpation cells (the right-hand column group) for body row `i`.
+
+    Shared by _upper_region and _lower_region, which carried the same block with one
+    difference: the Lower copy has a "text" arm the Upper copy does not. That arm is
+    kept here so both call sites stay byte-identical, but it is currently unreachable
+    -- every PALP_* constant uses only "ths" or "T" (checked by importing the module
+    and reading the tuples, not by grep). The trailing arm is likewise unreached today.
+    Left in place rather than deleted: this file reproduces a medical-legal form, and
+    dropping arms because today's data does not hit them is how a form silently loses
+    a case it used to handle.
+    """
+    if i > len(palp):
+        return f'<td></td><td colspan="{pps}"></td><td colspan="{pps}"></td>'
+    lab, kind = palp[i - 1]
+    pb = base + _SEG_PALP + _slug(lab)
+    if kind == "ths":
+        return (f'<td class="lbl">{lab}</td><td class="mk" colspan="{pps}">{ths(pb + ".r", 11)}</td>'
+                f'<td class="mk" colspan="{pps}">{ths(pb + ".l", 11)}</td>')
+    if kind == "T":
+        return (f'<td class="lbl">{lab}</td><td class="mk" colspan="{pps}">{single_t(pb + ".r", 12)}</td>'
+                f'<td class="mk" colspan="{pps}">{single_t(pb + ".l", 12)}</td>')
+    if kind == "text":
+        return (f'<td class="lbl">{lab}</td><td class="fieldcell" colspan="{pps}">{_txt(pb + ".r")}</td>'
+                f'<td class="fieldcell" colspan="{pps}">{_txt(pb + ".l")}</td>')
+    return f'<td class="lbl">{lab}</td><td colspan="{pps}"></td><td colspan="{pps}"></td>'
+
+
 def _upper_region(twips, title, ama, rs, ortho, palp, base, pps):
     # J-Tech row sits below BOTH the ROM/Strength data and the Orthopedic items, so the
     # "Muscle Strength" checkbox (which spans the Orthopedic columns) never collides with
     # an Orthopedic test row.
     jt = max(2 + len(rs), len(ortho) + 1)
     nbody = max(len(ortho), len(palp), jt)
-    out = [f'<div class="ama">{ama}</div>' if ama else "", f'<table class="sp ue">{_colgroup(twips)}']
-    out.append(f'<tr><th class="lbl">{title}</th><th colspan="3">Range of Motion</th>'
-               '<th colspan="3">Strength</th><th class="lbl">Orthopedic Testing</th>'
-               f'<th colspan="2">R</th><th colspan="2">L</th><th class="lbl">Palpation</th>'
-               f'<th colspan="{pps}">R</th><th colspan="{pps}">L</th></tr>')
+    out = _region_table_open(twips, title, ama, pps)
     for i in range(1, nbody + 1):
         c = []
         # ROM + Strength (cols 0-6)
@@ -618,19 +658,7 @@ def _upper_region(twips, title, ama, rs, ortho, palp, base, pps):
         else:
             c.append('<td colspan="5"></td>')
         # Palpation
-        if i <= len(palp):
-            lab, kind = palp[i - 1]
-            pb = base + _SEG_PALP + _slug(lab)
-            if kind == "ths":
-                c.append(f'<td class="lbl">{lab}</td><td class="mk" colspan="{pps}">{ths(pb + ".r", 11)}</td>'
-                         f'<td class="mk" colspan="{pps}">{ths(pb + ".l", 11)}</td>')
-            elif kind == "T":
-                c.append(f'<td class="lbl">{lab}</td><td class="mk" colspan="{pps}">{single_t(pb + ".r", 12)}</td>'
-                         f'<td class="mk" colspan="{pps}">{single_t(pb + ".l", 12)}</td>')
-            else:
-                c.append(f'<td class="lbl">{lab}</td><td colspan="{pps}"></td><td colspan="{pps}"></td>')
-        else:
-            c.append(f'<td></td><td colspan="{pps}"></td><td colspan="{pps}"></td>')
+        c.append(_palpation_cells(i, palp, base, pps))
         out.append("<tr>" + "".join(c) + "</tr>")
     out.append("</table>")
     return "".join(out)
@@ -781,11 +809,7 @@ def _lower_region(twips, title, ama, rs, ortho, palp, base, pps):
     jt_str = jt_rom if band else jt_rom + 1
     nbody = max(jt_str, len(ortho), len(palp))
 
-    out = [f'<div class="ama">{ama}</div>' if ama else "", f'<table class="sp ue">{_colgroup(twips)}']
-    out.append(f'<tr><th class="lbl">{title}</th><th colspan="3">Range of Motion</th>'
-               '<th colspan="3">Strength</th><th class="lbl">Orthopedic Testing</th>'
-               '<th colspan="2">R</th><th colspan="2">L</th><th class="lbl">Palpation</th>'
-               f'<th colspan="{pps}">R</th><th colspan="{pps}">L</th></tr>')
+    out = _region_table_open(twips, title, ama, pps)
 
     for i in range(1, nbody + 1):
         c = []
@@ -834,22 +858,7 @@ def _lower_region(twips, title, ama, rs, ortho, palp, base, pps):
             else:
                 c.append('<td colspan="5"></td>')
         # ---- Palpation ----
-        if i <= len(palp):
-            lab, kind = palp[i - 1]
-            pb = base + _SEG_PALP + _slug(lab)
-            if kind == "ths":
-                c.append(f'<td class="lbl">{lab}</td><td class="mk" colspan="{pps}">{ths(pb + ".r", 11)}</td>'
-                         f'<td class="mk" colspan="{pps}">{ths(pb + ".l", 11)}</td>')
-            elif kind == "T":
-                c.append(f'<td class="lbl">{lab}</td><td class="mk" colspan="{pps}">{single_t(pb + ".r", 12)}</td>'
-                         f'<td class="mk" colspan="{pps}">{single_t(pb + ".l", 12)}</td>')
-            elif kind == "text":
-                c.append(f'<td class="lbl">{lab}</td><td class="fieldcell" colspan="{pps}">{_txt(pb + ".r")}</td>'
-                         f'<td class="fieldcell" colspan="{pps}">{_txt(pb + ".l")}</td>')
-            else:
-                c.append(f'<td class="lbl">{lab}</td><td colspan="{pps}"></td><td colspan="{pps}"></td>')
-        else:
-            c.append(f'<td></td><td colspan="{pps}"></td><td colspan="{pps}"></td>')
+        c.append(_palpation_cells(i, palp, base, pps))
         out.append("<tr>" + "".join(c) + "</tr>")
     out.append("</table>")
     return "".join(out)
