@@ -250,8 +250,13 @@
           </tr>
         } @else {
           @for (a of rows(); track rowId(a)) {
-            <tr [class.sel]="isSelected(a)" (click)="review(a)">
-              <td (click)="$event.stopPropagation()">
+            <tr
+              [class.sel]="isSelected(a)"
+              (click)="review(a)"
+              (keydown.enter)="review(a)"
+              tabindex="0"
+            >
+              <td (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
                 <input
                   type="checkbox"
                   class="ia-chk"
@@ -298,7 +303,11 @@
                   <span class="ia-sub">&mdash;</span>
                 }
               </td>
-              <td class="ia-actions-cell" (click)="$event.stopPropagation()">
+              <td
+                class="ia-actions-cell"
+                (click)="$event.stopPropagation()"
+                (keydown.enter)="$event.stopPropagation()"
+              >
                 <button
                   class="ia-kebab"
                   type="button"
