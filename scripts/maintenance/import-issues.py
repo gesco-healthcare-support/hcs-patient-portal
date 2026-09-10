@@ -76,17 +76,22 @@ DROPPED_KEYS = {
 
 # Directories owned by the hardening sessions. A batch must never claim these,
 # or two people end up in the same file, which is the whole thing we are
-# avoiding. Revisit when phases 2 and 3 close.
+# avoiding.
+#
+# RELEASED 2026-09-10 per #672: test/ and tests/ (phase 3 closed 2026-09-08),
+# scripts/ and docker/ (item 2.14 merged 722e16ae, 38e3b2ad), and the 2.13
+# files (merged 1ca6c078). Still held: .github/, because #672 measured that 50
+# of its 54 findings are CodeQL alerts that items 2.2/2.3 resolve directly, so
+# releasing it hands over work that is already being fixed; and the 2.5 files,
+# because item 2.5 is DEFERRED, not complete.
+#
+# NOTE: _is_held() separately holds every Dockerfile and every repo-root file
+# regardless of what is listed here, so removing docker/ does NOT release the
+# Dockerfiles. Those are tracked as #701.
 HELD_PREFIXES = {
-    "test/": "phase 3 (critical-path coverage)",
-    "tests/": "phase 3 (critical-path coverage)",
     ".github/": "phase 2.2 / 2.6",
-    "scripts/": "phase 2.14",
-    "docker/": "phase 2.14",
 }
 HELD_FILES = {
-    "angular/angular.json": "phase 2.13",
-    "angular/karma.conf.js": "phase 2.13",
     "Directory.Build.props": "phase 2.5",
     ".editorconfig": "phase 2.5",
 }
