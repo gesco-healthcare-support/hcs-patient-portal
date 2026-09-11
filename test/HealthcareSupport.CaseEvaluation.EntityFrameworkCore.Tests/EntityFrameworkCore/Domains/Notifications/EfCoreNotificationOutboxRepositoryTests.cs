@@ -30,7 +30,7 @@ public class EfCoreNotificationOutboxRepositoryTests : CaseEvaluationEntityFrame
             to: "party@example.test", cc: null, subject: "s", body: "b",
             isBodyHtml: true, context: "ctx", idempotencyKey: "key-" + id.ToString("N"));
 
-    private Task InsertAsync(NotificationOutboxItem item) =>
+    private Task<NotificationOutboxItem> InsertAsync(NotificationOutboxItem item) =>
         WithUnitOfWorkAsync(() => _outboxRepository.InsertAsync(item, autoSave: true));
 
     [Fact]

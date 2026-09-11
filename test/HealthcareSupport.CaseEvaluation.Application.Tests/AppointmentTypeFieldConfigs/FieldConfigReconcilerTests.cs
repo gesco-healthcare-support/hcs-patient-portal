@@ -35,7 +35,8 @@ public class FieldConfigReconcilerTests
             new List<FieldConfigReconciler.Existing>(),
             new[] { Desired("panelNumber", hidden: true) });
 
-        result.ToCreate.Select(d => d.FieldName).ShouldBe(new[] { "panelNumber" });
+        var expected = new[] { "panelNumber" };
+        result.ToCreate.Select(d => d.FieldName).ShouldBe(expected);
         result.ToUpdate.ShouldBeEmpty();
         result.ToDelete.ShouldBeEmpty();
     }

@@ -51,15 +51,18 @@ public class BookingFlowRolesUnitTests
     [Fact]
     public void IsInternalUserCaller_CaseInsensitive()
     {
-        BookingFlowRoles.IsInternalUserCaller(new[] { "INTAKE STAFF" }).ShouldBeTrue();
-        BookingFlowRoles.IsInternalUserCaller(new[] { "  it admin  " }).ShouldBeTrue();
+        var expected2 = new[] { "INTAKE STAFF" };
+        BookingFlowRoles.IsInternalUserCaller(expected2).ShouldBeTrue();
+        var expected = new[] { "  it admin  " };
+        BookingFlowRoles.IsInternalUserCaller(expected).ShouldBeTrue();
     }
 
     [Fact]
     public void ResolveClaimExaminerEmail_ClaimExaminerCaller_OverridesWithCurrentEmail()
     {
+        var expected = new[] { "Claim Examiner" };
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "Claim Examiner" },
+            expected,
             currentUserEmail: "ce@example.com",
             dtoClaimExaminerEmail: "someone-else@example.com");
 
@@ -69,8 +72,9 @@ public class BookingFlowRolesUnitTests
     [Fact]
     public void ResolveClaimExaminerEmail_ClaimExaminerCaller_CaseInsensitiveRoleMatch()
     {
+        var expected = new[] { "claim examiner" };
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "claim examiner" },
+            expected,
             currentUserEmail: "ce@example.com",
             dtoClaimExaminerEmail: null);
 
@@ -80,8 +84,9 @@ public class BookingFlowRolesUnitTests
     [Fact]
     public void ResolveClaimExaminerEmail_NonClaimExaminerCaller_KeepsDtoValue()
     {
+        var expected = new[] { "Applicant Attorney" };
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "Applicant Attorney" },
+            expected,
             currentUserEmail: "aa@example.com",
             dtoClaimExaminerEmail: "ce@example.com");
 
@@ -94,8 +99,9 @@ public class BookingFlowRolesUnitTests
         // Defensive: if CurrentUser.Email is somehow null (impersonation
         // edge cases), fall back to the DTO value rather than blowing
         // away a meaningful user choice with null.
+        var expected = new[] { "Claim Examiner" };
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "Claim Examiner" },
+            expected,
             currentUserEmail: null,
             dtoClaimExaminerEmail: "ce@example.com");
 
@@ -110,8 +116,9 @@ public class BookingFlowRolesUnitTests
         // "Claim Examiner" only; if a tenant DB happens to carry an
         // "Adjuster" role from a manual data load, this code path
         // does NOT auto-fill against it. Use NEW's canonical name.
+        var expected = new[] { "Adjuster" };
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "Adjuster" },
+            expected,
             currentUserEmail: "x@example.com",
             dtoClaimExaminerEmail: "dto@example.com");
 
@@ -165,7 +172,8 @@ public class BookingFlowRolesUnitTests
     [Fact]
     public void IsExternalAccessorManager_AnyManagerRoleAmongMany_ReturnsTrue()
     {
-        BookingFlowRoles.IsExternalAccessorManager(new[] { "Patient", "Defense Attorney" }).ShouldBeTrue();
+        var expected = new[] { "Patient", "Defense Attorney" };
+        BookingFlowRoles.IsExternalAccessorManager(expected).ShouldBeTrue();
     }
 
     [Fact]

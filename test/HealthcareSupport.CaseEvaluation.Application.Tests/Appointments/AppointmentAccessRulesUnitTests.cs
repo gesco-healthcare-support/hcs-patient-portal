@@ -250,6 +250,7 @@ public class AppointmentAccessRulesUnitTests
     [Fact]
     public void CanRead_Expanded_ClaimExaminer_EmailCaseInsensitive_True()
     {
+        var claimExaminerEmails = new[] { "caller@gesco.com" };
         var (allowed, pathway) = AppointmentAccessRules.CanRead(
             callerUserId: CallerId,
             callerEmail: "Caller@GESCO.com",
@@ -258,7 +259,7 @@ public class AppointmentAccessRulesUnitTests
             patientIdentityUserId: null,
             applicantAttorneyIdentityUserIds: null,
             defenseAttorneyIdentityUserIds: null,
-            claimExaminerEmails: new[] { "caller@gesco.com" },
+            claimExaminerEmails: claimExaminerEmails,
             accessorEntries: null);
         allowed.ShouldBeTrue();
         pathway.ShouldBe(AppointmentAccessRules.AccessPathway.ClaimExaminer);
@@ -267,6 +268,7 @@ public class AppointmentAccessRulesUnitTests
     [Fact]
     public void CanRead_Expanded_UnrelatedExternalUser_False()
     {
+        var claimExaminerEmails = new[] { "someone.else@gesco.com" };
         var (allowed, pathway) = AppointmentAccessRules.CanRead(
             callerUserId: CallerId,
             callerEmail: CallerEmail,
@@ -275,7 +277,7 @@ public class AppointmentAccessRulesUnitTests
             patientIdentityUserId: OtherUserId,
             applicantAttorneyIdentityUserIds: new[] { OtherUserId },
             defenseAttorneyIdentityUserIds: new[] { OtherUserId },
-            claimExaminerEmails: new[] { "someone.else@gesco.com" },
+            claimExaminerEmails: claimExaminerEmails,
             accessorEntries: System.Array.Empty<AppointmentAccessRules.AccessorEntry>());
         allowed.ShouldBeFalse();
         pathway.ShouldBeNull();
@@ -554,9 +556,10 @@ public class AppointmentAccessRulesUnitTests
     [Fact]
     public void EmailRoleVisible_AaColumnMatches_AaRole_True()
     {
+        var callerRoles = new[] { "Applicant Attorney" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
             callerEmail: FirmEmail,
-            callerRoles: new[] { "Applicant Attorney" },
+            callerRoles: callerRoles,
             patientEmail: "patient@example.com",
             applicantAttorneyEmail: FirmEmail,
             defenseAttorneyEmail: "da@example.com",
@@ -568,9 +571,10 @@ public class AppointmentAccessRulesUnitTests
     {
         // Cross-role leak guard: the caller's email is the DEFENSE attorney
         // column, but the caller holds only Applicant Attorney -> NOT visible.
+        var callerRoles = new[] { "Applicant Attorney" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
             callerEmail: FirmEmail,
-            callerRoles: new[] { "Applicant Attorney" },
+            callerRoles: callerRoles,
             patientEmail: null,
             applicantAttorneyEmail: null,
             defenseAttorneyEmail: FirmEmail,
@@ -582,9 +586,10 @@ public class AppointmentAccessRulesUnitTests
     {
         // After D9 role accumulation (AA firm gains Defense Attorney via an
         // accessor invite), the DA-column appointment becomes visible.
+        var callerRoles = new[] { "Applicant Attorney", "Defense Attorney" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
             callerEmail: FirmEmail,
-            callerRoles: new[] { "Applicant Attorney", "Defense Attorney" },
+            callerRoles: callerRoles,
             patientEmail: null,
             applicantAttorneyEmail: null,
             defenseAttorneyEmail: FirmEmail,
@@ -594,30 +599,34 @@ public class AppointmentAccessRulesUnitTests
     [Fact]
     public void EmailRoleVisible_PatientColumn_PatientRole_True()
     {
+        var expected = new[] { "Patient" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-            FirmEmail, new[] { "Patient" }, FirmEmail, null, null, null).ShouldBeTrue();
+            FirmEmail, expected, FirmEmail, null, null, null).ShouldBeTrue();
     }
 
     [Fact]
     public void EmailRoleVisible_ClaimExaminerColumn_CeRole_True()
     {
+        var expected = new[] { "Claim Examiner" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-            FirmEmail, new[] { "Claim Examiner" }, null, null, null, FirmEmail).ShouldBeTrue();
+            FirmEmail, expected, null, null, null, FirmEmail).ShouldBeTrue();
     }
 
     [Fact]
     public void EmailRoleVisible_AaColumnMatches_ButPatientRoleOnly_False()
     {
+        var expected = new[] { "Patient" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-            FirmEmail, new[] { "Patient" }, null, FirmEmail, null, null).ShouldBeFalse();
+            FirmEmail, expected, null, FirmEmail, null, null).ShouldBeFalse();
     }
 
     [Fact]
     public void EmailRoleVisible_NoColumnMatchesEmail_False()
     {
+        var expected = new[] { "Applicant Attorney", "Defense Attorney", "Patient", "Claim Examiner" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
             FirmEmail,
-            new[] { "Applicant Attorney", "Defense Attorney", "Patient", "Claim Examiner" },
+            expected,
             "patient@example.com", "aa@example.com", "da@example.com", "ce@example.com")
             .ShouldBeFalse();
     }
@@ -625,9 +634,10 @@ public class AppointmentAccessRulesUnitTests
     [Fact]
     public void EmailRoleVisible_CaseInsensitiveEmailAndRole_True()
     {
+        var callerRoles = new[] { "applicant attorney" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
             callerEmail: "FIRM@Example.com",
-            callerRoles: new[] { "applicant attorney" },
+            callerRoles: callerRoles,
             patientEmail: null,
             applicantAttorneyEmail: "firm@example.com",
             defenseAttorneyEmail: null,
@@ -637,8 +647,9 @@ public class AppointmentAccessRulesUnitTests
     [Fact]
     public void EmailRoleVisible_NullCallerEmail_False()
     {
+        var expected = new[] { "Applicant Attorney" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-            null, new[] { "Applicant Attorney" }, null, "aa@example.com", null, null).ShouldBeFalse();
+            null, expected, null, "aa@example.com", null, null).ShouldBeFalse();
     }
 
     [Fact]
@@ -659,9 +670,10 @@ public class AppointmentAccessRulesUnitTests
     public void EmailRoleVisible_BlankColumns_False()
     {
         // Holds every role, but the appointment names no party emails -> hidden.
+        var expected = new[] { "Applicant Attorney", "Defense Attorney", "Patient", "Claim Examiner" };
         AppointmentAccessRules.IsAppointmentEmailRoleVisible(
             FirmEmail,
-            new[] { "Applicant Attorney", "Defense Attorney", "Patient", "Claim Examiner" },
+            expected,
             "  ", null, "", "   ").ShouldBeFalse();
     }
 }

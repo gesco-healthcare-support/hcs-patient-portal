@@ -162,8 +162,9 @@ public class DocumentUploadGateUnitTests
         var creatorId = Guid.NewGuid();
         var appointment = NewAppointmentWithCreator(creatorId);
 
+        var expected = new[] { "Applicant Attorney" };
         Should.NotThrow(() => DocumentUploadGate.EnsureCreatorIsAttorney(
-            appointment, creatorId, new[] { "Applicant Attorney" }));
+            appointment, creatorId, expected));
     }
 
     [Fact]
@@ -172,17 +173,19 @@ public class DocumentUploadGateUnitTests
         var creatorId = Guid.NewGuid();
         var appointment = NewAppointmentWithCreator(creatorId);
 
+        var expected = new[] { "Defense Attorney" };
         Should.NotThrow(() => DocumentUploadGate.EnsureCreatorIsAttorney(
-            appointment, creatorId, new[] { "Defense Attorney" }));
+            appointment, creatorId, expected));
     }
 
     [Fact]
     public void EnsureCreatorIsAttorney_CreatorMismatch_Throws()
     {
         var appointment = NewAppointmentWithCreator(Guid.NewGuid());
+        var expected = new[] { "Applicant Attorney" };
         var ex = Should.Throw<BusinessException>(() =>
             DocumentUploadGate.EnsureCreatorIsAttorney(
-                appointment, Guid.NewGuid(), new[] { "Applicant Attorney" }));
+                appointment, Guid.NewGuid(), expected));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.JdfUploaderMustBeBookingAttorney);
     }
 
@@ -190,9 +193,10 @@ public class DocumentUploadGateUnitTests
     public void EnsureCreatorIsAttorney_NullCurrentUserId_Throws()
     {
         var appointment = NewAppointmentWithCreator(Guid.NewGuid());
+        var expected = new[] { "Applicant Attorney" };
         var ex = Should.Throw<BusinessException>(() =>
             DocumentUploadGate.EnsureCreatorIsAttorney(
-                appointment, null, new[] { "Applicant Attorney" }));
+                appointment, null, expected));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.JdfUploaderMustBeBookingAttorney);
     }
 
@@ -218,8 +222,9 @@ public class DocumentUploadGateUnitTests
         var creatorId = Guid.NewGuid();
         var appointment = NewAppointmentWithCreator(creatorId);
 
+        var expected = new[] { "applicant attorney" };
         Should.NotThrow(() => DocumentUploadGate.EnsureCreatorIsAttorney(
-            appointment, creatorId, new[] { "applicant attorney" }));
+            appointment, creatorId, expected));
     }
 
     // ------------------------------------------------------------------

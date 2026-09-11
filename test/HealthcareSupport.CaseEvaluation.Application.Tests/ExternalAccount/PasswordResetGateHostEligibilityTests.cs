@@ -59,9 +59,11 @@ public class PasswordResetGateHostEligibilityTests
     {
         // Defence in depth: the flag alone is decisive, so a row that somehow holds both an internal
         // role and the external marker is refused rather than resolved in its favour.
-        PasswordResetGate.IsHostAccountEligible(new[] { "IT Admin" }, isExternalFlag: true)
+        var expected2 = new[] { "IT Admin" };
+        PasswordResetGate.IsHostAccountEligible(expected2, isExternalFlag: true)
             .ShouldBeFalse();
-        PasswordResetGate.IsHostAccountEligible(new[] { "admin", "Staff Supervisor" }, isExternalFlag: true)
+        var expected = new[] { "admin", "Staff Supervisor" };
+        PasswordResetGate.IsHostAccountEligible(expected, isExternalFlag: true)
             .ShouldBeFalse();
     }
 
@@ -69,18 +71,21 @@ public class PasswordResetGateHostEligibilityTests
     public void IsHostAccountEligible_FailsClosedOnAnEmptyOrNullRoleSet()
     {
         PasswordResetGate.IsHostAccountEligible(null, isExternalFlag: false).ShouldBeFalse();
-        PasswordResetGate.IsHostAccountEligible(new string?[0], isExternalFlag: false).ShouldBeFalse();
+        PasswordResetGate.IsHostAccountEligible(Array.Empty<string?>(), isExternalFlag: false).ShouldBeFalse();
         PasswordResetGate.IsHostAccountEligible(new string?[] { null }, isExternalFlag: false).ShouldBeFalse();
-        PasswordResetGate.IsHostAccountEligible(new string?[] { "" }, isExternalFlag: false).ShouldBeFalse();
-        PasswordResetGate.IsHostAccountEligible(new string?[] { "   " }, isExternalFlag: false).ShouldBeFalse();
+        var expected2 = new string?[] { "" };
+        PasswordResetGate.IsHostAccountEligible(expected2, isExternalFlag: false).ShouldBeFalse();
+        var expected = new string?[] { "   " };
+        PasswordResetGate.IsHostAccountEligible(expected, isExternalFlag: false).ShouldBeFalse();
     }
 
     [Fact]
     public void IsHostAccountEligible_AllowsWhenAnInternalRoleSitsAlongsideOthers()
     {
         // A real operator can hold several roles; one internal role is enough.
+        var expected = new[] { "Patient", "Intake Staff" };
         PasswordResetGate
-            .IsHostAccountEligible(new[] { "Patient", "Intake Staff" }, isExternalFlag: false)
+            .IsHostAccountEligible(expected, isExternalFlag: false)
             .ShouldBeTrue();
     }
 }
