@@ -1,13 +1,18 @@
 import { TestBed } from '@angular/core/testing';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { of } from 'rxjs';
-import { LocalizationService } from '@abp/ng.core';
+import { ConfigStateService, LocalizationService } from '@abp/ng.core';
+import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
 
 import { AppointmentAddAttorneySectionComponent } from './appointment-add-attorney-section.component';
 import { AppointmentAddClaimPartiesSectionComponent } from './appointment-add-claim-parties-section.component';
 import { AppointmentAddEmployerDetailsComponent } from './appointment-add-employer-details.component';
+import { AppointmentAddPatientDemographicsComponent } from './appointment-add-patient-demographics.component';
+import { AppointmentAddScheduleComponent } from './appointment-add-schedule.component';
 import { AddressValidationProvider } from '../../shared/address/address-validation.provider';
+import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
 import { PatientService } from '../../proxy/patients/patient.service';
+import { UsDateParserFormatter } from '../../shared/us-date-parser-formatter';
 
 /**
  * #792 -- the wizard sections carry element ids that are COMPUTED at runtime
@@ -228,5 +233,193 @@ describe('Wizard section label association, static-id sections (#792)', () => {
     c.getStateLookup = () => of({ items: [], totalCount: 0 }) as never;
     fixture.detectChanges();
     assertAllNamed(fixture.nativeElement as HTMLElement);
+  });
+});
+
+/**
+ * #806 -- the two remaining wizard sections. Adrian's ruling (2026-09-10) was
+ * for uniform coverage over the narrower argument that these use static ids and
+ * so cannot hit the id-collision failure mode. The second-order case is the
+ * stronger one: neither section is guaranteed to stay static, and if either is
+ * reworked to generate ids at render time (as the attorney section already does
+ * from `role`) the spec would need to exist at exactly the moment nobody
+ * remembers to write it.
+ *
+ * It earned that on its first run. Both sections nest custom elements -- the
+ * schedule's `<app-availability-calendar>`, demographics' `<app-ssn-input>` and
+ * `<app-address-autocomplete>` -- and SonarCloud's HTML analyser cannot see
+ * through any of them. The SSN control rendered an `<input>` carrying no id and
+ * no aria-label, under a `<label>` carrying no `for`: no accessible name by any
+ * route, on all three of its call sites, with a clean scan.
+ */
+describe('Wizard section label association, remaining sections (#806)', () => {
+  const SCHEDULE_CONTROLS = [
+    'appointmentTypeId',
+    'panelNumber',
+    'locationId',
+    'appointmentDate',
+    'appointmentTime',
+    'doctorAvailabilityId',
+  ];
+  const DEMOGRAPHICS_CONTROLS = [
+    'firstName',
+    'lastName',
+    'middleName',
+    'genderId',
+    'dateOfBirth',
+    'email',
+    'cellPhoneNumber',
+    'phoneNumber',
+    'socialSecurityNumber',
+    'street',
+    'address',
+    'city',
+    'stateId',
+    'zipCode',
+    'appointmentLanguageId',
+    'needsInterpreter',
+    'interpreterVendorName',
+    'refferedBy',
+  ];
+
+  const emptyLookup = () => of({ items: [], totalCount: 0 }) as never;
+
+  function groupOf(names: string[]): FormGroup {
+    const controls: Record<string, unknown> = {};
+    for (const n of names) controls[n] = [''];
+    return TestBed.inject(FormBuilder).group(controls);
+  }
+
+  function assertAllNamed(host: HTMLElement): void {
+    const unnamed = controlsIn(host)
+      .filter((el) => !accessibleName(el, host))
+      .map((el) => el.tagName.toLowerCase() + '#' + (el.getAttribute('id') ?? '(no id)'));
+    expect(unnamed).toEqual([]);
+    const ids = controlsIn(host)
+      .map((el) => el.getAttribute('id'))
+      .filter(Boolean) as string[];
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  describe('schedule section', () => {
+    function configure(): void {
+      TestBed.configureTestingModule({
+        providers: [
+          FormBuilder,
+          {
+            provide: LocalizationService,
+            useValue: { instant: (k: string) => k, get: (k: string) => k },
+          },
+          // The calendar fetches slots on its own; an empty lookup still renders
+          // both of its controls, which is what is under assertion here.
+          {
+            provide: DoctorAvailabilityService,
+            useValue: { getDoctorAvailabilityLookup: () => of([]) },
+          },
+          // Mirrors app.config.ts, which formats every datepicker MM/DD/YYYY.
+          { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
+        ],
+      });
+    }
+
+    function render(typeChosen: boolean): HTMLElement {
+      configure();
+      const fixture = TestBed.createComponent(AppointmentAddScheduleComponent);
+      const c = fixture.componentInstance;
+      c.form = groupOf(SCHEDULE_CONTROLS);
+      c.checkForAppointmentTypeSelected = typeChosen;
+      c.minimumBookingRuleMessage = '';
+      c.getAppointmentTypeLookup = emptyLookup;
+      c.getLocationLookup = emptyLookup;
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('names every control before a type is chosen', () => {
+      assertAllNamed(render(false));
+    });
+
+    /**
+     * The case that matters. `checkForAppointmentTypeSelected` is what reveals
+     * `<app-availability-calendar>`, so the date input and time select exist
+     * only in this branch -- and they come from a nested component the HTML
+     * analyser cannot see into at all.
+     */
+    it('names every control once the calendar is revealed', () => {
+      const host = render(true);
+      assertAllNamed(host);
+      const ids = controlsIn(host).map((el) => el.getAttribute('id'));
+      expect(ids).toContain('availability-calendar-date');
+      expect(ids).toContain('availability-calendar-time');
+    });
+  });
+
+  describe('patient-demographics section', () => {
+    function render(isExternalUserNonPatient: boolean): HTMLElement {
+      TestBed.configureTestingModule({
+        providers: [
+          FormBuilder,
+          {
+            provide: LocalizationService,
+            useValue: { instant: (k: string) => k, get: (k: string) => k },
+          },
+          { provide: AddressValidationProvider, useValue: { autocomplete: () => of([]) } },
+          {
+            provide: PatientService,
+            useValue: {
+              getStateLookup: () => of({ items: [], totalCount: 0 }),
+              getFullSsn: () => of({ socialSecurityNumber: null }),
+            },
+          },
+          // <app-ssn-input> reads the current user to decide whether the
+          // on-file reveal button is offered. Nothing here reveals anything.
+          { provide: ConfigStateService, useValue: { getOne: () => null } },
+          { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
+        ],
+      });
+      const fixture = TestBed.createComponent(AppointmentAddPatientDemographicsComponent);
+      const c = fixture.componentInstance;
+      c.form = groupOf(DEMOGRAPHICS_CONTROLS);
+      c.isExternalUserNonPatient = isExternalUserNonPatient;
+      c.isItAdmin = false;
+      c.patientLoadMessage = '';
+      c.searchPatientByEmail = () => of([]);
+      c.dobMinDate = { year: 1900, month: 1, day: 1 };
+      c.dobMaxDate = { year: 2100, month: 12, day: 31 };
+      c.getStateLookup = emptyLookup;
+      c.getAppointmentLanguageLookup = emptyLookup;
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('names every control for an internal booker', () => {
+      assertAllNamed(render(false));
+    });
+
+    /**
+     * The external-booker branch adds the NgbTypeahead patient email search,
+     * which is the only control in the section outside the reactive form.
+     */
+    it('names every control for an external booker, including the patient search', () => {
+      const host = render(true);
+      assertAllNamed(host);
+      const ids = controlsIn(host).map((el) => el.getAttribute('id'));
+      expect(ids).toContain('appointment-patient-email-search');
+    });
+
+    /**
+     * Named explicitly because it is the one this spec caught, and because the
+     * control is three components deep: the `<input>` belongs to
+     * `<app-ssn-input>`, which renders no id of its own unless the host passes
+     * one. A regression here is invisible to every static check in the repo.
+     */
+    it('gives the SSN control an accessible name', () => {
+      const host = render(false);
+      const ssn = host.querySelector('app-ssn-input input');
+      expect(ssn).withContext('SSN input should render').not.toBeNull();
+      expect(accessibleName(ssn!, host)).toBe('::SocialSecurityNumber');
+    });
   });
 });
