@@ -1,0 +1,71 @@
+# Python tooling for this repository. Added by hardening 8.1b step 1 (#784).
+#
+# THIS FILE CONFIGURES COVERAGE ONLY. There is no test-runner section because
+# the Python suite runs on the standard library:
+#
+#     python -m unittest discover -s tests/python -p "test_*.py"
+#
+# That follows the precedent set by #821, which added the first Python tests to
+# this repository using stdlib `unittest` with no dependencies at all. pytest
+# was evaluated for this step and rejected: the 52 tests here use exactly three
+# of its features -- a session fixture, `raises`, and `tmp_path` -- and all
+# three have direct stdlib equivalents. Adding a test-runner dependency, a
+# manifest and a config section to gain nothing measurable is ceremony this
+# phase cannot justify while phase 8's pace is under question.
+#
+# `coverage` is a different matter and is NOT ceremony: producing a coverage
+# report both consumers can read is the entire deliverable of #784, which is
+# what distinguishes this job from #821's.
+
+[tool.coverage.run]
+# MEASURED, and the single highest-risk line in this file.
+#
+#   source = ["scripts"]  ->  filename="coverage-gate.py"          WRONG
+#   source = ["."]        ->  filename="scripts/coverage-gate.py"  CORRECT
+#
+# `source` naming a subdirectory makes coverage report paths RELATIVE TO THAT
+# DIRECTORY, stripping the prefix. Both consumers of `.coverage-exclusions`
+# match on repo-relative paths, so the stripped form makes every pattern miss --
+# in SonarCloud and in scripts/coverage-gate.py at once -- while still printing
+# a figure that looks entirely reasonable. There is no error; only a wrong
+# number. `[paths]` remapping was tried as a repair and does not fix it.
+#
+# The cost of `["."]`, stated because it is real: only files the tests EXECUTE
+# are reported. Unexecuted files do not appear, because coverage's discovery of
+# unexecuted files only recurses into directories that are Python packages, and
+# none of these are. Explicit roots do list them, but with the broken paths
+# above; no setting gives both.
+#
+# `["."]` is the right side of that trade because SonarCloud derives its Python
+# denominator from its own analysis, not from this report. Measured with no
+# report in existence anywhere: coverage-gate.py 223 lines_to_cover at 0.0%,
+# verify_structure.py 145 at 0.0%, app.py 44 at 0.0%. Those lines are already in
+# the denominator; supplying a report can only raise them.
+#
+# Kept in this file rather than on the command line so a local run and CI cannot
+# disagree about it -- the failure recorded as instance 21.
+source = ["."]
+relative_files = true
+branch = true
+omit = [
+    # Other stacks. Measured by their own runners, floors and reports.
+    "angular/*",
+    "src/*",
+    "test/*",
+    # Never source.
+    "node_modules/*",
+    "*/node_modules/*",
+    "*/bin/*",
+    "*/obj/*",
+    "*/__pycache__/*",
+    # Test code is not application code. `tests/e2e-demo/**` is already OUT of
+    # the denominator in `.coverage-exclusions` for the same reason.
+    "tests/*",
+    # Not application code; excluded from the denominator by #777.
+    "etc/*",
+    "design_handoff_*/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
