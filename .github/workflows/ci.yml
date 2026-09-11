@@ -832,13 +832,27 @@ jobs:
       # refuses to run without a floor and prints the figure to copy.
       #
       #   scripts/coverage-gate.py --python-cobertura coverage.xml --measure-only
-      #   -> python: 71.80% (275/383 lines over 2 files)
+      #   -> python: 53.72% (347/646 lines over 4 files)
       #
-      # RE-MEASURED after #852 landed. It took verify_structure.py from 43% to
-      # 88%, and that file is one of only two in this denominator, so the figure
-      # moved from 56.40% to 71.80% without this branch changing. Re-measured
-      # rather than carried forward, which is the whole point of a floor set
-      # from an observed number.
+      # RE-MEASURED THREE TIMES WHILE THIS BRANCH WAS OPEN, and the movement is
+      # the point rather than an inconvenience:
+      #
+      #   56.40%  2 files  first measurement
+      #   71.80%  2 files  after #852 took verify_structure.py 43% -> 88%
+      #   53.72%  4 files  after #854 merged
+      #
+      # The last one is the instructive one. #854 added a test that imports
+      # docker/packet-renderer/app.py, which imports post_process.py -- so two
+      # production files entered the denominator at 55% and 12%, and the figure
+      # fell 18 points without one line of production code changing.
+      #
+      # That is the denominator hazard raised on #787, now demonstrated rather
+      # than predicted: this percentage is a function of WHICH FILES THE SUITE
+      # IMPORTS, so writing a test for something previously untested LOWERS it.
+      # Do not read a fall here as a regression, and do not raise this number to
+      # match a good day -- the next honest test will breach it. The stable
+      # metric is covered statements; the percentage is not comparable across
+      # two runs whose denominators differ.
       #
       # 2 is the load-bearing number here, not 52. The report carries five
       # files; `.coverage-exclusions` removes three of them by name
@@ -860,7 +874,7 @@ jobs:
       # It is set at the observed figure anyway, floored to a whole number per
       # the rule above, because a floor that cannot fail is worse. The
       # denominator question is raised on #787 rather than silently absorbed.
-      FLOOR_PYTHON: "71"
+      FLOOR_PYTHON: "53"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
