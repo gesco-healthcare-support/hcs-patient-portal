@@ -95,7 +95,7 @@ public class AttorneyRecipientPromotionUnitTests
     public void EmptyRoles_DoesNotPromote()
     {
         AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
-                new string[0], "aa@example.com", "da@example.com")
+                Array.Empty<string>(), "aa@example.com", "da@example.com")
             .ShouldBeNull();
     }
 

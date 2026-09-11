@@ -43,7 +43,7 @@ public class NotificationTemplateVariableCatalogTests
             NotificationTemplateConsts.Codes.InviteExternalUser);
 
         // Subject contributes TenantName first; the body adds the rest.
-        tokens.First().ShouldBe("TenantName");
+        tokens[0].ShouldBe("TenantName");
         tokens.ShouldContain("Greeting");
         tokens.ShouldContain("RoleName");
         tokens.ShouldContain("URL");

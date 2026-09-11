@@ -69,7 +69,7 @@ public class PasswordResetGateHostEligibilityTests
     public void IsHostAccountEligible_FailsClosedOnAnEmptyOrNullRoleSet()
     {
         PasswordResetGate.IsHostAccountEligible(null, isExternalFlag: false).ShouldBeFalse();
-        PasswordResetGate.IsHostAccountEligible(new string?[0], isExternalFlag: false).ShouldBeFalse();
+        PasswordResetGate.IsHostAccountEligible(Array.Empty<string?>(), isExternalFlag: false).ShouldBeFalse();
         PasswordResetGate.IsHostAccountEligible(new string?[] { null }, isExternalFlag: false).ShouldBeFalse();
         PasswordResetGate.IsHostAccountEligible(new string?[] { "" }, isExternalFlag: false).ShouldBeFalse();
         PasswordResetGate.IsHostAccountEligible(new string?[] { "   " }, isExternalFlag: false).ShouldBeFalse();
