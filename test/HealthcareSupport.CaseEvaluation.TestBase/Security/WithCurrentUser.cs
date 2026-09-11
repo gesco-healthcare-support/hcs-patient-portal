@@ -62,10 +62,15 @@ public static class WithCurrentUser
     /// <para>DO NOT fold this into <see cref="Run"/> as an optional parameter or an overload.
     /// Two independent reasons:</para>
     ///
-    /// <para>1. C# forbids an optional parameter ahead of a <c>params</c> array, and an overload
-    /// taking the email third would silently rebind existing two-argument-plus-role calls such as
-    /// <c>Run(accessor, id, "Patient")</c> to <c>email: "Patient"</c> with no roles. There are 36
-    /// <see cref="Run"/> call sites; none is affected by adding this alongside.</para>
+    /// <para>1. Such an overload would COMPILE, and that is exactly the danger. C# permits an
+    /// optional parameter ahead of a <c>params</c> array -- <c>params</c> must be last, which
+    /// includes coming after any defaulted parameter, and the only nearby prohibition is CS1751,
+    /// a default value on the params array itself. So an overload taking the email third would
+    /// bind an existing call like <c>Run(accessor, id, "Patient")</c> to <c>email: "Patient"</c>
+    /// with <c>roles</c> EMPTY -- no error, no warning, no emitted role claim -- across all 36
+    /// <see cref="Run"/> call sites. An illegal overload would be caught by the compiler and harm
+    /// nobody; a legal one changes behaviour in silence. Adding this alongside affects none of
+    /// them.</para>
     ///
     /// <para>2. <see cref="Run"/>'s LACK of an email claim is pinned behaviour, not an oversight.
     /// <c>AbpClaimTypes.Email</c> appears exactly once elsewhere in the repo -- the default principal
