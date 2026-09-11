@@ -35,7 +35,8 @@ public class AppointmentAccessorRulesUnitTests
     [Fact]
     public void HoldsRequestedRole_EmptyRequestedRole_ReturnsFalse()
     {
-        AppointmentAccessorRules.HoldsRequestedRole(new[] { "Patient" }, "").ShouldBeFalse();
+        var expected = new[] { "Patient" };
+        AppointmentAccessorRules.HoldsRequestedRole(expected, "").ShouldBeFalse();
     }
 
     [Fact]
@@ -78,10 +79,11 @@ public class AppointmentAccessorRulesUnitTests
     [Fact]
     public void ResolveOutcome_UserExistsWithRequestedRole_ReturnsLinkExisting()
     {
+        var userRoles = new[] { "Applicant Attorney" };
         AppointmentAccessorRules
             .ResolveOutcome(
                 userExists: true,
-                userRoles: new[] { "Applicant Attorney" },
+                userRoles: userRoles,
                 requestedRole: "Applicant Attorney")
             .ShouldBe(AccessorLinkOutcome.LinkExisting);
     }
@@ -95,10 +97,11 @@ public class AppointmentAccessorRulesUnitTests
         // Attorney accessor gains the Defense Attorney role on top). Visibility
         // stays role-gated separately (IsAppointmentEmailRoleVisible), so the
         // grant only reveals the newly-held role's own-side appointments.
+        var userRoles = new[] { "Applicant Attorney" };
         AppointmentAccessorRules
             .ResolveOutcome(
                 userExists: true,
-                userRoles: new[] { "Applicant Attorney" },
+                userRoles: userRoles,
                 requestedRole: "Defense Attorney")
             .ShouldBe(AccessorLinkOutcome.GrantRoleAndLink);
     }
@@ -108,10 +111,11 @@ public class AppointmentAccessorRulesUnitTests
     {
         // Internal staff being added as accessor: grant the requested
         // role on top of their existing internal role and link.
+        var userRoles = new[] { "Intake Staff" };
         AppointmentAccessorRules
             .ResolveOutcome(
                 userExists: true,
-                userRoles: new[] { "Intake Staff" },
+                userRoles: userRoles,
                 requestedRole: "Applicant Attorney")
             .ShouldBe(AccessorLinkOutcome.GrantRoleAndLink);
     }

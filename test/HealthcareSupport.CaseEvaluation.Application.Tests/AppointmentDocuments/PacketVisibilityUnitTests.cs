@@ -38,13 +38,15 @@ public class PacketVisibilityUnitTests
     [Fact]
     public void AllowedKinds_Doctor_ReturnsNone()
     {
-        PacketVisibility.AllowedKinds(new[] { "Doctor" }).ShouldBeEmpty();
+        var expected = new[] { "Doctor" };
+        PacketVisibility.AllowedKinds(expected).ShouldBeEmpty();
     }
 
     [Fact]
     public void AllowedKinds_Patient_ReturnsPatientOnly()
     {
-        PacketVisibility.AllowedKinds(new[] { "Patient" }).ShouldBe(new[] { PacketKind.Patient });
+        var expected = new[] { "Patient" };
+        PacketVisibility.AllowedKinds(expected).ShouldBe(new[] { PacketKind.Patient });
     }
 
     [Theory]
@@ -60,7 +62,8 @@ public class PacketVisibilityUnitTests
     [Fact]
     public void AllowedKinds_InternalAndExternalMix_InternalWins()
     {
-        PacketVisibility.AllowedKinds(new[] { "Patient", "Intake Staff" }).ShouldBe(All, ignoreOrder: true);
+        var expected = new[] { "Patient", "Intake Staff" };
+        PacketVisibility.AllowedKinds(expected).ShouldBe(All, ignoreOrder: true);
     }
 
     [Fact]
@@ -78,25 +81,30 @@ public class PacketVisibilityUnitTests
     [Fact]
     public void AllowedKinds_UnknownRole_ReturnsNone()
     {
-        PacketVisibility.AllowedKinds(new[] { "SomeOtherRole" }).ShouldBeEmpty();
+        var expected = new[] { "SomeOtherRole" };
+        PacketVisibility.AllowedKinds(expected).ShouldBeEmpty();
     }
 
     [Fact]
     public void IsAllowed_Patient_CannotAccessDoctorPacket()
     {
-        PacketVisibility.IsAllowed(new[] { "Patient" }, PacketKind.Doctor).ShouldBeFalse();
+        var expected = new[] { "Patient" };
+        PacketVisibility.IsAllowed(expected, PacketKind.Doctor).ShouldBeFalse();
     }
 
     [Fact]
     public void IsAllowed_Attorney_CanAccessAttyCeButNotPatient()
     {
-        PacketVisibility.IsAllowed(new[] { "Defense Attorney" }, PacketKind.AttorneyClaimExaminer).ShouldBeTrue();
-        PacketVisibility.IsAllowed(new[] { "Defense Attorney" }, PacketKind.Patient).ShouldBeFalse();
+        var expected2 = new[] { "Defense Attorney" };
+        PacketVisibility.IsAllowed(expected2, PacketKind.AttorneyClaimExaminer).ShouldBeTrue();
+        var expected = new[] { "Defense Attorney" };
+        PacketVisibility.IsAllowed(expected, PacketKind.Patient).ShouldBeFalse();
     }
 
     [Fact]
     public void IsAllowed_Internal_CanAccessDoctorPacket()
     {
-        PacketVisibility.IsAllowed(new[] { "Intake Staff" }, PacketKind.Doctor).ShouldBeTrue();
+        var expected = new[] { "Intake Staff" };
+        PacketVisibility.IsAllowed(expected, PacketKind.Doctor).ShouldBeTrue();
     }
 }

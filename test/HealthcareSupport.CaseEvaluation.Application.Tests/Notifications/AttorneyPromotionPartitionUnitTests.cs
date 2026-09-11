@@ -127,8 +127,9 @@ public class AttorneyPromotionPartitionUnitTests
     [Fact]
     public void PatientBooker_NotPromoted_AddressesToPatient_Unchanged()
     {
+        var creatorRoles = new[] { "Patient" };
         var (to, cc) = Address(
-            creatorRoles: new[] { "Patient" },
+            creatorRoles: creatorRoles,
             applicantAttorneyEmail: "attorney@example.com",
             defenseAttorneyEmail: null,
             bookerEmail: "patient@example.com",
@@ -147,8 +148,9 @@ public class AttorneyPromotionPartitionUnitTests
     [Fact]
     public void ClaimExaminerBooker_NotPromoted_AddressesToBooker_Unchanged()
     {
+        var creatorRoles = new[] { "Claim Examiner" };
         var (to, cc) = Address(
-            creatorRoles: new[] { "Claim Examiner" },
+            creatorRoles: creatorRoles,
             applicantAttorneyEmail: "attorney@example.com",
             defenseAttorneyEmail: null,
             bookerEmail: "examiner@example.com",
