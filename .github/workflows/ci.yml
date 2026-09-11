@@ -424,13 +424,12 @@ jobs:
       # `test -s coverage.xml` asserts on the ARTEFACT the command should have
       # produced, rather than trusting the exit code of the command meant to
       # produce it.
+      # #787: the command moved into scripts/python-coverage.sh so this job and
+      # sonarcloud.yml cannot drift in flags, exclusions or working directory --
+      # the failure mode `.coverage-exclusions` already suffered once. The
+      # artefact-not-exit-code assertion moved with it.
       - name: Test with coverage
-        run: |
-          set -euo pipefail
-          python -m coverage run -m unittest discover -s tests/python -p "test_*.py" -v
-          python -m coverage report
-          python -m coverage xml -o coverage.xml
-          test -s coverage.xml
+        run: bash scripts/python-coverage.sh coverage.xml
 
       # DELIBERATELY DOES NOT INVOKE scripts/coverage-gate.py.
       #
@@ -833,7 +832,13 @@ jobs:
       # refuses to run without a floor and prints the figure to copy.
       #
       #   scripts/coverage-gate.py --python-cobertura coverage.xml --measure-only
-      #   -> python: 56.40% (216/383 lines over 2 files)
+      #   -> python: 71.80% (275/383 lines over 2 files)
+      #
+      # RE-MEASURED after #852 landed. It took verify_structure.py from 43% to
+      # 88%, and that file is one of only two in this denominator, so the figure
+      # moved from 56.40% to 71.80% without this branch changing. Re-measured
+      # rather than carried forward, which is the whole point of a floor set
+      # from an observed number.
       #
       # 2 is the load-bearing number here, not 52. The report carries five
       # files; `.coverage-exclusions` removes three of them by name
@@ -855,7 +860,7 @@ jobs:
       # It is set at the observed figure anyway, floored to a whole number per
       # the rule above, because a floor that cannot fail is worse. The
       # denominator question is raised on #787 rather than silently absorbed.
-      FLOOR_PYTHON: "56"
+      FLOOR_PYTHON: "71"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here

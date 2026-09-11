@@ -51,6 +51,13 @@ jobs:
           node-version: "22"
           cache: "yarn"
           cache-dependency-path: angular/yarn.lock
+      # Pinned like the other three toolchains in this job. ubuntu-latest ships
+      # a Python, but relying on the image's default is how the two consumers of
+      # scripts/python-coverage.sh would come to run different interpreters --
+      # the same class of drift this step exists to avoid. Matches ci.yml.
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.x"
 
       # PINNED (2026-09-03), same class as the 69 action references pinned in
       # item 2.2: an unpinned `dotnet tool install` resolves and executes a
@@ -129,6 +136,27 @@ jobs:
           echo "COVERAGE_EXCLUSIONS=$list" >> "$GITHUB_ENV"
           echo "Coverage exclusions: $list"
 
+      # #787, SonarCloud's half. Without a Python report Sonar grades EVERY new
+      # Python line as uncovered, so any pull request touching Python fails the
+      # new_coverage condition at 0% -- observed on PR #854, whose only new
+      # Python was a twenty-line import block.
+      #
+      # NOT `coverage.xml`: the .NET step below writes that name at the
+      # repository root for sonar.cs.vscoveragexml.reportsPaths. Two reports
+      # under one name means one silently overwrites the other.
+      #
+      # Same script ci.yml's python-test job runs, so the two consumers cannot
+      # diverge in flags. The gate is then asked to parse the very file being
+      # handed to Sonar: if it cannot, the two consumers are looking at
+      # different things and that should be loud here rather than discovered as
+      # a disagreement in figures months later.
+      - name: Python tests with coverage
+        run: |
+          set -euo pipefail
+          python -m pip install coverage==7.15.2
+          bash scripts/python-coverage.sh python-coverage.xml
+          python scripts/coverage-gate.py --python-cobertura python-coverage.xml --measure-only
+
       - name: SonarScanner begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -141,6 +169,7 @@ jobs:
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
           /d:sonar.javascript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
+          /d:sonar.python.coverage.reportPaths="python-coverage.xml"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts,design_handoff_*/**"
           /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS"
           /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml,abpDiAppServiceParams,abpDiManagerParams,abpDiRepoParams,abpPermissionStrings,abpAppServiceI18nKeys,abpHostModuleConfigKeys,abpDavailComplexity,bootstrapModalDialogRole,emailDoctype,emailTitle,emailLang,emailTableHeader,emailMouseKeyboard,emailDeprecatedAttrs,emailLayoutTable
