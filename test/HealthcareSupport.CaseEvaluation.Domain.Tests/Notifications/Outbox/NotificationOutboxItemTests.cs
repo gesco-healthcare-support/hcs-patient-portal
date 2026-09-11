@@ -150,13 +150,15 @@ public class NotificationOutboxItemTests
     [Fact]
     public void GetCcList_RoundTripsAddresses()
     {
+        var cc = new[] { "a@example.test", "  ", "b@example.test" };
         var item = new NotificationOutboxItem(
             Guid.NewGuid(), TenantId,
             to: "to@example.test",
-            cc: new[] { "a@example.test", "  ", "b@example.test" },
+            cc: cc,
             subject: "s", body: "b", isBodyHtml: true,
             context: "ctx", idempotencyKey: "k");
 
-        item.GetCcList().ShouldBe(new[] { "a@example.test", "b@example.test" });
+        var expected = new[] { "a@example.test", "b@example.test" };
+        item.GetCcList().ShouldBe(expected);
     }
 }

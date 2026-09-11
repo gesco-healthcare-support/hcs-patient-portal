@@ -52,7 +52,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates.Poc;
 /// are never modified -- the POC copies them to a temp working
 /// directory before any token replacement.</para>
 /// </summary>
-public class DocxToPdfPocTest
+public partial class DocxToPdfPocTest
 {
     // 2026-05-13: PoC tests verified the LibreOffice-vs-Word DOCX-to-PDF
     // parity during Phase 2 template engineering. Kept in tree as
@@ -222,7 +222,10 @@ public class DocxToPdfPocTest
 
     // -- OpenXML token replacement ----------------------------------------
 
-    private static readonly Regex TokenPattern = new(@"##([A-Za-z]+\.[A-Za-z]+)##", RegexOptions.Compiled);
+    // RegexOptions.Compiled is not carried over: [GeneratedRegex] emits the
+    // matcher at compile time, which is what Compiled bought at runtime.
+    [GeneratedRegex(@"##([A-Za-z]+\.[A-Za-z]+)##")]
+    private static partial Regex TokenPattern();
 
     /// <summary>
     /// Replaces <c>##Token##</c> placeholders in a DOCX file in place.
@@ -266,9 +269,9 @@ public class DocxToPdfPocTest
         if (runs.Count == 0) return 0;
 
         var concatText = string.Concat(runs.SelectMany(r => r.Descendants<Text>()).Select(t => t.Text ?? ""));
-        if (!TokenPattern.IsMatch(concatText)) return 0;
+        if (!TokenPattern().IsMatch(concatText)) return 0;
 
-        var replaced = TokenPattern.Replace(concatText, m =>
+        var replaced = TokenPattern().Replace(concatText, m =>
         {
             var key = m.Groups[1].Value;
             return replacements.TryGetValue(key, out var v) ? v : m.Value;
@@ -277,7 +280,7 @@ public class DocxToPdfPocTest
         // Count only tokens we actually had a value for, so the diagnostic
         // doesn't overstate matches when a paragraph contains a token we
         // intentionally don't fill.
-        var matchCount = TokenPattern.Matches(concatText)
+        var matchCount = TokenPattern().Matches(concatText)
             .Cast<Match>()
             .Count(m => replacements.ContainsKey(m.Groups[1].Value));
 
