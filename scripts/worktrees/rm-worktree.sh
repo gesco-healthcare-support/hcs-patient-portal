@@ -15,16 +15,16 @@ ROOT="/w/patient-portal"
 MAIN="$ROOT/main"
 TARGET="$ROOT/$SLUG"
 
-[ -d "$TARGET" ] || { echo "error: no worktree at $TARGET" >&2; exit 1; }
+[[ -d "$TARGET" ]] || { echo "error: no worktree at $TARGET" >&2; exit 1; }
 
 # Never remove main via this helper.
-if [ "$SLUG" = "main" ]; then
+if [[ "$SLUG" = "main" ]]; then
   echo "error: refusing to remove main worktree" >&2
   exit 1
 fi
 
 cd "$TARGET"
-if [ -n "$(git status --porcelain)" ] && [ "$FORCE" != "--force" ]; then
+if [[ -n "$(git status --porcelain)" ]] && [[ "$FORCE" != "--force" ]]; then
   echo "error: $TARGET has uncommitted changes; commit/push or rerun with --force" >&2
   exit 1
 fi
@@ -35,7 +35,7 @@ case "$SLUG" in
   development|staging|production)
     DB="CaseEvaluation_$SLUG"
     read -p "Drop LocalDB database [$DB]? [y/N] " yn
-    if [ "${yn:-N}" = "y" ] || [ "$yn" = "Y" ]; then
+    if [[ "${yn:-N}" = "y" ]] || [[ "$yn" = "Y" ]]; then
       sqlcmd -S "(LocalDb)\\MSSQLLocalDB" \
         -Q "IF DB_ID('$DB') IS NOT NULL BEGIN ALTER DATABASE [$DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DB]; END"
       echo "dropped $DB"
@@ -43,10 +43,16 @@ case "$SLUG" in
       echo "leaving $DB in place"
     fi
     ;;
+  *)
+    # Feature worktrees share CaseEvaluation with main, so there is no
+    # per-worktree database to drop. The no-op is deliberate; it is spelled out
+    # rather than left to a missing branch so that falling through here reads as
+    # a decision instead of an oversight (S131).
+    ;;
 esac
 
 cd "$MAIN"
-if [ "$FORCE" = "--force" ]; then
+if [[ "$FORCE" = "--force" ]]; then
   git worktree remove --force "$TARGET"
 else
   git worktree remove "$TARGET"

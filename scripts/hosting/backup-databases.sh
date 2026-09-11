@@ -28,7 +28,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 
 # SA password from the git-ignored env file (never echoed).
 SA_PASSWORD="$(grep -E '^MSSQL_SA_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
-[ -n "$SA_PASSWORD" ] || { echo "ERROR: MSSQL_SA_PASSWORD not found in ${ENV_FILE}" >&2; exit 1; }
+[[ -n "$SA_PASSWORD" ]] || { echo "ERROR: MSSQL_SA_PASSWORD not found in ${ENV_FILE}" >&2; exit 1; }
 
 mkdir -p "$BACKUP_DIR"
 
@@ -44,7 +44,7 @@ DBS="$(sqlcmd -h -1 -W -Q \
 count=0
 for db in $DBS; do
   db="$(echo "$db" | tr -d '\r')"
-  [ -n "$db" ] || continue
+  [[ -n "$db" ]] || continue
   target="${CONTAINER_BACKUP_DIR}/${db}_${STAMP}.bak"
   echo "Backing up ${db} -> ${BACKUP_DIR}/${db}_${STAMP}.bak"
   sqlcmd -Q "BACKUP DATABASE [${db}] TO DISK = N'${target}' WITH INIT, FORMAT, STATS = 25;"

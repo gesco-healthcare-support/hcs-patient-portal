@@ -27,13 +27,13 @@ set -euo pipefail
 OUT="${1:-openiddict.pfx}"
 DAYS="${2:-3650}"
 
-if [ -z "${AUTHSERVER_CERT_PASSPHRASE:-}" ]; then
+if [[ -z "${AUTHSERVER_CERT_PASSPHRASE:-}" ]]; then
   echo "ERROR: set AUTHSERVER_CERT_PASSPHRASE (the passphrase that protects ${OUT})." >&2
   echo "       Use the SAME value for AuthServer__CertificatePassPhrase in .env.prod." >&2
   exit 1
 fi
 
-if [ -e "$OUT" ]; then
+if [[ -e "$OUT" ]]; then
   echo "ERROR: ${OUT} already exists. Refusing to overwrite -- that would invalidate" >&2
   echo "       every live token. Remove it deliberately only to rotate the signing key." >&2
   exit 1

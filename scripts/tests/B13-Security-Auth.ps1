@@ -43,13 +43,13 @@ $aaToken = $null
 $daToken = $null
 
 if ($patientEmail) {
-    try { $patientToken = Get-AuthToken -Username $patientEmail -Password $defaultPassword -AuthServerUrl $AuthServerUrl -TenantId $t1Id } catch {}
+    try { $patientToken = Get-AuthToken -Username $patientEmail -Password $defaultPassword -AuthServerUrl $AuthServerUrl -TenantId $t1Id } catch { Write-Warning "could not obtain a token; checks needing it are skipped: $_" }
 }
 if ($aaEmail) {
-    try { $aaToken = Get-AuthToken -Username $aaEmail -Password $defaultPassword -AuthServerUrl $AuthServerUrl -TenantId $t1Id } catch {}
+    try { $aaToken = Get-AuthToken -Username $aaEmail -Password $defaultPassword -AuthServerUrl $AuthServerUrl -TenantId $t1Id } catch { Write-Warning "could not obtain a token; checks needing it are skipped: $_" }
 }
 if ($daEmail) {
-    try { $daToken = Get-AuthToken -Username $daEmail -Password $defaultPassword -AuthServerUrl $AuthServerUrl -TenantId $t1Id } catch {}
+    try { $daToken = Get-AuthToken -Username $daEmail -Password $defaultPassword -AuthServerUrl $AuthServerUrl -TenantId $t1Id } catch { Write-Warning "could not obtain a token; checks needing it are skipped: $_" }
 }
 
 # ---- B13.1 RBAC Matrix ----
