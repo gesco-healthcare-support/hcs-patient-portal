@@ -1,4 +1,5 @@
 import {
+  HostListener,
   ChangeDetectionStrategy,
   Component,
   EventEmitter,
@@ -41,6 +42,22 @@ export class PeopleEditModalComponent {
 
   @Output() save = new EventEmitter<PersonFormState>();
   @Output() cancelled = new EventEmitter<void>();
+
+  /**
+   * Sweep #636: the modal could be dismissed only by clicking its backdrop, so a keyboard-only
+   * user could open it and not get out.
+   *
+   * <p>Guarded on `busy` for the same reason the locations and users hubs guard theirs: a save
+   * already in flight must not be dismissable, or the user is left looking at a form that is
+   * still writing. Sonar's finding on the backdrop stays regardless -- it cannot see a
+   * document-level handler.</p>
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (!this.busy) {
+      this.cancelled.emit();
+    }
+  }
 
   protected readonly draft = signal<PersonFormState>({} as PersonFormState);
   protected readonly genders = genderOptions;

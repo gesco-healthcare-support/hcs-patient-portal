@@ -277,12 +277,12 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         if (!string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
         {
             var token = _consentManager.IssueSideConsent(changeRequest, ChangeRequestSide.SideA);
-            toNotify.Add((bothSides.SideARepEmail!, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token));
         }
         if (!string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
         {
             var token = _consentManager.IssueSideConsent(changeRequest, ChangeRequestSide.SideB);
-            toNotify.Add((bothSides.SideBRepEmail!, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
         }
 
         if (toNotify.Count == 0)

@@ -83,22 +83,22 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   private zeroRowPolls = 0;
   private readonly maxZeroRowPolls = 12;
 
-  private packetService = inject(AppointmentPacketService);
-  private documentService = inject(AppointmentDocumentService);
-  private toaster = inject(ToasterService);
-  private permission = inject(PermissionService);
+  private readonly packetService = inject(AppointmentPacketService);
+  private readonly documentService = inject(AppointmentDocumentService);
+  private readonly toaster = inject(ToasterService);
+  private readonly permission = inject(PermissionService);
   // Pre-regen carried buildDownloadUrl as a hand-edited service method.
   // Post-regen we keep the same UX (window.open against an absolute URL)
   // by routing through the AppointmentDocumentUrls helper that lives
   // outside proxy/. See docs/research/proxy-regen-doc-flow-fix.md (Q2).
-  private urls = inject(AppointmentDocumentUrls);
+  private readonly urls = inject(AppointmentDocumentUrls);
   // 2026-05-11 (Bug E fix): HttpClient (with ABP's auth interceptor)
   // for blob downloads. window.open opens a new tab with NO Bearer
   // token attached, so the API returns 500 (AbpAuthorizationException
   // mapped to 500 instead of 401). HttpClient.get with
   // responseType:'blob' goes through the interceptor + attaches the
   // Bearer transparently.
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
 
   packets: AppointmentPacketDto[] = [];
   isLoading = false;
@@ -123,11 +123,10 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['appointmentId']) {
-      this.zeroRowPolls = 0; // fresh appointment -> reset the post-approval wait budget
-      this.refresh();
-    } else if (changes['expectPackets'] && this.expectPackets) {
-      // Status just flipped to Approved (e.g. staff hit Approve) -> start looking for packets.
+    // Two triggers, one response: a fresh appointment (reset the post-approval
+    // wait budget) and a status flip to Approved (staff hit Approve, so start
+    // looking for packets). Both reset the budget and refresh.
+    if (changes['appointmentId'] || (changes['expectPackets'] && this.expectPackets)) {
       this.zeroRowPolls = 0;
       this.refresh();
     }
@@ -212,7 +211,7 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
       // Honor Content-Disposition filename when the server provides it;
       // fall back to a synthesised name derived from the kind + confirmation.
       const disp = response.headers.get('content-disposition') || '';
-      const match = /filename\*?=(?:UTF-8'')?\"?([^\";]+)/i.exec(disp);
+      const match = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disp);
       const fileName = match
         ? decodeURIComponent(match[1])
         : `${PacketKind[packet.kind] ?? 'Packet'}.pdf`;
@@ -224,7 +223,7 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
         anchor.style.display = 'none';
         document.body.appendChild(anchor);
         anchor.click();
-        document.body.removeChild(anchor);
+        anchor.remove();
       } finally {
         // Small delay before revoke to let the browser kick off the download.
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);

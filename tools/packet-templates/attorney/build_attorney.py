@@ -13,6 +13,8 @@ Two NEW derived tokens added per request (not in the legacy DOCX; need resolver 
   ##Patients.InterpreterLanguage##  -> AppointmentLanguage.Name (fallback OthersLanguageName)
 """
 
+# Repeated column heading across the three address blocks (python:S1192).
+_LBL_ZIP = "Zip code"
 _SECT = "&#167;"   # section sign
 
 CSS = r"""
@@ -140,7 +142,7 @@ def patient_notice():
         + f'{tok("##Patients.Street##")}<br>'
         + f'{tok("##Patients.City##")}, {tok("##Patients.State##")} {tok("##Patients.ZipCode##")}</p>'
         + f'<p>Dear Mr. /Mrs.: {tok("##Patients.FirstName##")} {tok("##Patients.LastName##")}</p>'
-        + f'<p>Please be advised that an appointment has been scheduled for you to see Yuri Falkinstein, M.D. on '
+        + '<p>Please be advised that an appointment has been scheduled for you to see Yuri Falkinstein, M.D. on '
         + f'<u>{tok("##Appointments.AvailableDate##")}</u> at <u>{tok("##Appointments.AppointmenTime##")}</u>. '
         + 'Your appointment will be held at:</p>'
         + '<div class="addr">WEST COAST SPINE INSTITUTE<br>'
@@ -174,7 +176,7 @@ def qme_form():
         + '<div class="title"><div class="l1">State of California</div>'
         + '<div class="l2">Division of Workers&#39; Compensation-Medical Unit</div>'
         + '<div class="l3">QME Appointment Notification Form</div></div>'
-        + f'<p class="intro">Please complete this form in its entirety .The Administrative Director requires that '
+        + '<p class="intro">Please complete this form in its entirety .The Administrative Director requires that '
         + 'you serve this appointment notification form on the employee and the claims administrator, or, if none '
         + 'the employer, and their attorneys in a represented case, if known, within five (5) business days after '
         + 'having scheduled the injured worker to be seen for a QME comprehensive medical-legal evaluation. You may '
@@ -198,7 +200,7 @@ def qme_form():
         + '<tr>' + _qcell("##EmployerDetails.EmployerName##", "Employer Name", 4) + '</tr>'
         + '<tr>' + _qcell("##EmployerDetails.Street##", "Employer Street Address", 1)
         + _qcell("##EmployerDetails.City##", "Employer City", 1) + _qcell("##EmployerDetails.State##", "State", 1)
-        + _qcell("##EmployerDetails.Zip##", "Zip code", 1) + '</tr>'
+        + _qcell("##EmployerDetails.Zip##", _LBL_ZIP, 1) + '</tr>'
         # Claims Administrator Information
         + '<tr><td class="sect" colspan="4"><u>Claims Administrator Information</u> '
         + '<span class="req">(Completion of this section is required)</span></td></tr>'
@@ -209,7 +211,7 @@ def qme_form():
         + '<tr>' + _qcell("##InjuryDetails.ClaimExaminerStreet##", "Claim Administrator Street Address", 1)
         + _qcell("##InjuryDetails.ClaimExaminerCity##", "Claim Administrator City", 1)
         + _qcell("##InjuryDetails.ClaimExaminerState##", "State", 1)
-        + _qcell("##InjuryDetails.ClaimExaminerZip##", "Zip code", 1) + '</tr>'
+        + _qcell("##InjuryDetails.ClaimExaminerZip##", _LBL_ZIP, 1) + '</tr>'
         + '</table>'
         # Appointment Information (free-form block)
         + '<table><tr><td class="sect" colspan="4"><u>Appointment Information</u> '
@@ -223,7 +225,7 @@ def qme_form():
         + '<tr>' + _qcell("##Appointments.LocationAddress##", "Examination Address", 1)
         + _qcell("##Appointments.LocationCity##", "Examination City", 1)
         + _qcell("##Appointments.LocationState##", "State", 1)
-        + _qcell("##Appointments.LocationZipCode##", "Zip code", 1) + '</tr>'
+        + _qcell("##Appointments.LocationZipCode##", _LBL_ZIP, 1) + '</tr>'
         + '</table>'
         + f'<div class="qline">If an interpreter is required? {tok("##Patients.InterpreterRequired##")} '
         + f'.If an interpreter required, indicate language: {tok("##Patients.InterpreterLanguage##")}</div>'
@@ -252,7 +254,11 @@ def build(target):
     body = "\n".join(f'<div class="page {c}">\n{p}\n</div>' for p, c in zip(pages, cls))
     html = ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
             f'<title>{target}</title>\n<style>' + CSS + '</style></head>\n<body>\n' + body + '\n</body></html>')
-    with open(f"{target}.html", "w", encoding="utf-8") as f:
+    # newline="\n" so the document is byte-identical on every platform.
+    # Without it Python's text mode emits CRLF on Windows and LF on Linux --
+    # same content, different bytes, different hash. The packet-renderer image
+    # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
+    with open(f"{target}.html", "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
     print(f"wrote {target}.html")
 

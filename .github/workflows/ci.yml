@@ -12,6 +12,27 @@ on:
         "feat/**",
         "fix/**",
       ]
+  # PUSHES TO `main` RUN THE SUITE TOO (2026-09-10).
+  #
+  # Until now this workflow was `pull_request`-only, so the three test-gating
+  # required contexts -- Backend: Test, Frontend: Test, Coverage: Floors --
+  # never ran against the trunk itself. On 2026-09-10 eleven pull requests
+  # merged in seven minutes, each green against a `main` that did not contain
+  # the other ten, and nothing tested the combined result.
+  #
+  # `sonarcloud.yml` does trigger on push and does run both suites, but it is
+  # `continue-on-error: true` and neither of its contexts is required, so a
+  # failure there gates nothing and notifies nobody. The only run anyone acted
+  # on was the cascade PR's, whose head branch IS `main` -- the trunk was
+  # validated incidentally, by a pull request that exists to promote it, and
+  # closing that PR would have removed the coverage silently.
+  #
+  # `concurrency` below keys on `github.ref`, so a push run (`refs/heads/main`)
+  # and a cascade PR run (`refs/pull/N/merge`) sit in DIFFERENT groups and do
+  # not cancel each other. A rapid merge batch collapses to one push run
+  # against the final state, which is the result worth having.
+  push:
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -68,6 +89,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
+          # A PUSH HAS NO PULL REQUEST TO CLASSIFY (2026-09-10).
+          #
+          # `github.event.pull_request` is null outside a pull request, so the
+          # API path below would be malformed on a push and the guard beneath it
+          # would exit 1 on EVERY push to `main`. The downstream jobs would still
+          # run -- they guard with `always() && needs.changes.result != 'success'`
+          # precisely so a classifier failure cannot skip them -- but this job
+          # would be red on every push, and a check that is permanently red
+          # teaches people to ignore the colour. That is worse than no check.
+          #
+          # On the trunk we want the entire suite regardless of what changed, so
+          # state that instead of deriving it. Same deny-by-default rule as the
+          # `*)` arm below, applied one level up.
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            {
+              echo "backend=true"
+              echo "frontend=true"
+              echo "shared=true"
+              echo "unclassified=true"
+            } >> "$GITHUB_OUTPUT"
+
+            {
+              echo "### Changed-path classification"
+              echo ""
+              echo "Event \`${{ github.event_name }}\` is not a pull request."
+              echo "Running the full suite without classifying."
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            exit 0
+          fi
 
           files=$(gh api \
             "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
@@ -312,6 +364,31 @@ jobs:
         # Link check is non-blocking: pre-existing broken links (tracked in
         # docs/verification/BASELINE.md) should not fail CI. The job still
         # prints the full report for visibility.
+
+  packet-golden:
+    name: "Tools: Packet Golden Output"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # DELIBERATELY UNCONDITIONAL (#797). Two reasons.
+    #
+    # `tools/` is not one of the classifier's recognised groups, so it lands in
+    # `unclassified` and currently makes the FULL suite run. Adding a `tools`
+    # arm to classify it would remove that safety net, which is a bigger change
+    # than this job warrants -- so this job simply does not depend on the
+    # classifier at all.
+    #
+    # And a conditional job that skips reports Success. The comment on the
+    # `changes` job above exists because that behaviour once let a pull request
+    # satisfy every required check having run none of them. This check costs
+    # about two seconds and needs nothing but Python, so there is no reason to
+    # buy that risk back.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.x"
+      - name: Verify the packet generators emit byte-identical documents
+        run: python -m unittest discover -s tools/packet-templates/tests -p "test_*.py" -v
 
   python-test:
     name: "Python: Test"

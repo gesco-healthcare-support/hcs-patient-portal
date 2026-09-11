@@ -46,7 +46,7 @@ describe('rebook-eligibility', () => {
   it('exposes exactly the four eligible statuses', () => {
     // Pinned as a count + membership rather than a deep-equal on order, so reordering
     // the constant is not a test failure but adding a fifth status is.
-    expect(RE_BOOK_ELIGIBLE_STATUSES.length).toBe(4);
+    expect(RE_BOOK_ELIGIBLE_STATUSES).toHaveSize(4);
     expect(RE_BOOK_ELIGIBLE_STATUSES).toContain(AppointmentStatusType.NoShow);
     expect(RE_BOOK_ELIGIBLE_STATUSES).toContain(AppointmentStatusType.NotSeen);
     expect(RE_BOOK_ELIGIBLE_STATUSES).toContain(AppointmentStatusType.CancelledNoBill);

@@ -1,7 +1,16 @@
 <div class="clg">
   @for (e of entries(); track e.key) {
     <div class="clg-entry">
-      <div class="clg-head" [attr.data-open]="isOpen(e.key)" (click)="toggle(e.key)">
+      <div
+        class="clg-head"
+        [attr.data-open]="isOpen(e.key)"
+        (click)="toggle(e.key)"
+        [attr.aria-expanded]="isOpen(e.key)"
+        role="button"
+        tabindex="0"
+        (keydown.enter)="toggle(e.key)"
+        (keydown.space)="$event.preventDefault(); toggle(e.key)"
+      >
         <span class="ic" [ngClass]="meta(e.changeType).tint">
           <app-icon [name]="meta(e.changeType).icon" [size]="16" />
         </span>

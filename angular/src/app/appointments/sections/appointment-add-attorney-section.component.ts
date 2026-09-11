@@ -106,12 +106,13 @@ export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDest
   // would needlessly churn the OnPush child input.
   private cachedAddressFields?: AddressFieldMap;
   get addressFields(): AddressFieldMap {
-    return (this.cachedAddressFields ??= {
+    this.cachedAddressFields ??= {
       street: this.prefix + 'Street',
       city: this.prefix + 'City',
       state: this.prefix + 'StateId',
       zip: this.prefix + 'ZipCode',
-    });
+    };
+    return this.cachedAddressFields;
   }
 
   /** Card heading -- "Applicant Attorney Details" or "Defense Attorney Details". */
@@ -131,6 +132,19 @@ export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDest
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['role']) {
+      // #791: every asymmetry in this component derives from `role`, and the
+      // address map is the one that was memoised. The subscription below
+      // already re-resolves on a role change; without this the cache would
+      // not, and the section would render Defense fields while autocompleting
+      // into the Applicant address controls.
+      //
+      // The wizard renders each role in its own @switch branch, so today a
+      // role change means a fresh instance and this never fires. That is
+      // exactly why it is worth doing: the handler already claimed to support
+      // a role change, and the cache silently disagreed with it.
+      this.cachedAddressFields = undefined;
+    }
     if (changes['form'] || changes['role']) {
       this.subscribeToEnabledChanges();
     }

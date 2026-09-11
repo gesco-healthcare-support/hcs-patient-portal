@@ -21,6 +21,8 @@
   <div class="ia-search">
     <app-icon name="search" [size]="16" />
     <input
+      id="ia-search"
+      aria-label="Search appointments"
       type="text"
       placeholder="Search confirmation #, patient, panel #, booker..."
       [ngModel]="search()"
@@ -64,8 +66,9 @@
   <div class="ia-filters">
     <div class="ia-filters__grid">
       <div class="ia-field">
-        <label>Panel #</label>
+        <label for="ia-filter-panel-number">Panel #</label>
         <input
+          id="ia-filter-panel-number"
           class="ia-input"
           type="text"
           placeholder="e.g. P-2204"
@@ -74,8 +77,9 @@
         />
       </div>
       <div class="ia-field">
-        <label>Appointment type</label>
+        <label for="ia-filter-appointment-type">Appointment type</label>
         <select
+          id="ia-filter-appointment-type"
           class="ia-input"
           [ngModel]="draft().appointmentTypeId ?? ''"
           (ngModelChange)="updateDraft({ appointmentTypeId: $event })"
@@ -87,8 +91,9 @@
         </select>
       </div>
       <div class="ia-field">
-        <label>Location</label>
+        <label for="ia-filter-location">Location</label>
         <select
+          id="ia-filter-location"
           class="ia-input"
           [ngModel]="draft().locationId ?? ''"
           (ngModelChange)="updateDraft({ locationId: $event })"
@@ -100,8 +105,9 @@
         </select>
       </div>
       <div class="ia-field">
-        <label>Min appointment date</label>
+        <label for="ia-filter-date-min">Min appointment date</label>
         <input
+          id="ia-filter-date-min"
           class="ia-input"
           type="date"
           [ngModel]="draft().dateMin ?? ''"
@@ -109,8 +115,9 @@
         />
       </div>
       <div class="ia-field">
-        <label>Max appointment date</label>
+        <label for="ia-filter-date-max">Max appointment date</label>
         <input
+          id="ia-filter-date-max"
           class="ia-input"
           type="date"
           [ngModel]="draft().dateMax ?? ''"
@@ -118,8 +125,9 @@
         />
       </div>
       <div class="ia-field ia-typeahead">
-        <label>Booker</label>
+        <label for="ia-filter-booker">Booker</label>
         <input
+          id="ia-filter-booker"
           class="ia-input"
           type="text"
           placeholder="Name or email"
@@ -174,6 +182,8 @@
         <tr>
           <th style="width: 38px">
             <input
+              id="ia-select-all"
+              aria-label="Select all appointments on this page"
               type="checkbox"
               class="ia-chk"
               [checked]="allOnPageSelected()"
@@ -250,9 +260,18 @@
           </tr>
         } @else {
           @for (a of rows(); track rowId(a)) {
-            <tr [class.sel]="isSelected(a)" (click)="review(a)">
-              <td (click)="$event.stopPropagation()">
+            <tr
+              [class.sel]="isSelected(a)"
+              (click)="review(a)"
+              (keydown.enter)="review(a)"
+              tabindex="0"
+            >
+              <td (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
                 <input
+                  [id]="'ia-select-' + rowId(a)"
+                  [attr.aria-label]="
+                    'Select appointment ' + (a.appointment?.requestConfirmationNumber ?? '')
+                  "
                   type="checkbox"
                   class="ia-chk"
                   [checked]="isSelected(a)"
@@ -298,7 +317,11 @@
                   <span class="ia-sub">&mdash;</span>
                 }
               </td>
-              <td class="ia-actions-cell" (click)="$event.stopPropagation()">
+              <td
+                class="ia-actions-cell"
+                (click)="$event.stopPropagation()"
+                (keydown.enter)="$event.stopPropagation()"
+              >
                 <button
                   class="ia-kebab"
                   type="button"

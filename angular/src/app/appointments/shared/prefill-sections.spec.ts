@@ -20,7 +20,7 @@ import {
  */
 describe('prefill-sections', () => {
   it('offers six sections and defaults every one to unchanged', () => {
-    expect(PREFILL_SECTIONS.length).toBe(6);
+    expect(PREFILL_SECTIONS).toHaveSize(6);
     const selection = defaultPrefillSelection();
     for (const section of PREFILL_SECTIONS) {
       expect(selection[section.key]).toBe(false);
@@ -47,7 +47,7 @@ describe('prefill-sections', () => {
     const patient = SECTION_CONTROLS.patient;
     const employer = SECTION_CONTROLS.employer;
 
-    expect(employer.length).toBe(7);
+    expect(employer).toHaveSize(7);
     for (const control of employer) {
       expect(control.startsWith('employer')).toBe(true);
       expect(patient).not.toContain(control);

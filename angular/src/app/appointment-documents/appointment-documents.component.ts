@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   Output,
@@ -105,20 +106,20 @@ const PANEL_STRIKE_LIST_LABEL = 'Panel Strike List';
 })
 export class AppointmentDocumentsComponent implements OnChanges {
   @Input() appointmentId: string | null = null;
-  @Output() documentsChanged = new EventEmitter<void>();
+  @Output() readonly documentsChanged = new EventEmitter<void>();
 
-  private service = inject(AppointmentDocumentService);
-  private toaster = inject(ToasterService);
-  private permission = inject(PermissionService);
+  private readonly service = inject(AppointmentDocumentService);
+  private readonly toaster = inject(ToasterService);
+  private readonly permission = inject(PermissionService);
   // Direct REST + URL helper bypass the auto-generated upload() / download
   // helpers on AppointmentDocumentService. The proxy generator emits a
   // typed multipart wrapper (UploadAppointmentDocumentForm with IFormFile)
   // that does not produce a valid browser FormData request, and the
   // hand-edited buildDownloadUrl helper does not survive regeneration.
   // See docs/research/proxy-regen-doc-flow-fix.md (Q2).
-  private restService = inject(RestService);
-  private urls = inject(AppointmentDocumentUrls);
-  private http = inject(HttpClient);
+  private readonly restService = inject(RestService);
+  private readonly urls = inject(AppointmentDocumentUrls);
+  private readonly http = inject(HttpClient);
 
   documents: AppointmentDocumentDto[] = [];
   isLoading = false;
@@ -416,7 +417,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
         a.download = doc.fileName ?? 'document';
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
+        a.remove();
         // Revoke after the click is dispatched.
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       },
@@ -467,6 +468,27 @@ export class AppointmentDocumentsComponent implements OnChanges {
     }
     this.rejectingDoc = doc;
     this.rejectionReason = doc.rejectionReason ?? '';
+  }
+
+  /**
+   * Escape closes the document reject modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.reject-modal-backdrop` and its `.reject-modal` container. The keyboard
+   * equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to it would never fire, and a tabindex would put a
+   * tab stop on a decorative overlay. Pattern from #622.
+   *
+   * Routed through closeRejectModal rather than setting the state directly, so its existing
+   * guard is inherited and Escape cannot do something the backdrop click will
+   * not. closeRejectModal also clears isSubmittingReject, which
+   * is why Escape must not bypass it.
+   */
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.rejectingDoc) {
+      this.closeRejectModal();
+    }
   }
 
   closeRejectModal(): void {

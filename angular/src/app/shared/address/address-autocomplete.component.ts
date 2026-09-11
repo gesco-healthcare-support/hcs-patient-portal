@@ -48,6 +48,7 @@ export interface AddressFieldMap {
       <input
         type="text"
         class="form-control"
+        [attr.id]="inputId || null"
         [formControl]="streetControl"
         [attr.placeholder]="placeholder"
         autocomplete="off"
@@ -80,6 +81,14 @@ export class AddressAutocompleteComponent implements OnInit, OnDestroy {
   /** Control-name map for this group's address pieces. */
   @Input({ required: true }) fields!: AddressFieldMap;
   @Input() placeholder = '';
+  /**
+   * Element id for the street input, so the caller's <label for> can bind to it.
+   * The component renders a plain <input> that the HTML analyser cannot see
+   * through the custom element, so nothing flagged it as unlabelled; the #792
+   * rendering spec did. Empty means no id attribute is emitted at all, which is
+   * the previous behaviour.
+   */
+  @Input() inputId = '';
 
   private readonly provider = inject(AddressValidationProvider);
   private readonly patientService = inject(PatientService);

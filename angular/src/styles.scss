@@ -169,3 +169,32 @@ abp-lookup-select.is-invalid select:focus {
   width: auto !important;
   max-width: 182px;
 }
+
+/*
+ * OBS-29 (#566): reserve the GDPR consent bar's strip.
+ *
+ * @volo/abp.ng.gdpr renders `<div id="cookieConsent" class="position-fixed
+ * z-9999">` app-wide from app.component.ts. A fixed element does not
+ * participate in flow, so nothing below it can be scrolled into view: until
+ * Accept is clicked the bar permanently covers the bottom strip of every page.
+ *
+ * Measured live by Adrian on 2026-09-04: position fixed, z-index 999999,
+ * occupying the bottom 45px of the viewport. It covers five interactive
+ * controls on the booking wizard, INCLUDING the wizard's own Back and Continue
+ * buttons -- so on a first visit the primary action of the booking flow is
+ * unreachable, not merely awkward.
+ *
+ * Why the reserve rather than the three fixes OBS-29 itself suggested: lowering
+ * the z-index would let content paint over a consent notice, and both
+ * "auto-dismiss on first interaction" and "pre-accept for internal routes"
+ * record a consent the user never gave.
+ *
+ * 5rem against a measured 45px leaves room for the bar to wrap to a second line
+ * on a narrow viewport or a longer locale, which is the only dimension that
+ * varies. The `:has()` guard means the padding exists only while the bar does,
+ * so it costs nothing once consent is recorded -- and where `:has()` is
+ * unsupported the rule simply does not match, leaving today's behaviour.
+ */
+body:has(#cookieConsent) {
+  padding-bottom: 5rem;
+}

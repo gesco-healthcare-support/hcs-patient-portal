@@ -9,11 +9,12 @@
     <div class="ra-modal__body">
       <div class="ra-grid">
         <div class="ra-field col-6">
-          <label>
+          <label for="pem-patient-first-name">
             First name
             <span class="req">*</span>
           </label>
           <input
+            id="pem-patient-first-name"
             class="ra-input"
             placeholder="First name"
             [ngModel]="draft().firstName"
@@ -21,11 +22,12 @@
           />
         </div>
         <div class="ra-field col-6">
-          <label>
+          <label for="pem-patient-last-name">
             Last name
             <span class="req">*</span>
           </label>
           <input
+            id="pem-patient-last-name"
             class="ra-input"
             placeholder="Last name"
             [ngModel]="draft().lastName"
@@ -35,8 +37,9 @@
 
         @if (section.isPatient) {
           <div class="ra-field col-6">
-            <label>Middle name</label>
+            <label for="pem-patient-middle-name">Middle name</label>
             <input
+              id="pem-patient-middle-name"
               class="ra-input"
               placeholder="Middle name"
               [ngModel]="draft().middleName"
@@ -44,8 +47,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Gender</label>
+            <label for="pem-patient-gender-id">Gender</label>
             <select
+              id="pem-patient-gender-id"
               class="ra-select"
               [ngModel]="draft().genderId"
               (ngModelChange)="patch({ genderId: $event })"
@@ -57,8 +61,9 @@
             </select>
           </div>
           <div class="ra-field col-6">
-            <label>Date of birth</label>
+            <label for="pem-patient-date-of-birth">Date of birth</label>
             <input
+              id="pem-patient-date-of-birth"
               class="ra-input"
               type="date"
               [ngModel]="draft().dateOfBirth"
@@ -66,8 +71,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Email</label>
+            <label for="pem-patient-email">Email</label>
             <input
+              id="pem-patient-email"
               class="ra-input"
               type="email"
               placeholder="name@example.com"
@@ -76,8 +82,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Phone</label>
+            <label for="pem-patient-phone-number">Phone</label>
             <input
+              id="pem-patient-phone-number"
               appPhoneNumber
               class="ra-input"
               placeholder="(555) 555-0100"
@@ -86,8 +93,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Cell phone</label>
+            <label for="pem-patient-cell-phone-number">Cell phone</label>
             <input
+              id="pem-patient-cell-phone-number"
               appPhoneNumber
               class="ra-input"
               placeholder="(555) 555-0100"
@@ -96,8 +104,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Phone type</label>
+            <label for="pem-patient-phone-number-type-id">Phone type</label>
             <select
+              id="pem-patient-phone-number-type-id"
               class="ra-select"
               [ngModel]="draft().phoneNumberTypeId"
               (ngModelChange)="patch({ phoneNumberTypeId: $event })"
@@ -109,8 +118,9 @@
             </select>
           </div>
           <div class="ra-field col-12">
-            <label>Social Security #</label>
+            <label for="pem-patient-social-security-number">Social Security #</label>
             <input
+              id="pem-patient-social-security-number"
               class="ra-input"
               autocomplete="off"
               placeholder="Enter to replace -- stored securely, shown masked. Blank keeps the current value."
@@ -119,8 +129,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Street</label>
+            <label for="pem-patient-street">Street</label>
             <input
+              id="pem-patient-street"
               class="ra-input"
               placeholder="Street address"
               [ngModel]="draft().street"
@@ -128,8 +139,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>City</label>
+            <label for="pem-patient-city">City</label>
             <input
+              id="pem-patient-city"
               class="ra-input"
               placeholder="City"
               [ngModel]="draft().city"
@@ -137,8 +149,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>State</label>
+            <label for="pem-patient-state-id">State</label>
             <select
+              id="pem-patient-state-id"
               class="ra-select"
               [ngModel]="draft().stateId"
               (ngModelChange)="patch({ stateId: $event })"
@@ -150,8 +163,9 @@
             </select>
           </div>
           <div class="ra-field col-6">
-            <label>Zip code</label>
+            <label for="pem-patient-zip-code">Zip code</label>
             <input
+              id="pem-patient-zip-code"
               class="ra-input"
               placeholder="ZIP code"
               [ngModel]="draft().zipCode"
@@ -159,8 +173,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Appointment language</label>
+            <label for="pem-patient-appointment-language-id">Appointment language</label>
             <select
+              id="pem-patient-appointment-language-id"
               class="ra-select"
               [ngModel]="draft().appointmentLanguageId"
               (ngModelChange)="patch({ appointmentLanguageId: $event })"
@@ -172,8 +187,9 @@
             </select>
           </div>
           <div class="ra-field col-6">
-            <label>Other language</label>
+            <label for="pem-patient-others-language-name">Other language</label>
             <input
+              id="pem-patient-others-language-name"
               class="ra-input"
               placeholder="Other language"
               [ngModel]="draft().othersLanguageName"
@@ -181,8 +197,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Interpreter vendor</label>
+            <label for="pem-patient-interpreter-vendor-name">Interpreter vendor</label>
             <input
+              id="pem-patient-interpreter-vendor-name"
               class="ra-input"
               placeholder="Interpreter vendor"
               [ngModel]="draft().interpreterVendorName"
@@ -190,8 +207,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Appt #</label>
+            <label for="pem-patient-appt-number">Appt #</label>
             <input
+              id="pem-patient-appt-number"
               class="ra-input"
               placeholder="Appointment number"
               [ngModel]="draft().apptNumber"
@@ -200,8 +218,9 @@
           </div>
         } @else if (section.hasFirm) {
           <div class="ra-field col-6">
-            <label>Firm name</label>
+            <label for="pem-firm-firm-name">Firm name</label>
             <input
+              id="pem-firm-firm-name"
               class="ra-input"
               placeholder="Firm name"
               [ngModel]="draft().firmName"
@@ -209,8 +228,9 @@
             />
           </div>
           <div class="ra-field col-8">
-            <label>Firm address</label>
+            <label for="pem-firm-firm-address">Firm address</label>
             <input
+              id="pem-firm-firm-address"
               class="ra-input"
               placeholder="Street, city, state, ZIP"
               [ngModel]="draft().firmAddress"
@@ -218,8 +238,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Email</label>
+            <label for="pem-firm-email">Email</label>
             <input
+              id="pem-firm-email"
               class="ra-input"
               type="email"
               placeholder="name@example.com"
@@ -228,8 +249,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Phone</label>
+            <label for="pem-firm-phone-number">Phone</label>
             <input
+              id="pem-firm-phone-number"
               appPhoneNumber
               class="ra-input"
               placeholder="(555) 555-0100"
@@ -238,8 +260,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Fax</label>
+            <label for="pem-firm-fax-number">Fax</label>
             <input
+              id="pem-firm-fax-number"
               appPhoneNumber
               class="ra-input"
               placeholder="(555) 555-0100"
@@ -249,8 +272,9 @@
           </div>
         } @else {
           <div class="ra-field col-12">
-            <label>Email</label>
+            <label for="pem-contact-email">Email</label>
             <input
+              id="pem-contact-email"
               class="ra-input"
               type="email"
               placeholder="name@example.com"
@@ -259,8 +283,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Phone</label>
+            <label for="pem-contact-phone-number">Phone</label>
             <input
+              id="pem-contact-phone-number"
               appPhoneNumber
               class="ra-input"
               placeholder="(555) 555-0100"
@@ -269,8 +294,9 @@
             />
           </div>
           <div class="ra-field col-6">
-            <label>Fax</label>
+            <label for="pem-contact-fax-number">Fax</label>
             <input
+              id="pem-contact-fax-number"
               appPhoneNumber
               class="ra-input"
               placeholder="(555) 555-0100"

@@ -176,7 +176,7 @@ export class AppointmentWizardComponent
   // booker's Continue is blocked. Empty while the step is valid or not yet
   // submitted. Also drives focus to the summary so the reason is never silent.
   protected stepErrorSummary: StepErrorField[] = [];
-  @ViewChild('stepErrorBanner') private stepErrorBanner?: ElementRef<HTMLElement>;
+  @ViewChild('stepErrorBanner') private readonly stepErrorBanner?: ElementRef<HTMLElement>;
 
   ngOnInit(): void {
     this.loadNavName();
@@ -351,6 +351,40 @@ export class AppointmentWizardComponent
    * Populates stepErrorSummary with the invalid fields so the shell can tell the
    * booker exactly what to fix, and marks each touched so its field reddens.
    */
+  /**
+   * Item 5 (2026-08-18): the attorney question has no default answer, so an unanswered
+   * section must block Continue. Without this the booker could walk past a question the
+   * whole change exists to force -- and submit with a null that means neither yes nor no.
+   *
+   * WHERE the viewer IS this attorney type the question is never shown (`mandatory`), so
+   * there is nothing to answer: assert the true the hidden control would have carried, and
+   * report valid.
+   *
+   * Lifted out of validateCurrentStep for typescript:S3776 -- it was the one self-contained
+   * block in there and carried most of the nesting. It still sets attorneyAnswerMissing as a
+   * side effect, exactly as the inline version did, because the template reads that to put
+   * the message beside the question rather than in the error summary.
+   */
+  private attorneyAnswerIsValid(key: 'applicant' | 'defense'): boolean {
+    const isApplicant = key === 'applicant';
+    const control = this.form.get(
+      isApplicant ? 'applicantAttorneyEnabled' : 'defenseAttorneyEnabled',
+    );
+    const mandatory =
+      (isApplicant ? this.isApplicantAttorney : this.isDefenseAttorney) && !this.isItAdmin;
+    if (mandatory) {
+      if (control?.value !== true) {
+        control?.setValue(true, { emitEvent: false });
+      }
+      return true;
+    }
+    if (control && (control.value === null || control.value === undefined)) {
+      this.attorneyAnswerMissing = true;
+      return false;
+    }
+    return true;
+  }
+
   private validateCurrentStep(): boolean {
     const key = this.currentStep.key;
     this.attorneyAnswerMissing = false;
@@ -365,27 +399,8 @@ export class AppointmentWizardComponent
     this.stepErrorSummary = fieldErrors;
     let valid = fieldErrors.length === 0;
 
-    // Item 5 (2026-08-18): the attorney question has no default answer, so an unanswered
-    // section must block Continue. Without this the booker could walk past a question the
-    // whole change exists to force -- and submit with a null that means neither yes nor no.
-    //
-    // WHERE the viewer IS this attorney type the question is never shown (`mandatory`), so
-    // there is nothing to answer: assert the true the hidden control would have carried.
-    if (key === 'applicant' || key === 'defense') {
-      const isApplicant = key === 'applicant';
-      const control = this.form.get(
-        isApplicant ? 'applicantAttorneyEnabled' : 'defenseAttorneyEnabled',
-      );
-      const mandatory =
-        (isApplicant ? this.isApplicantAttorney : this.isDefenseAttorney) && !this.isItAdmin;
-      if (mandatory) {
-        if (control?.value !== true) {
-          control?.setValue(true, { emitEvent: false });
-        }
-      } else if (control && (control.value === null || control.value === undefined)) {
-        this.attorneyAnswerMissing = true;
-        valid = false;
-      }
+    if ((key === 'applicant' || key === 'defense') && !this.attorneyAnswerIsValid(key)) {
+      valid = false;
     }
 
     if (key === 'claim' && this.injuryDrafts.length === 0) {
@@ -502,12 +517,12 @@ export class AppointmentWizardComponent
     }
     this.myAttorneyProfile.get().subscribe({
       next: (p) => {
-        const prefix =
-          p?.kind === 'defense'
-            ? 'defenseAttorney'
-            : p?.kind === 'applicant'
-              ? 'applicantAttorney'
-              : null;
+        let prefix: string | null = null;
+        if (p?.kind === 'defense') {
+          prefix = 'defenseAttorney';
+        } else if (p?.kind === 'applicant') {
+          prefix = 'applicantAttorney';
+        }
         if (!prefix) {
           return;
         }

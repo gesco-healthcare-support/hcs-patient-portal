@@ -187,11 +187,13 @@ try {
 }
 finally {
     if ($doc) {
-        try { $doc.Close($false) } catch { }
+        # Best effort during teardown: a failure to close must not mask whatever sent us
+        # into finally. Recorded rather than swallowed silently.
+        try { $doc.Close($false) } catch { Write-Verbose "Close failed: $($_.Exception.Message)" }
         [System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc) | Out-Null
     }
     if ($word) {
-        try { $word.Quit() } catch { }
+        try { $word.Quit() } catch { Write-Verbose "Quit failed: $($_.Exception.Message)" }
         [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
     }
     [System.GC]::Collect()

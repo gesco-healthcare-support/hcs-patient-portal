@@ -4,3 +4,7 @@
 # their image assets (*.jpg / *.png) are source.
 *.html
 *.pdf
+
+# Python bytecode from running the golden-output test locally.
+__pycache__/
+*.pyc

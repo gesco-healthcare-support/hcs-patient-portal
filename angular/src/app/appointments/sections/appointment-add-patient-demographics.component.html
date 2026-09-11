@@ -18,7 +18,9 @@
            chosen patient id to the parent. -->
       <div class="row mb-3">
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Find Existing Patient</label>
+          <label for="appointment-patient-email-search" class="form-label fw-semibold">
+            Find Existing Patient
+          </label>
           <input
             type="text"
             class="form-control"
@@ -45,8 +47,11 @@
     }
     <div class="row">
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }} *</label>
+        <label for="appointment-patient-last-name" class="form-label fw-semibold">
+          {{ '::LastName' | abpLocalization }} *
+        </label>
         <input
+          id="appointment-patient-last-name"
           class="form-control"
           formControlName="lastName"
           maxlength="50"
@@ -72,8 +77,15 @@
         }
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
-        <input class="form-control" formControlName="middleName" maxlength="50" />
+        <label for="appointment-patient-middle-name" class="form-label fw-semibold">
+          {{ '::MiddleName' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-patient-middle-name"
+          class="form-control"
+          formControlName="middleName"
+          maxlength="50"
+        />
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
@@ -96,7 +108,9 @@
       </div>
 
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }} *</label>
+        <label for="appointment-patient-date-of-birth" class="form-label fw-semibold">
+          {{ '::DateOfBirth' | abpLocalization }} *
+        </label>
         <div class="input-group" validationTarget>
           <!-- QA #15 item 5 (2026-07-07): typeable MM/DD/YYYY entry. readonly +
                click-to-open dropped; the calendar moved to a toggle button so the
@@ -156,7 +170,7 @@
         <!-- 2026-06-11: asterisk is conditional -- patient email is required only
              when the patient is the booker or is self-represented (no AA). For an
              on-behalf booker with an AA, it is optional (mail falls back to the AA). -->
-        <label class="form-label fw-semibold">
+        <label for="appointment-patient-email" class="form-label fw-semibold">
           {{ '::Email' | abpLocalization }}
           @if (patientEmailRequired) {
             *
@@ -169,6 +183,7 @@
              type it. Editable removes that dead end (the prefill still fills it
              on the happy path). -->
         <input
+          id="appointment-patient-email"
           type="email"
           class="form-control"
           formControlName="email"
@@ -185,10 +200,15 @@
         }
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">
+        <label for="appointment-patient-cell-phone-number" class="form-label fw-semibold">
           {{ '::CellPhoneNumber' | abpLocalization }}
         </label>
-        <input appPhoneNumber class="form-control" formControlName="cellPhoneNumber" />
+        <input
+          id="appointment-patient-cell-phone-number"
+          appPhoneNumber
+          class="form-control"
+          formControlName="cellPhoneNumber"
+        />
       </div>
       <!-- OLD parity 2026-05-06: OLD's appointment-add form has a single
            Phone Number field with no Work/Home type radio. The radio
@@ -197,8 +217,15 @@
            FormGroup so the API contract stays intact (defaults to
            null, server treats as not specified). -->
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-        <input appPhoneNumber class="form-control" formControlName="phoneNumber" />
+        <label for="appointment-patient-phone-number" class="form-label fw-semibold">
+          {{ '::PhoneNumber' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-patient-phone-number"
+          appPhoneNumber
+          class="form-control"
+          formControlName="phoneNumber"
+        />
       </div>
 
       <div class="col-md-3 mb-3">
@@ -209,25 +236,42 @@
         <app-ssn-input formControlName="socialSecurityNumber"></app-ssn-input>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+        <label for="appointment-patient-street" class="form-label fw-semibold">
+          {{ '::Street' | abpLocalization }}
+        </label>
         <!-- F2 (2026-05-29): autocomplete fills street/unit/city/state/zip. -->
         <app-address-autocomplete
+          inputId="appointment-patient-street"
           [group]="form"
           [fields]="addressFields"
           placeholder="Street"
         ></app-address-autocomplete>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">Unit #</label>
-        <input class="form-control" formControlName="address" maxlength="100" />
+        <label for="appointment-patient-address" class="form-label fw-semibold">Unit #</label>
+        <input
+          id="appointment-patient-address"
+          class="form-control"
+          formControlName="address"
+          maxlength="100"
+        />
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-        <input class="form-control" formControlName="city" maxlength="50" />
+        <label for="appointment-patient-city" class="form-label fw-semibold">
+          {{ '::City' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-patient-city"
+          class="form-control"
+          formControlName="city"
+          maxlength="50"
+        />
       </div>
 
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+        <label for="appointment-patient-state-id" class="form-label fw-semibold">
+          {{ '::State' | abpLocalization }}
+        </label>
         <app-lookup-select
           cid="appointment-patient-state-id"
           formControlName="stateId"
@@ -236,11 +280,18 @@
         ></app-lookup-select>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-        <input class="form-control" formControlName="zipCode" maxlength="15" />
+        <label for="appointment-patient-zip-code" class="form-label fw-semibold">
+          {{ '::ZipCode' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-patient-zip-code"
+          class="form-control"
+          formControlName="zipCode"
+          maxlength="15"
+        />
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">
+        <label for="appointment-patient-language-id" class="form-label fw-semibold">
           {{ '::AppointmentLanguage' | abpLocalization }}
         </label>
         <app-lookup-select
@@ -288,6 +339,8 @@
         </div>
         @if (form.get('needsInterpreter')?.value) {
           <input
+            id="appointment-patient-interpreter-vendor-name"
+            aria-label="Interpreter vendor / language details"
             class="form-control mt-2"
             formControlName="interpreterVendorName"
             placeholder="Interpreter vendor / language details"
@@ -295,8 +348,15 @@
         }
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
-        <input class="form-control" formControlName="refferedBy" maxlength="50" />
+        <label for="appointment-patient-reffered-by" class="form-label fw-semibold">
+          {{ '::RefferedBy' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-patient-reffered-by"
+          class="form-control"
+          formControlName="refferedBy"
+          maxlength="50"
+        />
       </div>
     </div>
   </div>

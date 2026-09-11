@@ -4,8 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
-import { LocalizationPipe } from '@abp/ng.core';
-import { RestService } from '@abp/ng.core';
+import { LocalizationPipe, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { PacificDatePipe } from '../../shared/pipes/pacific-date.pipe';

@@ -4,7 +4,6 @@ import {
   provideAbpCore,
   withOptions,
 } from '@abp/ng.core';
-import { provideAppInitializer } from '@angular/core';
 import { clearOAuthStorage, provideAbpOAuth } from '@abp/ng.oauth';
 import { provideSettingManagementConfig } from '@abp/ng.setting-management/config';
 import { provideFeatureManagementConfig } from '@abp/ng.feature-management';
@@ -32,7 +31,13 @@ import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
 import { UsDateParserFormatter } from './shared/us-date-parser-formatter';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
-import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
+import {
+  ApplicationConfig,
+  Injector,
+  importProvidersFrom,
+  inject,
+  provideAppInitializer,
+} from '@angular/core';
 import { HttpBackend, HttpClient } from '@angular/common/http';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';

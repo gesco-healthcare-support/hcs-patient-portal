@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnInit,
   computed,
   inject,
@@ -197,7 +198,7 @@ export class InternalAppointmentsComponent implements OnInit {
     // /appointments?appointmentStatus=N without a manual chip click).
     this.route.queryParamMap.subscribe((params) => {
       const raw = params.get('appointmentStatus');
-      const parsed = raw !== null && raw !== '' ? Number(raw) : NaN;
+      const parsed = raw !== null && raw !== '' ? Number(raw) : Number.NaN;
       const segment = Number.isNaN(parsed)
         ? 'all'
         : appointmentStatusToSegment(parsed as AppointmentStatusType);
@@ -429,6 +430,26 @@ export class InternalAppointmentsComponent implements OnInit {
     const menuWidth = 190;
     this.menuPos.set({ top: rect.bottom + 4, left: Math.max(8, rect.right - menuWidth) });
     this.menuId.set(id);
+  }
+
+  /**
+   * Escape closes the row actions menu.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ia-clickaway` overlay. The keyboard
+   * equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to it would never fire, and a tabindex would put a
+   * tab stop on a decorative overlay. Matches the pattern in
+   * internal-appointment-detail.component.ts, added for the same rule in #622.
+   *
+   * Routed through closeMenu so Escape does exactly what the mouse path does
+   * rather than becoming a second, subtly different close.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.menuId() !== null) {
+      this.closeMenu();
+    }
   }
 
   protected closeMenu(): void {
