@@ -18,20 +18,15 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 public static class AppointmentAccessorRules
 {
     /// <summary>
-    /// Canonical external-party role names used by the accessor flow.
-    /// Mirror the seeds in
-    /// <c>ExternalUserRoleDataSeedContributor</c>; if a role is
-    /// renamed there, this list must be updated in lock-step.
+    /// The external-party role names the accessor flow recognises.
     ///
-    /// OLD has 4 external roles total (verified at
-    /// <c>P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs</c>:
-    /// Patient=4, Adjuster=5, PatientAttorney=6, DefenseAttorney=7).
-    /// NEW renamed for clarity:
-    ///   OLD Adjuster        -> NEW Claim Examiner
-    ///   OLD PatientAttorney -> NEW Applicant Attorney
-    /// "Adjuster" and "Claim Examiner" are the SAME role with different
-    /// labels; NEW's canonical name is "Claim Examiner". Earlier
-    /// audits mistakenly listed both -- reconciled.
+    /// <para>An alias for <see cref="ExternalRoleConsts.All"/>, which is the
+    /// single definition (#692). There is no second list to keep in step --
+    /// the seeder that creates and grants these roles reads the same object,
+    /// so a rename cannot desynchronise them. The role-naming reconciliation
+    /// (why there are exactly four, and why two were renamed from OLD) lives
+    /// on that constant beside the names it explains, rather than being
+    /// restated here where the two copies could drift apart.</para>
     /// </summary>
     public static readonly IReadOnlyList<string> RecognizedExternalRoles =
         ExternalRoleConsts.All;
