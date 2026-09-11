@@ -35,6 +35,11 @@ python -m coverage xml -o "$OUT"
 
 # Assert on the ARTEFACT, not on the exit code of the command meant to produce
 # it -- the rule ci.yml already applies to its own copy of this step.
-test -s "$OUT"
+#
+# `[[` rather than `test`: this file is #!/usr/bin/env bash, and shelldre:S7688
+# is the rule #841 swept out of all eleven shell scripts. Writing `test -s` here
+# reintroduced it in the same week -- caught by SonarCloud on this PR, which is
+# the "introduced findings while fixing findings" trap rather than a new one.
+[[ -s "$OUT" ]]
 
 echo "python coverage report written to $OUT"
