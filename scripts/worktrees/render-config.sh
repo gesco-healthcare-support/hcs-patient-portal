@@ -14,7 +14,7 @@ API="${3:?}"
 NG="${4:?}"
 DB="${5:?}"
 
-[ -d "$WT" ] || { echo "error: worktree path '$WT' does not exist" >&2; exit 1; }
+[[ -d "$WT" ]] || { echo "error: worktree path '$WT' does not exist" >&2; exit 1; }
 
 # AuthServer
 python3 - "$WT" "$AUTH" "$API" "$NG" "$DB" <<'PY'

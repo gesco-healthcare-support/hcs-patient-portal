@@ -57,8 +57,9 @@ public class InfoRequestCorrectionLockTests
     {
         var flagged = new HashSet<string> { "claimInformation" };
 
+        var expected = new[] { "claimInformation" };
         InfoRequestCorrectionLock
-            .FindUnflaggedChanges(new[] { "claimInformation" }, flagged)
+            .FindUnflaggedChanges(expected, flagged)
             .ShouldBeEmpty();
     }
 
@@ -67,8 +68,9 @@ public class InfoRequestCorrectionLockTests
     {
         var flagged = new HashSet<string> { "cellPhoneNumber" };
 
+        var expected = new[] { "claimInformation" };
         InfoRequestCorrectionLock
-            .FindUnflaggedChanges(new[] { "claimInformation" }, flagged)
+            .FindUnflaggedChanges(expected, flagged)
             .ShouldContain("claimInformation");
     }
 }

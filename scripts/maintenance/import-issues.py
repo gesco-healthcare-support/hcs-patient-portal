@@ -110,25 +110,40 @@ SRC_FINDING, SRC_HARDENING = "source/finding", "source/hardening"
 SRC_BACKLOG, SRC_SWEEP = "source/backlog", "source/sweep"
 
 LABELS = [
-    ("severity/high", "b60205", "Security, data integrity or a blocked user path"),
-    ("severity/medium", "d93f0b", "Real defect, contained blast radius"),
-    ("severity/low", "fbca04", "Minor defect or polish"),
-    ("severity/observation", "c5def5", "Recorded behaviour, not yet judged a defect"),
-    ("type/bug", "d73a4a", "Confirmed defect"),
-    ("type/observation", "c2e0c6", "Observation from a test or review pass"),
-    ("type/hardening", "5319e7", "Production-hardening programme item"),
-    ("type/sweep", "0e8a16", "Static-analysis batch scoped to one directory tree"),
-    ("source/finding", "ededed", "Imported from docs/runbooks/findings/bugs/"),
-    ("source/hardening", "ededed", "Imported from docs/production-hardening/"),
-    ("source/backlog", "ededed", "Imported from docs/backlog.md"),
-    ("source/sweep", "ededed", "Generated from Sonar / CodeQL by directory"),
+    (SEV_HIGH, "b60205", "Security, data integrity or a blocked user path"),
+    (SEV_MEDIUM, "d93f0b", "Real defect, contained blast radius"),
+    (SEV_LOW, "fbca04", "Minor defect or polish"),
+    (SEV_OBSERVATION, "c5def5", "Recorded behaviour, not yet judged a defect"),
+    (TYPE_BUG, "d73a4a", "Confirmed defect"),
+    (TYPE_OBSERVATION, "c2e0c6", "Observation from a test or review pass"),
+    (TYPE_HARDENING, "5319e7", "Production-hardening programme item"),
+    (TYPE_SWEEP, "0e8a16", "Static-analysis batch scoped to one directory tree"),
+    (SRC_FINDING, "ededed", "Imported from docs/runbooks/findings/bugs/"),
+    (SRC_HARDENING, "ededed", "Imported from docs/production-hardening/"),
+    (SRC_BACKLOG, "ededed", "Imported from docs/backlog.md"),
+    (SRC_SWEEP, "ededed", "Generated from Sonar / CodeQL by directory"),
 ]
 
-# The domain is matched as explicit dot-separated labels rather than a character
-# class that itself contains a dot. The looser `[A-Za-z0-9.-]+\.` form overlaps
-# with its own separator, which backtracks super-linearly on a hostile input --
-# and this pattern runs over the whole backlog, so it stays linear.
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+# Two separate backtracking hazards, both of which have to be closed for this to
+# stay linear over the whole backlog.
+#
+# 1. The domain is matched as explicit dot-separated labels rather than a
+#    character class that itself contains a dot. The looser `[A-Za-z0-9.-]+\.`
+#    form overlaps with its own separator and backtracks super-linearly.
+# 2. The leading lookbehind pins a match to the START of a run of local-part
+#    characters. Without it the local part is re-tried at every offset inside
+#    the run, each retry consuming the rest of the run before failing to find
+#    the `@` -- O(n) work at O(n) offsets. An earlier comment here claimed the
+#    pattern "stays linear" with only (1) applied; measured, it did not. On a
+#    16 KB input of local-part characters with no valid address, doubling the
+#    input quadrupled the time (quadratic), taking 26 s. With the lookbehind
+#    the same input takes 4 ms and the growth is linear. The match SET is
+#    unchanged: a start the lookbehind rejects is always preceded by
+#    local-part characters, so the earlier start matches the same address with
+#    a longer local part, and leftmost-first already preferred it.
+EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"
+)
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 
@@ -422,7 +437,7 @@ def already_created() -> dict[str, str]:
     if not MAP.exists():
         return {}
     rows = MAP.read_text(encoding="utf-8").splitlines()
-    return {key: url for key, url in (r.split("\t", 1) for r in rows if "\t" in r)}
+    return dict(r.split("\t", 1) for r in rows if "\t" in r)
 
 
 def dry_run() -> None:

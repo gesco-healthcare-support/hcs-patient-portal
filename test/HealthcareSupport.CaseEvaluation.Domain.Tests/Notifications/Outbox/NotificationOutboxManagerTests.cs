@@ -107,7 +107,8 @@ public class NotificationOutboxManagerTests
 
         var claimed = await manager.ClaimDueBatchAsync(Now, Lease, batchSize: 10);
 
-        claimed.Select(x => x.IdempotencyKey).ShouldBe(new[] { "due-now" });
+        var expected = new[] { "due-now" };
+        claimed.Select(x => x.IdempotencyKey).ShouldBe(expected);
         dueNow.LockedUntil.ShouldBe(Now.Add(Lease));
     }
 

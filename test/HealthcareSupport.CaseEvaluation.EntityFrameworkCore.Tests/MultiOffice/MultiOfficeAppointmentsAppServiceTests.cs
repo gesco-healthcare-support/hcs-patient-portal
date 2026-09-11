@@ -26,8 +26,12 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// Ported from AppointmentsAppServiceTests (the [Fact(Skip "Phase F harness")] block).
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
-public class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMultiOfficeTestBase
+public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMultiOfficeTestBase
 {
+    // A01234-style request confirmation number: one letter, five digits.
+    [GeneratedRegex(@"^A\d{5}$")]
+    private static partial Regex ConfirmationNumberPattern();
+
     private readonly IAppointmentsAppService _appointmentsAppService;
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
@@ -187,7 +191,9 @@ public class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMultiOfficeT
 
             var created = await _appointmentsAppService.CreateAsync(input);
 
-            Regex.IsMatch(created.RequestConfirmationNumber, @"^A\d{5}$").ShouldBeTrue();
+            ConfirmationNumberPattern()
+                .IsMatch(created.RequestConfirmationNumber)
+                .ShouldBeTrue();
         });
     }
 
