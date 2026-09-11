@@ -92,7 +92,19 @@ def normalise(raw: str, prefix: str) -> str:
     `angular/src/app/proxy/**` exclusion matches nothing and the gate silently
     measures more than it should.
     """
-    p = raw.replace("\\", "/").lstrip("./")
+    # removeprefix, NOT lstrip. `lstrip("./")` strips a CHARACTER SET, so it
+    # eats the leading dot of any dot-directory: ".claude/scripts/x.py" became
+    # "claude/scripts/x.py". Harmless while only lcov and the .NET Cobertura
+    # were fed in -- neither emits a dot-directory -- and live the moment Python
+    # coverage arrives, because `.claude/scripts/*.py` is in its denominator.
+    # The damage would have been silent in both consumers at once: a
+    # `.coverage-exclusions` entry for `.claude/**` would match nothing, and the
+    # changed-lines floor would compare the diff's ".claude/scripts/x.py"
+    # against the report's "claude/scripts/x.py" and find no record -- making
+    # exactly the files this gate was extended to watch invisible to it.
+    p = raw.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
     if prefix:
         p = f"{prefix.rstrip('/')}/{p}"
     return p
@@ -364,8 +376,14 @@ def build_parser() -> argparse.ArgumentParser:
                     help="repo-relative directory the lcov paths are relative to")
     ap.add_argument("--cobertura", help="backend Cobertura report")
     ap.add_argument("--cobertura-prefix", default="")
+    ap.add_argument("--python-cobertura",
+                    help="Python coverage.xml (coverage.py's Cobertura output)")
+    # No --python-prefix: coverage.py emits repo-relative filenames already,
+    # unlike karma's lcov which is relative to angular/. Verified against a real
+    # coverage.xml rather than assumed.
     ap.add_argument("--floor-frontend")
     ap.add_argument("--floor-backend")
+    ap.add_argument("--floor-python")
     ap.add_argument("--changed-diff",
                     help="unified diff from `git diff --unified=0 <base>...HEAD`; "
                          "enables the changed-lines floor")
@@ -424,6 +442,9 @@ def measure_all(args: argparse.Namespace,
     for label, path_arg, prefix, floor_arg, parser in (
         ("backend", args.cobertura, args.cobertura_prefix, args.floor_backend, parse_cobertura),
         ("frontend", args.lcov, args.lcov_prefix, args.floor_frontend, parse_lcov),
+        # coverage.py writes Cobertura, so the existing parser reads it
+        # unchanged, and its paths are repo-relative so the prefix is empty.
+        ("python", args.python_cobertura, "", args.floor_python, parse_cobertura),
     ):
         if path_arg is None:
             continue

@@ -74,6 +74,40 @@ class TestNormalise(unittest.TestCase):
         raw = "src" + BACKSLASH + "app" + BACKSLASH + "proxy" + BACKSLASH + "x.ts"
         self.assertEqual(gate.normalise(raw, "angular"), "angular/src/app/proxy/x.ts")
 
+    def test_a_leading_dot_directory_keeps_its_dot(self):
+        """#787: `lstrip("./")` strips a CHARACTER SET, not a prefix.
+
+        `.claude/scripts/x.py` came back as `claude/scripts/x.py`. Harmless
+        while only lcov and the .NET Cobertura were ingested -- neither emits a
+        dot-directory -- and live the moment Python coverage arrives, since
+        `.claude/scripts/*.py` is in its denominator. The damage would have been
+        silent in BOTH consumers at once: the `.claude/...` entries in
+        `.coverage-exclusions` would match nothing, and the changed-lines floor
+        would compare the diff's `.claude/scripts/x.py` against the report's
+        `claude/scripts/x.py`, find no record, and treat the file as invisible.
+        """
+        self.assertEqual(
+            gate.normalise(".claude/scripts/verify_structure.py", ""),
+            ".claude/scripts/verify_structure.py",
+        )
+
+    def test_a_dot_github_path_keeps_its_dot(self):
+        self.assertEqual(
+            gate.normalise(".github/workflows/ci.yml", ""), ".github/workflows/ci.yml"
+        )
+
+    def test_a_leading_dot_slash_is_still_removed(self):
+        # The behaviour the old lstrip was actually there for.
+        self.assertEqual(gate.normalise("./src/a.cs", ""), "src/a.cs")
+
+    def test_repeated_leading_dot_slash_is_removed(self):
+        self.assertEqual(gate.normalise("././src/a.cs", ""), "src/a.cs")
+
+    def test_a_dot_directory_survives_prefixing_too(self):
+        self.assertEqual(
+            gate.normalise(".claude/x.py", "sub"), "sub/.claude/x.py"
+        )
+
 
 class TestExcluded(unittest.TestCase):
     def test_returns_true_when_any_pattern_matches(self):
