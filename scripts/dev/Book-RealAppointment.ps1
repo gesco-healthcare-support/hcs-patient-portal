@@ -67,7 +67,7 @@ function Get-Token {
         -H "Content-Type: application/x-www-form-urlencoded" `
         --data $body
     $obj = $null
-    try { $obj = $json | ConvertFrom-Json } catch {}
+    try { $obj = $json | ConvertFrom-Json } catch { Write-Verbose "response was not JSON; the caller reports the raw body: $_" }
     if (-not $obj -or -not $obj.access_token) {
         Write-Host "Token response: $json" -ForegroundColor Red
         Write-Error "Token acquisition failed for $Username"
@@ -84,9 +84,9 @@ function Invoke-Api {
         $Body = $null
     )
     $url = "$ApiBase$Path"
-    $args = @('-s', '-w', "`n%{http_code}", '-X', $Method, $url, '-H', "Authorization: Bearer $Token")
+    $curlArgs = @('-s', '-w', "`n%{http_code}", '-X', $Method, $url, '-H', "Authorization: Bearer $Token")
     $tempFile = $null
-    if ($Body -ne $null) {
+    if ($null -ne $Body) {
         # PowerShell + curl + Windows command-line JSON via --data is
         # fragile (curl globbing, embedded-quote escapes, etc.). Write the
         # body to a temp file and use --data-binary @file to bypass shell
@@ -94,12 +94,12 @@ function Invoke-Api {
         $json = $Body | ConvertTo-Json -Depth 10 -Compress
         $tempFile = [System.IO.Path]::GetTempFileName()
         [System.IO.File]::WriteAllText($tempFile, $json, [System.Text.UTF8Encoding]::new($false))
-        $args += @('-H', 'Content-Type: application/json', '--data-binary', "@$tempFile")
+        $curlArgs += @('-H', 'Content-Type: application/json', '--data-binary', "@$tempFile")
     } else {
-        $args += @('-H', 'Content-Length: 0')
+        $curlArgs += @('-H', 'Content-Length: 0')
     }
     try {
-        $raw = & $curl @args
+        $raw = & $curl @curlArgs
     } finally {
         if ($tempFile -and (Test-Path $tempFile)) { Remove-Item -Force $tempFile }
     }
