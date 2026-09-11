@@ -47,7 +47,8 @@ public class CustomFieldDisplayMappingUnitTests
 
         var result = AppointmentsAppService.BuildCustomFieldDisplay(fields, values);
 
-        result.Select(r => r.FieldLabel).ShouldBe(new[] { "First", "Second", "Third" });
+        var expected = new[] { "First", "Second", "Third" };
+        result.Select(r => r.FieldLabel).ShouldBe(expected);
         result[0].Value.ShouldBe("answer-1");
         result[1].Value.ShouldBeNull(); // unanswered -> null so the view shows "empty"
         result[2].Value.ShouldBe("answer-3");

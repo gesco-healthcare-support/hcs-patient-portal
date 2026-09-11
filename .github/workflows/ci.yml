@@ -877,6 +877,7 @@ jobs:
           BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
           FRONTEND_TEST_RESULT: ${{ needs.frontend-test.result }}
           BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
 
@@ -1011,21 +1012,42 @@ jobs:
           # coverage reports, and with none of them present there is nothing to
           # ask it of.
           #
-          # `...` is deliberate: two dots would also attribute every change that
-          # landed on the base branch since this one was cut. The empty case is
-          # handled inside the gate, which exits 0 when no CHANGED line is
-          # coverable -- a docs-only submission must not fail this.
-          base="origin/${BASE_REF}"
-          if ! git rev-parse --verify --quiet "$base" >/dev/null; then
-            m="cannot resolve '$base', so the changed-lines floor has nothing to"
-            m="$m diff against. This needs fetch-depth: 0 on checkout. Failing"
-            m="$m rather than skipping the check, which would pass silently."
-            echo "::error::$m"
-            exit 1
+          # AND ONLY ON A PULL REQUEST (#836, 2026-09-11). `github.base_ref` is
+          # populated only for `pull_request` events, so on a push to `main` the
+          # line below built the literal `origin/` and the guard beneath it
+          # failed this job on EVERY push to the trunk. That guard is correct
+          # and stays exactly as it was: it exists for a shallow clone, where a
+          # base SHOULD resolve and does not. A push is a different case -- it
+          # legitimately has no base branch -- and must not be answered by
+          # failing, because a permanently red trunk teaches people to ignore
+          # the colour.
+          #
+          # This is the answer the `changes` job already gives one job above
+          # (added by #828 the same day, for the same failure): on the trunk,
+          # STATE it rather than derive it. The absolute floors still run and
+          # still gate; only the changed-lines question is withheld, because
+          # "how well did this submission cover what it touched" has no meaning
+          # for a commit that is already on `main`.
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "changed-lines: skipped, event '$EVENT_NAME' has no base branch to diff against."
+            echo "Coverage floors: changed-lines skipped (no base branch on this event); absolute floors still enforced." >> "$GITHUB_STEP_SUMMARY"
+          else
+            # `...` is deliberate: two dots would also attribute every change that
+            # landed on the base branch since this one was cut. The empty case is
+            # handled inside the gate, which exits 0 when no CHANGED line is
+            # coverable -- a docs-only submission must not fail this.
+            base="origin/${BASE_REF}"
+            if ! git rev-parse --verify --quiet "$base" >/dev/null; then
+              m="cannot resolve '$base', so the changed-lines floor has nothing to"
+              m="$m diff against. This needs fetch-depth: 0 on checkout. Failing"
+              m="$m rather than skipping the check, which would pass silently."
+              echo "::error::$m"
+              exit 1
+            fi
+            git diff --unified=0 --diff-filter=ACMR "$base...HEAD" > changed.diff
+            echo "changed-lines: diffed against $base"
+            args+=(--changed-diff changed.diff --floor-changed "$FLOOR_CHANGED")
           fi
-          git diff --unified=0 --diff-filter=ACMR "$base...HEAD" > changed.diff
-          echo "changed-lines: diffed against $base"
-          args+=(--changed-diff changed.diff --floor-changed "$FLOOR_CHANGED")
 
           # NOT piped into tee, and the exit code is carried by hand. Under
           # `pipefail` a failing gate would abort the step immediately and the

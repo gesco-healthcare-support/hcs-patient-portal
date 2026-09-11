@@ -125,8 +125,9 @@ public class BootedApiTenantResolverOrderingTests
     {
         var resolvers = GetRequiredService<IOptions<AbpTenantResolveOptions>>().Value.TenantResolvers;
 
+        var expected = new[] { "CurrentUser", "HostAwareDomain" };
         resolvers.Select(r => r.Name).ShouldBe(
-            new[] { "CurrentUser", "HostAwareDomain" },
+            expected,
             "the API host's ConfigureMultiTenancy ran after the framework's modules, so the "
             + "assembled options must contain exactly the two contributors it registers. If a "
             + "THIRD entry is present, Clear() did not remove what the framework had already "
@@ -181,8 +182,9 @@ public class BootedAuthTenantResolverOrderingTests
     {
         var resolvers = GetRequiredService<IOptions<AbpTenantResolveOptions>>().Value.TenantResolvers;
 
+        var expected = new[] { "CurrentUser", "HostAwareDomain" };
         resolvers.Select(r => r.Name).ShouldBe(
-            new[] { "CurrentUser", "HostAwareDomain" },
+            expected,
             "the AuthServer's ConfigureMultiTenancy ran after the framework's modules, so the "
             + "assembled options must contain exactly the two contributors it registers. This is "
             + "the login path: the AuthServer mints the token CurrentUserTenantResolveContributor "
