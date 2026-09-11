@@ -311,6 +311,25 @@ internal static class CaseEvaluationSharedModelConfiguration
                 .HasDefaultValue(3);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             // AppointmentTypeId removed -- see DoctorAvailabilityAppointmentType join below.
+            // 2026-09-11 -- slot identity. The BACKSTOP behind DoctorAvailabilityManager's clash
+            // check: the guard closes the ordinary path, this closes the race where two concurrent
+            // creates both find nothing and both insert.
+            //
+            // AppointmentTypeId is deliberately absent -- it was removed from the slot in the
+            // 2026-05-15 rework, so slots are appointment-type-agnostic and the M2M carries type.
+            // Capacity is absent too: it governs appointments-per-slot, not slot identity.
+            //
+            // The filter excludes soft-deleted rows for the same reason as
+            // Fix_UniqueIndexesExcludeSoftDeleted (2026-08-21): a deleted row still occupying the
+            // key made every later insert fail.
+            //
+            // Exact on AvailableDate only because the domain now stores the date component alone;
+            // rows written before that change keep any stray time and this index cannot speak
+            // for them.
+            b.HasIndex(x => new { x.TenantId, x.LocationId, x.AvailableDate, x.FromTime, x.ToTime })
+                .IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
+                .HasDatabaseName("IX_AppDoctorAvailabilities_Slot_Identity");
         });
 
         // 2026-05-15 -- M2M join between DoctorAvailability and AppointmentType

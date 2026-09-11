@@ -287,6 +287,7 @@
     "CaseEvaluation:DoctorAvailability.CannotUpdateBookedOrReserved": "This slot cannot be modified because it has been reserved or booked. Cancel or reschedule the linked appointment first.",
     "CaseEvaluation:DoctorAvailability.CannotBulkDeleteWithBookedSlots": "Cannot delete all slots for this date and location because one or more slots are reserved or booked.",
     "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced": "This slot cannot be deleted because it is referenced by an existing appointment or change request.",
+    "CaseEvaluation:DoctorAvailability.SlotClash": "This time slot overlaps an existing slot at this location on {availableDate}. Choose a different time.",
     "DoctorAvailability:DurationMustBeGreaterThanZero": "Appointment duration must be greater than zero.",
     "DoctorAvailability:CapacityMustBeAtLeastOne": "Capacity must be at least 1.",
     "DoctorAvailability:ToDateBeforeFromDate": "To date must be greater than or equal to from date.",

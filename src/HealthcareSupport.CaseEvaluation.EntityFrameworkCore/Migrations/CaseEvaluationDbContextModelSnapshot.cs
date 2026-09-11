@@ -2884,6 +2884,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("LocationId");
 
+                    b.HasIndex("TenantId", "LocationId", "AvailableDate", "FromTime", "ToTime")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppDoctorAvailabilities_Slot_Identity")
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+
                     b.ToTable("AppDoctorAvailabilities", (string)null);
                 });
 
