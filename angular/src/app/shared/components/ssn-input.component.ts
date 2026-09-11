@@ -58,6 +58,7 @@ import { PatientService } from '../../proxy/patients/patient.service';
         #entry
         type="text"
         class="form-control"
+        [attr.id]="inputId || null"
         [class.is-invalid]="invalid"
         [value]="boxDisplay()"
         [attr.placeholder]="placeholder"
@@ -93,6 +94,14 @@ export class SsnInputComponent implements ControlValueAccessor {
   @Input() currentMaskedSsn?: string | null;
   /** Mirrors the host input's invalid styling. */
   @Input() invalid = false;
+  /**
+   * #806: id for the rendered `<input>`, so a host `<label for>` can reach it.
+   * The component renders a plain `<input>` behind a custom element, which the
+   * HTML analyser cannot see through -- all three call sites shipped with no
+   * accessible name at all and a clean scan. Mirrors
+   * `<app-address-autocomplete>`'s `inputId`, added for the same reason (#794).
+   */
+  @Input() inputId = '';
   @Input() placeholder = '';
 
   private readonly patientService = inject(PatientService);

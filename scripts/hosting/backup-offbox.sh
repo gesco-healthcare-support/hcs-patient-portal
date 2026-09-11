@@ -56,8 +56,8 @@ SSH_OPTS=(-i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o 
 log() { echo "[$(date -u +%FT%TZ)] $*"; }
 fail() { echo "[$(date -u +%FT%TZ)] ERROR: $*" >&2; exit 1; }
 
-[ -f "$ENV_FILE" ] || fail "env file not found: $ENV_FILE"
-[ -r "$SSH_KEY" ] || fail "ssh key not readable: $SSH_KEY (are you root?)"
+[[ -f "$ENV_FILE" ]] || fail "env file not found: $ENV_FILE"
+[[ -r "$SSH_KEY" ]] || fail "ssh key not readable: $SSH_KEY (are you root?)"
 
 # ---------------------------------------------------------------- 1. databases
 log "1/6 dumping databases (host + every office) via backup-databases.sh"
@@ -73,10 +73,21 @@ log "2/6 mirroring MinIO buckets to staging"
 mkdir -p "$STAGING/minio"
 MINIO_USER="$(grep -E '^MINIO_ROOT_USER=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
 MINIO_PASS="$(grep -E '^MINIO_ROOT_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
-[ -n "$MINIO_USER" ] && [ -n "$MINIO_PASS" ] || fail "MinIO credentials not found in $ENV_FILE"
+[[ -n "$MINIO_USER" ]] && [[ -n "$MINIO_PASS" ]] || fail "MinIO credentials not found in $ENV_FILE"
 
 for bucket in case-evaluation-documents case-tracker-documents; do
   # Credentials go in via MC_HOST_* so nothing is written to an mc config file on disk.
+  #
+  # S5332 (clear-text protocol) is deliberately NOT applied to the http:// below.
+  # This resolves `minio` by Docker service name on the private compose bridge
+  # ("$DOCKER_NET"); the request never leaves the host's virtual network. MinIO
+  # itself serves plain HTTP on 9000 -- docker-compose.prod.yml starts it as
+  # `server /data --console-address ":9001"` with no --certs-dir, and its own
+  # healthcheck curls http://localhost:9000. TLS is terminated at the reverse
+  # proxy, not at this container, so changing this to https:// would not upgrade
+  # the transport -- it would fail to connect and silently stop the off-box
+  # backup, which is the exact failure mode that went unnoticed for ten days in
+  # August 2026. Needs won't-fix triage in SonarCloud rather than a code change.
   docker run --rm --network "$DOCKER_NET" \
     -e "MC_HOST_m=http://${MINIO_USER}:${MINIO_PASS}@minio:9000" \
     -v "$STAGING/minio:/backup" \
@@ -104,7 +115,7 @@ while IFS= read -r f; do
     || fail "scp failed for $(basename "$f")"
   shipped=$((shipped + 1))
 done < <(find "$BACKUP_DIR" -maxdepth 1 -name "*_${STAMP}.bak" -type f)
-[ "$shipped" -gt 0 ] || fail "no dumps matched this run's stamp ${STAMP} -- nothing shipped"
+[[ "$shipped" -gt 0 ]] || fail "no dumps matched this run's stamp ${STAMP} -- nothing shipped"
 
 scp -q "${SSH_OPTS[@]}" "$ARCHIVE" "${REMOTE_HOST}:${REMOTE_DIR}/minio/$(basename "$ARCHIVE")" \
   || fail "scp failed for the MinIO archive"
@@ -118,7 +129,7 @@ for f in $(find "$BACKUP_DIR" -maxdepth 1 -name "*_${STAMP}.bak" -type f) "$ARCH
   case "$base" in *.bak) sub=db ;; *) sub=minio ;; esac
   remote_size="$(ssh "${SSH_OPTS[@]}" "$REMOTE_HOST" \
     "powershell -NoProfile -Command \"(Get-Item '${REMOTE_DIR}/${sub}/${base}').Length\"" 2>/dev/null | tr -d '\r')"
-  [ "$local_size" = "$remote_size" ] \
+  [[ "$local_size" = "$remote_size" ]] \
     || fail "size mismatch for ${base}: local=${local_size} remote=${remote_size:-missing}"
 done
 log "     all sizes match"
@@ -133,12 +144,12 @@ ssh "${SSH_OPTS[@]}" "$REMOTE_HOST" \
 find "$STAGING" -maxdepth 1 -name 'minio_*.tar.gz' -type f -mtime +2 -print -delete
 
 # ---------------------------------------------------------------- 6. optional restore proof
-if [ "${1:-}" = "--verify-restore" ]; then
+if [[ "${1:-}" = "--verify-restore" ]]; then
   log "6/6 restore proof: loading the newest dump into a scratch database"
   SA_PASSWORD="$(grep -E '^MSSQL_SA_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
   newest="$(find "$BACKUP_DIR" -maxdepth 1 -name "CaseEvaluation_${STAMP}.bak" -type f | head -1)"
-  [ -n "$newest" ] || newest="$(find "$BACKUP_DIR" -maxdepth 1 -name "*_${STAMP}.bak" -type f | head -1)"
-  [ -n "$newest" ] || fail "no dump from this run to verify"
+  [[ -n "$newest" ]] || newest="$(find "$BACKUP_DIR" -maxdepth 1 -name "*_${STAMP}.bak" -type f | head -1)"
+  [[ -n "$newest" ]] || fail "no dump from this run to verify"
   cbase="/var/opt/mssql/backups/$(basename "$newest")"
   scratch="RestoreProof_${STAMP}"
   sqlc() { docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T sql-server \

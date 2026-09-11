@@ -491,8 +491,9 @@
                   />
                 </div>
                 <div class="ra-field col-3">
-                  <label>Social Security #</label>
+                  <label for="iad-patient-social-security-number">Social Security #</label>
                   <app-ssn-input
+                    inputId="iad-patient-social-security-number"
                     formControlName="patientSocialSecurityNumber"
                     [invalid]="isFieldInvalid('patientSocialSecurityNumber')"
                     [patientId]="appointment?.patient?.id"

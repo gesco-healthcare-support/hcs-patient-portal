@@ -229,11 +229,14 @@
       </div>
 
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">
+        <label for="appointment-patient-social-security-number" class="form-label fw-semibold">
           {{ '::SocialSecurityNumber' | abpLocalization }}
         </label>
         <!-- F1 / Design B: SSN never pre-filled; mask-on-type + copy-block. -->
-        <app-ssn-input formControlName="socialSecurityNumber"></app-ssn-input>
+        <app-ssn-input
+          inputId="appointment-patient-social-security-number"
+          formControlName="socialSecurityNumber"
+        ></app-ssn-input>
       </div>
       <div class="col-md-3 mb-3">
         <label for="appointment-patient-street" class="form-label fw-semibold">
