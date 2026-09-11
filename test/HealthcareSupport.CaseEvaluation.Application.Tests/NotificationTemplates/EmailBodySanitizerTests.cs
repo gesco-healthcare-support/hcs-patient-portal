@@ -13,7 +13,7 @@ namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 /// </summary>
 public class EmailBodySanitizerTests
 {
-    private readonly IEmailBodySanitizer _sanitizer = new EmailBodySanitizer();
+    private readonly EmailBodySanitizer _sanitizer = new();
 
     [Fact]
     public void Sanitize_RemovesScriptTagAndContent()

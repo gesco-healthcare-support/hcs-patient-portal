@@ -29,7 +29,8 @@ public class NotificationTemplateVariableCatalogTests
         var tokens = NotificationTemplateVariableCatalog.ExtractTokens(
             "Hi ##UserName##, your ##RoleName## at ##TenantName## -- regards, ##UserName##.");
 
-        tokens.ShouldBe(new[] { "UserName", "RoleName", "TenantName" });
+        var expected = new[] { "UserName", "RoleName", "TenantName" };
+        tokens.ShouldBe(expected);
     }
 
     // ------------------------------------------------------------------

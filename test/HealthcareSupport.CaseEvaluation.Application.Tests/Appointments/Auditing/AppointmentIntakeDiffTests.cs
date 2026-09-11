@@ -23,7 +23,8 @@ public class AppointmentIntakeDiffTests
             oldDueDate: new DateTime(2026, 6, 20),
             newDueDate: new DateTime(2026, 6, 25));
 
-        rows.Select(r => r.PropertyName).ShouldBe(new[] { "AppointmentDate", "DueDate" }, ignoreOrder: true);
+        var expected = new[] { "AppointmentDate", "DueDate" };
+        rows.Select(r => r.PropertyName).ShouldBe(expected, ignoreOrder: true);
         var date = rows.Single(r => r.PropertyName == "AppointmentDate");
         date.ValueRedacted.ShouldBeFalse();
         date.NewValue!.ShouldContain("06/08/2026");

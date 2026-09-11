@@ -68,8 +68,9 @@ public class AttorneyRecipientPromotionUnitTests
     [Fact]
     public void PatientOrClaimExaminerCreator_DoesNotPromote()
     {
+        var expected = new[] { "Patient", "Claim Examiner" };
         AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
-                new[] { "Patient", "Claim Examiner" }, "aa@example.com", "da@example.com")
+                expected, "aa@example.com", "da@example.com")
             .ShouldBeNull();
     }
 
@@ -78,8 +79,9 @@ public class AttorneyRecipientPromotionUnitTests
     {
         // The regression guard: an internal staff booker (no attorney role) must
         // never promote, so the caller keeps To = the patient/booker.
+        var expected = new[] { "Intake Staff", "Staff Supervisor" };
         AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
-                new[] { "Intake Staff", "Staff Supervisor" }, "aa@example.com", "da@example.com")
+                expected, "aa@example.com", "da@example.com")
             .ShouldBeNull();
     }
 
@@ -102,8 +104,9 @@ public class AttorneyRecipientPromotionUnitTests
     [Fact]
     public void RoleMatch_IsCaseInsensitive()
     {
+        var expected = new[] { "applicant attorney" };
         AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
-                new[] { "applicant attorney" }, "aa@example.com", null)
+                expected, "aa@example.com", null)
             .ShouldBe("aa@example.com");
     }
 

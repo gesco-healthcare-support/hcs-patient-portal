@@ -36,7 +36,7 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
             payload: "{\"data\":{}}",
             idempotencyKey: "key-" + id.ToString("N"));
 
-    private Task InsertAsync(IntegrationOutboxItem item) =>
+    private Task<IntegrationOutboxItem> InsertAsync(IntegrationOutboxItem item) =>
         WithUnitOfWorkAsync(() => _outboxRepository.InsertAsync(item, autoSave: true));
 
     [Fact]
