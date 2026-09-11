@@ -375,3 +375,15 @@ docs/backlog.md
 
 # Generated issue manifest (regenerable; derived from the gitignored backlog)
 scripts/maintenance/issues.json
+
+# Python test artefacts (hardening 8.1b step 1, #784). The `/coverage.xml` entry
+# above already covers the Python report, which lands at the repo root like the
+# other two; these are the artefacts it does not reach. `.coverage` is
+# coverage.py's SQLite data file and `.coverage.*` are the per-process files
+# parallel mode writes before `coverage combine`. `__pycache__/` is created by
+# the suite itself, which imports `scripts/coverage-gate.py` by path because a
+# hyphen is not legal in a module name -- it appeared untracked in the worktree
+# during development and had to be removed by hand.
+.coverage
+.coverage.*
+__pycache__/
