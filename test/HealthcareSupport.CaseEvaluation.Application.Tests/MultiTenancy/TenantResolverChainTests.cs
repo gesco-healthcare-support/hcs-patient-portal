@@ -59,7 +59,7 @@ public class TenantResolverChainTests
     }
 
     /// <summary>Runs a module's multi-tenancy configuration and returns the assembled chain.</summary>
-    private static IReadOnlyList<ITenantResolveContributor> ResolversFor(
+    private static List<ITenantResolveContributor> ResolversFor(
         Action<ServiceConfigurationContext, IConfiguration> configureMultiTenancy)
     {
         var services = new ServiceCollection();
@@ -95,10 +95,10 @@ public class TenantResolverChainTests
             .Value.TenantResolvers;
     }
 
-    private static IReadOnlyList<ITenantResolveContributor> HttpApiHostResolvers() =>
+    private static List<ITenantResolveContributor> HttpApiHostResolvers() =>
         ResolversFor(CaseEvaluationHttpApiHostModule.ConfigureMultiTenancy);
 
-    private static IReadOnlyList<ITenantResolveContributor> AuthServerResolvers() =>
+    private static List<ITenantResolveContributor> AuthServerResolvers() =>
         ResolversFor(CaseEvaluationAuthServerModule.ConfigureMultiTenancy);
 
     // ---- the chain, per process ----

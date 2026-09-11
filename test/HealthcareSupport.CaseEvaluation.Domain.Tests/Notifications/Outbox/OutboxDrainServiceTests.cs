@@ -76,7 +76,7 @@ public class OutboxDrainServiceTests
         return new Harness { Rows = rows, Manager = manager, Sender = sender, Service = service };
     }
 
-    private static Task SeedPendingAsync(Harness h, string key = "key-1") =>
+    private static Task<NotificationOutboxItem> SeedPendingAsync(Harness h, string key = "key-1") =>
         h.Manager.EnqueueAsync(TenantId, "party@example.test", null, "Subject", "<p>body</p>", true, "Approved/appt-1", key);
 
     [Fact]
