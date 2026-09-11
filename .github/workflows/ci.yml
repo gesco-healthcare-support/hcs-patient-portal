@@ -1163,7 +1163,15 @@ jobs:
           # this job FAILS BY DESIGN, so that is precisely the run whose measured
           # backend figure somebody needs to read.
           set +e
-          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" > gate-output.txt 2>&1
+          # #683: refuse to grade a dependency's source as ours. SourceLink has
+          # embedded third-party source into the backend report twice, each time
+          # fixed by naming that vendor in .coverage-exclusions -- a list that
+          # grows one vendor at a time, where the next one matches nothing and
+          # arrives with no signal. Discovery lives HERE rather than in the gate
+          # because that script shells out nowhere and the Python suite imports
+          # it directly; keeping it pure keeps it testable.
+          git ls-files > tracked-files.txt
+          python scripts/coverage-gate.py --exclusions .coverage-exclusions --tracked-files tracked-files.txt "${args[@]}" > gate-output.txt 2>&1
           gate_rc=$?
           set -e
           cat gate-output.txt
