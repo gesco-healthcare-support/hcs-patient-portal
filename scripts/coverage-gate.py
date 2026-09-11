@@ -84,6 +84,79 @@ def load_exclusions(path: Path) -> list[re.Pattern[str]]:
     return patterns
 
 
+def load_tracked(path: Path) -> set[str]:
+    """Read the repository tracked-file list, ignoring comments and blanks.
+
+    Mirrors `load_exclusions` deliberately -- same shape, same two failure modes.
+    An absent list means the step that writes it did not run; an empty one is
+    more likely a mistake than a decision. Either would let this check pass
+    without looking, which is the failure class it exists to remove.
+    """
+    if not path.is_file():
+        die(f"tracked-file list not found: {path}. CI produces it with "
+            "`git ls-files`; a missing list means that step did not run, and "
+            "that is a failure rather than an absent constraint.")
+    tracked = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            tracked.add(stripped)
+    if not tracked:
+        die(f"tracked-file list {path} is empty. An empty list is more likely a "
+            "mistake than a decision; omit --tracked-files instead.")
+    return tracked
+
+
+def in_repo(path: str, tracked: set[str]) -> bool:
+    """Is this report path one of the repository own files?
+
+    SUFFIX matching, not equality, and that distinction is the difficulty.
+    Cobertura carries absolute runner paths and `normalise` strips only a leading
+    `./`, so one of our files arrives as
+    `home/runner/work/<repo>/<repo>/src/App/Foo.cs`. Comparing that against
+    `git ls-files` output by equality fails for EVERY file -- measured once as
+    925 of 925 "untracked", which is a tell rather than a result. Three distinct
+    leading shapes appear in one backend report and one in the frontend.
+
+    Matching is on a separator boundary, so `Xsrc/A.cs` never satisfies `src/A.cs`.
+    """
+    if path in tracked:
+        return True
+    parts = path.split("/")
+    for i in range(1, len(parts)):
+        if "/".join(parts[i:]) in tracked:
+            return True
+    return False
+
+
+def assert_tracked(per_file: dict[str, dict[int, int]],
+                   patterns: list[re.Pattern[str]],
+                   tracked: set[str]) -> None:
+    """Fail if any COUNTED file is not a file of this repository.
+
+    Its own function rather than a branch inside `summarise`: measuring was split
+    from judging on 2026-09-03, and folding an assertion into the counting path
+    would re-merge exactly what that change separated.
+
+    Third-party source embedded by SourceLink has been graded as ours twice, by
+    two different roots, each fixed by naming that vendor in the exclusion list.
+    That list grows one vendor at a time, and the next one matches none of its
+    patterns and arrives with no signal at all. This is the signal.
+    """
+    strays = sorted(p for p in per_file
+                    if not excluded(p, patterns) and not in_repo(p, tracked))
+    if not strays:
+        return
+    for stray in strays[:10]:
+        print(f"  untracked and counted: {stray}")
+    if len(strays) > 10:
+        print(f"  ... and {len(strays) - 10} more")
+    die(f"{len(strays)} counted file(s) are not tracked in this repository, so a "
+        "dependency source is being graded as ours. Either exclude that "
+        "population in .coverage-exclusions with its reason, or fix the prefix "
+        "that made our own files unrecognisable.")
+
+
 def normalise(raw: str, prefix: str) -> str:
     """Make a report path repo-relative with forward slashes.
 
@@ -359,6 +432,9 @@ def report(label: str, found: int, hit: int, files: int, floor: float) -> bool:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--exclusions", default=".coverage-exclusions")
+    ap.add_argument("--tracked-files",
+                    help="file listing the repo tracked paths (`git ls-files`). "
+                         "Counted files outside it fail the gate (#683)")
     ap.add_argument("--lcov", help="frontend lcov report")
     ap.add_argument("--lcov-prefix", default="angular",
                     help="repo-relative directory the lcov paths are relative to")
@@ -502,6 +578,16 @@ def main() -> int:
     patterns = load_exclusions(Path(args.exclusions))
 
     measured, coverage_by_file = measure_all(args, patterns)
+
+    # Runs in measure-only mode too: this validates the INPUT, it is not a floor.
+    if args.tracked_files is not None:
+        assert_tracked(coverage_by_file, patterns,
+                       load_tracked(Path(args.tracked_files)))
+    else:
+        print("tracked-files: check SKIPPED, no --tracked-files supplied. "
+              "A silently disabled check is what #683 exists to prevent, so the "
+              "skip is stated rather than assumed.")
+
     if args.measure_only:
         return 0
 
