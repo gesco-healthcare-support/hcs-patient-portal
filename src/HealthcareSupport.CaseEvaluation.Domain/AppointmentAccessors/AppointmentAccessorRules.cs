@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 
@@ -32,13 +33,8 @@ public static class AppointmentAccessorRules
     /// labels; NEW's canonical name is "Claim Examiner". Earlier
     /// audits mistakenly listed both -- reconciled.
     /// </summary>
-    public static readonly IReadOnlyList<string> RecognizedExternalRoles = new[]
-    {
-        "Patient",
-        "Applicant Attorney",
-        "Defense Attorney",
-        "Claim Examiner",
-    };
+    public static readonly IReadOnlyList<string> RecognizedExternalRoles =
+        ExternalRoleConsts.All;
 
     /// <summary>
     /// Returns <c>true</c> when the user already holds the requested
