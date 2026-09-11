@@ -854,13 +854,31 @@ jobs:
       # metric is covered statements; the percentage is not comparable across
       # two runs whose denominators differ.
       #
-      # 2 is the load-bearing number here, not 52. The report carries five
-      # files; `.coverage-exclusions` removes three of them by name
-      # (build-repo-map.py, check-links.py, import-issues.py -- none can fail a
-      # build, each with its rationale recorded there), leaving
-      # scripts/coverage-gate.py and .claude/scripts/verify_structure.py. If a
-      # future run reports 5 files, an exclusion has stopped matching and the
-      # figure is measuring tooling nobody gates on.
+      # WHAT THE 4 FILES ARE, because the composition matters more than the
+      # percentage. The report carries seven; `.coverage-exclusions` removes
+      # three by name (build-repo-map.py, check-links.py, import-issues.py --
+      # none can fail a build, each with its rationale recorded there). The four
+      # that count split two ways:
+      #
+      #   TOOLING      scripts/coverage-gate.py
+      #                .claude/scripts/verify_structure.py
+      #   PRODUCTION   docker/packet-renderer/app.py
+      #                tools/packet-templates/shared/post_process.py
+      #
+      # The second pair are not tooling and did not arrive by decision. They
+      # entered because a TEST IMPORTS THEM, and they ship in the packet-renderer
+      # image. So this floor now partly grades production code that nothing
+      # deliberately chose to gate on.
+      #
+      # THERE IS NO FILE-COUNT TRIPWIRE ANY MORE, and its removal is deliberate.
+      # This block used to say "if a future run reports 5 files, an exclusion
+      # has stopped matching" -- calibrated against a 2-file baseline, and left
+      # in place when the baseline became 4. A tripwire pointing at the wrong
+      # number is worse than none, because it will be believed: at 4 the next
+      # reader concludes an exclusion broke, and at 5 concludes nothing is
+      # wrong. The honest statement is that this count WILL move again whenever
+      # a test starts importing something new, and that #862 tracks making it
+      # stop moving. Until then a changed count is information, not an alarm.
       #
       # READ THIS BEFORE RAISING IT. The Python denominator contains only the
       # files the suite IMPORTS, not the files in scope. Nine of the repo's
@@ -873,7 +891,7 @@ jobs:
       #
       # It is set at the observed figure anyway, floored to a whole number per
       # the rule above, because a floor that cannot fail is worse. The
-      # denominator question is raised on #787 rather than silently absorbed.
+      # denominator question is tracked on #862 rather than silently absorbed.
       FLOOR_PYTHON: "53"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
