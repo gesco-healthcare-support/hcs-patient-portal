@@ -272,7 +272,7 @@ public class HostAwareDomainTenantResolveContributorTests
     // test written before 2026-09-04 behaves exactly as it did. A required parameter
     // would have touched all 12 of them and made the diff read as a rewrite of a file
     // whose other tests were not under review.
-    private static ITenantResolveContext BuildResolveContext(
+    private static FakeTenantResolveContext BuildResolveContext(
         string host,
         ICurrentUser? currentUser = null)
     {

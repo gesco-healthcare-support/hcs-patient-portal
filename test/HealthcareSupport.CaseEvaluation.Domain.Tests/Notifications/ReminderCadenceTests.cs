@@ -16,7 +16,8 @@ public class ReminderCadenceTests
     {
         var cadence = new ReminderCadence("30, 60 ,75");
 
-        cadence.Anchors.ShouldBe(new[] { 30, 60, 75 }, ignoreOrder: true);
+        var expected = new[] { 30, 60, 75 };
+        cadence.Anchors.ShouldBe(expected, ignoreOrder: true);
     }
 
     [Fact]
@@ -48,7 +49,8 @@ public class ReminderCadenceTests
     {
         var cadence = new ReminderCadence("7,7,1,1");
 
-        cadence.Anchors.ShouldBe(new[] { 7, 1 }, ignoreOrder: true);
+        var expected = new[] { 7, 1 };
+        cadence.Anchors.ShouldBe(expected, ignoreOrder: true);
     }
 
     [Fact]
@@ -56,7 +58,8 @@ public class ReminderCadenceTests
     {
         var cadence = new ReminderCadence("7,abc,3");
 
-        cadence.Anchors.ShouldBe(new[] { 7, 3 }, ignoreOrder: true);
+        var expected = new[] { 7, 3 };
+        cadence.Anchors.ShouldBe(expected, ignoreOrder: true);
         cadence.ShouldFire(7).ShouldBeTrue();
     }
 
@@ -65,7 +68,8 @@ public class ReminderCadenceTests
     {
         var cadence = new ReminderCadence("-1,7");
 
-        cadence.Anchors.ShouldBe(new[] { 7 }, ignoreOrder: true);
+        var expected = new[] { 7 };
+        cadence.Anchors.ShouldBe(expected, ignoreOrder: true);
         cadence.ShouldFire(-1).ShouldBeFalse();
     }
 
@@ -83,6 +87,7 @@ public class ReminderCadenceTests
     {
         var cadence = new ReminderCadence("14,,7,");
 
-        cadence.Anchors.ShouldBe(new[] { 14, 7 }, ignoreOrder: true);
+        var expected = new[] { 14, 7 };
+        cadence.Anchors.ShouldBe(expected, ignoreOrder: true);
     }
 }

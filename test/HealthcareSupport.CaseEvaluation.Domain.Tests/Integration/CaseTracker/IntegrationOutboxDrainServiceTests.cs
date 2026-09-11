@@ -90,7 +90,7 @@ public class IntegrationOutboxDrainServiceTests
         };
     }
 
-    private static Task SeedPendingAsync(Harness h, string key = "key-1") =>
+    private static Task<IntegrationOutboxItem> SeedPendingAsync(Harness h, string key = "key-1") =>
         h.Manager.EnqueueAsync(
             TenantId,
             IntegrationMessageType.Intake,
