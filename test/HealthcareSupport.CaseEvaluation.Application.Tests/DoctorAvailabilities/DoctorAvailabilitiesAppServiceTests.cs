@@ -734,6 +734,57 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         }
     }
 
+    [Fact]
+    public async Task CreateAsync_WhenAvailableDateCarriesATime_StoresTheDateOnly()
+    {
+        // The slot's real times are FromTime/ToTime, so a time component on AvailableDate is
+        // redundant rather than meaningful and is dropped on write. This is what lets the
+        // uniqueness index sit on the raw column and still mean the same thing as the clash
+        // rule, which compares on .Date.
+        var withTime = new DateTime(2032, 3, 5, 9, 30, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var created = await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, withTime, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var persisted = await _slotRepository.GetAsync(created.Id);
+
+            persisted.AvailableDate.ShouldBe(withTime.Date);
+            persisted.AvailableDate.TimeOfDay.ShouldBe(TimeSpan.Zero);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenAvailableDateCarriesATime_StoresTheDateOnly()
+    {
+        // Update normalises for the same reason as create; otherwise an edit could reintroduce
+        // a stray time and put that row beyond the index's reach.
+        var clean = new DateTime(2032, 3, 6, 0, 0, 0, DateTimeKind.Utc);
+        var withTime = new DateTime(2032, 3, 7, 14, 45, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var created = await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, clean, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var updated = await _appService.UpdateAsync(created.Id, new DoctorAvailabilityUpdateDto
+            {
+                LocationId = LocationsTestData.Location1Id,
+                AppointmentTypeIds = new List<Guid> { LocationsTestData.AppointmentType1Id },
+                AvailableDate = withTime,
+                FromTime = new TimeOnly(9, 0),
+                ToTime = new TimeOnly(10, 0),
+                BookingStatusId = BookingStatus.Available,
+                Capacity = 3,
+                ConcurrencyStamp = created.ConcurrencyStamp,
+            });
+
+            var persisted = await _slotRepository.GetAsync(updated.Id);
+
+            persisted.AvailableDate.ShouldBe(withTime.Date);
+            persisted.AvailableDate.TimeOfDay.ShouldBe(TimeSpan.Zero);
+        }
+    }
+
     // =====================================================================
     // Gap-encoding tests (Skip= with tracking references).
     // =====================================================================
