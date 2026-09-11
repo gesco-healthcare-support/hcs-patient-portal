@@ -223,3 +223,36 @@ tests/e2e-demo/**
 # This is `sonar.coverage.exclusions`, NOT `sonar.exclusions`: Sonar still
 # analyses these files for issues. Only the coverage denominator changes.
 tests/python/**
+
+# Test code, not application code -- the same reasoning as tests/python/** above,
+# for the golden-output suite #821 added. Sonar's Python analyzer reports these as
+# FIL (ordinary source) rather than UTS, so without this entry test_golden_output.py
+# is graded as uncovered application code and any pull request touching it fails
+# `new_coverage 0.0 < 80`. #821 merged with its own gate red for exactly this, and
+# it recurs on every future Python pull request until this line exists.
+#
+# LIVE TODAY, read from SonarCloud rather than predicted:
+#
+#   tools/packet-templates/tests   lines_to_cover 70   uncovered_lines 70   ncloc 110
+#
+# MEASURED, because this list forbids an entry that can never match -- and here the
+# sharper risk is one that matches TOO MUCH. Run through the gate's own
+# glob_to_regex (scripts/coverage-gate.py:42) against all 3,398 tracked files:
+#
+#   matches EXACTLY 2   tools/packet-templates/tests/test_golden_output.py
+#                       tools/packet-templates/tests/golden.sha256
+#   matches 0 of the 14 production files under tools/packet-templates/
+#   matches none of scripts/coverage-gate.py, .claude/scripts/verify_structure.py
+#                or docker/packet-renderer/app.py
+#
+# The second line is the load-bearing one. Phase 8.1 above ruled that the 882 lines
+# in tools/packet-templates stay IN the denominator deliberately, because they ship
+# inside the production image. This entry must not reach them, and does not.
+# golden.sha256 is a hash fixture no analyzer can cover; it is named only because
+# the glob reaches it.
+#
+# PROVEN, not proposed: #835 ran this same experiment for tests/python/** and took
+# `SonarCloud Code Analysis` from FAILURE to SUCCESS, with the file still analysed
+# for issues (qualifier=FIL, ncloc=84) and simply carrying no coverable lines. This
+# is sonar.coverage.exclusions, NOT sonar.exclusions -- analysis is unaffected.
+tools/packet-templates/tests/**
