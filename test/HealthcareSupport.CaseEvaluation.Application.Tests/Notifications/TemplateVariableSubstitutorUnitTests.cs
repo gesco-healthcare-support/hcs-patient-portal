@@ -357,7 +357,7 @@ public class TemplateVariableSubstitutorUnitTests
     // Helpers
     // ------------------------------------------------------------------
 
-    private static IReadOnlyDictionary<string, object?> Vars(
+    private static Dictionary<string, object?> Vars(
         params (string Key, object? Value)[] entries)
     {
         var dict = new Dictionary<string, object?>(StringComparer.Ordinal);

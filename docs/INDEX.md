@@ -117,6 +117,8 @@ flowchart TB
 - **Open work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues).** `runbooks/findings/bugs/` keeps the
   reproduction and diagnosis for each finding and links its issue; it no longer records status.
 - [Testing Strategy](devops/TESTING-STRATEGY.md) and [Test Coverage Status](testing/coverage-status.md)
+  -- the latter names the commands that report test counts and coverage, and deliberately stores no
+  figures of its own.
 
 ## Production readiness
 

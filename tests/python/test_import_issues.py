@@ -194,3 +194,187 @@ class LabelConstantTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BatchKeyTests(unittest.TestCase):
+    """The idempotency key must denote WHAT a batch covers, not its rank (#820).
+
+    The defect this replaces was silent in the worse direction. `SWEEP-NN` was
+    assigned by position in a list sorted by descending finding count, so the
+    key meant "the Nth largest group when you ran it". Measured 2026-09-10,
+    24 of 25 fresh keys denoted a different directory than the ledger row of the
+    same name, and the dry run reported "1 would be created, 124 already exist"
+    while silently skipping `test` (96 findings), `scripts` (64), `docker` and
+    `tests`. A duplicate would have been visible; a skip was not.
+    """
+
+    def test_reproduces_the_hand_written_ledger_keys(self):
+        # These five rows were appended to .issue-map.tsv by hand on 2026-09-10
+        # in the shape the fix was meant to adopt, so they are the contract.
+        for name, expected in (
+            ("test", "SWEEP-PATH-test"),
+            ("scripts", "SWEEP-PATH-scripts"),
+            ("docker and 1 smaller directories",
+             "SWEEP-PATH-docker-and-1-smaller-directories"),
+            ("tests and 1 smaller directories",
+             "SWEEP-PATH-tests-and-1-smaller-directories"),
+            (".claude and 1 smaller directories",
+             "SWEEP-PATH-claude-and-1-smaller-directories"),
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(import_issues.batch_key(name), expected)
+
+    def test_the_key_does_not_depend_on_finding_count_or_order(self):
+        # The defect itself. The batch name is the only input, so the same
+        # directory keeps its key however the counts move around it.
+        self.assertEqual(
+            import_issues.batch_key("angular/src"),
+            import_issues.batch_key("angular/src"),
+        )
+
+    def test_different_directories_get_different_keys(self):
+        names = [
+            "angular/src",
+            "angular/src/app/appointments",
+            "src/HealthcareSupport.CaseEvaluation.Application",
+            "test",
+            "tests",
+        ]
+        keys = [import_issues.batch_key(n) for n in names]
+        self.assertEqual(len(set(keys)), len(names))
+
+    def test_a_leading_dot_is_dropped_rather_than_becoming_a_separator(self):
+        self.assertEqual(
+            import_issues.batch_key(".claude"), "SWEEP-PATH-claude"
+        )
+
+    def test_path_separators_and_dots_both_become_hyphens(self):
+        self.assertEqual(
+            import_issues.batch_key("src/A.B.C/Sub"), "SWEEP-PATH-src-a-b-c-sub"
+        )
+
+    def test_the_slug_is_lowercase_with_no_runs_of_separators(self):
+        # The SWEEP-PATH- prefix stays upper case, matching every other key
+        # family in the ledger (BUG-, HARD-). Only the derived slug is lowered.
+        key = import_issues.batch_key("src/HealthcareSupport.CaseEvaluation.Application")
+        prefix, slug = key[:11], key[11:]
+        self.assertEqual(prefix, "SWEEP-PATH-")
+        self.assertEqual(slug, slug.lower())
+        self.assertNotIn("--", slug)
+        self.assertFalse(slug.endswith("-"))
+        self.assertFalse(slug.startswith("-"))
+
+
+class LedgerMigrationTests(unittest.TestCase):
+    """The committed ledger must be fully migrated and internally consistent."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.rows = [
+            line.split("\t", 1)
+            for line in import_issues.MAP.read_text(encoding="utf-8").splitlines()
+            if "\t" in line
+        ]
+
+    def test_no_positional_sweep_key_survives(self):
+        stale = [k for k, _ in self.rows if k.startswith("SWEEP-") and "PATH" not in k]
+        self.assertEqual(
+            stale, [],
+            "a positional SWEEP-NN row is left in the ledger; already_created() "
+            "would match it against whatever group happens to rank there next",
+        )
+
+    def test_every_key_is_unique(self):
+        keys = [k for k, _ in self.rows]
+        dupes = sorted({k for k in keys if keys.count(k) > 1})
+        self.assertEqual(dupes, [])
+
+    def test_every_row_points_at_an_issue_url(self):
+        for key, url in self.rows:
+            with self.subTest(key=key):
+                self.assertRegex(url, r"^https://github\.com/.+/issues/\d+$")
+
+    def test_the_sweep_rows_all_use_the_derived_shape(self):
+        sweeps = [k for k, _ in self.rows if "SWEEP" in k]
+        self.assertTrue(sweeps)
+        for key in sweeps:
+            with self.subTest(key=key):
+                self.assertTrue(key.startswith("SWEEP-PATH-"))
+
+
+class ExistingCleanupPathsTests(unittest.TestCase):
+    """Parsing the `Paths:` block out of an issue body (#820 defect 2)."""
+
+    def test_extracts_every_bulleted_path(self):
+        body = (
+            "12 open Sonar issues.\n\n"
+            "**Paths (this issue owns these exclusively):**\n"
+            "- `angular/src`\n- `angular/src/app`\n\n"
+            "Assigning yourself is the claim."
+        )
+        self.assertEqual(
+            import_issues.PATH_BULLET_RE.findall(body),
+            ["angular/src", "angular/src/app"],
+        )
+
+    def test_ignores_prose_that_merely_mentions_a_path(self):
+        body = "See `angular/src` for detail.\n- not a backticked path\n"
+        self.assertEqual(import_issues.PATH_BULLET_RE.findall(body), [])
+
+    def test_an_empty_body_yields_nothing(self):
+        self.assertEqual(import_issues.PATH_BULLET_RE.findall(""), [])
+
+
+class AssertDisjointTests(unittest.TestCase):
+    """Within a run, and -- since #820 -- across runs."""
+
+    def _batch(self, key, paths):
+        return {"key": key, "paths": paths}
+
+    def test_disjoint_batches_pass(self):
+        import_issues.assert_disjoint(
+            [self._batch("A", ["src/a"]), self._batch("B", ["src/b"])]
+        )
+
+    def test_a_duplicate_path_within_one_run_exits(self):
+        with self.assertRaises(SystemExit):
+            import_issues.assert_disjoint(
+                [self._batch("A", ["src/a"]), self._batch("B", ["src/a"])]
+            )
+
+    def test_a_nested_path_within_one_run_exits(self):
+        with self.assertRaises(SystemExit):
+            import_issues.assert_disjoint(
+                [self._batch("A", ["src"]), self._batch("B", ["src/a"])]
+            )
+
+    def test_a_path_owned_by_a_different_open_issue_exits(self):
+        # The cross-run case. #628, #631 and #665 were each clashed with on
+        # EXACT paths by a re-bundled group, and every check passed.
+        with self.assertRaises(SystemExit):
+            import_issues.assert_disjoint(
+                [self._batch("SWEEP-PATH-new", ["angular/src"])],
+                existing={"angular/src": "#628"},
+            )
+
+    def test_a_batch_may_re_state_the_paths_of_the_issue_it_already_is(self):
+        # Without this the check would fire on every unchanged batch, which
+        # would make it useless and get it removed.
+        original = import_issues.MAP
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = pathlib.Path(tmp) / ".issue-map.tsv"
+            ledger.write_text(
+                "SWEEP-PATH-angular-src\thttps://github.com/o/r/issues/628\n",
+                encoding="utf-8",
+            )
+            import_issues.MAP = ledger
+            try:
+                import_issues.assert_disjoint(
+                    [self._batch("SWEEP-PATH-angular-src", ["angular/src"])],
+                    existing={"angular/src": "#628"},
+                )
+            finally:
+                import_issues.MAP = original
+
+    def test_no_existing_map_skips_the_cross_run_check(self):
+        import_issues.assert_disjoint([self._batch("A", ["src/a"])], existing={})

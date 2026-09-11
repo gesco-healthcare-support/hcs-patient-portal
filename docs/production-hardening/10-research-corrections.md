@@ -219,10 +219,100 @@ Both are recorded in its own gap list.
 
 - **`02-runtime-and-data-profile.md`** - only three of four input files reached the research. It is
   committed here at [`../devops/RUNTIME-AND-DATA-PROFILE.md`](../devops/RUNTIME-AND-DATA-PROFILE.md).
-  Folding it in is an edit, not a rebuild, and it converts several `UNKNOWN` cells in the capacity
+  Folding it in is an edit, not a rebuild, and it converts one `UNKNOWN` cell in the capacity
   model to `MEASURED`. **The externally-sent copy anonymises the office name to `<office-a>`;
   preserve that on any resend.**
 - **The HIPAA safeguard inventory** the brief promised but the delivered file did not contain. It is
   at [`../security/HIPAA-COMPLIANCE.md`](../security/HIPAA-COMPLIANCE.md) and
   [`../security/THREAT-MODEL.md`](../security/THREAT-MODEL.md). Diffing them against Document B
   Group 2 is the research's check 15 and it may retire several requirements.
+
+---
+
+## 7. The audit ratio, re-derived from `02` rather than from the brief
+
+Section 5 above says "Re-derive the audit ratio from real table counts first." This is that
+derivation. **It needed no database access.** The counts were already committed at
+[`../devops/RUNTIME-AND-DATA-PROFILE.md`](../devops/RUNTIME-AND-DATA-PROFILE.md), measured
+2026-08-28 by live query against the running deployment (`02:11`).
+
+### The measured counts
+
+One office database, `CaseEvaluation_falkinstein`:
+
+| Table                      | Rows  | What it counts                          | Source   |
+| -------------------------- | ----: | --------------------------------------- | -------- |
+| `AbpEntityPropertyChanges` | 2,689 | per-field before/after -- ENTITY HISTORY | `02:58`  |
+| `AbpAuditLogActions`       | 1,820 | per-action within a request              | `02:59`  |
+| `AbpAuditLogs`             | 1,449 | per-request audit                        | `02:60`  |
+| `AbpEntityChanges`         |   258 | per-entity change -- ENTITY HISTORY      | `02:63`  |
+| `AbpSecurityLogs`          |   163 | login and security events                | `02:65`  |
+| Appointments               |    16 |                                          | `02:77`  |
+
+**Office database only.** The host database holds a further 655 `AbpAuditLogs` and 519
+`AbpEntityPropertyChanges` (`02:88-89`). Excluded deliberately: appointments live in office
+databases, so host rows do not divide by an appointment count. Adding them produces a fifth number.
+
+### The ratio depends entirely on which tables you count
+
+| Population                                          | Rows  | Per appointment | Answers |
+| --------------------------------------------------- | ----: | --------------: | ------- |
+| Entity history only (`EntityChanges` + `PropertyChanges`) | 2,947 | **184.2** | What APP-OWN-07 governs |
+| The brief's pairing (`AuditLogs` + `PropertyChanges`) | 4,138 | **258.6** | The `~259` at `system-design-target.md:968` |
+| Four, excluding `SecurityLogs`                      | 6,216 | **388.5** | Request + entity auditing |
+| All five (`HANDOFF` check 27)                       | 6,379 | **398.7** | Total audit storage per appointment |
+
+```text
+2,947 / 16 = 184.2      4,138 / 16 = 258.6
+6,216 / 16 = 388.5      6,379 / 16 = 398.7
+```
+
+**Every figure above is arithmetically correct for the rows it counts.** None of them supersedes
+another and none is an error to be corrected away: 258.6 really is (1,449 + 2,689) / 16, exactly as
+398.7 really is (6,379) / 16. They differ because they count different populations, not because one
+is wrong. Quote any of them only with the tables it covers, and do not "correct" the record from one
+to another -- that swaps this collision for its mirror image.
+
+**`~259` was never a coherent population, and that is the finding.** It pairs `AbpAuditLogs`, which
+counts HTTP requests, with `AbpEntityPropertyChanges`, which counts entity field changes. The
+document says so itself -- `system-design-target.md:968` reads "across **two of five** audit
+tables" -- but the two it chose do not measure one thing.
+
+**This matters because APP-OWN-07 is about entity history specifically.**
+`EntityHistorySelectors.AddAllEntities` and `SaveEntityHistoryWhenNavigationChanges` govern
+`AbpEntityChanges` and `AbpEntityPropertyChanges` and nothing else. The ratio that prices that
+requirement is therefore **184.2, not 259** -- lower than the figure the cost model inherited,
+which compounds 2.4 above rather than offsetting it: the saving was priced against a number that
+was already too high for its purpose.
+
+`AbpSecurityLogs` is the clearest case of the same error. It counts logins. Dividing it by an
+appointment count is close to meaningless, and it is included in the all-five figure only because
+`HANDOFF` check 27 asks for all five by name -- a storage question, not a per-appointment one.
+
+### What folding in `02` converts, and what it does not
+
+Checked cell by cell against `system-design-target.md`, which stays **as delivered** per the
+archive convention (`docs/research/system-design-2026-08-28/README.md:72`):
+
+| Cell   | Was                                                      | Now |
+| ------ | -------------------------------------------------------- | --- |
+| `:968` | `MEASURED`, but quoted from the brief rather than read from `02` | Read from `02`. State the population with the figure |
+| `:975` | **`UNKNOWN` to this exercise.** These are `02` figures   | **`MEASURED`** -- sizes at `02:38-41`, row counts at `02:56-71` |
+| `:974` | **`UNKNOWN`.** `03` s7 Q8 is still open                  | **Still `UNKNOWN`.** `02:120` -- "No load test has ever been run" |
+| `:976` | **`UNKNOWN`.** No load test, no APM                      | **Still `UNKNOWN`.** Same line |
+
+So **one cell converts, not several.** Section 6 above said "several" and has been corrected. `02`
+supplies storage facts; it supplies no load or throughput measurement, because none exists.
+
+### Two caveats that travel with every figure above
+
+1. **This is a test environment, and the ratio is an upper bound.** `02:12` -- "The single internal
+   VM. **This is a test environment.** No real patient data exists". `02:106` -- "The
+   audit-per-appointment ratio here is an upper bound, not a production ratio." Sixteen appointments
+   were created, edited, cancelled and rebooked by developers far more than a real one would be.
+   **Do not quote any figure here without that sentence.**
+2. **Retention has never been configured** (`02:107`). Whatever ratio holds, it accumulates
+   indefinitely, against a six-year obligation on the audit trail.
+
+**The `<office-a>` anonymisation in section 6 binds any OUTBOUND copy of these figures.** The office
+name appears above because this document is internal; it must not survive into anything sent out.

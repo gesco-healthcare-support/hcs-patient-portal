@@ -86,8 +86,9 @@ public class BootedTenantResolverDefaultsTests : CaseEvaluationEntityFrameworkCo
     {
         var resolvers = GetRequiredService<IOptions<AbpTenantResolveOptions>>().Value.TenantResolvers;
 
+        var expected = new[] { "CurrentUser" };
         resolvers.Select(r => r.Name).ShouldBe(
-            new[] { "CurrentUser" },
+            expected,
             "a booted graph without our ConfigureMultiTenancy must contain exactly ABP's one "
             + "default resolver. If this list GREW, the framework has started contributing a "
             + "resolver we never registered -- and if the new one honours a caller-supplied "

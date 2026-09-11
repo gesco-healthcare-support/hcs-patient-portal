@@ -359,6 +359,28 @@ def _group_into_batches(live: collections.Counter) -> list[tuple[str, list[str],
     return groups
 
 
+def batch_key(name: str) -> str:
+    """Idempotency key for a code-cleanup batch, derived from WHAT it covers.
+
+    #820: this was `SWEEP-{idx:02d}`, numbered by position in a list sorted by
+    descending finding count. The key therefore meant "the Nth largest group at
+    the moment you ran this", not "this directory" -- and that ordering moves
+    every time a finding is fixed.
+
+    Measured 2026-09-10: 24 of 25 freshly generated keys denoted a DIFFERENT
+    directory than the ledger row of the same name, and a dry run reported
+    "1 would be created, 124 already exist" while silently skipping the newly
+    released test (96 findings), scripts (64), docker and tests groups. The old
+    comment here warned about the duplicate direction; the silent-skip
+    direction is what actually happened, and it is worse, because a duplicate
+    is visible and a skip is not.
+
+    The slug reproduces the five SWEEP-PATH-* rows appended to the ledger by
+    hand on 2026-09-10, which is the shape the other 41 were migrated to.
+    """
+    return "SWEEP-PATH-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
 def collect_code_cleanup() -> list[dict]:
     """One code-cleanup issue per directory tree, carrying every static-analysis finding.
 
@@ -374,17 +396,13 @@ def collect_code_cleanup() -> list[dict]:
 
     held_by = ", ".join(sorted(set(HELD_PREFIXES.values())))
     issues = []
-    for idx, (name, paths, count) in enumerate(_group_into_batches(live), 1):
+    for name, paths, count in _group_into_batches(live):
         listed = "\n".join(f"- `{p}`" for p in sorted(paths))
         issues.append({
-            # The SWEEP-NN key and the two *_SWEEP label constants are machine
-            # identifiers, deliberately NOT renamed with the human-facing text
-            # (2026-09-08). The key is the idempotency ledger's primary key in
-            # .issue-map.tsv, which holds 42 SWEEP-NN rows; renaming it without
-            # migrating that file makes already_created() miss every row and
-            # re-create all 43 issues as duplicates. The label constants hold the
-            # live label names `type/sweep` / `source/sweep`, which were kept.
-            "key": f"SWEEP-{idx:02d}", "title": f"Code cleanup: {name} ({count} findings)",
+            # Keyed by batch IDENTITY, never by rank -- see batch_key. The two
+            # *_SWEEP label constants remain machine identifiers holding the
+            # live label names `type/sweep` / `source/sweep`.
+            "key": batch_key(name), "title": f"Code cleanup: {name} ({count} findings)",
             "labels": [_cleanup_severity(count), TYPE_SWEEP, SRC_SWEEP],
             "body": (f"{count} open Sonar issues, security hotspots and CodeQL alerts in the "
                      f"paths below.\n\n**Paths (this issue owns these exclusively):**\n{listed}\n\n"
@@ -398,11 +416,46 @@ def collect_code_cleanup() -> list[dict]:
     return issues
 
 
-def assert_disjoint(issues: list[dict]) -> None:
+PATH_BULLET_RE = re.compile(r"^- `([^`]+)`$", re.MULTILINE)
+
+
+def existing_cleanup_paths() -> dict[str, str]:
+    """Path -> issue reference, for every OPEN code-cleanup issue on GitHub.
+
+    #820 defect 2: assert_disjoint only ever compared a batch against the other
+    batches in the same run. Across runs it compared nothing, and when closed
+    issues' findings left Sonar the leftover directories re-bundled under parent
+    names that were never issues. Three of those collided with live open issues
+    on EXACT paths -- #631, #628 and #665 -- while every check passed.
+
+    Exclusive path ownership is what the issue body promises assignees ("two
+    people on two issues cannot touch the same file"), so it has to hold across
+    runs or it does not hold at all.
+
+    A GitHub failure is not silently treated as "nothing exists": that would
+    turn this guard off exactly when it cannot be evaluated, which is the
+    absent-input hole the coverage gate documents at length. It exits instead.
+    """
+    result = subprocess.run(
+        ["gh", "issue", "list", "--repo", REPO, "--state", "open",
+         "--label", TYPE_SWEEP, "--limit", "200", "--json", "number,body"],
+        capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        sys.exit(f"cannot read existing cleanup issues, so disjointness cannot be "
+                 f"checked across runs: {result.stderr.strip()}")
+    owned: dict[str, str] = {}
+    for issue in json.loads(result.stdout or "[]"):
+        for path in PATH_BULLET_RE.findall(issue.get("body") or ""):
+            owned[path] = f"#{issue['number']}"
+    return owned
+
+
+def assert_disjoint(issues: list[dict], existing: dict[str, str] | None = None) -> None:
     """Fail loudly if two code-cleanup issues could ever touch the same file.
 
     This is the guarantee the whole batching scheme rests on, so it is checked
-    rather than assumed. It has caught two real grouping bugs already.
+    rather than assumed. It has caught two real grouping bugs already, and
+    #820 added the cross-run half.
     """
     paths = [p for i in issues for p in i.get("paths", [])]
     dupes = [p for p, n in collections.Counter(paths).items() if n > 1]
@@ -411,6 +464,27 @@ def assert_disjoint(issues: list[dict]) -> None:
     if dupes or overlaps:
         sys.exit(f"DISJOINTNESS FAILED: duplicates={dupes[:5]} overlaps={overlaps[:5]}")
 
+    if not existing:
+        return
+    # A batch legitimately re-states the paths of the issue it ALREADY IS -- the
+    # ledger says which issue that is. The clash that matters is a batch
+    # claiming a path some DIFFERENT open issue owns, which is what happened to
+    # #628, #631 and #665 when leftover directories re-bundled under parent
+    # names that had never been issues.
+    ledger = already_created()
+    clashes = []
+    for issue in issues:
+        own = ledger.get(issue["key"], "")
+        own_ref = "#" + own.rsplit("/", 1)[-1] if own else None
+        for path in issue.get("paths", []):
+            owner = existing.get(path)
+            if owner and owner != own_ref:
+                clashes.append((issue["key"], path, owner))
+    if clashes:
+        detail = "; ".join(f"{k} claims {p}, owned by {o}" for k, p, o in clashes[:5])
+        sys.exit(f"DISJOINTNESS FAILED against existing issues ({len(clashes)} "
+                 f"clash(es)): {detail}")
+
 
 def generate() -> None:
     issues = collect_findings() + collect_hardening() + collect_backlog() + collect_code_cleanup()
@@ -418,7 +492,7 @@ def generate() -> None:
     issues = [i for i in issues if i["key"] not in DROPPED_KEYS]
     for i in dropped:
         print(f"  dropped {i['key']}: {DROPPED_KEYS[i['key']]}")
-    assert_disjoint(issues)
+    assert_disjoint(issues, existing_cleanup_paths())
     OUT.write_text(json.dumps(issues, indent=1), encoding="utf-8")
     counts = collections.Counter(
         next(l for l in i["labels"] if l.startswith("source/")) for i in issues)
@@ -442,17 +516,38 @@ def already_created() -> dict[str, str]:
 
 def dry_run() -> None:
     issues, done = load(), already_created()
-    print(f"{'KEY':<11} {'SEVERITY':<10} {'SOURCE':<18} TITLE")
+    width = max([len(i["key"]) for i in issues] + [11])
+    print(f"{'KEY':<{width}} {'SEVERITY':<10} {'SOURCE':<18} TITLE")
     print("-" * 100)
     for i in issues:
         if i["key"] in done:
             continue
         sev = next(l for l in i["labels"] if l.startswith("severity/")).split("/")[1]
         src = next(l for l in i["labels"] if l.startswith("source/")).split("/")[1]
-        print(f"{i['key']:<11} {sev:<10} {src:<18} {i['title'][:60]}")
+        print(f"{i['key']:<{width}} {sev:<10} {src:<18} {i['title'][:60]}")
+
+    # #820: EVERY skip is printed, naming the issue its key matched. The old
+    # dry run printed only what it WOULD create, so "1 would be created, 124
+    # already exist" was the entire report while 24 of 25 groups were being
+    # skipped against the wrong issue. A skip that prints nothing is what let a
+    # positional key survive as long as it did.
+    skipped = [i for i in issues if i["key"] in done]
+    if skipped:
+        print(f"\nSKIPPED -- key already in {MAP.name}:")
+        for i in skipped:
+            print(f"  {i['key']:<{width}} -> {done[i['key']]}  {i['title'][:52]}")
+
     pending = [i for i in issues if i["key"] not in done]
-    print(f"\n{len(pending)} would be created, {len(done)} already exist. "
-          f"Nothing was created -- rerun with --apply.")
+    orphans = sorted(set(done) - {i["key"] for i in issues})
+    if orphans:
+        # Ledger rows matching no current batch. Expected for issues whose
+        # findings were fixed; a sudden crop of them is the signature of a key
+        # scheme that has shifted under the ledger, which is defect 1 itself.
+        print(f"\n{len(orphans)} ledger row(s) match no current batch, e.g. "
+              f"{', '.join(orphans[:5])}")
+
+    print(f"\n{len(pending)} would be created, {len(skipped)} skipped as existing, "
+          f"{len(done)} ledger rows. Nothing was created -- rerun with --apply.")
 
 
 def ensure_labels() -> None:
