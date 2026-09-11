@@ -1345,7 +1345,11 @@ def build():
             '<title>Doctor Packet</title>\n<style>' + CSS + '</style></head>\n<body>\n'
             + body + '\n</body></html>')
     html = _inline_images(html)
-    with open("doctor.html", "w", encoding="utf-8") as f:
+    # newline="\n" so the document is byte-identical on every platform.
+    # Without it Python's text mode emits CRLF on Windows and LF on Linux --
+    # same content, different bytes, different hash. The packet-renderer image
+    # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
+    with open("doctor.html", "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
     print(f"wrote doctor.html ({len(PAGES)} page(s))")
 
