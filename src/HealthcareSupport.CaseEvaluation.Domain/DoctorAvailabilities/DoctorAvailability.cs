@@ -66,7 +66,14 @@ public class DoctorAvailability : FullAuditedAggregateRoot<Guid>, IMultiTenant
         {
             throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be at least 1.");
         }
-        AvailableDate = availableDate;
+        // 2026-09-11 -- store the DATE only. A time component here is redundant rather than
+        // meaningful: the slot's real times are FromTime/ToTime, so reading 2026-07-01T09:30 as
+        // the first of July is correct interpretation, not data loss. Keeping it would also put
+        // the uniqueness index out of step with the clash rule, which compares on .Date -- two
+        // rows a second apart on the same day would be distinct to the index and a clash to the
+        // product. Ruled 2026-09-11; the alternative considered was rejecting such a request
+        // with a validation error.
+        AvailableDate = availableDate.Date;
         FromTime = fromTime;
         ToTime = toTime;
         BookingStatusId = bookingStatusId;
