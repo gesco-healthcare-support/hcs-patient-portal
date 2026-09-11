@@ -65,7 +65,8 @@ public class InjuryResolverTests
         var result = await resolver.ResolveAsync(AppointmentId);
 
         result.Count.ShouldBe(2);
-        result.Select(e => e.ClaimNumber).ShouldBe(new[] { "WC-SAMPLE-B", "WC-SAMPLE-A" });
+        var expected = new[] { "WC-SAMPLE-B", "WC-SAMPLE-A" };
+        result.Select(e => e.ClaimNumber).ShouldBe(expected);
     }
 
     [Fact]

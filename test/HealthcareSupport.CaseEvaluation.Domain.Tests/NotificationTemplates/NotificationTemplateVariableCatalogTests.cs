@@ -29,7 +29,8 @@ public class NotificationTemplateVariableCatalogTests
         var tokens = NotificationTemplateVariableCatalog.ExtractTokens(
             "Hi ##UserName##, your ##RoleName## at ##TenantName## -- regards, ##UserName##.");
 
-        tokens.ShouldBe(new[] { "UserName", "RoleName", "TenantName" });
+        var expected = new[] { "UserName", "RoleName", "TenantName" };
+        tokens.ShouldBe(expected);
     }
 
     // ------------------------------------------------------------------
@@ -43,7 +44,7 @@ public class NotificationTemplateVariableCatalogTests
             NotificationTemplateConsts.Codes.InviteExternalUser);
 
         // Subject contributes TenantName first; the body adds the rest.
-        tokens.First().ShouldBe("TenantName");
+        tokens[0].ShouldBe("TenantName");
         tokens.ShouldContain("Greeting");
         tokens.ShouldContain("RoleName");
         tokens.ShouldContain("URL");

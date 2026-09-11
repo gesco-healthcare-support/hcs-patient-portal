@@ -33,7 +33,8 @@ public class AppointmentRequestedAddressingUnitTests
             recipients, bookerEmail: "aa@gesco.com");
 
         result.To!.To.ShouldBe("aa@gesco.com");
-        result.Cc.Select(c => c.To).ShouldBe(new[] { "patient@gesco.com", "ce@gesco.com" }, ignoreOrder: true);
+        var expected = new[] { "patient@gesco.com", "ce@gesco.com" };
+        result.Cc.Select(c => c.To).ShouldBe(expected, ignoreOrder: true);
         result.Cc.Any(c => c.To == "office@gesco.com").ShouldBeFalse();
         result.Office.Single().To.ShouldBe("office@gesco.com");
     }
