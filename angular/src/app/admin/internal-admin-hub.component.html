@@ -50,10 +50,10 @@
             (ngModelChange)="setNtQuery($event)"
           />
         </div>
+        <label class="ia-datelbl" for="iah-template-type">Type</label>
         <select
           id="iah-template-type"
           class="ia-input"
-          aria-label="Filter templates by type"
           [ngModel]="ntTypeFilter()"
           (ngModelChange)="setNtTypeFilter($event)"
         >
