@@ -79,6 +79,145 @@ Phase 3 already covered the five dangerous paths. This phase expands outward fro
 
 ---
 
+## 8.1 -- the denominator, SETTLED 2026-09-09
+
+Before any figure in this phase means anything, the denominator had to describe application code.
+**1,842 uncovered lines sat outside `src/` and `angular/`**, in `tools`, `scripts`,
+`.claude/scripts`, `docker/packet-renderer` and `tests/e2e-demo`.
+
+**The answer was mostly "it belongs", and that is the part worth recording** -- the cheap move was
+to exclude all of it and watch the percentage rise. Adrian's ruling, on measurement:
+
+| Verdict | Lines     | What                                                                                                                                        |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IN**  | **1,294** | `docker/packet-renderer/app.py` 44; `tools/packet-templates` 882; `scripts/coverage-gate.py` 223; `.claude/scripts/verify_structure.py` 145 |
+| **OUT** | **548**   | `build-repo-map.py` 204; `import-issues.py` 244; `check-links.py` 74; `tests/e2e-demo` 26                                                   |
+
+### Why the big items stayed IN
+
+- **`docker/packet-renderer/app.py` is a production service**, not tooling.
+  `docker-compose.prod.yml:144` builds it, `:286` reaches it at `PacketRenderer__Url`, and
+  `Dockerfile:76` runs it under gunicorn. It renders the PHI-bearing packet PDFs.
+- **`tools/packet-templates` is baked into that image.** `Dockerfile:4` says so outright --
+  "COPIED in and RUN at image build" -- and `:60` copies it to `/app/generators`. Its output ships.
+- **`scripts/coverage-gate.py` is the instrument** every figure in this phase comes from, and it has
+  no tests. The catalogue already records three defects in it (instances 19, 20, 21), all found by
+  ad-hoc harnesses. **A coverage gate with no tests is the shape phase 2 existed to remove.**
+- **`.claude/scripts` split by whether it gates.** `verify_structure.py` runs at `ci.yml:309` with
+  no `|| true` and can fail the build, so it is in. `check-links.py` at `:311` carries `|| true` by
+  design, so testing it protects nothing.
+
+**The 1,294 IN lines remain uncovered deliberately**, pending Python test infrastructure -- there is
+none in this repository (`git ls-files | grep -iE "pytest|conftest|tox\.ini|pyproject"` returns
+nothing). That is package **8.1b**, deliberately separated so a red CI has one candidate cause.
+**Do not read those lines as forgotten.**
+
+### One correction to the framing, and one measurement trap
+
+**The PowerShell and shell were never in the denominator.** `scripts` holds 41 `.ps1` and 11 `.sh`;
+Sonar reports `ncloc` for them and **no `lines_to_cover`**. This was always a Python and TypeScript
+question.
+
+**The per-file figures had to be queried file by file.** `api/measures/component_tree?ps=500`
+returns exactly 500 components and silently truncates -- it omitted `coverage-gate.py`,
+`verify_structure.py` and `check-links.py` entirely. A count read off that page would have been
+confidently short. Query `api/measures/component` per file, or page properly.
+
+### Where the exclusions live, and which consumer they reach
+
+In `.coverage-exclusions` -- the one list with two consumers, each entry named with its reason.
+**Neither consumer was assumed to read them:**
+
+- **`sonarcloud.yml` APPLIES them.** Its list-building command was reproduced locally; all four new
+  patterns appear in the string it passes to `sonar.coverage.exclusions`, and none of the four IN
+  paths does.
+- **`coverage-gate.py` READS them and they match nothing**, because it ingests only `--lcov`
+  (karma, `angular/src`) and `--cobertura` (.NET). No Python enters either report. Proven by
+  positive control rather than by inspection: a temporary `src/Beta/**` against a fixture moved it
+  from 25.00% (1/4 over 2 files) to 50.00% (1/2 over 1 file), then was removed and the file
+  verified byte-identical.
+
+That distinction matters against the list's own rule that an entry which can never match is noise.
+These match in one consumer, not neither -- which is precisely why they are needed: without them
+Sonar's denominator counts tooling no runner will ever cover.
+
+---
+
+## 8.1b step 1 -- the first Python coverage figure
+
+The 1,300 lines package 8.1 ruled IN were uncovered because nothing could run
+them, not because they were hard. Step 1 builds the harness and covers the first
+subject.
+
+| | |
+| --- | --- |
+| Tests | 52, passing |
+| Runner | stdlib `unittest`, no test-runner dependency |
+| Subject | `scripts/coverage-gate.py` |
+| Coverage | **57.58%** (133 of 231 lines) |
+| Gated? | **No.** Measure-only; `FLOOR_PYTHON` is step 4 (#787). |
+
+### stdlib `unittest`, not pytest -- and the reasoning is worth keeping
+
+PR #821 added the first Python tests to this repository on stdlib `unittest`
+**no dependencies at all**. This step follows that convention rather than
+introducing a second one.
+
+pytest was written first and then withdrawn on evidence: the 52 tests use
+exactly three of its features -- a session fixture, `raises`, and `tmp_path` --
+and all three have direct stdlib equivalents. The converted suite runs the same
+52 tests, reports the same 57.58%, and **all seven of its guarantees are still
+seen to fail naming the same tests**. Nothing measurable was lost, so pytest, a
+`requirements-dev.txt` and a runner config section would have been ceremony.
+
+**`coverage` is the one dependency, and it is the deliverable rather than the
+runner.** That is the whole difference between this job and #821's: producing a
+report both consumers can read is what #784 exists to do.
+
+### Why `coverage-gate.py` went first
+
+It is the instrument every figure in phase 8 comes from, and it had no tests --
+the shape phase 2 existed to remove. It is also the cheapest subject in the
+package: stdlib only, no container, no third-party dependency, a large pure core.
+
+Three defects already recorded against it (catalogue 19, 20, 21) are
+**characterized, not fixed**. `require_report()` rejects an existing-but-empty
+file, which is right for a coverage report and wrong for a diff; the test pins
+today's behaviour and says so. Fixing it is its own task, per this phase's change
+class.
+
+### The one configuration line to be careful with
+
+`[tool.coverage.run] source = ["."]`. Naming a subdirectory instead makes
+coverage report paths relative to that directory, stripping the prefix:
+
+```text
+source = ["scripts"]  ->  filename="coverage-gate.py"          patterns miss
+source = ["."]        ->  filename="scripts/coverage-gate.py"  correct
+```
+
+Both consumers match `.coverage-exclusions` on repo-relative paths, so the
+stripped form breaks exclusion matching in SonarCloud and in `coverage-gate.py`
+at once -- while still printing a figure that looks entirely reasonable. There is
+no error; only a wrong number.
+
+The cost of `["."]`: only files the tests EXECUTE are reported, because
+coverage's discovery of unexecuted files recurses only into Python packages and
+none of these directories are. That is acceptable because SonarCloud derives its
+Python denominator from its own analysis -- measured with no report in existence,
+`coverage-gate.py` already sat at 223 lines_to_cover and 0.0%.
+
+### What this does NOT do
+
+- **It does not gate.** No floor is set. A ratchet at 0 defends nothing, and the
+  value must be read off a real run rather than guessed -- item 2.10's rule.
+- **It does not feed SonarCloud yet.** `sonar.python.coverage.reportPaths` is
+  step 4.
+- **It does not change `coverage-gate.py`.** The gate learns about Python in step
+  4, deliberately last, by which time the number is real and worth defending.
+
+---
+
 ## Correct the coverage documentation first
 
 `docs/testing/coverage-status.md` declares itself "the single source of truth for backend test
