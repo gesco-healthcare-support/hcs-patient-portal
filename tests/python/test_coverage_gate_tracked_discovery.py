@@ -19,6 +19,7 @@ import contextlib
 import io
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -71,6 +72,31 @@ class DiscoverTrackedTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 1)
         self.assertIn("git ls-files", buf.getvalue())
 
+    def test_an_EMPTY_list_exits_rather_than_failing_every_file(self):
+        # git SUCCEEDING and returning nothing is a DIFFERENT failure from git
+        # failing, and the more dangerous of the two. An empty set makes
+        # in_repo() false for every counted file, so the gate would report the
+        # entire report as contaminated -- 925 of 925, the exact shape of the
+        # false positive this branch was rebuilt to remove. Burying the real
+        # signal under a wall of false ones is worse than not checking.
+        #
+        # Reproduced with a real empty repository rather than a subprocess
+        # stub, for the same reason as the test above: the point is what git
+        # actually does, not what a stub is told to say.
+        original = os.getcwd()
+        buf = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["git", "init", "--quiet", tmp],
+                           check=True, capture_output=True)
+            os.chdir(tmp)
+            try:
+                with contextlib.redirect_stdout(buf):
+                    with self.assertRaises(SystemExit) as caught:
+                        gate.discover_tracked()
+            finally:
+                os.chdir(original)
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn("returned nothing", buf.getvalue())
 
 class MainWiringTests(unittest.TestCase):
     """That the guard is reached at all.
