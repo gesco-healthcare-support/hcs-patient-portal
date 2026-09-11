@@ -65,12 +65,12 @@ if (-not $saLine) { Write-Error "MSSQL_SA_PASSWORD not in .env"; exit 1 }
 $saPassword = ($saLine.Line -replace '^MSSQL_SA_PASSWORD=','').Trim('"').Trim()
 
 function Invoke-Sql([string]$Query, [switch]$NoHeader) {
-    $args = @('exec','replicate-old-app-sql-server-1',
+    $dockerArgs = @('exec','replicate-old-app-sql-server-1',
               '/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-P',$saPassword,
               '-C','-d','CaseEvaluation')
-    if ($NoHeader) { $args += @('-h','-1','-W') }
-    $args += @('-Q',$Query)
-    return (& docker @args 2>&1) -join "`n"
+    if ($NoHeader) { $dockerArgs += @('-h','-1','-W') }
+    $dockerArgs += @('-Q',$Query)
+    return (& docker @dockerArgs 2>&1) -join "`n"
 }
 
 # --- Step 1: SQL fixture -----------------------------------------------------
@@ -214,7 +214,7 @@ $tokenJson = & $curl -s `
     --data $tokenBody
 
 $tokenObj = $null
-try { $tokenObj = $tokenJson | ConvertFrom-Json } catch {}
+try { $tokenObj = $tokenJson | ConvertFrom-Json } catch { Write-Verbose "response was not JSON; the caller reports the raw body: $_" }
 if (-not $tokenObj -or -not $tokenObj.access_token) {
     Write-Error "Token acquisition failed. Response: $tokenJson"
     exit 3
