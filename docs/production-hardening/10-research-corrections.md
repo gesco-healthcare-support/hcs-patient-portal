@@ -267,6 +267,12 @@ databases, so host rows do not divide by an appointment count. Adding them produ
 6,216 / 16 = 388.5      6,379 / 16 = 398.7
 ```
 
+**Every figure above is arithmetically correct for the rows it counts.** None of them supersedes
+another and none is an error to be corrected away: 258.6 really is (1,449 + 2,689) / 16, exactly as
+398.7 really is (6,379) / 16. They differ because they count different populations, not because one
+is wrong. Quote any of them only with the tables it covers, and do not "correct" the record from one
+to another -- that swaps this collision for its mirror image.
+
 **`~259` was never a coherent population, and that is the finding.** It pairs `AbpAuditLogs`, which
 counts HTTP requests, with `AbpEntityPropertyChanges`, which counts entity field changes. The
 document says so itself -- `system-design-target.md:968` reads "across **two of five** audit
