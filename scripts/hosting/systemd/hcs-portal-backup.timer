@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly off-box backup of the Patient Portal
+
+[Timer]
+OnCalendar=*-*-* 01:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

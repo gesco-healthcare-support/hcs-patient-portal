@@ -21,13 +21,13 @@ ROOT="/w/patient-portal"
 MAIN="$ROOT/main"
 TARGET="$ROOT/$SLUG"
 
-[ -d "$TARGET" ] && { echo "error: $TARGET already exists" >&2; exit 1; }
+[[ -d "$TARGET" ]] && { echo "error: $TARGET already exists" >&2; exit 1; }
 
 # Main must have a populated .env before we can seed the new worktree's .env.
 # .env is gitignored so `git worktree add` does not carry it forward; we copy
 # main's file below. Fail fast with a clear bootstrap hint if main is not set
 # up yet.
-if [ ! -f "$MAIN/.env" ]; then
+if [[ ! -f "$MAIN/.env" ]]; then
   echo "error: $MAIN/.env not found." >&2
   echo "  bootstrap with: cp $MAIN/.env.example $MAIN/.env && edit to fill in secrets" >&2
   exit 1
@@ -50,9 +50,15 @@ API=$((44327 + offset * 10))
 NG=$((4200 + offset * 10))
 SQL_HOST=$((1434 + offset))
 REDIS_HOST=$((6379 + offset))
+MINIO_API=$((9000 + offset * 10))
+MINIO_CONSOLE=$((9001 + offset * 10))
+# WT-001 (2026-06-25): the packet-renderer sidecar defaults to host port 3001;
+# without a per-worktree override every worktree collides with the main stack on
+# 3001 and `docker compose up -d` exits 1. Stride by 10 like the other services.
+PACKET_RENDERER=$((3001 + offset * 10))
 DB="CaseEvaluation"
 
-echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST)"
+echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST MINIO_API=$MINIO_API MINIO_CONSOLE=$MINIO_CONSOLE PACKET_RENDERER=$PACKET_RENDERER)"
 
 cd "$MAIN"
 git fetch origin
@@ -68,7 +74,7 @@ fi
 # copy. Copy rather than symlink so per-worktree secrets can drift if ever
 # needed (e.g. scoped test credentials); by default they match main.
 cp "$MAIN/.env" "$TARGET/.env"
-[ -f "$MAIN/.env.local" ] && cp "$MAIN/.env.local" "$TARGET/.env.local"
+[[ -f "$MAIN/.env.local" ]] && cp "$MAIN/.env.local" "$TARGET/.env.local"
 
 # Copy secrets into all worktrees (this includes the new one).
 "$MAIN/scripts/worktrees/refresh-secrets.sh"
@@ -87,13 +93,26 @@ API_PORT=$API
 NG_PORT=$NG
 SQL_HOST_PORT=$SQL_HOST
 REDIS_HOST_PORT=$REDIS_HOST
+MINIO_API_PORT=$MINIO_API
+MINIO_CONSOLE_PORT=$MINIO_CONSOLE
+PACKET_RENDERER_PORT=$PACKET_RENDERER
 NG_CONFIG=local
 ENV
 
 # Install deps for direct dotnet-run paths (optional for compose users).
+#
+# `--mutex network` was a Yarn 1 flag and this repo moved to Yarn 4 in #310.
+# Yarn 4 rejects unknown options outright ("Unsupported option name") rather
+# than ignoring them, and `set -e` above turns that into an aborted setup, so
+# the flag had to go regardless of the hardening finding.
+#
+# Yarn 4 has no `--ignore-scripts`; the equivalent is the enableScripts setting,
+# which .yarnrc.yml turns on repo-wide. Overriding it per invocation keeps a
+# dependency's postinstall from executing on a developer machine (shell:S6505)
+# without changing what CI and the Docker build do.
 cd "$TARGET"
 dotnet restore
-(cd angular && yarn install --mutex network)
+(cd angular && YARN_ENABLE_SCRIPTS=false yarn install)
 
 cat <<NOTE
 
@@ -103,6 +122,9 @@ Worktree $SLUG ready at $TARGET.
   Angular:      http://localhost:$NG
   SQL:          localhost:$SQL_HOST
   Redis:        localhost:$REDIS_HOST
+  MinIO API:    http://localhost:$MINIO_API
+  MinIO Cons:   http://localhost:$MINIO_CONSOLE
+  Packet Rndr:  http://localhost:$PACKET_RENDERER
 
 To start the stack:
   cd $TARGET && docker compose up -d

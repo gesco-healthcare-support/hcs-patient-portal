@@ -1,0 +1,26 @@
+// Phase 4a (2026-08-03): moved here WITH the [dayTemplate] that emits these classes, preserving the
+// #13 (2026-06-17) fix. The original comment is worth keeping because it records a real bug: the
+// redesigned wizard does not load the legacy appointment-add stylesheet, so when these rules lived
+// only there, available dates showed no highlight in the wizard even though .available-day was
+// applied. Keeping them beside the template means every host gets them.
+//
+// ::ng-deep is required: the classes land on spans that ngbDatepicker renders OUTSIDE this
+// component's emulated style scope.
+::ng-deep .appointment-date-day {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
+
+::ng-deep .appointment-date-day.outside-month {
+  opacity: 0.4;
+}
+
+::ng-deep .appointment-date-day.available-day {
+  background-color: #198754;
+  color: #fff;
+  font-weight: 600;
+}

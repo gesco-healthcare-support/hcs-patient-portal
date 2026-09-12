@@ -1,0 +1,28 @@
+// Item H (2026-08-22) -- shared drag-and-drop affordance for the three document uploaders
+// (booking wizard, appointment detail, anonymous upload-by-code). One stylesheet so the surfaces
+// cannot drift apart visually, which is the same reason H is grouped with G.
+//
+// The zone is deliberately quiet until a drag is actually over it: a dashed box shouting for
+// attention on every page load would compete with the primary action, which is still the button.
+
+.file-drop-zone {
+  border: 1.5px dashed var(--border-strong, #c9d2dd);
+  border-radius: var(--r-md, 10px);
+  padding: 16px;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.file-drop-zone.is-drag-over {
+  border-color: var(--blue-400, #4a90d9);
+  background: var(--blue-50, #eef5fc);
+}
+
+// The hint line inside the zone. Muted, because it explains an alternative to the button rather
+// than an instruction the user must follow.
+.file-drop-zone__hint {
+  font-size: 12.5px;
+  color: var(--n-500, #6b7789);
+  margin: 8px 0 0;
+}

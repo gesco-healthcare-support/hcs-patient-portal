@@ -24,6 +24,12 @@ bld/
 
 # Visual Studio 2015 cache/options directory
 .vs/
+
+# C# Dev Kit / Roslyn language service cache (auto-regenerated)
+*.csproj.lscache
+
+# Local audit scratch (screenshots, snapshots) - not for repo
+docs/audits/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
@@ -278,11 +284,23 @@ tempkey.jwk
 
 # Claude Code context cache
 .claude/context/
+.claude/settings.local.json
+
+# OLD app document extractions (pandoc + mammoth output, npm node_modules)
+.claude/old-extracted/
 
 # Environment files
 .env
 .env.*
 !.env.example
+
+# In-house hosting (2026-07-09): host-only secrets -- local TLS material, the generated
+# OpenIddict signing cert, and the real env file (secrets/env.prod). Never committed.
+# The committed template is env.prod.example (no leading dot).
+secrets/
+
+# Database backups (.bak) contain PHI -- host-only, never committed.
+backups/
 
 # NuGet config contains ABP API key — use NuGet.Config.template
 NuGet.Config
@@ -292,6 +310,10 @@ NuGet.Config
 
 # Docker compose env (contains passwords)
 docker/.env
+
+# 2026-05-12: docker/fonts/*.ttf are committed for now. They power the
+# Gotenberg packet-PDF renderer (see docker/Dockerfile.gotenberg-fonts).
+# Will be removed and replaced with a font-mount step before hosting.
 
 # Logs directory
 Logs/
@@ -311,3 +333,57 @@ temp.md
 
 # Local execution scratch of the worktree setup plan (not for commit)
 /WORKTREE_SETUP_PLAN.md
+# Phase 2 cleanup (2026-05-11): exclude runtime artifacts from Playwright MCP,
+# .NET test runs, and ad-hoc dev scratch so they cannot pollute git status or
+# Claude's read scope. Each path produced 1k+ files / 24+ MB of churn before
+# being deleted; the gitignore entries below stop them from coming back.
+.playwright-mcp/
+test-results/
+tests/**/test-results/
+tmp/
+.hardening-run/
+
+# T0 baseline captures for the #121 appointment-add decomposition; per-phase
+# only, not source of truth. The plan doc at
+# docs/plans/2026-05-13-appointment-add-component-decomposition.md is
+# authoritative.
+tests/baseline/
+
+# 2026-05-19: ad-hoc Playwright snapshots + Claude scratch prompts. These
+# escape .playwright-mcp/ when saved to the repo root, and .claude/prompts/
+# holds session HANDOFF + PR-body scratch that should stay local.
+/claim-modal.yml
+/*.png
+.claude/prompts/
+
+# Claude Code task-scheduler runtime state (machine-local, not project source)
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
+
+# Working artefacts (plans, bug/task backlog) are local-only and never committed.
+docs/plans/
+docs/backlog.md
+
+# Coverage reports generated in CI (phase 2 item 2.10). Two different files
+# from two different workflows: sonarcloud.yml writes `coverage.xml` in the
+# Visual Studio format for SonarCloud, ci.yml writes Cobertura for the
+# `Coverage: Floors` gate. Both land at the repo root and neither belongs in
+# version control. Ignored together because ignoring only the one that existed
+# first is how the second gets committed by accident.
+/coverage.xml
+/coverage.cobertura.xml
+
+# Generated issue manifest (regenerable; derived from the gitignored backlog)
+scripts/maintenance/issues.json
+
+# Python test artefacts (hardening 8.1b step 1, #784). The `/coverage.xml` entry
+# above already covers the Python report, which lands at the repo root like the
+# other two; these are the artefacts it does not reach. `.coverage` is
+# coverage.py's SQLite data file and `.coverage.*` are the per-process files
+# parallel mode writes before `coverage combine`. `__pycache__/` is created by
+# the suite itself, which imports `scripts/coverage-gate.py` by path because a
+# hyphen is not legal in a module name -- it appeared untracked in the worktree
+# during development and had to be removed by hand.
+.coverage
+.coverage.*
+__pycache__/

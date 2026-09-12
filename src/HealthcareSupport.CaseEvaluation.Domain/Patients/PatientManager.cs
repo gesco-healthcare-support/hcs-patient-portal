@@ -20,9 +20,11 @@ public class PatientManager : DomainService
         _patientRepository = patientRepository;
     }
 
-    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
-        Check.NotNull(identityUserId, nameof(identityUserId));
+        // identityUserId is now nullable (IP6 2026-06-05): a Patient may exist
+        // as a record with no login. Booking inserts null; the claim flow links
+        // an identity later. Admin/profile callers still pass a real id.
         // firstName / lastName accept empty string at create-time. The minimal
         // register form does not collect names; the booker fills them later
         // through the booking form's patient section. Keep length validation
@@ -32,7 +34,9 @@ public class PatientManager : DomainService
         lastName ??= string.Empty;
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
-        Check.NotNullOrWhiteSpace(email, nameof(email));
+        // task_d5407b22 (2026-07-21): patient email is optional (injured workers often
+        // lack one); accept empty at create time like firstName / lastName above.
+        email ??= string.Empty;
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
         Check.NotNull(genderId, nameof(genderId));
         Check.NotNull(dateOfBirth, nameof(dateOfBirth));
@@ -43,24 +47,58 @@ public class PatientManager : DomainService
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
         Check.Length(apptNumber, nameof(apptNumber), PatientConsts.ApptNumberMaxLength);
         Check.Length(othersLanguageName, nameof(othersLanguageName), PatientConsts.OthersLanguageNameMaxLength);
-        var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
+        EnsureOwningTenant(tenantId);
+        var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
         return await _patientRepository.InsertAsync(patient);
     }
 
-    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
+    /// <summary>
+    /// Refuses to create a <see cref="Patient"/> that belongs to no practice.
+    ///
+    /// <para><b>Why this needs a guard at all.</b> <see cref="Patient"/> is
+    /// <see cref="Volo.Abp.MultiTenancy.IMultiTenant"/>, but its TenantId arrives as a CALLER
+    /// ARGUMENT rather than from ABP, so ABP's usual guarantee does not apply -- whatever the
+    /// caller passes is what gets written, including null.</para>
+    ///
+    /// <para><b>What a null costs.</b> Nothing throws. The row is inserted and the appointment
+    /// points at it, but the multi-tenancy filter then hides it from every tenant-scoped read: no
+    /// patient name in the appointment list, blank demographics on the detail view, no way for
+    /// staff to edit it, and -- worst -- the duplicate search cannot see it either, so the next
+    /// booking for the same person creates a SECOND record. Two patients reached production this
+    /// way on 2026-08-19, and the rows had to be repaired in the database because the UI cannot
+    /// reach them.</para>
+    ///
+    /// <para><b>Why it refuses rather than inferring.</b> An earlier version fell back to
+    /// <c>CurrentTenant.Id</c> when the caller passed nothing. That was convenience nobody asked
+    /// for: every caller already passes a value explicitly -- the two seed contributors pass a
+    /// real practice, <c>ExternalSignupAppService</c> passes <c>CurrentTenant.Id</c>, and
+    /// <c>PatientsAppService.CreateAsync</c> passes the client DTO's value. Inferring a practice
+    /// from request context would only ever mask the caller's bug, and could attach a patient to
+    /// whichever practice happened to be in scope. Refusing is safe because the product has no
+    /// host-level patients: the host database contains none, so a patient with no practice is
+    /// always a defect, and a visible failure beats an invisible row.</para>
+    /// </summary>
+    protected virtual void EnsureOwningTenant(Guid? tenantId)
     {
-        Check.NotNull(identityUserId, nameof(identityUserId));
+        if (tenantId == null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientTenantRequired);
+        }
+    }
+
+    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
+    {
         Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.NotNullOrWhiteSpace(lastName, nameof(lastName));
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
-        Check.NotNullOrWhiteSpace(email, nameof(email));
+        // task_d5407b22 (2026-07-21): patient email is optional; accept empty on update too.
+        email ??= string.Empty;
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
         Check.NotNull(genderId, nameof(genderId));
         Check.NotNull(dateOfBirth, nameof(dateOfBirth));
@@ -71,7 +109,6 @@ public class PatientManager : DomainService
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
@@ -90,11 +127,20 @@ public class PatientManager : DomainService
         patient.PhoneNumberTypeId = phoneNumberTypeId;
         patient.MiddleName = middleName;
         patient.PhoneNumber = phoneNumber;
-        patient.SocialSecurityNumber = socialSecurityNumber;
+        // F1 / Design B (2026-05-29): the SSN field is never pre-filled into any
+        // edit/booking form, so an update that carries no SSN means "leave the
+        // stored value unchanged" -- NOT "clear it". Only overwrite when a value
+        // is actually provided. This guards all three update callers
+        // (admin UpdateAsync, UpdateMyProfileAsync, UpdatePatientForAppointment
+        // BookingAsync). A typed SSN still overwrites. SSN is the only field
+        // with this rule because it is the only never-pre-filled field.
+        if (!string.IsNullOrEmpty(socialSecurityNumber))
+        {
+            patient.SocialSecurityNumber = socialSecurityNumber;
+        }
         patient.Address = address;
         patient.City = city;
         patient.ZipCode = zipCode;
-        patient.RefferedBy = refferedBy;
         patient.CellPhoneNumber = cellPhoneNumber;
         patient.Street = street;
         patient.InterpreterVendorName = interpreterVendorName;
@@ -124,7 +170,7 @@ public class PatientManager : DomainService
     /// </summary>
     public virtual async Task<(Patient Patient, bool WasExisting)> FindOrCreateAsync(
         Guid? tenantId,
-        Guid identityUserId,
+        Guid? identityUserId,
         string firstName,
         string lastName,
         string email,
@@ -139,7 +185,6 @@ public class PatientManager : DomainService
         string? middleName = null,
         string? address = null,
         string? city = null,
-        string? refferedBy = null,
         string? cellPhoneNumber = null,
         string? street = null,
         string? interpreterVendorName = null,
@@ -184,7 +229,6 @@ public class PatientManager : DomainService
             address,
             city,
             zipCode,
-            refferedBy,
             cellPhoneNumber,
             street,
             interpreterVendorName,

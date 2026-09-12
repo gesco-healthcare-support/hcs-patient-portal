@@ -40,6 +40,8 @@ export abstract class AbstractDefenseAttorneyDetailViewService {
 
   buildForm() {
     const {
+      firstName,
+      lastName,
       firmName,
       firmAddress,
       webAddress,
@@ -53,6 +55,9 @@ export abstract class AbstractDefenseAttorneyDetailViewService {
     } = this.selected?.defenseAttorney || {};
 
     this.form = this.fb.group({
+      // BUG-042 / UM4 (2026-06-05): First/Last name are now editable + persisted.
+      firstName: [firstName ?? null, [Validators.maxLength(50)]],
+      lastName: [lastName ?? null, [Validators.maxLength(50)]],
       firmName: [firmName ?? null, [Validators.maxLength(50)]],
       firmAddress: [firmAddress ?? null, [Validators.maxLength(100)]],
       webAddress: [webAddress ?? null, [Validators.maxLength(100)]],
@@ -62,7 +67,8 @@ export abstract class AbstractDefenseAttorneyDetailViewService {
       city: [city ?? null, [Validators.maxLength(50)]],
       zipCode: [zipCode ?? null, [Validators.maxLength(10)]],
       stateId: [stateId ?? null, []],
-      identityUserId: [identityUserId ?? null, [Validators.required]],
+      // UM4 (2026-06-05): optional -- record may be created without a login.
+      identityUserId: [identityUserId ?? null, []],
     });
   }
 

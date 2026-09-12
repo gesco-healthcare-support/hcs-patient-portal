@@ -67,7 +67,7 @@ function Remove-TestApptAndSlot {
                 $ub = @{ availableDate=$slot.availableDate; fromTime=$slot.fromTime; toTime=$slot.toTime; bookingStatusId=8; locationId=$slot.locationId; appointmentTypeId=$slot.appointmentTypeId; concurrencyStamp=$slot.concurrencyStamp }
                 Invoke-ApiCall -Method "PUT" -Url "$availUrl/$SlotId" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
             }
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
         Invoke-TestApiCall -Method "DELETE" -Url "$availUrl/$SlotId" -Token $t1Token -TenantId $t1Id | Out-Null
     }
 }

@@ -26,7 +26,7 @@ public class DoctorManager : DomainService
         _locationRepository = locationRepository;
     }
 
-    public virtual async Task<Doctor> CreateAsync(List<Guid> appointmentTypeIds, List<Guid> locationIds, Guid? identityUserId, string firstName, string lastName, string email, Gender gender)
+    public virtual async Task<Doctor> CreateAsync(List<Guid> appointmentTypeIds, List<Guid> locationIds, string firstName, string lastName, string email, Gender gender)
     {
         Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
         Check.Length(firstName, nameof(firstName), DoctorConsts.FirstNameMaxLength);
@@ -35,13 +35,13 @@ public class DoctorManager : DomainService
         Check.NotNullOrWhiteSpace(email, nameof(email));
         Check.Length(email, nameof(email), DoctorConsts.EmailMaxLength);
         Check.NotNull(gender, nameof(gender));
-        var doctor = new Doctor(GuidGenerator.Create(), identityUserId, firstName, lastName, email, gender);
+        var doctor = new Doctor(GuidGenerator.Create(), firstName, lastName, email, gender);
         await SetAppointmentTypesAsync(doctor, appointmentTypeIds);
         await SetLocationsAsync(doctor, locationIds);
         return await _doctorRepository.InsertAsync(doctor);
     }
 
-    public virtual async Task<Doctor> UpdateAsync(Guid id, List<Guid> appointmentTypeIds, List<Guid> locationIds, Guid? identityUserId, string firstName, string lastName, string email, Gender gender, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Doctor> UpdateAsync(Guid id, List<Guid> appointmentTypeIds, List<Guid> locationIds, string firstName, string lastName, string email, Gender gender, [CanBeNull] string? concurrencyStamp = null)
     {
         Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
         Check.Length(firstName, nameof(firstName), DoctorConsts.FirstNameMaxLength);
@@ -54,7 +54,6 @@ public class DoctorManager : DomainService
         var query = queryable.Where(x => x.Id == id);
         var doctor = await AsyncExecuter.FirstOrDefaultAsync(query)
             ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Doctor), id);
-        doctor.IdentityUserId = identityUserId;
         doctor.FirstName = firstName;
         doctor.LastName = lastName;
         doctor.Email = email;

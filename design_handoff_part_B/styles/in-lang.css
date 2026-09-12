@@ -1,0 +1,31 @@
+/* ============================================================
+   Host / IT-Admin — Language Management (Languages + Language Texts).
+   Reuses tokens.css + cf-rail + ia-* + ra-* + af-btn + lw-active.
+   Brand navy/green only.
+   ============================================================ */
+.sk-bar { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 37%, var(--n-100) 63%); background-size: 400% 100%; animation: sksh 1.3s ease infinite; }
+@keyframes sksh { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sk-bar { animation: none; } }
+
+/* language name + flag chip */
+.lg-name { display: flex; align-items: center; gap: 11px; font-weight: 700; color: var(--n-900); }
+.lg-flag { width: 30px; height: 22px; border-radius: 5px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; font-family: var(--font-num); letter-spacing: .02em; background: var(--blue-700); color: #fff; text-transform: uppercase; }
+.lg-culture { font-family: var(--font-num); font-size: 12.5px; color: var(--n-600); }
+.lg-default { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--st-pending-bg); color: var(--st-pending-fg); }
+.lg-setdef { font-size: 12px; font-weight: 600; color: var(--blue-700); background: transparent; border: 0; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.lg-setdef:hover { background: var(--blue-50); }
+
+/* language texts toolbar selectors */
+.lt-sel { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+.lt-sel .ra-field { min-width: 200px; }
+
+/* texts table */
+.lt-key { font-family: var(--font-num); font-size: 12.5px; color: var(--n-800); font-weight: 600; }
+.lt-base { color: var(--n-500); font-size: 13px; }
+.lt-ovr-in { width: 100%; padding: 8px 11px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: 8px; font-family: var(--font); color: var(--n-800); background: #fff; }
+.lt-ovr-in:focus { outline: none; border-color: var(--blue-400); box-shadow: 0 0 0 4px var(--blue-50); }
+.lt-ovr-in.fallback { color: var(--n-400); font-style: italic; }
+.lt-state { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.lt-state.custom { background: var(--st-purple-bg); color: var(--st-purple-fg); }
+.lt-state.def { background: var(--n-100); color: var(--n-500); }
+.lt-rowbtns { display: inline-flex; gap: 6px; justify-content: flex-end; }

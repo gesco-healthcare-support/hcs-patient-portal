@@ -25,4 +25,11 @@ public enum AppointmentTransitionTrigger
     CheckIn = 12,
     CheckOut = 13,
     Bill = 14,
+
+    /// <summary>
+    /// Phase 5 (2026-08-07): the patient arrived but was not evaluated. Companion
+    /// to <see cref="MarkNoShow"/>; both are authored in the Case Tracker and
+    /// reach the portal only through the inbound attendance endpoint.
+    /// </summary>
+    MarkNotSeen = 15,
 }

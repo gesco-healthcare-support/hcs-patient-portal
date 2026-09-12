@@ -1,0 +1,47 @@
+/* ============================================================
+   Group 3 — Configuration hub: Types · Statuses · Document types ·
+   Languages · States. Left sub-nav + shared table + field config.
+   Reuses ia-* / ra-* / gn-type. 
+   ============================================================ */
+.cf { display: grid; grid-template-columns: 218px 1fr; gap: 22px; align-items: start; }
+.cf-rail { background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-sm); padding: 8px; position: sticky; top: 16px; }
+.cf-railitem { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border-radius: 9px; border: 0; background: transparent; cursor: pointer; text-align: left; font-size: 13.5px; font-weight: 600; color: var(--n-600); transition: background .12s; }
+.cf-railitem .i { color: var(--n-400); display: inline-flex; }
+.cf-railitem .cnt { margin-left: auto; font-size: 11.5px; font-weight: 800; font-family: var(--font-num); background: var(--n-100); color: var(--n-600); padding: 1px 8px; border-radius: 99px; }
+.cf-railitem:hover { background: var(--n-50); color: var(--n-800); }
+.cf-railitem[data-on="true"] { background: var(--blue-50); color: var(--blue-700); }
+.cf-railitem[data-on="true"] .i { color: var(--blue-600); }
+
+.cf-lock { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: var(--n-100); color: var(--n-500); }
+.cf-req { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: var(--st-pending-bg); color: var(--st-pending-fg); }
+.cf-usage { font-size: 12px; color: var(--n-500); font-family: var(--font-num); }
+
+/* field configuration panel (expanded under a type row) */
+.cf-fc { background: var(--n-25); border-top: 1px solid var(--border); padding: 16px 20px 18px; }
+.cf-fc__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.cf-fc__head h4 { font-size: 13.5px; font-weight: 800; color: var(--n-800); margin: 0; display: flex; align-items: center; gap: 8px; }
+.cf-fc__group { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--n-500); font-weight: 700; margin: 14px 0 4px; }
+.cf-fc__row { display: grid; grid-template-columns: 190px auto auto auto 1fr; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--n-100); }
+.cf-fc__row:last-child { border-bottom: 0; }
+.cf-fc__row .nm { font-size: 13px; font-weight: 600; color: var(--n-800); }
+.cf-seg { display: inline-flex; background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; padding: 2px; }
+.cf-seg button { border: 0; background: transparent; color: var(--n-500); font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.cf-seg button[data-on="true"] { background: var(--blue-700); color: #fff; }
+.cf-seg.warn button[data-on="true"] { background: var(--st-pending-fg); }
+.cf-seg.green button[data-on="true"] { background: var(--green-600); }
+.cf-seg button:disabled { opacity: .45; cursor: not-allowed; }
+.cf-fc__row input.dv { width: 100%; max-width: 260px; padding: 7px 11px; font-size: 12.5px; border: 1px solid var(--border-strong); border-radius: 8px; font-family: var(--font); color: var(--n-800); }
+.cf-fc__row input.dv:disabled { background: var(--n-50); color: var(--n-300); }
+
+/* let config tables fit the narrower column (wrap instead of clip) */
+.cf .ia-wrap { overflow-x: auto; }
+.cf .ia-table { min-width: 0; }
+.cf .ia-table thead th, .cf .ia-table tbody td { white-space: normal; }
+.cf .ia-table tbody td:last-child, .cf .ia-table thead th:last-child { white-space: nowrap; }
+
+@media (max-width: 860px) {
+  .cf { grid-template-columns: 1fr; }
+  .cf-rail { position: static; display: flex; overflow-x: auto; }
+  .cf-railitem { white-space: nowrap; }
+  .cf-fc__row { grid-template-columns: 1fr; gap: 8px; }
+}

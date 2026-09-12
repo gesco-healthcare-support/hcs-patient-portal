@@ -2,11 +2,13 @@
 
 # Threat Model
 
-> For known security vulnerabilities and remediation status, see [Security Issues](../issues/SECURITY.md).
+> Purpose: STRIDE-based threat model for the four main portal components. Audience: security reviewer, engineering lead. Last verified: 2026-06-01 vs main.
 
-STRIDE-based threat model for the four main components of the CaseEvaluation Patient Portal. This document describes the security architecture; it does not list specific bugs (see linked issue file for that).
+> For known security vulnerabilities and remediation status, see the security issues backlog.
 
-**Last verified:** 2026-04-13
+STRIDE-based threat model for the four main components of the CaseEvaluation Appointment Portal. This document describes the security architecture; it does not list specific bugs (see linked issue file for that).
+
+**Last verified:** 2026-06-01
 **Method:** code-inspect + existing SECURITY.md findings
 
 ---
@@ -92,19 +94,20 @@ Each arrow crosses a trust boundary. Data flowing across these lines must be aut
 | Denial of Service | Runaway query locks tables | ABP uses EF Core with default isolation | No query timeout enforcement at DB layer |
 | Elevation of Privilege | App user granted excessive SQL permissions | Single app user (sa/admin in dev) | Gap: least-privilege DB user for production |
 
-**Multi-tenancy integrity:** ABP's `IMultiTenant` data filter automatically scopes queries by `TenantId`. However, the `Patient` entity has a `TenantId` property but does **not** implement `IMultiTenant` (see [Patient CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md)), so Patient queries are not automatically tenant-filtered. Any code that queries `Patient` must manually filter by `TenantId` to prevent cross-tenant PHI disclosure.
+**Multi-tenancy integrity:** ABP's `IMultiTenant` data filter automatically scopes queries by `TenantId`. The `Patient` entity implements `IMultiTenant` (added in FEAT-09, 2026-05-05), so ABP's automatic filter scopes all Patient queries by `CurrentTenant.Id`. Host/IT-Admin paths that need cross-tenant reads must explicitly disable the filter via `IDataFilter<IMultiTenant>.Disable()` -- matching the pattern used in `DoctorsAppService`.
 
 ---
 
 ## Summary of Active Gaps
 
-Ordered by severity (cross-reference [Security Issues](../issues/SECURITY.md) for remediation tracking):
+Ordered by severity (cross-reference the security issues backlog for remediation tracking):
 
 1. **SEC-02 (High):** PII logging enabled by default in `CaseEvaluationHttpApiHostModule.cs` -- fix the config default.
-2. **Patient tenant filter gap (High):** Patient entity lacks `IMultiTenant` -- manual filtering required on every query.
-3. **Signing cert rotation (High):** Post-SEC-01 rotation required if cert was ever in git history.
-4. **TDE / encryption at rest (Medium):** Not configured. Required for HIPAA in most cloud deployments.
-5. **Rate limiting (Medium):** No rate limiting on API endpoints.
-6. **2FA enforcement (Medium):** 2FA available but not required for admin roles.
-7. **Audit log retention policy (Low):** No documented retention policy.
-8. **DB least-privilege user (Low):** Production DB user scope undocumented.
+2. **Signing cert rotation (High):** Post-SEC-01 rotation required if cert was ever in git history.
+3. **TDE / encryption at rest (Medium):** Not configured. Required for HIPAA in most cloud deployments.
+4. **Rate limiting (Medium):** No rate limiting on API endpoints.
+5. **2FA enforcement (Medium):** 2FA available but not required for admin roles.
+6. **Audit log retention policy (Low):** No documented retention policy.
+7. **DB least-privilege user (Low):** Production DB user scope undocumented.
+
+**Resolved:** Patient tenant filter gap -- `Patient` now implements `IMultiTenant` (FEAT-09, 2026-05-05); ABP automatic filter handles tenant scoping.

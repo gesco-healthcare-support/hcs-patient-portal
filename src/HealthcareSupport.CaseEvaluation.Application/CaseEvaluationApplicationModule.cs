@@ -4,6 +4,7 @@ using Volo.Abp.Account;
 using Volo.Abp.Identity;
 using Volo.Abp.Mapperly;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.FluentValidation;
 using Volo.Abp.Modularity;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.AuditLogging;
@@ -31,7 +32,8 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(LanguageManagementApplicationModule),
     typeof(FileManagementApplicationModule),
     typeof(AbpGdprApplicationModule),
-    typeof(AbpSettingManagementApplicationModule)
+    typeof(AbpSettingManagementApplicationModule),
+    typeof(AbpFluentValidationModule)
     )]
 public class CaseEvaluationApplicationModule : AbpModule
 {

@@ -1,0 +1,18 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.EmailConfirmationModel
+@{
+    ViewData["Title"] = "Verifying your email";
+    Layout = null;
+}
+@*
+    Custom Razor view for /Account/EmailConfirmation. Filesystem precedence
+    overrides Volo.Abp.Account.Pro.Public.Web's RCL page. OnGetAsync in
+    EmailConfirmationModel always redirects, so this view renders only in
+    edge cases the handler doesn't catch (e.g. an HTTP method other than
+    GET). Body is a no-op fallback.
+
+    Plan: docs/plans/2026-05-18-fix-verification-email-url.md
+*@
+<div style="padding:2rem;text-align:center;font-family:Arial,Helvetica,sans-serif;">
+    <p>Verifying your email...</p>
+</div>

@@ -46,3 +46,14 @@ testem.log
 .DS_Store
 Thumbs.db
 /.suite/
+
+# Yarn Berry (node-modules linker): commit releases/patches/plugins/sdks/versions;
+# ignore the cache + machine-specific state. See
+# docs/plans/2026-06-12-docker-dev-workflow-yarn4.md.
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*

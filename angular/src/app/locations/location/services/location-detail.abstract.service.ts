@@ -24,8 +24,11 @@ export abstract class AbstractLocationDetailViewService {
   form: FormGroup | undefined;
 
   protected createRequest() {
+    const formValue = this.form.value;
     const formValues = {
-      ...this.form.value,
+      ...formValue,
+      // I3 (2026-06-08): the mtm control holds AppointmentType objects; send ids.
+      appointmentTypeIds: (formValue.appointmentTypeIds ?? []).map(({ id }: { id: string }) => id),
     };
 
     if (this.selected) {
@@ -39,18 +42,25 @@ export abstract class AbstractLocationDetailViewService {
   }
 
   buildForm() {
-    const { name, address, city, zipCode, parkingFee, isActive, stateId, appointmentTypeId } =
+    const { name, address, city, zipCode, parkingFee, isActive, stateId } =
       this.selected?.location || {};
+    // I3 (2026-06-08): multi-select appointment types via abp-lookup-typeahead-mtm.
+    // The control holds AppointmentType objects (edit pre-fill via [editingData]);
+    // createRequest maps them to ids before sending.
+    const { appointmentTypes = [] } = this.selected || {};
 
     this.form = this.fb.group({
       name: [name ?? null, [Validators.required, Validators.maxLength(50)]],
       address: [address ?? null, [Validators.maxLength(100)]],
       city: [city ?? null, [Validators.maxLength(50)]],
-      zipCode: [zipCode ?? null, [Validators.maxLength(15)]],
-      parkingFee: [parkingFee ?? null, [Validators.required]],
+      zipCode: [
+        zipCode ?? null,
+        [Validators.maxLength(15), Validators.pattern(/^(\d{5}(-\d{4})?)?$/)],
+      ],
+      parkingFee: [parkingFee ?? null, [Validators.required, Validators.min(0)]],
       isActive: [isActive ?? true, []],
       stateId: [stateId ?? null, []],
-      appointmentTypeId: [appointmentTypeId ?? null, []],
+      appointmentTypeIds: [appointmentTypes, []],
     });
   }
 

@@ -2,6 +2,8 @@
 
 # Business Domain Overview: California Workers' Compensation IME Scheduling
 
+> Purpose: Plain-language explanation of the workers' compensation IME scheduling domain. Audience: all contributors. Last verified: 2026-06-01 vs main.
+
 This document explains what the HCS Case Evaluation Portal does in plain language. No prior knowledge of workers' compensation, healthcare, or California law is assumed.
 
 ---

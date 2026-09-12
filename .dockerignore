@@ -4,7 +4,6 @@
 .idea
 .vs
 docs
-Logs
 etc
 
 **/.env
@@ -15,7 +14,24 @@ etc
 **/obj
 **/node_modules
 
+# Per-service log folders (src/.../<Service>/Logs). The bare `Logs` pattern is
+# root-anchored and only matched the repo-root /Logs, so ~388 MB of runtime logs
+# were leaking into the backend build context and images (size + PHI exposure).
+# `**/Logs` matches Logs at any depth, including the repo root.
+**/Logs
+
 angular/node_modules
 angular/dist
 angular/e2e
 angular/.angular
+
+# In-house hosting (2026-07-09): never bake secrets into an image. The openiddict.pfx is
+# loaded from a runtime mount; keeping it out of the build context also stops the
+# AuthServer csproj's Exists-condition from embedding it. Local TLS material + prod env
+# files are host-only.
+**/*.pfx
+**/*.crt
+**/*.key
+**/.env.*
+secrets
+backups

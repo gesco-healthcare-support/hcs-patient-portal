@@ -1,25 +1,32 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 
 public class AppointmentClaimExaminerCreateDto
 {
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
+    // CI1 (2026-06-05): CE is required on every booking, so Name + Email are
+    // mandatory when a CE record is created. Insurance stays optional.
+    [Required]
     [StringLength(AppointmentClaimExaminerConsts.NameMaxLength)]
     public string? Name { get; set; }
 
-    [StringLength(AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength)]
-    public string? ClaimExaminerNumber { get; set; }
+    [StringLength(AppointmentClaimExaminerConsts.SuiteMaxLength)]
+    public string? Suite { get; set; }
 
+    [Required]
     [StringLength(AppointmentClaimExaminerConsts.EmailMaxLength)]
     public string? Email { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.FaxMaxLength)]
+    [PhoneNumber]
     public string? Fax { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.StreetMaxLength)]

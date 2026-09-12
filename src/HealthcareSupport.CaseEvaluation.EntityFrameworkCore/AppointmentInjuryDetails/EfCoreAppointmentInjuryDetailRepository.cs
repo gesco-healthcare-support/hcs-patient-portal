@@ -1,7 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
-using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
-using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using System;
 using System.Collections.Generic;
@@ -33,8 +31,6 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
             Appointment = await dbContext.Set<Appointment>().FirstOrDefaultAsync(a => a.Id == injury.AppointmentId, cancellationToken),
             WcabOffice = injury.WcabOfficeId.HasValue ? await dbContext.Set<WcabOffice>().FirstOrDefaultAsync(w => w.Id == injury.WcabOfficeId.Value, cancellationToken) : null,
             BodyParts = await dbContext.Set<AppointmentBodyPart>().Where(b => b.AppointmentInjuryDetailId == injury.Id).ToListAsync(cancellationToken),
-            ClaimExaminer = await dbContext.Set<AppointmentClaimExaminer>().Where(c => c.AppointmentInjuryDetailId == injury.Id).FirstOrDefaultAsync(cancellationToken),
-            PrimaryInsurance = await dbContext.Set<AppointmentPrimaryInsurance>().Where(p => p.AppointmentInjuryDetailId == injury.Id).FirstOrDefaultAsync(cancellationToken),
         };
     }
 
@@ -51,12 +47,6 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
         var bodyPartsByInjury = (await dbContext.Set<AppointmentBodyPart>().Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId)).ToListAsync(cancellationToken))
             .GroupBy(b => b.AppointmentInjuryDetailId)
             .ToDictionary(g => g.Key, g => g.ToList());
-        var examinersByInjury = (await dbContext.Set<AppointmentClaimExaminer>().Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId)).ToListAsync(cancellationToken))
-            .GroupBy(c => c.AppointmentInjuryDetailId)
-            .ToDictionary(g => g.Key, g => g.First());
-        var insurancesByInjury = (await dbContext.Set<AppointmentPrimaryInsurance>().Where(p => injuryIds.Contains(p.AppointmentInjuryDetailId)).ToListAsync(cancellationToken))
-            .GroupBy(p => p.AppointmentInjuryDetailId)
-            .ToDictionary(g => g.Key, g => g.First());
         var appointmentIds = injuries.Select(x => x.AppointmentId).Distinct().ToList();
         var appointmentsById = (await dbContext.Set<Appointment>().Where(a => appointmentIds.Contains(a.Id)).ToListAsync(cancellationToken))
             .ToDictionary(a => a.Id);
@@ -70,8 +60,6 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
             Appointment = appointmentsById.TryGetValue(injury.AppointmentId, out var ap) ? ap : null,
             WcabOffice = injury.WcabOfficeId.HasValue && wcabOfficesById.TryGetValue(injury.WcabOfficeId.Value, out var wo) ? wo : null,
             BodyParts = bodyPartsByInjury.TryGetValue(injury.Id, out var bp) ? bp : new List<AppointmentBodyPart>(),
-            ClaimExaminer = examinersByInjury.TryGetValue(injury.Id, out var ce) ? ce : null,
-            PrimaryInsurance = insurancesByInjury.TryGetValue(injury.Id, out var pi) ? pi : null,
         }).ToList();
     }
 

@@ -1,5 +1,7 @@
 # Middleware & Pipeline
 
+> Purpose: Documents the ASP.NET Core middleware pipeline order, Serilog logging configuration, Redis caching, health checks, and ABP module composition for the HttpApi.Host. Audience: backend engineers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [API](./) > Middleware & Pipeline
 
 **Related:** [API Architecture](API-ARCHITECTURE.md) | [Authentication Flow](AUTHENTICATION-FLOW.md) | [Architecture Overview](../architecture/OVERVIEW.md)
@@ -232,6 +234,7 @@ ABP uses this passphrase for encrypting sensitive configuration values stored in
 ```
 
 When `DisablePII` is `false` (the development default):
+
 - `IdentityModelEventSource.ShowPII = true` -- shows personally identifiable information in authentication error messages
 - `IdentityModelEventSource.LogCompleteSecurityArtifact = true` -- logs full tokens in error scenarios
 

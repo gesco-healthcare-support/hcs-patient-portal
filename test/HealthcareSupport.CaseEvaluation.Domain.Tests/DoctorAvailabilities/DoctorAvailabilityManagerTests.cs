@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
@@ -49,11 +51,12 @@ public abstract class DoctorAvailabilityManagerTests<TStartupModule> : CaseEvalu
             {
                 var created = await _slotManager.CreateAsync(
                     locationId: LocationsTestData.Location1Id,
-                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    appointmentTypeIds: new List<Guid> { LocationsTestData.AppointmentType1Id },
                     availableDate: new DateTime(2028, 2, 1, 0, 0, 0, DateTimeKind.Utc),
                     fromTime: new TimeOnly(9, 0),
                     toTime: new TimeOnly(10, 0),
-                    bookingStatusId: BookingStatus.Available);
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3);
 
                 created.ShouldNotBeNull();
                 created.Id.ShouldNotBe(Guid.Empty);
@@ -84,11 +87,12 @@ public abstract class DoctorAvailabilityManagerTests<TStartupModule> : CaseEvalu
             {
                 var created = await _slotManager.CreateAsync(
                     locationId: LocationsTestData.Location1Id,
-                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    appointmentTypeIds: new List<Guid> { LocationsTestData.AppointmentType1Id },
                     availableDate: new DateTime(2028, 3, 1, 0, 0, 0, DateTimeKind.Utc),
                     fromTime: new TimeOnly(9, 0),
                     toTime: new TimeOnly(10, 0),
-                    bookingStatusId: BookingStatus.Available);
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3);
                 createdId = created.Id;
             }
         });
@@ -100,14 +104,15 @@ public abstract class DoctorAvailabilityManagerTests<TStartupModule> : CaseEvalu
                 var updated = await _slotManager.UpdateAsync(
                     id: createdId,
                     locationId: LocationsTestData.Location2Id,
-                    appointmentTypeId: null,
+                    appointmentTypeIds: new List<Guid>(),
                     availableDate: new DateTime(2028, 3, 2, 0, 0, 0, DateTimeKind.Utc),
                     fromTime: new TimeOnly(13, 0),
                     toTime: new TimeOnly(14, 0),
-                    bookingStatusId: BookingStatus.Reserved);
+                    bookingStatusId: BookingStatus.Reserved,
+                    capacity: 3);
 
                 updated.LocationId.ShouldBe(LocationsTestData.Location2Id);
-                updated.AppointmentTypeId.ShouldBeNull();
+                updated.AppointmentTypes.ShouldBeEmpty();
                 updated.AvailableDate.Date.ShouldBe(new DateTime(2028, 3, 2));
                 updated.FromTime.ShouldBe(new TimeOnly(13, 0));
                 updated.ToTime.ShouldBe(new TimeOnly(14, 0));
@@ -131,19 +136,21 @@ public abstract class DoctorAvailabilityManagerTests<TStartupModule> : CaseEvalu
 
                 var first = await _slotManager.CreateAsync(
                     locationId: LocationsTestData.Location1Id,
-                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    appointmentTypeIds: new List<Guid> { LocationsTestData.AppointmentType1Id },
                     availableDate: date,
                     fromTime: new TimeOnly(9, 0),
                     toTime: new TimeOnly(10, 0),
-                    bookingStatusId: BookingStatus.Available);
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3);
 
                 var overlapping = await _slotManager.CreateAsync(
                     locationId: LocationsTestData.Location1Id,
-                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    appointmentTypeIds: new List<Guid> { LocationsTestData.AppointmentType1Id },
                     availableDate: date,
                     fromTime: new TimeOnly(9, 30),
                     toTime: new TimeOnly(10, 30),
-                    bookingStatusId: BookingStatus.Available);
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3);
 
                 first.Id.ShouldNotBe(overlapping.Id);
                 overlapping.Id.ShouldNotBe(Guid.Empty);

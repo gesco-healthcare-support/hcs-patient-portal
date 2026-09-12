@@ -1,0 +1,334 @@
+namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
+
+/// <summary>
+/// Constants for the per-tenant <c>NotificationTemplate</c> aggregate.
+///
+/// <para>The <see cref="Codes"/> nested class is the OLD-verified template-
+/// code identifier set used across the system. Two parallel mechanisms
+/// existed in OLD (correction logged 2026-05-03 -- the original Phase 1
+/// seed listed 23 invented names that do NOT exist in OLD):</para>
+///
+/// <list type="bullet">
+///   <item><b>16 DB-managed codes</b> from
+///         <c>P:\PatientPortalOld\PatientAppointment.Models\Enums\TemplateCode.cs</c>
+///         (lines 9-27). Stored in the <c>Templates</c> SQL table; IT Admin
+///         editable via OLD's Template Management UI; carry Subject +
+///         BodyEmail + BodySms.</item>
+///   <item><b>43 disk-HTML codes</b> from
+///         <c>P:\PatientPortalOld\PatientAppointment.DbEntities\Constants\ApplicationConstants.cs</c>
+///         (lines 26-71). HTML files under
+///         <c>wwwroot/EmailTemplates/</c>; loaded via
+///         <c>ApplicationUtility.GetEmailTemplateFromHTML</c>; email-only;
+///         NOT IT-Admin editable in OLD.</item>
+/// </list>
+///
+/// <para>NEW unifies both into the single <c>NotificationTemplates</c> table
+/// so all 59 events become IT-Admin editable. This is a strict-parity
+/// exception (preserved BEHAVIOR, unified STORAGE) -- the bifurcation in
+/// OLD was an accidental legacy artifact, not a designed feature. See the
+/// audit doc <c>docs/parity/it-admin-notification-templates.md</c> for the
+/// per-event mapping table and Phase 1-vs-deferred subset.</para>
+///
+/// <para>OLD typos fixed in NEW (verified 2026-05-03; not preserved):</para>
+/// <list type="bullet">
+///   <item><c>RejectedJoinDeclarationDocument</c> -> <c>RejectedJointDeclarationDocument</c>
+///         (missing 't'; "Joint" used 348x elsewhere in OLD)</item>
+///   <item><c>AppointmentApprovedStackholderEmails</c> -> <c>AppointmentApprovedStakeholderEmails</c>
+///         (entire OLD codebase mis-spells "Stakeholder")</item>
+///   <item><c>PatientAppointmentCancellationApprvd</c> + filename
+///         <c>Apporved.html</c> -> <c>PatientAppointmentCancellationApproved</c>
+///         (inconsistent abbreviation + filename typo)</item>
+///   <item>HTML filename <c>User-Registed.html</c> -> body owned by NEW
+///         seed; the typo was on the filename only, not the constant
+///         <c>UserRegistered</c></item>
+/// </list>
+///
+/// <para>OLD-style local abbreviations (<c>Req</c> in the four
+/// <c>...RescheduleReq...</c> entries) are kept as-is when they form a
+/// consistent local pattern -- those are stylistic, not typos.</para>
+/// </summary>
+public static class NotificationTemplateConsts
+{
+    public const int TemplateCodeMaxLength = 100;
+    public const int SubjectMaxLength = 200;
+    public const int DescriptionMaxLength = 200;
+
+    /// <summary>
+    /// All 59 OLD-verified notification template codes. Phase 1 wires
+    /// <see cref="Phase1InScope"/> (33 codes) to handlers in subsequent
+    /// per-feature phases; the remaining 26 are seeded but unwired until
+    /// post-parity feature phases (Check-In/Out, NoShow, Billing,
+    /// SubmitQuery, Internal-User-Mgmt, Audit-Log viewer).
+    /// </summary>
+    public static class Codes
+    {
+        // --------------------------------------------------------------
+        // A. DB-managed in OLD (TemplateCode int enum, 16 codes).
+        //    File: P:\PatientPortalOld\PatientAppointment.Models\Enums\TemplateCode.cs
+        // --------------------------------------------------------------
+
+        public const string AppointmentBooked = "AppointmentBooked";
+        public const string AppointmentApproved = "AppointmentApproved";
+        public const string AppointmentRejected = "AppointmentRejected";
+        public const string AppointmentCancelledRequest = "AppointmentCancelledRequest";
+        public const string AppointmentCancelledRequestApproved = "AppointmentCancelledRequestApproved";
+        public const string AppointmentCancelledRequestRejected = "AppointmentCancelledRequestRejected";
+        public const string AppointmentRescheduleRequest = "AppointmentRescheduleRequest";
+        public const string AppointmentRescheduleRequestApproved = "AppointmentRescheduleRequestApproved";
+        public const string AppointmentRescheduleRequestRejected = "AppointmentRescheduleRequestRejected";
+        public const string RejectedPackageDocument = "RejectedPackageDocument";
+
+        /// <summary>FIXED from OLD's <c>RejectedJoinDeclarationDocument</c> (missing 't').</summary>
+        public const string RejectedJointDeclarationDocument = "RejectedJointDeclarationDocument";
+
+        public const string AppointmentDueDate = "AppointmentDueDate";
+        public const string AppointmentDueDateUploadDocumentLeft = "AppointmentDueDateUploadDocumentLeft";
+        public const string SubmitQuery = "SubmitQuery";
+
+        /// <summary>FIXED from OLD's <c>AppointmentApprovedStackholderEmails</c>.</summary>
+        public const string AppointmentApprovedStakeholderEmails = "AppointmentApprovedStakeholderEmails";
+
+        public const string AppointmentCancelledByAdmin = "AppointmentCancelledByAdmin";
+
+        // --------------------------------------------------------------
+        // B. On-disk HTML in OLD (EmailTemplate static class, 43 codes).
+        //    File: P:\PatientPortalOld\PatientAppointment.DbEntities\Constants\ApplicationConstants.cs
+        // --------------------------------------------------------------
+
+        public const string AddInternalUser = "AddInternalUser";
+        public const string PasswordChange = "PasswordChange";
+        public const string ResetPassword = "ResetPassword";
+        public const string UserRegistered = "UserRegistered";
+        public const string UserQuery = "UserQuery";
+        public const string AppointmentRescheduleRequestByAdmin = "AppointmentRescheduleRequestByAdmin";
+        public const string AppointmentChangeLogs = "AppointmentChangeLogs";
+        public const string PatientAppointmentPending = "PatientAppointmentPending";
+        public const string PatientAppointmentApproveReject = "PatientAppointmentApproveReject";
+        public const string PatientAppointmentApprovedInternal = "PatientAppointmentApprovedInternal";
+        public const string PatientAppointmentApprovedExt = "PatientAppointmentApprovedExt";
+        public const string PatientAppointmentRejected = "PatientAppointmentRejected";
+        public const string PatientAppointmentCheckedIn = "PatientAppointmentCheckedIn";
+        public const string PatientAppointmentCheckedOut = "PatientAppointmentCheckedOut";
+        public const string PatientAppointmentNoShow = "PatientAppointmentNoShow";
+        public const string PatientAppointmentCancelledNoBill = "PatientAppointmentCancelledNoBill";
+        public const string ClinicalStaffCancellation = "ClinicalStaffCancellation";
+        public const string AccessorAppointmentBooked = "AccessorAppointmentBooked";
+
+        /// <summary>
+        /// Issue #3 (2026-07-16) -- an accessor who ALREADY has a tenant account was added
+        /// to an appointment (existing-account NOTIFY path). Distinct from
+        /// <see cref="AccessorAppointmentBooked"/> (new-account invite with a password-setup
+        /// link); this body just says "you were added, log in to view". Fires for all
+        /// appointment types, including re-evaluation.
+        /// </summary>
+        public const string AccessorAppointmentAdded = "AccessorAppointmentAdded";
+        public const string PatientDocumentAccepted = "PatientDocumentAccepted";
+        public const string PatientDocumentRejected = "PatientDocumentRejected";
+        public const string PatientDocumentUploaded = "PatientDocumentUploaded";
+        public const string PatientNewDocumentAccepted = "PatientNewDocumentAccepted";
+        public const string PatientNewDocumentRejected = "PatientNewDocumentRejected";
+        public const string PatientNewDocumentUploaded = "PatientNewDocumentUploaded";
+        public const string PatientDocumentAcceptedAttachment = "PatientDocumentAcceptedAttachment";
+        public const string PatientDocumentAcceptedRemainingDocs = "PatientDocumentAcceptedRemainingDocs";
+        public const string PatientDocumentRejectedRemainingDocs = "PatientDocumentRejectedRemainingDocs";
+        public const string AppointmentApproveRejectInternal = "AppointmentApproveRejectInternal";
+
+        /// <summary>
+        /// Group F (2026-06-09) -- the single consolidated reminder. Combines the
+        /// due-date nudge with the outstanding-documents list (incl. the JDF) in
+        /// one email To the booker. Replaced the separate UploadPendingDocuments,
+        /// AppointmentDocumentIncomplete, and JointDeclarationUploadReminder codes.
+        /// </summary>
+        public const string AppointmentDueDateReminder = "AppointmentDueDateReminder";
+        public const string AppointmentCancelledDueDate = "AppointmentCancelledDueDate";
+
+        /// <summary>
+        /// 2026-08-08. Internal-staff notice that an AME appointment passed its Joint Declaration
+        /// Form deadline with no JDF uploaded. REPLACES the stakeholder-facing
+        /// <see cref="AppointmentCancelledDueDate"/> flow: the portal no longer cancels such an
+        /// appointment by itself, so nobody is told it was cancelled -- staff are told it needs a
+        /// decision. Sent ONCE per appointment, not on every daily run.
+        /// </summary>
+        public const string AppointmentJointDeclarationOverdueInternal = "AppointmentJointDeclarationOverdueInternal";
+        public const string AppointmentPendingNextDay = "AppointmentPendingNextDay";
+
+        /// <summary>OLD-style local abbreviation (<c>Req</c>) preserved for naming consistency with the four <c>...RescheduleReq...</c> entries.</summary>
+        public const string PatientAppointmentRescheduleReqAdmin = "PatientAppointmentRescheduleReqAdmin";
+        public const string PatientAppointmentRescheduleReqApproved = "PatientAppointmentRescheduleReqApproved";
+        public const string PatientAppointmentRescheduleReqRejected = "PatientAppointmentRescheduleReqRejected";
+
+        /// <summary>FIXED from OLD's <c>PatientAppointmentCancellationApprvd</c> + filename <c>Apporved.html</c> (inconsistent abbreviation + filename typo).</summary>
+        public const string PatientAppointmentCancellationApproved = "PatientAppointmentCancellationApproved";
+
+        public const string PatientAppointmentRescheduleReq = "PatientAppointmentRescheduleReq";
+        public const string JointAgreementLetterAccepted = "JointAgreementLetterAccepted";
+        public const string JointAgreementLetterUploaded = "JointAgreementLetterUploaded";
+        public const string JointAgreementLetterRejected = "JointAgreementLetterRejected";
+        public const string AppointmentDocumentAddWithAttachment = "AppointmentDocumentAddWithAttachment";
+        public const string PendingAppointmentDailyNotification = "PendingAppointmentDailyNotification";
+
+        // --------------------------------------------------------------
+        // C. Phase 2.A (Category 2, 2026-05-08) -- per-recipient
+        //    "Appointment Requested" templates. Replaces the inline-HTML
+        //    role-aware content that lived in Domain SubmissionEmailHandler
+        //    with template-driven dispatch via INotificationDispatcher.
+        //    Three codes because ABP NotificationTemplate has a single body
+        //    per row; per-recipient-class branching needs separate codes.
+        //    Adrian directive 2026-05-08: subject "Appointment Requested",
+        //    NO CC on Pending stakeholders.
+        // --------------------------------------------------------------
+
+        /// <summary>Office mailbox sees "new request submitted" + portal link.</summary>
+        public const string AppointmentRequestedOffice = "AppointmentRequestedOffice";
+
+        /// <summary>Patient / Booker / party sees the shared "log in or register to view" body + tenant login link.</summary>
+        public const string AppointmentRequestedRegistered = "AppointmentRequestedRegistered";
+
+        /// <summary>
+        /// 2026-05-15 -- admin-issued invitation email. Body renders a
+        /// branded "Dr. &lt;tenant&gt; invited you to register as
+        /// &lt;role&gt;" CTA pointing at the AuthServer register page
+        /// with the one-time-use invite token. Variables: PatientFullName
+        /// (best-effort), RoleName, TenantName, URL, ExpiresAt.
+        /// </summary>
+        public const string InviteExternalUser = "InviteExternalUser";
+
+        /// <summary>
+        /// 2026-05-15 -- welcome email for a newly-created internal user
+        /// (Intake Staff / Staff Supervisor). Dispatched by
+        /// <c>InternalUsersAppService.CreateAsync</c> immediately after
+        /// the IdentityUser row + role assignment commit. Body carries
+        /// the auto-generated temporary password verbatim (the only
+        /// channel the password ever leaves the server through); the
+        /// user is forced to change it on first login via
+        /// <c>ShouldChangePasswordOnNextLogin = true</c>. Variables:
+        /// UserName, LoginUserName, Password, RoleName, TenantName,
+        /// PortalUrl.
+        /// </summary>
+        public const string InternalUserCreated = "InternalUserCreated";
+
+        /// <summary>
+        /// Group D (2026-06-09) -- actionable opposing-side consent request for a
+        /// cancel/reschedule change request. Body links to the public consent landing
+        /// page (single-use token); the recipient agrees/declines there.
+        /// </summary>
+        public const string ChangeRequestConsentRequest = "ChangeRequestConsentRequest";
+
+        /// <summary>
+        /// Prompt 17 (2026-06-17) -- send-back / request-info notice. Emailed to
+        /// the requester (booker) when staff move an appointment to
+        /// InfoRequested; carries the staff note + a deep link to the external
+        /// fix-it page. No field VALUES are templated (HIPAA: the body lists no
+        /// SSN / DOB / address -- only the note + link).
+        /// </summary>
+        public const string PatientAppointmentInfoRequested = "PatientAppointmentInfoRequested";
+
+        /// <summary>
+        /// Part 5 (2026-07-28) -- alerts internal staff that Case Tracker pushes have dead-lettered in
+        /// their office and will not retry on their own. Batched: one email per office per run listing
+        /// the affected appointments, because the usual cause (a bad token, their service down) fails
+        /// every queued row at once. Carries no PHI -- confirmation number and error text only.
+        /// </summary>
+        public const string CaseTrackerPushFailed = "CaseTrackerPushFailed";
+
+        /// <summary>
+        /// Item F (2026-08-22) -- sent when staff try to invite an email that already has an account
+        /// in the office. The invite is a dead end (registration rejects the duplicate), so instead of
+        /// an error the staff surface offers to email the person a sign-in link. Tenant-scoped, NOT in
+        /// <see cref="HostScoped"/>: it is addressed to an external user and dispatched inside the
+        /// target office's scope, so it resolves that office's template and branding.
+        /// </summary>
+        public const string ExternalUserPortalLink = "ExternalUserPortalLink";
+
+        /// <summary>
+        /// All 66 codes in seed order (count asserted by
+        /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
+        /// this comment had drifted by one before 2026-07-28). Used by
+        /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
+        /// tenant has a row per code at tenant-create time.
+        /// </summary>
+        public static readonly string[] All =
+        {
+            // 16 DB-managed (TemplateCode enum)
+            AppointmentBooked, AppointmentApproved, AppointmentRejected,
+            AppointmentCancelledRequest, AppointmentCancelledRequestApproved,
+            AppointmentCancelledRequestRejected, AppointmentRescheduleRequest,
+            AppointmentRescheduleRequestApproved, AppointmentRescheduleRequestRejected,
+            RejectedPackageDocument, RejectedJointDeclarationDocument,
+            AppointmentDueDate, AppointmentDueDateUploadDocumentLeft, SubmitQuery,
+            AppointmentApprovedStakeholderEmails, AppointmentCancelledByAdmin,
+
+            // 40 on-disk HTML (EmailTemplate static class)
+            AddInternalUser, PasswordChange, ResetPassword, UserRegistered, UserQuery,
+            AppointmentRescheduleRequestByAdmin, AppointmentChangeLogs,
+            PatientAppointmentPending, PatientAppointmentApproveReject,
+            PatientAppointmentApprovedInternal, PatientAppointmentApprovedExt,
+            PatientAppointmentRejected, PatientAppointmentCheckedIn,
+            PatientAppointmentCheckedOut, PatientAppointmentNoShow,
+            PatientAppointmentCancelledNoBill, ClinicalStaffCancellation,
+            AccessorAppointmentBooked, PatientDocumentAccepted, PatientDocumentRejected,
+            PatientDocumentUploaded, PatientNewDocumentAccepted, PatientNewDocumentRejected,
+            PatientNewDocumentUploaded, PatientDocumentAcceptedAttachment,
+            PatientDocumentAcceptedRemainingDocs, PatientDocumentRejectedRemainingDocs,
+            AppointmentApproveRejectInternal, AppointmentDueDateReminder,
+            AppointmentCancelledDueDate, AppointmentPendingNextDay,
+            AppointmentJointDeclarationOverdueInternal,
+            PatientAppointmentRescheduleReqAdmin, PatientAppointmentRescheduleReqApproved,
+            PatientAppointmentRescheduleReqRejected, PatientAppointmentCancellationApproved,
+            PatientAppointmentRescheduleReq, JointAgreementLetterAccepted,
+            JointAgreementLetterUploaded, JointAgreementLetterRejected,
+            AppointmentDocumentAddWithAttachment, PendingAppointmentDailyNotification,
+
+            // Appointment-requested notices: shared party body (Registered) + separate office notice.
+            AppointmentRequestedOffice, AppointmentRequestedRegistered,
+
+            // 2026-05-15 -- admin-issued external-user invitation.
+            InviteExternalUser,
+
+            // 2026-05-15 -- IT Admin internal-user welcome email.
+            InternalUserCreated,
+
+            // Group D (2026-06-09) -- actionable opposing-side consent request.
+            ChangeRequestConsentRequest,
+
+            // Prompt 17 (2026-06-17) -- send-back / request-info notice.
+            PatientAppointmentInfoRequested,
+            CaseTrackerPushFailed,
+
+            // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
+            AccessorAppointmentAdded,
+
+            // Item F (2026-08-22) -- sign-in link for an email staff tried to invite that is
+            // already registered in the office.
+            ExternalUserPortalLink,
+        };
+
+        /// <summary>
+        /// Subset of codes that can be dispatched from HOST scope
+        /// (<c>CurrentTenant.Id == null</c>, no impersonation) and so must ALSO be
+        /// seeded into the host database, in addition to the per-office copies.
+        /// Scope-traced 2026-07-21 (task_4c0f6fe9) from every dispatch call site:
+        /// <list type="bullet">
+        ///   <item><c>InternalUserCreated</c> -- IT Admin creates a host operator
+        ///         (<c>InternalUsersAppService.CreateAsync</c> runs in
+        ///         <c>CurrentTenant.Change(null)</c>).</item>
+        ///   <item><c>ResetPassword</c> -- admin-triggered reset for a host operator +
+        ///         host-operator self-service forgot-password.</item>
+        ///   <item><c>PasswordChange</c> -- any authenticated user's in-app change
+        ///         dispatches in their ambient scope, which is host for operators.</item>
+        ///   <item><c>UserRegistered</c> -- account-emailer email-confirmation link /
+        ///         2FA / confirmation code for a host user.</item>
+        /// </list>
+        /// Every entry is also in <see cref="All"/>: host copies are additive; the
+        /// per-office copies stay. Appointment-lifecycle codes are deliberately absent
+        /// (they only fire inside an office scope).
+        /// </summary>
+        public static readonly string[] HostScoped =
+        {
+            InternalUserCreated,
+            ResetPassword,
+            PasswordChange,
+            UserRegistered,
+        };
+    }
+}

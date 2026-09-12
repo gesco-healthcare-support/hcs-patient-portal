@@ -18,6 +18,24 @@ public static class CaseEvaluationSettings
     private const string Scheduling = Prefix + ".Scheduling";
     private const string Documents = Prefix + ".Documents";
     private const string Notifications = Prefix + ".Notifications";
+    private const string Integration = Prefix + ".Integration";
+
+    /// <summary>
+    /// Outbound-integration switches (2026-07-27, Case Tracker Part 1). A setting rather than
+    /// config so it is per-office overridable and can be flipped without a redeploy; the URL and
+    /// token stay in config/secrets because a token must never live in the settings table.
+    /// </summary>
+    public static class IntegrationPolicy
+    {
+        /// <summary>
+        /// Master switch for pushing approved appointments to the Case Tracker. Defaults to FALSE:
+        /// their endpoints are not deployed yet, and the payload is ePHI, so nothing may leave the
+        /// portal until an office is deliberately switched on. Enforced at the outbox drain (the
+        /// single send boundary) -- when off, due rows stay Pending with no failed-attempt cost and
+        /// resume automatically once enabled.
+        /// </summary>
+        public const string CaseTrackerPushEnabled = Integration + ".CaseTrackerPushEnabled";
+    }
 
     public static class BookingPolicy
     {
@@ -27,8 +45,8 @@ public static class CaseEvaluationSettings
 
         // Maximum minutes from now an appointment of a given type may be scheduled.
         // Defaults: 90 days (129,600 minutes) for QME / AME / Other.
-        public const string MaxHorizonQmeMinutes   = Booking + ".MaxHorizonQmeMinutes";
-        public const string MaxHorizonAmeMinutes   = Booking + ".MaxHorizonAmeMinutes";
+        public const string MaxHorizonQmeMinutes = Booking + ".MaxHorizonQmeMinutes";
+        public const string MaxHorizonAmeMinutes = Booking + ".MaxHorizonAmeMinutes";
         public const string MaxHorizonOtherMinutes = Booking + ".MaxHorizonOtherMinutes";
 
         // Default appointment duration. Default 60 minutes.
@@ -60,6 +78,11 @@ public static class CaseEvaluationSettings
         // Days before the appointment by which joint declarations must be uploaded.
         // Default 7 days.
         public const string JointDeclarationUploadCutoffDays = Documents + ".JointDeclarationUploadCutoffDays";
+
+        // Phase 14b (2026-05-04) -- days before the appointment due-date at
+        // which the PackageDocumentReminderJob fires for any document still
+        // in (Pending, Rejected) status. Default 7 days.
+        public const string PackageDocumentReminderDays = Documents + ".PackageDocumentReminderDays";
     }
 
     public static class NotificationsPolicy
@@ -84,8 +107,16 @@ public static class CaseEvaluationSettings
         // /Account/Register?__tenant=&lt;TenantName&gt;&email=&lt;email&gt; links in
         // the "register as [role]" emails sent to non-registered parties whose
         // emails were captured at booking time on the appointment row (S-5.1).
-        // Default https://localhost:44368 for dev; admins override per-tenant.
+        // Default http://falkinstein.localhost:44368 for Phase 1A dev (matches
+        // the Docker-exposed AuthServer plain-HTTP port + tenant subdomain);
+        // admins override per-tenant once HTTPS dev wiring ships.
         public const string AuthServerBaseUrl = Notifications + ".AuthServerBaseUrl";
+
+        // Issue #4a (2026-07-16): master email on/off switch. When false, the outbox
+        // drain holds all due rows Pending (no send) until re-enabled -- covers every
+        // email type because all email flows through the outbox. Default true; a per-tenant
+        // override beats the host default.
+        public const string EmailEnabled = Notifications + ".EmailEnabled";
     }
 
     /// <summary>
@@ -99,6 +130,13 @@ public static class CaseEvaluationSettings
         public const string Sec31_5ElapsedDayAnchors = Notifications + ".Reminders.Sec31_5ElapsedDayAnchors";
         public const string Sec34eElapsedDayAnchors = Notifications + ".Reminders.Sec34eElapsedDayAnchors";
         public const string AppointmentDayTMinusAnchors = Notifications + ".Reminders.AppointmentDayTMinusAnchors";
+
+        // Group L (2026-06-05) -- T-minus day anchors for the two document
+        // reminder jobs that previously hardcoded their windows. Defaults match
+        // the prior hardcoded values, so the cadence does not change until an
+        // admin edits them.
+        public const string DueDateApproachingAnchors = Notifications + ".Reminders.DueDateApproachingAnchors";
+        public const string DueDateDocumentIncompleteAnchors = Notifications + ".Reminders.DueDateDocumentIncompleteAnchors";
         public const string Sec31_5Cron = Notifications + ".Reminders.Sec31_5Cron";
         public const string Sec34eCron = Notifications + ".Reminders.Sec34eCron";
         public const string AppointmentDayCron = Notifications + ".Reminders.AppointmentDayCron";

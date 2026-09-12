@@ -1,0 +1,15 @@
+# Nightly off-box backup. Runs as root deliberately: the .bak files are written by the SQL
+# Server container as uid 10001 mode 640, so the host user cannot read them to copy, nor
+# delete them to prune. See the header of backup-offbox.sh.
+[Unit]
+Description=Patient Portal off-box backup (databases + MinIO -> hcs-vc-server)
+Documentation=file:///home/apadmin/hcs-patient-portal/scripts/hosting/backup-offbox.sh
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/home/apadmin/hcs-patient-portal/scripts/hosting/backup-offbox.sh
+TimeoutStartSec=3600

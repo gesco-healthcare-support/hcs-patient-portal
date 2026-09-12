@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>External Role Home — Redesign</title>
+  <link rel="icon" href="assets/fav-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/before.css" />
+  <link rel="stylesheet" href="styles/after.css" />
+  <link rel="stylesheet" href="styles/ext-home.css" />
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- plain JS -->
+  <script src="data.js"></script>
+  <script src="components/icons.js"></script>
+  <script src="components/ext-data.js"></script>
+
+  <!-- React components (babel) -->
+  <script type="text/babel" src="components/after-common.jsx"></script>
+  <script type="text/babel" src="components/ext-before.jsx"></script>
+  <script type="text/babel" src="components/ext-after.jsx"></script>
+  <script type="text/babel" src="components/ext-after2.jsx"></script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect } = React;
+
+    const ROLE_LIST = [
+      ['patient', 'Patient'],
+      ['applicantAttorney', 'Applicant Attorney'],
+      ['defenseAttorney', 'Defense Attorney'],
+      ['claimExaminer', 'Claim Examiner'],
+    ];
+
+    function ChromeIcon({ name }) { return <span className="i" dangerouslySetInnerHTML={window.Ico(name, 14)} />; }
+
+    function App() {
+      const [mode, setMode] = useState('after');
+      const [roleKey, setRoleKey] = useState('patient');
+
+      useEffect(() => {
+        function onKey(e) {
+          if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+          const k = e.key.toLowerCase();
+          if (k === 'b') setMode('before');
+          else if (k === 'a') setMode('after');
+          else if (k === 's') setMode('split');
+          else if (k === '1') setRoleKey('patient');
+          else if (k === '2') setRoleKey('applicantAttorney');
+          else if (k === '3') setRoleKey('defenseAttorney');
+          else if (k === '4') setRoleKey('claimExaminer');
+        }
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, []);
+
+      const roleLabel = window.EXT.ROLES[roleKey].label;
+      const renderBefore = () => <window.BeforeExternalHome roleKey={roleKey} />;
+      const renderAfter = () => <window.AfterExternalHome roleKey={roleKey} />;
+
+      return (
+        <div className="proto">
+          <div className="chrome">
+            <div className="chrome__brand"><span className="dot" />External Role Home · Redesign</div>
+
+            <div className="chrome__group">
+              <span className="chrome__label">Role</span>
+              <div className="seg">
+                {ROLE_LIST.map(([k, lbl]) => (
+                  <button key={k} data-active={roleKey === k} onClick={() => setRoleKey(k)}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="chrome__group">
+              <span className="chrome__label">View</span>
+              <div className="seg seg--ba">
+                <button data-mode="before" data-active={mode === 'before'} onClick={() => setMode('before')}>Before</button>
+                <button data-mode="after" data-active={mode === 'after'} onClick={() => setMode('after')}>After</button>
+                <button data-mode="split" data-active={mode === 'split'} onClick={() => setMode('split')}>Split</button>
+              </div>
+            </div>
+
+            <div className="chrome__spacer" />
+            <div className="chrome__hint">
+              <span>{roleLabel}</span>
+              <span style={{ opacity: .5 }}>·</span>
+              <kbd>B</kbd><kbd>A</kbd><kbd>S</kbd> view · <kbd>1</kbd>–<kbd>4</kbd> role
+            </div>
+          </div>
+
+          {mode === 'split' ? (
+            <div className="stage stage--split">
+              <div className="split-pane">
+                <div className="split-tag split-tag--before"><ChromeIcon name="clock" />Before · current</div>
+                <div data-screen-label={'Before · ' + roleLabel + ' Home'}>{renderBefore()}</div>
+              </div>
+              <div className="split-pane">
+                <div className="split-tag split-tag--after"><ChromeIcon name="check" />After · redesign</div>
+                <div data-screen-label={'After · ' + roleLabel + ' Home'}>{renderAfter()}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="stage">
+              <div className="viewport" key={roleKey + mode}>
+                <div className="fade-in" data-screen-label={(mode === 'before' ? 'Before · ' : 'After · ') + roleLabel + ' Home'}>
+                  {mode === 'before' ? renderBefore() : renderAfter()}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

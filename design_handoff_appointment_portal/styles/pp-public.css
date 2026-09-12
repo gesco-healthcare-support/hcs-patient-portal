@@ -1,0 +1,90 @@
+/* ============================================================
+   Public (logged-out, link-based) pages — Document Upload + Change-
+   Request Consent. No app shell. Reassuring, minimal, one clear action.
+   Brand blue #055495 + green #9dc13b; Roboto. Builds on tokens + after.
+   ============================================================ */
+
+.pp { min-height: 100%; background: linear-gradient(180deg, #eef5fb 0%, #f5f7fa 38%); display: flex; flex-direction: column; color: var(--n-800); }
+.pp *, .pp *::before, .pp *::after { box-sizing: border-box; }
+
+/* brand header */
+.pp-top { padding: 26px 24px 0; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.pp-top img { height: 40px; width: auto; }
+.pp-top .tag { font-size: 12px; font-weight: 600; color: var(--n-500); letter-spacing: .02em; }
+.pp-top .tag b { color: var(--blue-700); font-weight: 700; }
+
+.pp-main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 28px 22px 40px; }
+.pp-card { background: #fff; border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--sh-lg); width: 100%; max-width: 560px; padding: 38px 38px 34px; }
+
+/* status icon + heading */
+.pp-ic { width: 64px; height: 64px; border-radius: 18px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+.pp-ic.blue { background: var(--blue-50); color: var(--blue-700); }
+.pp-ic.green { background: var(--green-50); color: var(--green-700); }
+.pp-ic.amber { background: var(--st-pending-bg); color: var(--st-pending-fg); }
+.pp-ic.red { background: var(--st-rejected-bg); color: var(--st-rejected-fg); }
+.pp-card h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--n-900); margin: 0 0 8px; text-align: center; }
+.pp-card .lead { font-size: 15px; color: var(--n-600); line-height: 1.55; text-align: center; margin: 0 auto 22px; max-width: 440px; }
+
+/* context summary box */
+.pp-context { background: var(--n-25); border: 1px solid var(--border); border-radius: var(--r-md); padding: 4px 18px; margin-bottom: 22px; }
+.pp-crow { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--n-100); }
+.pp-crow:last-child { border-bottom: 0; }
+.pp-crow .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--blue-50); color: var(--blue-700); display: flex; align-items: center; justify-content: center; flex: none; }
+.pp-crow .tx { min-width: 0; flex: 1; }
+.pp-crow .tx .k { font-size: 11.5px; color: var(--n-500); font-weight: 600; display: block; }
+.pp-crow .tx .v { font-size: 14px; color: var(--n-900); font-weight: 700; display: block; margin-top: 2px; }
+.pp-crow .tx .v.mono { font-family: var(--font-num); }
+
+/* reschedule old → new */
+.pp-change { display: flex; align-items: stretch; gap: 12px; margin-bottom: 22px; }
+.pp-change__slot { flex: 1; border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; }
+.pp-change__slot.old { background: var(--n-25); }
+.pp-change__slot.new { background: var(--blue-50); border-color: var(--blue-200); }
+.pp-change__slot .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--n-500); margin-bottom: 5px; }
+.pp-change__slot.new .k { color: var(--blue-700); }
+.pp-change__slot .v { font-size: 15px; font-weight: 700; color: var(--n-900); }
+.pp-change__slot .v.strike { text-decoration: line-through; color: var(--n-400); font-weight: 600; }
+.pp-change__arrow { display: flex; align-items: center; color: var(--n-300); flex: none; }
+
+/* dropzone */
+.pp-drop { border: 2px dashed var(--border-strong); border-radius: var(--r-md); padding: 30px 20px; text-align: center; color: var(--n-500); background: var(--n-25); transition: all .14s; cursor: pointer; }
+.pp-drop:hover { border-color: var(--blue-300); background: var(--blue-50); color: var(--blue-700); }
+.pp-drop.has { border-style: solid; border-color: var(--blue-300); background: var(--blue-50); }
+.pp-drop .ic { color: var(--blue-500); margin-bottom: 10px; display: inline-flex; }
+.pp-drop b { display: block; font-size: 14.5px; color: var(--n-800); font-weight: 700; }
+.pp-drop span { font-size: 12.5px; }
+.pp-file { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; margin-top: 14px; background: #fff; }
+.pp-file .fi { width: 38px; height: 38px; border-radius: 10px; background: var(--blue-50); color: var(--blue-700); display: flex; align-items: center; justify-content: center; flex: none; }
+.pp-file .nm { flex: 1; min-width: 0; }
+.pp-file .nm b { font-size: 13.5px; color: var(--n-900); font-weight: 700; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-file .nm span { font-size: 11.5px; color: var(--n-500); }
+
+/* PHI note */
+.pp-note { display: flex; gap: 10px; align-items: flex-start; background: #fdf3ea; border: 1px solid #f3d9be; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: #9a5a18; margin: 18px 0 0; }
+.pp-note .i { flex: none; margin-top: 1px; }
+
+/* actions */
+.pp-actions { display: flex; gap: 12px; margin-top: 24px; }
+.pp-actions .af-btn { flex: 1; justify-content: center; }
+.pp-actions--single { justify-content: center; }
+.pp-btn-lg { padding: 14px 22px; font-size: 15px; border-radius: 12px; }
+
+/* uploading progress */
+.pp-progress { height: 8px; border-radius: 99px; background: var(--n-100); overflow: hidden; margin: 6px 0 4px; }
+.pp-progress span { display: block; height: 100%; background: var(--blue-700); border-radius: 99px; transition: width .3s ease; }
+
+/* footer */
+.pp-foot { text-align: center; padding: 0 22px 28px; color: var(--n-400); font-size: 12px; }
+.pp-foot a { color: var(--blue-600); text-decoration: none; }
+
+/* spinner */
+.pp-spin { width: 40px; height: 40px; border: 4px solid var(--blue-100); border-top-color: var(--blue-700); border-radius: 50%; margin: 8px auto 0; animation: ppspin .8s linear infinite; }
+@keyframes ppspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pp-spin { animation: none; } }
+
+@media (max-width: 520px) {
+  .pp-card { padding: 28px 22px; }
+  .pp-change { flex-direction: column; }
+  .pp-change__arrow { transform: rotate(90deg); justify-content: center; }
+  .pp-actions { flex-direction: column; }
+}

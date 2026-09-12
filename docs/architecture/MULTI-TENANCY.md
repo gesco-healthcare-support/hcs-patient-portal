@@ -2,6 +2,8 @@
 
 # Multi-Tenancy Strategy
 
+> Purpose: Describes the doctor-per-tenant isolation model, dual-DbContext design, and entity classification. Audience: backend engineers. Last verified: 2026-06-01 vs main.
+
 The HCS Case Evaluation Portal uses ABP Framework's multi-tenancy infrastructure with a **doctor-per-tenant** model. Each doctor in the system is their own ABP tenant (organization), providing full data isolation at the database level.
 
 Multi-tenancy is enabled globally via `MultiTenancyConsts.IsEnabled = true` in `Domain.Shared`.
@@ -37,13 +39,13 @@ These entities have **no TenantId** and do **not** implement `IMultiTenant`. The
 
 | Entity | Purpose |
 |---|---|
-| **Patient** | Global patient records (has an optional TenantId for association but does not implement `IMultiTenant`) |
 | **Location** | Physical office locations |
 | **State** | US states reference data |
 | **WcabOffice** | WCAB office locations |
 | **AppointmentType** | Types of medical exams |
-| **AppointmentStatus** | Status reference data |
+| **AppointmentStatus** | Display-name metadata for appointment statuses (not the state machine) |
 | **AppointmentLanguage** | Language reference data |
+| **NotificationTemplateType** | Lookup for notification channel (Email, SMS); two seeded rows; IT Admin-only |
 
 ### Multi-Tenant Entities
 
@@ -53,32 +55,70 @@ These entities implement `IMultiTenant` and carry a `TenantId` column. They are 
 |---|---|
 | **Doctor** | The tenant owner entity |
 | **DoctorAvailability** | Time slots per doctor/tenant |
+| **DoctorPreferredLocation** | M:N mapping of which Locations a Doctor accepts appointments at |
 | **Appointment** | Bookings within a doctor's tenant |
 | **AppointmentAccessor** | Who can view/edit appointments |
 | **AppointmentEmployerDetail** | Employer info per appointment |
+| **AppointmentInjuryDetail** | Injury detail record per appointment |
+| **AppointmentBodyPart** | Body part description lines within an injury detail |
+| **AppointmentClaimExaminer** | Claim examiner address/contact per injury detail |
+| **AppointmentPrimaryInsurance** | Primary insurance address/contact per injury detail |
+| **AppointmentDocument** | Uploaded files and queued package documents per appointment |
+| **AppointmentPacket** | Generated PDF packets per (appointment, kind) tuple |
+| **AppointmentChangeRequest** | User-initiated cancel or reschedule request on an Approved appointment |
 | **ApplicantAttorney** | Attorney records within tenant |
 | **AppointmentApplicantAttorney** | Attorney-appointment links |
+| **DefenseAttorney** | Defense attorney records with firm and contact info |
+| **AppointmentDefenseAttorney** | Defense attorney-appointment links |
+| **AppointmentTypeFieldConfig** | Per-tenant field-level config (hidden/read-only/default) for appointment types |
+| **SystemParameter** | Per-tenant singleton holding booking, cancel, and scheduling policy gates |
+| **Document** | Master template catalog of blank PDFs managed by IT Admin |
+| **PackageDetail** | Per-AppointmentType packet template defining required documents |
+| **CustomField** | IT-Admin-defined intake fields rendered on the booking form |
+| **CustomFieldValue** | Per-appointment values submitted for a CustomField |
+| **NotificationTemplate** | Per-tenant editable email/SMS template catalog (59 seeded codes) |
+| **Invitation** | Time-limited one-time invite tokens for external user self-registration |
+| **Patient** | Patient records; implements `IMultiTenant` since FEAT-09 (2026-05-05) -- ABP auto-filter scopes reads by CurrentTenant.Id; cross-tenant visibility for host/IT-Admin paths uses `IDataFilter<IMultiTenant>.Disable()` |
 
 ```mermaid
 flowchart LR
     subgraph HostOnly["Host-Only Entities"]
-        Patient
         Location
         State
         WcabOffice
         AppointmentType
         AppointmentStatus
         AppointmentLanguage
+        NotificationTemplateType
     end
 
     subgraph MultiTenant["Multi-Tenant Entities (IMultiTenant)"]
         Doctor
         DoctorAvailability
+        DoctorPreferredLocation
         Appointment
         AppointmentAccessor
         AppointmentEmployerDetail
+        AppointmentInjuryDetail
+        AppointmentBodyPart
+        AppointmentClaimExaminer
+        AppointmentPrimaryInsurance
+        AppointmentDocument
+        AppointmentPacket
+        AppointmentChangeRequest
         ApplicantAttorney
         AppointmentApplicantAttorney
+        DefenseAttorney
+        AppointmentDefenseAttorney
+        AppointmentTypeFieldConfig
+        SystemParameter
+        Document
+        PackageDetail
+        CustomField
+        CustomFieldValue
+        NotificationTemplate
+        Invitation
+        Patient
     end
 
     HostOnly --- |"Shared across all tenants"| HostDB[(Host Database)]
@@ -135,16 +175,16 @@ classDiagram
 
 ## Cross-Tenant Data Access
 
-Tenant entities frequently need to reference host-side data. For example, an `Appointment` (tenant-scoped) references both a `Patient` and a `Location` (both host-side).
+Tenant entities frequently need to reference host-side data. For example, an `Appointment` (tenant-scoped) references a `Location` (host-side). `Patient` is also tenant-scoped (IMultiTenant since FEAT-09), so `Appointment -> Patient` is a same-side FK within the tenant database.
 
 ```mermaid
 flowchart TD
     subgraph TenantDB["Tenant Database"]
         Appointment["Appointment\n(IMultiTenant)"]
+        Patient["Patient\n(IMultiTenant)"]
     end
 
     subgraph HostDB["Host Database"]
-        Patient["Patient\n(Host-Only)"]
         Location["Location\n(Host-Only)"]
     end
 
@@ -155,7 +195,7 @@ flowchart TD
 Key design decisions for cross-tenant references:
 
 - **FK relationships** use `DeleteBehavior.NoAction` to prevent cross-database cascade issues. Since host and tenant data may live in different physical databases, cascade deletes cannot span that boundary.
-- **`IDataFilter<IMultiTenant>`** can be used to temporarily disable tenant filtering when a service needs to read across tenants. For example, `DoctorsAppService` uses this to list all doctors from the host context regardless of the current tenant.
+- **`IDataFilter<IMultiTenant>`** can be used to temporarily disable tenant filtering when a service needs to read across tenants. For example, `DoctorsAppService` uses this to list all doctors from the host context regardless of the current tenant. Host/IT-Admin paths that need to read Patient records across tenants use the same pattern.
 
 ## Tenant Resolution Flow
 
@@ -207,5 +247,4 @@ This ensures every new tenant gets its schema and baseline data automatically up
 
 - [Architecture Overview](OVERVIEW.md)
 - [EF Core Design](../database/EF-CORE-DESIGN.md)
-- [Domain Model](../backend/DOMAIN-MODEL.md)
 - [Domain Overview](../business-domain/DOMAIN-OVERVIEW.md)

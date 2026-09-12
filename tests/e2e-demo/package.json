@@ -1,0 +1,15 @@
+{
+  "name": "patient-portal-e2e-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end demo smoke tests for the Falkinstein tenant. Drives the 7 demo flows Adrian needs to greenlight: subdomain routing, internal-user login + slot creation, external-user registration + booking, appointment view, approve/reject, email validation, and PDF packet download. Each scenario emits screenshots + structured logs so failures are diagnosable in isolation.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}

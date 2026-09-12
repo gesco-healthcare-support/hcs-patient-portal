@@ -10,24 +10,20 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Testing;
 
 /// <summary>
-/// Seeds the nine test users across the seven intended application roles:
+/// Seeds the seven test users across the seven intended user-facing roles
+/// (Phase 0.1, 2026-05-01: Doctor is non-user reference entity, not seeded here):
 ///
 ///   Host scope: HostAdmin (role "admin").
-///   TenantA:    TenantAdmin1, Doctor1, ApplicantAttorney1, DefenseAttorney1, ClaimExaminer1, Patient1.
-///   TenantB:    Doctor2, Patient2.
+///   TenantA:    TenantAdmin1, ApplicantAttorney1, DefenseAttorney1, ClaimExaminer1, Patient1.
+///   TenantB:    Patient2.
 ///
-/// Mirrors production's tenant-provisioning pattern (DoctorTenantAppService.CreateAsync)
-/// by wrapping each tenant's user + role creation in _currentTenant.Change(tenantId).
-/// Each tenant has its own row per role because role definitions in ABP are
-/// tenant-scoped when created inside a tenant context.
+/// Mirrors production's tenant-provisioning pattern by wrapping each tenant's user
+/// + role creation in _currentTenant.Change(tenantId). Each tenant has its own row
+/// per role because role definitions in ABP are tenant-scoped when created inside
+/// a tenant context.
 ///
 /// Must run AFTER the orchestrator's SeedTenantsAsync step -- this contributor
 /// reads TenantsTestData.TenantARef / TenantBRef which are populated there.
-/// Throws InvalidOperationException with a clear diagnostic if called out of order.
-///
-/// Invoked by <see cref="CaseEvaluationIntegrationTestSeedContributor"/>. Not
-/// registered as an IDataSeedContributor itself so ABP's non-deterministic
-/// multi-contributor ordering cannot interleave it with the orchestrator.
 /// </summary>
 public class IdentityUsersDataSeedContributor : ISingletonDependency
 {
@@ -90,7 +86,6 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await EnsureRoleAsync(IdentityUsersTestData.TenantAdminRoleName);
-            await EnsureRoleAsync(IdentityUsersTestData.DoctorRoleName);
             await EnsureRoleAsync(IdentityUsersTestData.ApplicantAttorneyRoleName);
             await EnsureRoleAsync(IdentityUsersTestData.DefenseAttorneyRoleName);
             await EnsureRoleAsync(IdentityUsersTestData.ClaimExaminerRoleName);
@@ -101,21 +96,6 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
                 IdentityUsersTestData.TenantAdmin1UserName,
                 IdentityUsersTestData.TenantAdmin1Email,
                 IdentityUsersTestData.TenantAdminRoleName);
-
-            await SeedUserAsync(
-                IdentityUsersTestData.Doctor1UserId,
-                IdentityUsersTestData.Doctor1UserName,
-                IdentityUsersTestData.Doctor1Email,
-                IdentityUsersTestData.DoctorRoleName);
-
-            // Doctor2 lives in the same tenant as Doctor1 (realistic case of a
-            // practice with multiple practitioners). Matches the doctor seed in
-            // the orchestrator.
-            await SeedUserAsync(
-                IdentityUsersTestData.Doctor2UserId,
-                IdentityUsersTestData.Doctor2UserName,
-                IdentityUsersTestData.Doctor2Email,
-                IdentityUsersTestData.DoctorRoleName);
 
             await SeedUserAsync(
                 IdentityUsersTestData.ApplicantAttorney1UserId,

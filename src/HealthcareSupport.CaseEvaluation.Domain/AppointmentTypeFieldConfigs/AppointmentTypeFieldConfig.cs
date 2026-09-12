@@ -38,6 +38,14 @@ public class AppointmentTypeFieldConfig : FullAuditedAggregateRoot<Guid>, IMulti
 
     public virtual bool ReadOnly { get; set; }
 
+    /// <summary>
+    /// Prompt 15 (2026-06-15): whether the booking form must require this field
+    /// for this AppointmentType. The Configuration UI's third per-field toggle
+    /// (Required / Optional). Booking-form enforcement is a separate change; this
+    /// column stores the admin's choice.
+    /// </summary>
+    public virtual bool Required { get; set; }
+
     [CanBeNull]
     public virtual string? DefaultValue { get; set; }
 
@@ -50,7 +58,8 @@ public class AppointmentTypeFieldConfig : FullAuditedAggregateRoot<Guid>, IMulti
         string fieldName,
         bool hidden = false,
         bool readOnly = false,
-        string? defaultValue = null)
+        string? defaultValue = null,
+        bool required = false)
     {
         Id = id;
         Check.NotNullOrWhiteSpace(fieldName, nameof(fieldName));
@@ -64,6 +73,7 @@ public class AppointmentTypeFieldConfig : FullAuditedAggregateRoot<Guid>, IMulti
         FieldName = fieldName;
         Hidden = hidden;
         ReadOnly = readOnly;
+        Required = required;
         DefaultValue = defaultValue;
     }
 }

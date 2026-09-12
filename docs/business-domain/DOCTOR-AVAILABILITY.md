@@ -1,5 +1,7 @@
 # Doctor Availability
 
+> Purpose: Describes the DoctorAvailability slot model, booking status lifecycle, bulk generation, and relationship to appointments. Audience: developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Business Domain](./) > Doctor Availability
 
 ## Overview
@@ -50,6 +52,7 @@ stateDiagram-v2
 ```
 
 **Key rules:**
+
 - When an appointment is created against a slot, the slot transitions from `Available (8)` to `Booked (9)`.
 - When an appointment is cancelled, the slot reverts from `Booked (9)` back to `Available (8)`.
 - Admins can reserve slots to block them from patient booking, then release them later.

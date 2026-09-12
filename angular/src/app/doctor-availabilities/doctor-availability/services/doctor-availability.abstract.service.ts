@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
-import { ConfirmationService, Confirmation } from '@abp/ng.theme.shared';
+import { ConfirmationService, Confirmation, ToasterService } from '@abp/ng.theme.shared';
 import { ABP, ListService, PagedResultDto } from '@abp/ng.core';
-import { filter, switchMap } from 'rxjs/operators';
+import { filter, switchMap, tap } from 'rxjs/operators';
 import type {
   GetDoctorAvailabilitiesInput,
   DoctorAvailabilityWithNavigationPropertiesDto,
@@ -25,6 +25,7 @@ export interface DoctorAvailabilityGroupedRow {
 export abstract class AbstractDoctorAvailabilityViewService {
   protected readonly proxyService = inject(DoctorAvailabilityService);
   protected readonly confirmationService = inject(ConfirmationService);
+  protected readonly toaster = inject(ToasterService);
   protected readonly list = inject(ListService);
 
   public readonly getWithNavigationProperties = this.proxyService.getWithNavigationProperties;
@@ -49,8 +50,22 @@ export abstract class AbstractDoctorAvailabilityViewService {
             availableDate: row.availableDate,
           }),
         ),
+        tap((result) => {
+          // Backend now partial-deletes per OLD parity: Available rows go
+          // away, Booked + Reserved rows are reported back via SkippedSlotIds.
+          // Surface both numbers so the admin knows why the row count
+          // dropped instead of zeroed.
+          const skipped = result?.skippedSlotIds?.length ?? 0;
+          if (skipped > 0) {
+            this.toaster.warn(
+              `${result.deletedCount} of ${result.deletedCount + skipped} slots deleted; ${skipped} kept (booked or reserved).`,
+            );
+          } else if (result?.deletedCount) {
+            this.toaster.success(`${result.deletedCount} slot(s) deleted.`);
+          }
+        }),
       )
-      .subscribe(this.list.get);
+      .subscribe(() => this.list.get());
   }
 
   deleteSlot(record: DoctorAvailabilityWithNavigationPropertiesDto) {

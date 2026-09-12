@@ -6,6 +6,8 @@ export interface AppointmentStatusCreateDto {
 
 export interface AppointmentStatusDto extends FullAuditedEntityDto<string> {
   name?: string;
+  isSystem?: boolean;
+  usageCount?: number | null;
 }
 
 export interface AppointmentStatusUpdateDto {

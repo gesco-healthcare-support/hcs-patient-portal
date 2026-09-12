@@ -1,0 +1,179 @@
+/* ============================================================
+   Request an Appointment / Re-evaluation — wizard redesign.
+   Builds on tokens.css + after.css + ext-home.css (top navbar reused).
+   Brand blue #055495 + green #9dc13b kept exactly; Roboto.
+   ============================================================ */
+
+.ra { background: var(--surface-app); min-height: 100%; color: var(--n-800); }
+.ra *, .ra *::before, .ra *::after { box-sizing: border-box; }
+
+/* ---------------- Page header band ---------------- */
+.ra-head { background: linear-gradient(135deg, #07304f 0%, #0a4a7e 62%, #075ca1 100%); color: #fff; position: relative; overflow: hidden; }
+.ra-head::after { content: ''; position: absolute; right: -90px; top: -90px; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(157,193,59,.16), transparent 68%); }
+.ra-head__in { max-width: 1100px; margin: 0 auto; padding: 26px 26px 50px; position: relative; z-index: 2; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.ra-head__eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #9dc13b; margin: 0 0 6px; }
+.ra-head h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
+.ra-head p { color: #bcd6ed; font-size: 14px; margin: 6px 0 0; max-width: 760px; }
+.ra-head__mode { display: inline-flex; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); border-radius: var(--r-pill); padding: 3px; }
+.ra-head__mode button { border: 0; background: transparent; color: #cfe0f0; font-size: 12.5px; font-weight: 600; padding: 7px 15px; border-radius: var(--r-pill); cursor: pointer; transition: all .14s; white-space: nowrap; }
+.ra-head__mode button[data-on="true"] { background: #fff; color: var(--blue-700); }
+
+/* ---------------- Wizard shell ---------------- */
+.ra-wrap { max-width: 1100px; margin: 0 auto; padding: 0 26px 140px; }
+
+/* stepper — pulled up over the header band; fits all steps, never scrolls */
+.ra-stepper { display: flex; gap: 4px; background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-md); padding: 8px; margin-top: -22px; position: relative; z-index: 5; }
+.ra-step { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 10px 9px; border-radius: var(--r-md); border: 0; background: transparent; cursor: pointer; text-align: left; transition: background .14s; position: relative; }
+.ra-step:not(:last-child)::after { content: ''; position: absolute; right: -2px; top: 50%; transform: translateY(-50%); width: 1px; height: 24px; background: var(--border); }
+.ra-step:hover:not([data-state="disabled"]) { background: var(--n-50); }
+.ra-step[data-state="disabled"] { cursor: not-allowed; opacity: .55; }
+.ra-step__num { width: 28px; height: 28px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 800; font-family: var(--font-num); background: var(--n-100); color: var(--n-500); border: 1.5px solid var(--border-strong); transition: background .14s, color .14s, border-color .14s; }
+.ra-step__tx { line-height: 1.25; min-width: 0; flex: 1; }
+.ra-step__tx b { display: block; font-size: 12.5px; font-weight: 700; color: var(--n-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ra-step__tx span { display: block; font-size: 11px; color: var(--n-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ra-step[data-state="current"] .ra-step__num { background: var(--blue-700); color: #fff; border-color: var(--blue-700); box-shadow: 0 0 0 4px var(--blue-50); }
+.ra-step[data-state="current"] .ra-step__tx b { color: var(--blue-700); }
+.ra-step[data-state="done"] .ra-step__num { background: var(--green-500); color: #1c2a08; border-color: var(--green-500); }
+.ra-step[data-state="error"] .ra-step__num { background: var(--st-rejected-bg); color: var(--st-rejected-fg); border-color: var(--st-rejected-dot); }
+
+/* progressively shed label text before ever scrolling */
+@media (max-width: 920px) {
+  .ra-step__tx span { display: none; }
+  .ra-step { gap: 8px; padding: 10px 7px; }
+}
+@media (max-width: 680px) {
+  .ra-step__tx { display: none; }
+  .ra-step { justify-content: center; padding: 10px 4px; }
+}
+
+/* ---------------- Section cards ---------------- */
+.ra-body { margin-top: 22px; display: flex; flex-direction: column; gap: 18px; }
+.ra-card { background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-sm); overflow: hidden; }
+.ra-card__head { padding: 16px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.ra-card__head .ic { width: 38px; height: 38px; border-radius: 11px; flex: none; display: flex; align-items: center; justify-content: center; }
+.ra-card__head h3 { font-size: 16px; font-weight: 700; color: var(--n-900); margin: 0; letter-spacing: -.01em; }
+.ra-card__head p { font-size: 12.5px; color: var(--n-500); margin: 2px 0 0; }
+.ra-card__head .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.ra-card__body { padding: 22px; }
+.ra-card--optional .ra-card__body { padding-top: 4px; }
+
+/* include toggle (attorney optional) */
+.ra-switch { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; color: var(--n-600); cursor: pointer; }
+.ra-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.ra-switch .track { width: 40px; height: 23px; border-radius: 99px; background: var(--n-200); position: relative; transition: background .16s; flex: none; }
+.ra-switch .track::after { content: ''; position: absolute; top: 2.5px; left: 2.5px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .16s; }
+.ra-switch input:checked + .track { background: var(--blue-700); }
+.ra-switch input:checked + .track::after { transform: translateX(17px); }
+
+/* ---------------- Field grid ---------------- */
+.ra-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px 18px; }
+.ra-field { display: flex; flex-direction: column; min-width: 0; }
+.col-2 { grid-column: span 2; } .col-3 { grid-column: span 3; } .col-4 { grid-column: span 4; }
+.col-5 { grid-column: span 5; } .col-6 { grid-column: span 6; } .col-8 { grid-column: span 8; }
+.col-9 { grid-column: span 9; } .col-12 { grid-column: span 12; }
+.ra-field > label { font-size: 12.5px; font-weight: 600; color: var(--n-700); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+.ra-field .req { color: var(--st-rejected-fg); font-weight: 700; }
+.ra-field .opt { color: var(--n-400); font-weight: 500; font-size: 11.5px; }
+.ra-input, .ra-select {
+  width: 100%; padding: 10px 13px; font-size: 13.5px; font-family: var(--font);
+  border: 1px solid var(--border-strong); border-radius: 9px; background: #fff; color: var(--n-800);
+  transition: border-color .14s ease, box-shadow .14s ease; height: 42px;
+}
+textarea.ra-input { height: auto; resize: vertical; min-height: 84px; }
+.ra-input::placeholder { color: var(--n-400); }
+.ra-input:focus, .ra-select:focus { outline: none; border-color: var(--blue-400); box-shadow: 0 0 0 4px var(--blue-50); }
+.ra-input.bad, .ra-select.bad { border-color: var(--st-rejected-dot); box-shadow: 0 0 0 4px var(--st-rejected-bg); }
+.ra-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7789' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px; }
+.ra-err { font-size: 11.5px; color: var(--st-rejected-fg); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.ra-hint { font-size: 11.5px; color: var(--n-500); margin-top: 5px; }
+
+/* input with affix (calendar / clear) */
+.ra-affix { display: flex; align-items: stretch; }
+.ra-affix .ra-input { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.ra-affix button { border: 1px solid var(--border-strong); border-left: 0; background: var(--n-50); color: var(--n-500); padding: 0 12px; cursor: pointer; display: flex; align-items: center; }
+.ra-affix button:last-child { border-top-right-radius: 9px; border-bottom-right-radius: 9px; }
+.ra-affix button:hover { color: var(--blue-700); background: var(--blue-50); }
+
+/* radios (gender / interpreter / cumulative) */
+.ra-radios { display: flex; gap: 18px; align-items: center; height: 42px; }
+.ra-radio { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--n-700); cursor: pointer; }
+.ra-radio input { width: 17px; height: 17px; accent-color: var(--blue-700); }
+
+/* autocomplete-style field marker */
+.ra-field .ra-auto-ic { position: relative; }
+.ra-field .ra-auto-ic .ra-input { padding-right: 34px; }
+.ra-field .ra-auto-ic .pin { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); color: var(--n-400); pointer-events: none; }
+
+/* ---------------- Tables inside steps (claim info / authorized users) ---------------- */
+.ra-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.ra-table thead th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--n-500); padding: 11px 14px; background: var(--n-50); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ra-table tbody td { padding: 12px 14px; border-bottom: 1px solid var(--n-100); color: var(--n-700); vertical-align: middle; }
+.ra-table tbody tr:last-child td { border-bottom: 0; }
+.ra-table .num { font-family: var(--font-num); }
+.ra-emptyrow { color: var(--n-400); text-align: center; padding: 26px 14px; font-size: 13px; }
+.ra-rowbtn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: #fff; color: var(--n-500); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ra-rowbtn:hover { border-color: var(--blue-300); color: var(--blue-700); background: var(--blue-50); }
+.ra-rowbtn.danger:hover { border-color: var(--st-rejected-dot); color: var(--st-rejected-fg); background: var(--st-rejected-bg); }
+
+/* ---------------- Documents (dropzone + staged list) ---------------- */
+.ra-drop { border: 2px dashed var(--border-strong); border-radius: var(--r-md); padding: 28px 20px; text-align: center; color: var(--n-500); background: var(--n-25); transition: all .14s; cursor: pointer; }
+.ra-drop:hover { border-color: var(--blue-300); background: var(--blue-50); color: var(--blue-700); }
+.ra-drop .ic { color: var(--blue-500); margin-bottom: 8px; display: inline-flex; }
+.ra-drop b { display: block; font-size: 14px; color: var(--n-800); font-weight: 700; }
+.ra-drop span { font-size: 12px; }
+.ra-doc { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; margin-top: 10px; background: #fff; }
+.ra-doc .fi { width: 36px; height: 36px; border-radius: 9px; background: var(--blue-50); color: var(--blue-700); display: flex; align-items: center; justify-content: center; flex: none; }
+.ra-doc .nm { flex: 1; min-width: 0; }
+.ra-doc .nm b { font-size: 13px; color: var(--n-800); font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ra-doc .nm span { font-size: 11.5px; color: var(--n-500); }
+.ra-doc .ra-select { width: 200px; height: 36px; font-size: 12.5px; flex: none; }
+
+/* ---------------- Review step ---------------- */
+.ra-review { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+.ra-review__group { border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 18px; }
+.ra-review__group h4 { font-size: 13px; font-weight: 700; color: var(--n-800); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.ra-review__group h4 .edit { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--blue-600); background: transparent; border: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.ra-review__group h4 .edit:hover { text-decoration: underline; }
+.ra-dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; font-size: 13px; }
+.ra-dl dt { color: var(--n-500); white-space: nowrap; }
+.ra-dl dd { margin: 0; color: var(--n-800); font-weight: 600; text-align: right; }
+.ra-review__full { grid-column: 1 / -1; }
+
+/* PHI / consent notice */
+.ra-note { display: flex; gap: 10px; align-items: flex-start; background: var(--blue-50); border: 1px solid var(--blue-200); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: var(--blue-800); }
+.ra-note.warn { background: #fdf3ea; border-color: #f3d9be; color: #9a5a18; }
+.ra-note .i { flex: none; margin-top: 1px; }
+
+/* ---------------- Sticky footer nav ---------------- */
+.ra-foot { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-top: 1px solid var(--border); }
+.ra-foot__in { max-width: 1100px; margin: 0 auto; padding: 13px 26px; display: flex; align-items: center; gap: 14px; }
+.ra-foot__save { font-size: 12.5px; color: var(--n-500); display: flex; align-items: center; gap: 7px; }
+.ra-foot__save .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green-500); }
+.ra-foot__spacer { flex: 1; }
+
+/* ---------------- Modal (claim info / authorized user) ---------------- */
+.ra-scrim { position: fixed; inset: 0; background: rgba(7,30,49,.5); backdrop-filter: blur(3px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; animation: extFade .18s ease both; }
+.ra-modal { background: #fff; border-radius: 16px; width: 100%; box-shadow: var(--sh-lg); overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
+.ra-modal--lg { max-width: 860px; }
+.ra-modal--md { max-width: 620px; }
+.ra-modal__head { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.ra-modal__head h3 { font-size: 17px; font-weight: 800; color: var(--n-900); margin: 0; }
+.ra-modal__head .x { margin-left: auto; }
+.ra-modal__body { padding: 22px; overflow-y: auto; }
+.ra-modal__foot { padding: 15px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: var(--n-25); }
+
+/* reval lookup bar */
+.ra-reval { background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--blue-700); border-radius: var(--r-md); padding: 16px 18px; margin-top: 22px; display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; box-shadow: var(--sh-sm); }
+.ra-reval .ra-field { flex: 1; min-width: 220px; max-width: 320px; }
+.ra-reval__msg { width: 100%; font-size: 12.5px; color: var(--green-700); display: flex; align-items: center; gap: 7px; margin-top: 4px; }
+
+@media (max-width: 860px) {
+  .ra-grid { grid-template-columns: repeat(6, 1fr); }
+  .col-2, .col-3, .col-4 { grid-column: span 3; }
+  .col-5, .col-6, .col-8, .col-9 { grid-column: span 6; }
+  .ra-review { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .ra-grid { grid-template-columns: 1fr; }
+  .col-2, .col-3, .col-4, .col-5, .col-6, .col-8, .col-9 { grid-column: span 1; }
+}

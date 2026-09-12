@@ -2,6 +2,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -20,10 +21,14 @@ public class PatientCreateDto
     [EmailAddress]
     [StringLength(PatientConsts.EmailMaxLength)]
     public string Email { get; set; } = null!;
-    public Gender GenderId { get; set; } = Enum.GetValues<Gender>()[0];
+    // G-06-08 (2026-06-01): default to the explicit "not provided" sentinel
+    // rather than positional [0] (which silently meant Male before Unspecified
+    // was added). Admin create supplies a real gender; this only governs omission.
+    public Gender GenderId { get; set; } = Gender.Unspecified;
     public DateTime DateOfBirth { get; set; }
 
     [StringLength(PatientConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(PatientConsts.SocialSecurityNumberMaxLength)]
@@ -38,10 +43,8 @@ public class PatientCreateDto
     [StringLength(PatientConsts.ZipCodeMaxLength)]
     public string? ZipCode { get; set; }
 
-    [StringLength(PatientConsts.RefferedByMaxLength)]
-    public string? RefferedBy { get; set; }
-
     [StringLength(PatientConsts.CellPhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? CellPhoneNumber { get; set; }
 
     public PhoneNumberType PhoneNumberTypeId { get; set; } = Enum.GetValues<PhoneNumberType>()[0];
@@ -61,7 +64,9 @@ public class PatientCreateDto
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): optional -- a Patient may be created as a record with
+    // no login; the identity is linked later on self-register (by email).
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 }

@@ -1,0 +1,96 @@
+/* ============================================================
+   Appointment Portal — design tokens
+   Brand colors kept EXACTLY: primary #055495, accent green #9dc13b.
+   Two layers:
+     --brand-*  : ground-truth values from the codebase (used by "Before")
+     --c-*      : modernized, refreshed-within-brand system (used by "After")
+   ============================================================ */
+
+:root {
+  /* ---- Brand ground truth (verbatim from _brand.scss) ---- */
+  --brand-primary: #055495;
+  --brand-primary-hover: #005494;
+  --brand-accent: #9dc13b;
+  --brand-button-active: #006ffc;
+  --brand-link: #00a2dc;
+  --brand-error: #fe5a5b;
+  --brand-sidebar-bg: #0a4778;
+  --brand-sidebar-bg-2: #0a3354;
+  --brand-input-bg: #f4f4f4;
+  --brand-input-border: #cccccc;
+  --brand-text-primary: #333333;
+  --brand-text-secondary: #666666;
+  --brand-text-muted: #969696;
+  --brand-divider: #eeeeee;
+
+  /* ---- Modernized system ("After") ---- */
+  /* Primary ramp built around the exact brand blue (#055495 = --blue-700) */
+  --blue-50:  #eef5fb;
+  --blue-100: #d6e7f4;
+  --blue-200: #a9cce8;
+  --blue-300: #6ea7d6;
+  --blue-400: #2f7cbf;
+  --blue-500: #0d5e9f;   /* card-title blue used in app */
+  --blue-600: #075ca1;
+  --blue-700: #055495;   /* BRAND PRIMARY — exact */
+  --blue-800: #06426f;
+  --blue-900: #07304f;
+
+  /* Green accent ramp around the exact brand green (#9dc13b) */
+  --green-50:  #f3f8e7;
+  --green-100: #e6f1cd;
+  --green-300: #c2db7e;
+  --green-500: #9dc13b;  /* BRAND ACCENT — exact */
+  --green-600: #82a52a;
+  --green-700: #5f7a1d;
+
+  /* Neutrals — cool slate, subtly toned (saturation kept very low) */
+  --n-0:   #ffffff;
+  --n-25:  #fafbfd;
+  --n-50:  #f5f7fa;
+  --n-100: #eef1f6;
+  --n-150: #e6ebf2;   /* hairlines — matches navbar border */
+  --n-200: #d8deea;
+  --n-300: #c2cbd9;
+  --n-400: #9aa6b8;
+  --n-500: #6b7789;
+  --n-600: #515c6e;
+  --n-700: #3b4554;
+  --n-800: #28303c;
+  --n-900: #161c26;
+
+  /* Semantic status (pills) — text-bearing, never color-alone */
+  --st-pending-bg:  #fef3d6;  --st-pending-fg:  #8a5a00;  --st-pending-dot:#e7a008;
+  --st-approved-bg: #e6f1cd;  --st-approved-fg: #4d6610;  --st-approved-dot:#82a52a;
+  --st-rejected-bg: #fde3e3;  --st-rejected-fg: #a32626;  --st-rejected-dot:#e24a4a;
+  --st-neutral-bg:  #eef1f6;  --st-neutral-fg:  #515c6e;  --st-neutral-dot:#9aa6b8;
+  --st-info-bg:     #d6e7f4;  --st-info-fg:     #075ca1;  --st-info-dot:#2f7cbf;
+  --st-teal-bg:     #d4eeee;  --st-teal-fg:     #1f6e6e;  --st-teal-dot:#2f9c9c;
+  --st-purple-bg:   #e7e1f5;  --st-purple-fg:   #5b3ea6;  --st-purple-dot:#7c5ad0;
+
+  /* Surfaces */
+  --surface-app:  #f5f7fa;
+  --surface-card: #ffffff;
+  --border:       #e6ebf2;
+  --border-strong:#d8deea;
+
+  /* Radius */
+  --r-sm: 7px;
+  --r-md: 11px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* Shadows — soft, low-spread */
+  --sh-xs: 0 1px 2px rgba(15,28,46,.06);
+  --sh-sm: 0 1px 3px rgba(15,28,46,.07), 0 1px 2px rgba(15,28,46,.04);
+  --sh-md: 0 6px 18px -6px rgba(15,28,46,.14), 0 2px 6px rgba(15,28,46,.06);
+  --sh-lg: 0 20px 48px -16px rgba(7,48,79,.22), 0 6px 16px rgba(15,28,46,.08);
+
+  /* Type */
+  --font: 'Roboto', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-num: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Spacing step */
+  --space: 4px;
+}

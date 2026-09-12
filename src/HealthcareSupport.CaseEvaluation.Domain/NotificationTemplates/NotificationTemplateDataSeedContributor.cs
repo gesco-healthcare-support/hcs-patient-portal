@@ -1,0 +1,156 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Volo.Abp.Data;
+using Volo.Abp.DependencyInjection;
+using Volo.Abp.Guids;
+using Volo.Abp.MultiTenancy;
+
+namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
+
+/// <summary>
+/// Seeds the Email + SMS <c>NotificationTemplateType</c> rows and the
+/// <c>NotificationTemplate</c> rows into each database:
+/// <list type="bullet">
+///   <item>Per office (tenant scope): all codes in
+///         <see cref="NotificationTemplateConsts.Codes.All"/>.</item>
+///   <item>Host (null tenant): only
+///         <see cref="NotificationTemplateConsts.Codes.HostScoped"/> -- the
+///         account-lifecycle codes that can be dispatched from host scope
+///         (task_4c0f6fe9). Their office copies still exist per-tenant.</item>
+/// </list>
+///
+/// Subject + body content comes from <see cref="NotificationTemplateSeedDefaults"/>
+/// (curated bodies for wired codes, stubs otherwise), so handlers can resolve
+/// every template by code.
+///
+/// Idempotent: skips rows that already exist; overwrites resource-backed rows
+/// when their shipped content changes.
+/// </summary>
+public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITransientDependency
+{
+    private static readonly Guid EmailTypeId = new("c0000001-0000-4000-9000-000000000001");
+    private static readonly Guid SmsTypeId = new("c0000001-0000-4000-9000-000000000002");
+
+    private readonly INotificationTemplateRepository _templateRepository;
+    private readonly INotificationTemplateTypeRepository _typeRepository;
+    private readonly IGuidGenerator _guidGenerator;
+    private readonly ICurrentTenant _currentTenant;
+
+    public NotificationTemplateDataSeedContributor(
+        INotificationTemplateRepository templateRepository,
+        INotificationTemplateTypeRepository typeRepository,
+        IGuidGenerator guidGenerator,
+        ICurrentTenant currentTenant)
+    {
+        _templateRepository = templateRepository;
+        _typeRepository = typeRepository;
+        _guidGenerator = guidGenerator;
+        _currentTenant = currentTenant;
+    }
+
+    public async Task SeedAsync(DataSeedContext context)
+    {
+        if (context?.TenantId == null)
+        {
+            // Host scope holds ONLY the account-lifecycle templates that can be dispatched
+            // while CurrentTenant.Id == null (NotificationTemplateConsts.Codes.HostScoped,
+            // scope-traced under task_4c0f6fe9). Appointment-lifecycle templates stay
+            // per-office (B4). The two template types are seeded here too, since the
+            // templates FK to them. The host tables already exist (created in the host
+            // Phase 1 migration); only the seed data was previously absent.
+            using (_currentTenant.Change(null))
+            {
+                await SeedTypesAsync();
+                await SeedTemplatesAsync(tenantId: null, codes: NotificationTemplateConsts.Codes.HostScoped);
+            }
+            return;
+        }
+
+        // Tenant pass: seed this office's template types first, then the templates that
+        // FK to them -- both land in the office database (NotificationTemplateType is now
+        // IMultiTenant, so its repository follows the office connection). (B4)
+        using (_currentTenant.Change(context.TenantId))
+        {
+            await SeedTypesAsync();
+            await SeedTemplatesAsync(context.TenantId, NotificationTemplateConsts.Codes.All);
+        }
+    }
+
+    private async Task SeedTypesAsync()
+    {
+        await EnsureTypeAsync(EmailTypeId, NotificationTemplateTypeConsts.Names.Email);
+        await EnsureTypeAsync(SmsTypeId, NotificationTemplateTypeConsts.Names.Sms);
+    }
+
+    private async Task EnsureTypeAsync(Guid id, string name)
+    {
+        var existing = await _typeRepository.FindAsync(id);
+        if (existing != null)
+        {
+            return;
+        }
+        // autoSave:false so the type batches with the templates that FK to it in one
+        // FK-ordered SaveChanges (EF orders inserts within a batch). See B4.
+        await _typeRepository.InsertAsync(new NotificationTemplateType(id, name), autoSave: false);
+    }
+
+    private async Task SeedTemplatesAsync(Guid? tenantId, string[] codes)
+    {
+        // All 59 codes verified against OLD source 2026-05-03 (Phase 4):
+        //   - 16 from OLD's `TemplateCode` int enum (DB-managed in OLD)
+        //   - 43 from OLD's `EmailTemplate` static class (on-disk HTML in OLD)
+        // NEW unifies both into this single table; all become IT-Admin
+        // editable. Demo-critical codes (registration + booking + approval
+        // cascade) use OLD-verbatim subject + body via EmailBodyTemplates;
+        // remaining codes keep stub strings until their per-feature phase
+        // wires real content. See docs/parity/email-coverage-audit.md.
+        //
+        // 2026-05-06: when the canonical .html file under EmailBodies/ ships
+        // for a code (i.e. EmailBodyResources.TryLoadBody returns non-null),
+        // overwrite the existing DB row's subject + body on every seed run.
+        // Reason: when we update a demo-critical template (e.g. drop
+        // branding placeholders), the seeder used to skip rows that already
+        // existed and the inboxes kept rendering the stale body. IT-admin
+        // edits to non-resource-backed (stub) codes are still preserved.
+        var queryable = await _templateRepository.GetQueryableAsync();
+        var existing = queryable.ToDictionary(x => x.TemplateCode, x => x);
+
+        foreach (var code in codes)
+        {
+            // Shipped defaults are owned by NotificationTemplateSeedDefaults so
+            // the IsCustomized derivation (B-B2) compares against the exact same
+            // content this seeder writes.
+            var defaults = NotificationTemplateSeedDefaults.GetSeedDefaults(code);
+            var hasResourceBackedBody = NotificationTemplateSeedDefaults.HasResourceBackedBody(code);
+
+            if (existing.TryGetValue(code, out var current))
+            {
+                if (!hasResourceBackedBody)
+                {
+                    continue;
+                }
+                if (current.Subject == defaults.Subject && current.BodyEmail == defaults.BodyEmail)
+                {
+                    continue;
+                }
+                current.Subject = defaults.Subject;
+                current.BodyEmail = defaults.BodyEmail;
+                await _templateRepository.UpdateAsync(current, autoSave: false);
+                continue;
+            }
+
+            var entity = new NotificationTemplate(
+                id: _guidGenerator.Create(),
+                tenantId: tenantId,
+                templateCode: code,
+                templateTypeId: EmailTypeId,
+                subject: defaults.Subject,
+                bodyEmail: defaults.BodyEmail,
+                bodySms: defaults.BodySms,
+                description: null,
+                isActive: true);
+            await _templateRepository.InsertAsync(entity, autoSave: false);
+        }
+    }
+}

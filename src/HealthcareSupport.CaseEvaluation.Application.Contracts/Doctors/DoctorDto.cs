@@ -13,7 +13,5 @@ public class DoctorDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
     public string Email { get; set; } = null!;
     public Gender Gender { get; set; }
 
-    public Guid? IdentityUserId { get; set; }
-
     public string ConcurrencyStamp { get; set; } = null!;
 }

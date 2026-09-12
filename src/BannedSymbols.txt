@@ -1,0 +1,29 @@
+; Pacific-time guard (added 2026-08-27). Applies to SHIPPING code only -- see
+; src/Directory.Build.props for why this list is separate from the repo-root one.
+;
+; The business operates entirely in Pacific time. Timestamps are STORED in UTC by decision
+; (a local-only value inside November's repeated 01:00-02:00 hour cannot be ordered or
+; differenced at all, which would corrupt audit trails), and the API container's clock is UTC.
+;
+; The consequence is that the server's own idea of "today" is NOT the office's. From about 4pm
+; or 5pm Pacific until midnight UTC, DateTime.Today is TOMORROW. Real defects that came from
+; exactly this, all fixed on 2026-08-27:
+;   - generated packet PDFs stamped with tomorrow's date, on a document served as a legal record
+;   - a same-day appointment rejected as being in the past
+;   - the booking horizon and the lead-time floor both sliding forward a day
+;   - the no-cancel window a day tighter than the office's configured policy
+;
+; So: take the instant from IClock, and derive a Pacific calendar date or a display string from
+; HealthcareSupport.CaseEvaluation.Timing.PacificTime. Companion runtime tests live in
+; test/HealthcareSupport.CaseEvaluation.Domain.Tests/Timing/.
+;
+; DELIBERATELY NOT BANNED YET: System.DateTime.UtcNow. It yields a CORRECT value for storage,
+; so the ~54 existing uses are not defects and migrating them to IClock is a testability change,
+; not a correctness one -- tracked separately. Note the hole that leaves: DateTime.UtcNow.Date is
+; the UTC calendar date and is the SAME BUG as DateTime.Today. Do not reach for it.
+;
+; Format reference:
+; https://github.com/dotnet/roslyn-analyzers/blob/main/docs/Microsoft.CodeAnalysis.BannedApiAnalyzers.md
+
+P:System.DateTime.Today; Use PacificTime.TodayFrom(clock.Now). The server runs UTC, so DateTime.Today is TOMORROW's date for the last 7-8 hours of every Pacific day -- it silently rejected same-day appointments and stamped packets with the wrong date. DateTime.UtcNow.Date is the same bug; do not substitute it.
+P:System.DateTime.Now; Server-local time has no defined meaning here: the container's clock is UTC, so this returns a UTC wall clock stamped DateTimeKind.Local and nothing downstream can tell. Use IClock for an instant, PacificTime for anything a human reads.

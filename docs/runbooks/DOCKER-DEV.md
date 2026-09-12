@@ -2,7 +2,9 @@
 
 # Docker Development Runbook
 
-Docker Compose is the alternative to local .NET + Angular development. It packages the full stack (SQL Server, Redis, DbMigrator, AuthServer, HttpApi.Host, Angular) into six containers on a shared network.
+> Purpose: Step-by-step guide to running the full Patient Portal stack via Docker Compose. Audience: developers. Last verified: 2026-06-01 vs main.
+
+Docker Compose is the alternative to local .NET + Angular development. It packages the full stack (SQL Server, Redis, MinIO, MinIO bucket initializer, DbMigrator, AuthServer, HttpApi.Host, packet-renderer, Angular) into nine containers on a shared network.
 
 **Source of truth:** [`docker-compose.yml`](../../docker-compose.yml) at the repo root.
 
@@ -14,9 +16,12 @@ Docker Compose is the alternative to local .NET + Angular development. It packag
 |---|---|---|---|
 | `sql-server` | `mcr.microsoft.com/mssql/server:2022-latest` | `1434 -> 1433` | Database |
 | `redis` | `redis:7-alpine` | `6379` | Cache + data protection |
+| `minio` | `minio/minio:latest` | `9000 -> 9000`, `9001 -> 9001` | Blob store for document uploads (API + console) |
+| `minio-init` | `minio/mc:latest` | -- | One-shot bucket initializer, exits |
 | `db-migrator` | Built from `src/.../DbMigrator/Dockerfile` | -- | Runs migrations, exits |
 | `authserver` | Built from `src/.../AuthServer/Dockerfile` | `44368 -> 8080` | OpenIddict OIDC |
 | `api` | Built from `src/.../HttpApi.Host/Dockerfile` | `44327 -> 8080` | Main API |
+| `packet-renderer` | Built from `docker/packet-renderer/Dockerfile` | `3001 -> 3001` | WeasyPrint HTML to fillable-PDF packet renderer |
 | `angular` | Built from `angular/Dockerfile` | `4200 -> 80` | Nginx-served SPA |
 
 Dependencies enforce the same startup order as local dev: SQL + Redis ready -> DbMigrator completes -> AuthServer healthy -> API healthy -> Angular ready.
@@ -34,9 +39,11 @@ Dependencies enforce the same startup order as local dev: SQL + Redis ready -> D
 ## First-Time Setup
 
 1. **Create `.env`** at repo root from `.env.example`:
+
    ```bash
    cp .env.example .env
    ```
+
    Edit `.env` and fill in:
    - `MSSQL_SA_PASSWORD` -- SQL SA password (strong; e.g. `ChangeMe_Local_1234`)
    - `STRING_ENCRYPTION_PASSPHRASE` -- random string for ABP string encryption
@@ -44,9 +51,11 @@ Dependencies enforce the same startup order as local dev: SQL + Redis ready -> D
    - `ABP_NUGET_API_KEY` -- your ABP NuGet feed key
 
 2. **Create `docker/appsettings.secrets.json`** from the example:
+
    ```bash
    cp docker/appsettings.secrets.json.example docker/appsettings.secrets.json
    ```
+
    Edit the file and set `AbpLicenseCode`.
 
 3. **Mount your ABP CLI cache** (optional, speeds up builds):
@@ -57,11 +66,13 @@ Dependencies enforce the same startup order as local dev: SQL + Redis ready -> D
 ## Running
 
 Start everything:
+
 ```bash
 docker compose up -d
 ```
 
 Watch logs in another terminal:
+
 ```bash
 docker compose logs -f authserver api angular
 ```
@@ -82,30 +93,36 @@ Once containers are healthy:
 ## Common Operations
 
 **Rebuild after code change** (rebuild only what changed):
+
 ```bash
 docker compose build api
 docker compose up -d api
 ```
 
 **Rebuild from scratch** (ignore cache):
+
 ```bash
 docker compose build --no-cache
 docker compose up -d
 ```
 
 **Reset database** (destroys data):
+
 ```bash
 docker compose down -v
 docker compose up -d
 ```
+
 The `-v` flag removes the `sqldata` volume; DbMigrator recreates schema and seed data on next start.
 
 **Stop without destroying data:**
+
 ```bash
 docker compose down
 ```
 
 **Connect to SQL from host:**
+
 ```bash
 # Main uses SQL_HOST_PORT=1434 by default; other worktrees override in their .env.
 sqlcmd -S "localhost,${SQL_HOST_PORT:-1434}" -U sa -P "<SA_PASSWORD>" -C -Q "SELECT name FROM sys.databases"
@@ -126,7 +143,7 @@ Per-worktree isolation comes from two mechanisms:
 
 Main uses the defaults (nothing to set). For `development`, `staging`, or a feature worktree, append the override block to the worktree's `.env` (the file is gitignored):
 
-```
+```text
 AUTH_PORT=44378           # 44368 + (offset * 10), default 44368 = main
 API_PORT=44337            # 44327 + (offset * 10), default 44327
 NG_PORT=4210              # 4200 + (offset * 10), default 4200
@@ -168,23 +185,29 @@ Each worktree's stack runs its own SQL Server (roughly 2 GB RAM), AuthServer, AP
 
 **`docker compose up` stuck at "waiting for db-migrator":**
 DbMigrator may have failed silently. Check:
+
 ```bash
 docker compose logs db-migrator
 ```
+
 Common cause: invalid `AbpLicenseCode` in `docker/appsettings.secrets.json`.
 
 **Angular returns 502 / nginx gateway error:**
 Angular container healthy but API unreachable. Verify `api` container is healthy:
+
 ```bash
 docker compose ps
 ```
+
 If unhealthy, check `docker compose logs api` -- usually missing license or DB connection issue.
 
 **AuthServer login redirects return `invalid_client`:**
 OpenIddict seed ran against a different `RootUrl` than Angular uses. The compose file hard-codes the Angular root URL in the DbMigrator environment:
-```
+
+```text
 OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:4200"
 ```
+
 If you changed the Angular port, reset the DB (`docker compose down -v`) so the migrator re-seeds client registrations.
 
 **Build fails with "ABP NuGet unauthorized":**
@@ -197,9 +220,9 @@ Another worktree's stack is bound to the same ports, or a local dev run is using
 
 ## E2E Validation Status
 
-**Last tested:** 2026-04-16 on Windows 11 Enterprise (Docker 29.4.0, Compose v5.1.1)
+**Last tested:** 2026-06-01 on Windows 11 Enterprise (Docker 29.4.0, Compose v5.1.1)
 **Git commit:** `4ed9c4b` (main)
-**Overall result:** PASS -- all 6 services start, all 8 health checks pass, auth flow and all CRUD pages work
+**Overall result:** PASS -- all 9 services start, all 8 health checks pass, auth flow and all CRUD pages work
 
 ### Timing Benchmarks
 
@@ -263,4 +286,4 @@ Full route tree with guards and components: [Routing & Navigation](../frontend/R
 - [Local Dev Troubleshooting](LOCAL-DEV.md) -- non-Docker dev path
 - [docker-compose.yml](../../docker-compose.yml) -- service definitions
 - [Secrets Management](../security/SECRETS-MANAGEMENT.md) -- how secrets get injected
-- [devops/DEVELOPMENT-SETUP.md](../devops/DEVELOPMENT-SETUP.md) -- broader DevOps context
+- [devops/TESTING-STRATEGY.md](../devops/TESTING-STRATEGY.md) -- broader DevOps context
