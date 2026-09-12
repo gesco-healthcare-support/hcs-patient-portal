@@ -32,6 +32,17 @@ from __future__ import annotations
 
 import argparse
 import re
+# The FIRST subprocess call in this file, and a deliberate narrowing of the
+# purity #856 chose. Its reasoning was "discovery lives in the workflow because
+# that script shells out nowhere and the Python suite imports it directly;
+# keeping it pure keeps it testable" -- which is right about testability and is
+# why --tracked-files stays the primary path and every test uses it.
+#
+# The fallback exists because the alternative was a check that disappears when
+# one workflow line is deleted, printing a notice on its way out. A guard whose
+# absence is announced is still absent, and #683 is specifically about a
+# contamination that arrives with no signal.
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -104,6 +115,34 @@ def load_tracked(path: Path) -> set[str]:
     if not tracked:
         die(f"tracked-file list {path} is empty. An empty list is more likely a "
             "mistake than a decision; omit --tracked-files instead.")
+    return tracked
+
+
+def discover_tracked() -> set[str]:
+    """Ask git for the tracked-file list when the workflow did not supply one.
+
+    #683 asked for contamination to fail the build rather than move the figure.
+    A `--tracked-files` flag delivers that only while someone remembers to pass
+    it: delete one line from ci.yml and the check is gone, having printed a
+    notice. This makes the flag an OPTIMISATION rather than the mechanism --
+    the workflow still passes a manifest, and without one the gate finds out
+    for itself.
+
+    A git failure EXITS. "Cannot list" is not "nothing is tracked" (which would
+    fail every file) and not "everything is tracked" (which would disable the
+    guard exactly when it cannot be evaluated).
+    """
+    result = subprocess.run(["git", "ls-files"], capture_output=True,
+                            text=True, check=False)
+    if result.returncode != 0:
+        die("no --tracked-files was supplied and `git ls-files` failed, so the "
+            f"tracked-file check cannot run: {result.stderr.strip()}. Pass "
+            "--tracked-files, or run this from inside the work tree.")
+    tracked = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    if not tracked:
+        die("`git ls-files` returned nothing, so every counted file would look "
+            "untracked. Refusing to report 100% contamination, which is a tell "
+            "rather than a result.")
     return tracked
 
 
@@ -580,13 +619,16 @@ def main() -> int:
     measured, coverage_by_file = measure_all(args, patterns)
 
     # Runs in measure-only mode too: this validates the INPUT, it is not a floor.
-    if args.tracked_files is not None:
-        assert_tracked(coverage_by_file, patterns,
-                       load_tracked(Path(args.tracked_files)))
-    else:
-        print("tracked-files: check SKIPPED, no --tracked-files supplied. "
-              "A silently disabled check is what #683 exists to prevent, so the "
-              "skip is stated rather than assumed.")
+    #
+    # There is no longer a skip branch. It printed its own absence, which reads
+    # as diligence and is not: a stated skip and a silent one both end with the
+    # check not running, and #683 is about contamination that arrives with no
+    # signal. The flag is now an optimisation -- the workflow still supplies the
+    # list, and without one the gate asks git.
+    tracked = (load_tracked(Path(args.tracked_files))
+               if args.tracked_files is not None
+               else discover_tracked())
+    assert_tracked(coverage_by_file, patterns, tracked)
 
     if args.measure_only:
         return 0

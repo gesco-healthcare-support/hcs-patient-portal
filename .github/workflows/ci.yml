@@ -1059,11 +1059,19 @@ jobs:
           # embedded third-party source into the backend report twice, each time
           # fixed by naming that vendor in .coverage-exclusions -- a list that
           # grows one vendor at a time, where the next one matches nothing and
-          # arrives with no signal. Discovery lives HERE rather than in the gate
-          # because that script shells out nowhere and the Python suite imports
-          # it directly; keeping it pure keeps it testable.
-          git ls-files > tracked-files.txt
-          python scripts/coverage-gate.py --exclusions .coverage-exclusions --tracked-files tracked-files.txt "${args[@]}" > gate-output.txt 2>&1
+          # arrives with no signal.
+          #
+          # DISCOVERY MOVED INTO THE GATE, reversing the rationale #856 wrote
+          # here. That rationale was that keeping the script free of subprocess
+          # calls keeps it testable -- which is true, and is why the
+          # --tracked-files flag survives for tests and for anywhere without
+          # git. But as the ONLY mechanism it made the check optional in the
+          # worst way: delete this one line and the guard disappears having
+          # printed a notice, which is the exact shape of hole #683 exists to
+          # close. The gate now runs `git ls-files` itself and EXITS if that
+          # fails -- "cannot list" is neither "nothing is tracked" nor
+          # "everything is tracked".
+          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" > gate-output.txt 2>&1
           gate_rc=$?
           set -e
           cat gate-output.txt
