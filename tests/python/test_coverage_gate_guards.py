@@ -168,3 +168,49 @@ class TestUnmeasuredChanged(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestParserPythonStack(unittest.TestCase):
+    """The CLI contract `.github/workflows/ci.yml` invokes (#787).
+
+    ci.yml passes `--python-cobertura` and `--floor-python` by name. Nothing
+    else asserts those flags exist, so a rename here would be found by a red
+    required check rather than by a test -- and `Coverage: Floors` is the one
+    job whose failure mode this repo has repeatedly catalogued as "passes
+    without measuring anything".
+    """
+
+    def parse(self, *argv):
+        return gate.build_parser().parse_args(list(argv))
+
+    def test_accepts_the_python_report_and_floor(self):
+        args = self.parse("--python-cobertura", "coverage.xml", "--floor-python", "52")
+        self.assertEqual(args.python_cobertura, "coverage.xml")
+        self.assertEqual(args.floor_python, "52")
+
+    def test_both_default_to_none_when_absent(self):
+        # None is what makes measure_all skip the stack, so the default is
+        # load-bearing rather than incidental.
+        args = self.parse()
+        self.assertIsNone(args.python_cobertura)
+        self.assertIsNone(args.floor_python)
+
+    def test_there_is_no_python_prefix_flag(self):
+        # Deliberate: coverage.py emits repo-relative paths, unlike karma's
+        # lcov. If someone adds one, the empty prefix in measure_all is no
+        # longer obviously right and this should be revisited.
+        self.assertFalse(hasattr(self.parse(), "python_prefix"))
+
+    def test_the_other_two_stacks_still_parse(self):
+        args = self.parse(
+            "--cobertura", "b.xml", "--floor-backend", "72",
+            "--lcov", "f.info", "--lcov-prefix", "angular", "--floor-frontend", "20",
+        )
+        self.assertEqual(args.cobertura, "b.xml")
+        self.assertEqual(args.floor_backend, "72")
+        self.assertEqual(args.lcov, "f.info")
+        self.assertEqual(args.lcov_prefix, "angular")
+        self.assertEqual(args.floor_frontend, "20")
+
+    def test_measure_only_is_still_available_for_baselining(self):
+        self.assertTrue(self.parse("--measure-only").measure_only)

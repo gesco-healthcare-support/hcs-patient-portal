@@ -424,13 +424,12 @@ jobs:
       # `test -s coverage.xml` asserts on the ARTEFACT the command should have
       # produced, rather than trusting the exit code of the command meant to
       # produce it.
+      # #787: the command moved into scripts/python-coverage.sh so this job and
+      # sonarcloud.yml cannot drift in flags, exclusions or working directory --
+      # the failure mode `.coverage-exclusions` already suffered once. The
+      # artefact-not-exit-code assertion moved with it.
       - name: Test with coverage
-        run: |
-          set -euo pipefail
-          python -m coverage run -m unittest discover -s tests/python -p "test_*.py" -v
-          python -m coverage report
-          python -m coverage xml -o coverage.xml
-          test -s coverage.xml
+        run: bash scripts/python-coverage.sh coverage.xml
 
       # DELIBERATELY DOES NOT INVOKE scripts/coverage-gate.py.
       #
@@ -717,7 +716,7 @@ jobs:
   coverage-floors:
     name: "Coverage: Floors"
     runs-on: ubuntu-latest
-    needs: [changes, backend-test, frontend-test]
+    needs: [changes, backend-test, frontend-test, python-test]
     # `if: always()` with NO further condition, and that is the whole point of
     # this job. Every other job in this file is conditional, and a SKIPPED job
     # reports "Success" and does not block a merge even when it is a required
@@ -829,6 +828,71 @@ jobs:
       # bump. Found only because the probe was run twice, against a control that
       # reproduced this file's own 73.61% exactly.
       FLOOR_BACKEND: "72"
+      # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
+      # refuses to run without a floor and prints the figure to copy.
+      #
+      #   scripts/coverage-gate.py --python-cobertura coverage.xml --measure-only
+      #   -> python: 53.72% (347/646 lines over 4 files)
+      #
+      # RE-MEASURED THREE TIMES WHILE THIS BRANCH WAS OPEN, and the movement is
+      # the point rather than an inconvenience:
+      #
+      #   56.40%  2 files  first measurement
+      #   71.80%  2 files  after #852 took verify_structure.py 43% -> 88%
+      #   53.72%  4 files  after #854 merged
+      #
+      # The last one is the instructive one. #854 added a test that imports
+      # docker/packet-renderer/app.py, which imports post_process.py -- so two
+      # production files entered the denominator at 55% and 12%, and the figure
+      # fell 18 points without one line of production code changing.
+      #
+      # That is the denominator hazard raised on #787, now demonstrated rather
+      # than predicted: this percentage is a function of WHICH FILES THE SUITE
+      # IMPORTS, so writing a test for something previously untested LOWERS it.
+      # Do not read a fall here as a regression, and do not raise this number to
+      # match a good day -- the next honest test will breach it. The stable
+      # metric is covered statements; the percentage is not comparable across
+      # two runs whose denominators differ.
+      #
+      # WHAT THE 4 FILES ARE, because the composition matters more than the
+      # percentage. The report carries seven; `.coverage-exclusions` removes
+      # three by name (build-repo-map.py, check-links.py, import-issues.py --
+      # none can fail a build, each with its rationale recorded there). The four
+      # that count split two ways:
+      #
+      #   TOOLING      scripts/coverage-gate.py
+      #                .claude/scripts/verify_structure.py
+      #   PRODUCTION   docker/packet-renderer/app.py
+      #                tools/packet-templates/shared/post_process.py
+      #
+      # The second pair are not tooling and did not arrive by decision. They
+      # entered because a TEST IMPORTS THEM, and they ship in the packet-renderer
+      # image. So this floor now partly grades production code that nothing
+      # deliberately chose to gate on.
+      #
+      # THERE IS NO FILE-COUNT TRIPWIRE ANY MORE, and its removal is deliberate.
+      # This block used to say "if a future run reports 5 files, an exclusion
+      # has stopped matching" -- calibrated against a 2-file baseline, and left
+      # in place when the baseline became 4. A tripwire pointing at the wrong
+      # number is worse than none, because it will be believed: at 4 the next
+      # reader concludes an exclusion broke, and at 5 concludes nothing is
+      # wrong. The honest statement is that this count WILL move again whenever
+      # a test starts importing something new, and that #862 tracks making it
+      # stop moving. Until then a changed count is information, not an alarm.
+      #
+      # READ THIS BEFORE RAISING IT. The Python denominator contains only the
+      # files the suite IMPORTS, not the files in scope. Nine of the repo's
+      # twelve in-scope .py files are un-excluded, so they would count -- but
+      # seven are absent from the report because nothing imports them, among
+      # them the two packet generators at ~2,900 lines. Covering any of them
+      # therefore LOWERS this percentage rather than raising it, and a floor
+      # raised to match today's figure would fire on the next person who tests
+      # something new. That is the opposite of what a ratchet is for.
+      #
+      # It is set at the observed figure anyway, floored to a whole number per
+      # the rule above, because a floor that cannot fail is worse. The
+      # denominator question is tracked on #862 rather than silently absorbed.
+      FLOOR_PYTHON: "53"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
@@ -867,6 +931,13 @@ jobs:
           name: frontend-coverage
           path: artifacts/frontend
 
+      - name: Download python coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: python-coverage
+          path: artifacts/python
+
       - name: Evaluate floors
         env:
           CLASSIFIER_RESULT: ${{ needs.changes.result }}
@@ -876,6 +947,7 @@ jobs:
           CHANGED_UNCLASSIFIED: ${{ needs.changes.outputs.unclassified }}
           BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
           FRONTEND_TEST_RESULT: ${{ needs.frontend-test.result }}
+          PYTHON_TEST_RESULT: ${{ needs.python-test.result }}
           BASE_REF: ${{ github.base_ref }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -924,6 +996,7 @@ jobs:
 
           BACKEND_REPORT="$(find_report artifacts/backend coverage.cobertura.xml)"
           FRONTEND_REPORT="$(find_report artifacts/frontend lcov.info)"
+          PYTHON_REPORT="$(find_report artifacts/python coverage.xml)"
 
           check_stack() {
             label="$1"; changed="$2"; result="$3"; report="$4"
@@ -970,6 +1043,28 @@ jobs:
           check_stack backend "$CHANGED_BACKEND" "$BACKEND_TEST_RESULT" "$BACKEND_REPORT"
           check_stack frontend "$CHANGED_FRONTEND" "$FRONTEND_TEST_RESULT" "$FRONTEND_REPORT"
 
+          # Python is checked WITHOUT applicable(), and deliberately so. The
+          # python-test job carries no `if:` and no `needs:` -- it was written
+          # unconditional precisely so it could not be skipped into a false
+          # Success -- so there is no "not applicable" state to represent here.
+          # Anything other than a succeeded job with a report is a failure.
+          if [ "$PYTHON_TEST_RESULT" != "success" ]; then
+            m="python coverage is always applicable -- its test job is"
+            m="$m unconditional -- but that job reported '$PYTHON_TEST_RESULT'"
+            m="$m rather than 'success'. Refusing to draw a coverage conclusion"
+            m="$m from a run that did not complete."
+            echo "::error::$m"
+            fail=1
+          elif [ -z "$PYTHON_REPORT" ]; then
+            m="python coverage is always applicable and its test job succeeded,"
+            m="$m yet no coverage report was uploaded. A missing report is a"
+            m="$m FAILURE here, never an absent constraint."
+            echo "::error::$m"
+            fail=1
+          else
+            echo "python: report at $PYTHON_REPORT"
+          fi
+
           if [ "$fail" -ne 0 ]; then
             echo "::error::Coverage gate failed on input validity before any floor was evaluated."
             exit 1
@@ -1000,11 +1095,24 @@ jobs:
             # graded, not the size of the number it moves.
             args+=(--lcov "$FRONTEND_REPORT" --lcov-prefix angular --floor-frontend "$FLOOR_FRONTEND")
           fi
+          # No prefix argument: coverage.py writes repo-relative filenames
+          # already, unlike karma's lcov. Verified against a real coverage.xml
+          # (".claude/scripts/verify_structure.py", not "scripts/..."), which is
+          # also what makes the shared exclusions match.
+          args+=(--python-cobertura "$PYTHON_REPORT" --floor-python "$FLOOR_PYTHON")
 
+          # WAS an early exit for "neither stack applicable". #787 made that
+          # unreachable: python is always appended, so args is never empty. The
+          # branch is kept INVERTED rather than deleted, because "the gate had
+          # nothing to evaluate" is exactly the silent-pass state this job
+          # exists to prevent -- if args is ever empty again, that is a wiring
+          # bug and should be loud rather than a clean exit 0.
           if [ "${#args[@]}" -eq 0 ]; then
-            echo "Neither stack is applicable to this change; both test jobs were correctly skipped."
-            echo "Coverage floors: nothing to evaluate." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            m="No coverage arguments were assembled. Python is unconditional and"
+            m="$m must always contribute, so an empty argument list means this"
+            m="$m job is mis-wired -- failing rather than passing on no input."
+            echo "::error::$m"
+            exit 1
           fi
 
           # The changed-lines floor. Added only once at least one stack is
