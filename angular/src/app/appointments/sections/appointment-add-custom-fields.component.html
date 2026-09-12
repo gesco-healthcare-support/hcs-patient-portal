@@ -18,13 +18,14 @@
                 <!-- Alphanumeric (12) -->
                 @if (cf.value.fieldType === CustomFieldType.Alphanumeric) {
                   <div class="form-group mb-3">
-                    <label class="form-label">
+                    <label [for]="'appointment-custom-field-' + i" class="form-label">
                       {{ cf.value.fieldLabel }}
                       @if (cf.value.isMandatory) {
                         <span class="text-danger">*</span>
                       }
                     </label>
                     <input
+                      [id]="'appointment-custom-field-' + i"
                       type="text"
                       class="form-control"
                       formControlName="customFieldValue"
@@ -37,13 +38,14 @@
                 <!-- Numeric (13) -->
                 @if (cf.value.fieldType === CustomFieldType.Numeric) {
                   <div class="form-group mb-3">
-                    <label class="form-label">
+                    <label [for]="'appointment-custom-field-' + i" class="form-label">
                       {{ cf.value.fieldLabel }}
                       @if (cf.value.isMandatory) {
                         <span class="text-danger">*</span>
                       }
                     </label>
                     <input
+                      [id]="'appointment-custom-field-' + i"
                       type="text"
                       inputmode="numeric"
                       class="form-control"
@@ -56,13 +58,17 @@
                 <!-- Picklist (14) -->
                 @if (cf.value.fieldType === CustomFieldType.Picklist) {
                   <div class="form-group mb-3">
-                    <label class="form-label">
+                    <label [for]="'appointment-custom-field-' + i" class="form-label">
                       {{ cf.value.fieldLabel }}
                       @if (cf.value.isMandatory) {
                         <span class="text-danger">*</span>
                       }
                     </label>
-                    <select class="form-select" formControlName="customFieldValue">
+                    <select
+                      [id]="'appointment-custom-field-' + i"
+                      class="form-select"
+                      formControlName="customFieldValue"
+                    >
                       <option [ngValue]="null">-- Select --</option>
                       @for (opt of optionsFromMultipleValues(cf.value.multipleValues); track opt) {
                         <option [ngValue]="opt">{{ opt }}</option>
@@ -119,13 +125,14 @@
                      to the ISO yyyy-MM-dd string the API expects. -->
                 @if (cf.value.fieldType === CustomFieldType.Date) {
                   <div class="form-group mb-3">
-                    <label class="form-label">
+                    <label [for]="'appointment-custom-field-' + i" class="form-label">
                       {{ cf.value.fieldLabel }}
                       @if (cf.value.isMandatory) {
                         <span class="text-danger">*</span>
                       }
                     </label>
                     <input
+                      [id]="'appointment-custom-field-' + i"
                       class="form-control"
                       formControlName="customFieldValue"
                       ngbDatepicker
@@ -165,13 +172,14 @@
                 <!-- Time (18) -->
                 @if (cf.value.fieldType === CustomFieldType.Time) {
                   <div class="form-group mb-3">
-                    <label class="form-label">
+                    <label [for]="'appointment-custom-field-' + i" class="form-label">
                       {{ cf.value.fieldLabel }}
                       @if (cf.value.isMandatory) {
                         <span class="text-danger">*</span>
                       }
                     </label>
                     <input
+                      [id]="'appointment-custom-field-' + i"
                       type="text"
                       class="form-control"
                       formControlName="customFieldValue"

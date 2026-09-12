@@ -116,7 +116,7 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             // created via the real registration + invite flows during the demo so
             // the verification/invite emails actually fire. (DemoExternalUsers-
             // DataSeedContributor is neutralized the same way.)
-            var seedPlan = new (string EmailPrefix, string RoleName)[] { };
+            var seedPlan = Array.Empty<(string EmailPrefix, string RoleName)>();
 
             foreach (var (prefix, roleName) in seedPlan)
             {

@@ -79,7 +79,7 @@ describe('step-errors.util', () => {
     it('does not require the control to be touched', () => {
       const form = build();
       // pristine + untouched, but invalid (required + empty)
-      expect(collectStepErrors(form, ['firstName'], labels).length).toBe(1);
+      expect(collectStepErrors(form, ['firstName'], labels)).toHaveSize(1);
     });
   });
 

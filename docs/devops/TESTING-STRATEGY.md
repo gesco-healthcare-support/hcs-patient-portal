@@ -4,7 +4,9 @@
 
 [Home](../INDEX.md) > [DevOps](./) > Testing Strategy
 
-> Backend test coverage (live counts + per-entity rollup): see [docs/testing/coverage-status.md](../testing/coverage-status.md). Last verified 2026-04-24.
+> Backend test coverage: [docs/testing/coverage-status.md](../testing/coverage-status.md) names the
+> commands that report test counts and coverage. It deliberately stores no figures, so there is
+> nothing here to verify or date.
 
 ---
 

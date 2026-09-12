@@ -60,7 +60,11 @@ function asUtcInstant(value: string): string {
   return /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`;
 }
 
-function toDate(value: string | number | Date | null | undefined): Date | null {
+/** Everything the calendar pipes accept. Named because it appears at three call sites
+ * and Sonar (typescript:S4323) is right that repeating it invites them to drift. */
+type DateInput = string | number | Date | null | undefined;
+
+function toDate(value: DateInput): Date | null {
   if (value === null || value === undefined || value === '') return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -88,10 +92,7 @@ function toDate(value: string | number | Date | null | undefined): Date | null {
 export class PacificDatePipe implements PipeTransform {
   private readonly locale = inject(LOCALE_ID);
 
-  transform(
-    value: string | number | Date | null | undefined,
-    format = 'mediumDate',
-  ): string | null {
+  transform(value: DateInput, format = 'mediumDate'): string | null {
     const date = toDate(typeof value === 'string' ? asUtcInstant(value) : value);
     if (!date) return null;
 
@@ -117,10 +118,7 @@ export class PacificDatePipe implements PipeTransform {
 export class CalendarDatePipe implements PipeTransform {
   private readonly locale = inject(LOCALE_ID);
 
-  transform(
-    value: string | number | Date | null | undefined,
-    format = 'mediumDate',
-  ): string | null {
+  transform(value: DateInput, format = 'mediumDate'): string | null {
     if (value === null || value === undefined || value === '') return null;
 
     const date = toDate(typeof value === 'string' ? asLocalWallClock(value) : value);

@@ -163,6 +163,7 @@
                         {{ '::SocialSecurityNumber' | abpLocalization }}
                       </label>
                       <app-ssn-input
+                        inputId="patient-social-security-number"
                         formControlName="socialSecurityNumber"
                         [patientId]="selected?.patient?.id"
                         [patientIdentityUserId]="selected?.patient?.identityUserId"

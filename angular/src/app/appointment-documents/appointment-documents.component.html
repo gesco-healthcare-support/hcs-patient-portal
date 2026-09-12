@@ -46,7 +46,8 @@
           id="document-name-input"
           type="text"
           class="form-control form-control-sm"
-          [(ngModel)]="documentName"
+          [ngModel]="documentName"
+          (ngModelChange)="onDocumentNameInput($event)"
           placeholder="e.g. Medical records 2026-Q1"
           [name]="'document-name-input'"
           maxlength="200"
@@ -222,15 +223,15 @@
     <div class="reject-modal" (click)="$event.stopPropagation()">
       <h5 class="mb-3">Reject "{{ rejectingDoc.documentName }}"</h5>
       <div class="mb-3">
-        <label for="reject-reason" class="form-label small text-muted">
+        <label for="document-reject-reason" class="form-label small text-muted">
           Rejection Reason (required, max 500 chars)
         </label>
         <textarea
-          id="reject-reason"
+          id="document-reject-reason"
           class="form-control"
           rows="4"
           [(ngModel)]="rejectionReason"
-          name="reject-reason"
+          name="document-reject-reason"
           maxlength="500"
           placeholder="Explain why this document is being rejected so the booker can correct and re-upload."
         ></textarea>

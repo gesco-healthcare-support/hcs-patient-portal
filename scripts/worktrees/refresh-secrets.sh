@@ -11,12 +11,12 @@ ROOT="/w/patient-portal"
 MAIN="$ROOT/main"
 SRC="$MAIN/docker/appsettings.secrets.json"
 
-[ -f "$SRC" ] || { echo "error: $SRC missing; cannot refresh" >&2; exit 1; }
+[[ -f "$SRC" ]] || { echo "error: $SRC missing; cannot refresh" >&2; exit 1; }
 
 shopt -s nullglob
 for wt in "$ROOT"/*/; do
   # Only process git worktrees (the .git file or dir exists).
-  [ -e "$wt/.git" ] || continue
+  [[ -e "$wt/.git" ]] || continue
   for svc in AuthServer HttpApi.Host DbMigrator; do
     dest="$wt/src/HealthcareSupport.CaseEvaluation.$svc/appsettings.secrets.json"
     cp "$SRC" "$dest"
@@ -30,8 +30,8 @@ for wt in "$ROOT"/*/; do
   wt_docker="$wt/docker/appsettings.secrets.json"
   src_real="$(cd "$(dirname "$SRC")" 2>/dev/null && pwd)/$(basename "$SRC")"
   wt_docker_parent="$(cd "$(dirname "$wt_docker")" 2>/dev/null && pwd || echo "")"
-  if [ -n "$wt_docker_parent" ] && [ "$src_real" != "$wt_docker_parent/$(basename "$wt_docker")" ]; then
-    [ -d "$wt_docker" ] && rm -rf "$wt_docker"
+  if [[ -n "$wt_docker_parent" ]] && [[ "$src_real" != "$wt_docker_parent/$(basename "$wt_docker")" ]]; then
+    [[ -d "$wt_docker" ]] && rm -rf "$wt_docker"
     cp "$SRC" "$wt_docker"
   fi
 

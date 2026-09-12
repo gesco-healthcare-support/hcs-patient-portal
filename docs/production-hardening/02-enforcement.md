@@ -60,7 +60,7 @@ CurrentUserTenantResolveContributor())`, and that contributor has no test file a
    mechanism that stops a caller switching office via `?__tenant=` is unasserted on a system whose
    failure mode is cross-office PHI exposure.
 
-2. **When 2.13, 2.14 and phase 3 close, RE-RUN THE SWEEP IMPORT** -- `gh issue view 672`. Two of the
+2. **When 2.13, 2.14 and phase 3 close, RE-RUN THE CODE-CLEANUP IMPORT** -- `gh issue view 672`. Two of the
    three are now done. ~200 static-analysis findings are tracked nowhere until it runs. See the
    README's TRIGGER section.
 
@@ -90,8 +90,8 @@ CurrentUserTenantResolveContributor())`, and that contributor has no test file a
 
 ### The one lens that has paid off more than any other
 
-A check that reports success without having run. **Twenty-nine** instances are catalogued at the end
-of this file, fifteen found in this epic's own work -- and three of those CORRECTED earlier entries
+A check that reports success without having run. **Forty-eight** instances are catalogued at the end
+of this file, thirty found in this epic's own work -- and three of those CORRECTED earlier entries
 rather than adding to them. **Assume the class exists in whatever you are about to trust until you
 have disproven it**, including in your own prior conclusions.
 
@@ -1313,8 +1313,10 @@ cost    +7 seconds  (17s -> 24s), against Backend: Test at 686-776s
    when it loads it as an entry point -- imports, decorators, class declarations count as hit though
    no test exercises the behaviour. Roughly one line per newly visible file. **An artefact of
    instrumentation, not the number being gamed.** Somebody will notice and ask.
-3. **The files were INVISIBLE, not uncovered.** A source with no spec contributed to neither side of
-   the ratio, in the gate AND in SonarCloud, which imports the same lcov.
+3. **The files were INVISIBLE TO THE GATE, not uncovered.** A source with no spec contributed to
+   neither side of the ratio in `coverage-gate.py`, which parses the lcov. **The SonarCloud half of
+   this claim was wrong and is corrected below** -- Sonar derives `lines_to_cover` from its own
+   analysis, so a file absent from the lcov counts at 0% and DOES enter its denominator.
 
 ### The decision this took, which was Adrian's and is the part a successor needs
 
@@ -1372,6 +1374,38 @@ none.** SonarCloud shares the blind spot -- for TypeScript it imports the lcov, 
 contribute to neither side of the ratio (Angular added 2,873 to `lines_to_cover` against an lcov of
 2,663 lines over 99 files). **So "coverage rises to 55.0% when the epic lands" means backend plus the
 instrumented third of Angular, and the README badge note must say so.**
+
+> **ERRATA 2026-09-10 -- the SonarCloud half of the sentence above is WRONG.**
+> The gate half stands: `coverage-gate.py` parses the lcov, so a file absent from it appears on
+> neither side of the ratio. **SonarCloud does not behave that way.** It imports the lcov for
+> coverage HITS only; `lines_to_cover` comes from its own analysis of every non-excluded source.
+> An absent file lands at 0% and DOES enter the denominator.
+>
+> Measured on two independent files, neither reachable by karma:
+>
+> ```text
+> angular/src/main.ts                      lines_to_cover=26  uncovered=26  coverage=0.0
+> tests/e2e-demo/specs/helpers/auth.ts     lines_to_cover=18  uncovered=18  coverage=0.0
+> ```
+>
+> `main.ts` is not in the coverage bundle: `angular.json` scopes it to
+> `["**/*.spec.ts", "app/**/*.ts", "config-validation.ts", "tenant-bootstrap.ts"]`, and `main.ts`
+> is none of those. `tsconfig.spec.json`'s `src/**/*.ts` is the COMPILATION program, not the
+> coverage scope -- its own comment says so. `auth.ts` sits outside `angular/` entirely and no
+> workflow produces coverage for `tests/e2e-demo`.
+>
+> Mechanism, from `.github/workflows/sonarcloud.yml:142-145`: `sonar.*.lcov.reportPaths` supplies
+> hits, and **`sonar.coverage.exclusions` is the only lever that removes a file from the**
+> **denominator**. Not being in the lcov is not exclusion.
+>
+> **This is why the two consumers disagree.** They are not two views of one number; Sonar counts a
+> population the gate cannot see. Any reconciliation between them has to start here.
+>
+> It also underwrites phase 8.1: the Python sources already sit in Sonar's denominator at 0% with
+> no coverage report existing anywhere, by exactly this mechanism.
+>
+> Original text kept per this file's convention -- see the SUPERSEDED block above. A justification
+> is less checkable than a number, and this one read as reasoning for a week.
 
 **Adrian's ruling, 2026-09-03: own item; the gate PRINTS the count of changed files with no coverage
 record on every run and does NOT fail on it.** Failing at 27-of-33 would block every submission from
@@ -1505,10 +1539,11 @@ trade, unlike the actions half. Either add the ecosystem or accept the freeze de
 
 ## CATALOGUE: checks that reported success without having run
 
-**This is the most useful artefact the epic has produced.** Thirty-six instances in five days.
+**This is the most useful artefact the epic has produced.** Forty-eight instances.
 **The total is the number of rows in the table below, counted -- never a figure incremented from
-memory.** The lesson is not "tools lie" -- it is that a green result is evidence only if you know
-what was examined.
+memory.** No elapsed span is stated: the count was updated here once and the duration beside it was
+not, which is this file's own subject occurring in the sentence that announces it. The lesson is
+not "tools lie" -- it is that a green result is evidence only if you know what was examined.
 
 | #   | Instance                                                               | How it presented               |
 | --- | ---------------------------------------------------------------------- | ------------------------------ |
@@ -1548,10 +1583,23 @@ what was examined.
 | 34  | A **stale `packages.lock.json`** under the required dependency gate    | green, wrong graph             |
 | 35  | A CI watcher counting **SKIPPED as FAILED**, ending the watch early    | a false **RED**                |
 | 36  | An editor reporting 5 errors on a file the build compiles clean        | stale analysis, false alarm    |
+| 37  | A test class verified **only under `--filter`**, blind to a collision  | green alone, red in company    |
+| 38  | An abort **swallowed by `tee`** -- a pipeline exits with its last      | reported success, watch void   |
+| 39  | A **verified** check state reused as a known-answer case 19 min later  | correct watcher read as broken |
+| 40  | A **failed enumeration** piped to a filter, identical to real absence  | a clean, confident "absent"    |
+| 41  | A break anchor with **regex metacharacters** passed to a regex matcher | silent no-op, run continued    |
+| 42  | A count read off a **`head`-truncated preview** of its own enumeration | a confident partial total      |
+| 43  | `git restore` on a **NEW untracked file**: restores nothing, silently  | "restored", break still live   |
+| 44  | A state claim about **someone else's lane**, no signal when it changed | correct then, still plausible  |
+| 45  | A paginated API **capping silently**: returns exactly the limit given  | 500 of 1,941, looked complete  |
+| 46  | A pointer that **resolves only for its author** -- a name, not a path  | searcher concluded DATA LOST   |
+| 47  | A break that **could not bite**, chosen from a wrong docstring premise | two tests passed, guarded none |
+| 48  | A probe run **after its own cleanup destroyed the evidence**           | confidently clean, every time  |
 
-**Instances 10, 11, 13, 15, 16, 17, 18, 19, 21, 22, 23, 24, 30, 31, 32, 33, 34 and 35 -- eighteen of
-the thirty-six -- are self-inflicted rather than inherited**, committed by the tooling and the
-sessions doing the verifying rather than found in the repository. **Instance 12 is the most
+**Instances 10, 11, 13, 15, 16, 17, 18, 19, 21, 22, 23, 24, 30, 31, 32, 33, 34, 35, 37, 38, 39,
+40, 41, 42, 43, 44, 45, 46, 47 and 48 -- thirty of the forty-eight -- are self-inflicted rather
+than inherited**, committed by the tooling and the sessions doing the verifying rather than found
+in the repository. **Instance 12 is the most
 consequential for design; instance 17 is the one that would have silently corrupted the record;
 instance 21 is the worst, because it invalidates the evidence behind every entry recorded before it
 rather than adding a defect of its own.**

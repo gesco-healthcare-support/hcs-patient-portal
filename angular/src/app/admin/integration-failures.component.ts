@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RestService } from '@abp/ng.core';
 import { firstValueFrom } from 'rxjs';
@@ -187,7 +187,7 @@ export interface DeadLetterRow {
     `,
   ],
 })
-export class IntegrationFailuresComponent {
+export class IntegrationFailuresComponent implements OnInit {
   private readonly rest = inject(RestService);
 
   protected readonly rows = signal<DeadLetterRow[]>([]);
@@ -197,7 +197,12 @@ export class IntegrationFailuresComponent {
   /** Id of the row whose Retry is in flight, so only that button disables. */
   protected readonly retrying = signal<string | null>(null);
 
-  constructor() {
+  /**
+   * Sweep #644 (S7059): the load used to run from the constructor. Angular constructs a
+   * component before it is part of the view, so a fetch started there races the first
+   * render and cannot be stopped by a test that has not called detectChanges yet.
+   */
+  ngOnInit(): void {
     void this.load();
   }
 

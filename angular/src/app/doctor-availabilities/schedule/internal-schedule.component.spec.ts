@@ -69,7 +69,7 @@ describe('InternalScheduleComponent', () => {
     const el = create().nativeElement as HTMLElement;
     const options = el.querySelectorAll('#sched-location option');
 
-    expect(options.length).toBe(2);
+    expect(options).toHaveSize(2);
     expect(options[0].textContent?.trim()).toBe('Downtown');
   });
 
@@ -125,6 +125,6 @@ describe('InternalScheduleComponent', () => {
     fixture.detectChanges();
 
     expect(cmp.loadFailed()).toBeTrue();
-    expect(cmp.events().length).toBe(0);
+    expect(cmp.events()).toHaveSize(0);
   });
 });

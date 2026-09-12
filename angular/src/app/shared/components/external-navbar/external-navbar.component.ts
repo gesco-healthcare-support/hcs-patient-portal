@@ -10,6 +10,7 @@ import {
 import { IconComponent } from '../../ui/icon/icon.component';
 import type { IconName } from '../../ui/icon/icon.registry';
 import { BrandingService } from '../../branding/branding.service';
+import { avatarColor } from '../../ui/avatar.util';
 
 /** One row in the notifications dropdown. The feed (BACKEND-CHANGES §G25) is not
  *  built yet, so callers pass [] and the dropdown shows an empty state. */
@@ -100,23 +101,18 @@ export class ExternalNavbarComponent {
     return (first + second).toUpperCase();
   }
 
-  /** Deterministic avatar color (ported from after-common.jsx avaColor). */
+  /**
+   * Deterministic avatar color (ported from after-common.jsx avaColor).
+   *
+   * <p>#769: this was an inline copy of `ui/avatar.util.ts` -- same palette, same
+   * `for...of` code-point loop, same `>>> 0` wrap. Measured identical on 5,000
+   * seeds including astral characters, so delegating changes no rendered colour.
+   * It is the only one of the six `avatarColor` implementations that could be
+   * removed without a visual decision; the other four disagree with this one and
+   * with each other, and consolidating them is still open on #769.</p>
+   */
   protected get avatarColor(): string {
-    const palette = [
-      '#055495',
-      '#075ca1',
-      '#0a4778',
-      '#2f7cbf',
-      '#1f6e6e',
-      '#5b3ea6',
-      '#82a52a',
-      '#a35a26',
-    ];
-    let h = 0;
-    for (const ch of this.userName) {
-      h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    }
-    return palette[h % palette.length];
+    return avatarColor(this.userName);
   }
 
   protected toggle(menu: 'notif' | 'acct'): void {

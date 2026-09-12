@@ -17,7 +17,9 @@
       <div class="ext-menuwrap">
         <button
           class="ext-iconbtn"
-          aria-label="Notifications"
+          [attr.aria-label]="
+            unreadCount > 0 ? 'Notifications, ' + unreadCount + ' unread' : 'Notifications'
+          "
           [attr.aria-expanded]="openMenu === 'notif'"
           (click)="toggle('notif')"
         >

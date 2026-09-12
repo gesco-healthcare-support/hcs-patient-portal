@@ -45,36 +45,72 @@
 
           <div class="ra-grid">
             <div class="ra-field col-6">
-              <label>First name</label>
-              <input class="ra-input" type="text" formControlName="firstName" maxlength="50" />
+              <label for="ce-profile-first-name">First name</label>
+              <input
+                id="ce-profile-first-name"
+                class="ra-input"
+                type="text"
+                formControlName="firstName"
+                maxlength="50"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Last name</label>
-              <input class="ra-input" type="text" formControlName="lastName" maxlength="50" />
+              <label for="ce-profile-last-name">Last name</label>
+              <input
+                id="ce-profile-last-name"
+                class="ra-input"
+                type="text"
+                formControlName="lastName"
+                maxlength="50"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Phone</label>
-              <input appPhoneNumber class="ra-input" type="text" formControlName="phoneNumber" />
+              <label for="ce-profile-phone-number">Phone</label>
+              <input
+                id="ce-profile-phone-number"
+                appPhoneNumber
+                class="ra-input"
+                type="text"
+                formControlName="phoneNumber"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Fax</label>
-              <input appPhoneNumber class="ra-input" type="text" formControlName="faxNumber" />
+              <label for="ce-profile-fax-number">Fax</label>
+              <input
+                id="ce-profile-fax-number"
+                appPhoneNumber
+                class="ra-input"
+                type="text"
+                formControlName="faxNumber"
+              />
             </div>
             <div class="ra-field col-6">
-              <label>Email</label>
-              <input class="ra-input" type="text" [value]="email" disabled />
+              <label for="ce-profile-email">Email</label>
+              <input id="ce-profile-email" class="ra-input" type="text" [value]="email" disabled />
             </div>
             <div class="ra-field col-6">
-              <label>Street</label>
-              <input class="ra-input" type="text" formControlName="street" maxlength="255" />
+              <label for="ce-profile-street">Street</label>
+              <input
+                id="ce-profile-street"
+                class="ra-input"
+                type="text"
+                formControlName="street"
+                maxlength="255"
+              />
             </div>
             <div class="ra-field col-4">
-              <label>City</label>
-              <input class="ra-input" type="text" formControlName="city" maxlength="50" />
+              <label for="ce-profile-city">City</label>
+              <input
+                id="ce-profile-city"
+                class="ra-input"
+                type="text"
+                formControlName="city"
+                maxlength="50"
+              />
             </div>
             <div class="ra-field col-4">
-              <label>State</label>
-              <select class="ra-select" formControlName="stateId">
+              <label for="ce-profile-state-id">State</label>
+              <select id="ce-profile-state-id" class="ra-select" formControlName="stateId">
                 <option [ngValue]="null">-- Select --</option>
                 @for (s of states; track s.id) {
                   <option [ngValue]="s.id">{{ s.name }}</option>
@@ -82,8 +118,14 @@
               </select>
             </div>
             <div class="ra-field col-4">
-              <label>Zip code</label>
-              <input class="ra-input" type="text" formControlName="zipCode" maxlength="10" />
+              <label for="ce-profile-zip-code">Zip code</label>
+              <input
+                id="ce-profile-zip-code"
+                class="ra-input"
+                type="text"
+                formControlName="zipCode"
+                maxlength="10"
+              />
             </div>
           </div>
 

@@ -115,7 +115,7 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             // created via the real registration + invite flows during the demo so
             // the verification/invite emails actually fire. The InboxedExternalUsers
             // constant above is preserved for tests/docs.
-            var seedPlan = new (string EmailPrefix, string RoleName, string First, string Last, string Phone)[] { };
+            var seedPlan = Array.Empty<(string EmailPrefix, string RoleName, string First, string Last, string Phone)>();
 
             foreach (var (prefix, roleName, first, last, phone) in seedPlan)
             {

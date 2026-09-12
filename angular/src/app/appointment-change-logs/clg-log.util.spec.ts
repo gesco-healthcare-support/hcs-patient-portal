@@ -56,10 +56,10 @@ describe('clg-log.util', () => {
 
     it('groups same appointment+entity+type+time rows into one entry with all diffs', () => {
       const entries = groupChangeLogEntries(rows);
-      expect(entries.length).toBe(2);
-      expect(entries[0].diffs.length).toBe(2);
+      expect(entries).toHaveSize(2);
+      expect(entries[0].diffs).toHaveSize(2);
       expect(entries[0].entityType).toBe('Appointment');
-      expect(entries[1].diffs.length).toBe(1);
+      expect(entries[1].diffs).toHaveSize(1);
       expect(entries[1].diffs[0].valueRedacted).toBe(true);
     });
 

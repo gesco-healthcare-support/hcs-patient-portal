@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  HostListener,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -64,6 +71,17 @@ const OPTIONAL_COLUMNS = [
   templateUrl: './internal-people.component.html',
 })
 export class InternalPeopleComponent {
+  /**
+   * Sweep #636: the columns menu could be dismissed only with the mouse.
+   * Sonar cannot see a document-level handler, so its finding on the backdrop stays.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.showCols()) {
+      this.showCols.set(false);
+    }
+  }
+
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly gateway = inject(PeopleSectionGateway);
@@ -148,7 +166,7 @@ export class InternalPeopleComponent {
       case 'email':
         return row.email ?? '';
       case 'dob': {
-        const t = row.dateOfBirth ? Date.parse(row.dateOfBirth) : NaN;
+        const t = row.dateOfBirth ? Date.parse(row.dateOfBirth) : Number.NaN;
         return Number.isNaN(t) ? null : t;
       }
       case 'phone':

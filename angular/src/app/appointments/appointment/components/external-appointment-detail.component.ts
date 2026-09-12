@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, Injector, OnInit, inject } from '@angular/core';
+import { Component, HostListener, Injector, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ConfigStateService as AbpConfigStateService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -277,11 +277,12 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
       (this.shellConfig.getOne('currentUser') as { roles?: string[] } | null)?.roles ?? [];
     const isAttorney = roles.includes('Applicant Attorney') || roles.includes('Defense Attorney');
     const isClaimExaminer = roles.includes('Claim Examiner');
-    const target = isAttorney
-      ? '/user-management/attorneys/my-profile'
-      : isClaimExaminer
-        ? '/user-management/claim-examiners/my-profile'
-        : '/user-management/patients/my-profile';
+    let target = '/user-management/patients/my-profile';
+    if (isAttorney) {
+      target = '/user-management/attorneys/my-profile';
+    } else if (isClaimExaminer) {
+      target = '/user-management/claim-examiners/my-profile';
+    }
     void this.shellRouter.navigateByUrl(target);
   }
   protected openDocumentsNav(): void {
@@ -420,7 +421,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
    */
   private seedEdits(): void {
     const p = this.patientNav;
-    const appt = this.appointment?.appointment as Record<string, unknown> | undefined;
+    const appt = this.appointment?.appointment;
     const insurance = (this.appointment as { primaryInsurance?: { name?: string } } | null)
       ?.primaryInsurance;
     const defense = (
@@ -438,8 +439,8 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
       zipCode: String(p?.zipCode ?? ''),
       cellPhoneNumber: String(p?.cellPhoneNumber ?? ''),
       appointmentLanguageId: String(p?.appointmentLanguageId ?? ''),
-      applicantAttorneyEmail: String(appt?.['applicantAttorneyEmail'] ?? ''),
-      appointmentClaimExaminerEmail: String(appt?.['claimExaminerEmail'] ?? ''),
+      applicantAttorneyEmail: appt?.applicantAttorneyEmail ?? '',
+      appointmentClaimExaminerEmail: appt?.claimExaminerEmail ?? '',
       appointmentInsuranceName: String(insurance?.name ?? ''),
       defenseAttorneyFirmName: String(defense?.firmName ?? ''),
     };
@@ -593,6 +594,26 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected openResubmitConfirm(): void {
     this.resubmitConfirmVisible = true;
   }
+  /**
+   * Escape closes the resubmit confirmation modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim` backdrop and its `.ra-modal` container. The keyboard
+   * equivalent belongs on the document: a div is not focusable, so
+   * `(keydown.escape)` bound to it would never fire, and a tabindex would put a
+   * tab stop on a decorative overlay. Matches the pattern in
+   * internal-appointment-detail.component.ts, added for the same rule in #622.
+   *
+   * Routed through cancelResubmit so Escape does exactly what the mouse path does
+   * rather than becoming a second, subtly different close.
+   */
+  @HostListener('document:keydown.escape')
+  protected onResubmitEscapeKey(): void {
+    if (this.resubmitConfirmVisible) {
+      this.cancelResubmit();
+    }
+  }
+
   protected cancelResubmit(): void {
     this.resubmitConfirmVisible = false;
   }

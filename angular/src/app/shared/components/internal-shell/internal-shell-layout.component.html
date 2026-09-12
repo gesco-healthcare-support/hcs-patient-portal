@@ -80,11 +80,19 @@
         @if (switcherOpen()) {
           <div class="in-clickaway" (click)="closeSwitcher()"></div>
         }
+        <!--
+          A control built as a div. Focusable and Enter-activated only while canSwitch() is
+          true: when there is nothing to switch to it is inert text, and putting it in the tab
+          order would be a stop that does nothing. toggleSwitcher() guards on the same signal.
+        -->
         <div
           class="in-tenant"
           [class.host]="platform()"
           [style.cursor]="canSwitch() ? 'pointer' : 'default'"
+          [attr.role]="canSwitch() ? 'button' : null"
+          [attr.tabindex]="canSwitch() ? 0 : null"
           (click)="toggleSwitcher()"
+          (keydown.enter)="toggleSwitcher()"
         >
           <span class="mk">{{ hostScope() ? 'M' : tenantInitial() }}</span>
           {{ hostScope() ? 'Management' : (tenantName() | officeName) }}

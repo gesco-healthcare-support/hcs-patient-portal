@@ -121,7 +121,7 @@
               </div>
             </div>
             <div class="col-md-2 mb-3">
-              <label class="form-label fw-semibold">
+              <label for="appointment-injury-date-of-injury" class="form-label fw-semibold">
                 {{ injuryForm.get('injuryCumulative')?.value ? 'From Date' : 'Date Of Injury' }}
                 *
               </label>
@@ -132,6 +132,7 @@
                    the OLD-parity date rules are untouched. -->
               <div class="input-group">
                 <input
+                  id="appointment-injury-date-of-injury"
                   class="form-control"
                   placeholder="MM/DD/YYYY"
                   [class.is-invalid]="
@@ -159,9 +160,12 @@
             </div>
             @if (injuryForm.get('injuryCumulative')?.value) {
               <div class="col-md-2 mb-3">
-                <label class="form-label fw-semibold">To Date</label>
+                <label for="appointment-injury-to-date-of-injury" class="form-label fw-semibold">
+                  To Date
+                </label>
                 <div class="input-group">
                   <input
+                    id="appointment-injury-to-date-of-injury"
                     class="form-control"
                     placeholder="MM/DD/YYYY"
                     formControlName="injuryToDateOfInjury"
@@ -185,8 +189,11 @@
               </div>
             }
             <div class="col-md-2 mb-3">
-              <label class="form-label fw-semibold">Claim Number *</label>
+              <label for="appointment-injury-claim-number" class="form-label fw-semibold">
+                Claim Number *
+              </label>
               <input
+                id="appointment-injury-claim-number"
                 type="text"
                 class="form-control"
                 [class.is-invalid]="
@@ -199,8 +206,11 @@
               />
             </div>
             <div class="col-md-2 mb-3">
-              <label class="form-label fw-semibold">WCAB Office (Venue)</label>
+              <label for="appointment-injury-wcab-office-id" class="form-label fw-semibold">
+                WCAB Office (Venue)
+              </label>
               <select
+                id="appointment-injury-wcab-office-id"
                 class="form-select"
                 formControlName="injuryWcabOfficeId"
                 name="injuryWcabOfficeId"
@@ -212,8 +222,9 @@
               </select>
             </div>
             <div class="col-md-2 mb-3">
-              <label class="form-label fw-semibold">ADJ# *</label>
+              <label for="appointment-injury-wcab-adj" class="form-label fw-semibold">ADJ# *</label>
               <input
+                id="appointment-injury-wcab-adj"
                 type="text"
                 class="form-control"
                 [class.is-invalid]="
@@ -234,6 +245,8 @@
               @for (part of bodyPartsArray.controls; track $index) {
                 <div class="input-group mb-2">
                   <input
+                    [id]="'appointment-injury-body-part-' + $index"
+                    [attr.aria-label]="'Body part ' + ($index + 1)"
                     type="text"
                     class="form-control"
                     [formControlName]="$index"

@@ -57,7 +57,18 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
     // Redesign (2026-06-15): internal staff book via the redesigned wizard,
     // wrapped by the shell. The wizard suppresses its own external navbar for
     // internal bookers (isInternalBooker) so only the shell chrome shows.
-    // authGuard only (no permissionGuard), matching the prior in-shell add route.
+    // BUG-038 / #554 (2026-09-09): permissionGuard added. This was authGuard only, so any
+    // authenticated user reached the wizard. The finding called it an authorisation gap; it
+    // is not one -- `AppointmentsAppService.SubmitAsync` carries
+    // [Authorize(CaseEvaluationPermissions.Appointments.Create)], so a user without the
+    // permission was always refused at submit. What they got instead was a whole booking
+    // wizard filled in and then a 403, which is the actual defect. The guard moves the
+    // refusal to the click.
+    //
+    // Safe for external bookers: `ExternalUserRoleDataSeedContributor.BookingBaselineGrants()`
+    // grants `CaseEvaluation.Appointments.Create` to every external booking role, so patients
+    // and attorneys still match this route. Both copies of the path are guarded -- see the
+    // chrome-less external copy declared before the shell parent.
     //
     // 4a (2026-08-04): moved from 'appointments/add' to the SAME path external users
     // use. There is now exactly ONE booking path in the app; only the chrome differs
@@ -68,7 +79,8 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
       import('./appointments/wizard/appointment-wizard.component').then(
         (c) => c.AppointmentWizardComponent,
       ),
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.Appointments.Create' },
     canDeactivate: [appointmentWizardCanDeactivateGuard],
   },
   {
@@ -422,7 +434,10 @@ export const APP_ROUTES: Routes = [
       import('./appointments/wizard/appointment-wizard.component').then(
         (c) => c.AppointmentWizardComponent,
       ),
-    canActivate: [authGuard],
+    // BUG-038 / #554: guarded to match the in-shell copy above. Leaving one of the two
+    // unguarded would have made the fix depend on which chrome the user happened to get.
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.Appointments.Create' },
     canDeactivate: [appointmentWizardCanDeactivateGuard],
   },
   {

@@ -259,7 +259,24 @@ export function initials(firstName: string, lastName: string): string {
   return (first + last).toUpperCase() || '?';
 }
 
-/** Deterministic avatar background derived from a seed string (no randomness). */
+/**
+ * Deterministic avatar background derived from a seed string (no randomness).
+ *
+ * Two Sonar suggestions on this function are deliberately NOT applied. Both were already
+ * refused on the near-identical `avatarColor` in `users-hub.util.ts`, where the reasoning was
+ * measured rather than argued; this is the same loop and the same verdict, recorded here so
+ * the two do not drift apart.
+ *
+ * - `typescript:S7767` wants `Math.trunc` instead of `| 0`. The `| 0` is load-bearing: it
+ *   wraps to a 32-bit signed integer, which is what makes this a rolling hash. `Math.trunc`
+ *   does not wrap, so the value runs past Number.MAX_SAFE_INTEGER and loses integer precision.
+ * - `typescript:S7758` wants `codePointAt` instead of `charCodeAt`. They agree only inside the
+ *   BMP, and this loop steps by code UNIT -- reading a code POINT at a code-unit index is
+ *   incoherent, and would change existing avatar colours. (Where a loop steps by code point,
+ *   via `for...of`, the rule IS right and is applied -- see `shared/ui/avatar.util.ts`.)
+ *
+ * Both need won't-fix triage in SonarCloud rather than a code change.
+ */
 export function avatarColor(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {

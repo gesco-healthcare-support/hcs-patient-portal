@@ -29,12 +29,21 @@
           </thead>
           <tbody>
             @for (row of rows(); track row.wcabOffice?.id) {
-              <tr (click)="openEdit(row)" style="cursor: pointer">
+              <tr
+                (click)="openEdit(row)"
+                style="cursor: pointer"
+                tabindex="0"
+                (keydown.enter)="openEdit(row)"
+              >
                 <td>
                   <b style="color: var(--n-900)">{{ row.wcabOffice?.name }}</b>
                 </td>
                 <td>{{ row.wcabOffice?.abbreviation }}</td>
-                <td style="text-align: right" (click)="$event.stopPropagation()">
+                <td
+                  style="text-align: right"
+                  (click)="$event.stopPropagation()"
+                  (keydown.enter)="$event.stopPropagation()"
+                >
                   <span style="display: inline-flex; gap: 6px">
                     <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(row)">
                       <app-icon name="doc" [size]="14" />
@@ -70,11 +79,12 @@
       <div class="ra-modal__body">
         <div class="ra-grid">
           <div class="ra-field col-8">
-            <label>
+            <label for="wcab-name">
               Office name
               <span class="req">*</span>
             </label>
             <input
+              id="wcab-name"
               class="ra-input"
               maxlength="100"
               [ngModel]="f.name"
@@ -83,11 +93,12 @@
             />
           </div>
           <div class="ra-field col-4">
-            <label>
+            <label for="wcab-abbreviation">
               Code
               <span class="req">*</span>
             </label>
             <input
+              id="wcab-abbreviation"
               class="ra-input"
               maxlength="50"
               [ngModel]="f.abbreviation"

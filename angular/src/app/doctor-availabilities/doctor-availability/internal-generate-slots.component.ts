@@ -221,7 +221,7 @@ export class InternalGenerateSlotsComponent implements OnInit {
   private earliestGeneratedIso(): string | null {
     if (this.mode() === 'pick') {
       const ds = this.selectedDates();
-      return ds.length ? ds.slice().sort()[0] : null;
+      return ds.length ? ds.slice().sort((a, b) => a.localeCompare(b))[0] : null;
     }
     const from = this.fromDate();
     const to = this.toDate();
@@ -247,13 +247,11 @@ export class InternalGenerateSlotsComponent implements OnInit {
     this.weekdays.set(this.weekdays().map((on, j) => (j === i ? !on : on)));
   }
   protected setRange(i: number, field: keyof GenTimeRange, value: string): void {
-    this.timeRanges.set(
-      this.timeRanges().map((r, j) =>
-        j === i
-          ? { ...r, [field]: field === 'durationOverride' ? (value ? Number(value) : null) : value }
-          : r,
-      ),
-    );
+    // durationOverride is the one numeric field, and blank means "inherit the default"
+    // rather than zero -- hence null and not Number('').
+    const next =
+      field === 'durationOverride' ? (value ? Number(value) : null) : (value as string | null);
+    this.timeRanges.set(this.timeRanges().map((r, j) => (j === i ? { ...r, [field]: next } : r)));
   }
   protected addRange(): void {
     this.timeRanges.set([

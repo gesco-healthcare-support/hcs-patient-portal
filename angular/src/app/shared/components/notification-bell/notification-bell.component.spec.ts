@@ -70,7 +70,7 @@ describe('NotificationBellComponent (item 7)', () => {
     c.toggle();
     expect(c.open()).toBeTrue();
     expect(svc.getMyNotifications).toHaveBeenCalled();
-    expect(c.items().length).toBe(1);
+    expect(c.items()).toHaveSize(1);
   });
 
   it('marks a row read and navigates on click', () => {

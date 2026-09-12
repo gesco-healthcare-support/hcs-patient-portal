@@ -49,10 +49,21 @@ public static class RequiredDocumentEvaluator
                 continue; // satisfied
             }
 
-            var state =
-                statuses?.Contains(DocumentStatus.Uploaded) == true ? RequiredDocumentState.AwaitingReview
-                : statuses?.Contains(DocumentStatus.Rejected) == true ? RequiredDocumentState.Rejected
-                : RequiredDocumentState.NotUploaded;
+            // Uploaded wins over Rejected: a document re-uploaded after a rejection
+            // is awaiting review, not still rejected. Order is load-bearing.
+            RequiredDocumentState state;
+            if (statuses?.Contains(DocumentStatus.Uploaded) == true)
+            {
+                state = RequiredDocumentState.AwaitingReview;
+            }
+            else if (statuses?.Contains(DocumentStatus.Rejected) == true)
+            {
+                state = RequiredDocumentState.Rejected;
+            }
+            else
+            {
+                state = RequiredDocumentState.NotUploaded;
+            }
 
             result.Add(new MissingRequiredDocument(documentId, name, state));
         }

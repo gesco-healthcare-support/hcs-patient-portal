@@ -51,7 +51,7 @@ describe('schedule-calendar.util', () => {
     it('renders one background event per slot at its real date and time', () => {
       const events = toBackgroundEvents([slot()]);
 
-      expect(events.length).toBe(1);
+      expect(events).toHaveSize(1);
       expect(events[0].start).toBe('2026-08-03T09:00:00');
       expect(events[0].end).toBe('2026-08-03T10:00:00');
       expect(events[0].display).toBe('background');
@@ -71,7 +71,7 @@ describe('schedule-calendar.util', () => {
       // The booking picker drops full slots; the staff calendar must not.
       const events = toBackgroundEvents([slot({ activeCount: 3, remainingCapacity: 0 })]);
 
-      expect(events.length).toBe(1);
+      expect(events).toHaveSize(1);
     });
 
     it('does not collide with appointment event ids', () => {
@@ -86,7 +86,7 @@ describe('schedule-calendar.util', () => {
         slot({ fromTime: undefined }),
       ]);
 
-      expect(events.length).toBe(0);
+      expect(events).toHaveSize(0);
     });
   });
 
@@ -160,7 +160,7 @@ describe('schedule-calendar.util', () => {
     });
 
     it('returns nothing for a slot with no appointments', () => {
-      expect(toAppointmentEvents([slot()]).length).toBe(0);
+      expect(toAppointmentEvents([slot()])).toHaveSize(0);
     });
 
     it('flattens appointments across every slot', () => {
@@ -180,7 +180,7 @@ describe('schedule-calendar.util', () => {
 
       const events = toAppointmentEvents([booked, other]);
 
-      expect(events.length).toBe(3);
+      expect(events).toHaveSize(3);
       expect(events[2].start).toBe('2026-08-03T11:00:00');
     });
 

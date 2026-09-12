@@ -23,10 +23,9 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
  *                constructor wires
  *                form.get('appointmentTypeId')?.valueChanges =>
  *                  applyFieldConfigsForAppointmentType
- *                  + loadCustomFieldsForAppointmentType
- *                  + loadAvailableDatesBySelection,
+ *                  + loadCustomFieldsForAppointmentType,
  *                form.get('locationId')?.valueChanges =>
- *                  updateLocationSelection + loadAvailableDatesBySelection,
+ *                  updateLocationSelection,
  *                form.get('appointmentDate')?.valueChanges =>
  *                  rebuildAppointmentTimeOptions,
  *                form.get('appointmentTime')?.valueChanges =>

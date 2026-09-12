@@ -30,6 +30,10 @@ import { SsnInputComponent } from '../../../shared/components/ssn-input.componen
 import { performFullLogout } from '../../../shared/auth/full-logout';
 
 import { PhoneNumberDirective } from '../../../shared/phone-number.directive';
+import {
+  formatDateOfBirthForApi,
+  normalizePatientDateOfBirth,
+} from '../../../shared/date-of-birth.util';
 @Component({
   selector: 'app-patient-profile',
   standalone: true,
@@ -143,7 +147,7 @@ export class PatientProfileComponent implements OnInit {
     }
 
     const raw = this.form.getRawValue();
-    const dateOfBirth = this.formatDateOfBirthForApi(raw.dateOfBirth);
+    const dateOfBirth = formatDateOfBirthForApi(raw.dateOfBirth);
 
     this.isBusy = true;
     this.restService
@@ -242,7 +246,7 @@ export class PatientProfileComponent implements OnInit {
           this.selected = response;
           this.form.patchValue({
             ...response.patient,
-            dateOfBirth: this.normalizePatientDateOfBirth(
+            dateOfBirth: normalizePatientDateOfBirth(
               response.patient.dateOfBirth as unknown as string | null,
             ),
             // F1 / Design B (2026-05-29): SSN is never pre-filled. The spread
@@ -271,31 +275,5 @@ export class PatientProfileComponent implements OnInit {
     tenantName?: string;
   } | null {
     return (this.configState.getOne('currentTenant') as any) ?? null;
-  }
-
-  private formatDateOfBirthForApi(value: unknown): string | null {
-    if (!value) return null;
-    if (typeof value === 'string') return value;
-    const obj = value as { year?: number; month?: number; day?: number };
-    if (obj?.year && obj?.month && obj?.day) {
-      const d = new Date(obj.year, obj.month - 1, obj.day);
-      return d.toISOString().split('T')[0];
-    }
-    return null;
-  }
-
-  private normalizePatientDateOfBirth(value: string | null | undefined): string | null {
-    if (!value) return null;
-    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-    if (!match) return null;
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    if (year < 1900) return null;
-    const today = new Date();
-    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) {
-      return null;
-    }
-    return value;
   }
 }

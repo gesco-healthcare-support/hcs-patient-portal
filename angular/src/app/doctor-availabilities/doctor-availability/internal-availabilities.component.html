@@ -190,7 +190,12 @@
           </tr>
         }
         @for (col of tableColumns(); track col.iso) {
-          <tr (click)="toggleExpand(col.iso)" style="cursor: pointer">
+          <tr
+            (click)="toggleExpand(col.iso)"
+            (keydown.enter)="toggleExpand(col.iso)"
+            tabindex="0"
+            style="cursor: pointer"
+          >
             <td>
               <span
                 style="color: var(--n-400); display: inline-flex; transition: transform 0.15s"
@@ -204,7 +209,16 @@
             <td>{{ count(col, 'booked') }}</td>
             <td>{{ count(col, 'reserved') }}</td>
             <td>{{ col.total }}</td>
-            <td style="text-align: right" (click)="$event.stopPropagation()">
+            <!--
+              Enter is stopped here as well as click, so pressing Enter on a button in this
+              cell does not also toggle the row's own (keydown.enter). Matches the actions
+              cell in internal-locations.component.html.
+            -->
+            <td
+              style="text-align: right"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="$event.stopPropagation()"
+            >
               @if (locationId()) {
                 <button
                   class="ra-rowbtn danger"

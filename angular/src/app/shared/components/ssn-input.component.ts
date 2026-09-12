@@ -58,6 +58,7 @@ import { PatientService } from '../../proxy/patients/patient.service';
         #entry
         type="text"
         class="form-control"
+        [attr.id]="inputId || null"
         [class.is-invalid]="invalid"
         [value]="boxDisplay()"
         [attr.placeholder]="placeholder"
@@ -93,6 +94,14 @@ export class SsnInputComponent implements ControlValueAccessor {
   @Input() currentMaskedSsn?: string | null;
   /** Mirrors the host input's invalid styling. */
   @Input() invalid = false;
+  /**
+   * #806: id for the rendered `<input>`, so a host `<label for>` can reach it.
+   * The component renders a plain `<input>` behind a custom element, which the
+   * HTML analyser cannot see through -- all three call sites shipped with no
+   * accessible name at all and a clean scan. Mirrors
+   * `<app-address-autocomplete>`'s `inputId`, added for the same reason (#794).
+   */
+  @Input() inputId = '';
   @Input() placeholder = '';
 
   private readonly patientService = inject(PatientService);
@@ -116,8 +125,8 @@ export class SsnInputComponent implements ControlValueAccessor {
 
   private static readonly IdleMs = 1200;
   // I14 (2026-06-08): bullet (codepoint U+2022) used to redact hidden SSN
-  // digits. Built via fromCharCode to keep the source ASCII-only.
-  private static readonly RedactionDot = String.fromCharCode(0x2022);
+  // digits. Built from its code point to keep the source ASCII-only.
+  private static readonly RedactionDot = String.fromCodePoint(0x2022);
 
   // ----- display computeds -----
 
@@ -159,7 +168,7 @@ export class SsnInputComponent implements ControlValueAccessor {
     // I14 (2026-06-08): the DTO masks the stored value with '*' (***-**-1234);
     // render the hidden digits as bullet circles (codepoint U+2022) for a
     // cleaner redaction. The escape keeps the source ASCII-only.
-    return (this.currentMaskedSsn ?? '').replace(/\*/g, SsnInputComponent.RedactionDot);
+    return (this.currentMaskedSsn ?? '').replaceAll('*', SsnInputComponent.RedactionDot);
   }
 
   canReveal(): boolean {

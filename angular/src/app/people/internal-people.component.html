@@ -42,6 +42,8 @@
         <div class="ia-search">
           <app-icon name="search" [size]="16" />
           <input
+            id="ipl-search"
+            [attr.aria-label]="'Search ' + meta().label.toLowerCase()"
             [ngModel]="search()"
             (ngModelChange)="search.set($event)"
             [placeholder]="
@@ -91,8 +93,9 @@
         <div class="ia-filters">
           <div class="ia-filters__grid">
             <div class="ia-field">
-              <label>Gender</label>
+              <label for="ipl-gender-id">Gender</label>
               <select
+                id="ipl-gender-id"
                 class="ia-input"
                 [ngModel]="filters().genderId"
                 (ngModelChange)="patchFilter({ genderId: $event })"
@@ -104,8 +107,9 @@
               </select>
             </div>
             <div class="ia-field">
-              <label>Min date of birth</label>
+              <label for="ipl-dob-min">Min date of birth</label>
               <input
+                id="ipl-dob-min"
                 class="ia-input"
                 type="date"
                 [ngModel]="filters().dobMin"
@@ -113,8 +117,9 @@
               />
             </div>
             <div class="ia-field">
-              <label>Max date of birth</label>
+              <label for="ipl-dob-max">Max date of birth</label>
               <input
+                id="ipl-dob-max"
                 class="ia-input"
                 type="date"
                 [ngModel]="filters().dobMax"
@@ -122,16 +127,18 @@
               />
             </div>
             <div class="ia-field">
-              <label>City</label>
+              <label for="ipl-city">City</label>
               <input
+                id="ipl-city"
                 class="ia-input"
                 [ngModel]="filters().city"
                 (ngModelChange)="patchFilter({ city: $event })"
               />
             </div>
             <div class="ia-field">
-              <label>State</label>
+              <label for="ipl-state-id">State</label>
               <select
+                id="ipl-state-id"
                 class="ia-input"
                 [ngModel]="filters().stateId"
                 (ngModelChange)="patchFilter({ stateId: $event })"
@@ -143,8 +150,9 @@
               </select>
             </div>
             <div class="ia-field">
-              <label>Appointment language</label>
+              <label for="ipl-language-id">Appointment language</label>
               <select
+                id="ipl-language-id"
                 class="ia-input"
                 [ngModel]="filters().languageId"
                 (ngModelChange)="patchFilter({ languageId: $event })"
@@ -156,8 +164,9 @@
               </select>
             </div>
             <div class="ia-field">
-              <label>Portal account</label>
+              <label for="ipl-portal">Portal account</label>
               <select
+                id="ipl-portal"
                 class="ia-input"
                 [ngModel]="filters().portal"
                 (ngModelChange)="patchFilter({ portal: $event })"
@@ -238,7 +247,7 @@
             </thead>
             <tbody>
               @for (row of displayRows(); track row.id) {
-                <tr (click)="onRowClick(row)">
+                <tr (click)="onRowClick(row)" (keydown.enter)="onRowClick(row)" tabindex="0">
                   <td>
                     <span class="ia-pt">
                       <span
@@ -285,7 +294,11 @@
                       {{ portalLabel[row.portal] }}
                     </span>
                   </td>
-                  <td style="text-align: right" (click)="$event.stopPropagation()">
+                  <td
+                    style="text-align: right"
+                    (click)="$event.stopPropagation()"
+                    (keydown.enter)="$event.stopPropagation()"
+                  >
                     <span style="display: inline-flex; gap: 6px; justify-content: flex-end">
                       @if (row.portal === 'none' && canInvite) {
                         <button

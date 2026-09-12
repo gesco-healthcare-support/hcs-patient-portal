@@ -31,7 +31,7 @@ export function rescheduleSourceLabel(chain: RescheduleChainDto | null | undefin
   }
 
   const number = chain?.sourceRequestConfirmationNumber?.trim();
-  return number ? number : null;
+  return number || null;
 }
 
 /** Which step a disclosure row describes. The template maps this to a localized caption. */

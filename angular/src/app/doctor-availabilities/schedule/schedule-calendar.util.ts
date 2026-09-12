@@ -28,16 +28,16 @@ export type SlotOccupancyClass = 'slot-free' | 'slot-partial' | 'slot-full';
  * is a committed booking. Terminal statuses never reach here -- the server
  * excludes them from the schedule entirely.
  */
-const REQUESTED_STATUSES: readonly AppointmentStatusType[] = [
+const REQUESTED_STATUSES: ReadonlySet<AppointmentStatusType> = new Set([
   AppointmentStatusType.Pending,
   AppointmentStatusType.RescheduleRequested,
   AppointmentStatusType.CancellationRequested,
   AppointmentStatusType.InfoRequested,
-];
+]);
 
 /** Whether an appointment is an unsettled request rather than a committed booking. */
 export function isRequestedStatus(status: AppointmentStatusType | undefined | null): boolean {
-  return status != null && REQUESTED_STATUSES.includes(status);
+  return status != null && REQUESTED_STATUSES.has(status);
 }
 
 /**

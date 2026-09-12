@@ -39,24 +39,39 @@
   <div class="ia-search">
     <app-icon name="search" [size]="16" />
     <input
+      id="report-search"
+      aria-label="Search by confirmation number, panel number or patient name"
       type="text"
       placeholder="Confirmation #, panel #, or patient name…"
       formControlName="filterText"
     />
   </div>
-  <select class="ia-input" formControlName="appointmentTypeId" style="width: 165px">
+  <label class="ia-datelbl" for="report-appointment-type">Appointment type</label>
+  <select
+    id="report-appointment-type"
+    class="ia-input"
+    formControlName="appointmentTypeId"
+    style="width: 165px"
+  >
     <option value="">All types</option>
     @for (t of typeOptions; track t.id) {
       <option [value]="t.id">{{ t.name }}</option>
     }
   </select>
-  <select class="ia-input" formControlName="locationId" style="width: 165px">
+  <label class="ia-datelbl" for="report-location">Location</label>
+  <select id="report-location" class="ia-input" formControlName="locationId" style="width: 165px">
     <option value="">All locations</option>
     @for (l of locationOptions; track l.id) {
       <option [value]="l.id">{{ l.name }}</option>
     }
   </select>
-  <select class="ia-input" formControlName="appointmentStatus" style="width: 160px">
+  <label class="ia-datelbl" for="report-appointment-status">Status</label>
+  <select
+    id="report-appointment-status"
+    class="ia-input"
+    formControlName="appointmentStatus"
+    style="width: 160px"
+  >
     <option value="">All statuses</option>
     @for (s of statusOptions; track s.value) {
       <option [value]="s.value">{{ s.key }}</option>
@@ -200,7 +215,11 @@
             }
           } @else {
             @for (a of rows; track a.appointmentId) {
-              <tr (click)="openAppointment(a.appointmentId)">
+              <tr
+                (click)="openAppointment(a.appointmentId)"
+                tabindex="0"
+                (keydown.enter)="openAppointment(a.appointmentId)"
+              >
                 @if (cols.conf) {
                   <td>
                     <span class="ia-conf">{{ a.requestConfirmationNumber }}</span>

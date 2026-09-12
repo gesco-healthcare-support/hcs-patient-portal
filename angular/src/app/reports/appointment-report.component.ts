@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  HostListener,
   OnInit,
   inject,
 } from '@angular/core';
@@ -98,6 +99,21 @@ export class AppointmentReportComponent implements OnInit {
 
   // Column-picker visibility. All columns start visible.
   colsOpen = false;
+
+  /**
+   * Escape closes the column picker.
+   *
+   * Its `.ia-clickaway` overlay is what
+   * MouseEventWithoutKeyboardEquivalentCheck reports: a transparent div whose
+   * only job is to catch the next click. A keyboard user could open the picker
+   * with the button and then had no way to dismiss it.
+   */
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.colsOpen) {
+      this.colsOpen = false;
+    }
+  }
   readonly colDefs: { key: ColKey; label: string }[] = [
     { key: 'conf', label: 'Confirmation #' },
     { key: 'type', label: 'Type' },
@@ -262,7 +278,7 @@ export class AppointmentReportComponent implements OnInit {
         anchor.style.display = 'none';
         document.body.appendChild(anchor);
         anchor.click();
-        document.body.removeChild(anchor);
+        anchor.remove();
       } finally {
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       }

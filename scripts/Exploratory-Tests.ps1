@@ -77,14 +77,14 @@ if ($futureSlot) {
                 $ub = @{ availableDate=$slotNow.availableDate; fromTime=$slotNow.fromTime; toTime=$slotNow.toTime; bookingStatusId=8; locationId=$slotNow.locationId; appointmentTypeId=$slotNow.appointmentTypeId; concurrencyStamp=$slotNow.concurrencyStamp }
                 Invoke-ApiCall -Method "PUT" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$($futureSlot.id)" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
             }
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     }
 }
 
 # ---- E3: Patient /me endpoint ----
 Write-Host "`n--- E3: Patient /me endpoint ---" -ForegroundColor Yellow
 $resp = Invoke-TestApiCall -Method "GET" -Url "$ApiBaseUrl/api/app/patients/me" -Token $patientToken -TenantId $t1Id
-Write-Host "  Status: $($resp.StatusCode), HasData: $($resp.Body -ne $null)" -ForegroundColor $(if($resp.StatusCode -eq 200){"Green"}else{"Red"})
+Write-Host "  Status: $($resp.StatusCode), HasData: $($null -ne $resp.Body)" -ForegroundColor $(if($resp.StatusCode -eq 200){"Green"}else{"Red"})
 $findings += "E3: Patient /me: Status=$($resp.StatusCode)"
 
 # ---- E4: External user lookup data exposure ----
@@ -129,7 +129,7 @@ if ($slotResp.Body) {
             $slotNow = Invoke-ApiCall -Method "GET" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$slotId" -Token $t1Token -TenantId $t1Id
             $ub = @{ availableDate=$slotNow.availableDate; fromTime=$slotNow.fromTime; toTime=$slotNow.toTime; bookingStatusId=8; locationId=$slotNow.locationId; appointmentTypeId=$slotNow.appointmentTypeId; concurrencyStamp=$slotNow.concurrencyStamp }
             Invoke-ApiCall -Method "PUT" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$slotId" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     }
     Invoke-TestApiCall -Method "DELETE" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$slotId" -Token $t1Token -TenantId $t1Id | Out-Null
 }

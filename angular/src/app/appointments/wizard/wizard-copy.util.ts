@@ -27,12 +27,12 @@ export function wizardEyebrow(isInternal: boolean, mode: BookingMode): string {
 
 /** Main wizard heading. Staff "book on behalf"; external users "request". */
 export function wizardTitle(isInternal: boolean, mode: BookingMode): string {
-  const subject =
-    mode === 'reval'
-      ? 'a Re-evaluation'
-      : mode === 'reBook'
-        ? 'a Replacement Appointment'
-        : 'an Appointment';
+  let subject = 'an Appointment';
+  if (mode === 'reval') {
+    subject = 'a Re-evaluation';
+  } else if (mode === 'reBook') {
+    subject = 'a Replacement Appointment';
+  }
   return isInternal ? `Book ${subject}` : `Request ${subject}`;
 }
 

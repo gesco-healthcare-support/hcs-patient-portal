@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { LocalizationService, PermissionService } from '@abp/ng.core';
@@ -58,6 +58,12 @@ import {
  * consent (B3, 2026-07-01) -- no auto-approve. Internal staff only; the
  * external view/:id is a separate role-split route.
  */
+/**
+ * The shape the three date getters return: the DTO gives an ISO string, the
+ * ngb pickers give a Date, and either can be absent (typescript:S4323).
+ */
+type DateLike = string | Date | null | undefined;
+
 @Component({
   selector: 'app-internal-appointment-detail',
   standalone: true,
@@ -200,13 +206,13 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   protected get confNo(): string {
     return this.appointment?.appointment?.requestConfirmationNumber ?? '';
   }
-  protected get apptDate(): string | Date | null | undefined {
+  protected get apptDate(): DateLike {
     return this.appointment?.appointment?.appointmentDate;
   }
-  protected get requestedOn(): string | Date | null | undefined {
+  protected get requestedOn(): DateLike {
     return this.appointment?.appointment?.creationTime;
   }
-  protected get modifiedOn(): string | Date | null | undefined {
+  protected get modifiedOn(): DateLike {
     return this.appointment?.appointment?.lastModificationTime;
   }
   /**
@@ -343,5 +349,29 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
         this.appointment = data;
       },
     });
+  }
+
+  /**
+   * Escape closes the authorized-user modal.
+   *
+   * It could previously be dismissed only with the mouse, which is what Sonar's
+   * MouseEventWithoutKeyboardEquivalentCheck reports on the `.ra-scrim` backdrop
+   * and its `.ra-modal` container. The keyboard equivalent belongs on the
+   * document: a div is not focusable, so `(keydown.escape)` bound to the scrim
+   * would never fire, and a tabindex would put a tab stop on a decorative
+   * overlay. Matches the pattern already used by five other components.
+   *
+   * Delegates to the inherited closeAuthorizedUserModal so Escape does exactly
+   * what the backdrop click does -- neither has a save-in-flight guard, and
+   * adding one here only would make the two paths disagree.
+   *
+   * The modal container must NOT gain a keydown stopPropagation guard: it sits
+   * between the document and the dialog, so that would swallow this.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.isAuthorizedUserModalOpen) {
+      this.closeAuthorizedUserModal();
+    }
   }
 }

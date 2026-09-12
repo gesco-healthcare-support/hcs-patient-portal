@@ -31,7 +31,7 @@ hardening  Numbered items in phases 4 onward only. Phases 1 and 2 are complete
            being done.
 backlog    docs/backlog.md, which is gitignored and therefore a NEW disclosure
            rather than a re-publication. Redacted before import: see `redact`.
-sweep      One batch per directory tree, carrying every static-analysis finding
+cleanup    One code-cleanup issue per directory tree, carrying every static-analysis
            for it. Batching by directory rather than by rule is what lets two
            people work in parallel without touching the same file.
 
@@ -76,17 +76,22 @@ DROPPED_KEYS = {
 
 # Directories owned by the hardening sessions. A batch must never claim these,
 # or two people end up in the same file, which is the whole thing we are
-# avoiding. Revisit when phases 2 and 3 close.
+# avoiding.
+#
+# RELEASED 2026-09-10 per #672: test/ and tests/ (phase 3 closed 2026-09-08),
+# scripts/ and docker/ (item 2.14 merged 722e16ae, 38e3b2ad), and the 2.13
+# files (merged 1ca6c078). Still held: .github/, because #672 measured that 50
+# of its 54 findings are CodeQL alerts that items 2.2/2.3 resolve directly, so
+# releasing it hands over work that is already being fixed; and the 2.5 files,
+# because item 2.5 is DEFERRED, not complete.
+#
+# NOTE: _is_held() separately holds every Dockerfile and every repo-root file
+# regardless of what is listed here, so removing docker/ does NOT release the
+# Dockerfiles. Those are tracked as #701.
 HELD_PREFIXES = {
-    "test/": "phase 3 (critical-path coverage)",
-    "tests/": "phase 3 (critical-path coverage)",
     ".github/": "phase 2.2 / 2.6",
-    "scripts/": "phase 2.14",
-    "docker/": "phase 2.14",
 }
 HELD_FILES = {
-    "angular/angular.json": "phase 2.13",
-    "angular/karma.conf.js": "phase 2.13",
     "Directory.Build.props": "phase 2.5",
     ".editorconfig": "phase 2.5",
 }
@@ -105,25 +110,40 @@ SRC_FINDING, SRC_HARDENING = "source/finding", "source/hardening"
 SRC_BACKLOG, SRC_SWEEP = "source/backlog", "source/sweep"
 
 LABELS = [
-    ("severity/high", "b60205", "Security, data integrity or a blocked user path"),
-    ("severity/medium", "d93f0b", "Real defect, contained blast radius"),
-    ("severity/low", "fbca04", "Minor defect or polish"),
-    ("severity/observation", "c5def5", "Recorded behaviour, not yet judged a defect"),
-    ("type/bug", "d73a4a", "Confirmed defect"),
-    ("type/observation", "c2e0c6", "Observation from a test or review pass"),
-    ("type/hardening", "5319e7", "Production-hardening programme item"),
-    ("type/sweep", "0e8a16", "Static-analysis batch scoped to one directory tree"),
-    ("source/finding", "ededed", "Imported from docs/runbooks/findings/bugs/"),
-    ("source/hardening", "ededed", "Imported from docs/production-hardening/"),
-    ("source/backlog", "ededed", "Imported from docs/backlog.md"),
-    ("source/sweep", "ededed", "Generated from Sonar / CodeQL by directory"),
+    (SEV_HIGH, "b60205", "Security, data integrity or a blocked user path"),
+    (SEV_MEDIUM, "d93f0b", "Real defect, contained blast radius"),
+    (SEV_LOW, "fbca04", "Minor defect or polish"),
+    (SEV_OBSERVATION, "c5def5", "Recorded behaviour, not yet judged a defect"),
+    (TYPE_BUG, "d73a4a", "Confirmed defect"),
+    (TYPE_OBSERVATION, "c2e0c6", "Observation from a test or review pass"),
+    (TYPE_HARDENING, "5319e7", "Production-hardening programme item"),
+    (TYPE_SWEEP, "0e8a16", "Static-analysis batch scoped to one directory tree"),
+    (SRC_FINDING, "ededed", "Imported from docs/runbooks/findings/bugs/"),
+    (SRC_HARDENING, "ededed", "Imported from docs/production-hardening/"),
+    (SRC_BACKLOG, "ededed", "Imported from docs/backlog.md"),
+    (SRC_SWEEP, "ededed", "Generated from Sonar / CodeQL by directory"),
 ]
 
-# The domain is matched as explicit dot-separated labels rather than a character
-# class that itself contains a dot. The looser `[A-Za-z0-9.-]+\.` form overlaps
-# with its own separator, which backtracks super-linearly on a hostile input --
-# and this pattern runs over the whole backlog, so it stays linear.
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+# Two separate backtracking hazards, both of which have to be closed for this to
+# stay linear over the whole backlog.
+#
+# 1. The domain is matched as explicit dot-separated labels rather than a
+#    character class that itself contains a dot. The looser `[A-Za-z0-9.-]+\.`
+#    form overlaps with its own separator and backtracks super-linearly.
+# 2. The leading lookbehind pins a match to the START of a run of local-part
+#    characters. Without it the local part is re-tried at every offset inside
+#    the run, each retry consuming the rest of the run before failing to find
+#    the `@` -- O(n) work at O(n) offsets. An earlier comment here claimed the
+#    pattern "stays linear" with only (1) applied; measured, it did not. On a
+#    16 KB input of local-part characters with no valid address, doubling the
+#    input quadrupled the time (quadratic), taking 26 s. With the lookbehind
+#    the same input takes 4 ms and the growth is linear. The match SET is
+#    unchanged: a start the lookbehind rejects is always preceded by
+#    local-part characters, so the earlier start matches the same address with
+#    a longer local part, and leftmost-first already preferred it.
+EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"
+)
 GUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 
@@ -287,7 +307,7 @@ def _finding_counts_by_file() -> collections.Counter:
 
 
 def _is_held(f: str) -> bool:
-    """True when a hardening session owns this path, so no sweep may claim it."""
+    """True when a hardening session owns this path, so no code-cleanup issue may claim it."""
     if any(f.startswith(p) for p in HELD_PREFIXES) or f in HELD_FILES:
         return True
     return "Dockerfile" in f or "/" not in f
@@ -312,8 +332,8 @@ def _owning_directory(f: str) -> str:
     return p[0]
 
 
-def _sweep_severity(count: int) -> str:
-    """Severity band for a sweep, by how much work it represents."""
+def _cleanup_severity(count: int) -> str:
+    """Severity band for a code-cleanup issue, by how much work it represents."""
     if count >= 60:
         return SEV_HIGH
     return SEV_MEDIUM if count >= 25 else SEV_LOW
@@ -339,8 +359,30 @@ def _group_into_batches(live: collections.Counter) -> list[tuple[str, list[str],
     return groups
 
 
-def collect_sweeps() -> list[dict]:
-    """One batch per directory tree, carrying every static-analysis finding.
+def batch_key(name: str) -> str:
+    """Idempotency key for a code-cleanup batch, derived from WHAT it covers.
+
+    #820: this was `SWEEP-{idx:02d}`, numbered by position in a list sorted by
+    descending finding count. The key therefore meant "the Nth largest group at
+    the moment you ran this", not "this directory" -- and that ordering moves
+    every time a finding is fixed.
+
+    Measured 2026-09-10: 24 of 25 freshly generated keys denoted a DIFFERENT
+    directory than the ledger row of the same name, and a dry run reported
+    "1 would be created, 124 already exist" while silently skipping the newly
+    released test (96 findings), scripts (64), docker and tests groups. The old
+    comment here warned about the duplicate direction; the silent-skip
+    direction is what actually happened, and it is worse, because a duplicate
+    is visible and a skip is not.
+
+    The slug reproduces the five SWEEP-PATH-* rows appended to the ledger by
+    hand on 2026-09-10, which is the shape the other 41 were migrated to.
+    """
+    return "SWEEP-PATH-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def collect_code_cleanup() -> list[dict]:
+    """One code-cleanup issue per directory tree, carrying every static-analysis finding.
 
     Batching by directory rather than by rule family is the whole point: a rule
     batch spans the repository, so two people working two rule batches collide
@@ -354,28 +396,66 @@ def collect_sweeps() -> list[dict]:
 
     held_by = ", ".join(sorted(set(HELD_PREFIXES.values())))
     issues = []
-    for idx, (name, paths, count) in enumerate(_group_into_batches(live), 1):
+    for name, paths, count in _group_into_batches(live):
         listed = "\n".join(f"- `{p}`" for p in sorted(paths))
         issues.append({
-            "key": f"SWEEP-{idx:02d}", "title": f"Static-analysis sweep: {name} ({count})",
-            "labels": [_sweep_severity(count), TYPE_SWEEP, SRC_SWEEP],
+            # Keyed by batch IDENTITY, never by rank -- see batch_key. The two
+            # *_SWEEP label constants remain machine identifiers holding the
+            # live label names `type/sweep` / `source/sweep`.
+            "key": batch_key(name), "title": f"Code cleanup: {name} ({count} findings)",
+            "labels": [_cleanup_severity(count), TYPE_SWEEP, SRC_SWEEP],
             "body": (f"{count} open Sonar issues, security hotspots and CodeQL alerts in the "
-                     f"paths below.\n\n**Paths (this batch owns these exclusively):**\n{listed}\n\n"
+                     f"paths below.\n\n**Paths (this issue owns these exclusively):**\n{listed}\n\n"
                      f"Assigning yourself is the claim. Do not edit files outside these paths -- "
-                     f"comment here instead. Path sets across all sweeps are verified disjoint, so "
-                     f"two people on two sweeps cannot touch the same file.\n\n"
-                     f"Held back and not in any sweep: paths owned by the hardening sessions "
-                     f"({held_by})."),
+                     f"comment here instead. Path sets across all code-cleanup issues are verified "
+                     f"disjoint, so two people on two issues cannot touch the same file.\n\n"
+                     f"Held back and not in any code-cleanup issue: paths owned by the hardening "
+                     f"sessions ({held_by})."),
             "paths": paths,
         })
     return issues
 
 
-def assert_disjoint(issues: list[dict]) -> None:
-    """Fail loudly if two sweeps could ever touch the same file.
+PATH_BULLET_RE = re.compile(r"^- `([^`]+)`$", re.MULTILINE)
+
+
+def existing_cleanup_paths() -> dict[str, str]:
+    """Path -> issue reference, for every OPEN code-cleanup issue on GitHub.
+
+    #820 defect 2: assert_disjoint only ever compared a batch against the other
+    batches in the same run. Across runs it compared nothing, and when closed
+    issues' findings left Sonar the leftover directories re-bundled under parent
+    names that were never issues. Three of those collided with live open issues
+    on EXACT paths -- #631, #628 and #665 -- while every check passed.
+
+    Exclusive path ownership is what the issue body promises assignees ("two
+    people on two issues cannot touch the same file"), so it has to hold across
+    runs or it does not hold at all.
+
+    A GitHub failure is not silently treated as "nothing exists": that would
+    turn this guard off exactly when it cannot be evaluated, which is the
+    absent-input hole the coverage gate documents at length. It exits instead.
+    """
+    result = subprocess.run(
+        ["gh", "issue", "list", "--repo", REPO, "--state", "open",
+         "--label", TYPE_SWEEP, "--limit", "200", "--json", "number,body"],
+        capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        sys.exit(f"cannot read existing cleanup issues, so disjointness cannot be "
+                 f"checked across runs: {result.stderr.strip()}")
+    owned: dict[str, str] = {}
+    for issue in json.loads(result.stdout or "[]"):
+        for path in PATH_BULLET_RE.findall(issue.get("body") or ""):
+            owned[path] = f"#{issue['number']}"
+    return owned
+
+
+def assert_disjoint(issues: list[dict], existing: dict[str, str] | None = None) -> None:
+    """Fail loudly if two code-cleanup issues could ever touch the same file.
 
     This is the guarantee the whole batching scheme rests on, so it is checked
-    rather than assumed. It has caught two real grouping bugs already.
+    rather than assumed. It has caught two real grouping bugs already, and
+    #820 added the cross-run half.
     """
     paths = [p for i in issues for p in i.get("paths", [])]
     dupes = [p for p, n in collections.Counter(paths).items() if n > 1]
@@ -384,14 +464,35 @@ def assert_disjoint(issues: list[dict]) -> None:
     if dupes or overlaps:
         sys.exit(f"DISJOINTNESS FAILED: duplicates={dupes[:5]} overlaps={overlaps[:5]}")
 
+    if not existing:
+        return
+    # A batch legitimately re-states the paths of the issue it ALREADY IS -- the
+    # ledger says which issue that is. The clash that matters is a batch
+    # claiming a path some DIFFERENT open issue owns, which is what happened to
+    # #628, #631 and #665 when leftover directories re-bundled under parent
+    # names that had never been issues.
+    ledger = already_created()
+    clashes = []
+    for issue in issues:
+        own = ledger.get(issue["key"], "")
+        own_ref = "#" + own.rsplit("/", 1)[-1] if own else None
+        for path in issue.get("paths", []):
+            owner = existing.get(path)
+            if owner and owner != own_ref:
+                clashes.append((issue["key"], path, owner))
+    if clashes:
+        detail = "; ".join(f"{k} claims {p}, owned by {o}" for k, p, o in clashes[:5])
+        sys.exit(f"DISJOINTNESS FAILED against existing issues ({len(clashes)} "
+                 f"clash(es)): {detail}")
+
 
 def generate() -> None:
-    issues = collect_findings() + collect_hardening() + collect_backlog() + collect_sweeps()
+    issues = collect_findings() + collect_hardening() + collect_backlog() + collect_code_cleanup()
     dropped = [i for i in issues if i["key"] in DROPPED_KEYS]
     issues = [i for i in issues if i["key"] not in DROPPED_KEYS]
     for i in dropped:
         print(f"  dropped {i['key']}: {DROPPED_KEYS[i['key']]}")
-    assert_disjoint(issues)
+    assert_disjoint(issues, existing_cleanup_paths())
     OUT.write_text(json.dumps(issues, indent=1), encoding="utf-8")
     counts = collections.Counter(
         next(l for l in i["labels"] if l.startswith("source/")) for i in issues)
@@ -410,22 +511,43 @@ def already_created() -> dict[str, str]:
     if not MAP.exists():
         return {}
     rows = MAP.read_text(encoding="utf-8").splitlines()
-    return {key: url for key, url in (r.split("\t", 1) for r in rows if "\t" in r)}
+    return dict(r.split("\t", 1) for r in rows if "\t" in r)
 
 
 def dry_run() -> None:
     issues, done = load(), already_created()
-    print(f"{'KEY':<11} {'SEVERITY':<10} {'SOURCE':<18} TITLE")
+    width = max([len(i["key"]) for i in issues] + [11])
+    print(f"{'KEY':<{width}} {'SEVERITY':<10} {'SOURCE':<18} TITLE")
     print("-" * 100)
     for i in issues:
         if i["key"] in done:
             continue
         sev = next(l for l in i["labels"] if l.startswith("severity/")).split("/")[1]
         src = next(l for l in i["labels"] if l.startswith("source/")).split("/")[1]
-        print(f"{i['key']:<11} {sev:<10} {src:<18} {i['title'][:60]}")
+        print(f"{i['key']:<{width}} {sev:<10} {src:<18} {i['title'][:60]}")
+
+    # #820: EVERY skip is printed, naming the issue its key matched. The old
+    # dry run printed only what it WOULD create, so "1 would be created, 124
+    # already exist" was the entire report while 24 of 25 groups were being
+    # skipped against the wrong issue. A skip that prints nothing is what let a
+    # positional key survive as long as it did.
+    skipped = [i for i in issues if i["key"] in done]
+    if skipped:
+        print(f"\nSKIPPED -- key already in {MAP.name}:")
+        for i in skipped:
+            print(f"  {i['key']:<{width}} -> {done[i['key']]}  {i['title'][:52]}")
+
     pending = [i for i in issues if i["key"] not in done]
-    print(f"\n{len(pending)} would be created, {len(done)} already exist. "
-          f"Nothing was created -- rerun with --apply.")
+    orphans = sorted(set(done) - {i["key"] for i in issues})
+    if orphans:
+        # Ledger rows matching no current batch. Expected for issues whose
+        # findings were fixed; a sudden crop of them is the signature of a key
+        # scheme that has shifted under the ledger, which is defect 1 itself.
+        print(f"\n{len(orphans)} ledger row(s) match no current batch, e.g. "
+              f"{', '.join(orphans[:5])}")
+
+    print(f"\n{len(pending)} would be created, {len(skipped)} skipped as existing, "
+          f"{len(done)} ledger rows. Nothing was created -- rerun with --apply.")
 
 
 def ensure_labels() -> None:

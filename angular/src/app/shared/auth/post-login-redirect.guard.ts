@@ -48,7 +48,7 @@ export const postLoginRedirectGuard: CanMatchFn = () => {
   // can't return a UrlTree as a fallback. Return false to cancel the
   // in-SPA navigation; the redirect that navigateToLogin already issued
   // takes the browser to AuthServer before the cancel matters.
-  if (!currentUser || !currentUser.isAuthenticated) {
+  if (!currentUser?.isAuthenticated) {
     auth.navigateToLogin();
     return false;
   }

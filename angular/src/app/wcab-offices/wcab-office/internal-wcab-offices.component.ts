@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  HostListener,
+  OnInit,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -87,6 +94,27 @@ export class InternalWcabOfficesComponent implements OnInit {
       concurrencyStamp: o?.concurrencyStamp,
     });
   }
+  /**
+   * Escape closes whichever overlay is on top.
+   *
+   * This component has TWO, both previously mouse-only and both reported by
+   * MouseEventWithoutKeyboardEquivalentCheck: the edit modal and the delete
+   * confirmation. The confirmation is rendered after the modal, so it sits on
+   * top and is checked first -- otherwise Escape over a delete prompt would
+   * close the form behind it and leave the prompt orphaned.
+   *
+   * Both routed through their existing close methods, which refuse while
+   * isBusy(), so Escape cannot abandon a save or a delete in flight.
+   */
+  @HostListener('document:keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.confirmDelete() !== null) {
+      this.cancelDelete();
+    } else if (this.form() !== null) {
+      this.closeModal();
+    }
+  }
+
   protected closeModal(): void {
     if (!this.isBusy()) {
       this.form.set(null);
