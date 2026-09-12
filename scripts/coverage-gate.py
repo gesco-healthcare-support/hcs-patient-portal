@@ -32,6 +32,17 @@ from __future__ import annotations
 
 import argparse
 import re
+# The FIRST subprocess call in this file, and a deliberate narrowing of the
+# purity #856 chose. Its reasoning was "discovery lives in the workflow because
+# that script shells out nowhere and the Python suite imports it directly;
+# keeping it pure keeps it testable" -- which is right about testability and is
+# why --tracked-files stays the primary path and every test uses it.
+#
+# The fallback exists because the alternative was a check that disappears when
+# one workflow line is deleted, printing a notice on its way out. A guard whose
+# absence is announced is still absent, and #683 is specifically about a
+# contamination that arrives with no signal.
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -107,6 +118,34 @@ def load_tracked(path: Path) -> set[str]:
     return tracked
 
 
+def discover_tracked() -> set[str]:
+    """Ask git for the tracked-file list when the workflow did not supply one.
+
+    #683 asked for contamination to fail the build rather than move the figure.
+    A `--tracked-files` flag delivers that only while someone remembers to pass
+    it: delete one line from ci.yml and the check is gone, having printed a
+    notice. This makes the flag an OPTIMISATION rather than the mechanism --
+    the workflow still passes a manifest, and without one the gate finds out
+    for itself.
+
+    A git failure EXITS. "Cannot list" is not "nothing is tracked" (which would
+    fail every file) and not "everything is tracked" (which would disable the
+    guard exactly when it cannot be evaluated).
+    """
+    result = subprocess.run(["git", "ls-files"], capture_output=True,
+                            text=True, check=False)
+    if result.returncode != 0:
+        die("no --tracked-files was supplied and `git ls-files` failed, so the "
+            f"tracked-file check cannot run: {result.stderr.strip()}. Pass "
+            "--tracked-files, or run this from inside the work tree.")
+    tracked = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    if not tracked:
+        die("`git ls-files` returned nothing, so every counted file would look "
+            "untracked. Refusing to report 100% contamination, which is a tell "
+            "rather than a result.")
+    return tracked
+
+
 def in_repo(path: str, tracked: set[str]) -> bool:
     """Is this report path one of the repository own files?
 
@@ -165,7 +204,19 @@ def normalise(raw: str, prefix: str) -> str:
     `angular/src/app/proxy/**` exclusion matches nothing and the gate silently
     measures more than it should.
     """
-    p = raw.replace("\\", "/").lstrip("./")
+    # removeprefix, NOT lstrip. `lstrip("./")` strips a CHARACTER SET, so it
+    # eats the leading dot of any dot-directory: ".claude/scripts/x.py" became
+    # "claude/scripts/x.py". Harmless while only lcov and the .NET Cobertura
+    # were fed in -- neither emits a dot-directory -- and live the moment Python
+    # coverage arrives, because `.claude/scripts/*.py` is in its denominator.
+    # The damage would have been silent in both consumers at once: a
+    # `.coverage-exclusions` entry for `.claude/**` would match nothing, and the
+    # changed-lines floor would compare the diff's ".claude/scripts/x.py"
+    # against the report's "claude/scripts/x.py" and find no record -- making
+    # exactly the files this gate was extended to watch invisible to it.
+    p = raw.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
     if prefix:
         p = f"{prefix.rstrip('/')}/{p}"
     return p
@@ -440,8 +491,14 @@ def build_parser() -> argparse.ArgumentParser:
                     help="repo-relative directory the lcov paths are relative to")
     ap.add_argument("--cobertura", help="backend Cobertura report")
     ap.add_argument("--cobertura-prefix", default="")
+    ap.add_argument("--python-cobertura",
+                    help="Python coverage.xml (coverage.py's Cobertura output)")
+    # No --python-prefix: coverage.py emits repo-relative filenames already,
+    # unlike karma's lcov which is relative to angular/. Verified against a real
+    # coverage.xml rather than assumed.
     ap.add_argument("--floor-frontend")
     ap.add_argument("--floor-backend")
+    ap.add_argument("--floor-python")
     ap.add_argument("--changed-diff",
                     help="unified diff from `git diff --unified=0 <base>...HEAD`; "
                          "enables the changed-lines floor")
@@ -500,6 +557,9 @@ def measure_all(args: argparse.Namespace,
     for label, path_arg, prefix, floor_arg, parser in (
         ("backend", args.cobertura, args.cobertura_prefix, args.floor_backend, parse_cobertura),
         ("frontend", args.lcov, args.lcov_prefix, args.floor_frontend, parse_lcov),
+        # coverage.py writes Cobertura, so the existing parser reads it
+        # unchanged, and its paths are repo-relative so the prefix is empty.
+        ("python", args.python_cobertura, "", args.floor_python, parse_cobertura),
     ):
         if path_arg is None:
             continue
@@ -580,13 +640,16 @@ def main() -> int:
     measured, coverage_by_file = measure_all(args, patterns)
 
     # Runs in measure-only mode too: this validates the INPUT, it is not a floor.
-    if args.tracked_files is not None:
-        assert_tracked(coverage_by_file, patterns,
-                       load_tracked(Path(args.tracked_files)))
-    else:
-        print("tracked-files: check SKIPPED, no --tracked-files supplied. "
-              "A silently disabled check is what #683 exists to prevent, so the "
-              "skip is stated rather than assumed.")
+    #
+    # There is no longer a skip branch. It printed its own absence, which reads
+    # as diligence and is not: a stated skip and a silent one both end with the
+    # check not running, and #683 is about contamination that arrives with no
+    # signal. The flag is now an optimisation -- the workflow still supplies the
+    # list, and without one the gate asks git.
+    tracked = (load_tracked(Path(args.tracked_files))
+               if args.tracked_files is not None
+               else discover_tracked())
+    assert_tracked(coverage_by_file, patterns, tracked)
 
     if args.measure_only:
         return 0
