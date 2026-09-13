@@ -1,0 +1,15 @@
+{
+  "ConnectionStrings": {
+    "Default": "Server=localhost,1434;Database=CaseEvaluation;User Id=sa;Password=your-sa-password;TrustServerCertificate=true"
+  },
+  "OpenIddict": {
+    "Applications": {
+      "CaseEvaluation_App": {
+        "RootUrl": "http://localhost:4200"
+      },
+      "CaseEvaluation_Swagger": {
+        "RootUrl": "https://localhost:44327/"
+      }
+    }
+  }
+}
