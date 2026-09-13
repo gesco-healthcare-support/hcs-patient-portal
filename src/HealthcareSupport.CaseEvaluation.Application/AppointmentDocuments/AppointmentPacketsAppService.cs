@@ -195,21 +195,14 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
     /// type -- and it disagreed with the content type the caller resolves
     /// from the same blob name.</para>
     /// </summary>
+    // #621: delegates to PacketFileName, which stamps the timestamp in PACIFIC.
+    // GeneratedAt is DateTime.UtcNow, so formatting it directly named an evening
+    // packet with tomorrow's date. The extension still comes from the blob.
     private static string BuildKindFileName(
         string confirmation,
         PacketKind kind,
         DateTime generatedAt,
         string blobName)
-    {
-        var kindName = kind switch
-        {
-            PacketKind.Patient => "Patient Packet",
-            PacketKind.Doctor => "Doctor Packet",
-            PacketKind.AttorneyClaimExaminer => "Attorney Claim Examiner Packet",
-            _ => kind.ToString(),
-        };
-        var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        var extension = blobName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? "docx" : "pdf";
-        return $"{confirmation}_{kindName}_{timestamp}.{extension}";
-    }
+        => PacketFileName.Build(
+            confirmation, kind, generatedAt, PacketFileName.ExtensionFor(blobName));
 }

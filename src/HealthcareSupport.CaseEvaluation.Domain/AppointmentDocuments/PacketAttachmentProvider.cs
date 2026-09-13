@@ -89,16 +89,9 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
     /// Builds OLD's verbatim filename pattern. KindName has spaces and
     /// matches OLD's hand-written strings at <c>AppointmentDocumentDomain.cs:520, :613</c>.
     /// </summary>
+    // #621: ONE definition, in PacketFileName. The email attachment, the UI
+    // download and the Case Tracker payload must all agree on this name, and
+    // agreeing by three hand-kept copies is what let a UTC stamp sit in all three.
     private static string BuildFileName(string confirmation, PacketKind kind, DateTime generatedAt)
-    {
-        var kindName = kind switch
-        {
-            PacketKind.Patient => "Patient Packet",
-            PacketKind.Doctor => "Doctor Packet",
-            PacketKind.AttorneyClaimExaminer => "Attorney Claim Examiner Packet",
-            _ => kind.ToString(),
-        };
-        var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        return $"{confirmation}_{kindName}_{timestamp}.pdf";
-    }
+        => PacketFileName.Build(confirmation, kind, generatedAt);
 }

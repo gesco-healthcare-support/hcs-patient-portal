@@ -56,13 +56,8 @@ public static class DocumentEntryMapper
     }
 
     /// <summary>Human label for a packet kind. Mirrors <c>PacketAttachmentProvider</c>'s strings.</summary>
-    public static string PacketLabel(PacketKind kind) => kind switch
-    {
-        PacketKind.Patient => "Patient Packet",
-        PacketKind.Doctor => "Doctor Packet",
-        PacketKind.AttorneyClaimExaminer => "Attorney Claim Examiner Packet",
-        _ => kind.ToString(),
-    };
+    public static string PacketLabel(PacketKind kind)
+        => AppointmentDocuments.PacketFileName.Label(kind);
 
     /// <summary>
     /// Synthesizes a packet file name; the portal stores none. Mirrors
@@ -71,10 +66,7 @@ public static class DocumentEntryMapper
     /// integration carry the same name.
     /// </summary>
     public static string PacketFileName(string confirmationNumber, PacketKind kind, DateTime generatedAt)
-    {
-        var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        return $"{confirmationNumber}_{PacketLabel(kind)}_{timestamp}.pdf";
-    }
+        => AppointmentDocuments.PacketFileName.Build(confirmationNumber, kind, generatedAt);
 
     /// <summary>Maps an uploaded document. <paramref name="documentType"/> is the resolved category label.</summary>
     public static IntakeDocumentEntry FromDocument(AppointmentDocument document, string? documentType, Guid? tenantId)
