@@ -39,6 +39,37 @@ x-logging: &default-logging
 # THESE RECORD REALITY, THEY DO NOT IMPROVE IT. Redis is 2 patch releases behind
 # current and nginx 3; MinIO and its client are already current. Catching the two
 # stale ones up is a separate, deliberate change, not a side effect of this one.
+#
+# THE TWO MinIO IMAGES COME FROM quay.io, NOT DOCKER HUB (#866, 2026-09-13).
+# The 2026-09-11 deploy died on `pull access denied for minio/mc`, which aborted
+# every other pull in the same `up -d` and stopped the deploy.
+#
+# Measured rather than guessed, because the error text cannot tell a withdrawn
+# tag from a private repo from rate limiting. Against the Docker Hub registry
+# API with an anonymous token:
+#
+#   minio/mc                 UNAUTHORIZED
+#   minio/minio              UNAUTHORIZED      <- the object store ITSELF
+#   nginx, redis             OK                <- same host, same moment
+#
+# So it is neither rate limiting (nginx and redis succeed from the same IP at
+# the same time) nor a withdrawn tag: MinIO has removed anonymous pull from
+# Docker Hub for BOTH repositories. The issue only observed `mc`, because `mc`
+# is what the deploy happened to need. `minio` is not a one-shot -- it is the
+# object store -- and it fails the same way on any cache miss, a new box, or a
+# plain `docker compose pull`. Dropping minio-init from the deploy would have
+# hidden that rather than fixed it.
+#
+# Both EXACT pinned tags are public on quay.io, verified by digest:
+#   quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+#     sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+#   quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+#     sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+#
+# The digests are recorded HERE rather than pinned into the image reference, to
+# keep the decision above -- version tags, not digests -- rather than quietly
+# reversing it. They make the pin auditable: if either tag is ever repushed,
+# these lines say what it used to be.
 
 services:
   sql-server:
@@ -92,7 +123,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     mem_limit: 1g
     command: server /data --console-address ":9001"
@@ -114,7 +145,7 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
