@@ -83,7 +83,29 @@ ENTRYPOINT ["sh", "-c", "\
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
+# NON-ROOT RUNTIME (#701). Every image in this repo ran its process as uid 0,
+# including all four that ship. Root in a container is not a vulnerability by
+# itself -- it is a privilege-escalation multiplier: any RCE, path traversal or
+# arbitrary-write bug executes as uid 0 inside the container, and a container
+# escape then starts from root rather than from an unprivileged account. This
+# matters now because the portal is moving from an internal LAN VM to public
+# exposure, where the attack surface no longer requires already being inside the
+# corporate network.
+#
+# `app` (uid 1654) is PRE-CREATED by the Microsoft runtime image rather than
+# invented here, so there is no useradd and no uid to keep in step.
+#
+# The build stages above deliberately stay root: they install packages and
+# restore into system paths, and they never ship.
+#
+# `Logs/` is created and chowned rather than left to the app: Serilog's file
+# sink writes to a path relative to WORKDIR, /app is owned by root after COPY,
+# and a non-root process would fail to open it. Serilog does not throw on a
+# failed sink -- it drops the log line -- so getting this wrong produces a
+# container that runs perfectly and silently writes no logs at all.
+RUN mkdir -p /app/Logs && chown app:app /app/Logs
+USER app
 
 # Do NOT add empty-stub source dirs: ABP's ReplaceEmbeddedByPhysical fully
 # replaces (not merges) the embedded localization fileset when the physical path
