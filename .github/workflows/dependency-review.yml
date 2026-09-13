@@ -77,6 +77,19 @@ jobs:
           # recurring red that someone eventually silences by deleting the
           # version and losing this reasoning with it.
           allow-dependencies-licenses: pkg:githubactions/trufflesecurity/trufflehog
+        # RE-PROVEN ON v5.0.0 (#691, 2026-09-13), because a gate proven against
+        # one version says nothing about the next. Same method, on this PR's own
+        # branch so the evidence is in its check history: a commit adding
+        # pm2@7.0.4 (SPDX AGPL-3.0), then a revert.
+        #
+        #   angular/package.json >> pm2@7.0.4 - License: AGPL-3.0
+        #   ##[error]Dependency review detected incompatible licenses.
+        #   Dependency Review  fail  11s
+        #
+        # The run log also echoes the deny-list back, which is the part that
+        # matters: it confirms v5.0.0 READ the input rather than ignoring it as
+        # an unrecognised one. That distinction is the whole of #691.
+        #
         # Phase 2.1 (2026-09-02): BLOCKING. Proven by poisoning on a throwaway PR --
         # adding pm2@7.0.4 (SPDX AGPL-3.0) produced:
         #   angular/package.json » pm2@7.0.4 - License: AGPL-3.0
