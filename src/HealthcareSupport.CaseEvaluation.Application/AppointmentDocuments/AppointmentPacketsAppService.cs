@@ -167,7 +167,8 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         var confirmation = appointment?.RequestConfirmationNumber ?? appointmentId.ToString("N");
-        var fileName = BuildKindFileName(confirmation, kind, packet.GeneratedAt, packet.BlobName);
+        var fileName = PacketFileName.Build(
+            confirmation, kind, packet.GeneratedAt, PacketFileName.ExtensionFor(packet.BlobName));
 
         // Phase 1 produces DOCX. Phase 2 will switch to application/pdf
         // when the DOCX -> PDF conversion is wired in. Detect from the
@@ -184,25 +185,4 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
             ContentType = contentType,
         };
     }
-
-    /// <summary>
-    /// OLD-verbatim filename pattern. Matches PacketAttachmentProvider so
-    /// downloads via the UI and via email attachment use identical names.
-    ///
-    /// <para>Part 2 (2026-07-28): the extension is derived from the stored
-    /// blob instead of hardcoded <c>.docx</c>. Packets have rendered as PDF
-    /// since 2026-06-10, so the old constant told every download the wrong
-    /// type -- and it disagreed with the content type the caller resolves
-    /// from the same blob name.</para>
-    /// </summary>
-    // #621: delegates to PacketFileName, which stamps the timestamp in PACIFIC.
-    // GeneratedAt is DateTime.UtcNow, so formatting it directly named an evening
-    // packet with tomorrow's date. The extension still comes from the blob.
-    private static string BuildKindFileName(
-        string confirmation,
-        PacketKind kind,
-        DateTime generatedAt,
-        string blobName)
-        => PacketFileName.Build(
-            confirmation, kind, generatedAt, PacketFileName.ExtensionFor(blobName));
 }

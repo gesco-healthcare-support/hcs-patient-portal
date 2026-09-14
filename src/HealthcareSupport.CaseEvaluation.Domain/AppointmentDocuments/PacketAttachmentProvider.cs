@@ -65,7 +65,7 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId, cancellationToken: cancellationToken);
         var confirmation = appointment?.RequestConfirmationNumber ?? appointmentId.ToString("N");
-        var fileName = BuildFileName(confirmation, kind, packet.GeneratedAt);
+        var fileName = PacketFileName.Build(confirmation, kind, packet.GeneratedAt);
 
         return new PacketAttachment(bytes, fileName, PdfContentType);
     }
@@ -84,14 +84,4 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
         // the call + the whole notify mechanism is a separate cleanup.
         return Task.CompletedTask;
     }
-
-    /// <summary>
-    /// Builds OLD's verbatim filename pattern. KindName has spaces and
-    /// matches OLD's hand-written strings at <c>AppointmentDocumentDomain.cs:520, :613</c>.
-    /// </summary>
-    // #621: ONE definition, in PacketFileName. The email attachment, the UI
-    // download and the Case Tracker payload must all agree on this name, and
-    // agreeing by three hand-kept copies is what let a UTC stamp sit in all three.
-    private static string BuildFileName(string confirmation, PacketKind kind, DateTime generatedAt)
-        => PacketFileName.Build(confirmation, kind, generatedAt);
 }

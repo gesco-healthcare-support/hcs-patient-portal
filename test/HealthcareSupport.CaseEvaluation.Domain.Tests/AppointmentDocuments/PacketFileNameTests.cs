@@ -68,6 +68,20 @@ public class PacketFileNameTests
     }
 
     [Fact]
+    public void AnUnknownKindFallsBackToItsEnumName()
+    {
+        // The `_ => kind.ToString()` arm. It is not dead code waiting to be
+        // deleted: PacketKind is persisted on AppointmentPacket, so a row written
+        // by a newer build and read by an older one lands here. Falling back to the
+        // enum name keeps the download working with an ugly name instead of
+        // throwing on a document someone is waiting for -- the same call Adrian
+        // made on the unreachable arm in _palpation_cells.
+        PacketFileName.Label((PacketKind)999).ShouldBe("999");
+        PacketFileName.Build("A00042", (PacketKind)999, EveningPacific)
+            .ShouldBe("A00042_999_15062026_070000.pdf");
+    }
+
+    [Fact]
     public void ExtensionComesFromTheBlob()
     {
         PacketFileName.ExtensionFor("packets/x.docx").ShouldBe("docx");
