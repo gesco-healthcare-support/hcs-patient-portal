@@ -389,6 +389,83 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
     /// <c>NotRequired</c>, so reading the parent would return nulls for a request that plainly had
     /// consent.</para>
     /// </summary>
+    /// <summary>
+    /// #615 -- the replacement must stay VISIBLE to the external party of record.
+    ///
+    /// <para>Found live 2026-08-26: approving a reschedule creates a NEW appointment whose
+    /// CreatorId is the staff approver. <c>AppointmentReadAccessGuard</c> admits an external
+    /// caller by id (booker / patient identity / accessor row) or by the email+role rule, and
+    /// the replacement had a staff CreatorId, no BookedByUserId and all four party-email
+    /// columns null -- so every pathway failed and the attorney was 403'd off their own
+    /// appointment while holding its packet PDF in their inbox.</para>
+    ///
+    /// <para>The fix is two assignments in ApproveRescheduleAsync: CopyPartySnapshotFrom and
+    /// the booker. The snapshot half has five unit tests on the domain method. THE BOOKER HALF
+    /// HAD NONE, and neither half was asserted through the approval path itself -- so deleting
+    /// either line from the AppService left the suite green. This closes that.</para>
+    ///
+    /// <para>Note what hid it in production: the child rows are copied by the cascade copier,
+    /// so notifications still went out. The packet path resolves through
+    /// AppointmentPatientSnapshotResolver, which falls back to the Patient master. The access
+    /// guard has no such fallback, so it was the only consumer that broke.</para>
+    /// </summary>
+    [Fact]
+    public async Task The_replacement_keeps_the_external_party_able_to_see_it()
+    {
+        var scenario = await NewScenarioAsync();
+        var bookerUserId = Guid.NewGuid();
+
+        // Stamp the source with what the access guard actually reads. The scenario builder
+        // leaves these null, which is the state the replacement used to inherit.
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var source = await _appointmentRepository.GetAsync(scenario.AppointmentId);
+            source.PatientEmail = "patient@example.test";
+            source.ApplicantAttorneyEmail = "aa@example.test";
+            source.DefenseAttorneyEmail = "da@example.test";
+            source.ClaimExaminerEmail = "ce@example.test";
+            source.RecordBookedBy(bookerUserId);
+            await _appointmentRepository.UpdateAsync(source, autoSave: true);
+        });
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ConfirmRescheduleDateAsync(
+                scenario.ChangeRequestId,
+                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+
+        await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
+
+        await InOfficeAsync(scenario.Office, () =>
+            _approvalAppService.ApproveRescheduleAsync(
+                scenario.ChangeRequestId,
+                new ApproveRescheduleInput
+                {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+
+        await InOfficeAsync(scenario.Office, async () =>
+        {
+            var replacement = (await _appointmentRepository.FirstOrDefaultAsync(
+                a => a.RescheduledFromAppointmentId == scenario.AppointmentId))!;
+
+            // The id pathway. Without this the booker sees a 403 on their own replacement.
+            replacement.BookedByUserId.ShouldBe(
+                bookerUserId,
+                "the replacement must carry the ORIGINAL booker, not the staff approver");
+
+            // The email+role pathway, which is how an attorney or claim examiner who did not
+            // book still reaches the appointment.
+            replacement.PatientEmail.ShouldBe("patient@example.test");
+            replacement.ApplicantAttorneyEmail.ShouldBe("aa@example.test");
+            replacement.DefenseAttorneyEmail.ShouldBe("da@example.test");
+            replacement.ClaimExaminerEmail.ShouldBe("ce@example.test");
+
+            // And it is genuinely a different row, so the assertions above are not just
+            // re-reading the source appointment.
+            replacement.Id.ShouldNotBe(scenario.AppointmentId);
+        });
+    }
+
     [Fact]
     public async Task The_replacement_carries_the_chain_back_to_the_appointment_it_replaced()
     {
