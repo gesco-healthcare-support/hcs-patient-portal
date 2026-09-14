@@ -214,7 +214,23 @@ jobs:
               echo '{}' > "$dir/appsettings.secrets.json"
             fi
           done
-      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      # --locked-mode (#687): scan the graph we actually declare.
+      #
+      # packages.lock.json is committed so dependency-review can see transitive
+      # NuGet packages, and Directory.Build.props says CI "can opt in via the
+      # dotnet restore flag for locked mode". It never did. With the flag absent a
+      # pull request could add a dependency, leave the lock file stale, and
+      # Dependency Review -- a REQUIRED check -- would scan a graph without the new
+      # packages in it and pass. That happened on #686: an added ProjectReference
+      # pulled OpenIddict in transitively, the lock file had zero OpenIddict.Server
+      # entries, and build, tests and git status were all clean.
+      #
+      # Now it is NU1004 instead: "The package references have changed ... restore
+      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
+      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # that a dependency change must be followed by
+      # `dotnet restore --force-evaluate` and the lock files committed.
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
       # Phase 2.1 (2026-09-02): the separate informational `-warnaserror` build was
       # removed here, per its own instruction. It said to remove it once
       # Directory.Build.props set <TreatWarningsAsErrors>true</TreatWarningsAsErrors>,
@@ -486,7 +502,7 @@ jobs:
               echo '{}' > "$dir/appsettings.secrets.json"
             fi
           done
-      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
       # PINNED (2026-09-03). This install was added UNPINNED in item 2.10, one
       # item before 2.2 pinned all 69 action references -- the same supply-chain
       # class, introduced by the same hand, inside the coverage gate itself.
@@ -683,7 +699,7 @@ jobs:
               echo '{}' > "$dir/appsettings.secrets.json"
             fi
           done
-      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
       - run: dotnet format HealthcareSupport.CaseEvaluation.slnx --no-restore --verify-no-changes --verbosity diagnostic
 
   frontend-format:
