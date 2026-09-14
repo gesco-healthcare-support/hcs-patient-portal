@@ -34,7 +34,7 @@ Three competing theories:
 ## To check
 
 - `angular/src/app/appointments/sections/appointment-add-claim-examiner-insurance.component.html` for `*ngIf` conditions.
-- `angular/src/app/appointments/appointment/appointment-add.component.ts` for role-gated section rendering.
+- `angular/src/app/appointments/appointment-add.component.ts` for role-gated section rendering.
 - OLD app parity: `P:\PatientPortalOld\patientappointment-portal\src\app\components\appointment-request\appointments\add\` for the analogous role-view.
 
 ## Functional impact
