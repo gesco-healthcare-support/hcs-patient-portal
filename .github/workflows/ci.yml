@@ -660,6 +660,35 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      # #617: the Pacific-date bug class, guarded where BannedSymbols cannot reach.
+      #
+      # src/BannedSymbols.txt bans DateTime.Today and DateTime.Now, and says why it
+      # does NOT ban DateTime.UtcNow -- that yields a correct INSTANT and is the right
+      # call for storage. It then names the hole it leaves:
+      #
+      #   "DateTime.UtcNow.Date is the same bug; do not substitute it."
+      #
+      # BannedApiAnalyzers bans SYMBOLS, not expressions, so it cannot express
+      # "UtcNow is fine but .Date on it is not". Nor can it reach _clock.Now.Date,
+      # which is the same defect wearing the approved API -- that one reached
+      # production and accepted a future injury date for 7-8 hours of every Pacific
+      # working day (#623).
+      #
+      # Placed before restore so it costs seconds and fails fast. Comment lines are
+      # excluded so the rule can be DESCRIBED in prose without tripping itself.
+      - name: No UTC calendar dates
+        run: |
+          hits=$(grep -rn --include='*.cs' -E '(DateTime\.UtcNow|[Cc]lock\.Now)\.Date' src/ \
+                 | grep -vE ':[[:space:]]*(//|///|\*)' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            m='a UTC instant had .Date taken off it. On a UTC server that is TOMORROW'
+            m="$m's Pacific date after ~5pm, every day. Use PacificTime.TodayFrom(clock.Now)"
+            m="$m -- see src/BannedSymbols.txt and #623."
+            echo "::error::$m"
+            exit 1
+          fi
+          echo 'No UTC calendar dates in src/.'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
