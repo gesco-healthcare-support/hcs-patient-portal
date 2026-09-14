@@ -19,6 +19,12 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 
 public class AppointmentManager : DomainService
 {
+    // S1192: exception-data keys the SPA reads off a BusinessException to branch
+    // programmatically. Named constants because a typo here is invisible -- the
+    // throw still succeeds and the client simply never finds the key it expects.
+    private const string ConfirmationNumberKey = "confirmationNumber";
+    private const string StatusKey = "status";
+
     protected IAppointmentRepository _appointmentRepository;
     protected ILocalEventBus _localEventBus;
     // BUG-043 / T8 (2026-05-27) -- counts Claim Information rows to gate the
@@ -187,8 +193,8 @@ public class AppointmentManager : DomainService
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected)
-                .WithData("confirmationNumber", source.RequestConfirmationNumber)
-                .WithData("status", source.AppointmentStatus);
+                .WithData(ConfirmationNumberKey, source.RequestConfirmationNumber)
+                .WithData(StatusKey, source.AppointmentStatus);
         }
     }
 
@@ -235,8 +241,8 @@ public class AppointmentManager : DomainService
             var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(
                 source.AppointmentStatus, source.EvaluationKind, callerIsItAdmin);
             throw new BusinessException(errorCode)
-                .WithData("confirmationNumber", source.RequestConfirmationNumber)
-                .WithData("status", source.AppointmentStatus);
+                .WithData(ConfirmationNumberKey, source.RequestConfirmationNumber)
+                .WithData(StatusKey, source.AppointmentStatus);
         }
     }
 
@@ -285,8 +291,8 @@ public class AppointmentManager : DomainService
             var errorCode = AppointmentLifecycleValidators.ResolveReBookRejectionCode(
                 source.AppointmentStatus, callerIsInternal);
             throw new BusinessException(errorCode)
-                .WithData("confirmationNumber", source.RequestConfirmationNumber)
-                .WithData("status", source.AppointmentStatus);
+                .WithData(ConfirmationNumberKey, source.RequestConfirmationNumber)
+                .WithData(StatusKey, source.AppointmentStatus);
         }
 
         var existingReBooks = await _appointmentRepository.GetListAsync(
@@ -295,8 +301,8 @@ public class AppointmentManager : DomainService
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked)
-                .WithData("confirmationNumber", source.RequestConfirmationNumber)
-                .WithData("status", source.AppointmentStatus);
+                .WithData(ConfirmationNumberKey, source.RequestConfirmationNumber)
+                .WithData(StatusKey, source.AppointmentStatus);
         }
     }
 
