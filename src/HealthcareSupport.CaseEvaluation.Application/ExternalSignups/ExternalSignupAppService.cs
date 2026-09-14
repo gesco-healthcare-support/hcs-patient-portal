@@ -487,7 +487,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         var roleIds = roles.Select(r => r.Id).ToList();
-        var roleNameMap = roles.ToDictionary(r => r.Id, r => r.Name!);
+        var roleNameMap = roles.ToDictionary(r => r.Id, r => r.Name);
 
         var userQuery = await _identityUserRepository.GetQueryableAsync();
         var currentUserId = CurrentUser.Id;

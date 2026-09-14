@@ -96,7 +96,7 @@ public class EfCoreNotificationTemplateRepository
     {
         if (!string.IsNullOrWhiteSpace(filterText))
         {
-            query = query.Where(x => x.NotificationTemplate.TemplateCode.Contains(filterText!));
+            query = query.Where(x => x.NotificationTemplate.TemplateCode.Contains(filterText));
         }
         if (templateTypeId.HasValue)
         {
@@ -118,7 +118,7 @@ public class EfCoreNotificationTemplateRepository
         // accepts a property-path string at the projection root.
         var effective = string.IsNullOrWhiteSpace(sorting)
             ? "NotificationTemplate.TemplateCode asc"
-            : NormalizeSorting(sorting!);
+            : NormalizeSorting(sorting);
         return query.OrderBy(effective);
     }
 

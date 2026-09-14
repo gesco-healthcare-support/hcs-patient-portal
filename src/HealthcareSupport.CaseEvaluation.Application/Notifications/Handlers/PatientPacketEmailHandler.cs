@@ -130,7 +130,7 @@ public class PatientPacketEmailHandler :
             var recipients = new List<NotificationRecipient>
             {
                 new NotificationRecipient(
-                    email: recipientEmail!,
+                    email: recipientEmail,
                     role: RecipientRole.Patient,
                     isRegistered: true),
             };

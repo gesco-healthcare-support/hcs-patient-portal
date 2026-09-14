@@ -79,7 +79,7 @@ public class BrandingHeadViewComponent : ViewComponent
 
         // Office without an uploaded logo: an artistic wordmark of its name.
         model.LogoCss = BuildWordmarkDataUri(
-            string.IsNullOrWhiteSpace(officeName) ? "Appointment Portal" : officeName!);
+            string.IsNullOrWhiteSpace(officeName) ? "Appointment Portal" : officeName);
         return View(model);
     }
 
