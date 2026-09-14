@@ -199,7 +199,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         }
     }
 
-    private string? GetEntityFrameworkCoreProjectFolderPath()
+    private static string? GetEntityFrameworkCoreProjectFolderPath()
     {
         var slnDirectoryPath = GetSolutionDirectoryPath();
 
