@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { PermissionService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -209,5 +209,97 @@ describe('AppointmentDocumentsComponent name reset after a successful upload (#6
       target: { files: [new File(['x'], 'second.pdf', { type: 'application/pdf' })] },
     } as unknown as Event);
     expect(component.documentName).toBe('second');
+  });
+});
+
+/**
+ * THE SCENARIO #612 IS NAMED AFTER, and the one the other two blocks do not reach:
+ * an upload that FAILS.
+ *
+ * On failure the component deliberately keeps the file and the name so the user can
+ * retry without re-entering anything. That is right, and it is also what makes the
+ * bug possible: the name box still holds the previous file's base name, and the
+ * derived-name flag still says the name is ours. If the user responds to the failure
+ * by picking a DIFFERENT file -- which is the most likely response when an upload was
+ * rejected -- the box must re-derive rather than keep the old name.
+ *
+ * Getting that wrong uploads a document under the wrong name, which on this system is
+ * a filing error on a legal record rather than a cosmetic one.
+ *
+ * Needs its own block: a RestService whose request() ERRORS, versus the success block
+ * above whose request() completes.
+ */
+describe('AppointmentDocumentsComponent name handling after a FAILED upload (#612)', () => {
+  let component: AppointmentDocumentsComponent;
+  let errors: string[];
+
+  const pick = (name: string) =>
+    component.onFileSelected({
+      target: { files: [new File(['x'], name, { type: 'application/pdf' })] },
+    } as unknown as Event);
+
+  beforeEach(async () => {
+    errors = [];
+    await TestBed.configureTestingModule({
+      imports: [AppointmentDocumentsComponent],
+      providers: [
+        {
+          provide: AppointmentDocumentService,
+          useValue: {
+            getList: () => of([]),
+            getMissingRequiredDocuments: () => of(null),
+          },
+        },
+        {
+          provide: ToasterService,
+          useValue: { success: () => undefined, error: (m: string) => errors.push(m) },
+        },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => false } },
+        // ERRORS, so upload() runs its failure branch.
+        { provide: RestService, useValue: { request: () => throwError(() => new Error('boom')) } },
+        { provide: AppointmentDocumentUrls, useValue: {} },
+        { provide: HttpClient, useValue: {} },
+      ],
+    }).compileComponents();
+
+    component = TestBed.createComponent(AppointmentDocumentsComponent).componentInstance;
+    component.appointmentId = 'appt-1';
+  });
+
+  it('re-derives the name when a different file is chosen after a failure', () => {
+    pick('first.pdf');
+    expect(component.documentName).toBe('first');
+
+    component.upload();
+    expect(component.documentName)
+      .withContext('failure keeps the name so a retry needs no re-typing')
+      .toBe('first');
+
+    pick('second.pdf');
+    expect(component.documentName)
+      .withContext('a different file after a failure must not keep the old base name')
+      .toBe('second');
+  });
+
+  it('still keeps a name the user typed, even across a failure', () => {
+    pick('first.pdf');
+    component.onDocumentNameInput('Signed release form');
+
+    component.upload();
+    pick('second.pdf');
+
+    expect(component.documentName)
+      .withContext('a name the user typed survives both the failure and the new file')
+      .toBe('Signed release form');
+  });
+
+  it('clears the uploading flag so the retry is not blocked', () => {
+    // upload() returns early while isUploading is true. If the failure branch did not
+    // reset it, the form would be silently dead and the user would read the toast as
+    // the only symptom -- retrying would do nothing at all.
+    pick('first.pdf');
+    component.upload();
+
+    expect(component.isUploading).toBeFalse();
   });
 });
