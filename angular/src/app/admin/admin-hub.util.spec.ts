@@ -256,7 +256,7 @@ describe('permission matrix helpers (sweep #644)', () => {
     it('skips a nameless permission rather than rendering a blank row', () => {
       // It could not be toggled, so a blank row would be worse than an absent one.
       const { parents } = splitPermissionNodes([{ name: '', displayName: 'Ghost' }, ...perms]);
-      expect(parents.length).toBe(2);
+      expect(parents).toHaveSize(2);
     });
 
     it('copes with a null permission list', () => {
@@ -272,21 +272,21 @@ describe('permission matrix helpers (sweep #644)', () => {
     it('returns every parent with every child when the search is empty', () => {
       const { parents, childrenByParent } = split();
       const out = filterPermParents(parents, childrenByParent, '');
-      expect(out.length).toBe(2);
-      expect(out[0].children.length).toBe(2);
+      expect(out).toHaveSize(2);
+      expect(out[0].children).toHaveSize(2);
     });
 
     it('keeps ALL children when the parent itself matches', () => {
       const { parents, childrenByParent } = split();
       const out = filterPermParents(parents, childrenByParent, 'appointment');
-      expect(out.length).toBe(1);
+      expect(out).toHaveSize(1);
       expect(out[0].children.map((c) => c.displayName)).toEqual(['Create', 'Delete']);
     });
 
     it('keeps only the matching children when the parent does not match', () => {
       const { parents, childrenByParent } = split();
       const out = filterPermParents(parents, childrenByParent, 'delete');
-      expect(out.length).toBe(1);
+      expect(out).toHaveSize(1);
       expect(out[0].parent.displayName).toBe('Appointments');
       expect(out[0].children.map((c) => c.displayName)).toEqual(['Delete']);
     });
@@ -299,7 +299,7 @@ describe('permission matrix helpers (sweep #644)', () => {
     it('keeps a childless parent that matches on its own name', () => {
       const { parents, childrenByParent } = split();
       const out = filterPermParents(parents, childrenByParent, 'patients');
-      expect(out.length).toBe(1);
+      expect(out).toHaveSize(1);
       expect(out[0].children).toEqual([]);
     });
   });
