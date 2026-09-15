@@ -77,7 +77,7 @@ public class EfCoreAppointmentDocumentTypeRepository : EfCoreRepository<CaseEval
         // OR its M2M set contains that type. Preserves the GetListAsync(appointmentTypeId)
         // contract the upload picker depends on -- only the resolution changed.
         return query
-            .WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!))
+            .WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name.Contains(filterText!))
             .WhereIf(appointmentTypeId.HasValue,
                 e => e.AppliesToAll || e.AppointmentTypes.Any(j => j.AppointmentTypeId == appointmentTypeId!.Value));
     }

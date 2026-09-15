@@ -27,9 +27,9 @@ FROM python:3.12-slim-trixie@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9ad
 RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
-      libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b fontconfig \
-      fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation \
-      fonts-noto-core poppler-utils curl \
+      curl fontconfig fonts-crosextra-caladea fonts-crosextra-carlito \
+      fonts-liberation fonts-noto-core libharfbuzz0b libpango-1.0-0 \
+      libpangoft2-1.0-0 poppler-utils \
  && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" \
       | debconf-set-selections \
  && apt-get install -y --no-install-recommends ttf-mscorefonts-installer \
@@ -48,11 +48,20 @@ RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.
 # compromise -- against which the cost is a generated lock file that must be
 # regenerated, in full, on every bump of any of the four. Revisit if the service
 # grows a real dependency tree or if PyPI's immutability guarantee changes.
-RUN pip install --no-cache-dir \
-      weasyprint==69.0 \
-      pikepdf==10.7.2 \
+#
+# --only-binary :all: (S8541, 2026-09-14): refuse source distributions. An sdist
+# runs its own setup.py at install time -- arbitrary code executing during the
+# image build with the build context present, the same class as the yarn lifecycle
+# scripts disabled in #723. All four publish wheels, so this costs nothing and
+# closes that path. If a future bump ever lacks a wheel the build fails loudly
+# rather than quietly running someone's setup.py.
+#
+# Sorted (S7018) so a bump is a one-line diff rather than a reshuffle.
+RUN pip install --no-cache-dir --only-binary :all: \
       Flask==3.1.0 \
-      gunicorn==23.0.0
+      gunicorn==23.0.0 \
+      pikepdf==10.7.2 \
+      weasyprint==69.0
 
 WORKDIR /app
 
@@ -62,9 +71,16 @@ COPY tools/packet-templates /app/generators
 # Bake the templates at image build: each generator emits its self-contained HTML next to itself
 # (doctor.html, patient.html, attorney emits ame_ime.html + pqme.html). app.py loads these at
 # startup. A generator failure fails the build loudly.
-RUN cd /app/generators/doctor   && python build_doctor.py \
- && cd /app/generators/patient  && python build_patient.py \
- && cd /app/generators/attorney && python build_attorney.py
+# WORKDIR rather than `cd` (S6597). Each generator still fails the build loudly;
+# splitting them also means a failure names WHICH generator broke instead of
+# reporting one chained RUN.
+WORKDIR /app/generators/doctor
+RUN python build_doctor.py
+WORKDIR /app/generators/patient
+RUN python build_patient.py
+WORKDIR /app/generators/attorney
+RUN python build_attorney.py
+WORKDIR /app
 
 COPY docker/packet-renderer/app.py /app/app.py
 
@@ -73,4 +89,23 @@ EXPOSE 3001
 # 2 sync workers: a single appointment generates its 3 packet kinds sequentially in one Hangfire
 # job, so a small pool is ample for dev. 120s timeout covers the 15-page patient packet on a cold
 # fontconfig cache. Bind matches PacketRenderer__Url in docker-compose.yml.
+# NON-ROOT RUNTIME (#701), and this is the image that most needed it: the
+# service parses HTML and renders PDFs through WeasyPrint, so it processes
+# structured input from elsewhere in the system -- exactly the profile where a
+# parser bug becomes code execution. It ran as uid 0.
+#
+# Created here rather than reused: python:slim ships no non-root account, unlike
+# the .NET runtime images which pre-create `app`.
+#
+# HOME is real (--create-home) on purpose. fontconfig and WeasyPrint want a
+# writable cache; with no home they fall back to paths a non-root user cannot
+# write and emit cache warnings on every render.
+#
+# Nothing is chowned. The generators ran at BUILD time as root and their HTML is
+# read-only at runtime, port 3001 is above 1024 so it needs no capability, and
+# the service writes no files -- it returns the PDF in the response body. If it
+# ever gains a scratch directory, that directory needs chowning to appuser.
+RUN useradd --system --create-home --uid 1001 --shell /usr/sbin/nologin appuser
+USER appuser
+
 CMD ["gunicorn", "--bind", "0.0.0.0:3001", "--workers", "2", "--timeout", "120", "app:app"]

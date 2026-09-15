@@ -214,7 +214,23 @@ jobs:
               echo '{}' > "$dir/appsettings.secrets.json"
             fi
           done
-      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      # --locked-mode (#687): scan the graph we actually declare.
+      #
+      # packages.lock.json is committed so dependency-review can see transitive
+      # NuGet packages, and Directory.Build.props says CI "can opt in via the
+      # dotnet restore flag for locked mode". It never did. With the flag absent a
+      # pull request could add a dependency, leave the lock file stale, and
+      # Dependency Review -- a REQUIRED check -- would scan a graph without the new
+      # packages in it and pass. That happened on #686: an added ProjectReference
+      # pulled OpenIddict in transitively, the lock file had zero OpenIddict.Server
+      # entries, and build, tests and git status were all clean.
+      #
+      # Now it is NU1004 instead: "The package references have changed ... restore
+      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
+      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # that a dependency change must be followed by
+      # `dotnet restore --force-evaluate` and the lock files committed.
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
       # Phase 2.1 (2026-09-02): the separate informational `-warnaserror` build was
       # removed here, per its own instruction. It said to remove it once
       # Directory.Build.props set <TreatWarningsAsErrors>true</TreatWarningsAsErrors>,
@@ -424,13 +440,12 @@ jobs:
       # `test -s coverage.xml` asserts on the ARTEFACT the command should have
       # produced, rather than trusting the exit code of the command meant to
       # produce it.
+      # #787: the command moved into scripts/python-coverage.sh so this job and
+      # sonarcloud.yml cannot drift in flags, exclusions or working directory --
+      # the failure mode `.coverage-exclusions` already suffered once. The
+      # artefact-not-exit-code assertion moved with it.
       - name: Test with coverage
-        run: |
-          set -euo pipefail
-          python -m coverage run -m unittest discover -s tests/python -p "test_*.py" -v
-          python -m coverage report
-          python -m coverage xml -o coverage.xml
-          test -s coverage.xml
+        run: bash scripts/python-coverage.sh coverage.xml
 
       # DELIBERATELY DOES NOT INVOKE scripts/coverage-gate.py.
       #
@@ -487,7 +502,7 @@ jobs:
               echo '{}' > "$dir/appsettings.secrets.json"
             fi
           done
-      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
       # PINNED (2026-09-03). This install was added UNPINNED in item 2.10, one
       # item before 2.2 pinned all 69 action references -- the same supply-chain
       # class, introduced by the same hand, inside the coverage gate itself.
@@ -661,6 +676,48 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      # #617: the Pacific-date bug class, guarded where BannedSymbols cannot reach.
+      #
+      # src/BannedSymbols.txt bans DateTime.Today and DateTime.Now, and says why it
+      # does NOT ban DateTime.UtcNow -- that yields a correct INSTANT and is the right
+      # call for storage. It then names the hole it leaves:
+      #
+      #   "DateTime.UtcNow.Date is the same bug; do not substitute it."
+      #
+      # BannedApiAnalyzers bans SYMBOLS, not expressions, so it cannot express
+      # "UtcNow is fine but .Date on it is not". Nor can it reach _clock.Now.Date,
+      # which is the same defect wearing the approved API -- that one reached
+      # production and accepted a future injury date for 7-8 hours of every Pacific
+      # working day (#623).
+      #
+      # Placed before restore so it costs seconds and fails fast. Comment lines are
+      # excluded so the rule can be DESCRIBED in prose without tripping itself.
+      #
+      # COVERS test/ AS WELL AS src/ (#624). The analyser half of this guard cannot:
+      # src/Directory.Build.props scopes src/BannedSymbols.txt to shipping code
+      # deliberately, so test projects may build fixtures from concrete DateTime values,
+      # which is what a test should do. `DateTime.UtcNow.Date` is not that. It is not a
+      # concrete value at all -- it is whatever UTC calendar date the suite happens to run
+      # on, so the fixture differs every day and the pattern sits in the files people copy
+      # from. Three sites existed in test/ when this was extended; all three were replaced
+      # with fixed dates, which is how the rest of the suite already builds appointments.
+      #
+      # This does NOT extend the DateTime.Today / DateTime.Now ban to test/. That is 69
+      # sites and a decision about what a fixture may be, recorded on #624 rather than
+      # taken here.
+      - name: No UTC calendar dates
+        run: |
+          hits=$(grep -rn --include='*.cs' -E '(DateTime\.UtcNow|[Cc]lock\.Now)\.Date' src/ test/ \
+                 | grep -vE ':[[:space:]]*(//|///|\*)' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            m='a UTC instant had .Date taken off it. On a UTC server that is TOMORROW'
+            m="$m's Pacific date after ~5pm, every day. Use PacificTime.TodayFrom(clock.Now)"
+            m="$m -- or a fixed date in a test fixture. See src/BannedSymbols.txt and #623."
+            echo "::error::$m"
+            exit 1
+          fi
+          echo 'No UTC calendar dates in src/ or test/.'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
@@ -684,7 +741,7 @@ jobs:
               echo '{}' > "$dir/appsettings.secrets.json"
             fi
           done
-      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
       - run: dotnet format HealthcareSupport.CaseEvaluation.slnx --no-restore --verify-no-changes --verbosity diagnostic
 
   frontend-format:
@@ -717,7 +774,7 @@ jobs:
   coverage-floors:
     name: "Coverage: Floors"
     runs-on: ubuntu-latest
-    needs: [changes, backend-test, frontend-test]
+    needs: [changes, backend-test, frontend-test, python-test]
     # `if: always()` with NO further condition, and that is the whole point of
     # this job. Every other job in this file is conditional, and a SKIPPED job
     # reports "Success" and does not block a merge even when it is a required
@@ -829,6 +886,53 @@ jobs:
       # bump. Found only because the probe was run twice, against a control that
       # reproduced this file's own 73.61% exactly.
       FLOOR_BACKEND: "72"
+      # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
+      # refuses to run without a floor and prints the figure to copy.
+      #
+      #   scripts/coverage-gate.py --python-cobertura coverage.xml --measure-only
+      #   -> python: 30.98% (435/1404 lines over 8 files)
+      #
+      # THE DENOMINATOR HAZARD THIS BLOCK USED TO DESCRIBE IS FIXED (#862), and
+      # the number moved a long way because of it. What stood here before was a
+      # careful account of a percentage that was a function of WHICH FILES THE
+      # SUITE IMPORTS -- 56.40% over 2 files, then 71.80%, then 53.72% over 4,
+      # each move caused by an import appearing rather than by code changing.
+      # Writing a test for something previously untested LOWERED it.
+      #
+      # pyproject.toml now sets `include_namespace_packages` under
+      # [tool.coverage.report], which lifts coverage's package-recursion rule and
+      # so discovers in-scope files that nothing imports. Measured both ways on
+      # the coverage 7.15.2 this job pins:
+      #
+      #   before : 62.68% (435/694 lines over 4 files)
+      #   after  : 30.98% (435/1404 lines over 8 files)
+      #
+      # SAME NUMERATOR. The denominator doubles because four files that SHIP --
+      # the three build_*.py packet generators and check_fields.py, copied into
+      # the packet-renderer image and run at its build -- were not in it at all.
+      # Phase 8.1 in .coverage-exclusions had already ruled that those 882 lines
+      # stay in the denominator deliberately; the measurement simply was not
+      # doing it. So 30.98% is not a regression from 62.68%. It is what this
+      # repository's Python coverage has been the whole time.
+      #
+      # THE RATCHET NOW POINTS THE RIGHT WAY, which is the actual deliverable.
+      # Those files sit in the denominator at 0%, so the first test for one
+      # RAISES this figure. Before, it lowered it: #843 added import-issues.py at
+      # 18% and took the total from 58% to 37%.
+      #
+      # THE FILE-COUNT TRIPWIRE IS BACK, and it is a SET rather than a count this
+      # time. The previous one was removed for being calibrated at 2 when the real
+      # count was 4, which made it worse than nothing. A count cannot say WHICH
+      # file moved; tests/python/python-coverage-denominator.txt is the committed
+      # set, checked in two places -- by
+      # tests/python/test_python_coverage_denominator.py against `git ls-files`
+      # plus the omit patterns, and by scripts/python-coverage.sh against the
+      # generated report. A denominator change now fails and names the file
+      # instead of quietly moving this percentage.
+      #
+      # IF YOU CHANGE THAT SET, re-derive this number from a fresh --measure-only
+      # run in the same pull request. Do not tune it to make something pass.
+      FLOOR_PYTHON: "30"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
@@ -867,6 +971,13 @@ jobs:
           name: frontend-coverage
           path: artifacts/frontend
 
+      - name: Download python coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: python-coverage
+          path: artifacts/python
+
       - name: Evaluate floors
         env:
           CLASSIFIER_RESULT: ${{ needs.changes.result }}
@@ -876,6 +987,7 @@ jobs:
           CHANGED_UNCLASSIFIED: ${{ needs.changes.outputs.unclassified }}
           BACKEND_TEST_RESULT: ${{ needs.backend-test.result }}
           FRONTEND_TEST_RESULT: ${{ needs.frontend-test.result }}
+          PYTHON_TEST_RESULT: ${{ needs.python-test.result }}
           BASE_REF: ${{ github.base_ref }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -924,6 +1036,7 @@ jobs:
 
           BACKEND_REPORT="$(find_report artifacts/backend coverage.cobertura.xml)"
           FRONTEND_REPORT="$(find_report artifacts/frontend lcov.info)"
+          PYTHON_REPORT="$(find_report artifacts/python coverage.xml)"
 
           check_stack() {
             label="$1"; changed="$2"; result="$3"; report="$4"
@@ -970,6 +1083,28 @@ jobs:
           check_stack backend "$CHANGED_BACKEND" "$BACKEND_TEST_RESULT" "$BACKEND_REPORT"
           check_stack frontend "$CHANGED_FRONTEND" "$FRONTEND_TEST_RESULT" "$FRONTEND_REPORT"
 
+          # Python is checked WITHOUT applicable(), and deliberately so. The
+          # python-test job carries no `if:` and no `needs:` -- it was written
+          # unconditional precisely so it could not be skipped into a false
+          # Success -- so there is no "not applicable" state to represent here.
+          # Anything other than a succeeded job with a report is a failure.
+          if [ "$PYTHON_TEST_RESULT" != "success" ]; then
+            m="python coverage is always applicable -- its test job is"
+            m="$m unconditional -- but that job reported '$PYTHON_TEST_RESULT'"
+            m="$m rather than 'success'. Refusing to draw a coverage conclusion"
+            m="$m from a run that did not complete."
+            echo "::error::$m"
+            fail=1
+          elif [ -z "$PYTHON_REPORT" ]; then
+            m="python coverage is always applicable and its test job succeeded,"
+            m="$m yet no coverage report was uploaded. A missing report is a"
+            m="$m FAILURE here, never an absent constraint."
+            echo "::error::$m"
+            fail=1
+          else
+            echo "python: report at $PYTHON_REPORT"
+          fi
+
           if [ "$fail" -ne 0 ]; then
             echo "::error::Coverage gate failed on input validity before any floor was evaluated."
             exit 1
@@ -1000,11 +1135,24 @@ jobs:
             # graded, not the size of the number it moves.
             args+=(--lcov "$FRONTEND_REPORT" --lcov-prefix angular --floor-frontend "$FLOOR_FRONTEND")
           fi
+          # No prefix argument: coverage.py writes repo-relative filenames
+          # already, unlike karma's lcov. Verified against a real coverage.xml
+          # (".claude/scripts/verify_structure.py", not "scripts/..."), which is
+          # also what makes the shared exclusions match.
+          args+=(--python-cobertura "$PYTHON_REPORT" --floor-python "$FLOOR_PYTHON")
 
+          # WAS an early exit for "neither stack applicable". #787 made that
+          # unreachable: python is always appended, so args is never empty. The
+          # branch is kept INVERTED rather than deleted, because "the gate had
+          # nothing to evaluate" is exactly the silent-pass state this job
+          # exists to prevent -- if args is ever empty again, that is a wiring
+          # bug and should be loud rather than a clean exit 0.
           if [ "${#args[@]}" -eq 0 ]; then
-            echo "Neither stack is applicable to this change; both test jobs were correctly skipped."
-            echo "Coverage floors: nothing to evaluate." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            m="No coverage arguments were assembled. Python is unconditional and"
+            m="$m must always contribute, so an empty argument list means this"
+            m="$m job is mis-wired -- failing rather than passing on no input."
+            echo "::error::$m"
+            exit 1
           fi
 
           # The changed-lines floor. Added only once at least one stack is
@@ -1059,11 +1207,19 @@ jobs:
           # embedded third-party source into the backend report twice, each time
           # fixed by naming that vendor in .coverage-exclusions -- a list that
           # grows one vendor at a time, where the next one matches nothing and
-          # arrives with no signal. Discovery lives HERE rather than in the gate
-          # because that script shells out nowhere and the Python suite imports
-          # it directly; keeping it pure keeps it testable.
-          git ls-files > tracked-files.txt
-          python scripts/coverage-gate.py --exclusions .coverage-exclusions --tracked-files tracked-files.txt "${args[@]}" > gate-output.txt 2>&1
+          # arrives with no signal.
+          #
+          # DISCOVERY MOVED INTO THE GATE, reversing the rationale #856 wrote
+          # here. That rationale was that keeping the script free of subprocess
+          # calls keeps it testable -- which is true, and is why the
+          # --tracked-files flag survives for tests and for anywhere without
+          # git. But as the ONLY mechanism it made the check optional in the
+          # worst way: delete this one line and the guard disappears having
+          # printed a notice, which is the exact shape of hole #683 exists to
+          # close. The gate now runs `git ls-files` itself and EXITS if that
+          # fails -- "cannot list" is neither "nothing is tracked" nor
+          # "everything is tracked".
+          python scripts/coverage-gate.py --exclusions .coverage-exclusions "${args[@]}" > gate-output.txt 2>&1
           gate_rc=$?
           set -e
           cat gate-output.txt

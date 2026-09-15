@@ -106,7 +106,7 @@ public class DocumentAcceptedEmailHandler :
             var parties = await _recipientResolver.ResolveAsync(
                 eventData.AppointmentId, NotificationKind.DocumentAccepted);
             var to = new NotificationRecipient(
-                email: uploaderEmail!,
+                email: uploaderEmail,
                 role: RecipientRole.Patient,
                 isRegistered: ctx.DocumentUploadedByUserId.HasValue);
             var cc = parties

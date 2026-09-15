@@ -86,7 +86,7 @@ Two non-mutually-exclusive options:
 ## To do (next pass)
 
 - Compare data flow: does the internal `/appointments` button trigger the same `POST /api/app/appointments` shape, or a different endpoint?
-- Read `angular/src/app/appointments/appointments.component.ts` (or wherever the list page lives) to see the click handler for "+ New Appointment Request".
+- Read `angular/src/app/appointments/appointment/components/internal-appointments.component.ts` (or wherever the list page lives) to see the click handler for "+ New Appointment Request".
 - Confirm the OLD app's role-by-route matrix - the `Documents_and_Diagrams/` folder may have the answer.
 
 ## Related

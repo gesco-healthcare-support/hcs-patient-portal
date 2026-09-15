@@ -96,7 +96,7 @@ public class PendingDailyDigestEmailHandler :
             var recipients = new List<NotificationRecipient>
             {
                 new NotificationRecipient(
-                    email: officeEmail!,
+                    email: officeEmail,
                     role: Appointments.Notifications.RecipientRole.OfficeAdmin,
                     isRegistered: false),
             };

@@ -39,6 +39,37 @@ x-logging: &default-logging
 # THESE RECORD REALITY, THEY DO NOT IMPROVE IT. Redis is 2 patch releases behind
 # current and nginx 3; MinIO and its client are already current. Catching the two
 # stale ones up is a separate, deliberate change, not a side effect of this one.
+#
+# THE TWO MinIO IMAGES COME FROM quay.io, NOT DOCKER HUB (#866, 2026-09-13).
+# The 2026-09-11 deploy died on `pull access denied for minio/mc`, which aborted
+# every other pull in the same `up -d` and stopped the deploy.
+#
+# Measured rather than guessed, because the error text cannot tell a withdrawn
+# tag from a private repo from rate limiting. Against the Docker Hub registry
+# API with an anonymous token:
+#
+#   minio/mc                 UNAUTHORIZED
+#   minio/minio              UNAUTHORIZED      <- the object store ITSELF
+#   nginx, redis             OK                <- same host, same moment
+#
+# So it is neither rate limiting (nginx and redis succeed from the same IP at
+# the same time) nor a withdrawn tag: MinIO has removed anonymous pull from
+# Docker Hub for BOTH repositories. The issue only observed `mc`, because `mc`
+# is what the deploy happened to need. `minio` is not a one-shot -- it is the
+# object store -- and it fails the same way on any cache miss, a new box, or a
+# plain `docker compose pull`. Dropping minio-init from the deploy would have
+# hidden that rather than fixed it.
+#
+# Both EXACT pinned tags are public on quay.io, verified by digest:
+#   quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+#     sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+#   quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+#     sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+#
+# The digests are recorded HERE rather than pinned into the image reference, to
+# keep the decision above -- version tags, not digests -- rather than quietly
+# reversing it. They make the pin auditable: if either tag is ever repushed,
+# these lines say what it used to be.
 
 services:
   sql-server:
@@ -92,7 +123,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     mem_limit: 1g
     command: server /data --console-address ":9001"
@@ -114,7 +145,7 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
@@ -160,8 +191,9 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.DbMigrator/Dockerfile
       target: prod
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
     # One-shot: applies EF migrations + runs seed contributors, then exits. Production
     # by default (no test-data seeding). The local-seed override flips
     # DBMIGRATOR_ENVIRONMENT=Development to seed the sample offices + it.admin@hcs.test
@@ -196,8 +228,9 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
       target: prod
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
     restart: unless-stopped
     mem_limit: ${AUTHSERVER_MEM_LIMIT:-1500m}
     environment:
@@ -265,8 +298,9 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
       target: prod
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
     restart: unless-stopped
     mem_limit: ${API_MEM_LIMIT:-2g}
     environment:
@@ -363,7 +397,7 @@ services:
         condition: service_healthy
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -402,3 +436,17 @@ volumes:
   sqldata:
   redisdata:
   miniodata:
+
+secrets:
+  # The ABP Commercial feed key (#703). It used to be a build ARG, and Docker records
+  # an ARG value in the metadata of every layer of the stage that declares it, so
+  # `docker history --no-trunc` printed this organisation-wide key on every machine
+  # that had built these images until its build cache was pruned. A BuildKit secret
+  # is a tmpfs for the duration of one RUN and never lands in a layer.
+  #
+  # Sourced from the environment rather than a file, so the key keeps one home and
+  # no new setup step appears: `--env-file secrets/env.prod` (scripts/hosting/dc.sh)
+  # populates it, verified with the shell variable unset. Needs Compose v2.23.1+;
+  # the workstations and the server are both on v5.3.1.
+  abp_nuget_key:
+    environment: ABP_NUGET_API_KEY

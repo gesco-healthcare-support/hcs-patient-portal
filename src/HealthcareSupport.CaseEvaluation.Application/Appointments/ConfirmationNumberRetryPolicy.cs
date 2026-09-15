@@ -100,7 +100,7 @@ internal static class ConfirmationNumberRetryPolicy
         int maxAttempts = DefaultMaxAttempts,
         Func<Exception, bool>? isCollision = null)
     {
-        if (operation == null) throw new ArgumentNullException(nameof(operation));
+        ArgumentNullException.ThrowIfNull(operation);
         if (maxAttempts < 1)
         {
             throw new ArgumentOutOfRangeException(
@@ -145,7 +145,7 @@ internal static class ConfirmationNumberRetryPolicy
         int maxAttempts = DefaultMaxAttempts,
         Func<Exception, bool>? isCollision = null)
     {
-        if (operation == null) throw new ArgumentNullException(nameof(operation));
+        ArgumentNullException.ThrowIfNull(operation);
         return RunWithRetryAsync<object?>(
             async () => { await operation().ConfigureAwait(false); return null; },
             maxAttempts,

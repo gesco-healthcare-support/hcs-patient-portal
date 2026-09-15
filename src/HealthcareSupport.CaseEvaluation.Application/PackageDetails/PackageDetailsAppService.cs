@@ -113,7 +113,7 @@ public class PackageDetailsAppService : CaseEvaluationAppService, IPackageDetail
         Check.NotNull(input, nameof(input));
         Check.NotNull(input.AppointmentTypeId, nameof(input.AppointmentTypeId));
 
-        await EnsureNoActiveDuplicateAsync(input.AppointmentTypeId!.Value, excludingId: null);
+        await EnsureNoActiveDuplicateAsync(input.AppointmentTypeId.Value, excludingId: null);
 
         var entity = new PackageDetail(
             id: _guidGenerator.Create(),
@@ -138,7 +138,7 @@ public class PackageDetailsAppService : CaseEvaluationAppService, IPackageDetail
         var becomingActive = !entity.IsActive && input.IsActive;
         if ((appointmentTypeChanged && input.IsActive) || becomingActive)
         {
-            await EnsureNoActiveDuplicateAsync(input.AppointmentTypeId!.Value, excludingId: id);
+            await EnsureNoActiveDuplicateAsync(input.AppointmentTypeId.Value, excludingId: id);
         }
 
         entity.PackageName = input.PackageName;

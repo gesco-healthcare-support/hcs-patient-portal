@@ -15,10 +15,27 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48  # v4.9.0
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
         with:
           fail-on-severity: critical
           comment-summary-in-pr: always
+          # DEPRECATION WARNING ON `deny-licenses`, MEASURED (#691, 2026-09-13).
+          # The action prints "the deny-licenses option is deprecated for
+          # possible removal in the next major release" on every run, and #691
+          # predicted a future major silently dropping the licence gate: a green
+          # Dependabot bump, an "Unexpected input(s)" warning nobody reads, and
+          # no check result to notice.
+          #
+          # That major has now SHIPPED and did not remove it. v5.0.0 (2026-05-08)
+          # is a node20 -> node24 runtime bump; `deny-licenses` is still a
+          # declared input at the v5.0.0 tag, and no successor input exists yet.
+          # So there is nothing to migrate to today, and the deprecation notice
+          # has outlived one major release.
+          #
+          # This repo is therefore ON v5.0.0 deliberately rather than waiting to
+          # take the major under Dependabot time pressure, with the licence gate
+          # proven against it rather than assumed -- see the proof note below.
+          #
           # License deny-list. LGPL-3.0 is NOT denied: the entire ABP framework
           # and 22+ ABP npm packages are LGPL-3.0. FSF's LGPL-3.0 FAQ makes
           # clear that hosting a SaaS (no binary distribution to end users)
@@ -60,6 +77,19 @@ jobs:
           # recurring red that someone eventually silences by deleting the
           # version and losing this reasoning with it.
           allow-dependencies-licenses: pkg:githubactions/trufflesecurity/trufflehog
+        # RE-PROVEN ON v5.0.0 (#691, 2026-09-13), because a gate proven against
+        # one version says nothing about the next. Same method, on this PR's own
+        # branch so the evidence is in its check history: a commit adding
+        # pm2@7.0.4 (SPDX AGPL-3.0), then a revert.
+        #
+        #   angular/package.json >> pm2@7.0.4 - License: AGPL-3.0
+        #   ##[error]Dependency review detected incompatible licenses.
+        #   Dependency Review  fail  11s
+        #
+        # The run log also echoes the deny-list back, which is the part that
+        # matters: it confirms v5.0.0 READ the input rather than ignoring it as
+        # an unrecognised one. That distinction is the whole of #691.
+        #
         # Phase 2.1 (2026-09-02): BLOCKING. Proven by poisoning on a throwaway PR --
         # adding pm2@7.0.4 (SPDX AGPL-3.0) produced:
         #   angular/package.json » pm2@7.0.4 - License: AGPL-3.0

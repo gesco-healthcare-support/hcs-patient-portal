@@ -33,19 +33,19 @@ describe('PeopleEditModalComponent Escape handling (sweep #636)', () => {
   it('emits cancelled on Escape', () => {
     const c = create();
     c.probe.onEscapeKey();
-    expect(c.cancelled.length).toBe(1);
+    expect(c.cancelled).toHaveSize(1);
   });
 
   it('does not discard a save in flight', () => {
     const c = create();
     c.probe.busy = true;
     c.probe.onEscapeKey();
-    expect(c.cancelled.length).toBe(0);
+    expect(c.cancelled).toHaveSize(0);
   });
 
   it('is wired to a real document Escape keypress, not just callable', () => {
     const c = create();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(c.cancelled.length).toBe(1);
+    expect(c.cancelled).toHaveSize(1);
   });
 });

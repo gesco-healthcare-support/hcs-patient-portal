@@ -210,8 +210,11 @@ OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:4200"
 
 If you changed the Angular port, reset the DB (`docker compose down -v`) so the migrator re-seeds client registrations.
 
-**Build fails with "ABP NuGet unauthorized":**
+**Build fails with "ABP NuGet unauthorized", or `write-nuget-config: secret not readable`:**
 `ABP_NUGET_API_KEY` in `.env` is missing or invalid. Update `.env` and rebuild with `--no-cache`.
+The key reaches the image as a BuildKit secret rather than a build ARG, so building these
+Dockerfiles by hand needs `--secret id=abp_nuget_key,env=ABP_NUGET_API_KEY`; through
+`docker compose build` it is already wired.
 
 **Port conflict on 1434 / 44327 / 44368 / 4200 / 6379:**
 Another worktree's stack is bound to the same ports, or a local dev run is using them. Options: (a) stop the conflicting process, or (b) add the per-worktree override block to this worktree's `.env` so it binds a different offset. See "Running multiple worktrees concurrently" above.

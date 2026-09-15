@@ -168,7 +168,11 @@ def render():
     except OSError as exc:
         # A template present at startup can still vanish; surface it as a server error rather than
         # a traceback, and say which one.
-        log.error("template %s could not be read: %s", name, exc)
+        # log.exception, not log.error (S8572): the traceback goes to the LOG, while the
+        # client still gets the plain message below. The comment above is about what the
+        # caller sees, not about discarding the stack on the server -- and a vanished
+        # template is exactly the case where the stack says which read failed.
+        log.exception("template %s could not be read: %s", name, exc)
         return jsonify(error=f"template {name} could not be read"), 500
 
     # Single-pass substitution; unknown ##tokens## stay literal (mirrors the .NET DOCX path so a

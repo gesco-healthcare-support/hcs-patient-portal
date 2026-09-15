@@ -36,7 +36,7 @@ describe('APP_ROUTES booking guard (#554)', () => {
 
   it('declares the wizard at exactly two places, external and in-shell', () => {
     // If this number changes, the loop below is no longer checking what it claims to.
-    expect(bookingRoutes.length).toBe(2);
+    expect(bookingRoutes).toHaveSize(2);
   });
 
   it('guards every declaration on the booking permission', () => {
@@ -63,6 +63,6 @@ describe('APP_ROUTES booking guard (#554)', () => {
     // canMatch is what routes external users to the chrome-less copy before the shell parent
     // is considered. Guarding must not have disturbed it.
     const externalOnly = bookingRoutes.filter((r) => (r.canMatch ?? []).length > 0);
-    expect(externalOnly.length).toBe(1);
+    expect(externalOnly).toHaveSize(1);
   });
 });

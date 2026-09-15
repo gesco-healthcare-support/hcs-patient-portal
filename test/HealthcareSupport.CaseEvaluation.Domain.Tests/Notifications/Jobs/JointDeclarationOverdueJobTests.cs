@@ -39,8 +39,17 @@ public class JointDeclarationOverdueJobTests
 
     private const int CutoffDays = 5;
 
-    /// <summary>Two days PAST the cutoff boundary, so the predicate fires without ambiguity.</summary>
-    private static readonly DateTime DueDate = DateTime.UtcNow.Date.AddDays(CutoffDays - 2);
+    /// <summary>
+    /// A fixed date in the PAST, so the cutoff predicate fires and keeps firing.
+    ///
+    /// <para>Was <c>DateTime.UtcNow.Date.AddDays(CutoffDays - 2)</c>. That is the pattern
+    /// src/BannedSymbols.txt names as the same bug as DateTime.Today, and a fixture built
+    /// from it is a different fixture every day. A constant works permanently here because
+    /// <c>IsAtOrPastCutoff</c> is instant arithmetic -- <c>nowUtc &gt;= dueDate - cutoffDays</c>
+    /// -- so a past due date only gets further past. Both tests in this class want the
+    /// overdue case; there is no pre-cutoff test that a fixed date would expire.</para>
+    /// </summary>
+    private static readonly DateTime DueDate = new(2026, 3, 10, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public async Task ExecuteAsync_WhenTheDeadlinePasses_LeavesTheStatusAloneAndPublishesNoStatusChange()

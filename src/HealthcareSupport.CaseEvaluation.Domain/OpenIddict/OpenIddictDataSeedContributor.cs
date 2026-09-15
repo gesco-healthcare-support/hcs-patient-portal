@@ -69,7 +69,7 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
             var redirectUris = new List<string> { consoleAndAngularClientRootUrl! };
             await CreateOrUpdateApplicationAsync(
                 applicationType: OpenIddictConstants.ApplicationTypes.Web,
-                name: consoleAndAngularClientId!,
+                name: consoleAndAngularClientId,
                 type: OpenIddictConstants.ClientTypes.Public,
                 consentType: OpenIddictConstants.ConsentTypes.Implicit,
                 displayName: "Console Test / Angular Application",
@@ -108,7 +108,7 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
 
             await CreateOrUpdateApplicationAsync(
                 applicationType: OpenIddictConstants.ApplicationTypes.Web,
-                name: swaggerClientId!,
+                name: swaggerClientId,
                 type: OpenIddictConstants.ClientTypes.Public,
                 consentType: OpenIddictConstants.ConsentTypes.Implicit,
                 displayName: "Swagger Application",

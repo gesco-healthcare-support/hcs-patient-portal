@@ -33,10 +33,7 @@ public static class DocumentEntryMapper
     /// </summary>
     public static bool IsFetchable(AppointmentDocument document)
     {
-        if (document is null)
-        {
-            throw new ArgumentNullException(nameof(document));
-        }
+        ArgumentNullException.ThrowIfNull(document);
 
         return document.Status != DocumentStatus.Pending
             && !string.IsNullOrWhiteSpace(document.BlobName)
@@ -46,23 +43,15 @@ public static class DocumentEntryMapper
     /// <summary>True only once the render finished; earlier states have no object to fetch.</summary>
     public static bool IsFetchable(AppointmentPacket packet)
     {
-        if (packet is null)
-        {
-            throw new ArgumentNullException(nameof(packet));
-        }
+        ArgumentNullException.ThrowIfNull(packet);
 
         return packet.Status == PacketGenerationStatus.Generated
             && !string.IsNullOrWhiteSpace(packet.BlobName);
     }
 
     /// <summary>Human label for a packet kind. Mirrors <c>PacketAttachmentProvider</c>'s strings.</summary>
-    public static string PacketLabel(PacketKind kind) => kind switch
-    {
-        PacketKind.Patient => "Patient Packet",
-        PacketKind.Doctor => "Doctor Packet",
-        PacketKind.AttorneyClaimExaminer => "Attorney Claim Examiner Packet",
-        _ => kind.ToString(),
-    };
+    public static string PacketLabel(PacketKind kind)
+        => AppointmentDocuments.PacketFileName.Label(kind);
 
     /// <summary>
     /// Synthesizes a packet file name; the portal stores none. Mirrors
@@ -71,18 +60,12 @@ public static class DocumentEntryMapper
     /// integration carry the same name.
     /// </summary>
     public static string PacketFileName(string confirmationNumber, PacketKind kind, DateTime generatedAt)
-    {
-        var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        return $"{confirmationNumber}_{PacketLabel(kind)}_{timestamp}.pdf";
-    }
+        => AppointmentDocuments.PacketFileName.Build(confirmationNumber, kind, generatedAt);
 
     /// <summary>Maps an uploaded document. <paramref name="documentType"/> is the resolved category label.</summary>
     public static IntakeDocumentEntry FromDocument(AppointmentDocument document, string? documentType, Guid? tenantId)
     {
-        if (document is null)
-        {
-            throw new ArgumentNullException(nameof(document));
-        }
+        ArgumentNullException.ThrowIfNull(document);
 
         return new IntakeDocumentEntry
         {
@@ -107,10 +90,7 @@ public static class DocumentEntryMapper
     /// </summary>
     public static IntakeDocumentEntry FromPacket(AppointmentPacket packet, string confirmationNumber, Guid? tenantId)
     {
-        if (packet is null)
-        {
-            throw new ArgumentNullException(nameof(packet));
-        }
+        ArgumentNullException.ThrowIfNull(packet);
 
         return new IntakeDocumentEntry
         {

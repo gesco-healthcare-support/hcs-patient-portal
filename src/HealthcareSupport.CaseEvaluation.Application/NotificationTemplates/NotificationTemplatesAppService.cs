@@ -174,7 +174,7 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
                 + "Add an email to your profile and try again.");
         }
 
-        var recipients = new[] { new NotificationRecipient(email!, isRegistered: true) };
+        var recipients = new[] { new NotificationRecipient(email, isRegistered: true) };
         var variables = NotificationTemplateVariableCatalog.BuildSampleVariables(entity.TemplateCode);
 
         await _notificationDispatcher.DispatchAsync(

@@ -32,21 +32,15 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     {
         using (_currentTenant.Change(context?.TenantId))
         {
-            await EnsureRoleAsync("Patient");
-            await EnsureRoleAsync("Claim Examiner");
-            await EnsureRoleAsync("Applicant Attorney");
-            await EnsureRoleAsync("Defense Attorney");
-            // Role-naming reconciliation 2026-05-04 -- OLD has 4 external
-            // roles total (verified at
-            // P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs):
-            //   OLD Patient         = 4  -> NEW Patient
-            //   OLD Adjuster        = 5  -> NEW Claim Examiner
-            //   OLD PatientAttorney = 6  -> NEW Applicant Attorney
-            //   OLD DefenseAttorney = 7  -> NEW Defense Attorney
-            // "Adjuster" and "Claim Examiner" are the SAME role (NEW
-            // renamed for clarity to align with the
-            // AppointmentClaimExaminer entity name). Earlier audit
-            // mistakenly listed "Adjuster" as a fifth role; reconciled.
+            // #692: one definition for creating, granting and recognising.
+            // These were three unlinked literals, two of them eleven lines
+            // apart in this method. The role-naming reconciliation that used
+            // to be recorded here now lives on ExternalRoleConsts, beside the
+            // names it explains.
+            foreach (var roleName in ExternalRoleConsts.All)
+            {
+                await EnsureRoleAsync(roleName);
+            }
 
             // Phase 1A (2026-05-06) -- baseline booking permissions for the
             // four external roles. Mirrors OLD where any authenticated
@@ -57,7 +51,7 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             // (TenantId == null) because external roles are tenant-scoped.
             if (context?.TenantId != null)
             {
-                foreach (var roleName in new[] { "Patient", "Claim Examiner", "Applicant Attorney", "Defense Attorney" })
+                foreach (var roleName in ExternalRoleConsts.All)
                 {
                     await GrantAllAsync(roleName, BookingBaselineGrants());
                 }
@@ -67,7 +61,8 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
                 // (SsnRevealAccess enforces the owner check at the AppService).
                 // Applicant Attorney / Defense Attorney / Claim Examiner never
                 // reveal SSNs, so they are not granted Patients.RevealSsn.
-                await GrantAllAsync("Patient", new[] { $"{Group}.Patients.RevealSsn" });
+                await GrantAllAsync(
+                    ExternalRoleConsts.Patient, new[] { $"{Group}.Patients.RevealSsn" });
             }
         }
     }
