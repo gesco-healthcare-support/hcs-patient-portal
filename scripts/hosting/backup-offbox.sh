@@ -88,10 +88,25 @@ for bucket in case-evaluation-documents case-tracker-documents; do
   # the transport -- it would fail to connect and silently stop the off-box
   # backup, which is the exact failure mode that went unnoticed for ten days in
   # August 2026. Needs won't-fix triage in SonarCloud rather than a code change.
+
+  # quay.io, NOT Docker Hub, and PINNED (#866/#867, 2026-09-14). MinIO removed
+  # anonymous pull from Docker Hub for minio/mc -- measured against the registry
+  # API, which answers UNAUTHORIZED while nginx and redis answer OK from the same
+  # host at the same moment. That is what aborted the 2026-09-11 deploy.
+  #
+  # This script was one `docker run` away from the same failure, and it would have
+  # been the QUIET one: the deploy failed loudly in front of somebody, whereas this
+  # runs from a timer at 01:30. The box happens to hold a 12-month-old
+  # minio/mc:latest, so it still works THERE -- until that image is pruned or the
+  # job moves to another host. Backups here were already silently broken for ten
+  # days once; a pull that works only by cache is the same shape of luck.
+  #
+  # Pinned rather than :latest for the reason docker-compose.prod.yml gives: a
+  # floating tag can change the tool with no commit and no review.
   docker run --rm --network "$DOCKER_NET" \
     -e "MC_HOST_m=http://${MINIO_USER}:${MINIO_PASS}@minio:9000" \
     -v "$STAGING/minio:/backup" \
-    minio/mc:latest mirror --overwrite --remove "m/${bucket}" "/backup/${bucket}" >/dev/null \
+    quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z mirror --overwrite --remove "m/${bucket}" "/backup/${bucket}" >/dev/null \
     || fail "mc mirror failed for ${bucket}"
   log "     mirrored ${bucket}"
 done

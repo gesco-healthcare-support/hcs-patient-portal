@@ -294,7 +294,7 @@ the same items in OLD and NEW after migration.
 
 ## NEW current-state delta
 
-`angular/src/app/shared/top-header-navbar.component.ts` is the only
+`angular/src/app/shared/components/top-header-navbar/top-header-navbar.component.ts` is the only
 shared shell component currently in NEW (per the frontend audit). The
 side-bar, footer-bar, auth-shell components are NOT yet built. Phase
 19a/19b owns the implementation; this doc is the contract.

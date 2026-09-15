@@ -44,10 +44,7 @@ public class TenantLocationResolver : ITransientDependency
         Appointment appointment,
         CancellationToken cancellationToken = default)
     {
-        if (appointment is null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
 
         var section = new TenantLocationSection();
 

@@ -11,6 +11,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Saas.Tenants;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Identity;
 
@@ -225,6 +226,12 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             return;
         }
 
+        // #623: the dateOfBirth below uses PacificTime rather than
+        // DateTime.UtcNow.Date, which the banned-symbol list calls out by name as the
+        // same timezone bug. COSMETIC here -- this is a placeholder DOB for a seeded
+        // demo user, so the value is arbitrary and nothing depends on it. Changed so
+        // the bug class measures zero in src/ and the next person grepping for it does
+        // not have to re-decide that this instance is benign.
         await _patientManager.CreateAsync(
             stateId: null,
             appointmentLanguageId: null,
@@ -234,7 +241,7 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             lastName: user.Surname ?? string.Empty,
             email: user.Email ?? string.Empty,
             genderId: Gender.Unspecified,
-            dateOfBirth: DateTime.UtcNow.Date,
+            dateOfBirth: PacificTime.TodayFrom(DateTime.UtcNow),
             phoneNumberTypeId: PhoneNumberType.Home);
 
         _logger.LogInformation(

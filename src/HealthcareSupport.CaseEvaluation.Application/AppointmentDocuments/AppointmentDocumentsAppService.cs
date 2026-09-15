@@ -70,7 +70,6 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     // party to (only the IMultiTenant filter applied, which scopes by
     // tenant, not by appointment-membership).
     private readonly AppointmentReadAccessGuard _readAccessGuard;
-    private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
@@ -87,8 +86,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         ILocalEventBus localEventBus,
         IdentityUserManager userManager,
         IUnitOfWorkManager unitOfWorkManager,
-        AppointmentReadAccessGuard readAccessGuard,
-        IStringLocalizer<CaseEvaluationResource> localizer)
+        AppointmentReadAccessGuard readAccessGuard)
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
@@ -105,7 +103,6 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _userManager = userManager;
         _unitOfWorkManager = unitOfWorkManager;
         _readAccessGuard = readAccessGuard;
-        _localizer = localizer;
     }
 
     /// <summary>
@@ -898,11 +895,15 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// Throws <see cref="BusinessException"/> carrying
     /// <see cref="CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge"/>
     /// as the code plus <c>MaxBytes</c> + <c>ActualBytes</c> data so the SPA
-    /// can branch programmatically. <paramref name="localizer"/> resolves
-    /// the human-readable message via key
-    /// <c>AppointmentDocument:FileTooLarge</c> in
-    /// <c>CaseEvaluationResource</c>; pass <c>null</c> in unit tests --
-    /// the throw still happens, the SPA-facing UX text is simply suppressed.
+    /// can branch programmatically.
+    ///
+    /// <para>2026-09-14: this used to describe a <c>localizer</c> parameter
+    /// resolving <c>AppointmentDocument:FileTooLarge</c>. THERE IS NO SUCH
+    /// PARAMETER on this signature, and the field it named was injected and
+    /// read nowhere (S4487) -- the second instance of the same superseded
+    /// design, alongside ExternalSignupAppService. The error CODE is what the
+    /// SPA sees, and ABP localizes it from the message files, so this method
+    /// needs no localizer at all.</para>
     /// Mapped to HTTP 413 Payload Too Large by
     /// <c>CaseEvaluationHttpApiHostModule</c>'s
     /// <c>AbpExceptionHttpStatusCodeOptions</c>.

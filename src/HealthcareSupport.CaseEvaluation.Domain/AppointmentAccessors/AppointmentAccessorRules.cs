@@ -80,7 +80,7 @@ public static class AppointmentAccessorRules
         }
         var target = requestedRole.Trim();
         var roles = userRoles.Where(r => !string.IsNullOrWhiteSpace(r))
-            .Select(r => r!.Trim())
+            .Select(r => r.Trim())
             .ToList();
         var holdsTarget = roles.Any(r => string.Equals(r, target, StringComparison.OrdinalIgnoreCase));
         if (holdsTarget)

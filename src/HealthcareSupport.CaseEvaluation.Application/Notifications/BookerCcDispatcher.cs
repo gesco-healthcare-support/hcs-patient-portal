@@ -84,7 +84,7 @@ public class BookerCcDispatcher : ITransientDependency
             to = recipients.FirstOrDefault(r =>
                     string.Equals(r.Email, bookerEmail, StringComparison.OrdinalIgnoreCase))
                 ?? new NotificationRecipient(
-                    email: bookerEmail!,
+                    email: bookerEmail,
                     role: RecipientRole.Patient,
                     isRegistered: true);
         }

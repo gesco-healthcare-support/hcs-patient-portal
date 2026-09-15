@@ -85,7 +85,7 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
             + await _applicantAttorneyRepository.CountAsync(x => x.StateId == id)
             + await _defenseAttorneyRepository.CountAsync(x => x.StateId == id)
             + await _claimExaminerRepository.CountAsync(x => x.StateId == id);
-        return (int)total;
+        return total;
     }
 
     public virtual async Task<StateDto> GetAsync(Guid id)

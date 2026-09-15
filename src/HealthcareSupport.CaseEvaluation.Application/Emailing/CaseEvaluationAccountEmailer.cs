@@ -101,7 +101,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         string? returnUrl = null,
         string? returnUrlHash = null)
     {
-        if (user == null) throw new ArgumentNullException(nameof(user));
+        ArgumentNullException.ThrowIfNull(user);
 
         // BUG-029 v3 fix (2026-05-21): tenant comes from user.TenantId (the
         // user-being-emailed is the source of truth for which tenant)
@@ -126,7 +126,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         string? returnUrl = null,
         string? returnUrlHash = null)
     {
-        if (user == null) throw new ArgumentNullException(nameof(user));
+        ArgumentNullException.ThrowIfNull(user);
 
         // task_4c0f6fe9 (2026-07-21): host operators (null TenantId) get the host
         // reset URL; tenant-scoped external users keep the subdomain-prefixed one.
@@ -157,7 +157,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
 
     public virtual async Task SendEmailSecurityCodeAsync(IdentityUser user, string code)
     {
-        if (user == null) throw new ArgumentNullException(nameof(user));
+        ArgumentNullException.ThrowIfNull(user);
 
         // Email-based 2FA security code path. Not on the demo critical-path
         // (2FA is not enabled by default) but implemented to keep the

@@ -89,4 +89,23 @@ EXPOSE 3001
 # 2 sync workers: a single appointment generates its 3 packet kinds sequentially in one Hangfire
 # job, so a small pool is ample for dev. 120s timeout covers the 15-page patient packet on a cold
 # fontconfig cache. Bind matches PacketRenderer__Url in docker-compose.yml.
+# NON-ROOT RUNTIME (#701), and this is the image that most needed it: the
+# service parses HTML and renders PDFs through WeasyPrint, so it processes
+# structured input from elsewhere in the system -- exactly the profile where a
+# parser bug becomes code execution. It ran as uid 0.
+#
+# Created here rather than reused: python:slim ships no non-root account, unlike
+# the .NET runtime images which pre-create `app`.
+#
+# HOME is real (--create-home) on purpose. fontconfig and WeasyPrint want a
+# writable cache; with no home they fall back to paths a non-root user cannot
+# write and emit cache warnings on every render.
+#
+# Nothing is chowned. The generators ran at BUILD time as root and their HTML is
+# read-only at runtime, port 3001 is above 1024 so it needs no capability, and
+# the service writes no files -- it returns the PDF in the response body. If it
+# ever gains a scratch directory, that directory needs chowning to appuser.
+RUN useradd --system --create-home --uid 1001 --shell /usr/sbin/nologin appuser
+USER appuser
+
 CMD ["gunicorn", "--bind", "0.0.0.0:3001", "--workers", "2", "--timeout", "120", "app:app"]

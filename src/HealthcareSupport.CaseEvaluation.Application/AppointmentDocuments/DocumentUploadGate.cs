@@ -48,10 +48,7 @@ internal static class DocumentUploadGate
     /// </summary>
     public static void EnsureAppointmentApprovedAndNotPastDueDate(Appointment appointment)
     {
-        if (appointment == null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
         var status = appointment.AppointmentStatus;
         // F3 (2026-05-29): allow upload from request time (Pending), not only
         // after approval -- users must supply documents to get approved.
@@ -99,10 +96,7 @@ internal static class DocumentUploadGate
         Guid? currentUserId,
         IReadOnlyCollection<string> currentUserRoleNames)
     {
-        if (appointment == null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
         Check.NotNull(currentUserRoleNames, nameof(currentUserRoleNames));
 
         if (!currentUserId.HasValue || appointment.IdentityUserId != currentUserId.Value)
@@ -128,10 +122,7 @@ internal static class DocumentUploadGate
     /// </summary>
     public static void EnsureNotImmutable(AppointmentDocument document, bool isInternalUser)
     {
-        if (document == null)
-        {
-            throw new ArgumentNullException(nameof(document));
-        }
+        ArgumentNullException.ThrowIfNull(document);
         if (!isInternalUser && document.Status == DocumentStatus.Accepted)
         {
             throw new BusinessException(
