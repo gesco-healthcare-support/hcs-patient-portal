@@ -150,6 +150,15 @@ jobs:
       # handed to Sonar: if it cannot, the two consumers are looking at
       # different things and that should be loud here rather than discovered as
       # a disagreement in figures months later.
+      #
+      # NOT hash-pinned, and that is item 2.14's decision rather than an oversight
+      # (#700). Scorecard's PinnedDependenciesID wants --require-hashes against a
+      # requirements file carrying a hash for every transitive dependency. Declined
+      # for the same reason docker/packet-renderer/Dockerfile records: PyPI does not
+      # permit a published version to be re-uploaded with different content, so the
+      # residual risk a hash closes is a registry compromise, against which the cost
+      # is a lock file regenerated in full on every bump. The reason is repeated here
+      # because this is where a reader lands, not that Dockerfile.
       - name: Python tests with coverage
         run: |
           set -euo pipefail
