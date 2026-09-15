@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Identity;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Volo.Abp.Data;
 using Volo.Abp.Identity;
@@ -206,6 +209,94 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
                 shadow!.IsActive.ShouldBeFalse();
             }
         }, requiresNew: true);
+    }
+
+    /// <summary>
+    /// The OTHER half of the #610 split, and the branch the change exists to create.
+    ///
+    /// <para>Before, "already inactive" and "no shadow at all" shared one silent
+    /// <c>return</c>. They are not the same thing: the first is the idempotent path, the
+    /// second means revoke was asked to disable a shadow, could not find one, and returned
+    /// having done nothing -- so an unassigned operator can keep working access to that
+    /// office.</para>
+    ///
+    /// <para><b>It warns, it does not throw</b>, and that is deliberate -- the production
+    /// comment gives the reason: an operator assigned and unassigned before ever signing in
+    /// legitimately has no shadow, and the caller cannot tell that apart from the email
+    /// divergence that is a real fault. Throwing would fail the whole unassign over a case
+    /// that is often benign. So the guarantee under test is that the silence became
+    /// VISIBLE, not that it became an exception.</para>
+    /// </summary>
+    [Fact]
+    public async Task DisableShadowUser_WhenNoShadowExistsAtAll_WarnsNamingTheOperatorAndOffice()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        await SeedTenantRolesAsync(officeA.OfficeId);
+
+        // A host operator that has never been provisioned into office A, so FindShadowAsync
+        // misses on BOTH username and email rather than on one of them.
+        var operatorId = await EnsureHostOperatorAsync("never.provisioned.revoke@hcs.test");
+
+        var captured = new CapturingLoggerProvider();
+        GetRequiredService<ILoggerFactory>().AddProvider(captured);
+
+        // Must not throw: the benign case (assigned and unassigned before first sign-in)
+        // reaches exactly this branch, and failing the unassign over it would be wrong.
+        await WithUnitOfWorkAsync(
+            () => _shadowProvisioner.DisableShadowUserAsync(officeA.OfficeId, operatorId),
+            requiresNew: true);
+
+        var warning = captured.Entries.FirstOrDefault(
+            e => e.Level == LogLevel.Warning && e.Message.Contains("no shadow user found to revoke"));
+
+        warning.ShouldNotBeNull(
+            "the not-found branch returned silently; that is the defect #610 is about.");
+
+        // Naming both is the point. A warning that says only "not found" cannot be acted on:
+        // the operator id is what identifies whose access may still be live, and the office
+        // id is where to look for it.
+        warning!.Message.ShouldContain(operatorId.ToString());
+        warning.Message.ShouldContain(officeA.OfficeId.ToString());
+    }
+
+    /// <summary>
+    /// Records what the domain service logged. Added via <c>ILoggerFactory.AddProvider</c> at
+    /// test time rather than registered in the test module, because ABP's
+    /// <c>DomainService.Logger</c> comes from the container and the module is shared by every
+    /// multi-office test -- this keeps the capture scoped to the one test that needs it.
+    /// </summary>
+    private sealed record LogEntry(LogLevel Level, string Message);
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public List<LogEntry> Entries { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new Capturing(this);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Capturing : ILogger
+        {
+            private readonly CapturingLoggerProvider _owner;
+
+            public Capturing(CapturingLoggerProvider owner) => _owner = owner;
+
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                _owner.Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
+            }
+        }
     }
 
     private Task SeedTenantRolesAsync(Guid officeId) =>
