@@ -797,7 +797,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // OnCompleted runs after the transaction commits, which gives both properties: the
             // cascade describes committed data, and it cannot roll anything back.
             var appointment = await _appointmentRepository.GetAsync(created.Id);
-            CurrentUnitOfWork!.OnCompleted(() => PublishAppointmentSubmittedAsync(appointment));
+            CurrentUnitOfWork.OnCompleted(() => PublishAppointmentSubmittedAsync(appointment));
 
             return result;
         }
@@ -1676,7 +1676,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // booking form prefills the firm even before the first booking.
             FirmName = string.IsNullOrWhiteSpace(applicant?.FirmName)
                 ? identityUser.GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName)
-                : applicant!.FirmName,
+                : applicant.FirmName,
             WebAddress = applicant?.WebAddress,
             PhoneNumber = applicant?.PhoneNumber,
             FaxNumber = applicant?.FaxNumber,
@@ -1927,7 +1927,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // registration), not yet on a DefenseAttorney master row. Fall back.
             FirmName = string.IsNullOrWhiteSpace(defense?.FirmName)
                 ? identityUser.GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName)
-                : defense!.FirmName,
+                : defense.FirmName,
             WebAddress = defense?.WebAddress,
             PhoneNumber = defense?.PhoneNumber,
             FaxNumber = defense?.FaxNumber,

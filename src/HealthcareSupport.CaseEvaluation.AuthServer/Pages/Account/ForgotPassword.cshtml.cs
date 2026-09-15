@@ -87,7 +87,7 @@ public class ForgotPasswordModel : AbpPageModel
             await _externalAccountAppService.SendPasswordResetCodeAsync(
                 new SendPasswordResetCodeInput
                 {
-                    Email = Email!,
+                    Email = Email,
                     ReturnUrl = ReturnUrl,
                 });
         }

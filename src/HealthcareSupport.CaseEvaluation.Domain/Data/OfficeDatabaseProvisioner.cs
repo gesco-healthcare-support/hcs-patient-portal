@@ -88,15 +88,15 @@ public class OfficeDatabaseProvisioner : IOfficeDatabaseProvisioner, ITransientD
                 // unset on the DbMigrator path so the doctor seed uses its own fallback.
                 if (!doctorFirstName.IsNullOrWhiteSpace())
                 {
-                    seedContext.WithProperty(OfficeSeedProperties.DoctorFirstName, doctorFirstName!);
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorFirstName, doctorFirstName);
                 }
                 if (!doctorLastName.IsNullOrWhiteSpace())
                 {
-                    seedContext.WithProperty(OfficeSeedProperties.DoctorLastName, doctorLastName!);
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorLastName, doctorLastName);
                 }
                 if (!doctorEmail.IsNullOrWhiteSpace())
                 {
-                    seedContext.WithProperty(OfficeSeedProperties.DoctorEmail, doctorEmail!);
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorEmail, doctorEmail);
                 }
 
                 await _dataSeeder.SeedAsync(seedContext);
