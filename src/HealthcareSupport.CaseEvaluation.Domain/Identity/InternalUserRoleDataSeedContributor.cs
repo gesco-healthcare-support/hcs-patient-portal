@@ -205,7 +205,6 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         Patients,
         Appointments,
         AppointmentEmployerDetails,
-        "AppointmentAccessors",
         "ApplicantAttorneys",
         "AppointmentApplicantAttorneys",
         "DefenseAttorneys",
@@ -237,7 +236,6 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         Patients,
         Appointments,
         AppointmentEmployerDetails,
-        "AppointmentAccessors",
         "ApplicantAttorneys",
         "AppointmentApplicantAttorneys",
         "DefenseAttorneys",
@@ -557,15 +555,19 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // standalone .Create AppServices.)
         yield return Create("AppointmentClaimExaminers");
         yield return Create("AppointmentPrimaryInsurances");
-        // Same per-child-POST class: every injury posts >=1 structured body
-        // part (POST /appointment-body-parts, OBS-41) and the optional
-        // Authorized Users step posts accessors (POST /appointment-accessors).
-        // Both go through permission-gated standalone AppServices, so the
-        // canonical booker needs their Creates too -- otherwise the body-part
-        // POST 403s mid-submit (after CE + injury succeed) and aborts the
+        // Same per-child-POST class: every injury posts >=1 structured body part
+        // (POST /appointment-body-parts, OBS-41), and that AppService DOES gate
+        // CreateAsync on its own .Create -- so the canonical booker needs it, or the
+        // body-part POST 403s mid-submit (after CE + injury succeed) and aborts the
         // auto-approve, leaving a half-built Pending appointment.
+        //
+        // 2026-09-15: this comment previously said the SAME of accessors, and it was
+        // false. The optional Authorized Users step does post accessors, but
+        // AppointmentAccessorsAppService carries a BARE [Authorize] on Create/Edit/
+        // Delete -- the gate is AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync,
+        // never a permission. The accessor grant that sat here was therefore doing
+        // nothing, and the permission surface it named has been removed.
         yield return Create("AppointmentBodyParts");
-        yield return Create("AppointmentAccessors");
         // Parity fix (2026-07-16): the booking submit also POSTs employer details to
         // the standalone Employer AppService, which now gates CreateAsync on
         // AppointmentEmployerDetails.Create (was bare [Authorize]). The
