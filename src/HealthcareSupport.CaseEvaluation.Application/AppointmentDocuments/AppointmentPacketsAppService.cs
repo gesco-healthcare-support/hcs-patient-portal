@@ -167,7 +167,8 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         var confirmation = appointment?.RequestConfirmationNumber ?? appointmentId.ToString("N");
-        var fileName = BuildKindFileName(confirmation, kind, packet.GeneratedAt, packet.BlobName);
+        var fileName = PacketFileName.Build(
+            confirmation, kind, packet.GeneratedAt, PacketFileName.ExtensionFor(packet.BlobName));
 
         // Phase 1 produces DOCX. Phase 2 will switch to application/pdf
         // when the DOCX -> PDF conversion is wired in. Detect from the
@@ -183,33 +184,5 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
             FileName = fileName,
             ContentType = contentType,
         };
-    }
-
-    /// <summary>
-    /// OLD-verbatim filename pattern. Matches PacketAttachmentProvider so
-    /// downloads via the UI and via email attachment use identical names.
-    ///
-    /// <para>Part 2 (2026-07-28): the extension is derived from the stored
-    /// blob instead of hardcoded <c>.docx</c>. Packets have rendered as PDF
-    /// since 2026-06-10, so the old constant told every download the wrong
-    /// type -- and it disagreed with the content type the caller resolves
-    /// from the same blob name.</para>
-    /// </summary>
-    private static string BuildKindFileName(
-        string confirmation,
-        PacketKind kind,
-        DateTime generatedAt,
-        string blobName)
-    {
-        var kindName = kind switch
-        {
-            PacketKind.Patient => "Patient Packet",
-            PacketKind.Doctor => "Doctor Packet",
-            PacketKind.AttorneyClaimExaminer => "Attorney Claim Examiner Packet",
-            _ => kind.ToString(),
-        };
-        var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        var extension = blobName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ? "docx" : "pdf";
-        return $"{confirmation}_{kindName}_{timestamp}.{extension}";
     }
 }

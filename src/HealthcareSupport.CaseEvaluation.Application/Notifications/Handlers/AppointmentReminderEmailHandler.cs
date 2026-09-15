@@ -132,7 +132,7 @@ public class AppointmentReminderEmailHandler :
             {
                 reminderRecipients = new List<NotificationRecipient>(stakeholders)
                 {
-                    new(email: ctx.CreatorEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true),
+                    new(email: ctx.CreatorEmail, role: RecipientRole.OfficeAdmin, isRegistered: true),
                 };
             }
 

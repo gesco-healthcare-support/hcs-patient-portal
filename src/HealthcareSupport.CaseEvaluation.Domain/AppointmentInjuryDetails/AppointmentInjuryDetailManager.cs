@@ -10,6 +10,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Timing;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 
@@ -136,7 +137,13 @@ public class AppointmentInjuryDetailManager : DomainService
         bool isCumulativeInjury,
         DateTime? toDateOfInjury)
     {
-        var today = _clock.Now.Date;
+        // 2026-09-13 (#623): PACIFIC today, not _clock.Now.Date. AbpClockOptions.Kind is
+        // pinned to Utc, so IClock.Now.Date is the UTC date -- which from 4pm or 5pm
+        // Pacific onwards is TOMORROW. This validation rejects a future injury date, so
+        // reading tomorrow as today made it ACCEPT an injury dated one day ahead for the
+        // last 7-8 hours of every Pacific working day. Same fix, same reasoning, as
+        // AppointmentChangeRequestManager.cs:149.
+        var today = PacificTime.TodayFrom(_clock.Now);
 
         if (dateOfInjury.Date > today)
         {

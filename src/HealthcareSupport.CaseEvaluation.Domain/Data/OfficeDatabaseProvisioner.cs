@@ -27,22 +27,19 @@ public class OfficeDatabaseProvisioner : IOfficeDatabaseProvisioner, ITransientD
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IDataSeeder _dataSeeder;
     private readonly ITenantStore _tenantStore;
-    private readonly ILogger<OfficeDatabaseProvisioner> _logger;
 
     public OfficeDatabaseProvisioner(
         IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators,
         ICurrentTenant currentTenant,
         IUnitOfWorkManager unitOfWorkManager,
         IDataSeeder dataSeeder,
-        ITenantStore tenantStore,
-        ILogger<OfficeDatabaseProvisioner> logger)
+        ITenantStore tenantStore)
     {
         _dbSchemaMigrators = dbSchemaMigrators;
         _currentTenant = currentTenant;
         _unitOfWorkManager = unitOfWorkManager;
         _dataSeeder = dataSeeder;
         _tenantStore = tenantStore;
-        _logger = logger;
     }
 
     public async Task ProvisionAsync(
@@ -91,15 +88,15 @@ public class OfficeDatabaseProvisioner : IOfficeDatabaseProvisioner, ITransientD
                 // unset on the DbMigrator path so the doctor seed uses its own fallback.
                 if (!doctorFirstName.IsNullOrWhiteSpace())
                 {
-                    seedContext.WithProperty(OfficeSeedProperties.DoctorFirstName, doctorFirstName!);
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorFirstName, doctorFirstName);
                 }
                 if (!doctorLastName.IsNullOrWhiteSpace())
                 {
-                    seedContext.WithProperty(OfficeSeedProperties.DoctorLastName, doctorLastName!);
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorLastName, doctorLastName);
                 }
                 if (!doctorEmail.IsNullOrWhiteSpace())
                 {
-                    seedContext.WithProperty(OfficeSeedProperties.DoctorEmail, doctorEmail!);
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorEmail, doctorEmail);
                 }
 
                 await _dataSeeder.SeedAsync(seedContext);

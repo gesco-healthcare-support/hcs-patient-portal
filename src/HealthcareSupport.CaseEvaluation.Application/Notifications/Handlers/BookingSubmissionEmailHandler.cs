@@ -305,7 +305,7 @@ public class BookingSubmissionEmailHandler :
                 // Role is CC metadata only; OfficeAdmin mirrors how the codebase
                 // tags appended non-party CC recipients.
                 ccRecipients.Add(new NotificationRecipient(
-                    email: ctx.CreatorEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true));
+                    email: ctx.CreatorEmail, role: RecipientRole.OfficeAdmin, isRegistered: true));
             }
 
             await _dispatcher.DispatchToWithCcAsync(

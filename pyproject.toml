@@ -30,17 +30,28 @@
 # a figure that looks entirely reasonable. There is no error; only a wrong
 # number. `[paths]` remapping was tried as a repair and does not fix it.
 #
-# The cost of `["."]`, stated because it is real: only files the tests EXECUTE
-# are reported. Unexecuted files do not appear, because coverage's discovery of
-# unexecuted files only recurses into directories that are Python packages, and
-# none of these are. Explicit roots do list them, but with the broken paths
-# above; no setting gives both.
+# THE TRADE THIS USED TO DESCRIBE IS GONE (#862). The text here said that only
+# files the tests EXECUTE are reported, that unexecuted files do not appear
+# because discovery "only recurses into directories that are Python packages",
+# and that "no setting gives both". The first two were right; the conclusion was
+# not. `include_namespace_packages` under [tool.coverage.report] is exactly the
+# setting that lifts the package-recursion rule, and it composes with `source =
+# ["."]`, so the paths stay repo-relative AND unexecuted files are discovered.
 #
-# `["."]` is the right side of that trade because SonarCloud derives its Python
-# denominator from its own analysis, not from this report. Measured with no
-# report in existence anywhere: coverage-gate.py 223 lines_to_cover at 0.0%,
-# verify_structure.py 145 at 0.0%, app.py 44 at 0.0%. Those lines are already in
-# the denominator; supplying a report can only raise them.
+# MEASURED both ways on coverage 7.15.2, the version CI pins:
+#
+#   without it : 62.68% (435/694 lines over 4 files)
+#   with it    : 30.98% (435/1404 lines over 8 files)
+#
+# Same numerator. The denominator doubles because four files that ship inside
+# the packet-renderer image -- the three build_*.py generators and
+# check_fields.py -- were absent from it entirely. The figure halving is the
+# correction, not a regression: it is what this repository's Python coverage has
+# actually been the whole time.
+#
+# The ratchet is the point. Those files now sit in the denominator at 0%, so
+# writing the first test for one RAISES the percentage. Before this, it lowered
+# it -- #843 added import-issues.py at 18% and took the total from 58% to 37%.
 #
 # Kept in this file rather than on the command line so a local run and CI cannot
 # disagree about it -- the failure recorded as instance 21.
@@ -61,11 +72,18 @@ omit = [
     # Test code is not application code. `tests/e2e-demo/**` is already OUT of
     # the denominator in `.coverage-exclusions` for the same reason.
     "tests/*",
+    # Same reasoning, and it only became reachable once
+    # include_namespace_packages started discovering unexecuted files: this
+    # directory is already excluded in `.coverage-exclusions`, so without the
+    # line here the raw report and the two consumers would disagree about
+    # whether the golden-output suite is application code.
+    "tools/packet-templates/tests/*",
     # Not application code; excluded from the denominator by #777.
     "etc/*",
     "design_handoff_*/*",
 ]
 
 [tool.coverage.report]
+include_namespace_packages = true
 show_missing = true
 skip_empty = true

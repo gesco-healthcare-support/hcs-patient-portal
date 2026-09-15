@@ -23,7 +23,7 @@ merge gates.
 The Angular SPA bakes URLs into the bundle at build time via
 `environment.docker.ts:3,6,27` (`http://localhost:4200`,
 `http://localhost:44368/`, `http://localhost:44327`). The
-`docker/dynamic-env.json` file (tracked, 27 lines, same hardcoded URLs)
+`angular/dynamic-env.json` file (tracked, 27 lines, same hardcoded URLs)
 LOOKS like a runtime config but `BUG-015-dynamic-env-unused.md` reports
 that no SPA code reads it -- `grep` for `dynamic-env` / `DynamicEnv`
 across `angular/src/` returns zero matches. The Dockerfile's
@@ -51,13 +51,13 @@ second-process's `cp "$ENV_SRC" "$DIST/dynamic-env.json"` is preserved
 (timing-wise it fires after `ng build`'s first iteration places the
 SPA bundle in `$DIST`). The existing `ensure_dynamic_env()` background
 loop is also preserved (defensive guard against any future ng-watch
-clobber). The `docker/dynamic-env.json` bind-mount is removed from
+clobber). The `angular/dynamic-env.json` bind-mount is removed from
 compose; the file is deleted from the repo.
 
 Why this shape: the current entrypoint already orchestrates the
 "write to /app, cp to $DIST after first build, defensive re-cp loop"
 flow. The only thing actually broken is the SOURCE content
-(hardcoded canonical URLs in `docker/dynamic-env.json`). Swapping the
+(hardcoded canonical URLs in `angular/dynamic-env.json`). Swapping the
 bind-mounted source for an entrypoint-written source is the smallest
 change that achieves the fix. The `angular/dynamic-env.json` `{}`
 placeholder and the `angular.json:48` asset entry remain unchanged --
@@ -208,7 +208,7 @@ Ordering rationale: dynamic-env merge writes bare-localhost URLs into
   behavior is verified by smoke test, not isolated unit tests. The
   tenant-bootstrap rewrite already has working-in-production evidence.
 - **Compose:** Angular service block gains `environment:` block.
-  `docker/dynamic-env.json` bind-mount line removed.
+  `angular/dynamic-env.json` bind-mount line removed.
 
 ## 5. Error handling
 
@@ -315,8 +315,8 @@ Bash heredoc + `${VAR:-default}` is POSIX.
 |---|---|---:|---|
 | `angular/src/main.ts` | edit | +25 | Async IIFE wrap; fetch+merge dynamic-env before tenant-bootstrap |
 | `angular/dev-entrypoint.sh` | edit | +25/-1 | Add heredoc that writes `$ENV_SRC` from container env vars near top of script; keep existing concurrently structure + cp + ensure_dynamic_env loop |
-| `docker-compose.yml` | edit | +4/-1 | Angular service `environment:` block (NG_PORT/AUTH_PORT/API_PORT); remove `docker/dynamic-env.json` bind-mount |
-| `docker/dynamic-env.json` | delete | -27 | Replaced by entrypoint heredoc |
+| `docker-compose.yml` | edit | +4/-1 | Angular service `environment:` block (NG_PORT/AUTH_PORT/API_PORT); remove `angular/dynamic-env.json` bind-mount |
+| `angular/dynamic-env.json` | delete | -27 | Replaced by entrypoint heredoc |
 | `angular/dynamic-env.json` | unchanged | -- | `{}` placeholder stays; ng build's asset copy is harmless because entrypoint cp overwrites with real content |
 | `angular/angular.json` | unchanged | -- | Asset entry stays for the placeholder (same rationale) |
 | `docs/superpowers/specs/2026-05-20-task-b-runtime-spa-config.md` | new | +~250 | This spec |

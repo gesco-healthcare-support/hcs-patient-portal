@@ -65,6 +65,6 @@ public class IndexModel : AbpPageModel
     {
         var configured = _configuration["App:AngularUrl"];
         var spaBase = TenantUrlComposer.ComposeForRequestHost(configured, Request.Host.Host);
-        return string.IsNullOrWhiteSpace(spaBase) ? "/" : spaBase!.TrimEnd('/') + "/";
+        return string.IsNullOrWhiteSpace(spaBase) ? "/" : spaBase.TrimEnd('/') + "/";
     }
 }
