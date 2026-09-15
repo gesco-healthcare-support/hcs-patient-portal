@@ -339,7 +339,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             // for them.
             b.HasIndex(x => new { x.TenantId, x.LocationId, x.AvailableDate, x.FromTime, x.ToTime })
                 .IsUnique()
-                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
+                .HasFilter(TenantScopedSoftDeleteFilter)
                 .HasDatabaseName("IX_AppDoctorAvailabilities_Slot_Identity");
         });
 
