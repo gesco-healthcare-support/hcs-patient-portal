@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Shouldly;
 using Xunit;
 
@@ -181,7 +182,10 @@ public sealed class AuthorizationSurfaceInvariantTests
             "smaller number means these invariants are checking almost nothing.");
     }
 
-    private static IReadOnlyList<(string Key, System.Reflection.MethodInfo Method)> Surface()
+    // Concrete List rather than IReadOnlyList: this is a private helper whose only
+    // callers are the facts above, so the interface buys nothing and CA1859 flags the
+    // indirection.
+    private static List<(string Key, MethodInfo Method)> Surface()
     {
         var assembly = typeof(CaseEvaluationApplicationModule).Assembly;
 
