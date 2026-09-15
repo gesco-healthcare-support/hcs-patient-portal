@@ -770,7 +770,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     private static DashboardKpiDto Snapshot(int value) => new() { Value = value, PreviousValue = value };
 
-    private (DateTime CurrentStart, DateTime PreviousStart) GetRangeWindows(DashboardRange range, DateTime nowUtc)
+    private static (DateTime CurrentStart, DateTime PreviousStart) GetRangeWindows(DashboardRange range, DateTime nowUtc)
     {
         switch (range)
         {
