@@ -25,6 +25,7 @@ filesystem work, and `post_process` is imported but never invoked.
 """
 
 import importlib.util
+import logging
 import pathlib
 import sys
 import tempfile
@@ -262,6 +263,88 @@ class LazyTemplateLoadTests(unittest.TestCase):
             finally:
                 app._TEMPLATE_FILES = original
                 app._TEMPLATE_CACHE.clear()
+
+
+class UnreadableTemplateTests(unittest.TestCase):
+    """The OSError branch in /render (#891, Adrian's review).
+
+    A template present at startup can still vanish -- the container caches per
+    worker, so a file removed after boot is read again by a worker that never
+    cached it. The branch turns that into a 500 with a plain message for the
+    caller AND a traceback in the log, and until now nothing exercised it: the
+    changed-lines floor saw 0 of 1.
+
+    The failure is induced by pointing the template map at a path that does not
+    exist, so the REAL `Path.read_text` raises. Monkeypatching `_load_template`
+    to raise would assert that `except OSError` catches OSError, which is a fact
+    about Python rather than about this route.
+    """
+
+    @staticmethod
+    def _render_with_missing_template():
+        """Call /render for a template whose backing file is gone.
+
+        Returns (response, log_records).
+        """
+        app = load_app()
+
+        # The route reads the body through the module-level `request`, which the
+        # flask stub leaves as None. Supply only what this path touches.
+        app.request = types.SimpleNamespace(
+            get_json=lambda silent=False: {"template": "doctor", "tokens": {}}
+        )
+
+        # Point at a path that cannot be read, and clear the per-worker cache so
+        # the read is actually attempted rather than served from it.
+        app._TEMPLATE_CACHE.clear()
+        app._TEMPLATE_FILES["doctor"] = (
+            pathlib.Path(tempfile.gettempdir()) / "packet-renderer-no-such-template.html"
+        )
+
+        records = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = _Capture()
+        app.log.addHandler(handler)
+        # Stop propagation while the branch runs: the traceback is the POINT here,
+        # and letting it reach the root handler prints a scary stack into the CI log
+        # of a passing test. The captured record still carries it.
+        propagate = app.log.propagate
+        app.log.propagate = False
+        try:
+            return app.render(), records
+        finally:
+            app.log.removeHandler(handler)
+            app.log.propagate = propagate
+
+    def test_a_vanished_template_is_a_500_naming_the_template(self):
+        response, _ = self._render_with_missing_template()
+
+        # jsonify is stubbed as `lambda *a, **k: (a, k)`, so the body is the kwargs.
+        (_, kwargs), status = response
+        self.assertEqual(status, 500)
+        self.assertIn("doctor", kwargs["error"])
+
+    def test_the_traceback_reaches_the_log_and_not_the_caller(self):
+        """log.exception, not log.error -- the distinction S8572 is about.
+
+        The caller gets a plain sentence; the server keeps the stack that says
+        which read failed. Asserting `exc_info` is what separates the two: a
+        `log.error` call would produce a record with exc_info None and this
+        test would fail while the 500 above still passed.
+        """
+        response, records = self._render_with_missing_template()
+        (_, kwargs), _status = response
+
+        self.assertEqual(len(records), 1)
+        self.assertIsNotNone(
+            records[0].exc_info,
+            "the branch logged without a traceback; log.exception became log.error",
+        )
+        self.assertNotIn("Traceback", kwargs["error"])
 
 
 class RepositoryLayoutTests(unittest.TestCase):
