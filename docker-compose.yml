@@ -112,8 +112,13 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.DbMigrator/Dockerfile
       target: dev
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
+    # Again at run time: the dev entrypoint restores from the bind-mounted source
+    # on every start, and the package cache is an initially-empty named volume.
+    secrets:
+      - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
@@ -171,8 +176,13 @@ services:
       # `docker compose up -d --build authserver`.
       dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
       target: dev
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
+    # Again at run time: the dev entrypoint restores from the bind-mounted source
+    # on every start, and the package cache is an initially-empty named volume.
+    secrets:
+      - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
@@ -263,8 +273,13 @@ services:
       # backend code change: `docker compose up -d --build api`.
       dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
       target: dev
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
+    # Again at run time: the dev entrypoint restores from the bind-mounted source
+    # on every start, and the package cache is an initially-empty named volume.
+    secrets:
+      - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
@@ -413,3 +428,17 @@ volumes:
   miniodata:
   angular_node_modules:
   nuget_packages:
+
+secrets:
+  # The ABP Commercial feed key (#703). It used to be a build ARG, and Docker records
+  # an ARG value in the metadata of every layer of the stage that declares it, so
+  # `docker history --no-trunc` printed this organisation-wide key on every machine
+  # that had built these images until its build cache was pruned. A BuildKit secret
+  # is a tmpfs for the duration of one RUN and never lands in a layer.
+  #
+  # Sourced from the environment rather than a file, so the key keeps one home and
+  # no new setup step appears: `--env-file secrets/env.prod` (scripts/hosting/dc.sh)
+  # populates it, verified with the shell variable unset. Needs Compose v2.23.1+;
+  # the workstations and the server are both on v5.3.1.
+  abp_nuget_key:
+    environment: ABP_NUGET_API_KEY
