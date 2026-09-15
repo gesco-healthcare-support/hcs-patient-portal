@@ -1414,14 +1414,16 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AfterValues")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("AfterValues");
 
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("AppointmentId");
 
                     b.Property<string>("BeforeValues")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BeforeValues");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
