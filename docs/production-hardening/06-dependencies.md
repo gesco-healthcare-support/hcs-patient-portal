@@ -24,7 +24,7 @@ direct reason phase 3 exists.
 | Manifest                                                    | Advisories | Owned by                |
 | ----------------------------------------------------------- | ---------- | ----------------------- |
 | `angular/yarn.lock`                                         | 88         | lanes 6.1 / 6.2 / 6.3   |
-| `src/HealthcareSupport.CaseEvaluation.AuthServer/yarn.lock` | 9          | **no lane** -- see #699 |
+| `src/HealthcareSupport.CaseEvaluation.AuthServer/yarn.lock` | 9          | lane 6.4 -- issue #699  |
 
 The AuthServer manifest was absent from this document entirely. It is a real manifest with its own
 `package.json` (ABP LeptonX theme + `@volo/account`), and its 9 advisories -- 7 high, 2 medium --
@@ -114,6 +114,42 @@ Land these last and alone, with the full frontend suite behind them. This lane i
 phase 3**, and the hold is deliberate: it is the only lane whose packages compile into the shipped
 browser bundle.
 
+### 6.4 AuthServer manifest -- issue #699
+
+`src/HealthcareSupport.CaseEvaluation.AuthServer/yarn.lock`, the manifest this document
+originally did not mention. It pulls the LeptonX theme and Account module assets for the
+AuthServer's Razor pages via `abp install-libs`, so nothing here compiles into the SPA bundle --
+it becomes static files under `wwwroot/libs`.
+
+**Re-measured before starting, and the count had moved: 7 open, not the 9 recorded on 2026-09-08.**
+`fast-xml-parser` and `fast-xml-builder` had already cleared, because the `resolutions` entry
+`fast-xml-parser: >=5.5.7` was doing its job and the lock held 5.5.11. That is the reverse of the
+usual drift and worth stating: the stale number would have had someone hunting two advisories that
+no longer existed.
+
+The remaining seven were three packages, and the diagnosis was not "the lockfile was never
+regenerated" -- it was that the resolutions were **too loose or absent**:
+
+| package | locked | dependents ask | advisory needs | resolution set |
+| ------- | ------ | -------------- | -------------- | -------------- |
+| `brace-expansion` | 5.0.5 | `^5.0.5` | `>=5.0.9` | `>=5.0.9` (was `>=1.1.13`) |
+| `nanoid` | 5.1.6 | `^5.0.9` | `>=5.1.16` | `>=5.1.16 <6` (new) |
+| `form-data` | 4.0.5 | `^4.0.4` | `>=4.0.6` | `>=4.0.6` (new) |
+
+`brace-expansion: >=1.1.13` is the instructive one. It looks like a fix and satisfies nothing: the
+advisory range is `>= 4.0.0, < 5.0.9`, so a resolution floor of 1.1.13 lets yarn keep 5.0.5 and the
+alert stands. **A resolution whose floor is below the advisory's patched version is decoration.**
+
+**Bound the upper end.** An unbounded `nanoid: >=5.1.16` resolved to **6.0.1** on the first run --
+a major bump, silently overriding the `^5.0.9` every `@uppy/*` dependent declares. Yarn resolutions
+win over dependents' ranges, so an open-ended floor is a major-version upgrade waiting to happen.
+`<6` keeps it inside the major the dependents asked for.
+
+Regenerate with **yarn 1** (`npx yarn@1.22.22 install --ignore-scripts`). The file is
+`# yarn lockfile v1`; Berry rewrites it wholesale into a different format. `--ignore-scripts` for
+the reason #870 established on the Angular side.
+
+---
 ---
 
 ## Method

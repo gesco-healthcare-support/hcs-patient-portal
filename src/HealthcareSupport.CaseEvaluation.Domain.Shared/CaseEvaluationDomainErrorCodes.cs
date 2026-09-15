@@ -84,6 +84,24 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced";
 
     /// <summary>
+    /// 2026-09-11 -- raised by <c>DoctorAvailabilityManager.CreateAsync</c> when the slot being
+    /// created overlaps an existing slot at the same location on the same day.
+    ///
+    /// <para>Before this, the single-create path had NO clash check at all: the AppService
+    /// validated only that a location was supplied, and the manager checked only capacity, so two
+    /// sequential identical requests both succeeded. The bulk-generate path flagged overlaps in
+    /// its preview but preview and create are not atomic, so it could lose the race too.</para>
+    ///
+    /// <para>The predicate is the SAME half-open interval overlap the generation preview applies
+    /// (<c>DoctorAvailabilitiesAppService.GeneratePreviewAsync</c>), scoped to LocationId. If the
+    /// two ever diverge the UI will show a clash the server accepts, or refuse one it does not.</para>
+    ///
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.SlotClash</c>.
+    /// </summary>
+    public const string DoctorAvailabilitySlotClash =
+        "CaseEvaluation:DoctorAvailability.SlotClash";
+
+    /// <summary>
     /// Phase 10 (2026-05-03) -- raised by
     /// <c>ExternalAccountAppService.SendPasswordResetCodeAsync</c> when
     /// the target user has not yet confirmed their email address. Mirrors
