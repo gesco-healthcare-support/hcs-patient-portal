@@ -108,7 +108,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
 
             var displayName = input.DisplayName.IsNullOrWhiteSpace()
                 ? PracticeNaming.DefaultDisplayName(input.DoctorFirstName, input.DoctorLastName)
-                : input.DisplayName!.Trim();
+                : input.DisplayName.Trim();
             await UpsertOfficeBrandingDisplayNameAsync(tenant.Id, displayName);
 
             return tenant;

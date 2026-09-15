@@ -387,3 +387,8 @@ scripts/maintenance/issues.json
 .coverage
 .coverage.*
 __pycache__/
+
+# #707 authorization gate: written next to the approved file when the surface differs,
+# so a developer can diff it and copy it across. It is a build artefact of a failing
+# run, never committed -- the .approved.txt beside it is the tracked one.
+**/authorization-surface.received.txt

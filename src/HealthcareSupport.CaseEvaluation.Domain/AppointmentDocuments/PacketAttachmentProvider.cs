@@ -65,7 +65,7 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId, cancellationToken: cancellationToken);
         var confirmation = appointment?.RequestConfirmationNumber ?? appointmentId.ToString("N");
-        var fileName = BuildFileName(confirmation, kind, packet.GeneratedAt);
+        var fileName = PacketFileName.Build(confirmation, kind, packet.GeneratedAt);
 
         return new PacketAttachment(bytes, fileName, PdfContentType);
     }
@@ -83,22 +83,5 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
         // SendAppointmentEmailJob still invokes it after each send -- removing
         // the call + the whole notify mechanism is a separate cleanup.
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Builds OLD's verbatim filename pattern. KindName has spaces and
-    /// matches OLD's hand-written strings at <c>AppointmentDocumentDomain.cs:520, :613</c>.
-    /// </summary>
-    private static string BuildFileName(string confirmation, PacketKind kind, DateTime generatedAt)
-    {
-        var kindName = kind switch
-        {
-            PacketKind.Patient => "Patient Packet",
-            PacketKind.Doctor => "Doctor Packet",
-            PacketKind.AttorneyClaimExaminer => "Attorney Claim Examiner Packet",
-            _ => kind.ToString(),
-        };
-        var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        return $"{confirmation}_{kindName}_{timestamp}.pdf";
     }
 }

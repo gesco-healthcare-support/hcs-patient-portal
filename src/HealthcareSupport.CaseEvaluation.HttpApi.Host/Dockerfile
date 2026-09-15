@@ -8,11 +8,15 @@
 
 # ---- build (sdk): restore + publish; feeds the prod stage ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-ARG ABP_NUGET_API_KEY
 WORKDIR /src
 
+# The ABP Commercial feed key reaches the restore step below as a BuildKit
+# secret, never as a build ARG: Docker records an ARG value in the metadata of
+# every layer of the stage that declares it, so the key stayed readable through
+# `docker history --no-trunc` on every machine that had built this image (#703).
+# The template itself carries only a placeholder and is safe to COPY.
 COPY NuGet.Config.template .
-RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
+COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
 COPY BannedSymbols.txt .
@@ -27,13 +31,16 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json \
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
 
-RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
+# Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
+# later RUN would not help -- the layer that created the file still holds it.
+RUN --mount=type=secret,id=abp_nuget_key \
+    sh /usr/local/bin/write-nuget-config.sh \
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
 RUN dotnet publish src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj \
     -c Release -o /app/publish --no-restore
 
 # ---- dev (sdk): bind-mounted source, restore + run on container start ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
-ARG ABP_NUGET_API_KEY
 WORKDIR /app
 
 # Redirect ALL build output (obj/bin) to a container-local path via .NET's
@@ -44,8 +51,13 @@ WORKDIR /app
 ENV UseArtifactsOutput=true
 ENV ArtifactsPath=/artifacts
 
+# The ABP Commercial feed key reaches the restore step below as a BuildKit
+# secret, never as a build ARG: Docker records an ARG value in the metadata of
+# every layer of the stage that declares it, so the key stayed readable through
+# `docker history --no-trunc` on every machine that had built this image (#703).
+# The template itself carries only a placeholder and is safe to COPY.
 COPY NuGet.Config.template .
-RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
+COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
 COPY BannedSymbols.txt .
@@ -61,7 +73,11 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 
 # Warm the cache (into /artifacts) so the first container start is fast; the
 # entrypoint re-restores from the bind-mounted source to pick up csproj changes.
-RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
+# Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
+# later RUN would not help -- the layer that created the file still holds it.
+RUN --mount=type=secret,id=abp_nuget_key \
+    sh /usr/local/bin/write-nuget-config.sh \
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj \
     -c Debug --no-restore
 
@@ -70,9 +86,17 @@ EXPOSE 8080
 
 # Output lands in /artifacts, so the bind-mounted host src/**/obj is ignored --
 # no Windows-path poison, no wipe needed. Restore + run from the live source.
-ENTRYPOINT ["sh", "-c", "\
-  dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
-  exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj --urls http://+:8080"]
+# The key is needed again at RUN time, not only at build time: the package
+# cache is a named volume that shadows the one baked above, so a fresh volume
+# restores from the private feed. It arrives as a Compose service secret and
+# the rendered NuGet.Config is deleted before the app is exec'd (#703).
+#
+# The listen address comes from ASPNETCORE_URLS above (and again from compose),
+# the same way the prod stage has always got it. Passing --urls here as well
+# was redundant, and put a clear-text URL literal in a position the Docker
+# analyser parses (docker:S5332); the old sh -c form merely hid it.
+COPY --chmod=0755 docker/dev-restore-run.sh /usr/local/bin/dev-restore-run.sh
+ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj"]
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
@@ -83,7 +107,29 @@ ENTRYPOINT ["sh", "-c", "\
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
+# NON-ROOT RUNTIME (#701). Every image in this repo ran its process as uid 0,
+# including all four that ship. Root in a container is not a vulnerability by
+# itself -- it is a privilege-escalation multiplier: any RCE, path traversal or
+# arbitrary-write bug executes as uid 0 inside the container, and a container
+# escape then starts from root rather than from an unprivileged account. This
+# matters now because the portal is moving from an internal LAN VM to public
+# exposure, where the attack surface no longer requires already being inside the
+# corporate network.
+#
+# `app` (uid 1654) is PRE-CREATED by the Microsoft runtime image rather than
+# invented here, so there is no useradd and no uid to keep in step.
+#
+# The build stages above deliberately stay root: they install packages and
+# restore into system paths, and they never ship.
+#
+# `Logs/` is created and chowned rather than left to the app: Serilog's file
+# sink writes to a path relative to WORKDIR, /app is owned by root after COPY,
+# and a non-root process would fail to open it. Serilog does not throw on a
+# failed sink -- it drops the log line -- so getting this wrong produces a
+# container that runs perfectly and silently writes no logs at all.
+RUN mkdir -p /app/Logs && chown app:app /app/Logs
+USER app
 
 # Do NOT add empty-stub source dirs: ABP's ReplaceEmbeddedByPhysical fully
 # replaces (not merges) the embedded localization fileset when the physical path
