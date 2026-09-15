@@ -933,7 +933,16 @@
           <h3>Documents</h3>
         </div>
         <div class="ad-card__body">
+          <!--
+            #805: the scroll target for AppointmentViewComponent.openUploadDocuments().
+            The internal template has carried this id since it was written
+            (internal-appointment-detail.component.html:1289); this one did not, so the
+            lookup returned null, `?.` swallowed it, and a button wired to it would have
+            scrolled nowhere with no error. Guarded by a spec -- a missing scroll target
+            produces no symptom, so a test is the only thing that can notice.
+          -->
           <app-appointment-documents
+            id="appointment-documents-anchor"
             [appointmentId]="appointment.appointment?.id ?? null"
             (documentsChanged)="packetPanel.refresh()"
           />

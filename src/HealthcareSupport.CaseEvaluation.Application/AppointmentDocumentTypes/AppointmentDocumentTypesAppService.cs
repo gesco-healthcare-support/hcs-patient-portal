@@ -41,7 +41,7 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
         {
             var dto = MapWithAppointmentTypes(entity);
             // Prompt 15 / item 32: per-row UsageCount = referencing AppointmentDocument rows.
-            dto.UsageCount = (int)await _appointmentDocumentRepository.CountAsync(d => d.AppointmentDocumentTypeId == entity.Id);
+            dto.UsageCount = await _appointmentDocumentRepository.CountAsync(d => d.AppointmentDocumentTypeId == entity.Id);
             dtoItems.Add(dto);
         }
         return new PagedResultDto<AppointmentDocumentTypeDto>

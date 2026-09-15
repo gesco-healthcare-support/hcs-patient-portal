@@ -919,7 +919,7 @@ Set `CHROME_BIN` first on Windows. Scope the spec run with `--include` while ite
 unscoped before the phase is called done -- template changes break specs that pin selectors.
 
 **Corrected 2026-08-31 (task 1.1).** The third line previously read
-`npx eslint --ext .html,.ts src/app`, which does NOT cover `src/tenant-bootstrap.ts` -- that file
+`npx eslint --ext .html,.ts src/app`, which does NOT cover `angular/src/tenant-bootstrap.ts` -- that file
 sits outside `src/app`. `angular.json`'s lint target uses
 `lintFilePatterns ["src/**/*.ts", "src/**/*.html"]`, so `npx ng lint` is the command that actually
 lints the files this phase changes.

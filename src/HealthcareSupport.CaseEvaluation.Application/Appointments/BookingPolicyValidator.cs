@@ -112,7 +112,7 @@ public class BookingPolicyValidator : ITransientDependency
         SystemParameter systemParameter,
         bool isInternalCaller = false)
     {
-        if (systemParameter == null) throw new ArgumentNullException(nameof(systemParameter));
+        ArgumentNullException.ThrowIfNull(systemParameter);
 
         // Lead-time first: an in-the-past or sub-leadtime slot is rejected
         // even if it's also past max horizon (failing both is a logic

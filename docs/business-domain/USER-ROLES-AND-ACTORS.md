@@ -68,7 +68,7 @@ External users (non-admin) self-register through the `ExternalSignupAppService` 
 
 ### ExternalUserType Enum
 
-The registration form maps to `ExternalUserType` (defined in `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ExternalSignups/ExternalUserType.cs`):
+The registration form maps to `ExternalUserType` (defined in `src/HealthcareSupport.CaseEvaluation.Domain.Shared/ExternalSignups/ExternalUserType.cs`):
 
 | Value | Type                | Maps to Role         |
 |-------|---------------------|----------------------|
@@ -197,7 +197,7 @@ This is enforced in two places in the Angular app (both verified against code on
 - `angular/src/app/shared/auth/external-user-roles.ts` -- `EXTERNAL_USER_ROLES` constant
   lists all four role names; `hasOnlyExternalRoles` (routing guard) and `hasAnyExternalRole`
   (CSS toggle) both operate on this constant.
-- `angular/src/app/home/home.component.ts` -- `isPatientUser` getter explicitly includes
+- `angular/src/app/home/external-home.component.ts` -- `isPatientUser` getter explicitly includes
   all four: `'patient'`, `'applicant attorney'`, `'defense attorney'`, `'claim examiner'`.
 
 Note: the code snippets in [Role-Based UI](../frontend/ROLE-BASED-UI.md) show only three
@@ -234,7 +234,7 @@ profile, including their assigned role. Role resolution covers all four external
 
 - **Role seeder:** `src/HealthcareSupport.CaseEvaluation.Domain/Identity/ExternalUserRoleDataSeedContributor.cs`
 - **Signup service:** `src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs`
-- **ExternalUserType enum:** `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ExternalSignups/ExternalUserType.cs`
+- **ExternalUserType enum:** `src/HealthcareSupport.CaseEvaluation.Domain.Shared/ExternalSignups/ExternalUserType.cs`
 - **AccessType enum:** `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AccessType.cs`
 - **AppointmentAccessor entity:** `src/HealthcareSupport.CaseEvaluation.Domain/AppointmentAccessors/AppointmentAccessor.cs`
 

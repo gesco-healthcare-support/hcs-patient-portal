@@ -294,7 +294,7 @@ public static class AppointmentAccessRules
 
         var email = callerEmail.Trim();
         var roles = new HashSet<string>(
-            callerRoles.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r!.Trim()),
+            callerRoles.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r.Trim()),
             StringComparer.OrdinalIgnoreCase);
         if (roles.Count == 0)
         {

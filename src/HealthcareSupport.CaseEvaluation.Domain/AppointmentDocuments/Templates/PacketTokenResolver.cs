@@ -148,7 +148,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         // DateTime.Today, i.e. the server's date, and the server runs UTC -- so a packet
         // generated after 4pm or 5pm Pacific was stamped with TOMORROW's date. On a document
         // that is served as a legal record of an appointment, that is not cosmetic.
-        ctx.DateNow = FormatDate(PacificTime.TodayFrom(_clock.Now));
+        ctx.DateNow = PacketDateStamp.GeneratedOn(_clock.Now);
 
         return ctx;
     }
@@ -530,11 +530,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     /// <summary>
     /// MM/dd/yyyy then ToUpper (no-op for digits). Empty string when null.
     /// </summary>
-    private static string FormatDate(DateTime? date)
-    {
-        if (!date.HasValue) return string.Empty;
-        return date.Value.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture).ToUpper(CultureInfo.InvariantCulture);
-    }
+    private static string FormatDate(DateTime? date) => PacketDateStamp.Format(date);
 
     /// <summary>
     /// h:mm tt en-US then ToUpper. Empty string when null.

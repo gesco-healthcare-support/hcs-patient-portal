@@ -35,14 +35,8 @@ internal static class AppointmentApprovalValidator
     /// </summary>
     public static void EnsureApprovable(Appointment appointment, ApproveAppointmentInput input)
     {
-        if (appointment == null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
-        if (input == null)
-        {
-            throw new ArgumentNullException(nameof(input));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
+        ArgumentNullException.ThrowIfNull(input);
         if (input.PrimaryResponsibleUserId == Guid.Empty)
         {
             throw new BusinessException(
@@ -66,14 +60,8 @@ internal static class AppointmentApprovalValidator
     /// </summary>
     public static void EnsureRejectable(Appointment appointment, RejectAppointmentInput input)
     {
-        if (appointment == null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
-        if (input == null)
-        {
-            throw new ArgumentNullException(nameof(input));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
+        ArgumentNullException.ThrowIfNull(input);
         if (string.IsNullOrWhiteSpace(input.Reason))
         {
             throw new BusinessException(

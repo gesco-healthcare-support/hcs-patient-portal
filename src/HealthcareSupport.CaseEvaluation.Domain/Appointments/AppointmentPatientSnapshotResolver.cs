@@ -76,10 +76,7 @@ public class AppointmentPatientSnapshotResolver : ITransientDependency
         Appointment appointment,
         CancellationToken cancellationToken = default)
     {
-        if (appointment is null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
 
         if (HasSnapshot(appointment))
         {

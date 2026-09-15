@@ -103,7 +103,7 @@ public class ResendVerificationModel : AbpPageModel
             try
             {
                 await _externalAccountAppService.ResendEmailVerificationAsync(
-                    new ResendEmailVerificationInput { Email = Email! });
+                    new ResendEmailVerificationInput { Email = Email });
             }
             catch (Exception ex)
             {
@@ -127,7 +127,7 @@ public class ResendVerificationModel : AbpPageModel
         try
         {
             await _externalAccountAppService.ResendEmailVerificationAsync(
-                new ResendEmailVerificationInput { Email = Email! });
+                new ResendEmailVerificationInput { Email = Email });
         }
         catch (Exception ex)
         {

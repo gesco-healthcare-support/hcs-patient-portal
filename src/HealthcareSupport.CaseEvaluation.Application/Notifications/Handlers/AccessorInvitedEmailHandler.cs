@@ -131,7 +131,7 @@ public class AccessorInvitedEmailHandler :
             // uses): inside the _currentTenant.Change(TenantId) scope
             // ICurrentTenant.Name is null, so passing it rendered "... at ."
             // with an empty location (2026-07-10 QA fix).
-            var tenantConfig = await _tenantStore.FindAsync(eventData.TenantId!.Value);
+            var tenantConfig = await _tenantStore.FindAsync(eventData.TenantId.Value);
 
             var variables = BuildAccessorEmailVariables(
                 ctx, tenantConfig?.Name, setupUrl, eventData.Email);

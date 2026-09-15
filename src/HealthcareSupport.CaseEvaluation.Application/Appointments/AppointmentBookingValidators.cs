@@ -62,10 +62,7 @@ internal static class AppointmentBookingValidators
     /// </summary>
     internal static int ResolveMaxTimeDaysForType(AppointmentMaxTimeCategory? category, SystemParameter systemParameter)
     {
-        if (systemParameter == null)
-        {
-            throw new ArgumentNullException(nameof(systemParameter));
-        }
+        ArgumentNullException.ThrowIfNull(systemParameter);
 
         return category switch
         {
@@ -91,8 +88,8 @@ internal static class AppointmentBookingValidators
         PatientDeduplicationCandidate incoming,
         PatientDeduplicationCandidate existing)
     {
-        if (incoming == null) throw new ArgumentNullException(nameof(incoming));
-        if (existing == null) throw new ArgumentNullException(nameof(existing));
+        ArgumentNullException.ThrowIfNull(incoming);
+        ArgumentNullException.ThrowIfNull(existing);
 
         var matches = 0;
         if (StringMatches(incoming.LastName, existing.LastName)) matches++;

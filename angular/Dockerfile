@@ -46,6 +46,37 @@ COPY dynamic-env.json /usr/share/nginx/html
 COPY --chmod=0755 prod-dynamic-env.envsh /docker-entrypoint.d/40-dynamic-env.envsh
 COPY --from=build /app/dist/CaseEvaluation/browser /usr/share/nginx/html
 
+# NON-ROOT RUNTIME (#701). nginx:alpine already drops its WORKERS to the `nginx`
+# user, which is why this image looked fine -- but the master process stayed
+# root, and the master is what an exploit against the entrypoint or a config
+# bug would run as.
+#
+# THE PORT MOVE IS WHY THIS IS NOT A ONE-LINE CHANGE. A non-root process cannot
+# bind 80 without CAP_NET_BIND_SERVICE, so nginx.conf listens on 8080 and the
+# reverse proxy's `proxy_pass http://angular:8080` was changed in the same
+# commit. Those two MUST move together: the failure mode is a 502 from the
+# proxy while the container itself looks healthy, which is the same silent
+# routing break the deploy runbook already warns about.
+#
+# The chowned paths are the ones nginx and its entrypoint actually write:
+#   /var/cache/nginx        proxy/fastcgi temp dirs, created by the master
+#   /var/run                nginx.pid
+#   /usr/share/nginx/html   40-dynamic-env.envsh REWRITES dynamic-env.json here
+#                           at container start, so this must stay writable --
+#                           without it the SPA boots against the baked-in
+#                           config and silently talks to the wrong base URLs
+# The `user nginx;` line in the stock /etc/nginx/nginx.conf is dropped rather
+# than left in place: once the master is not root it cannot honour it, and
+# nginx warns "the 'user' directive makes sense only if the master process
+# runs with super-user privileges" on EVERY start. A warning printed by a
+# perfectly healthy container is the always-red signal this repo keeps
+# removing elsewhere, so it is removed at the source.
+RUN sed -i '/^user  *nginx;/d' /etc/nginx/nginx.conf \
+ && chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html \
+ && touch /var/run/nginx.pid \
+ && chown nginx:nginx /var/run/nginx.pid
+USER nginx
+
 # ---- dev: build + serve at runtime via dev-entrypoint.sh ----
 # No node_modules or source baked in -- they come from the compose bind-mount and
 # the named volume. `serve` provides a static SPA server (index.html fallback).

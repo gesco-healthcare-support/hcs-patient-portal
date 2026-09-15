@@ -293,7 +293,7 @@ public class AppointmentInfoRequestsAppService
                 {
                     if (!string.IsNullOrWhiteSpace(field.Key))
                     {
-                        keys.Add(field.Key!);
+                        keys.Add(field.Key);
                     }
                 }
             }

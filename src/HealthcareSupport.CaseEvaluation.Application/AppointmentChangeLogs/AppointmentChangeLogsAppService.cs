@@ -191,7 +191,7 @@ public class AppointmentChangeLogsAppService : CaseEvaluationAppService, IAppoin
         }
         if (!string.IsNullOrWhiteSpace(input.FieldName))
         {
-            query = query.Where(r => r.PropertyName.Contains(input.FieldName!, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(r => r.PropertyName.Contains(input.FieldName, StringComparison.OrdinalIgnoreCase));
         }
         if (!string.IsNullOrWhiteSpace(input.ChangeType))
         {

@@ -333,7 +333,7 @@ Logs/bin, doubled node_modules), and quantify what a prod-image path saves.
 - **Goal:** quantify how small the images *could* be using the existing prod
   `Dockerfile`s.
 - **Probe:** read the three prod `Dockerfile`s; build one read-only to a temp
-  tag to measure (e.g. `docker build -f src/.../HttpApi.Host/Dockerfile -t _probe_api_prod --build-arg ABP_NUGET_API_KEY=... .` -- needs the key from `.env`; if you'd rather not build, estimate from db-migrator's 585 MB + `docker history`). Remove temp images after.
+  tag to measure (e.g. `docker build -f src/.../HttpApi.Host/Dockerfile -t probe-api-prod --secret id=abp_nuget_key,env=ABP_NUGET_API_KEY .` -- needs the key from `.env`; if you'd rather not build, estimate from db-migrator's 585 MB + `docker history`). Remove temp images after.
 - **Capture:** measured/estimated prod image size vs the 5-6 GB dev image;
   the delta = the "size prize."
 

@@ -57,7 +57,9 @@ TruffleHog in CI). Never commit real secrets.
 All runtime secrets are managed externally:
 
 - **ABP NuGet API key**: GitHub secret `ABP_NUGET_API_KEY`, injected at build
-  time via `NuGet.Config.template`.
+  time via `NuGet.Config.template`. Docker image builds take it as a BuildKit
+  secret mount rather than a build ARG, so it is not recorded in layer metadata
+  (see `docs/security/SECRETS-MANAGEMENT.md`).
 - **ABP license code**: GitHub secret `ABP_LICENSE_CODE`, injected into
   `appsettings.secrets.json` at build time.
 - **Encryption passphrases**: local `appsettings.Local.json` (gitignored) or

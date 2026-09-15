@@ -621,7 +621,7 @@ public class StatusChangeEmailHandler :
 
         var recipients = new List<NotificationRecipient>
         {
-            new(email: requesterEmail!, isRegistered: true),
+            new(email: requesterEmail, isRegistered: true),
         };
 
         await _dispatcher.DispatchAsync(
@@ -706,7 +706,7 @@ public class StatusChangeEmailHandler :
             {
                 // Role is CC metadata only (To/CC split is by email); OfficeAdmin
                 // mirrors how the codebase tags appended non-party CC recipients.
-                new(email: ctx.CreatorEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true),
+                new(email: ctx.CreatorEmail, role: RecipientRole.OfficeAdmin, isRegistered: true),
             };
         }
 

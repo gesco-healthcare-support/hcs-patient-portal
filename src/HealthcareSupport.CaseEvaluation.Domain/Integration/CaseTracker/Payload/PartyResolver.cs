@@ -39,10 +39,7 @@ public class PartyResolver : ITransientDependency
         Appointment appointment,
         CancellationToken cancellationToken = default)
     {
-        if (appointment is null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
 
         // Item 5 (2026-08-14): the payload is the RECORD of what was served, so it reads the
         // booked-time snapshot rather than the live patient. Before this, editing a patient

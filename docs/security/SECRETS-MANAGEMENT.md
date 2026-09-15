@@ -22,7 +22,7 @@ each key. The "Deployed location" column names the variable in that file.
 | Secret | Dev location | Deployed location (`secrets/env.prod`) | Git status |
 | --- | --- | --- | --- |
 | ABP commercial license code | `appsettings.secrets.json` in AuthServer, HttpApi.Host, DbMigrator, TestBase | `ABP_LICENSE_CODE` (also a GitHub Secret of the same name, for CI) | `appsettings.secrets.json` **is gitignored** |
-| ABP NuGet feed API key | `NuGet.Config` (generated from `NuGet.Config.template`) | `ABP_NUGET_API_KEY` (also a GitHub Secret, injected via `sed` in CI) | `NuGet.Config` gitignored; template tracked |
+| ABP NuGet feed API key | `NuGet.Config` (generated from `NuGet.Config.template`) | `ABP_NUGET_API_KEY` (also a GitHub Secret, injected via `sed` in CI; a BuildKit/Compose secret for image builds, never a build ARG) | `NuGet.Config` gitignored; template tracked |
 | OpenIddict PFX passphrase | `appsettings.Local.json` in AuthServer | `AUTHSERVER_CERT_PASSPHRASE` -> `AuthServer__CertificatePassPhrase` | `secrets/` gitignored |
 | String encryption passphrase | `appsettings.Local.json` in HttpApi.Host | `STRING_ENCRYPTION_PASSPHRASE` -> `StringEncryption__DefaultPassPhrase` | gitignored |
 | SQL SA password | `.env` at repo root, injected via Compose | `MSSQL_SA_PASSWORD` | `.env` gitignored; `.env.example` tracked |
@@ -71,6 +71,34 @@ print their values.
 2. **`ABP_LICENSE_CODE`**: written to `appsettings.secrets.json` files in AuthServer, HttpApi.Host, DbMigrator, TestBase, and the ConsoleTestApp before `dotnet build`.
 
 If either secret is absent, the CI step still creates an empty `{}` secrets file so the build does not fail -- but the resulting build will not be fully functional at runtime (ABP framework will complain about missing license).
+
+No workflow builds the Docker images, so the `sed` above runs on the runner's own
+filesystem and never reaches an image layer.
+
+---
+
+## Image builds: the ABP key is a secret mount, not a build ARG
+
+The three backend Dockerfiles (`AuthServer`, `DbMigrator`, `HttpApi.Host`) take the key
+through `RUN --mount=type=secret,id=abp_nuget_key` and render `NuGet.Config` from it,
+restore, and delete the file inside that one RUN. Compose supplies it from the top-level
+`secrets:` block, which sources `ABP_NUGET_API_KEY` from the environment, so
+`--env-file secrets/env.prod` (that is, `scripts/hosting/dc.sh`) keeps working unchanged
+and there is no new file to create. The `dev` target also mounts it at run time, because
+its entrypoint restores from the bind-mounted source on every start.
+
+This replaced `ARG ABP_NUGET_API_KEY` (#703). Docker records an ARG value in the metadata
+of every layer of the stage that declares it, so `docker history --no-trunc` printed the
+key on any machine that had built these images until its build cache was pruned. That
+matters more than it would for a per-project token: the ABP key is organisation-wide.
+
+**Known residual, not closed by that change.** The ABP feed only serves the key as a path
+segment: `https://nuget.abp.io/<key>/v3/index.json` returns 200, and the keyless URL
+returns 404 with or without credentials. NuGet therefore records the key in the
+`.nupkg.metadata` file it writes beside every restored package. Measured on the DbMigrator
+dev image: 75 such files plus one HTTP-cache `service_index.dat`. Those live in the SDK
+`build` and `dev` stages only, never in a shipped `prod` image, which is `FROM aspnet` and
+copies only `/app/publish` (verified: zero matches).
 
 ---
 

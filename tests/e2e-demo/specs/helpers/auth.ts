@@ -68,7 +68,7 @@ export async function login(
   //    on its tenant subdomain. The postLoginRedirectGuard then routes
   //    internal users to /dashboard.
   await Promise.all([
-    page.waitForURL(new RegExp(URLS.spa.replace(/[.\\/:]/g, '\\$&')), {
+    page.waitForURL(new RegExp(URLS.spa.replace(/[.\\/:]/g, String.raw`\$&`)), {
       timeout: 30_000,
     }),
     page.locator('form').getByRole('button', { name: /Login/i }).click(),
