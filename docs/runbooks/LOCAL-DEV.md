@@ -163,6 +163,118 @@ Also verify `NuGet.Config` (generated from `NuGet.Config.template`) contains a v
 
 ---
 
+## Problem 6: `dotnet test` fails 408 of 530 with "No base connection string is configured"
+
+**Symptom.** The EntityFrameworkCore suite fails almost in its entirety, every failure
+identical, during module initialisation:
+
+```text
+Volo.Abp.AbpException : No base connection string is configured.
+Set 'App:TenantDbTemplate' or ConnectionStrings:Default.
+```
+
+**Cause: you set `DOTNET_ENVIRONMENT=Development`.** Measured 2026-09-13:
+
+```text
+DOTNET_ENVIRONMENT=Development dotnet test ...EntityFrameworkCore.Tests
+  Failed: 408, Passed: 110, Skipped: 12, Total: 530
+
+dotnet test ...EntityFrameworkCore.Tests          (no environment set)
+  Failed:   0, Passed: 518, Skipped: 12, Total: 530
+```
+
+The second is exactly what CI reports, because CI does not set the variable.
+
+The demo seed contributors gate on the environment name and read it straight from the
+variable -- `OfficeSeedDataContributor.cs:54` runs only in Development and depends on
+`ITenantConnectionStringProvider` (`:29`); `DemoExternalUsersDataSeedContributor.cs:232`
+reads `ASPNETCORE_ENVIRONMENT ?? DOTNET_ENVIRONMENT`. In Development they wake up inside
+the test harness and demand a tenant connection string that
+`test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.json` deliberately does not
+carry.
+
+**Fix.** Do not set the environment for `dotnet test`:
+
+```bash
+dotnet test test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj
+```
+
+These tests need **no SQL Server, no connection string and no Docker stack.** They take
+about 15 minutes.
+
+**Setting `App__TenantDbTemplate` does NOT fix this**, and it is the obvious next move.
+`CaseEvaluationTestBase.cs:22-24` builds configuration from `appsettings.json` plus
+`appsettings.secrets.json` and never calls `AddEnvironmentVariables()`, so the variable is
+never read. Supplying a connection string that way changes nothing and looks like the
+connection string is wrong.
+
+See `.claude/rules/dotnet-env.md`, which is scoped to exclude `dotnet test` for this reason.
+
+---
+
+## Problem 7: an EMPTY `appsettings.Local.json` stops a host from starting
+
+**Symptom.** AuthServer, HttpApi.Host or DbMigrator refuses to start:
+
+```text
+System.InvalidDataException: Failed to load configuration from file
+'.../appsettings.Local.json'.
+```
+
+**Cause.** All three load it with `optional: true`
+(`Program.cs:24`, and `:37` in DbMigrator). **`optional` covers ABSENT, not EMPTY.** A
+zero-byte file -- exactly what `touch appsettings.Local.json` produces, or an editor that
+saves nothing -- is still parsed, and empty is not valid JSON. Measured:
+
+| file state | result |
+| --- | --- |
+| absent | OK |
+| empty (0 bytes) | **InvalidDataException** |
+| whitespace only | **InvalidDataException** |
+| `{}` | OK |
+
+**Fix.** Either delete the file, or put `{}` in it. Copy the checked-in template instead of
+creating the file by hand:
+
+```bash
+cp src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.Local.json.example \
+   src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.Local.json
+```
+
+`.example` files exist for all three projects.
+
+---
+
+## Problem 8: host-side runs go to LocalDB, not the Docker stack
+
+**Symptom.** `dotnet run` against a working Docker stack cannot see the data, or fails to
+connect on Windows and does not resolve at all on Linux or macOS.
+
+**Cause, and it is not a defect.** All three projects ship the SAME committed default:
+
+```json
+"ConnectionStrings": {
+  "Default": "Server=(LocalDb)\MSSQLLocalDB;Database=CaseEvaluation;Trusted_Connection=True;TrustServerCertificate=true"
+}
+```
+
+That is deliberate -- LocalDB is the non-Docker local default. Under Docker Compose it never
+applies, because the compose files override it with `ConnectionStrings__Default` pointing at
+the `sql-server` service. The two paths simply do not meet, and nothing says so.
+
+**Fix.** To run a host process on your machine against the Docker stack, override it:
+
+```bash
+ConnectionStrings__Default="Server=localhost,1434;Database=CaseEvaluation;User Id=sa;Password=$MSSQL_SA_PASSWORD;TrustServerCertificate=true" \
+DOTNET_ENVIRONMENT=Development \
+dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
+```
+
+Port **1434**, not 1433 -- see `docker-compose.yml`. Unlike the test harness above, the host
+projects DO read environment variables, so this override works.
+
+---
+
 ## Verification Commands
 
 Run these to confirm a healthy local environment:
