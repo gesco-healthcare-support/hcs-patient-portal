@@ -191,8 +191,9 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.DbMigrator/Dockerfile
       target: prod
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
     # One-shot: applies EF migrations + runs seed contributors, then exits. Production
     # by default (no test-data seeding). The local-seed override flips
     # DBMIGRATOR_ENVIRONMENT=Development to seed the sample offices + it.admin@hcs.test
@@ -227,8 +228,9 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
       target: prod
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
     restart: unless-stopped
     mem_limit: ${AUTHSERVER_MEM_LIMIT:-1500m}
     environment:
@@ -296,8 +298,9 @@ services:
       context: .
       dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
       target: prod
-      args:
-        ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
+      # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
+      secrets:
+        - abp_nuget_key
     restart: unless-stopped
     mem_limit: ${API_MEM_LIMIT:-2g}
     environment:
@@ -433,3 +436,17 @@ volumes:
   sqldata:
   redisdata:
   miniodata:
+
+secrets:
+  # The ABP Commercial feed key (#703). It used to be a build ARG, and Docker records
+  # an ARG value in the metadata of every layer of the stage that declares it, so
+  # `docker history --no-trunc` printed this organisation-wide key on every machine
+  # that had built these images until its build cache was pruned. A BuildKit secret
+  # is a tmpfs for the duration of one RUN and never lands in a layer.
+  #
+  # Sourced from the environment rather than a file, so the key keeps one home and
+  # no new setup step appears: `--env-file secrets/env.prod` (scripts/hosting/dc.sh)
+  # populates it, verified with the shell variable unset. Needs Compose v2.23.1+;
+  # the workstations and the server are both on v5.3.1.
+  abp_nuget_key:
+    environment: ABP_NUGET_API_KEY

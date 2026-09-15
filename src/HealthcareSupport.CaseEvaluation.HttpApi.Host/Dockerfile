@@ -8,11 +8,15 @@
 
 # ---- build (sdk): restore + publish; feeds the prod stage ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-ARG ABP_NUGET_API_KEY
 WORKDIR /src
 
+# The ABP Commercial feed key reaches the restore step below as a BuildKit
+# secret, never as a build ARG: Docker records an ARG value in the metadata of
+# every layer of the stage that declares it, so the key stayed readable through
+# `docker history --no-trunc` on every machine that had built this image (#703).
+# The template itself carries only a placeholder and is safe to COPY.
 COPY NuGet.Config.template .
-RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
+COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
 COPY BannedSymbols.txt .
@@ -27,13 +31,16 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json \
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
 
-RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
+# Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
+# later RUN would not help -- the layer that created the file still holds it.
+RUN --mount=type=secret,id=abp_nuget_key \
+    sh /usr/local/bin/write-nuget-config.sh \
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
 RUN dotnet publish src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj \
     -c Release -o /app/publish --no-restore
 
 # ---- dev (sdk): bind-mounted source, restore + run on container start ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
-ARG ABP_NUGET_API_KEY
 WORKDIR /app
 
 # Redirect ALL build output (obj/bin) to a container-local path via .NET's
@@ -44,8 +51,13 @@ WORKDIR /app
 ENV UseArtifactsOutput=true
 ENV ArtifactsPath=/artifacts
 
+# The ABP Commercial feed key reaches the restore step below as a BuildKit
+# secret, never as a build ARG: Docker records an ARG value in the metadata of
+# every layer of the stage that declares it, so the key stayed readable through
+# `docker history --no-trunc` on every machine that had built this image (#703).
+# The template itself carries only a placeholder and is safe to COPY.
 COPY NuGet.Config.template .
-RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
+COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
 COPY BannedSymbols.txt .
@@ -61,7 +73,11 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 
 # Warm the cache (into /artifacts) so the first container start is fast; the
 # entrypoint re-restores from the bind-mounted source to pick up csproj changes.
-RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
+# Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
+# later RUN would not help -- the layer that created the file still holds it.
+RUN --mount=type=secret,id=abp_nuget_key \
+    sh /usr/local/bin/write-nuget-config.sh \
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj \
     -c Debug --no-restore
 
@@ -70,9 +86,17 @@ EXPOSE 8080
 
 # Output lands in /artifacts, so the bind-mounted host src/**/obj is ignored --
 # no Windows-path poison, no wipe needed. Restore + run from the live source.
-ENTRYPOINT ["sh", "-c", "\
-  dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
-  exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj --urls http://+:8080"]
+# The key is needed again at RUN time, not only at build time: the package
+# cache is a named volume that shadows the one baked above, so a fresh volume
+# restores from the private feed. It arrives as a Compose service secret and
+# the rendered NuGet.Config is deleted before the app is exec'd (#703).
+#
+# The listen address comes from ASPNETCORE_URLS above (and again from compose),
+# the same way the prod stage has always got it. Passing --urls here as well
+# was redundant, and put a clear-text URL literal in a position the Docker
+# analyser parses (docker:S5332); the old sh -c form merely hid it.
+COPY --chmod=0755 docker/dev-restore-run.sh /usr/local/bin/dev-restore-run.sh
+ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj"]
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
