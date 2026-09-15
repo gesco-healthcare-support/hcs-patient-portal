@@ -378,8 +378,14 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
     /// count.</para>
     /// </summary>
     [Theory]
-    [InlineData(AppointmentStatusType.RescheduledNoBill, 20)]
-    [InlineData(AppointmentStatusType.RescheduledLate, 21)]
+    // Day offsets 45/46, not 20/21. The two offices are seeded ONCE PER PROCESS
+    // (CaseEvaluationMultiOfficeTestBase._seededOffices is static), so every test in every
+    // MultiOffice class writes slots against the SAME OfficeId and LocationId in one shared
+    // database. A slot is identified by (TenantId, LocationId, AvailableDate, FromTime, ToTime),
+    // so these arms at 20/21 collided with the 09:00-10:00 slots seeded at +20 and +21 elsewhere
+    // in this class. Pick an offset no other test uses when adding a slot here.
+    [InlineData(AppointmentStatusType.RescheduledNoBill, 45)]
+    [InlineData(AppointmentStatusType.RescheduledLate, 46)]
     public async Task CreateAsync_WhenSlotHasRescheduledAppointments_DoesNotCountThem(
         AppointmentStatusType freedStatus,
         int dayOffset)
@@ -433,7 +439,10 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(21);
+            // +47, not +21: MultiOfficeAtomicBookingSubmitTests also seeds a 09:00-10:00 slot at
+            // +21, and both classes write against the SAME shared office and location, so the two
+            // tuples collided. Offsets above 46 are unused by any other test.
+            var date = DateTime.Today.AddDays(47);
             // Slot accepts only the primary type; request the second type.
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(9).AddMinutes(15));

@@ -13,9 +13,15 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 
 /// <summary>
 /// EF-backed on purpose: the behaviour under test IS an ABP query filter, so a mocked repository
-/// would prove nothing. Soft delete is a query filter (unlike the unique index, which is a SQL
-/// Server filtered index and silently no-ops on the SQLite test runner), so this half of the
-/// 2026-08-19 booking outage is genuinely reproducible here.
+/// would prove nothing, and this half of the 2026-08-19 booking outage is genuinely reproducible
+/// here.
+///
+/// <para>CORRECTED 2026-09-15. This previously claimed a filtered unique index "silently no-ops on
+/// the SQLite test runner". That is FALSE. The rig builds its schema from the model, so
+/// <c>HasFilter</c> reaches SQLite and a filtered unique index enforces there like any other. The
+/// evidence is the slot-identity index on <c>DoctorAvailability</c>, which failed 17 tests across
+/// this suite with "SQLite Error 19: UNIQUE constraint failed" -- two of them in THIS class,
+/// because the seeder below hardcoded a slot's whole identity and varied only its Id.</para>
 ///
 /// <para>Every test allocates its own throwaway office id rather than using
 /// <c>TenantsTestData.TenantARef</c>. The collection shares one seeded SQLite database and rows
@@ -29,6 +35,14 @@ public class RequestConfirmationNumberGeneratorTests : CaseEvaluationEntityFrame
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IDoctorAvailabilityRepository _slotRepository;
     private readonly ICurrentTenant _currentTenant;
+
+    /// <summary>
+    /// Moves each seeded slot onto its own calendar day. A slot's identity is
+    /// (TenantId, LocationId, AvailableDate, FromTime, ToTime); <see cref="SeedAppointmentAsync"/>
+    /// used to hardcode all five and vary only the Guid, so the two tests that seed twice into one
+    /// office were writing the SAME slot twice. Harmless until the slot-identity index existed.
+    /// </summary>
+    private static int _slotCounter;
 
     public RequestConfirmationNumberGeneratorTests()
     {
@@ -86,13 +100,18 @@ public class RequestConfirmationNumberGeneratorTests : CaseEvaluationEntityFrame
 
     /// <summary>
     /// Inserts one appointment carrying <paramref name="confirmationNumber"/> into
-    /// <paramref name="officeId"/>, with its own scratch slot so repeated calls never collide on
-    /// slot capacity. Returns the new appointment's id.
+    /// <paramref name="officeId"/>, with its own scratch slot on its own calendar day. Returns the
+    /// new appointment's id.
+    ///
+    /// <para>The day must differ per call, not just the Guid: repeated calls land in the SAME
+    /// office, and a slot is identified by its tenant, location, date and times.</para>
     /// </summary>
     private async Task<Guid> SeedAppointmentAsync(Guid officeId, string confirmationNumber)
     {
         var appointmentId = Guid.NewGuid();
         var slotId = Guid.NewGuid();
+        var slotDay = new DateTime(2032, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            .AddDays(Interlocked.Increment(ref _slotCounter));
 
         await WithUnitOfWorkAsync(async () =>
         {
@@ -101,7 +120,7 @@ public class RequestConfirmationNumberGeneratorTests : CaseEvaluationEntityFrame
                 await _slotRepository.InsertAsync(new DoctorAvailability(
                     id: slotId,
                     locationId: LocationsTestData.Location1Id,
-                    availableDate: new DateTime(2032, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    availableDate: slotDay,
                     fromTime: new TimeOnly(9, 0),
                     toTime: new TimeOnly(10, 0),
                     bookingStatusId: BookingStatus.Available), autoSave: true);
@@ -113,7 +132,7 @@ public class RequestConfirmationNumberGeneratorTests : CaseEvaluationEntityFrame
                     appointmentTypeId: LocationsTestData.AppointmentType1Id,
                     locationId: LocationsTestData.Location1Id,
                     doctorAvailabilityId: slotId,
-                    appointmentDate: new DateTime(2032, 1, 1, 9, 15, 0, DateTimeKind.Utc),
+                    appointmentDate: slotDay.AddHours(9).AddMinutes(15),
                     requestConfirmationNumber: confirmationNumber,
                     appointmentStatus: AppointmentStatusType.Approved), autoSave: true);
             }

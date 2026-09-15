@@ -630,6 +630,162 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     }
 
     // =====================================================================
+    // Clash guard (2026-09-11). Until now the single-create path had NO
+    // overlap check anywhere: the AppService validated only that a location
+    // was supplied and the manager checked only capacity, so two identical
+    // requests both succeeded. These four pin the rule AND its boundary --
+    // the two "allowed" cases matter as much as the two refusals, because a
+    // guard that simply refused any same-day slot at the location would pass
+    // the refusals and silently break slot generation.
+    // =====================================================================
+
+    private static DoctorAvailabilityCreateDto BuildSlotDto(
+        Guid locationId,
+        DateTime availableDate,
+        TimeOnly fromTime,
+        TimeOnly toTime)
+    {
+        return new DoctorAvailabilityCreateDto
+        {
+            LocationId = locationId,
+            AppointmentTypeIds = new List<Guid> { LocationsTestData.AppointmentType1Id },
+            AvailableDate = availableDate,
+            FromTime = fromTime,
+            ToTime = toTime,
+            BookingStatusId = BookingStatus.Available,
+            Capacity = 3,
+        };
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenAnIdenticalSlotAlreadyExists_IsRefused()
+    {
+        var date = new DateTime(2032, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var thrown = await Should.ThrowAsync<BusinessException>(async () =>
+                await _appService.CreateAsync(
+                    BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(9, 0), new TimeOnly(10, 0))));
+
+            thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilitySlotClash);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheNewSlotPartiallyOverlaps_IsRefused()
+    {
+        // The case an equality-only implementation lets through. 09:00-10:00 then 09:30-10:30
+        // share no boundary value, so nothing about these two rows is equal -- only the
+        // half-open interval test catches it.
+        var date = new DateTime(2032, 3, 2, 0, 0, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var thrown = await Should.ThrowAsync<BusinessException>(async () =>
+                await _appService.CreateAsync(
+                    BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(9, 30), new TimeOnly(10, 30))));
+
+            thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilitySlotClash);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheNewSlotIsBackToBack_IsAllowed()
+    {
+        // Adjacency is NOT overlap, and this is the case that protects production rather than
+        // the test suite: generation emits consecutive slots where each one's FromTime equals
+        // the previous ToTime, so a closed-interval guard would refuse every slot after the
+        // first and break bulk generation entirely.
+        var date = new DateTime(2032, 3, 3, 0, 0, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var second = await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(10, 0), new TimeOnly(11, 0)));
+
+            second.ShouldNotBeNull();
+            second.FromTime.ShouldBe(new TimeOnly(10, 0));
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheSameTimeIsAtADifferentLocation_IsAllowed()
+    {
+        // The rule is scoped to LocationId, matching the generation preview. Two clinics can
+        // run the same hour on the same day.
+        var date = new DateTime(2032, 3, 4, 0, 0, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var elsewhere = await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location2Id, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            elsewhere.ShouldNotBeNull();
+            elsewhere.LocationId.ShouldBe(LocationsTestData.Location2Id);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenAvailableDateCarriesATime_StoresTheDateOnly()
+    {
+        // The slot's real times are FromTime/ToTime, so a time component on AvailableDate is
+        // redundant rather than meaningful and is dropped on write. This is what lets the
+        // uniqueness index sit on the raw column and still mean the same thing as the clash
+        // rule, which compares on .Date.
+        var withTime = new DateTime(2032, 3, 5, 9, 30, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var created = await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, withTime, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var persisted = await _slotRepository.GetAsync(created.Id);
+
+            persisted.AvailableDate.ShouldBe(withTime.Date);
+            persisted.AvailableDate.TimeOfDay.ShouldBe(TimeSpan.Zero);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenAvailableDateCarriesATime_StoresTheDateOnly()
+    {
+        // Update normalises for the same reason as create; otherwise an edit could reintroduce
+        // a stray time and put that row beyond the index's reach.
+        var clean = new DateTime(2032, 3, 6, 0, 0, 0, DateTimeKind.Utc);
+        var withTime = new DateTime(2032, 3, 7, 14, 45, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var created = await _appService.CreateAsync(
+                BuildSlotDto(LocationsTestData.Location1Id, clean, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+
+            var updated = await _appService.UpdateAsync(created.Id, new DoctorAvailabilityUpdateDto
+            {
+                LocationId = LocationsTestData.Location1Id,
+                AppointmentTypeIds = new List<Guid> { LocationsTestData.AppointmentType1Id },
+                AvailableDate = withTime,
+                FromTime = new TimeOnly(9, 0),
+                ToTime = new TimeOnly(10, 0),
+                BookingStatusId = BookingStatus.Available,
+                Capacity = 3,
+                ConcurrencyStamp = created.ConcurrencyStamp,
+            });
+
+            var persisted = await _slotRepository.GetAsync(updated.Id);
+
+            persisted.AvailableDate.ShouldBe(withTime.Date);
+            persisted.AvailableDate.TimeOfDay.ShouldBe(TimeSpan.Zero);
+        }
+    }
+
+    // =====================================================================
     // Gap-encoding tests (Skip= with tracking references).
     // =====================================================================
 

@@ -1414,14 +1414,16 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AfterValues")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("AfterValues");
 
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("AppointmentId");
 
                     b.Property<string>("BeforeValues")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BeforeValues");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -2805,6 +2807,11 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.HasKey("Id");
 
                     b.HasIndex("LocationId");
+
+                    b.HasIndex("TenantId", "LocationId", "AvailableDate", "FromTime", "ToTime")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppDoctorAvailabilities_Slot_Identity")
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppDoctorAvailabilities", (string)null);
                 });
