@@ -10,14 +10,14 @@ replaced it.)
 
 ## What lives here
 
-| File | Purpose |
-|---|---|
-| `AppointmentAccessor.cs` | `FullAuditedEntity<Guid>, IMultiTenant` (not AggregateRoot -- link row, not domain root) |
-| `AppointmentAccessorManager.cs` | `CreateAsync` / `UpdateAsync` / `CreateOrLinkAsync` (Phase 11i) |
-| `AppointmentAccessorRules.cs` | Pure static logic: `ResolveOutcome` + `AccessorLinkOutcome` enum |
-| `AppointmentAccessorWithNavigationProperties.cs` | Read-shape: `AppointmentAccessor + IdentityUser? + Appointment?` |
-| `AppointmentAccessorAppointment.cs` | Composite-key join entity -- code-gen artefact, unregistered, inert |
-| `IAppointmentAccessorRepository.cs` | Custom repo contract |
+| File                                             | Purpose                                                                                  |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `AppointmentAccessor.cs`                         | `FullAuditedEntity<Guid>, IMultiTenant` (not AggregateRoot -- link row, not domain root) |
+| `AppointmentAccessorManager.cs`                  | `CreateAsync` / `UpdateAsync` / `CreateOrLinkAsync` (Phase 11i)                          |
+| `AppointmentAccessorRules.cs`                    | Pure static logic: `ResolveOutcome` + `AccessorLinkOutcome` enum                         |
+| `AppointmentAccessorWithNavigationProperties.cs` | Read-shape: `AppointmentAccessor + IdentityUser? + Appointment?`                         |
+| `AppointmentAccessorAppointment.cs`              | Composite-key join entity -- code-gen artefact, unregistered, inert                      |
+| `IAppointmentAccessorRepository.cs`              | Custom repo contract                                                                     |
 
 Entity shape: `TenantId : Guid?`, `AccessTypeId : AccessType (View=23, Edit=24)`,
 `IdentityUserId : Guid`, `AppointmentId : Guid`. All three functional fields plus `Id`
@@ -78,9 +78,13 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
   intentionally dropped (an Edit-accessor may still complete/edit the form and submit
   change-requests via the UNTOUCHED `CanEditAsync`, but may no longer self-propagate
   accessors), and a Patient / Claim-Examiner creator is denied. The
-  `CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}` permission constants are still NOT
-  enforced (the access-guard model is used instead); the skipped test
-  `CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow` tracks that unused permission path.
+  `CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}` permission constants were REMOVED on
+  2026-09-15: defined, granted to roles, and enforced by nothing. The access-guard model is the
+  gate, and it is stricter than a permission would be, so the removal loses no protection. A design
+  note in `AppointmentAccessorsAppServiceTests` records why that road was not taken, and
+  `InternalUserRoleGrantsTests.No_role_is_granted_the_removed_AppointmentAccessors_permission`
+  fails if any role is granted the name again -- which nothing else would report, because ABP's
+  `PermissionManager.SetAsync` silently ignores an undefined permission.
 - `AccessType` enum values are non-sequential (`View=23`, `Edit=24`) -- legacy values. Add
   new values with explicit integer codes; do not assume zero-based ordering.
 - `Check.NotNull` on `Guid` value-type params in `CreateAsync` / `UpdateAsync` is a no-op

@@ -561,7 +561,6 @@
     "Permission:AppointmentEmployerDetails": "Appointment Employer Details",
     "Enum:AccessType.23": "View",
     "Enum:AccessType.24": "Edit",
-    "Permission:AppointmentAccessors": "Appointment Accessors",
     "Permission:ApplicantAttorneys": "Applicant Attorneys",
     "ApplicantAttorneys": "Applicant Attorneys",
     "NewApplicantAttorney": "New Applicant Attorney",
