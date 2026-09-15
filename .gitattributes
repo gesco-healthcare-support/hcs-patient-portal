@@ -25,6 +25,14 @@ Dockerfile.* text eol=lf
 docker-compose*.yml text eol=lf
 docker-compose*.yaml text eol=lf
 
+# The approved authorization surface (#707) is compared byte-for-byte against text
+# this repo renders with a fixed LF. core.autocrlf is true on the Windows
+# workstations here and there is no `* text=auto` rule, so without this line git
+# would hand out a CRLF copy on checkout and the gate would fail for everyone on
+# Windows and pass in CI -- for a reason that looks nothing like its cause. The
+# companion assertion is Approved_snapshot_is_stored_with_lf_endings.
+**/authorization-surface.approved.txt text eol=lf
+
 # Yarn Berry release binary: generated + large; mark binary + vendored so it is
 # not diffed, not counted as code, and not EOL-normalized across hosts.
 angular/.yarn/releases/** binary linguist-vendored
