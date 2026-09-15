@@ -63,6 +63,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 /// </summary>
 internal static class CaseEvaluationSharedModelConfiguration
 {
+    // S1192: the tenant discriminator column, named 25 times. Not nameof(
+    // IMultiTenant.TenantId) because the EF column name is a SCHEMA fact -- if the
+    // interface property were ever renamed, nameof would silently rename the column
+    // and every existing database would stop matching. A constant keeps the two
+    // independent, which is what a migration-bearing name needs.
+    private const string TenantIdColumn = "TenantId";
+
+    // The partial-index predicate shared by the tenant-scoped unique indexes.
+    private const string TenantScopedSoftDeleteFilter =
+        "[TenantId] IS NOT NULL AND [IsDeleted] = 0";
+
     /// <summary>
     /// Entities configured unconditionally in both the host and office databases.
     /// </summary>
@@ -76,7 +87,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Locations", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(Location.Name)).IsRequired().HasMaxLength(LocationConsts.NameMaxLength);
             b.Property(x => x.Address).HasColumnName(nameof(Location.Address)).HasMaxLength(LocationConsts.AddressMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(Location.City)).HasMaxLength(LocationConsts.CityMaxLength);
@@ -118,7 +129,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "WcabOffices", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(WcabOffice.Name)).IsRequired().HasMaxLength(WcabOfficeConsts.NameMaxLength);
             b.Property(x => x.Abbreviation).HasColumnName(nameof(WcabOffice.Abbreviation)).IsRequired().HasMaxLength(WcabOfficeConsts.AbbreviationMaxLength);
             b.Property(x => x.Address).HasColumnName(nameof(WcabOffice.Address)).HasMaxLength(WcabOfficeConsts.AddressMaxLength);
@@ -135,7 +146,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
         });
 
@@ -147,7 +158,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
             b.Property(x => x.AppliesToAll).HasColumnName("AppliesToAll");
             b.Property(x => x.IsSystem).HasColumnName("IsSystem");
@@ -163,7 +174,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDrafts", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.PayloadJson).HasColumnName("PayloadJson").IsRequired();
             b.Property(x => x.CurrentStep).HasColumnName("CurrentStep");
             b.Property(x => x.Label).HasColumnName("Label").HasMaxLength(AppointmentDraftConsts.LabelMaxLength);
@@ -179,7 +190,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppNotifications", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.RecipientUserId).HasColumnName(nameof(AppNotification.RecipientUserId)).IsRequired();
             b.Property(x => x.NotificationType).HasColumnName(nameof(AppNotification.NotificationType)).IsRequired();
             b.Property(x => x.Title).HasColumnName(nameof(AppNotification.Title)).IsRequired().HasMaxLength(AppNotificationConsts.TitleMaxLength);
@@ -198,7 +209,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationOutboxItems", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.To).HasColumnName(nameof(NotificationOutboxItem.To)).IsRequired().HasMaxLength(NotificationOutboxConsts.ToMaxLength);
             b.Property(x => x.Cc).HasColumnName(nameof(NotificationOutboxItem.Cc));
             b.Property(x => x.Subject).HasColumnName(nameof(NotificationOutboxItem.Subject)).IsRequired().HasMaxLength(NotificationOutboxConsts.SubjectMaxLength);
@@ -227,7 +238,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "IntegrationOutboxItems", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.MessageType).HasColumnName(nameof(IntegrationOutboxItem.MessageType));
             b.Property(x => x.TargetPath).HasColumnName(nameof(IntegrationOutboxItem.TargetPath)).IsRequired().HasMaxLength(IntegrationOutboxConsts.TargetPathMaxLength);
             b.Property(x => x.AppointmentId).HasColumnName(nameof(IntegrationOutboxItem.AppointmentId));
@@ -275,7 +286,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentType.Name)).IsRequired().HasMaxLength(AppointmentTypeConsts.NameMaxLength);
             b.Property(x => x.Description).HasColumnName(nameof(AppointmentType.Description)).HasMaxLength(AppointmentTypeConsts.DescriptionMaxLength);
             b.Property(x => x.EvaluationType).HasColumnName(nameof(AppointmentType.EvaluationType));
@@ -289,7 +300,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentLanguages", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentLanguage.Name)).IsRequired().HasMaxLength(AppointmentLanguageConsts.NameMaxLength);
         });
 
@@ -343,7 +354,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DoctorPreferredLocations", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.HasKey(x => new { x.DoctorId, x.LocationId });
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.DoctorId).HasColumnName(nameof(DoctorPreferredLocation.DoctorId));
             b.Property(x => x.LocationId).HasColumnName(nameof(DoctorPreferredLocation.LocationId));
             b.Property(x => x.IsActive).HasColumnName(nameof(DoctorPreferredLocation.IsActive));
@@ -445,7 +456,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             // held the number made every later booking fail (2026-08-19).
             b.HasIndex(x => new { x.TenantId, x.RequestConfirmationNumber })
                 .IsUnique()
-                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
+                .HasFilter(TenantScopedSoftDeleteFilter)
                 .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber");
         });
 
@@ -453,7 +464,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocuments", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
             b.Property(x => x.DocumentName).HasColumnName("DocumentName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.DocumentNameMaxLength);
             b.Property(x => x.FileName).HasColumnName("FileName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.FileNameMaxLength);
@@ -490,7 +501,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Documents", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(Document.Name)).IsRequired().HasMaxLength(DocumentConsts.NameMaxLength);
             b.Property(x => x.BlobName).HasColumnName(nameof(Document.BlobName)).IsRequired().HasMaxLength(DocumentConsts.BlobNameMaxLength);
             b.Property(x => x.ContentType).HasColumnName(nameof(Document.ContentType)).HasMaxLength(DocumentConsts.ContentTypeMaxLength);
@@ -502,7 +513,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "PackageDetails", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.PackageName).HasColumnName(nameof(PackageDetail.PackageName)).IsRequired().HasMaxLength(PackageDetailConsts.PackageNameMaxLength);
             b.Property(x => x.AppointmentTypeId).HasColumnName(nameof(PackageDetail.AppointmentTypeId));
             b.Property(x => x.IsActive).HasColumnName(nameof(PackageDetail.IsActive));
@@ -529,7 +540,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "CustomFields", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.FieldLabel).HasColumnName(nameof(CustomField.FieldLabel)).IsRequired().HasMaxLength(CustomFieldConsts.FieldLabelMaxLength);
             b.Property(x => x.DisplayOrder).HasColumnName(nameof(CustomField.DisplayOrder));
             b.Property(x => x.FieldType).HasColumnName(nameof(CustomField.FieldType)).HasConversion<int>();
@@ -547,7 +558,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "CustomFieldValues", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.CustomFieldId).HasColumnName(nameof(CustomFieldValue.CustomFieldId));
             b.Property(x => x.AppointmentId).HasColumnName(nameof(CustomFieldValue.AppointmentId));
             b.Property(x => x.Value).HasColumnName(nameof(CustomFieldValue.Value)).IsRequired().HasMaxLength(CustomFieldConsts.ValueMaxLength);
@@ -562,7 +573,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentChangeRequests", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentChangeRequest.AppointmentId)).IsRequired();
             b.Property(x => x.ChangeRequestType).HasColumnName(nameof(AppointmentChangeRequest.ChangeRequestType));
             b.Property(x => x.CancellationReason).HasColumnName(nameof(AppointmentChangeRequest.CancellationReason)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
@@ -604,7 +615,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "ChangeRequestConsentRounds", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentChangeRequestId).HasColumnName(nameof(ChangeRequestConsentRound.AppointmentChangeRequestId)).IsRequired();
             b.Property(x => x.RoundNumber).HasColumnName(nameof(ChangeRequestConsentRound.RoundNumber));
             b.Property(x => x.ProposedDoctorAvailabilityId).HasColumnName(nameof(ChangeRequestConsentRound.ProposedDoctorAvailabilityId)).IsRequired();
@@ -634,7 +645,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentChangeRequestDocuments", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentChangeRequestId).HasColumnName(nameof(AppointmentChangeRequestDocument.AppointmentChangeRequestId)).IsRequired();
             b.Property(x => x.DocumentName).HasColumnName(nameof(AppointmentChangeRequestDocument.DocumentName)).IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.DocumentNameMaxLength);
             b.Property(x => x.FileName).HasColumnName(nameof(AppointmentChangeRequestDocument.FileName)).IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.FileNameMaxLength);
@@ -651,7 +662,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentInfoRequests", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentInfoRequest.AppointmentId)).IsRequired();
             b.Property(x => x.Note).HasColumnName(nameof(AppointmentInfoRequest.Note)).IsRequired().HasMaxLength(AppointmentInfoRequestConsts.NoteMaxLength);
             b.Property(x => x.RequestedFields).HasColumnName(nameof(AppointmentInfoRequest.RequestedFields)).IsRequired().HasMaxLength(AppointmentInfoRequestConsts.RequestedFieldsMaxLength);
@@ -670,7 +681,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplates", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.TemplateCode).HasColumnName(nameof(NotificationTemplate.TemplateCode)).IsRequired().HasMaxLength(NotificationTemplateConsts.TemplateCodeMaxLength);
             b.Property(x => x.TemplateTypeId).HasColumnName(nameof(NotificationTemplate.TemplateTypeId)).IsRequired();
             b.Property(x => x.Subject).HasColumnName(nameof(NotificationTemplate.Subject)).HasMaxLength(NotificationTemplateConsts.SubjectMaxLength);
@@ -678,7 +689,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.Property(x => x.BodySms).HasColumnName(nameof(NotificationTemplate.BodySms)).IsRequired();
             b.Property(x => x.Description).HasColumnName(nameof(NotificationTemplate.Description)).HasMaxLength(NotificationTemplateConsts.DescriptionMaxLength);
             b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplate.IsActive));
-            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique().HasFilter(TenantScopedSoftDeleteFilter);
             b.HasOne<NotificationTemplateType>().WithMany().HasForeignKey(x => x.TemplateTypeId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
 
@@ -689,7 +700,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
             b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
         });
@@ -699,7 +710,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "SystemParameters", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentLeadTime).HasColumnName(nameof(SystemParameter.AppointmentLeadTime));
             b.Property(x => x.AppointmentMaxTimePQME).HasColumnName(nameof(SystemParameter.AppointmentMaxTimePQME));
             b.Property(x => x.AppointmentMaxTimeAME).HasColumnName(nameof(SystemParameter.AppointmentMaxTimeAME));
@@ -714,7 +725,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.Property(x => x.ReminderCutoffTime).HasColumnName(nameof(SystemParameter.ReminderCutoffTime));
             b.Property(x => x.IsCustomField).HasColumnName(nameof(SystemParameter.IsCustomField));
             b.Property(x => x.CcEmailIds).HasColumnName(nameof(SystemParameter.CcEmailIds)).HasMaxLength(SystemParameterConsts.CcEmailIdsMaxLength);
-            b.HasIndex(x => x.TenantId).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => x.TenantId).IsUnique().HasFilter(TenantScopedSoftDeleteFilter);
         });
 
         // AppointmentPacket -- per-(appointment, kind) generated packet metadata row.
@@ -726,7 +737,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentPackets", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
             b.Property(x => x.Kind).HasColumnName("Kind").IsRequired();
             b.Property(x => x.BlobName).HasColumnName("BlobName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.BlobNameMaxLength);
@@ -752,7 +763,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.Property(x => x.Hidden).HasColumnName(nameof(AppointmentTypeFieldConfig.Hidden));
             b.Property(x => x.ReadOnly).HasColumnName(nameof(AppointmentTypeFieldConfig.ReadOnly));
             b.Property(x => x.DefaultValue).HasColumnName(nameof(AppointmentTypeFieldConfig.DefaultValue)).HasMaxLength(AppointmentTypeFieldConfigConsts.DefaultValueMaxLength);
-            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique().HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique().HasFilter(TenantScopedSoftDeleteFilter);
             b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -764,7 +775,7 @@ internal static class CaseEvaluationSharedModelConfiguration
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "States", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
             b.Property(x => x.Name).HasColumnName(nameof(State.Name)).IsRequired();
         });
 
@@ -1000,7 +1011,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             // (matching the Appointment Phase-11f / Packet soft-delete precedent).
             b.HasIndex(x => x.TenantId)
                 .IsUnique()
-                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
+                .HasFilter(TenantScopedSoftDeleteFilter)
                 .HasDatabaseName("IX_AppEntity_Doctors_TenantId_Unique");
         });
     }
