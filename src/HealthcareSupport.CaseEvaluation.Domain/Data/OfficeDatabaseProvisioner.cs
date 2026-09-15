@@ -27,22 +27,19 @@ public class OfficeDatabaseProvisioner : IOfficeDatabaseProvisioner, ITransientD
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IDataSeeder _dataSeeder;
     private readonly ITenantStore _tenantStore;
-    private readonly ILogger<OfficeDatabaseProvisioner> _logger;
 
     public OfficeDatabaseProvisioner(
         IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators,
         ICurrentTenant currentTenant,
         IUnitOfWorkManager unitOfWorkManager,
         IDataSeeder dataSeeder,
-        ITenantStore tenantStore,
-        ILogger<OfficeDatabaseProvisioner> logger)
+        ITenantStore tenantStore)
     {
         _dbSchemaMigrators = dbSchemaMigrators;
         _currentTenant = currentTenant;
         _unitOfWorkManager = unitOfWorkManager;
         _dataSeeder = dataSeeder;
         _tenantStore = tenantStore;
-        _logger = logger;
     }
 
     public async Task ProvisionAsync(
