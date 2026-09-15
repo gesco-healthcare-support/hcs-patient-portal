@@ -19,7 +19,15 @@ medium
 
 ## Status
 
-**Open** — for fix session.
+Tracked in [#547](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues/547). **Status lives in the issue**, not here -- this
+file holds the reproduction and diagnosis only.
+
+<!-- A prose status used to sit here. Two of the three that carried one had drifted:
+     BUG-012 read "Open -- for fix session" for four months after it was fixed, and
+     BUG-018 said Open against a closed issue. The third was accurate at the time and
+     is replaced anyway, because a second place to record status is a second place to
+     be wrong. The "FIXED in PR #197" notes in the other finding files are NOT status
+     -- they say what the fix was, which is diagnosis, and they stay. -->
 
 ## Affected role
 
