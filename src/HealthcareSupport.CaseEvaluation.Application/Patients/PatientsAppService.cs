@@ -560,17 +560,17 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // the wire only via GetFullSsnAsync (the audited reveal endpoint), whose
     // internal-or-owner authorization lives in the pure SsnRevealAccess helper.
     // See docs/plans/2026-05-29-ssn-redact-on-type.md.
-    private void ApplySsnVisibility(PatientDto? dto)
+    private static void ApplySsnVisibility(PatientDto? dto)
     {
         SsnVisibility.MaskToLast4(dto);
     }
 
-    private void ApplySsnVisibility(PatientWithNavigationPropertiesDto? dto)
+    private static void ApplySsnVisibility(PatientWithNavigationPropertiesDto? dto)
     {
         SsnVisibility.MaskToLast4(dto);
     }
 
-    private void ApplySsnVisibilityToList(IEnumerable<PatientWithNavigationPropertiesDto> dtos)
+    private static void ApplySsnVisibilityToList(IEnumerable<PatientWithNavigationPropertiesDto> dtos)
     {
         foreach (var dto in dtos)
         {
