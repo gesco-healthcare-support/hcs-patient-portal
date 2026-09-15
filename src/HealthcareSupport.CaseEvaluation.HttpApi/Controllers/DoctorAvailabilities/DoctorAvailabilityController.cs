@@ -87,15 +87,47 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
 
     [HttpDelete]
     [Route("by-date")]
-    public virtual Task DeleteByDateAsync([FromQuery] DoctorAvailabilityDeleteByDateInputDto input)
+    public virtual Task<DoctorAvailabilityBulkDeleteResultDto> DeleteByDateAsync([FromQuery] DoctorAvailabilityDeleteByDateInputDto input)
     {
         return _doctorAvailabilitiesAppService.DeleteByDateAsync(input);
     }
 
     [HttpPost]
     [Route("preview")]
-    public virtual Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(List<DoctorAvailabilityGenerateInputDto> input)
+    public virtual Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(DoctorAvailabilityGenerateInputDto input)
     {
         return _doctorAvailabilitiesAppService.GeneratePreviewAsync(input);
+    }
+
+    [HttpPost]
+    [Route("create-range")]
+    public virtual Task<DoctorAvailabilityCreateRangeResultDto> CreateRangeAsync(DoctorAvailabilityGenerateInputDto input)
+    {
+        return _doctorAvailabilitiesAppService.CreateRangeAsync(input);
+    }
+
+    [HttpGet]
+    [Route("lookup")]
+    public virtual Task<List<DoctorAvailabilityDto>> GetDoctorAvailabilityLookupAsync([FromQuery] GetDoctorAvailabilityLookupInput input)
+    {
+        return _doctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync(input);
+    }
+
+    // #2 (2026-06-19) -- POST (not GET): a visible week can carry 100+ slot ids,
+    // too many for a query string. Body is the slot-id list.
+    [HttpPost]
+    [Route("slot-patient-names")]
+    public virtual Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync([FromBody] List<Guid> slotIds)
+    {
+        return _doctorAvailabilitiesAppService.GetSlotPatientNamesAsync(slotIds);
+    }
+
+    // Phase 3 (2026-07-31) -- staff schedule. GET rather than POST: the input is one location plus a
+    // date range, which fits a query string comfortably.
+    [HttpGet]
+    [Route("schedule")]
+    public virtual Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input)
+    {
+        return _doctorAvailabilitiesAppService.GetScheduleAsync(input);
     }
 }

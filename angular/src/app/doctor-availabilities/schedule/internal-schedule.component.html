@@ -1,0 +1,61 @@
+<div class="sched-page">
+  <div class="ia-head">
+    <div>
+      <h1>Schedule</h1>
+      <p>Week and day view of booked, requested and free slots for one location.</p>
+    </div>
+  </div>
+
+  <div class="ia-toolbar">
+    <div class="sched-field">
+      <label for="sched-location">Location</label>
+      <select
+        id="sched-location"
+        class="ia-input"
+        [ngModel]="locationId()"
+        [ngModelOptions]="{ standalone: true }"
+        (ngModelChange)="onLocationChange($event)"
+      >
+        @for (loc of locations(); track loc.id) {
+          <option [value]="loc.id">{{ loc.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="sched-legend" aria-hidden="true">
+      <span>
+        <i class="key key--free"></i>
+        Free
+      </span>
+      <span>
+        <i class="key key--partial"></i>
+        Partly booked
+      </span>
+      <span>
+        <i class="key key--full"></i>
+        Full
+      </span>
+      <span>
+        <i class="key key--booked"></i>
+        Booked
+      </span>
+      <span>
+        <i class="key key--requested"></i>
+        Requested
+      </span>
+    </div>
+
+    @if (loading()) {
+      <span class="sched-status" role="status">Loading...</span>
+    }
+  </div>
+
+  @if (!hasLocations()) {
+    <p class="sched-empty">No locations are available for this practice.</p>
+  } @else {
+    @if (loadFailed()) {
+      <p class="sched-empty">The schedule could not be loaded. Try again.</p>
+    }
+    <full-calendar [options]="calendarOptions" [events]="events()" />
+  }
+</div>

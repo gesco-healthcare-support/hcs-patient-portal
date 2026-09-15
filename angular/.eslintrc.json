@@ -35,7 +35,15 @@
     {
       "files": ["*.html"],
       "extends": ["plugin:@angular-eslint/template/recommended", "prettier"],
-      "rules": {}
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "BindingPipe[name='date']",
+            "message": "Use | pacificDate for an INSTANT (creationTime, resolvedAt, expiresAt -- rendered in America/Los_Angeles regardless of the viewer's machine) or | calendarDate for a CALENDAR DATE (date of birth, date of injury, appointment date -- rendered exactly as entered, never zone-converted). The built-in date pipe renders in the VIEWER's zone, which is wrong for a business that runs in one zone, and silently shifts a date of birth by a day if the value ever gains a Z. See angular/src/app/shared/pipes/pacific-date.pipe.ts."
+          }
+        ]
+      }
     }
   ]
 }

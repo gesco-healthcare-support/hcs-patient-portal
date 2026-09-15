@@ -27,6 +27,7 @@ Every `IAppService` interface has a manually written controller in
 4. Declares explicit `[Route("api/app/{entity-plural}")]` and HTTP method attributes
 
 Example from `DoctorController.cs` (10 endpoints):
+
 - Class: `DoctorController : AbpController, IDoctorsAppService`
 - Route: `[Route("api/app/doctors")]`
 - Each method is a one-line delegation: `return _doctorsAppService.MethodAsync(input);`
@@ -37,12 +38,14 @@ ABP's auto-controller generation, avoiding duplicate route registration.
 ## Consequences
 
 **Easier:**
+
 - Full control over route structure, HTTP verbs, and URL segments per endpoint
 - Ability to add custom attributes (authorization, caching, rate limiting) per action
 - Explicit routes make the API surface auditable via code review
 - Swagger/OpenAPI output matches the exact routes declared in code
 
 **Harder:**
+
 - Every new AppService method requires a corresponding controller method (boilerplate)
 - Risk of the controller falling out of sync with the service interface -- mitigated by
   implementing the interface directly, so the compiler enforces method parity

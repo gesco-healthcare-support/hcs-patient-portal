@@ -58,4 +58,13 @@ public class AppointmentTypeFieldConfigController : AbpController, IAppointmentT
     {
         return _appService.DeleteAsync(id);
     }
+
+    // Prompt 15: replace-set batch save of one AppointmentType's field config.
+    [HttpPut("by-appointment-type/{appointmentTypeId}")]
+    public Task<List<AppointmentTypeFieldConfigDto>> SaveForAppointmentTypeAsync(
+        Guid appointmentTypeId,
+        [FromBody] List<AppointmentTypeFieldConfigBatchItemDto> items)
+    {
+        return _appService.SaveForAppointmentTypeAsync(appointmentTypeId, items);
+    }
 }

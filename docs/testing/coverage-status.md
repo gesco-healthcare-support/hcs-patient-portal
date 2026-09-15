@@ -1,107 +1,93 @@
----
-last-verified: 2026-04-24
----
-
 [Home](../INDEX.md) > [Testing](./) > Coverage Status
 
 # Backend Test Coverage Status
 
-This document is the single source of truth for the live state of the backend
-test suite. Older docs (executive-summary.md, INCOMPLETE-FEATURES.md, the root
-CLAUDE.md, TEST-EVIDENCE.md, README.md) historically carried scattered, drifted
-counts ("13 unique test methods", "Only Doctors and Books"). All those claims
-are stale. New docs and refreshed pointers should link here instead of
-restating numbers inline so there is exactly one place to update when the
-suite grows.
+> Purpose: name the commands that report test counts and coverage, so every figure is read from a
+> run rather than from this page. Audience: developers.
 
-## Headline Numbers (verified 2026-04-24)
+## This page stores no numbers, deliberately
 
-- **115 backend test methods** total: **113 `[Fact]`** + **2 `[Theory]`**.
-- Spread across **17 test files** under `test/`.
-- Covers **8 of 15** entities. **7 entities still have no backend tests.**
-- Verified by Grep on worktree HEAD (commit on branch
-  `docs/freshness-audit-2026-04-24`).
+It used to. It claimed **115 backend test methods across 17 files**, verified 2026-04-24, and
+called itself "the single source of truth for backend test suite counts". By 2026-09-11 the
+real figure was roughly twenty times that, and nothing in the file could notice. It is linked from
+`docs/INDEX.md`, so the page that existed to stop drifted counts had itself become the drifted
+count a new developer would read first.
 
-## Per-Entity Coverage Rollup
+That is not a maintenance lapse to apologise for and patch. **A stored count begins rotting the
+day it lands**, because the suite keeps changing and the page does not. Replacing the stale
+number with a fresh one only restarts the same clock.
 
-### Covered (8 entities)
+So the figures are gone, and the commands that produce them are below.
 
-| Entity | Test files | `[Fact]` + `[Theory]` |
-|---|---|---|
-| Appointments | `Application.Tests/Appointments/AppointmentsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/Appointments/EfCoreAppointmentsAppServiceTests.cs` | 17 |
-| DoctorAvailabilities | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/DoctorAvailabilities/EfCoreDoctorAvailabilitiesAppServiceTests.cs` | 20 |
-| Doctors | `Application.Tests/Doctors/DoctorApplicationTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/Doctors/EfCoreDoctorsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/Doctors/DoctorRepositoryTests.cs` | 7 |
-| Patients | `Application.Tests/Patients/PatientsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/Patients/EfCorePatientsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/Patients/PatientRepositoryTests.cs` | 23 (16 + 2 Theory + 5) |
-| Books (legacy scaffold) | `Application.Tests/Books/BookAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/Books/EfCoreBookAppServiceTests.cs` | 3 |
-| AppointmentAccessors | `Application.Tests/AppointmentAccessors/AppointmentAccessorsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/AppointmentAccessors/EfCoreAppointmentAccessorsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/AppointmentAccessors/AppointmentAccessorRepositoryTests.cs` | 11 |
-| ApplicantAttorneys | `Application.Tests/ApplicantAttorneys/ApplicantAttorneysAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/ApplicantAttorneys/EfCoreApplicantAttorneysAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/ApplicantAttorneys/ApplicantAttorneyRepositoryTests.cs` | 13 |
-| Locations | `Application.Tests/Locations/LocationsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/Locations/EfCoreLocationsAppServiceTests.cs`, `EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/Locations/LocationRepositoryTests.cs` | 16 |
+**If you need a count in any document, paste the command that produced it beside it.** Do not
+re-add standing figures here.
 
-Plus framework-scaffold tests in `Domain.Tests/Samples/SampleDomainTests.cs`,
-`Application.Tests/Samples/SampleAppServiceTests.cs`,
-`EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs`,
-and the seed-sanity tests `Application.Tests/SeedContributor/Wave2SeedSanityTests.cs`
-+ its EfCore mirror.
+## Backend
 
-### Not yet covered (7 entities)
+Count and result, from the repository root:
 
-- AppointmentApplicantAttorneys
-- AppointmentEmployerDetails
-- AppointmentLanguages
-- AppointmentStatuses
-- AppointmentTypes
-- States
-- WcabOffices
-
-These are mostly reference-data lookups + appointment-child join entities; they
-carry the lowest blast radius but should be added before MVP closure.
-
-## E2E / Integration Test Layer
-
-Separate from the xUnit suite above, the Plan-A/Plan-B PowerShell harness in
-`scripts/Master-Seed.ps1` + `Master-Test.ps1` measured **258 automated tests +
-11 exploratory** on **2026-04-02** (246 PASS, 5 FAIL-EXPECTED, 7 SKIP, 0
-unexpected failures). That number has not been re-measured against the
-post-Tier-2 codebase. Historical baseline lives in
-[docs/issues/TEST-EVIDENCE.md](../issues/TEST-EVIDENCE.md). Re-running the
-harness is tracked separately and is out of scope for this doc.
-
-## How To Re-Verify
-
-From the repo root, in Git Bash:
-
-```
-# [Fact] count -- expect ~113 currently
-grep -rcP '\[Fact' test/ --include='*.cs' | awk -F: '{s+=$2} END{print s}'
-
-# [Theory] count -- expect ~2 currently
-grep -rcP '\[Theory' test/ --include='*.cs' | awk -F: '{s+=$2} END{print s}'
-
-# Distinct test files
-find test -name '*Tests.cs' | wc -l
+```bash
+dotnet test HealthcareSupport.CaseEvaluation.slnx
 ```
 
-Or, equivalently in this worktree, run the Grep tool with pattern `\[Fact` /
-`\[Theory` against `test/` and `*.cs` glob, count mode. When numbers change,
-update the headline + per-entity table above and bump `last-verified` in the
-frontmatter.
+Read the totals off the run summary.
 
-## History
+With a coverage report, the same collection CI performs in the `Backend: Test` job of
+`.github/workflows/ci.yml`:
 
-- **Pre-2026-04-23 (B-phase closure):** ~13 backend test methods total,
-  covering Doctors and the framework scaffold sample only. The "Only Doctors
-  and Books have tests" claim originates from this snapshot.
-- **2026-04-23 (B-6 Tier 1):** Added Application.Tests for Appointments,
-  DoctorAvailabilities, Patients, AppointmentAccessors, ApplicantAttorneys,
-  Locations. Brought total from 13 -> ~70 methods.
-- **2026-04-23/24 (B-6 Tier 2):** Added EfCore.Tests mirrors plus repository-
-  layer tests for Doctors, Patients, AppointmentAccessors, ApplicantAttorneys,
-  Locations. Brought total to **115 methods across 17 files**, current as of
-  2026-04-24.
+```bash
+dotnet tool install --global dotnet-coverage --version 18.11.0
+
+dotnet-coverage collect \
+  'dotnet test HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release' \
+  -f cobertura -o coverage.cobertura.xml
+```
+
+CI additionally passes `--logger "trx;LogFileName=results.trx"` and `--results-directory
+./test-results` inside the quoted inner command; both exist only so the run can be uploaded as an
+artefact and neither changes the measurement.
+
+Cobertura is the format `scripts/coverage-gate.py` parses. SonarCloud is fed a _different_ format
+from a _different_ workflow -- `sonarcloud.yml` collects `-f xml` for
+`sonar.cs.vscoveragexml.reportsPaths` -- so the two artefacts are not interchangeable.
+
+## Frontend
+
+From `angular/`:
+
+```bash
+yarn test
+```
+
+With coverage, as CI runs it:
+
+```bash
+yarn test --watch=false --browsers=ChromeHeadless --code-coverage
+```
+
+`--browsers=ChromeHeadless` is load-bearing rather than decorative: `karma.conf.js` defaults to
+`browsers: ['Chrome']`, so without it the run tries to open a real browser.
+
+## The project-wide percentage
+
+The coverage figure worth quoting comes from SonarCloud rather than any local run:
+
+```bash
+curl -s "https://sonarcloud.io/api/measures/component?component=gesco-healthcare-support_hcs-patient-portal&metricKeys=coverage,uncovered_lines,lines_to_cover"
+```
+
+Read all three metrics, never the headline alone. Branch coverage in this repository is well under
+half its line coverage, so the two move at very different rates.
 
 ## Related
 
-- [docs/issues/INCOMPLETE-FEATURES.md FEAT-07](../issues/INCOMPLETE-FEATURES.md#feat-07-test-coverage-gaps-mostly-obsolete) -- issue tracker entry, downgraded from Critical to Medium.
-- [docs/issues/TEST-EVIDENCE.md](../issues/TEST-EVIDENCE.md) -- frozen E2E baseline (2026-04-02).
 - [docs/devops/TESTING-STRATEGY.md](../devops/TESTING-STRATEGY.md) -- structure of the test projects.
-- [docs/devops/TEST-CATALOG.md](../devops/TEST-CATALOG.md) -- E2E phase map.
+- [docs/devops/CI-TESTS-AND-CHECKS.md](../devops/CI-TESTS-AND-CHECKS.md) -- which workflow runs which suite.
+
+`docs/issues/TEST-EVIDENCE.md` used to be listed here as the frozen E2E baseline. It was deleted in
+`83f75e82` (2026-05-05), so the reference is dropped rather than carried forward. Worth recording
+that `check-links.py` never flagged it: the entry was bare text rather than a markdown link, so the
+checker structurally could not see it. Existence was confirmed with `git ls-tree` instead.
+
+The per-entity rollup, the E2E harness totals and the 2026-04 history were removed along with the
+counts, for the reason above. `git log --follow` on this file still has every word of them.

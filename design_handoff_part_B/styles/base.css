@@ -1,0 +1,175 @@
+/* ============================================================
+   Base reset + prototype chrome (the Before/After toolbar)
+   ============================================================ */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  background: var(--n-200);
+  color: var(--n-800);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: inherit; cursor: pointer; }
+a { color: inherit; }
+img { display: block; }
+
+/* ---------- App root layout ---------- */
+#root { min-height: 100vh; }
+
+.proto {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Prototype top chrome ---------- */
+.chrome {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, #0a3a63, #07304f);
+  color: #dce7f2;
+  box-shadow: 0 2px 10px rgba(7,48,79,.35);
+}
+.chrome__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  font-size: 14px;
+  color: #fff;
+  padding-right: 18px;
+  border-right: 1px solid rgba(255,255,255,.14);
+  white-space: nowrap;
+  flex: none;
+}
+.chrome__brand .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--green-500);
+  box-shadow: 0 0 0 4px rgba(157,193,59,.22);
+}
+.chrome__group { display: flex; align-items: center; gap: 8px; }
+.chrome__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #8fb0cd;
+  font-weight: 600;
+}
+
+/* segmented controls in chrome */
+.seg {
+  display: inline-flex;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: var(--r-pill);
+  padding: 3px;
+  gap: 2px;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  color: #b9cfe2;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.seg button:hover { color: #fff; }
+.seg button[data-active="true"] {
+  background: #fff;
+  color: var(--blue-700);
+  box-shadow: var(--sh-sm);
+}
+.seg--ba button[data-active="true"][data-mode="before"] { color: var(--n-700); }
+.seg--ba button[data-active="true"][data-mode="after"] { color: var(--blue-700); }
+
+.chrome__spacer { flex: 1; }
+.chrome__hint {
+  font-size: 12px;
+  color: #9fbdd8;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.chrome__hint kbd {
+  font-family: var(--font);
+  background: rgba(255,255,255,.12);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+  border: 1px solid rgba(255,255,255,.14);
+}
+
+/* ---------- Stage that holds the rendered app ---------- */
+.stage {
+  flex: 1;
+  position: relative;
+  background: var(--surface-app);
+  overflow: hidden;
+}
+.stage--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  background: var(--n-300);
+}
+.split-pane {
+  position: relative;
+  overflow: auto;
+  background: var(--surface-app);
+  height: calc(100vh - 56px);
+}
+.split-pane + .split-pane { border-left: 2px solid var(--n-300); }
+.split-tag {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #fff;
+  width: 100%;
+  white-space: nowrap;
+}
+.split-tag--before { background: var(--n-600); }
+.split-tag--after  { background: var(--blue-700); }
+
+.viewport {
+  height: calc(100vh - 56px);
+  overflow: auto;
+}
+
+/* generic FA-ish icon sizing helper */
+.i { display: inline-flex; align-items: center; justify-content: center; }
+
+/* fade between screens — transform-only so the visible state is the base.
+   (Never animate opacity from 0 with a persisting fill: capture/print/PDF
+   freeze at frame 0 and the screen renders blank.) */
+@keyframes fadeUp {
+  from { transform: translateY(7px); }
+  to   { transform: none; }
+}
+.fade-in { animation: fadeUp .28s ease; }
+@media (prefers-reduced-motion: reduce) { .fade-in { animation: none; } }
+
+/* scrollbars */
+.viewport::-webkit-scrollbar, .split-pane::-webkit-scrollbar { width: 11px; height: 11px; }
+.viewport::-webkit-scrollbar-thumb, .split-pane::-webkit-scrollbar-thumb {
+  background: var(--n-300); border-radius: 99px; border: 3px solid var(--surface-app);
+}

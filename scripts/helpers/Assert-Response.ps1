@@ -77,7 +77,7 @@ function Invoke-TestApiCall {
                 $reader = New-Object System.IO.StreamReader($stream)
                 $errorBody = $reader.ReadToEnd()
                 $reader.Close()
-            } catch {}
+            } catch { Write-Verbose "could not read the error response body; leaving it empty: $_" }
         }
 
         if (-not $errorBody -and $_.ErrorDetails.Message) {

@@ -62,7 +62,7 @@ TS_SYMBOL_RE = re.compile(
     re.MULTILINE,
 )
 TS_IMPORT_RE = re.compile(
-    r"""^\s*import\s+(?:[^;]*?\s+from\s+)?['"]([^'"]+)['"]""", re.MULTILINE
+    r"""^\s*import\s+(?:[^;'"]*\bfrom\s+)?['"]([^'"]+)['"]""", re.MULTILINE
 )
 
 PROJECT_REF_RE = re.compile(

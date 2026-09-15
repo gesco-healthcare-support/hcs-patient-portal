@@ -5,10 +5,11 @@ export const APPOINTMENT_STATUS_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/appointment-status.component').then(
-        (c) => c.AppointmentStatusComponent,
+      return import('../../configuration/internal-configuration.component').then(
+        (c) => c.InternalConfigurationComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'statuses', requiredPolicy: 'CaseEvaluation.AppointmentStatuses' },
   },
 ];

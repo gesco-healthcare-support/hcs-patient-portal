@@ -82,7 +82,7 @@ function Remove-TestAppointment {
                 }
                 Invoke-ApiCall -Method "PUT" -Url "$availUrl/$SlotId" -Body $updateBody -Token $Token -TenantId $TenantId | Out-Null
             }
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     }
 }
 

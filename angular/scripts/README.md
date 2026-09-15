@@ -70,7 +70,7 @@ cd CaseEvaluation/angular/scripts
 
 **Example Output**:
 
-```
+```text
 🔗 Setting up selective symlinks for specific packages...
 
 📦 Packages to symlink:
@@ -108,7 +108,7 @@ cd CaseEvaluation/angular/scripts
 
 **Example Output**:
 
-```
+```text
 🗑️  Removing symlinks from library directories...
 
 📁 Processing ../../modules/Volo.Abp.Identity.Pro/angular/projects/account...

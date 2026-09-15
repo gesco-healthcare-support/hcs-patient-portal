@@ -1,81 +1,55 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { ConfigStateService, DynamicLayoutComponent } from '@abp/ng.core';
-import { Router, NavigationEnd } from '@angular/router';
+import { Component, OnInit, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import { GdprCookieConsentComponent } from '@volo/abp.ng.gdpr/config';
 import { LoaderBarComponent } from '@abp/ng.theme.shared';
-import { Subscription } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { AppointmentPendingCountService } from './appointments/services/appointment-pending-count.service';
+import { SessionIdentityWatcherService } from './shared/auth/session-identity-watcher.service';
+import { OfflineDetectionService } from './shared/services/offline-detection.service';
+import { OfflineOverlayComponent } from './shared/ui/offline/offline-overlay.component';
 
+/**
+ * Root component. Renders a bare `<router-outlet>` -- the redesign drops the
+ * LeptonX layout entirely (see feat/redesign-app-shell), so each page owns its
+ * own chrome (external navbar / internal sidebar). The always-on globals live
+ * here: loader bar, GDPR cookie consent, and the offline overlay.
+ *
+ * Note: ABP's page-alert container (`<abp-page-alert-container>`) used to live
+ * inside the LeptonX layout. PageAlertService currently has zero callers; if it
+ * gains any, mount the container here alongside `<abp-loader-bar>`.
+ *
+ * 2026-07-17 -- the `?logout=true` bootstrap handshake was removed. Logout now
+ * uses the standard OIDC end-session flow (see `shared/auth/full-logout.ts`),
+ * which lands the user on the AuthServer `/Account/Login` and never returns to
+ * the SPA with a `?logout=true` marker, so there is nothing to handle here.
+ */
 @Component({
   selector: 'app-root',
   template: `
     <abp-loader-bar />
-    <abp-dynamic-layout />
+    <router-outlet />
     <abp-gdpr-cookie-consent />
+    @if (offline()) {
+      <app-offline-overlay />
+    }
   `,
-  imports: [LoaderBarComponent, DynamicLayoutComponent, GdprCookieConsentComponent],
+  imports: [LoaderBarComponent, RouterOutlet, GdprCookieConsentComponent, OfflineOverlayComponent],
 })
-export class AppComponent implements OnInit, OnDestroy {
-  private readonly configState = inject(ConfigStateService);
-  private readonly router = inject(Router);
-  private readonly subscription = new Subscription();
+export class AppComponent implements OnInit {
+  // Wave 4 / #6: kicks off the pending-appointments badge polling for
+  // admin / staff users. Service is providedIn root and self-stops
+  // when permission drops, so a single `start()` call here is enough.
+  private readonly appointmentPendingCount = inject(AppointmentPendingCountService);
+  // Bug D fix (2026-05-11): detects AuthServer cookie identity swap and
+  // forces a full reload when sub changes. Same singleton-start pattern.
+  private readonly sessionIdentityWatcher = inject(SessionIdentityWatcherService);
+  // Redesign (2026-06-14): app-wide offline overlay (state-screens Task 5).
+  // Started in ngOnInit; the template renders the overlay while offline() is true.
+  private readonly offlineDetection = inject(OfflineDetectionService);
+  protected readonly offline = this.offlineDetection.offline;
 
   ngOnInit(): void {
-    this.updatePatientRoleClass();
-
-    this.subscription.add(
-      this.router.events
-        .pipe(filter((event) => event instanceof NavigationEnd))
-        .subscribe(() => this.updatePatientRoleClass()),
-    );
-  }
-
-  ngOnDestroy(): void {
-    this.subscription.unsubscribe();
-    document.body.classList.remove('externaluser-role');
-    document.documentElement.classList.remove('externaluser-role');
-    this.applySidebarVisibility(false);
-  }
-
-  private updatePatientRoleClass(): void {
-    const currentUser = this.configState.getOne('currentUser') as { roles?: string[] } | null;
-    const roles = new Set(
-      (currentUser?.roles ?? []).map((role) => (role ?? '').toLowerCase().trim()),
-    );
-    const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-    const isExternalUser = externalUserRoles.some((role) => roles.has(role));
-
-    document.body.classList.toggle('externaluser-role', isExternalUser);
-    document.documentElement.classList.toggle('externaluser-role', isExternalUser);
-    this.applySidebarVisibility(isExternalUser);
-  }
-
-  private applySidebarVisibility(isExternalUser: boolean): void {
-    const sidebarSelectors = [
-      '.lpx-sidebar-container',
-      '.lpx-sidebar',
-      '.lpx-menu-container',
-      '.lpx-menu',
-      'aside',
-    ];
-    const mainSelectors = [
-      '.lpx-content-container',
-      '.lpx-main-container',
-      '.lpx-main-content',
-      '.lpx-page',
-      'main',
-    ];
-
-    for (const selector of sidebarSelectors) {
-      document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
-        el.classList.toggle('externaluser-sidebar-hidden', isExternalUser);
-      });
-    }
-
-    for (const selector of mainSelectors) {
-      document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
-        el.classList.toggle('externaluser-main-full', isExternalUser);
-      });
-    }
+    this.appointmentPendingCount.start();
+    this.sessionIdentityWatcher.start();
+    this.offlineDetection.start();
   }
 }

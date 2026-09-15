@@ -18,7 +18,7 @@ public class AppointmentClaimExaminerManager : DomainService
     }
 
     public virtual async Task<AppointmentClaimExaminer> CreateAsync(
-        Guid appointmentInjuryDetailId,
+        Guid appointmentId,
         bool isActive,
         string? name = null,
         string? claimExaminerNumber = null,
@@ -30,9 +30,9 @@ public class AppointmentClaimExaminerManager : DomainService
         string? zip = null,
         Guid? stateId = null)
     {
-        Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
+        Check.NotNull(appointmentId, nameof(appointmentId));
         Check.Length(name, nameof(name), AppointmentClaimExaminerConsts.NameMaxLength, 0);
-        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength, 0);
+        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.SuiteMaxLength, 0);
         Check.Length(email, nameof(email), AppointmentClaimExaminerConsts.EmailMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentClaimExaminerConsts.PhoneNumberMaxLength, 0);
         Check.Length(fax, nameof(fax), AppointmentClaimExaminerConsts.FaxMaxLength, 0);
@@ -40,10 +40,10 @@ public class AppointmentClaimExaminerManager : DomainService
         Check.Length(city, nameof(city), AppointmentClaimExaminerConsts.CityMaxLength, 0);
         Check.Length(zip, nameof(zip), AppointmentClaimExaminerConsts.ZipMaxLength, 0);
 
-        var entity = new AppointmentClaimExaminer(GuidGenerator.Create(), appointmentInjuryDetailId, isActive)
+        var entity = new AppointmentClaimExaminer(GuidGenerator.Create(), appointmentId, isActive)
         {
             Name = name,
-            ClaimExaminerNumber = claimExaminerNumber,
+            Suite = claimExaminerNumber,
             Email = email,
             PhoneNumber = phoneNumber,
             Fax = fax,
@@ -57,7 +57,7 @@ public class AppointmentClaimExaminerManager : DomainService
 
     public virtual async Task<AppointmentClaimExaminer> UpdateAsync(
         Guid id,
-        Guid appointmentInjuryDetailId,
+        Guid appointmentId,
         bool isActive,
         string? name = null,
         string? claimExaminerNumber = null,
@@ -70,9 +70,9 @@ public class AppointmentClaimExaminerManager : DomainService
         Guid? stateId = null,
         [CanBeNull] string? concurrencyStamp = null)
     {
-        Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
+        Check.NotNull(appointmentId, nameof(appointmentId));
         Check.Length(name, nameof(name), AppointmentClaimExaminerConsts.NameMaxLength, 0);
-        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength, 0);
+        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.SuiteMaxLength, 0);
         Check.Length(email, nameof(email), AppointmentClaimExaminerConsts.EmailMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentClaimExaminerConsts.PhoneNumberMaxLength, 0);
         Check.Length(fax, nameof(fax), AppointmentClaimExaminerConsts.FaxMaxLength, 0);
@@ -81,10 +81,10 @@ public class AppointmentClaimExaminerManager : DomainService
         Check.Length(zip, nameof(zip), AppointmentClaimExaminerConsts.ZipMaxLength, 0);
 
         var entity = await _repository.GetAsync(id);
-        entity.AppointmentInjuryDetailId = appointmentInjuryDetailId;
+        entity.AppointmentId = appointmentId;
         entity.IsActive = isActive;
         entity.Name = name;
-        entity.ClaimExaminerNumber = claimExaminerNumber;
+        entity.Suite = claimExaminerNumber;
         entity.Email = email;
         entity.PhoneNumber = phoneNumber;
         entity.Fax = fax;
