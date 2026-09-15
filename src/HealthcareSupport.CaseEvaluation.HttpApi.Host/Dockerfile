@@ -93,7 +93,8 @@ EXPOSE 8080
 #
 # The listen address comes from ASPNETCORE_URLS above (and again from compose),
 # the same way the prod stage has always got it. Passing --urls here as well
-# was redundant and put an http:// literal where docker:S5332 could see it.
+# was redundant, and put a clear-text URL literal in a position the Docker
+# analyser parses (docker:S5332); the old sh -c form merely hid it.
 COPY --chmod=0755 docker/dev-restore-run.sh /usr/local/bin/dev-restore-run.sh
 ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj"]
 
