@@ -143,6 +143,11 @@ class MainWiringTests(unittest.TestCase):
                     try:
                         code = gate.main()
                     except SystemExit as exc:
+                        # S5754 says to re-raise. NOT HERE, and this is the whole
+                        # point of the helper: main() signals failure by EXITING,
+                        # so capturing the code is the only way to assert on it.
+                        # Re-raising would make every guard test unwritable.
+                        # Marked rather than "fixed" -- see #818.
                         code = exc.code
             finally:
                 sys.argv = original_argv

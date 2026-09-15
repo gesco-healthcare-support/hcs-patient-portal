@@ -337,25 +337,24 @@ class AssertDisjointTests(unittest.TestCase):
         )
 
     def test_a_duplicate_path_within_one_run_exits(self):
+        # S5778: the batches are built OUTSIDE the assertRaises, so only
+        # assert_disjoint can satisfy it. Built inside, a SystemExit escaping
+        # _batch would pass this test for the wrong reason.
+        batches = [self._batch("A", ["src/a"]), self._batch("B", ["src/a"])]
         with self.assertRaises(SystemExit):
-            import_issues.assert_disjoint(
-                [self._batch("A", ["src/a"]), self._batch("B", ["src/a"])]
-            )
+            import_issues.assert_disjoint(batches)
 
     def test_a_nested_path_within_one_run_exits(self):
+        batches = [self._batch("A", ["src"]), self._batch("B", ["src/a"])]
         with self.assertRaises(SystemExit):
-            import_issues.assert_disjoint(
-                [self._batch("A", ["src"]), self._batch("B", ["src/a"])]
-            )
+            import_issues.assert_disjoint(batches)
 
     def test_a_path_owned_by_a_different_open_issue_exits(self):
         # The cross-run case. #628, #631 and #665 were each clashed with on
         # EXACT paths by a re-bundled group, and every check passed.
+        batches = [self._batch("SWEEP-PATH-new", ["angular/src"])]
         with self.assertRaises(SystemExit):
-            import_issues.assert_disjoint(
-                [self._batch("SWEEP-PATH-new", ["angular/src"])],
-                existing={"angular/src": "#628"},
-            )
+            import_issues.assert_disjoint(batches, existing={"angular/src": "#628"})
 
     def test_a_batch_may_re_state_the_paths_of_the_issue_it_already_is(self):
         # Without this the check would fire on every unchanged batch, which
