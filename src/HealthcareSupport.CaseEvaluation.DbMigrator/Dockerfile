@@ -80,8 +80,7 @@ RUN dotnet build src/HealthcareSupport.CaseEvaluation.DbMigrator/HealthcareSuppo
 # restores from the private feed. It arrives as a Compose service secret and
 # the rendered NuGet.Config is deleted before the app is exec'd (#703).
 COPY --chmod=0755 docker/dev-restore-run.sh /usr/local/bin/dev-restore-run.sh
-ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", \
-  "src/HealthcareSupport.CaseEvaluation.DbMigrator/HealthcareSupport.CaseEvaluation.DbMigrator.csproj"]
+ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEvaluation.DbMigrator/HealthcareSupport.CaseEvaluation.DbMigrator.csproj"]
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --

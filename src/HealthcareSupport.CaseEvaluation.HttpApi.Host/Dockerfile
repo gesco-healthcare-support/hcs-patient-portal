@@ -90,10 +90,12 @@ EXPOSE 8080
 # cache is a named volume that shadows the one baked above, so a fresh volume
 # restores from the private feed. It arrives as a Compose service secret and
 # the rendered NuGet.Config is deleted before the app is exec'd (#703).
+#
+# The listen address comes from ASPNETCORE_URLS above (and again from compose),
+# the same way the prod stage has always got it. Passing --urls here as well
+# was redundant and put an http:// literal where docker:S5332 could see it.
 COPY --chmod=0755 docker/dev-restore-run.sh /usr/local/bin/dev-restore-run.sh
-ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", \
-  "src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj", \
-  "--urls", "http://+:8080"]
+ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj"]
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
