@@ -3,6 +3,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.Identity;
@@ -82,7 +83,40 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
         using (CurrentTenant.Change(officeId))
         {
             var shadow = await FindShadowAsync(email);
-            if (shadow == null || !shadow.IsActive)
+
+            // #610: these two cases used to share one silent `return`, and they are not
+            // the same thing.
+            //
+            // ALREADY INACTIVE is the normal idempotent path -- revoke called twice, or
+            // an operator unassigned from an office they were already out of. Nothing to
+            // say about it.
+            //
+            // NOT FOUND is a failure. Revoke was asked to disable a shadow and could not
+            // locate one, so it returns having done nothing, and an unassigned operator
+            // keeps working access to that office. The known cause is an operator whose
+            // host email CHANGED after their shadow was provisioned: the lookup is by the
+            // new address, the shadow still carries the old one in both username and
+            // email, so it misses. See FindShadowAsync for why keying on the operator's
+            // user id is the real fix.
+            //
+            // Logged rather than thrown deliberately. Throwing here would fail the whole
+            // unassign operation over a shadow that may legitimately never have existed
+            // (an operator assigned and unassigned before ever signing in), and the
+            // caller cannot tell those apart either. A warning that names the office and
+            // the operator makes the silence visible without inventing a failure.
+            if (shadow == null)
+            {
+                Logger.LogWarning(
+                    "IntakeShadowUserProvisioner: no shadow user found to revoke for operator "
+                    + "{OperatorUserId} in office {OfficeId}. If that operator's host email has "
+                    + "changed since the shadow was provisioned, an ACTIVE shadow may remain "
+                    + "under the previous address (#610).",
+                    operatorUserId,
+                    officeId);
+                return;
+            }
+
+            if (!shadow.IsActive)
             {
                 return;
             }

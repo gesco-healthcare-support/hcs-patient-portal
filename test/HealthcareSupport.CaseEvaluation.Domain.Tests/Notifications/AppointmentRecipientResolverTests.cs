@@ -29,6 +29,15 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// </summary>
 public class AppointmentRecipientResolverTests
 {
+    /// <summary>
+    /// A fixed appointment date. Was <c>DateTime.UtcNow.Date.AddDays(7)</c>, which is the
+    /// pattern src/BannedSymbols.txt calls the same bug as DateTime.Today and which makes the
+    /// fixture a different value every day. Nothing here asserts on the date -- the resolver is
+    /// exercised for WHO it yields -- so a constant is strictly better, and it matches how the
+    /// rest of the suite builds appointments (new DateTime(..., DateTimeKind.Utc)).
+    /// </summary>
+    private static readonly DateTime FutureAppointmentDate =
+        new(2026, 7, 15, 0, 0, 0, DateTimeKind.Utc);
     private static readonly Guid OfficeTenantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private const string OfficeTenantName = "falkinstein";
 
@@ -49,7 +58,7 @@ public class AppointmentRecipientResolverTests
             appointmentTypeId: Guid.NewGuid(),
             locationId: Guid.NewGuid(),
             doctorAvailabilityId: Guid.NewGuid(),
-            appointmentDate: DateTime.UtcNow.Date.AddDays(7),
+            appointmentDate: FutureAppointmentDate,
             requestConfirmationNumber: "TEST-RESOLVER",
             appointmentStatus: AppointmentStatusType.Approved)
         {
@@ -120,7 +129,7 @@ public class AppointmentRecipientResolverTests
             appointmentTypeId: Guid.NewGuid(),
             locationId: Guid.NewGuid(),
             doctorAvailabilityId: Guid.NewGuid(),
-            appointmentDate: DateTime.UtcNow.Date.AddDays(7),
+            appointmentDate: FutureAppointmentDate,
             requestConfirmationNumber: "TEST-RESOLVER-NOOFFICE",
             appointmentStatus: AppointmentStatusType.Approved)
         {
