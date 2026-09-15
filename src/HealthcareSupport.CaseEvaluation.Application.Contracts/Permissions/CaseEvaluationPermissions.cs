@@ -160,14 +160,6 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
-    public static class AppointmentAccessors
-    {
-        public const string Default = GroupName + ".AppointmentAccessors";
-        public const string Edit = Default + ".Edit";
-        public const string Create = Default + ".Create";
-        public const string Delete = Default + ".Delete";
-    }
-
     public static class ApplicantAttorneys
     {
         public const string Default = GroupName + ".ApplicantAttorneys";
