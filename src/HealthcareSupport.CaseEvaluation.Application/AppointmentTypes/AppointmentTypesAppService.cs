@@ -41,7 +41,7 @@ public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointment
         // Prompt 15 / item 32: per-row UsageCount = referencing Appointment rows.
         foreach (var dto in dtoItems)
         {
-            dto.UsageCount = (int)await _appointmentRepository.CountAsync(a => a.AppointmentTypeId == dto.Id);
+            dto.UsageCount = await _appointmentRepository.CountAsync(a => a.AppointmentTypeId == dto.Id);
         }
         return new PagedResultDto<AppointmentTypeDto>
         {

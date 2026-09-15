@@ -157,7 +157,7 @@ Expected: no `TS2304: Cannot find name 'StringValues'` from
    `angular/src/app/proxy/CLAUDE.md` (or the proxy README) so the next
    `abp generate-proxy` run does not re-trigger investigation. Add a
    note: "After regen, do not delete or edit the
-   `StringValues` shim at `src/types/abp-proxy-shims.d.ts`. The
+   `StringValues` shim at `angular/src/types/abp-proxy-shims.d.ts`. The
    generator continues to emit `Record<string, StringValues>` without
    declaring the type."
 

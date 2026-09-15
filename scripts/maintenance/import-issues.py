@@ -205,7 +205,7 @@ def collect_findings() -> list[dict]:
             continue
         fid, title = fm.get("id", path.stem), fm.get("title", path.stem)
         sev = severity_of(fm.get("severity", ""))
-        kind = "type/observation" if fid.startswith("OBS") else "type/bug"
+        kind = TYPE_OBSERVATION if fid.startswith("OBS") else TYPE_BUG
         rel = path.relative_to(ROOT).as_posix()
         body = [f"Imported from `{rel}`, which keeps the reproduction and diagnosis.", ""]
         for key in ("severity", "found", "flow", "component"):
@@ -258,7 +258,7 @@ def collect_backlog() -> list[dict]:
         n += 1
         issues.append({
             "key": f"BL-{n:02d}", "title": title,
-            "labels": [SEV_MEDIUM, "type/bug", SRC_BACKLOG],
+            "labels": [SEV_MEDIUM, TYPE_BUG, SRC_BACKLOG],
             "body": redact(f"Recorded in the working backlog on {m.group(1)}.\n\n"
                            f"Identifiers are redacted: this file was gitignored, so publishing "
                            f"it discloses content the other trackers deliberately do not."),
@@ -271,7 +271,7 @@ def collect_backlog() -> list[dict]:
         n += 1
         issues.append({
             "key": f"BL-{n:02d}", "title": title[:100],
-            "labels": [SEV_MEDIUM, "type/bug", SRC_BACKLOG],
+            "labels": [SEV_MEDIUM, TYPE_BUG, SRC_BACKLOG],
             "body": redact(f"Recorded {m.group(1)} ({m.group(2)}).\n\nIdentifiers redacted."),
         })
     return issues
@@ -511,7 +511,7 @@ def already_created() -> dict[str, str]:
     if not MAP.exists():
         return {}
     rows = MAP.read_text(encoding="utf-8").splitlines()
-    return dict(r.split("\t", 1) for r in rows if "\t" in r)
+    return {name: value for name, value in (r.split("\t", 1) for r in rows if "\t" in r)}
 
 
 def dry_run() -> None:

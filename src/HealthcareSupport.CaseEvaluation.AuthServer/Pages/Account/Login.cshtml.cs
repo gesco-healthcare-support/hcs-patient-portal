@@ -122,7 +122,7 @@ public class LoginModel : OpenIddictSupportedLoginModel
         // OpenIddict cancel-button flow -- pass through untouched.
         if (action == "Cancel")
         {
-            return await base.OnPostAsync(action!);
+            return await base.OnPostAsync(action);
         }
 
         // Pass-through value: base.OnPostAsync's parameter is non-nullable

@@ -125,7 +125,7 @@ public class ClinicalStaffCancellationEmailHandler :
             var recipients = new List<NotificationRecipient>
             {
                 new NotificationRecipient(
-                    email: officeEmail!,
+                    email: officeEmail,
                     role: RecipientRole.OfficeAdmin,
                     isRegistered: false),
             };

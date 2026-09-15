@@ -87,7 +87,7 @@ public class DoctorProfileDataSeedContributor : IDataSeedContributor, ITransient
                 id: _guidGenerator.Create(),
                 firstName: ctxFirstName?.Trim() ?? string.Empty,
                 lastName: ctxLastName?.Trim() ?? string.Empty,
-                email: string.IsNullOrWhiteSpace(ctxEmail) ? adminEmail : ctxEmail!.Trim(),
+                email: string.IsNullOrWhiteSpace(ctxEmail) ? adminEmail : ctxEmail.Trim(),
                 gender: Gender.Male);
         }
         else if (office != null)

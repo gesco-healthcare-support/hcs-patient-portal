@@ -296,9 +296,15 @@ public class PacketTokenContext
 
     /// <summary>
     /// OLD: <c>##Others.DateNow##</c>. Today in PACIFIC time, <c>MM/dd/yyyy</c>
-    /// then ToUpper'd (no-op for digits). Computed by the resolver at the
-    /// time the packet is rendered. UTC -> Pacific Time conversion is the
-    /// AppService's responsibility, not the resolver's.
+    /// then ToUpper'd (no-op for digits). Computed at the time the packet is
+    /// rendered.
+    ///
+    /// <para>2026-09-14 (#710): this used to say "UTC -&gt; Pacific Time
+    /// conversion is the AppService's responsibility, not the resolver's".
+    /// That was wrong and pointed a reader away from where the behaviour
+    /// actually lives -- the conversion happens on the resolver's path, in
+    /// <see cref="PacketDateStamp.GeneratedOn"/>. A docstring that sends
+    /// someone to the wrong layer is how the next person misses it.</para>
     /// </summary>
     public string DateNow { get; set; } = string.Empty;
 }

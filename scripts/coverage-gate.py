@@ -31,6 +31,7 @@ no threshold is a check that passes because nobody finished wiring it.
 from __future__ import annotations
 
 import argparse
+import functools
 import re
 # The FIRST subprocess call in this file, and a deliberate narrowing of the
 # purity #856 chose. Its reasoning was "discovery lives in the workflow because
@@ -146,31 +147,73 @@ def discover_tracked() -> set[str]:
     return tracked
 
 
-def in_repo(path: str, tracked: set[str]) -> bool:
+@functools.cache
+def workspace_prefixes() -> tuple[str, ...]:
+    """The prefixes a repo-relative path may legitimately arrive behind.
+
+    Exactly ONE thing is recognised: the checkout this gate is running in, as
+    git reports it. Both the slashed and unslashed spellings are returned,
+    because `normalise` does not strip a leading `/` and reports have been
+    observed in both shapes.
+
+    Deriving it rather than listing runner layouts means this keeps working on a
+    self-hosted runner, a container, or a developer machine, none of which put
+    the checkout at `/home/runner/work/<repo>/<repo>`.
+
+    An empty tuple when git cannot answer is deliberate and safe HERE, unlike in
+    `discover_tracked`: with no recognised prefix every absolute path fails the
+    guard, which is the closed direction. `discover_tracked` has already exited
+    on a git failure long before this runs.
+    """
+    result = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return ()
+    root = result.stdout.strip().replace("\\", "/").rstrip("/")
+    # The `if p` filter is what makes a blank answer safe, so there is no
+    # separate `if not root` guard above it. Mutation testing is why: with one
+    # there, disabling EITHER left the function still returning () -- each was
+    # masked by the other, so neither could be seen to fail and both read as
+    # load-bearing while being redundant.
+    return tuple(dict.fromkeys(p for p in (root, root.lstrip("/")) if p))
+
+
+def in_repo(path: str, tracked: set[str],
+            prefixes: tuple[str, ...] | None = None) -> bool:
     """Is this report path one of the repository own files?
 
-    SUFFIX matching, not equality, and that distinction is the difficulty.
-    Cobertura carries absolute runner paths and `normalise` strips only a leading
-    `./`, so one of our files arrives as
-    `home/runner/work/<repo>/<repo>/src/App/Foo.cs`. Comparing that against
-    `git ls-files` output by equality fails for EVERY file -- measured once as
-    925 of 925 "untracked", which is a tell rather than a result. Three distinct
-    leading shapes appear in one backend report and one in the frontend.
+    ANCHORED, not a suffix search, and that distinction is the whole point
+    (#864). Cobertura carries absolute checkout paths, so one of our files
+    arrives as `<workspace>/src/App/Foo.cs`; comparing by equality fails for
+    EVERY file -- measured once as 925 of 925 "untracked", which is a tell
+    rather than a result.
 
-    Matching is on a separator boundary, so `Xsrc/A.cs` never satisfies `src/A.cs`.
+    The first implementation fixed that by trying every suffix at a separator
+    boundary. That re-admitted precisely what this guard exists to reject: with
+    `src/App/Foo.cs` tracked, all three of these passed --
+
+        _/src/App/Foo.cs             the SourceLink vendor root itself
+        vendor/src/App/Foo.cs        a vendored copy of one of our paths
+        /nix/store/abc/src/App/Foo.cs  an unrelated absolute tree
+
+    A vendor file only had to END with a path we track. The guard was widest
+    exactly where its threat model is.
+
+    Now a prefix is removed ONLY when it is a recognised workspace root, so a
+    tree at any other location stays unmatched and still fails.
     """
     if path in tracked:
         return True
-    parts = path.split("/")
-    for i in range(1, len(parts)):
-        if "/".join(parts[i:]) in tracked:
+    for prefix in (workspace_prefixes() if prefixes is None else prefixes):
+        if path.startswith(prefix + "/") and path[len(prefix) + 1:] in tracked:
             return True
     return False
 
 
 def assert_tracked(per_file: dict[str, dict[int, int]],
                    patterns: list[re.Pattern[str]],
-                   tracked: set[str]) -> None:
+                   tracked: set[str],
+                   prefixes: tuple[str, ...] | None = None) -> None:
     """Fail if any COUNTED file is not a file of this repository.
 
     Its own function rather than a branch inside `summarise`: measuring was split
@@ -182,8 +225,12 @@ def assert_tracked(per_file: dict[str, dict[int, int]],
     That list grows one vendor at a time, and the next one matches none of its
     patterns and arrives with no signal at all. This is the signal.
     """
+    # Resolved once here rather than per file: `in_repo` would otherwise shell
+    # out to git for every counted path, thousands of times for one report.
+    prefixes = workspace_prefixes() if prefixes is None else prefixes
     strays = sorted(p for p in per_file
-                    if not excluded(p, patterns) and not in_repo(p, tracked))
+                    if not excluded(p, patterns)
+                    and not in_repo(p, tracked, prefixes))
     if not strays:
         return
     for stray in strays[:10]:

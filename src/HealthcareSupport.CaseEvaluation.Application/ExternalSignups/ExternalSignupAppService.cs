@@ -61,7 +61,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly DefenseAttorneyManager _defenseAttorneyManager;
     private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     private readonly AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
-    private readonly IBackgroundJobManager _backgroundJobManager;
     // 2026-05-15: tokenized invite flow. Manager owns token gen + hash +
     // accept; dispatcher routes the email through the per-tenant
     // InviteExternalUser NotificationTemplate (same path as
@@ -95,12 +94,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // URL is built via this service rather than concatenating the raw
     // setting value, so the tenant subdomain is always present.
     private readonly Notifications.IAccountUrlBuilder _accountUrlBuilder;
-    // BUG-012 (2026-05-22): typed CaseEvaluationResource localizer for the
-    // static ValidateRegistrationInput helper. The base class L property is
-    // an instance-only IStringLocalizer; the validator stays `internal static`
-    // (tests bypass DI), so we pass this through as an optional parameter --
-    // tests call with null + assert against the English fallback string.
-    private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
     // 2026-06-22 -- shared appointment-visibility rule. The external-user lookup
     // scopes an external caller's results to the SAME appointments that caller can
     // see, so the lookup and the appointment list cannot drift apart.
@@ -129,7 +122,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         DefenseAttorneyManager defenseAttorneyManager,
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
-        IBackgroundJobManager backgroundJobManager,
         IHostEnvironment hostEnvironment,
         IDataFilter dataFilter,
         InvitationManager invitationManager,
@@ -137,7 +129,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         INotificationDispatcher notificationDispatcher,
         IAccountEmailer accountEmailer,
         Notifications.IAccountUrlBuilder accountUrlBuilder,
-        IStringLocalizer<CaseEvaluationResource> localizer,
         AppointmentVisibilityService appointmentVisibilityService,
         ITenantWorkRunner tenantWorkRunner)
     {
@@ -159,7 +150,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _defenseAttorneyManager = defenseAttorneyManager;
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
-        _backgroundJobManager = backgroundJobManager;
         _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;
         _invitationManager = invitationManager;
@@ -167,7 +157,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _notificationDispatcher = notificationDispatcher;
         _accountEmailer = accountEmailer;
         _accountUrlBuilder = accountUrlBuilder;
-        _localizer = localizer;
         _appointmentVisibilityService = appointmentVisibilityService;
         _tenantWorkRunner = tenantWorkRunner;
     }
@@ -487,7 +476,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         var roleIds = roles.Select(r => r.Id).ToList();
-        var roleNameMap = roles.ToDictionary(r => r.Id, r => r.Name!);
+        var roleNameMap = roles.ToDictionary(r => r.Id, r => r.Name);
 
         var userQuery = await _identityUserRepository.GetQueryableAsync();
         var currentUserId = CurrentUser.Id;
@@ -1856,12 +1845,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     ///         <c>UserDomain.cs:272</c> which checked PatientAttorney
     ///         twice).</item>
     /// </list>
-    /// Internal so unit tests can verify without standing up ABP. Tests
-    /// call with <paramref name="localizer"/>=null + assert against the
-    /// English fallback strings below; production caller passes the
-    /// AppService's injected <c>_localizer</c> so the SPA banner shows the
-    /// localized text rather than the generic "An internal error occurred"
-    /// ABP fallback (BUG-012, mirrors the BUG-014 / BUG-025 fix pattern).
+    /// Internal so unit tests can verify without standing up ABP.
+    ///
+    /// <para>2026-09-14: this used to describe a <c>localizer</c> parameter that
+    /// production supplied from an injected <c>_localizer</c>. THERE IS NO SUCH
+    /// PARAMETER and there never was one on this signature -- the field was
+    /// injected, assigned, and read nowhere (S4487). The design it described was
+    /// superseded: each failure throws a <c>BusinessException</c> carrying an
+    /// error code, and ABP resolves that code against the localization files, so
+    /// the SPA banner is localized without this method knowing anything about
+    /// it. See <c>CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired</c>
+    /// and its entry in <c>Localization/CaseEvaluation/en.json</c>.</para>
     /// </summary>
     internal static void ValidateRegistrationInput(ExternalUserSignUpDto input)
     {

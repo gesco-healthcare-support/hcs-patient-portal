@@ -45,14 +45,28 @@ class DiscoverTrackedTests(unittest.TestCase):
         self.assertIn(".coverage-exclusions", tracked)
         self.assertGreater(len(tracked), 500)
 
-    def test_the_result_satisfies_in_repo_for_an_absolute_runner_path(self):
-        # The shape that mattered: a file of OURS arriving with a runner prefix.
-        # Comparing by equality reported 925 of 925 untracked; this pins that
-        # discovery and matching agree on a real path from a real report.
+    def test_the_result_satisfies_in_repo_for_an_absolute_checkout_path(self):
+        """Discovery and matching must agree on a real path from a real report.
+
+        Comparing by equality reported 925 of 925 untracked, which is what this
+        pins against. The prefix is taken from `workspace_prefixes` rather than
+        hardcoded as `/home/runner/work/<repo>/<repo>`: since #864 a prefix is
+        stripped only when it is THIS checkout, so a hardcoded runner path is
+        correctly rejected everywhere except a GitHub runner -- and a test that
+        only passes in CI is not a test.
+        """
         tracked = gate.discover_tracked()
-        runner = ("/home/runner/work/hcs-patient-portal/hcs-patient-portal/"
-                  "scripts/coverage-gate.py")
-        self.assertTrue(gate.in_repo(runner, tracked))
+        prefixes = gate.workspace_prefixes()
+        self.assertTrue(prefixes, "no workspace root to build a report path from")
+        absolute = prefixes[0] + "/scripts/coverage-gate.py"
+        self.assertTrue(gate.in_repo(absolute, tracked))
+
+    def test_an_absolute_path_OUTSIDE_this_checkout_is_rejected(self):
+        # The complement, and the #864 case: a vendor tree whose tail collides
+        # with one of ours must not be admitted just because it ends correctly.
+        tracked = gate.discover_tracked()
+        self.assertFalse(gate.in_repo(
+            "/home/runner/work/other/other/scripts/coverage-gate.py", tracked))
 
     def test_a_git_failure_exits_rather_than_returning_an_empty_set(self):
         # Run from a directory that is not a work tree so git genuinely fails --
@@ -129,6 +143,11 @@ class MainWiringTests(unittest.TestCase):
                     try:
                         code = gate.main()
                     except SystemExit as exc:
+                        # S5754 says to re-raise. NOT HERE, and this is the whole
+                        # point of the helper: main() signals failure by EXITING,
+                        # so capturing the code is the only way to assert on it.
+                        # Re-raising would make every guard test unwritable.
+                        # Marked rather than "fixed" -- see #818.
                         code = exc.code
             finally:
                 sys.argv = original_argv

@@ -122,7 +122,7 @@ NOT the API host's `/api/account/*` -- those routes don't exist on the API host 
 - Password reset
 - 2FA / email security codes
 
-The override `CaseEvaluationAccountEmailer` (`src/HealthcareSupport.CaseEvaluation.AuthServer/Emailing/CaseEvaluationAccountEmailer.cs`) is registered in the AuthServer's DI container with `[Dependency(ReplaceServices = true)]` + `[ExposeServices(typeof(IAccountEmailer))]`. ABP's `AccountAppService` (Razor pages + the AuthServer-hosted `/api/account/*` endpoints) resolves `IAccountEmailer` from that container -> the override fires.
+The override `CaseEvaluationAccountEmailer` (`src/HealthcareSupport.CaseEvaluation.Application/Emailing/CaseEvaluationAccountEmailer.cs`) is registered in the AuthServer's DI container with `[Dependency(ReplaceServices = true)]` + `[ExposeServices(typeof(IAccountEmailer))]`. ABP's `AccountAppService` (Razor pages + the AuthServer-hosted `/api/account/*` endpoints) resolves `IAccountEmailer` from that container -> the override fires.
 
 > **Correction:** path above is wrong. The override lives in the Application project at `src/HealthcareSupport.CaseEvaluation.Application/Emailing/CaseEvaluationAccountEmailer.cs`, and both module manifests `DependsOn` the Application module -- so both containers see the override.
 

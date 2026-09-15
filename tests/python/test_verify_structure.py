@@ -110,7 +110,7 @@ class FixtureRepoTestCase(QuietTestCase):
             (directory / "CLAUDE.md").write_text("# " + name, encoding="utf-8")
         return directory
 
-    def report(self):
+    def _report(self):
         return verify_structure.Report()
 
 
@@ -119,7 +119,7 @@ class FixtureIsInUseTests(FixtureRepoTestCase):
 
     def test_the_feature_check_reads_the_fixture_and_not_the_repository(self):
         self.feature(SENTINEL_FEATURE)
-        r = self.report()
+        r = self._report()
 
         covered = verify_structure.check_feature_claude_coverage(r)
 
@@ -207,7 +207,7 @@ class RequiredFilesTests(FixtureRepoTestCase):
     def test_every_required_file_present_and_non_empty_passes(self):
         for relative in verify_structure.REQUIRED_FILES:
             self.write(relative)
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_required_files(r)
 
@@ -218,7 +218,7 @@ class RequiredFilesTests(FixtureRepoTestCase):
         for relative in verify_structure.REQUIRED_FILES[1:]:
             self.write(relative)
         missing = verify_structure.REQUIRED_FILES[0]
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_required_files(r)
 
@@ -230,7 +230,7 @@ class RequiredFilesTests(FixtureRepoTestCase):
         for relative in verify_structure.REQUIRED_FILES:
             self.write(relative)
         (self.root / verify_structure.REQUIRED_FILES[0]).write_text("", encoding="utf-8")
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_required_files(r)
 
@@ -242,7 +242,7 @@ class FeatureCoverageTests(FixtureRepoTestCase):
     def test_a_feature_without_a_claude_md_fails(self):
         self.feature("Covered")
         self.feature("Bare", with_claude_md=False)
-        r = self.report()
+        r = self._report()
 
         covered = verify_structure.check_feature_claude_coverage(r)
 
@@ -252,10 +252,10 @@ class FeatureCoverageTests(FixtureRepoTestCase):
 
     def test_excluded_directories_are_skipped_entirely(self):
         """A negative guarantee, so the excluded directory is PRESENT and bare."""
-        excluded = sorted(verify_structure.DOMAIN_EXCLUDE)[0]
+        excluded = min(verify_structure.DOMAIN_EXCLUDE)
         self.feature(excluded, with_claude_md=False)
         self.feature("Real")
-        r = self.report()
+        r = self._report()
 
         covered = verify_structure.check_feature_claude_coverage(r)
 
@@ -266,13 +266,13 @@ class FeatureCoverageTests(FixtureRepoTestCase):
     def test_loose_files_in_domain_are_not_treated_as_features(self):
         self.fixture_domain.mkdir(parents=True, exist_ok=True)
         (self.fixture_domain / "Stray.cs").write_text("//", encoding="utf-8")
-        r = self.report()
+        r = self._report()
 
         self.assertEqual(verify_structure.check_feature_claude_coverage(r), 0)
         self.assertEqual(r.fails, [])
 
     def test_a_missing_domain_root_fails_and_returns_zero(self):
-        r = self.report()
+        r = self._report()
 
         covered = verify_structure.check_feature_claude_coverage(r)
 
@@ -284,14 +284,14 @@ class LayerClaudeFilesTests(FixtureRepoTestCase):
     def test_present_layer_files_pass(self):
         for relative in verify_structure.LAYER_CLAUDE_FILES:
             self.write(relative)
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_layer_claude_files(r)
 
         self.assertEqual(r.fails, [])
 
     def test_a_missing_layer_file_fails_and_names_it(self):
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_layer_claude_files(r)
 
@@ -307,7 +307,7 @@ class RepoMapFreshnessTests(FixtureRepoTestCase):
 
     def test_a_recent_map_passes(self):
         self._index((datetime.now(timezone.utc) - timedelta(days=1)).isoformat())
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_repo_map_freshness(r)
 
@@ -315,7 +315,7 @@ class RepoMapFreshnessTests(FixtureRepoTestCase):
 
     def test_a_map_older_than_thirty_days_warns_rather_than_fails(self):
         self._index((datetime.now(timezone.utc) - timedelta(days=45)).isoformat())
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_repo_map_freshness(r)
 
@@ -323,7 +323,7 @@ class RepoMapFreshnessTests(FixtureRepoTestCase):
         self.assertEqual(len(r.warns), 1)
 
     def test_a_missing_index_fails(self):
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_repo_map_freshness(r)
 
@@ -331,7 +331,7 @@ class RepoMapFreshnessTests(FixtureRepoTestCase):
 
     def test_an_unparseable_index_fails_rather_than_raising(self):
         self.write(self.INDEX, "{not json")
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_repo_map_freshness(r)
 
@@ -339,7 +339,7 @@ class RepoMapFreshnessTests(FixtureRepoTestCase):
 
     def test_an_index_without_generated_at_fails(self):
         self.write(self.INDEX, json.dumps({"other": 1}))
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_repo_map_freshness(r)
 
@@ -349,7 +349,7 @@ class RepoMapFreshnessTests(FixtureRepoTestCase):
 class DecisionsAndSecurityTests(FixtureRepoTestCase):
     def test_decisions_with_only_a_readme_warns(self):
         self.write("docs/decisions/README.md")
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_decisions_not_empty(r)
 
@@ -359,14 +359,14 @@ class DecisionsAndSecurityTests(FixtureRepoTestCase):
     def test_decisions_with_an_adr_passes(self):
         self.write("docs/decisions/README.md")
         self.write("docs/decisions/0001-choose-a-thing.md")
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_decisions_not_empty(r)
 
         self.assertEqual((r.warns, r.fails), ([], []))
 
     def test_a_missing_decisions_directory_fails(self):
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_decisions_not_empty(r)
 
@@ -375,7 +375,7 @@ class DecisionsAndSecurityTests(FixtureRepoTestCase):
     def test_fewer_than_five_security_documents_warns(self):
         for name in ("a", "b"):
             self.write("docs/security/{}.md".format(name))
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_security_dir_populated(r)
 
@@ -384,7 +384,7 @@ class DecisionsAndSecurityTests(FixtureRepoTestCase):
     def test_five_security_documents_pass(self):
         for name in ("a", "b", "c", "d", "e"):
             self.write("docs/security/{}.md".format(name))
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_security_dir_populated(r)
 
@@ -394,14 +394,14 @@ class DecisionsAndSecurityTests(FixtureRepoTestCase):
 class ProxyReadmeTests(FixtureRepoTestCase):
     def test_present_readme_passes(self):
         self.write("angular/src/app/proxy/README.md")
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_proxy_not_tracked(r)
 
         self.assertEqual((r.warns, r.fails), ([], []))
 
     def test_a_missing_readme_warns_rather_than_failing(self):
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_proxy_not_tracked(r)
 
@@ -419,7 +419,7 @@ class FeatureCountConsistencyTests(FixtureRepoTestCase):
 
     def test_matching_counts_pass(self):
         self._root_claude_md(3)
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_feature_count_consistency(r, 3)
 
@@ -427,7 +427,7 @@ class FeatureCountConsistencyTests(FixtureRepoTestCase):
 
     def test_a_mismatch_warns_and_reports_both_numbers(self):
         self._root_claude_md(3)
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_feature_count_consistency(r, 5)
 
@@ -436,7 +436,7 @@ class FeatureCountConsistencyTests(FixtureRepoTestCase):
         self.assertIn("5", r.warns[0])
 
     def test_a_missing_root_claude_md_fails(self):
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_feature_count_consistency(r, 1)
 
@@ -444,7 +444,7 @@ class FeatureCountConsistencyTests(FixtureRepoTestCase):
 
     def test_an_empty_index_table_warns(self):
         self.write("CLAUDE.md", "# no index here")
-        r = self.report()
+        r = self._report()
 
         verify_structure.check_feature_count_consistency(r, 1)
 

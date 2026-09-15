@@ -99,7 +99,7 @@ public class UserQuerySubmittedEmailHandler :
             {
                 recipients = new List<NotificationRecipient>
                 {
-                    new(email: responsibleEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true),
+                    new(email: responsibleEmail, role: RecipientRole.OfficeAdmin, isRegistered: true),
                 };
             }
             else

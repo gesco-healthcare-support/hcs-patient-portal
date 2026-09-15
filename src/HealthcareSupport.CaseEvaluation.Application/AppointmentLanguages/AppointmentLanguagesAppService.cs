@@ -41,7 +41,7 @@ public class AppointmentLanguagesAppService : CaseEvaluationAppService, IAppoint
         // Prompt 15 / item 32: per-row UsageCount = referencing Patient rows.
         foreach (var dto in dtoItems)
         {
-            dto.UsageCount = (int)await _patientRepository.CountAsync(p => p.AppointmentLanguageId == dto.Id);
+            dto.UsageCount = await _patientRepository.CountAsync(p => p.AppointmentLanguageId == dto.Id);
         }
         return new PagedResultDto<AppointmentLanguageDto>
         {

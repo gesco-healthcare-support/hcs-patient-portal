@@ -107,7 +107,7 @@ public class DocumentRejectedEmailHandler :
             var parties = await _recipientResolver.ResolveAsync(
                 eventData.AppointmentId, NotificationKind.DocumentRejected);
             var to = new NotificationRecipient(
-                email: uploaderEmail!,
+                email: uploaderEmail,
                 role: RecipientRole.Patient,
                 isRegistered: ctx.DocumentUploadedByUserId.HasValue);
             var cc = parties

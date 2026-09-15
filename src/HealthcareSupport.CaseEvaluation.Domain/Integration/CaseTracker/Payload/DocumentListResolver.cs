@@ -40,10 +40,7 @@ public class DocumentListResolver : IDocumentListResolver, ITransientDependency
         Appointment appointment,
         CancellationToken cancellationToken = default)
     {
-        if (appointment is null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
 
         var entries = new List<IntakeDocumentEntry>();
         entries.AddRange(await ResolveDocumentsAsync(appointment, cancellationToken));
@@ -99,10 +96,7 @@ public class DocumentListResolver : IDocumentListResolver, ITransientDependency
         Appointment appointment,
         CancellationToken cancellationToken = default)
     {
-        if (appointment is null)
-        {
-            throw new ArgumentNullException(nameof(appointment));
-        }
+        ArgumentNullException.ThrowIfNull(appointment);
 
         var packets = await _packetRepository.GetListAsync(
             p => p.AppointmentId == appointment.Id, cancellationToken: cancellationToken);
