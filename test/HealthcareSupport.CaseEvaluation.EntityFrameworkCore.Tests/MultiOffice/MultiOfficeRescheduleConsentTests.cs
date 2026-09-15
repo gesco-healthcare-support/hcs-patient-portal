@@ -30,6 +30,35 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
 {
     private static readonly Guid EmailTypeId = Guid.Parse("c0000001-0000-4000-9000-000000000001");
 
+    /// <summary>
+    /// Gives every scenario its own minute offset, so no two scenarios seed the same slot.
+    ///
+    /// <para>WHY THIS IS NEEDED AT ALL. The two offices are seeded ONCE PER PROCESS
+    /// (<c>CaseEvaluationMultiOfficeTestBase._seededOffices</c> is <c>static</c>), so every
+    /// scenario in every MultiOffice class writes against the SAME OfficeId and LocationId in one
+    /// shared database. A slot is identified by
+    /// (TenantId, LocationId, AvailableDate, FromTime, ToTime), so the previous fixed times meant
+    /// all 13 scenarios seeded the same three tuples, differing only by row Id. That was invisible
+    /// until the slot-identity index turned it into an error.</para>
+    ///
+    /// <para>WHY THE MINUTES AND NOT THE DATES. Moving the DATES apart was tried first and is
+    /// wrong: <c>BookingPolicyValidator</c> enforces a MAXIMUM horizon as well as a lead time --
+    /// 60 days for an external caller, 90 for internal staff, described there as the absolute
+    /// ceiling. Pushing slots to +100 put every scenario past it and
+    /// <c>ConfirmRescheduleDateAsync</c> threw <c>AppointmentBookingDatePastMaxHorizon</c> for all
+    /// 13. The three dates must also stay DISTINCT from each other, because
+    /// <c>Confirming_a_different_date_supersedes_round_one_and_opens_round_two</c> depends on the
+    /// proposed slot being on a different DAY -- and 13 scenarios times 3 distinct days does not
+    /// fit under a 60-day ceiling alongside the rest of the suite. The times are the only axis
+    /// with room.</para>
+    ///
+    /// <para>Offsets start at 1, never 0, so no scenario lands on an exact hour:
+    /// <c>MultiOfficeAtomicBookingSubmitTests</c> seeds 09:00-10:00 at +30, which is one of these
+    /// dates. When adding a slot anywhere in the MultiOffice tests, pick a
+    /// (date, FromTime, ToTime) no other test uses.</para>
+    /// </summary>
+    private static int _scenarioCounter;
+
     private readonly IAppointmentChangeRequestsApprovalAppService _approvalAppService;
     private readonly IChangeRequestConsentRoundRepository _roundRepository;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
@@ -565,7 +594,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         DateTime SecondSlotDate);
 
     /// <summary>
-    /// A fresh APPOINTMENT, change request and two scratch slots per test, so the shared seeded
+    /// A fresh APPOINTMENT, change request and three scratch slots per test, so the shared seeded
     /// office data is never mutated.
     ///
     /// <para>The dedicated appointment is not optional: finalize MOVES the appointment it acts
@@ -583,6 +612,10 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         var originSlotId = Guid.NewGuid();
         var firstSlotId = Guid.NewGuid();
         var secondSlotId = Guid.NewGuid();
+        // Dates unchanged at +20/+30/+40: inside the booking horizon, and three distinct days as
+        // the supersede test requires. Uniqueness comes from the minute offset -- see
+        // _scenarioCounter.
+        var scenarioMinute = Interlocked.Increment(ref _scenarioCounter);
         var originSlotDate = DateTime.Today.AddDays(20);
         var firstSlotDate = DateTime.Today.AddDays(30);
         var secondSlotDate = DateTime.Today.AddDays(40);
@@ -590,9 +623,9 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(office, async () =>
         {
             await SeedTemplatesAsync(office.OfficeId);
-            await SeedSlotAsync(office, originSlotId, originSlotDate, new TimeOnly(8, 0));
-            await SeedSlotAsync(office, firstSlotId, firstSlotDate, new TimeOnly(9, 0));
-            await SeedSlotAsync(office, secondSlotId, secondSlotDate, new TimeOnly(10, 30));
+            await SeedSlotAsync(office, originSlotId, originSlotDate, new TimeOnly(8, 0).AddMinutes(scenarioMinute));
+            await SeedSlotAsync(office, firstSlotId, firstSlotDate, new TimeOnly(9, 0).AddMinutes(scenarioMinute));
+            await SeedSlotAsync(office, secondSlotId, secondSlotDate, new TimeOnly(10, 30).AddMinutes(scenarioMinute));
 
             // (TenantId, RequestConfirmationNumber) is uniquely indexed, so the number must be
             // distinct per scenario.
