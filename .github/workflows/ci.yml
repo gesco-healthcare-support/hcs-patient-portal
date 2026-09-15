@@ -692,19 +692,32 @@ jobs:
       #
       # Placed before restore so it costs seconds and fails fast. Comment lines are
       # excluded so the rule can be DESCRIBED in prose without tripping itself.
+      #
+      # COVERS test/ AS WELL AS src/ (#624). The analyser half of this guard cannot:
+      # src/Directory.Build.props scopes src/BannedSymbols.txt to shipping code
+      # deliberately, so test projects may build fixtures from concrete DateTime values,
+      # which is what a test should do. `DateTime.UtcNow.Date` is not that. It is not a
+      # concrete value at all -- it is whatever UTC calendar date the suite happens to run
+      # on, so the fixture differs every day and the pattern sits in the files people copy
+      # from. Three sites existed in test/ when this was extended; all three were replaced
+      # with fixed dates, which is how the rest of the suite already builds appointments.
+      #
+      # This does NOT extend the DateTime.Today / DateTime.Now ban to test/. That is 69
+      # sites and a decision about what a fixture may be, recorded on #624 rather than
+      # taken here.
       - name: No UTC calendar dates
         run: |
-          hits=$(grep -rn --include='*.cs' -E '(DateTime\.UtcNow|[Cc]lock\.Now)\.Date' src/ \
+          hits=$(grep -rn --include='*.cs' -E '(DateTime\.UtcNow|[Cc]lock\.Now)\.Date' src/ test/ \
                  | grep -vE ':[[:space:]]*(//|///|\*)' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
             m='a UTC instant had .Date taken off it. On a UTC server that is TOMORROW'
             m="$m's Pacific date after ~5pm, every day. Use PacificTime.TodayFrom(clock.Now)"
-            m="$m -- see src/BannedSymbols.txt and #623."
+            m="$m -- or a fixed date in a test fixture. See src/BannedSymbols.txt and #623."
             echo "::error::$m"
             exit 1
           fi
-          echo 'No UTC calendar dates in src/.'
+          echo 'No UTC calendar dates in src/ or test/.'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
