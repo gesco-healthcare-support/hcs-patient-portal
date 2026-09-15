@@ -46,7 +46,7 @@ component: angular/src/app/app.config.ts (missing APP_INITIALIZER)
 >   present in `dist/CaseEvaluation/browser/` even if `ng watch` clobbers
 >   it on a rebuild.
 > - `docker-compose.yml` angular service gained `NG_PORT`, `AUTH_PORT`,
->   `API_PORT` env-var block; the prior `docker/dynamic-env.json`
+>   `API_PORT` env-var block; the prior `angular/dynamic-env.json`
 >   bind-mount (with hardcoded canonical URLs) was removed.
 >
 > **Live-verified 2026-05-22** against `main-angular-1` on the running stack:
