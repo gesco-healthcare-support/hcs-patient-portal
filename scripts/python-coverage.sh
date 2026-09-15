@@ -42,4 +42,46 @@ python -m coverage xml -o "$OUT"
 # the "introduced findings while fixing findings" trap rather than a new one.
 [[ -s "$OUT" ]]
 
+# And assert on the SHAPE of that artefact, not only that it exists (#862).
+#
+# The denominator used to hold only the files the suite IMPORTED, so it moved
+# whenever an import appeared or vanished and the only symptom was a percentage
+# that had shifted. `include_namespace_packages` fixes the cause; this asserts the
+# effect, because losing that setting produces NO error -- just a smaller
+# denominator and a figure that flatters itself.
+#
+# The expected list is committed at tests/python/python-coverage-denominator.txt
+# and is the same file tests/python/test_python_coverage_denominator.py checks
+# against `git ls-files` plus the omit patterns. One list, two consumers, which is
+# the shape `.coverage-exclusions` already uses here -- and the shape that file
+# records having got wrong once, when sonarcloud.yml carried a hardcoded copy.
+python - "$OUT" <<'DENOM'
+import pathlib, sys, xml.etree.ElementTree as ET
+
+report = sys.argv[1]
+approved_file = pathlib.Path("tests/python/python-coverage-denominator.txt")
+approved = sorted(
+    line.strip()
+    for line in approved_file.read_text(encoding="utf-8").splitlines()
+    if line.strip() and not line.startswith("#")
+)
+actual = sorted(
+    {c.get("filename").replace("\\", "/") for c in ET.parse(report).iter("class")}
+)
+
+if actual != approved:
+    joined = sorted(set(actual) - set(approved))
+    left = sorted(set(approved) - set(actual))
+    print("The Python coverage denominator does not match the approved list.", file=sys.stderr)
+    print("  joined: " + (", ".join(joined) or "(none)"), file=sys.stderr)
+    print("  left:   " + (", ".join(left) or "(none)"), file=sys.stderr)
+    print("", file=sys.stderr)
+    print("If intended, regenerate " + str(approved_file) + " in this pull request", file=sys.stderr)
+    print("and re-derive FLOOR_PYTHON from a fresh measurement. If NOT intended, the", file=sys.stderr)
+    print("likely cause is include_namespace_packages being lost from pyproject.toml.", file=sys.stderr)
+    raise SystemExit(1)
+
+print("python coverage denominator matches the approved list (%d files)" % len(actual))
+DENOM
+
 echo "python coverage report written to $OUT"

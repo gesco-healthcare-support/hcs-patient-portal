@@ -877,67 +877,49 @@ jobs:
       # refuses to run without a floor and prints the figure to copy.
       #
       #   scripts/coverage-gate.py --python-cobertura coverage.xml --measure-only
-      #   -> python: 53.72% (347/646 lines over 4 files)
+      #   -> python: 30.98% (435/1404 lines over 8 files)
       #
-      # RE-MEASURED THREE TIMES WHILE THIS BRANCH WAS OPEN, and the movement is
-      # the point rather than an inconvenience:
+      # THE DENOMINATOR HAZARD THIS BLOCK USED TO DESCRIBE IS FIXED (#862), and
+      # the number moved a long way because of it. What stood here before was a
+      # careful account of a percentage that was a function of WHICH FILES THE
+      # SUITE IMPORTS -- 56.40% over 2 files, then 71.80%, then 53.72% over 4,
+      # each move caused by an import appearing rather than by code changing.
+      # Writing a test for something previously untested LOWERED it.
       #
-      #   56.40%  2 files  first measurement
-      #   71.80%  2 files  after #852 took verify_structure.py 43% -> 88%
-      #   53.72%  4 files  after #854 merged
+      # pyproject.toml now sets `include_namespace_packages` under
+      # [tool.coverage.report], which lifts coverage's package-recursion rule and
+      # so discovers in-scope files that nothing imports. Measured both ways on
+      # the coverage 7.15.2 this job pins:
       #
-      # The last one is the instructive one. #854 added a test that imports
-      # docker/packet-renderer/app.py, which imports post_process.py -- so two
-      # production files entered the denominator at 55% and 12%, and the figure
-      # fell 18 points without one line of production code changing.
+      #   before : 62.68% (435/694 lines over 4 files)
+      #   after  : 30.98% (435/1404 lines over 8 files)
       #
-      # That is the denominator hazard raised on #787, now demonstrated rather
-      # than predicted: this percentage is a function of WHICH FILES THE SUITE
-      # IMPORTS, so writing a test for something previously untested LOWERS it.
-      # Do not read a fall here as a regression, and do not raise this number to
-      # match a good day -- the next honest test will breach it. The stable
-      # metric is covered statements; the percentage is not comparable across
-      # two runs whose denominators differ.
+      # SAME NUMERATOR. The denominator doubles because four files that SHIP --
+      # the three build_*.py packet generators and check_fields.py, copied into
+      # the packet-renderer image and run at its build -- were not in it at all.
+      # Phase 8.1 in .coverage-exclusions had already ruled that those 882 lines
+      # stay in the denominator deliberately; the measurement simply was not
+      # doing it. So 30.98% is not a regression from 62.68%. It is what this
+      # repository's Python coverage has been the whole time.
       #
-      # WHAT THE 4 FILES ARE, because the composition matters more than the
-      # percentage. The report carries seven; `.coverage-exclusions` removes
-      # three by name (build-repo-map.py, check-links.py, import-issues.py --
-      # none can fail a build, each with its rationale recorded there). The four
-      # that count split two ways:
+      # THE RATCHET NOW POINTS THE RIGHT WAY, which is the actual deliverable.
+      # Those files sit in the denominator at 0%, so the first test for one
+      # RAISES this figure. Before, it lowered it: #843 added import-issues.py at
+      # 18% and took the total from 58% to 37%.
       #
-      #   TOOLING      scripts/coverage-gate.py
-      #                .claude/scripts/verify_structure.py
-      #   PRODUCTION   docker/packet-renderer/app.py
-      #                tools/packet-templates/shared/post_process.py
+      # THE FILE-COUNT TRIPWIRE IS BACK, and it is a SET rather than a count this
+      # time. The previous one was removed for being calibrated at 2 when the real
+      # count was 4, which made it worse than nothing. A count cannot say WHICH
+      # file moved; tests/python/python-coverage-denominator.txt is the committed
+      # set, checked in two places -- by
+      # tests/python/test_python_coverage_denominator.py against `git ls-files`
+      # plus the omit patterns, and by scripts/python-coverage.sh against the
+      # generated report. A denominator change now fails and names the file
+      # instead of quietly moving this percentage.
       #
-      # The second pair are not tooling and did not arrive by decision. They
-      # entered because a TEST IMPORTS THEM, and they ship in the packet-renderer
-      # image. So this floor now partly grades production code that nothing
-      # deliberately chose to gate on.
-      #
-      # THERE IS NO FILE-COUNT TRIPWIRE ANY MORE, and its removal is deliberate.
-      # This block used to say "if a future run reports 5 files, an exclusion
-      # has stopped matching" -- calibrated against a 2-file baseline, and left
-      # in place when the baseline became 4. A tripwire pointing at the wrong
-      # number is worse than none, because it will be believed: at 4 the next
-      # reader concludes an exclusion broke, and at 5 concludes nothing is
-      # wrong. The honest statement is that this count WILL move again whenever
-      # a test starts importing something new, and that #862 tracks making it
-      # stop moving. Until then a changed count is information, not an alarm.
-      #
-      # READ THIS BEFORE RAISING IT. The Python denominator contains only the
-      # files the suite IMPORTS, not the files in scope. Nine of the repo's
-      # twelve in-scope .py files are un-excluded, so they would count -- but
-      # seven are absent from the report because nothing imports them, among
-      # them the two packet generators at ~2,900 lines. Covering any of them
-      # therefore LOWERS this percentage rather than raising it, and a floor
-      # raised to match today's figure would fire on the next person who tests
-      # something new. That is the opposite of what a ratchet is for.
-      #
-      # It is set at the observed figure anyway, floored to a whole number per
-      # the rule above, because a floor that cannot fail is worse. The
-      # denominator question is tracked on #862 rather than silently absorbed.
-      FLOOR_PYTHON: "53"
+      # IF YOU CHANGE THAT SET, re-derive this number from a fresh --measure-only
+      # run in the same pull request. Do not tune it to make something pass.
+      FLOOR_PYTHON: "30"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
