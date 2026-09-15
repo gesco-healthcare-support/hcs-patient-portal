@@ -249,22 +249,6 @@
           "StackExchange.Redis": "2.7.33"
         }
       },
-      "DocumentFormat.OpenXml": {
-        "type": "Transitive",
-        "resolved": "3.5.1",
-        "contentHash": "zxdOf5VVCe/uNklbRhj8dVBzQGj3DoqkUuqOp9cAZVuN8mNYDjof1lvSQA2OQNr8Ptc9d7pbA7Azq/ReaI3FpA==",
-        "dependencies": {
-          "DocumentFormat.OpenXml.Framework": "3.5.1"
-        }
-      },
-      "DocumentFormat.OpenXml.Framework": {
-        "type": "Transitive",
-        "resolved": "3.5.1",
-        "contentHash": "U5txtc3ORno73xQx9Lf2gWzfaSZnZwKHfLkTAslhlew9lxe5XbUiCt0dY1fHeAf8yRqszUAe5i/+xLC9R/Xfsw==",
-        "dependencies": {
-          "System.IO.Packaging": "10.0.2"
-        }
-      },
       "Duende.IdentityModel": {
         "type": "Transitive",
         "resolved": "7.1.0",
@@ -1671,11 +1655,6 @@
         "type": "Transitive",
         "resolved": "9.0.4",
         "contentHash": "WogPvgAFqQORFD8Iyha6RZ+/1QB3dsWRWxbwi8/HHVgiGQ8z0oMWpwe8Kk3Ti+Roe+P6a3sBg+WwBfEsyziZKg=="
-      },
-      "System.IO.Packaging": {
-        "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "JTpM4z0wpoIHHDvlCU27HsXo+zVnpWib94HXQpzzr+jc/P9NYf4w353AK4MXyGq/grm1mbLi7eXsOsDU8sGmNg=="
       },
       "System.Linq.Dynamic.Core": {
         "type": "Transitive",
@@ -4030,7 +4009,6 @@
       "healthcaresupport.caseevaluation.domain.tests": {
         "type": "Project",
         "dependencies": {
-          "DocumentFormat.OpenXml": "[3.5.1, )",
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "HealthcareSupport.CaseEvaluation.TestBase": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
@@ -4069,10 +4047,14 @@
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
           "Scriban": "[7.2.5, )",
+          "Serilog.AspNetCore": "[9.0.0, )",
+          "Serilog.Sinks.Async": "[2.1.0, )",
           "System.Security.Cryptography.Xml": "[10.0.10, )",
           "Volo.Abp.Account.Pro.Admin.HttpApi": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.HttpApi": "[10.0.2, )",
+          "Volo.Abp.AspNetCore.Serilog": "[10.0.2, )",
           "Volo.Abp.AuditLogging.HttpApi": "[10.0.2, )",
+          "Volo.Abp.Autofac": "[10.0.2, )",
           "Volo.Abp.FeatureManagement.HttpApi": "[10.0.2, )",
           "Volo.Abp.Gdpr.HttpApi": "[10.0.2, )",
           "Volo.Abp.Identity.Pro.HttpApi": "[10.0.2, )",
@@ -4080,6 +4062,7 @@
           "Volo.Abp.OpenIddict.Pro.HttpApi": "[10.0.2, )",
           "Volo.Abp.PermissionManagement.HttpApi": "[10.0.2, )",
           "Volo.Abp.SettingManagement.HttpApi": "[10.0.2, )",
+          "Volo.Abp.Studio.Client.AspNetCore": "[2.1.9, )",
           "Volo.Abp.TextTemplateManagement.HttpApi": "[10.0.2, )",
           "Volo.FileManagement.HttpApi": "[10.0.2, )",
           "Volo.Saas.Host.HttpApi": "[10.0.2, )"
