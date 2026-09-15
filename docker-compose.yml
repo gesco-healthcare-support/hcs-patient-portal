@@ -99,19 +99,40 @@ services:
     environment:
       MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
-      BUCKET_NAME: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      # BUCKET_NAMES, plural and space-separated, so this block is the same shape
+      # as docker-compose.prod.yml. It deliberately holds ONE bucket where prod
+      # holds two, and #868 exists because neither file said so.
+      #
+      # WHY DEV DOES NOT CREATE case-tracker-documents. That bucket holds what the
+      # CASE TRACKER's staff upload; the portal never reads or writes it. Measured
+      # rather than assumed -- grepping src/ and angular/src for the bucket name,
+      # MINIO_CASE_TRACKER_BUCKET_NAME or CaseTrackerBucket returns nothing. It is
+      # referenced in exactly three places, all production: the prod compose file
+      # that creates it, env.prod.example, and scripts/hosting/backup-offbox.sh,
+      # which mirrors both buckets off-box.
+      #
+      # So on a dev box it would be an empty bucket nothing writes to and nothing
+      # reads from. The two writers that justify it -- the Case Tracker, and the
+      # production backup -- are neither of them pointed at a local MinIO.
+      #
+      # ADD IT HERE if that ever stops being true: if the portal gains a read path
+      # into their bucket, a developer exercising it locally needs the bucket to
+      # exist, and this is a one-token edit because the list is plural.
+      BUCKET_NAMES: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
     entrypoint:
       - /bin/sh
       - -c
       - |
         set -e
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-        if ! mc ls "local/$$BUCKET_NAME" >/dev/null 2>&1; then
-          mc mb "local/$$BUCKET_NAME"
-          echo "Created bucket: $$BUCKET_NAME"
-        else
-          echo "Bucket exists: $$BUCKET_NAME"
-        fi
+        for bucket in $$BUCKET_NAMES; do
+          if ! mc ls "local/$$bucket" >/dev/null 2>&1; then
+            mc mb "local/$$bucket"
+            echo "Created bucket: $$bucket"
+          else
+            echo "Bucket exists: $$bucket"
+          fi
+        done
     restart: "no"
 
   db-migrator:
