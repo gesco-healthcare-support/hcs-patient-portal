@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.TestData;
+using Microsoft.Extensions.Caching.Distributed;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Identity;
@@ -47,12 +48,38 @@ public class EfCoreExternalAccountAppServiceTests
     private readonly IExternalAccountAppService _externalAccountAppService;
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IDistributedCache _cache;
 
     public EfCoreExternalAccountAppServiceTests()
     {
         _externalAccountAppService = GetRequiredService<IExternalAccountAppService>();
         _userManager = GetRequiredService<IdentityUserManager>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
+        _cache = GetRequiredService<IDistributedCache>();
+    }
+
+    private static string EmailFor(string token) => $"TEST-acct-{token}@test.local";
+
+    /// <summary>
+    /// The cooldown key the limiter writes, mirroring StampRateLimitAsync's format.
+    ///
+    /// <para>NOTE THE ToLowerInvariant, which is load-bearing and cost a run to find. The service
+    /// keys on the NORMALISED address, so a lookup using the original casing misses every time --
+    /// and it misses by returning null, which is indistinguishable from "nothing was stamped".
+    /// The first version of this helper had that bug, and the half of the Fact asserting a stamp
+    /// IS present is what caught it; the half asserting a stamp is absent passed happily, for
+    /// entirely the wrong reason.</para>
+    /// </summary>
+    private static string CooldownKey(string keyPrefix, string token) =>
+        $"{keyPrefix}:cooldown:{EmailFor(token).ToLowerInvariant()}";
+
+    /// <summary>Confirms an already-created user's email through the real token round trip.</summary>
+    private async Task ConfirmEmailAsync(Guid userId)
+    {
+        var user = await _userManager.GetByIdAsync(userId);
+        var confirmToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        (await _userManager.ConfirmEmailAsync(user, confirmToken)).Succeeded.ShouldBeTrue(
+            "Fixture failed to confirm the email mid-test.");
     }
 
     /// <summary>
@@ -178,6 +205,148 @@ public class EfCoreExternalAccountAppServiceTests
     // ------------------------------------------------------------------------
     // ResetPasswordAsync -- the two refusals that run before any Identity work.
     // ------------------------------------------------------------------------
+
+    // ------------------------------------------------------------------------
+    // The registered-user paths. NotificationTemplates are NOT seeded in this rig, so every
+    // dispatch below genuinely raises NotificationTemplateNotFound and genuinely hits the catch.
+    // That is not a limitation to work around -- it makes the caller-still-sees-success guarantee
+    // the live path rather than a branch nothing takes.
+    // ------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendPasswordResetCodeAsync_ForARegisteredUser_SurvivesAMissingTemplate()
+    {
+        // Runs the whole success path -- token generation, host-eligibility, tenant-aware URL,
+        // dispatch -- for a real user, and requires a DISPATCH FAILURE OF ANY KIND to stay inside
+        // the service. A reset request must never surface a deployment fault to an anonymous
+        // caller: the SPA shows "if registered, check your email" either way, and a thrown
+        // exception here would also tell an attacker the address IS registered.
+        //
+        // PRECISION, because the first version of this comment overclaimed. The method catches
+        // NotificationTemplateNotFound specifically AND has a generic catch behind it, so removing
+        // the specific one changes nothing a caller can see -- the generic catch still swallows.
+        // What this Fact pins is the swallowing, not which catch does it. The probe that breaks it
+        // makes the GENERIC catch rethrow.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await SeedRegisteredUserAsync(token, confirmEmail: true);
+
+                await Should.NotThrowAsync(
+                    async () => await _externalAccountAppService.SendPasswordResetCodeAsync(
+                        new SendPasswordResetCodeInput { Email = EmailFor(token) }),
+                    "A missing ResetPassword template must be swallowed and logged, not thrown. If "
+                    + "this throws, a seeding fault becomes a 500 on an anonymous endpoint AND an "
+                    + "oracle for which addresses are registered.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ResendEmailVerificationAsync_ForAnUnconfirmedUser_SurvivesAMissingTemplate()
+    {
+        // The mirror of the above on the resend flow, and the first Fact to reach it at all: the
+        // earlier pass could not, because an unregistered address returns before the send. Same
+        // precision applies -- this pins that a dispatch failure is swallowed, not which of the
+        // two catches swallows it.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await SeedRegisteredUserAsync(token, confirmEmail: false);
+
+                await Should.NotThrowAsync(
+                    async () => await _externalAccountAppService.ResendEmailVerificationAsync(
+                        new ResendEmailVerificationInput { Email = EmailFor(token) }),
+                    "A missing UserRegistered template must be swallowed and logged, not thrown.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ResendEmailVerification_AndPasswordReset_DoNotShareARateLimiter()
+    {
+        // BEHAVIOURAL, and the strongest Fact available on the resend flow. The two limiters are
+        // separate partitions keyed "resend-verify" and "password-reset" with different caps (3/hr
+        // against 10/hr), deliberately, because resend is the higher SMTP-flood risk. If the
+        // prefixes ever collide, one flow silently starts consuming the other's budget -- and
+        // because resend refuses SILENTLY, the only visible symptom would be password reset
+        // refusing users who never asked for a resend.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var userId = await SeedRegisteredUserAsync(token, confirmEmail: false);
+
+                // Consume the resend allowance for this address. Resend requires an UNCONFIRMED
+                // user, so the account starts that way.
+                await _externalAccountAppService.ResendEmailVerificationAsync(
+                    new ResendEmailVerificationInput { Email = EmailFor(token) });
+
+                // Then confirm it, because password reset legitimately REFUSES an unconfirmed
+                // address (PasswordResetGate.EnsureUserCanRequestReset throws
+                // EmailNotConfirmedForPasswordReset). The first version of this Fact skipped this
+                // step and read that refusal as the limiters colliding -- the product was right and
+                // the test was wrong. Confirming here keeps the address identical across both
+                // calls, which is the whole point: same key material, different partitions.
+                await ConfirmEmailAsync(userId);
+
+                // The reset partition must be untouched by the resend.
+                await Should.NotThrowAsync(
+                    async () => await _externalAccountAppService.SendPasswordResetCodeAsync(
+                        new SendPasswordResetCodeInput { Email = EmailFor(token) }),
+                    "A resend must not consume the PASSWORD RESET allowance for the same address. "
+                    + "If this throws PasswordResetThrottled, the two limiters have been collapsed "
+                    + "onto one cache key and a resend now locks a user out of resetting.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ResendEmailVerificationAsync_ForAConfirmedUser_DoesNotConsumeTheAllowance()
+    {
+        // OBSERVES THE LIMITER'S STORAGE RATHER THAN A RESPONSE, and that is a deliberate choice
+        // worth stating: the resend endpoint is SILENT on every branch by design, so there is no
+        // response difference between "sent", "already confirmed" and "throttled". Asserting on
+        // the cooldown key is the only way to tell them apart from outside.
+        //
+        // The property is real: the stamp happens AFTER dispatch, so a user who is already
+        // confirmed returns before it and must not spend an allowance they never used.
+        var confirmedToken = Guid.NewGuid().ToString("N")[..8];
+        var unconfirmedToken = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await SeedRegisteredUserAsync(confirmedToken, confirmEmail: true);
+                await SeedRegisteredUserAsync(unconfirmedToken, confirmEmail: false);
+
+                await _externalAccountAppService.ResendEmailVerificationAsync(
+                    new ResendEmailVerificationInput { Email = EmailFor(confirmedToken) });
+                await _externalAccountAppService.ResendEmailVerificationAsync(
+                    new ResendEmailVerificationInput { Email = EmailFor(unconfirmedToken) });
+
+                (await _cache.GetStringAsync(CooldownKey("resend-verify", confirmedToken)))
+                    .ShouldBeNull(
+                        "An already-confirmed address must not stamp the resend limiter: no mail "
+                        + "was sent, so no allowance was spent.");
+
+                (await _cache.GetStringAsync(CooldownKey("resend-verify", unconfirmedToken)))
+                    .ShouldNotBeNull(
+                        "An unconfirmed address DID reach the send, so it must stamp. Without this "
+                        + "half the Fact above is vacuous -- a limiter that never stamps anything "
+                        + "would satisfy it too.");
+            }
+        });
+    }
 
     /// <summary>
     /// The first Fact to use the registered-user fixture, and the one that proves the fixture
