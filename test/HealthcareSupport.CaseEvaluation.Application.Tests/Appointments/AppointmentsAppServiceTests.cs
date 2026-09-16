@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -1698,37 +1699,51 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     [Fact]
     public async Task GetAppointmentTypeLookupAsync_WithAnEvaluationContext_OffersOnlyTypesValidForIt()
     {
-        // THIS ONE PINS BEHAVIOUR. The rule is that a type is offered when it is untyped, or marked
-        // Both, or matches the requested context -- so asking for one context must not surface a
-        // type belonging exclusively to the other. Getting this wrong offers a clinician an
-        // evaluation type the appointment cannot actually be.
+        // THIS ONE PINS BEHAVIOUR, but only because it seeds its own subject -- and that is the
+        // whole point of the fixture below.
+        //
+        // THE FIRST VERSION OF THIS FACT WAS VACUOUS AND BATCH MUTATION CAUGHT IT. It compared
+        // filtered counts against the unfiltered count and asserted subset-ness, which holds
+        // perfectly well when the filter is deleted. The reason it could not fail is that NO
+        // seeded appointment type carries a specific EvaluationType -- every one is null, which the
+        // rule always admits -- so against seeded data the filter never narrows anything and there
+        // was nothing for the assertion to catch.
+        //
+        // Seeding a type that belongs exclusively to ONE context is what gives the filter work to
+        // do. The rule is: offer a type when it is untyped, or marked Both, or matches the
+        // requested context. Getting it wrong offers a clinician an evaluation type the
+        // appointment cannot actually be.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var reOnlyTypeId = Guid.NewGuid();
+
         await WithUnitOfWorkAsync(async () =>
         {
             using (_currentTenant.Change(TenantsTestData.TenantARef))
             {
-                var normal = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
+                await GetRequiredService<IRepository<AppointmentType, Guid>>().InsertAsync(
+                    new AppointmentType(
+                        id: reOnlyTypeId,
+                        name: $"TEST-re-only-{token}",
+                        description: null,
+                        evaluationType: EvaluationType.Re),
+                    autoSave: true);
+
+                var askingForNormal = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
                     new LookupRequestDto { MaxResultCount = 1000 }, EvaluationType.Normal);
-                var re = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
+                var askingForRe = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
                     new LookupRequestDto { MaxResultCount = 1000 }, EvaluationType.Re);
-                var unfiltered = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
-                    new LookupRequestDto { MaxResultCount = 1000 });
 
-                // Unfiltered is the ceiling: a context-filtered result must be a SUBSET of it.
-                // Without this pair of assertions both filtered calls could be returning
-                // everything and the Fact would still pass.
-                normal.TotalCount.ShouldBeLessThanOrEqualTo(
-                    unfiltered.TotalCount,
-                    "A context filter can only narrow the catalog, never widen it.");
-                re.TotalCount.ShouldBeLessThanOrEqualTo(
-                    unfiltered.TotalCount,
-                    "A context filter can only narrow the catalog, never widen it.");
+                askingForRe.Items.ShouldContain(
+                    x => x.Id == reOnlyTypeId,
+                    "A type belonging to the Re context must be offered when Re is requested. "
+                    + "Without this half the exclusion below is vacuous -- a lookup returning "
+                    + "nothing would satisfy it.");
 
-                // Every type offered for a context must also be offered unfiltered -- same rule,
-                // asserted on identity rather than on counts, so a coincidental count match
-                // cannot satisfy it.
-                var unfilteredIds = unfiltered.Items.Select(x => x.Id).ToHashSet();
-                normal.Items.ShouldAllBe(x => unfilteredIds.Contains(x.Id));
-                re.Items.ShouldAllBe(x => unfilteredIds.Contains(x.Id));
+                askingForNormal.Items.ShouldNotContain(
+                    x => x.Id == reOnlyTypeId,
+                    "A type belonging exclusively to the Re context must NOT be offered when "
+                    + "Normal is requested. If it is, the evaluation-context filter is not being "
+                    + "applied and the booking form offers a type the appointment cannot be.");
             }
         });
     }
