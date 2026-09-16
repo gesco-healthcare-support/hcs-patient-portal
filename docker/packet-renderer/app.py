@@ -122,6 +122,24 @@ def _missing_templates() -> list[str]:
 
 
 # Mirrors PacketTokenMap.TokenRegex on the .NET side: ##Group.Field##.
+#
+# python:S6353 wants [A-Za-z0-9_] written as \w. DO NOT (#817). \w is
+# Unicode-aware in Python, and the class here is deliberately ASCII, because this
+# pattern has to agree character-for-character with
+# PacketTokenMap.cs:25, which reads
+#   @"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##"
+#
+# Measured, not assumed -- 3 of 4 probe tokens diverge once \w is substituted:
+#
+#   ##Patient.FirstName##   ascii=True   \w=True
+#   ##Gru<sharp-s>e.Feld##  ascii=False  \w=True   <-- diverges
+#   ##Patient.Fi<cyrillic-e>ld##  ascii=False  \w=True   <-- diverges
+#   ##Patient.Field<arabic-1>##   ascii=False  \w=True   <-- diverges
+#
+# The Cyrillic case is the one that matters: it is a HOMOGLYPH of Latin 'e', so
+# the renderer would substitute a token the .NET side never recognised, in a
+# document carrying PHI, with nothing to see in either log. Marked rather than
+# fixed.
 TOKEN_REGEX = re.compile(r"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##")
 
 app = Flask(__name__)
