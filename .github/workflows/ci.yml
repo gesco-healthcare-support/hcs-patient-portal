@@ -362,6 +362,172 @@ jobs:
           echo "::error::$m"
           exit 1
 
+      # The two steps below are ADDITIONS to the has-pending-model-changes gate
+      # above, not replacements. That gate is correct for what it checks and
+      # must not be weakened: it compares the RELATIONAL model, and both of the
+      # classes below are invisible to it for sound reasons (#912).
+      - name: "Migrations: newest Designer matches the snapshot"
+        # always(), same reasoning as the tenant step: independent checks, and a
+        # one-sided failure is exactly the case worth seeing.
+        if: always()
+        run: |
+          # `dotnet ef migrations remove` does not recompute the snapshot from
+          # the model. Per Microsoft's documentation it "restores the model
+          # represented by the preceding migration's designer metadata". So the
+          # NEWEST Designer is the only one whose staleness can corrupt the
+          # snapshot; older ones are inert unless you remove back past them.
+          #
+          # A branch cut before another migration merges generates a Designer
+          # recording a model that predates it. Merging both leaves a tip
+          # Designer disagreeing with the snapshot beside it, and a later
+          # `remove` silently rolls the model back to it.
+          #
+          # Live instance (#911): #913's migrations were generated at 20:46:32Z,
+          # 47 minutes before #906 merged, so both tip Designers lost
+          # IX_AppDoctorAvailabilities_Slot_Identity -- a unique filtered index
+          # -- while every gate above stayed correctly green.
+          #
+          # Costs no EF invocation and no design-time build: this compares two
+          # files that are already in the tree.
+          set +e
+          set -uo pipefail
+          P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+          rc_total=0
+          extract() {
+            # The model body only: the Build{TargetModel,Model} signature differs
+            # between a Designer and a snapshot by design, so drop it and compare
+            # what follows.
+            sed -n '/protected override void Build\(TargetModel\|Model\)/,$p' "$1" \
+              | tail -n +2 | sed 's/[[:space:]]*$//'
+          }
+          check() {
+            dir="$1"; snap="$2"; label="$3"
+            snap_path="$P/$dir/$snap"
+            if [ ! -f "$snap_path" ]; then
+              echo "::error::$label: snapshot not found at $snap_path. This check could not run and is NOT reporting drift."
+              return 2
+            fi
+            # EF prefixes migration files with a sortable UTC timestamp, so the
+            # last lexical entry is the newest migration.
+            newest=$(find "$P/$dir" -maxdepth 1 -name '*.Designer.cs' | sort | tail -1)
+            if [ -z "$newest" ]; then
+              echo "::error::$label: no .Designer.cs under $P/$dir. This check could not run and is NOT reporting drift."
+              return 2
+            fi
+            d=$(extract "$newest")
+            s=$(extract "$snap_path")
+            # An empty extraction means the generated layout changed. Failing
+            # loudly beats comparing two empty strings and reporting a match.
+            if [ -z "$d" ] || [ -z "$s" ]; then
+              echo "::error::$label: extracted an empty model body from $(basename "$newest") or the snapshot. The generated file layout changed and this check needs updating."
+              return 2
+            fi
+            if [ "$d" = "$s" ]; then
+              echo "$label: $(basename "$newest") matches the snapshot."
+              return 0
+            fi
+            echo "::group::$label -- in the snapshot, missing from the newest Designer"
+            diff <(printf '%s\n' "$d") <(printf '%s\n' "$s") | grep '^>'
+            echo "::endgroup::"
+            m="$label: the newest migration's Designer does not match the model"
+            m="$m snapshot, so 'dotnet ef migrations remove' here would rewrite the"
+            m="$m snapshot to that stale model and drop whatever is listed above."
+            m="$m This usually means a branch was cut before another migration"
+            m="$m merged. Fix by APPENDING an empty migration so the tip Designer"
+            m="$m regenerates -- do not hand-edit a Designer, and do not use"
+            m="$m 'migrations remove': dotnet ef migrations add <Name> -c <Context>"
+            m="$m -o $dir -p $P"
+            echo "::error::$m"
+            return 1
+          }
+          check Migrations       CaseEvaluationDbContextModelSnapshot.cs       "HOST"
+          rc=$?
+          [ "$rc" -gt "$rc_total" ] && rc_total=$rc
+          check TenantMigrations CaseEvaluationTenantDbContextModelSnapshot.cs "TENANT"
+          rc=$?
+          [ "$rc" -gt "$rc_total" ] && rc_total=$rc
+          exit "$rc_total"
+
+      - name: "Migrations: snapshot matches a fresh regeneration"
+        if: always()
+        run: |
+          # has-pending-model-changes compares the RELATIONAL model. A
+          # HasColumnName equal to the property's own name produces a
+          # byte-identical relational model, so the differ finds nothing and the
+          # gate passes -- correctly. The snapshot TEXT can therefore diverge
+          # from what a regeneration would produce, indefinitely.
+          #
+          # That is not hypothetical: the tenant snapshot was missing
+          # HasColumnName("AfterValues") and its BeforeValues sibling from
+          # 2026-08-21 to 2026-09-15. Every PR in that window ran the gate above
+          # and passed. The drift finally landed as unexplained diff noise in
+          # #906, an unrelated index PR (#912).
+          #
+          # Method: scaffold a throwaway migration, which makes EF rewrite the
+          # snapshot from the current model, then assert the snapshot did not
+          # move.
+          #
+          # TEARDOWN IS `rm` PLUS A RESTORE FROM A COPY, NEVER `migrations
+          # remove`. `remove` restores the snapshot from the preceding
+          # migration's designer metadata rather than recomputing it, so using it
+          # here would reinstate whatever drift that Designer carries -- the bug
+          # checking for itself. See the step above and #911.
+          set +e
+          set -uo pipefail
+          P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+          PROBE=ZZDriftProbe
+          WORK="${RUNNER_TEMP:-/tmp}/driftprobe.$$"
+          mkdir -p "$WORK"
+          rc_total=0
+          probe() {
+            ctx="$1"; dir="$2"; snap="$3"; label="$4"
+            snap_path="$P/$dir/$snap"
+            if [ ! -f "$snap_path" ]; then
+              echo "::error::$label: snapshot not found at $snap_path. This check could not run and is NOT reporting drift."
+              return 2
+            fi
+            cp "$snap_path" "$WORK/$snap.orig"
+            out=$(dotnet ef migrations add "$PROBE" -c "$ctx" -o "$dir" -p "$P" 2>&1)
+            add_rc=$?
+            if [ "$add_rc" -ne 0 ]; then
+              printf '%s\n' "$out"
+              echo "::error::$label: could not scaffold the probe migration (exit $add_rc). This is NOT a drift report -- read the output above."
+              return 2
+            fi
+            # --text because .gitattributes marks both migration trees `-diff`;
+            # without it git calls these files binary and reports no changes at
+            # all, which would read as a clean pass.
+            diff_out=$(git diff --text -- "$snap_path")
+            find "$P/$dir" -maxdepth 1 -name "*_${PROBE}.cs" -delete
+            find "$P/$dir" -maxdepth 1 -name "*_${PROBE}.Designer.cs" -delete
+            cp "$WORK/$snap.orig" "$snap_path"
+            if [ -n "$diff_out" ]; then
+              echo "::group::$label snapshot drift"
+              printf '%s\n' "$diff_out"
+              echo "::endgroup::"
+              m="$label: the committed model snapshot is not what a regeneration"
+              m="$m would produce. The relational model is unchanged, which is why"
+              m="$m has-pending-model-changes passes. Left alone this surfaces later"
+              m="$m as unrelated diff noise in whichever PR next adds a migration."
+              m="$m Regenerate with: dotnet ef migrations add <Name> -c $ctx"
+              m="$m -o $dir -p $P"
+              echo "::error::$m"
+              return 1
+            fi
+            echo "$label: snapshot matches a fresh regeneration."
+            return 0
+          }
+          probe CaseEvaluationDbContext       Migrations       CaseEvaluationDbContextModelSnapshot.cs       "HOST"
+          rc=$?
+          [ "$rc" -gt "$rc_total" ] && rc_total=$rc
+          probe CaseEvaluationTenantDbContext TenantMigrations CaseEvaluationTenantDbContextModelSnapshot.cs "TENANT"
+          rc=$?
+          [ "$rc" -gt "$rc_total" ] && rc_total=$rc
+          # Leave nothing behind whatever happened above.
+          find "$P/Migrations" "$P/TenantMigrations" -maxdepth 1 -name "*_${PROBE}*" -delete 2>/dev/null
+          rm -rf "$WORK"
+          exit "$rc_total"
+
   docs-structure:
     name: "Docs: Structure Check"
     runs-on: ubuntu-latest
