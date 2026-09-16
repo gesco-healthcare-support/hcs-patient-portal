@@ -18,9 +18,11 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization
 /// #707 LAYER 3 -- proves that the <c>[Authorize]</c> attributes on the PHI surfaces
 /// actually REFUSE a caller, against the real ABP authorization pipeline.
 ///
-/// <para><b>WHY EVERY REFUSAL TEST HERE USES AN ID THAT DOES NOT EXIST.</b> This is the
+/// <para><b>WHY EVERY REFUSAL TEST HERE USES AN ID THAT CANNOT BE FOUND.</b> This is the
 /// single most important thing to understand before editing this file, and getting it
-/// wrong produces a test that cannot fail.</para>
+/// wrong produces a test that cannot fail. (Three surfaces use an id no row carries; the
+/// packet surface needs <see cref="EmptyIdProbe"/> instead, for the reason recorded
+/// there.)</para>
 ///
 /// <para>Take <c>PatientsAppService.GetFullSsnAsync</c>. It carries TWO gates, by design:
 /// the declarative <c>[Authorize(Patients.RevealSsn)]</c> attribute, and an in-code
@@ -58,6 +60,25 @@ public class PhiSurfaceAuthorizationTests : CaseEvaluationRealAuthorizationTestB
 
     /// <summary>An id no seeded row carries; see the class remarks for why this matters.</summary>
     private static readonly Guid UnknownId = Guid.Parse("00000000-0000-0000-0000-0000000000ff");
+
+    /// <summary>
+    /// The probe id for the packet surface, which needs a different one from every other
+    /// surface here.
+    ///
+    /// <para><b>MEASURED 2026-09-16, AND THE FIRST VERSION OF THIS FILE GOT IT WRONG.</b>
+    /// <c>AppointmentPacketsAppService.DownloadAsync</c> runs an in-code role check --
+    /// <c>PacketVisibility.IsAllowed</c> -- that throws <see cref="AbpAuthorizationException"/>
+    /// BEFORE it looks anything up. So against an unknown id the refusal test passed with
+    /// the attribute deleted: the in-code check produced the same exception type the
+    /// attribute would have. Mutation-testing the four surfaces together is what exposed
+    /// it; three failed and this one did not.</para>
+    ///
+    /// <para><c>Guid.Empty</c> separates them, because the FIRST statement of that method
+    /// body rejects an empty id with a <c>UserFriendlyException</c> -- before the
+    /// visibility check. So an unpermitted caller still gets an authorization exception
+    /// from the interceptor, while a body that runs at all throws something else.</para>
+    /// </summary>
+    private static readonly Guid EmptyIdProbe = Guid.Empty;
 
     private readonly ICurrentPrincipalAccessor _principalAccessor;
     private readonly ICurrentTenant _currentTenant;
@@ -158,7 +179,7 @@ public class PhiSurfaceAuthorizationTests : CaseEvaluationRealAuthorizationTestB
 
         await AssertRefusedAsync(
             fixture, MinimalRoleName,
-            sp => sp.GetRequiredService<IAppointmentPacketsAppService>().DownloadAsync(UnknownId));
+            sp => sp.GetRequiredService<IAppointmentPacketsAppService>().DownloadAsync(EmptyIdProbe));
     }
 
     [Fact]
@@ -168,7 +189,7 @@ public class PhiSurfaceAuthorizationTests : CaseEvaluationRealAuthorizationTestB
 
         await AssertNotRefusedAsync(
             fixture, PatientRole,
-            sp => sp.GetRequiredService<IAppointmentPacketsAppService>().DownloadAsync(UnknownId));
+            sp => sp.GetRequiredService<IAppointmentPacketsAppService>().DownloadAsync(EmptyIdProbe));
     }
 
     // ------------------------------------------------------------------------
