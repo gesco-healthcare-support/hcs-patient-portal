@@ -24,6 +24,12 @@ FROM python:3.12-slim-trixie@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9ad
 # compose healthcheck) + poppler-utils (in-container PDF inspection while debugging). Debian
 # contrib is enabled for the MS Core Fonts installer, whose EULA is accepted
 # non-interactively.
+# docker:S7031 wants this merged with the pip RUN below. Declined (#817): they
+# change for unrelated reasons and at different rates. Merging means a version
+# bump in the pip list re-runs the whole apt layer including the mscorefonts
+# download, on every build, and buys almost no size back -- both RUNs already
+# clean up after themselves (apt-get clean + rm -rf lists here, --no-cache-dir
+# there). The same argument the generator RUNs below are kept separate for.
 RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
  && apt-get update \
  && apt-get install -y --no-install-recommends \

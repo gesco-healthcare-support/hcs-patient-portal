@@ -15,6 +15,7 @@ import pathlib
 import tempfile
 import types
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from gate_loader import gate
@@ -290,13 +291,12 @@ class TestWorkspacePrefixes(unittest.TestCase):
         and any path under it is admitted as ours.
         """
         gate.workspace_prefixes.cache_clear()
-        real = gate.subprocess.run
-        gate.subprocess.run = lambda *a, **k: types.SimpleNamespace(
+        stub = lambda *a, **k: types.SimpleNamespace(  # noqa: E731
             returncode=128, stdout="/not/a/checkout", stderr="fatal: not a git repository")
         try:
-            self.assertEqual(gate.workspace_prefixes(), ())
+            with mock.patch.object(gate.subprocess, "run", stub):
+                self.assertEqual(gate.workspace_prefixes(), ())
         finally:
-            gate.subprocess.run = real
             gate.workspace_prefixes.cache_clear()
 
     def test_an_empty_answer_from_git_yields_no_prefixes(self):
@@ -309,13 +309,12 @@ class TestWorkspacePrefixes(unittest.TestCase):
         would admit EVERY path as being under the workspace.
         """
         gate.workspace_prefixes.cache_clear()
-        real = gate.subprocess.run
-        gate.subprocess.run = lambda *a, **k: types.SimpleNamespace(
+        stub = lambda *a, **k: types.SimpleNamespace(  # noqa: E731
             returncode=0, stdout="  " + chr(10), stderr="")
         try:
-            self.assertEqual(gate.workspace_prefixes(), ())
+            with mock.patch.object(gate.subprocess, "run", stub):
+                self.assertEqual(gate.workspace_prefixes(), ())
         finally:
-            gate.subprocess.run = real
             gate.workspace_prefixes.cache_clear()
 
 
