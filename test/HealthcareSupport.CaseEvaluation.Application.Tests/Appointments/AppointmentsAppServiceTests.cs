@@ -1187,4 +1187,150 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             }
         });
     }
+
+    // =====================================================================
+    // GetByConfirmationNumberAsync -- the confirmation-number read path.
+    // Phase 8 tranche 1, item 4 (2026-09-15).
+    //
+    // The SSN Fact below is the one worth having. The masking call sits on a
+    // single line (ApplyPatientSsnVisibility) with nothing downstream that
+    // would notice its absence: remove it and the endpoint returns a complete
+    // social security number to every caller, the suite stays green, and the
+    // DTO still looks entirely well-formed. There is no shape change to catch.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds a patient carrying <paramref name="ssn"/> plus one appointment pointing at them, in
+    /// <paramref name="tenantId"/>, and returns that appointment's confirmation number.
+    /// </summary>
+    private async Task<string> SeedAppointmentForConfirmationLookupAsync(
+        string token,
+        Guid? tenantId,
+        string ssn)
+    {
+        var patientId = Guid.NewGuid();
+        await _patientRepository.InsertAsync(
+            new Patient(
+                id: patientId,
+                stateId: null,
+                appointmentLanguageId: null,
+                identityUserId: null,
+                tenantId: tenantId,
+                firstName: "TEST-Confirm",
+                lastName: "Synthetic",
+                email: $"TEST-confirm-{token}@test.local",
+                genderId: Gender.Unspecified,
+                dateOfBirth: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                phoneNumberTypeId: PhoneNumberType.Work,
+                socialSecurityNumber: ssn),
+            autoSave: true);
+
+        var confirmationNumber = $"A9-CN-{token}";
+        await _appointmentRepository.InsertAsync(
+            new Appointment(
+                id: Guid.NewGuid(),
+                patientId: patientId,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 7, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: confirmationNumber,
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                TenantId = tenantId,
+            },
+            autoSave: true);
+
+        return confirmationNumber;
+    }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_WhenNothingMatches_ReturnsNull()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _appointmentsAppService.GetByConfirmationNumberAsync(
+                    $"A9-ABSENT-{Guid.NewGuid():N}");
+
+                result.ShouldBeNull();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_MasksThePatientSsnRatherThanReturningItWhole()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        // Synthetic and deliberately NOT in the XXX-XX-XXXX shape a PHI scanner matches, matching
+        // how PatientsTestData builds its own. No real number appears in this repository.
+        const string fullSsn = "AB1234CD9";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var confirmationNumber = await SeedAppointmentForConfirmationLookupAsync(
+                    token, TenantsTestData.TenantARef, fullSsn);
+
+                var result = await _appointmentsAppService.GetByConfirmationNumberAsync(
+                    confirmationNumber);
+
+                result.ShouldNotBeNull();
+                result!.Patient.ShouldNotBeNull();
+
+                result.Patient!.SocialSecurityNumber.ShouldNotBe(
+                    fullSsn,
+                    "GetByConfirmationNumberAsync returned the patient's FULL social security "
+                    + "number. ApplyPatientSsnVisibility is no longer masking it, and the only "
+                    + "endpoint allowed to serve the whole value is the audited reveal "
+                    + "(PatientsAppService.GetFullSsnAsync).");
+
+                // Asserted on the last four rather than the mask prefix so the Fact pins the
+                // GUARANTEE (everything but the last four is withheld) instead of the cosmetic
+                // choice of padding characters, which is free to change.
+                // The masked value must still end in the last four, which is what makes it usable
+                // for identification at all. No custom message here: Shouldly's third positional
+                // argument on ShouldEndWith is a Case, not a string.
+                result.Patient.SocialSecurityNumber.ShouldEndWith(fullSsn[^4..]);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_ForAnotherTenantsAppointment_ReportsNotFound()
+    {
+        // The confirmation-number space is guessable, so "does this number exist" must not be
+        // answerable across a tenant boundary. FindByConfirmationNumberAsync relies on ABP's
+        // IMultiTenant filter for this (EfCoreAppointmentRepository.cs:413), which means the row
+        // is invisible rather than forbidden -- the caller gets the same null as for a number
+        // nobody ever issued, and cannot tell the two apart.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        var confirmationNumber = await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                return await SeedAppointmentForConfirmationLookupAsync(
+                    token, TenantsTestData.TenantARef, "AB1234CD9");
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
+            {
+                var result = await _appointmentsAppService.GetByConfirmationNumberAsync(
+                    confirmationNumber);
+
+                result.ShouldBeNull(
+                    "A TenantB caller must not be able to confirm that TenantA issued this "
+                    + "confirmation number. Returning a row -- or throwing anything other than "
+                    + "the not-found answer -- turns the number space into an oracle for which "
+                    + "appointments exist in other tenants.");
+            }
+        });
+    }
 }
