@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
@@ -44,6 +45,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
@@ -54,6 +56,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         _appointmentRepository = GetRequiredService<IAppointmentRepository>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
+        _appointmentApplicantAttorneyRepository = GetRequiredService<IAppointmentApplicantAttorneyRepository>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
         _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
@@ -1063,15 +1066,16 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     /// token because (TenantId, RequestConfirmationNumber) is a hard unique index and these rows
     /// accumulate across the collection.
     /// </summary>
-    private async Task SeedLookupAppointmentAsync(
+    private async Task<Guid> SeedLookupAppointmentAsync(
         string token,
         string suffix,
         Guid patientId,
         string claimExaminerEmail)
     {
+        var appointmentId = Guid.NewGuid();
         await _appointmentRepository.InsertAsync(
             new Appointment(
-                id: Guid.NewGuid(),
+                id: appointmentId,
                 patientId: patientId,
                 identityUserId: IdentityUsersTestData.Patient1UserId,
                 appointmentTypeId: LocationsTestData.AppointmentType1Id,
@@ -1085,6 +1089,8 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                 ClaimExaminerEmail = claimExaminerEmail,
             },
             autoSave: true);
+
+        return appointmentId;
     }
 
     [Fact]
@@ -1183,6 +1189,73 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                         + "DIFFERENT examiner. Both patients match the filter, so an unscoped "
                         + "query returns both -- this is the tenant-wide patient enumeration the "
                         + "Claim Examiner scoping exists to stop.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsApplicantAttorney_ExcludesPatientsOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var minePatientId = await SeedLookupPatientAsync(token, "aa-mine");
+                var otherPatientId = await SeedLookupPatientAsync(token, "aa-other");
+
+                Guid mineAppointmentId;
+
+                // BOTH appointments are inserted while acting as the HOST ADMIN, and that is the
+                // load-bearing part of this fixture. The visibility rule is
+                // `(a.CreatorId ?? a.BookedByUserId) == userId  OR  an attorney link names them`,
+                // so seeding under the attorney would satisfy the FIRST arm and the link would
+                // never be exercised -- the Fact would pass with the entire join-table lookup
+                // deleted. Creating both under somebody else leaves the link as the only thing
+                // that can separate the two patients.
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "aa-mine", minePatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                    await SeedLookupAppointmentAsync(
+                        token, "aa-other", otherPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                }
+
+                await _appointmentApplicantAttorneyRepository.InsertAsync(
+                    new AppointmentApplicantAttorney(
+                        id: Guid.NewGuid(),
+                        appointmentId: mineAppointmentId,
+                        applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                        identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId)
+                    {
+                        TenantId = TenantsTestData.TenantARef,
+                    },
+                    autoSave: true);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.ApplicantAttorney1UserId,
+                           IdentityUsersTestData.ApplicantAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == minePatientId,
+                        "An Applicant Attorney must see the patient on the appointment whose "
+                        + "attorney link names them. If this fails the exclusion below is vacuous.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherPatientId,
+                        "An Applicant Attorney must NOT see a patient on an appointment they are "
+                        + "neither the creator of nor linked to. Both patients match the filter "
+                        + "and neither appointment was created by this attorney, so the join-table "
+                        + "scoping is the only thing separating them.");
                 }
             }
         });
