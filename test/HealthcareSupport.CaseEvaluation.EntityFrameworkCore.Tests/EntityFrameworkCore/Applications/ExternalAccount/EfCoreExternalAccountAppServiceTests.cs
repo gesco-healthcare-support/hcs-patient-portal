@@ -1,8 +1,11 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Identity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Validation;
 using Xunit;
 
@@ -42,10 +45,54 @@ public class EfCoreExternalAccountAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {
     private readonly IExternalAccountAppService _externalAccountAppService;
+    private readonly IdentityUserManager _userManager;
+    private readonly ICurrentTenant _currentTenant;
 
     public EfCoreExternalAccountAppServiceTests()
     {
         _externalAccountAppService = GetRequiredService<IExternalAccountAppService>();
+        _userManager = GetRequiredService<IdentityUserManager>();
+        _currentTenant = GetRequiredService<ICurrentTenant>();
+    }
+
+    /// <summary>
+    /// Creates a REGISTERED user in TenantA with a controllable confirmation state.
+    ///
+    /// <para>This is the fixture the whole of item 6's remainder sits behind. Without a real
+    /// registered user every flow here returns at its unregistered short-circuit, which is why the
+    /// first pass could only reach the refusal paths.</para>
+    ///
+    /// <para>Email confirmation goes through the REAL token round trip
+    /// (GenerateEmailConfirmationTokenAsync then ConfirmEmailAsync) rather than reflecting onto the
+    /// property. The existing unit-test file reflects onto it because it has no DI; here the
+    /// UserManager is available, and using it means the fixture exercises the same path production
+    /// does instead of manufacturing a state production cannot produce.</para>
+    /// </summary>
+    private async Task<Guid> SeedRegisteredUserAsync(string token, bool confirmEmail)
+    {
+        var userId = Guid.NewGuid();
+        var user = new Volo.Abp.Identity.IdentityUser(
+            userId,
+            $"TEST-acct-{token}",
+            $"TEST-acct-{token}@test.local",
+            _currentTenant.Id);
+
+        var created = await _userManager.CreateAsync(user, IdentityUsersTestData.SeedPassword);
+        created.Succeeded.ShouldBeTrue(
+            "Fixture failed to create the user, so anything asserted below would be asserting "
+            + "against a user that does not exist: "
+            + string.Join("; ", created.Errors.Select(e => e.Description)));
+
+        if (confirmEmail)
+        {
+            var confirmToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var confirmed = await _userManager.ConfirmEmailAsync(user, confirmToken);
+            confirmed.Succeeded.ShouldBeTrue(
+                "Fixture failed to confirm the email: "
+                + string.Join("; ", confirmed.Errors.Select(e => e.Description)));
+        }
+
+        return userId;
     }
 
     /// <summary>A fresh unregistered address, so no two Facts share a rate-limit key.</summary>
@@ -131,6 +178,65 @@ public class EfCoreExternalAccountAppServiceTests
     // ------------------------------------------------------------------------
     // ResetPasswordAsync -- the two refusals that run before any Identity work.
     // ------------------------------------------------------------------------
+
+    /// <summary>
+    /// The first Fact to use the registered-user fixture, and the one that proves the fixture
+    /// DISCRIMINATES rather than merely reaching further into the method.
+    ///
+    /// <para>Item D (2026-08-22) made a completed reset RESTORE ACCESS. Nothing used to clear the
+    /// lockout: Identity's ResetPasswordAsync is password-only, and only a successful sign-in
+    /// resets the failure count -- which cannot happen while PreSignInCheck short-circuits on the
+    /// lockout. So a locked-out user who did exactly what the system told them to do stayed locked
+    /// out for the rest of the window. This is OWASP's named mitigation for lockout-as-denial-of-
+    /// service.</para>
+    ///
+    /// <para>Both assertions fail independently under mutation: deleting the reset breaks the
+    /// password one, deleting SetLockoutEndDateAsync breaks the lockout one. Neither would be
+    /// reachable at all without a registered user.</para>
+    /// </summary>
+    [Fact]
+    public async Task ResetPasswordAsync_WithAValidToken_ChangesThePasswordAndRestoresAccess()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        const string newPassword = "Test-User2!";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var userId = await SeedRegisteredUserAsync(token, confirmEmail: true);
+                var user = await _userManager.GetByIdAsync(userId);
+
+                // Put the account in the exact state item D exists to rescue.
+                await _userManager.SetLockoutEnabledAsync(user, true);
+                await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddMinutes(30));
+                (await _userManager.IsLockedOutAsync(user)).ShouldBeTrue(
+                    "FIXTURE PRECONDITION FAILED: the user is not actually locked out, so the "
+                    + "restore-access assertion below would pass without the product doing "
+                    + "anything. This is the empty-fixture trap and it must fail loudly here.");
+
+                var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+
+                await _externalAccountAppService.ResetPasswordAsync(new ResetPasswordInput
+                {
+                    UserId = userId,
+                    ResetToken = resetToken,
+                    Password = newPassword,
+                    ConfirmPassword = newPassword,
+                });
+
+                var after = await _userManager.GetByIdAsync(userId);
+
+                (await _userManager.CheckPasswordAsync(after, newPassword)).ShouldBeTrue(
+                    "A reset carrying a valid token must actually change the password.");
+
+                (await _userManager.IsLockedOutAsync(after)).ShouldBeFalse(
+                    "A completed reset must RESTORE ACCESS. If this fails, a locked-out user who "
+                    + "followed the reset link stays locked out for the rest of the window, which "
+                    + "is the lockout-as-denial-of-service that item D closed.");
+            }
+        });
+    }
 
     [Fact]
     public async Task ResetPasswordAsync_WhenTheConfirmationDoesNotMatch_IsRefused()
