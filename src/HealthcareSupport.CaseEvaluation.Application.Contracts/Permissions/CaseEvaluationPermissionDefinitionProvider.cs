@@ -40,11 +40,6 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Edit, L("Permission:Edit"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Delete, L("Permission:Delete"));
 
-        var appointmentAccessorPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentAccessors.Default, L("Permission:AppointmentAccessors"));
-        appointmentAccessorPermission.AddChild(CaseEvaluationPermissions.AppointmentAccessors.Create, L("Permission:Create"));
-        appointmentAccessorPermission.AddChild(CaseEvaluationPermissions.AppointmentAccessors.Edit, L("Permission:Edit"));
-        appointmentAccessorPermission.AddChild(CaseEvaluationPermissions.AppointmentAccessors.Delete, L("Permission:Delete"));
-
         var appointmentApplicantAttorneyPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Default, L("Permission:AppointmentApplicantAttorneys"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create, L("Permission:Create"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));

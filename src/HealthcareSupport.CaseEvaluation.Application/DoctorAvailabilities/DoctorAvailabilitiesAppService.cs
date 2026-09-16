@@ -244,7 +244,17 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
 
-        var doctorAvailability = await _doctorAvailabilityManager.CreateAsync(input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity);
+        // 2026-09-11 -- the manager's clash check must be ATOMIC with the insert it guards.
+        // Checking and inserting outside a transaction leaves the read-then-write window open,
+        // which is the second half of the defect: two concurrent creates can both find no clash
+        // and both persist. Same transactional wrap CreateRangeAsync uses for the bulk path.
+        DoctorAvailability doctorAvailability;
+        using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
+        {
+            doctorAvailability = await _doctorAvailabilityManager.CreateAsync(input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity);
+            await uow.CompleteAsync();
+        }
+
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
     }
 

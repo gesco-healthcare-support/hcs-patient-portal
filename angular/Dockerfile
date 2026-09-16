@@ -91,6 +91,11 @@ FROM base AS dev
 # while this decides WHETHER arbitrary install-time code runs at all. Item 2.2
 # made exactly this change to the markdownlint install in lint-meta.yml; the
 # first version of this line pinned the version and left the hole open.
+# NOT hash-pinned (#700). Same narrower argument as the markdownlint install in
+# lint-meta.yml: npm permits unpublishing a version within 72 hours, so a version pin
+# here is a weaker guarantee than the PyPI ones recorded elsewhere, and a hash would
+# close that window. Accepted because `serve` is the dev container's static file server
+# and reaches no shipped artefact -- the prod Angular image is nginx, not this stage.
 RUN npm install -g --ignore-scripts serve@14.2.6
 ENV NG_CONFIG=docker
 COPY dev-entrypoint.sh /app/dev-entrypoint.sh

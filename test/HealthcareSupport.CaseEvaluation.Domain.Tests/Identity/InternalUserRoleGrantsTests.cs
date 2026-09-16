@@ -173,7 +173,6 @@ public class InternalUserRoleGrantsTests
     [InlineData("CaseEvaluation.AppointmentBodyParts.Create")]
     [InlineData("CaseEvaluation.AppointmentClaimExaminers.Create")]
     [InlineData("CaseEvaluation.AppointmentPrimaryInsurances.Create")]
-    [InlineData("CaseEvaluation.AppointmentAccessors.Create")]
     [InlineData("CaseEvaluation.AppointmentEmployerDetails.Create")]
     public void IntakeShadow_can_create_every_booking_child(string permission) =>
         IntakeShadow.ShouldContain(permission);
@@ -193,4 +192,60 @@ public class InternalUserRoleGrantsTests
     [Fact]
     public void IntakeShadow_can_edit_employer_details_the_edit_form_always_upserts() =>
         IntakeShadow.ShouldContain("CaseEvaluation.AppointmentEmployerDetails.Edit");
+
+    private static readonly HashSet<string> SupervisorTenant =
+        InternalUserRoleDataSeedContributor.StaffSupervisorTenantGrants().ToHashSet();
+
+    /// <summary>
+    /// 2026-09-15 -- the AppointmentAccessors permission surface was removed: defined, granted,
+    /// enforced nowhere. Accessor mutations are gated by
+    /// <c>AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync</c>, never by a permission.
+    ///
+    /// <para>WHY AN ASSERTION AND NOT JUST A DELETION. ABP's
+    /// <c>PermissionManager.SetAsync</c> resolves the name with <c>GetOrNullAsync</c> and
+    /// SILENTLY RETURNS when it is undefined -- it does not throw. So a grant naming a permission
+    /// that no longer exists produces no error, no grant, and no signal of any kind. If someone
+    /// reintroduces this name, nothing in the system would report it. This test is the thing that
+    /// reports it.</para>
+    ///
+    /// <para>WHY ONLY THE GRANT SIDE. The DEFINITION side is compile-coupled: the definition
+    /// provider references <c>CaseEvaluationPermissions.AppointmentAccessors.*</c>, so a surviving
+    /// reference fails the build and needs no test. The GRANT side is raw strings expanded by the
+    /// CRUD loops, which the compiler cannot check -- that is the half that can rot silently.</para>
+    ///
+    /// <para>This REPLACES the removed
+    /// <c>[InlineData("CaseEvaluation.AppointmentAccessors.Create")]</c> row and is strictly
+    /// stronger than it: the row asserted one name in one role, this asserts every name in every
+    /// role. Note it is NOT redundant with the #901 authorization snapshot, which records
+    /// <c>[Authorize]</c> attributes rather than permission definitions and would stay silent on a
+    /// reintroduced name.</para>
+    /// </summary>
+    [Fact]
+    public void No_role_is_granted_the_removed_AppointmentAccessors_permission()
+    {
+        var sets = new (string Role, HashSet<string> Grants)[]
+        {
+            ("IT Admin", ItAdmin),
+            ("Staff Supervisor (host)", SupervisorHost),
+            ("Intake operator (host)", IntakeOperatorHost),
+            ("Intake Staff shadow", IntakeShadow),
+            ("Staff Supervisor (tenant)", SupervisorTenant),
+        };
+
+        foreach (var (role, grants) in sets)
+        {
+            var offenders = grants
+                .Where(p => p.StartsWith("CaseEvaluation.AppointmentAccessors", StringComparison.Ordinal))
+                .OrderBy(p => p, StringComparer.Ordinal)
+                .ToList();
+
+            offenders.ShouldBeEmpty(
+                $"Role '{role}' is granted a CaseEvaluation.AppointmentAccessors permission, but " +
+                "that permission surface was removed on 2026-09-15. Nothing else would tell you: " +
+                "PermissionManager.SetAsync silently ignores an undefined permission name, so the " +
+                "grant would simply never take effect and no error would be raised. Either the " +
+                "permission is being reintroduced -- in which case define it and delete this test " +
+                "deliberately -- or a grant site was missed. Found: " + string.Join(", ", offenders));
+        }
+    }
 }

@@ -88,6 +88,13 @@ jobs:
       # Verified equivalent before shipping: this form reports
       # "markdownlint-cli2 v0.13.0 ... Linting: 444 file(s) ... 0 error(s)",
       # identical to the npx form it replaces.
+      #
+      # NOT hash-pinned (#700), and npm is a WEAKER case than the pip sites: PyPI
+      # forbids re-uploading a published version, while npm allows unpublishing
+      # within 72 hours, which is the window a hash would close. Accepted anyway --
+      # this is build-time tooling that lints markdown and touches no shipped
+      # artefact -- but recorded as a narrower argument than the PyPI one rather
+      # than borrowing it wholesale.
       - name: Install markdownlint-cli2 without running lifecycle scripts
         run: >
           npm install --no-save --no-audit --no-fund --ignore-scripts
