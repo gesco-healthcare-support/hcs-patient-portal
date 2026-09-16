@@ -27,10 +27,18 @@ public class RealAuthorizationHarnessSelfValidationTests : CaseEvaluationRealAut
     ///
     /// <para>Asserted by type NAME because the always-allow implementations are internal to
     /// Volo.Abp.Authorization and cannot be named in a typeof. A name comparison is the
-    /// weaker assertion in general, but here it is the same match the module itself uses to
-    /// remove them, so the test and the removal cannot disagree about what was targeted.
-    /// The module additionally fails construction if a name matched nothing, so a rename
-    /// cannot slip past both.</para>
+    /// weaker assertion in general, and it is the right one here: the module removes
+    /// nothing, so there is no removal for this test to agree with. It composes the ABP
+    /// module chain directly and simply never calls AddAlwaysAllowAuthorization(). This
+    /// assertion is therefore a backstop against that call being ADDED later, which is the
+    /// realistic regression and the one the NOTE in
+    /// CaseEvaluationRealAuthorizationTestModule.ConfigureServices warns against.</para>
+    ///
+    /// <para>A rename inside Volo.Abp would defeat a name comparison, and that is accepted
+    /// rather than overlooked: PermissionChecker_DistinguishesGrantedFromUngranted below is
+    /// behavioural, not name-based, and would fail if always-allow were in force whatever
+    /// the implementation types were called. The two assertions together do not depend on
+    /// that string staying stable.</para>
     /// </summary>
     [Fact]
     public void Harness_DoesNotResolveAbpsAlwaysAllowAuthorizationServices()
