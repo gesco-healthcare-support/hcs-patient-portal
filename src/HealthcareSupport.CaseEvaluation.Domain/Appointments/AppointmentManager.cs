@@ -595,6 +595,8 @@ public class AppointmentManager : DomainService
             // CancellationRequested, so an appointment that can still take an attendance
             // outcome has no open request that the (terminal) outcome could strand.
             .Permit(AppointmentTransitionTrigger.MarkNotSeen, AppointmentStatusType.NotSeen)
+            // DEAD: no production trigger for CheckIn -- see the CheckedIn/CheckedOut/Billed
+            // note on the two Configure blocks below.
             .Permit(AppointmentTransitionTrigger.CheckIn, AppointmentStatusType.CheckedIn);
 
         machine.Configure(AppointmentStatusType.CancellationRequested)
@@ -605,6 +607,15 @@ public class AppointmentManager : DomainService
             .Permit(AppointmentTransitionTrigger.ConfirmReschedule, AppointmentStatusType.RescheduledNoBill)
             .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate);
 
+        // DEAD CODE -- CheckedIn / CheckedOut / Billed are unreachable.
+        // These three transitions (CheckIn -> CheckedIn -> CheckedOut -> Billed) are OLD's
+        // front-desk day-of-exam flow. The states, these transitions, their email handlers
+        // (StatusChangeEmailHandler), templates (PatientAppointmentCheckedIn/Out) and pill
+        // mapping were all carried over, but NOTHING triggers CheckIn / CheckOut / Bill in
+        // production -- no app-service endpoint, no UI, no background job -- so no appointment
+        // can ever enter these states. Verified 2026-09-16: zero production callers of the
+        // three triggers. Retained for data compatibility and pending a keep-vs-remove
+        // product decision; do not wire up. Tracked: docs/parity/_parity-flags.md PF-005.
         machine.Configure(AppointmentStatusType.CheckedIn)
             .Permit(AppointmentTransitionTrigger.CheckOut, AppointmentStatusType.CheckedOut);
 
