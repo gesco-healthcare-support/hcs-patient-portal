@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -46,6 +47,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
+    private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
@@ -57,6 +59,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
         _appointmentApplicantAttorneyRepository = GetRequiredService<IAppointmentApplicantAttorneyRepository>();
+        _appointmentDefenseAttorneyRepository = GetRequiredService<IAppointmentDefenseAttorneyRepository>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
         _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
@@ -1256,6 +1259,291 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                         + "neither the creator of nor linked to. Both patients match the filter "
                         + "and neither appointment was created by this attorney, so the join-table "
                         + "scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    // =====================================================================
+    // Defense Attorney scoping, and the booker-side scoping on
+    // GetIdentityUserLookupAsync. Phase 8 tranche 1 follow-up (2026-09-16).
+    //
+    // These mirror the Applicant Attorney and Claim Examiner Facts above. The
+    // booker Facts create their OWN IdentityUsers with a unique token in the
+    // email, rather than reusing the seeded roster, because the lookup filters
+    // on email and rows accumulate across the shared collection: an assertion
+    // that a SEEDED user is absent would really be asserting that no earlier
+    // test happened to link them.
+    // =====================================================================
+
+    /// <summary>
+    /// Creates one IdentityUser in TenantA whose email embeds <paramref name="token"/>, so a
+    /// lookup filtered on that token can reach this row and no other.
+    /// </summary>
+    private async Task<Guid> SeedLookupUserAsync(string token, string suffix)
+    {
+        var userManager = GetRequiredService<Volo.Abp.Identity.IdentityUserManager>();
+        var userId = Guid.NewGuid();
+        var user = new Volo.Abp.Identity.IdentityUser(
+            userId,
+            $"TEST-bk-{token}-{suffix}",
+            $"TEST-bk-{token}-{suffix}@test.local",
+            _currentTenant.Id);
+
+        var result = await userManager.CreateAsync(user, IdentityUsersTestData.SeedPassword);
+        result.Succeeded.ShouldBeTrue(
+            "Seeding the booker failed, so this Fact would assert against a user that does not "
+            + "exist: " + string.Join("; ", result.Errors.Select(e => e.Description)));
+        return userId;
+    }
+
+    /// <summary>
+    /// Seeds a TenantA appointment whose BOOKER is <paramref name="bookerId"/>, created under the
+    /// host admin so the caller can never satisfy the creator arm of the visibility rule.
+    /// </summary>
+    private async Task<Guid> SeedBookerAppointmentAsync(string token, string suffix, Guid bookerId)
+    {
+        var appointmentId = Guid.NewGuid();
+        await _appointmentRepository.InsertAsync(
+            new Appointment(
+                id: appointmentId,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: bookerId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 8, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: $"A9-BK-{token}-{suffix}",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                TenantId = TenantsTestData.TenantARef,
+            },
+            autoSave: true);
+        return appointmentId;
+    }
+
+    /// <summary>
+    /// Creates a DefenseAttorney row and links it to <paramref name="appointmentId"/> for
+    /// <see cref="IdentityUsersTestData.DefenseAttorney1UserId"/>. No such link is seeded, and
+    /// AppointmentDefenseAttorney.DefenseAttorneyId is a real FK, so the row must exist first.
+    /// </summary>
+    private async Task LinkDefenseAttorneyAsync(Guid appointmentId, string token)
+    {
+        var defenseAttorney = await GetRequiredService<DefenseAttorneyManager>().CreateAsync(
+            stateId: null,
+            identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
+            firmName: $"TEST-firm-{token}",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: $"TEST-da-{token}@test.local",
+            firstName: "TEST-Dana",
+            lastName: "Synthetic");
+
+        await _appointmentDefenseAttorneyRepository.InsertAsync(
+            new AppointmentDefenseAttorney(
+                id: Guid.NewGuid(),
+                appointmentId: appointmentId,
+                defenseAttorneyId: defenseAttorney.Id,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId)
+            {
+                TenantId = TenantsTestData.TenantARef,
+            },
+            autoSave: true);
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsDefenseAttorney_ExcludesPatientsOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var minePatientId = await SeedLookupPatientAsync(token, "da-mine");
+                var otherPatientId = await SeedLookupPatientAsync(token, "da-other");
+
+                Guid mineAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "da-mine", minePatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                    await SeedLookupAppointmentAsync(
+                        token, "da-other", otherPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                }
+
+                await LinkDefenseAttorneyAsync(mineAppointmentId, token);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.DefenseAttorney1UserId,
+                           IdentityUsersTestData.DefenseAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == minePatientId,
+                        "A Defense Attorney must see the patient on the appointment whose defense "
+                        + "link names them. If this fails the exclusion below is vacuous.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherPatientId,
+                        "A Defense Attorney must NOT see a patient on an appointment they are "
+                        + "neither the creator of nor linked to. Both patients match the filter "
+                        + "and neither appointment was created by this attorney, so the defense "
+                        + "join-table scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetIdentityUserLookupAsync_AsApplicantAttorney_ExcludesBookersOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var mineBookerId = await SeedLookupUserAsync(token, "aa-mine");
+                var otherBookerId = await SeedLookupUserAsync(token, "aa-other");
+
+                Guid mineAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedBookerAppointmentAsync(token, "aa-mine", mineBookerId);
+                    await SeedBookerAppointmentAsync(token, "aa-other", otherBookerId);
+                }
+
+                await _appointmentApplicantAttorneyRepository.InsertAsync(
+                    new AppointmentApplicantAttorney(
+                        id: Guid.NewGuid(),
+                        appointmentId: mineAppointmentId,
+                        applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                        identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId)
+                    {
+                        TenantId = TenantsTestData.TenantARef,
+                    },
+                    autoSave: true);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.ApplicantAttorney1UserId,
+                           IdentityUsersTestData.ApplicantAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetIdentityUserLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == mineBookerId,
+                        "An Applicant Attorney must see the booker on the appointment whose "
+                        + "attorney link names them.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherBookerId,
+                        "An Applicant Attorney must NOT see the booker of an appointment they are "
+                        + "neither creator of nor linked to. Both bookers match the email filter, "
+                        + "so the visible-booker scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetIdentityUserLookupAsync_AsDefenseAttorney_ExcludesBookersOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var mineBookerId = await SeedLookupUserAsync(token, "da-mine");
+                var otherBookerId = await SeedLookupUserAsync(token, "da-other");
+
+                Guid mineAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedBookerAppointmentAsync(token, "da-mine", mineBookerId);
+                    await SeedBookerAppointmentAsync(token, "da-other", otherBookerId);
+                }
+
+                await LinkDefenseAttorneyAsync(mineAppointmentId, token);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.DefenseAttorney1UserId,
+                           IdentityUsersTestData.DefenseAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetIdentityUserLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == mineBookerId,
+                        "A Defense Attorney must see the booker on the appointment whose defense "
+                        + "link names them.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherBookerId,
+                        "A Defense Attorney must NOT see the booker of an appointment they are "
+                        + "neither creator of nor linked to.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetIdentityUserLookupAsync_AsInternalUser_IsNotScopedToLinkedBookers()
+    {
+        // The companion that stops the two Facts above being vacuous. They assert that a booker is
+        // ABSENT, and absent is also what an unreachable row looks like -- a lookup that returned
+        // nobody would satisfy both. Here the SAME two users are seeded with no link at all, and an
+        // internal caller must see BOTH, which proves the exclusions above are the scoping working
+        // rather than the rows being invisible.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var firstBookerId = await SeedLookupUserAsync(token, "int-a");
+                var secondBookerId = await SeedLookupUserAsync(token, "int-b");
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    await SeedBookerAppointmentAsync(token, "int-a", firstBookerId);
+                    await SeedBookerAppointmentAsync(token, "int-b", secondBookerId);
+
+                    var result = await _appointmentsAppService.GetIdentityUserLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == firstBookerId,
+                        "An internal caller is not attorney-scoped and must see both bookers.");
+                    result.Items.ShouldContain(
+                        x => x.Id == secondBookerId,
+                        "An internal caller is not attorney-scoped and must see both bookers. If "
+                        + "this fails, the attorney Facts above prove nothing: their excluded "
+                        + "booker would be unreachable rather than scoped out.");
                 }
             }
         });
