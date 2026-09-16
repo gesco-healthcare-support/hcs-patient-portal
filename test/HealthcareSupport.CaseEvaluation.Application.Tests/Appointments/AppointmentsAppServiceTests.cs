@@ -1551,6 +1551,130 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     }
 
     // =====================================================================
+    // UpdateAsync's happy path and the two events it publishes.
+    //
+    // NOTHING IN THIS SUITE HAD EVER DRIVEN UpdateAsync PAST ITS GUARDS -- all five existing call
+    // sites set a Guid to Empty and assert the throw, so BuildValidUpdateDto deliberately carries
+    // NON-EXISTENT foreign keys. These Facts are the first to run the method for real, which is why
+    // they seed their own appointment and read its actual ConcurrencyStamp rather than reusing that
+    // helper.
+    //
+    // Events are captured by AppointmentEventCapture, a singleton handler pair declared in this
+    // assembly and discovered by ABP's conventional registration. See its docstring for why a
+    // substituted bus was not an option here.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds an appointment and returns an update DTO carrying its REAL concurrency stamp and real
+    /// foreign keys, so <see cref="AppointmentsAppService.UpdateAsync"/> can actually complete.
+    /// </summary>
+    private async Task<(Guid AppointmentId, AppointmentUpdateDto Input)> SeedUpdatableAppointmentAsync(
+        string token)
+    {
+        var patientId = await SeedLookupPatientAsync(token, "upd");
+        var appointmentId = await SeedLookupAppointmentAsync(
+            token, "upd", patientId, IdentityUsersTestData.ClaimExaminer1Email);
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+
+        return (appointmentId, new AppointmentUpdateDto
+        {
+            PatientId = patientId,
+            IdentityUserId = IdentityUsersTestData.Patient1UserId,
+            AppointmentTypeId = LocationsTestData.AppointmentType1Id,
+            LocationId = LocationsTestData.Location1Id,
+            DoctorAvailabilityId = DoctorAvailabilitiesTestData.Slot1Id,
+            AppointmentDate = appointment.AppointmentDate,
+            RequestConfirmationNumber = appointment.RequestConfirmationNumber,
+            PanelNumber = appointment.PanelNumber,
+            DueDate = appointment.DueDate,
+            ConcurrencyStamp = appointment.ConcurrencyStamp,
+        });
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithValidInput_CompletesAndPersistsTheChange()
+    {
+        // The precondition for both event Facts below, and worth its own name: if this cannot run,
+        // neither of those can, and the reason would be about the rig rather than the events.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var (appointmentId, input) = await SeedUpdatableAppointmentAsync(token);
+
+                // RefferedBy is changed rather than an INTAKE field, and the reason is recorded
+                // above the class: changing a diffable intake field publishes
+                // AppointmentIntakeChangedEto, whose real production handler renders a notification
+                // template that this rig cannot resolve, so the update throws. RefferedBy is
+                // persisted by UpdateAsync but is not part of AppointmentIntakeDiff, so it
+                // exercises the write path without tripping the notification chain.
+                //
+                // Two earlier attempts here were both the test being wrong rather than the product:
+                // PanelNumber is refused outright on a non-PQME type
+                // (AppointmentManager.EnsurePanelNumberMatchesType), and DueDate publishes the event.
+                input.RefferedBy = $"TEST-ref-{token}";
+
+                await _appointmentsAppService.UpdateAsync(appointmentId, input);
+
+                var after = await _appointmentRepository.GetAsync(appointmentId);
+                after.RefferedBy.ShouldBe(
+                    $"TEST-ref-{token}",
+                    "UpdateAsync must persist an edit to a non-intake field.");
+            }
+        });
+    }
+
+    // THE POSITIVE EVENT FACT IS ABSENT ON PURPOSE, AND THIS IS THE FINDING.
+    //
+    // "Changing an intake field publishes AppointmentIntakeChangedEto" CANNOT be asserted in this
+    // rig. Publishing it runs the real production handler, IntakeChangedEmailHandler, which renders
+    // a notification template -- and NotificationTemplateDataSeedContributor is TENANT-SCOPED, so
+    // with no tenant in the seed context only host codes are seeded and a tenant render throws.
+    // The exception propagates out of UpdateAsync, so the update itself fails.
+    //
+    // Measured, not inferred: the failing stack was
+    //   NotificationTemplateRenderer.RenderAsync -> NotificationDispatcher.DispatchAsync
+    //   -> IntakeChangedEmailHandler.HandleEventAsync -> AppointmentsAppService.UpdateAsync
+    //
+    // This is the SAME root cause that blocks ExternalAccountAppService's send paths, now confirmed
+    // to block a second area. Seeding a template here to force it green would be asserting against
+    // scaffolding I invented, so the Fact is not written. Per-tenant template seeding is the fixture
+    // work that would unblock both, and it is deliberately not invented under a deadline.
+    //
+    // The NEGATIVE half below IS reachable and is kept: no intake change means no event, and that
+    // path never reaches the renderer.
+
+    [Fact]
+    public async Task UpdateAsync_WhenNoIntakeFieldChanges_PublishesNoIntakeChangedEvent()
+    {
+        // The negative half, and it needs the Fact above to mean anything. AppointmentIntakeDiff
+        // only reports genuine differences, so re-saving identical values must NOT notify anyone --
+        // otherwise every incidental save mails the whole party list.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var capture = GetRequiredService<AppointmentEventCapture>();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var (appointmentId, input) = await SeedUpdatableAppointmentAsync(token);
+
+                // Every field left exactly as seeded.
+                await _appointmentsAppService.UpdateAsync(appointmentId, input);
+
+                capture.IntakeChanged.ShouldNotContain(
+                    e => e.AppointmentId == appointmentId,
+                    "Re-saving identical intake values must publish NOTHING. If it does, every "
+                    + "incidental save notifies the whole party list about a change that did not "
+                    + "happen.");
+            }
+        });
+    }
+
+    // =====================================================================
     // The attorney-details-for-booking pair. Both methods have the same shape: resolve a user by
     // id OR by email, return null if nothing resolves, then merge the attorney record (which may
     // not exist) over the identity user.
