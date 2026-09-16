@@ -213,20 +213,37 @@ public class EfCoreExternalAccountAppServiceTests
     // the live path rather than a branch nothing takes.
     // ------------------------------------------------------------------------
 
+    // ------------------------------------------------------------------------
+    // WHAT THESE TWO FACTS DO AND DO NOT PIN -- established by measurement, after I got it wrong
+    // in both directions.
+    //
+    // The send paths CANNOT be observed end-to-end in this rig. NotificationTemplateDataSeedContributor
+    // is TENANT-SCOPED: with no tenant in the seed context it seeds only the host-scoped codes, and
+    // these flows run inside a tenant. So the render raises NotificationTemplateNotFound, the
+    // SPECIFIC catch swallows it, and no outbox row is ever written for a tenant user -- measured
+    // directly by querying the outbox and finding nothing.
+    //
+    // Two consequences worth stating rather than hiding:
+    //   1. An outbox assertion here would fail for a rig reason, not a product reason. I wrote one,
+    //      it failed, and removing it is the honest response rather than seeding a template myself
+    //      and asserting against my own scaffolding.
+    //   2. A "confirmed user queues nothing" Fact would pass VACUOUSLY, because nothing is ever
+    //      queued for anybody here. I wrote that one too and deleted it. It is the exact shape of
+    //      test this epic keeps refusing to ship.
+    //
+    // What remains is real but narrow: a template fault must stay INSIDE the service. These flows
+    // are anonymous and deliberately silent, so a thrown exception would both surface a deployment
+    // fault to the caller and confirm that the address is registered. The probe that breaks these
+    // is the SPECIFIC NotificationTemplateNotFound catch -- NOT the generic one behind it, which is
+    // never reached and whose mutation left both Facts passing.
+    //
+    // End-to-end send coverage needs per-tenant template seeding in the rig. That is tranche-2
+    // fixture work, deliberately not invented here under a deadline.
+    // ------------------------------------------------------------------------
+
     [Fact]
-    public async Task SendPasswordResetCodeAsync_ForARegisteredUser_SurvivesAMissingTemplate()
+    public async Task SendPasswordResetCodeAsync_ForARegisteredUser_KeepsATemplateFaultInternal()
     {
-        // Runs the whole success path -- token generation, host-eligibility, tenant-aware URL,
-        // dispatch -- for a real user, and requires a DISPATCH FAILURE OF ANY KIND to stay inside
-        // the service. A reset request must never surface a deployment fault to an anonymous
-        // caller: the SPA shows "if registered, check your email" either way, and a thrown
-        // exception here would also tell an attacker the address IS registered.
-        //
-        // PRECISION, because the first version of this comment overclaimed. The method catches
-        // NotificationTemplateNotFound specifically AND has a generic catch behind it, so removing
-        // the specific one changes nothing a caller can see -- the generic catch still swallows.
-        // What this Fact pins is the swallowing, not which catch does it. The probe that breaks it
-        // makes the GENERIC catch rethrow.
         var token = Guid.NewGuid().ToString("N")[..8];
 
         await WithUnitOfWorkAsync(async () =>
@@ -238,20 +255,19 @@ public class EfCoreExternalAccountAppServiceTests
                 await Should.NotThrowAsync(
                     async () => await _externalAccountAppService.SendPasswordResetCodeAsync(
                         new SendPasswordResetCodeInput { Email = EmailFor(token) }),
-                    "A missing ResetPassword template must be swallowed and logged, not thrown. If "
+                    "A missing ResetPassword template must be logged and swallowed, not thrown. If "
                     + "this throws, a seeding fault becomes a 500 on an anonymous endpoint AND an "
-                    + "oracle for which addresses are registered.");
+                    + "oracle telling an attacker the address IS registered -- the unregistered "
+                    + "path returns silently.");
             }
         });
     }
 
     [Fact]
-    public async Task ResendEmailVerificationAsync_ForAnUnconfirmedUser_SurvivesAMissingTemplate()
+    public async Task ResendEmailVerificationAsync_ForAnUnconfirmedUser_KeepsATemplateFaultInternal()
     {
-        // The mirror of the above on the resend flow, and the first Fact to reach it at all: the
-        // earlier pass could not, because an unregistered address returns before the send. Same
-        // precision applies -- this pins that a dispatch failure is swallowed, not which of the
-        // two catches swallows it.
+        // The first Fact to reach the resend flow's registered-user path at all: the earlier pass
+        // could not, because an unregistered address returns before the send.
         var token = Guid.NewGuid().ToString("N")[..8];
 
         await WithUnitOfWorkAsync(async () =>
@@ -263,7 +279,7 @@ public class EfCoreExternalAccountAppServiceTests
                 await Should.NotThrowAsync(
                     async () => await _externalAccountAppService.ResendEmailVerificationAsync(
                         new ResendEmailVerificationInput { Email = EmailFor(token) }),
-                    "A missing UserRegistered template must be swallowed and logged, not thrown.");
+                    "A missing UserRegistered template must be logged and swallowed, not thrown.");
             }
         });
     }
