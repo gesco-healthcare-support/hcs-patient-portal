@@ -1,0 +1,134 @@
+name: Cascade Guard
+
+# A CASCADE INTO `development` MUST BE A MERGE COMMIT, NEVER A SQUASH.
+#
+# The rule already existed; nothing enforced it. `auto-pr-dev.yml` writes
+# "Review and merge (merge commit) to promote" into the PR body -- prose only --
+# and the repository has `allow_squash_merge: true`, so the squash button sits
+# right next to the merge button on every cascade PR.
+#
+# On 2026-09-16 cascade #907 was squashed. `0cfad7d0` has one parent, so
+# `development` ended up holding main's CONTENT but none of its COMMITS, and the
+# branches read as diverged. The next cascade PR then presented 62 files when
+# only 14 differed -- 48 of them with no content difference whatsoever. Nothing
+# in the code was wrong. The promotion PR was simply unreviewable, and a real
+# problem could have hidden inside a diff nobody trusts.
+#
+# A squashed cascade is detectable with certainty rather than heuristically: a
+# merge commit has two or more parents, a squash has exactly one.
+#
+# This is the second of two layers. The first is a repository setting
+# restricting merge methods on `development`, which is applied separately. This
+# job catches it if that setting is ever relaxed, and says why it matters at the
+# moment someone is looking.
+#
+# WHY ITS OWN WORKFLOW: `ci.yml` triggers on `pull_request` plus `push` to
+# `main` only, never `push` to `development`. Adding `development` to that push
+# list would run the entire suite on every promotion, which is a far larger
+# change than this warrants.
+
+on:
+  push:
+    branches: [development]
+
+permissions:
+  contents: read
+
+jobs:
+  cascade-is-a-merge:
+    name: "Cascade: promotion is a merge"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          # Full history: the check reads parent counts, and a shallow clone
+          # reports truncated parents, which would silently read a merge as a
+          # squash and fail honest promotions.
+          fetch-depth: 0
+
+      - name: Cascade commits must have two parents
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.sha }}
+        run: |
+          # `set +e` FIRST, for the same reason ci.yml's migration steps document
+          # at length: GitHub invokes this as `bash -e {0}`, and an assignment
+          # from a command substitution takes the substitution's exit status, so
+          # under -e the shell dies at exactly the moment the check finds what it
+          # is looking for.
+          set +e
+          set -uo pipefail
+
+          # The subject auto-pr-dev.yml:58 gives every cascade PR. A squash merge
+          # keeps it as the commit subject, which is what makes this detectable.
+          CASCADE_SUBJECT_RE='^ci\(sync\): promote main to development'
+          ZERO='0000000000000000000000000000000000000000'
+
+          check_range() {
+            range="$1"
+            if ! commits=$(git rev-list "$range" 2>&1); then
+              echo "::error::Cascade guard could not list '$range'. This is NOT a pass -- read the error: $commits"
+              return 2
+            fi
+
+            bad=0
+            checked=0
+            for c in $commits; do
+              subject=$(git log -1 --format='%s' "$c")
+              printf '%s' "$subject" | grep -Eq "$CASCADE_SUBJECT_RE" || continue
+
+              checked=$((checked + 1))
+              # %P is the space-separated parent list. One parent means squash.
+              nparents=$(git log -1 --format='%P' "$c" | wc -w)
+
+              if [ "$nparents" -lt 2 ]; then
+                echo "::group::squashed cascade: $c"
+                git log -1 --format='  %h  parents=%P%n  %s' "$c"
+                echo "::endgroup::"
+                m="Cascade commit $(git rev-parse --short "$c") has $nparents parent and must have at least 2."
+                m="$m It was SQUASH-merged. development now holds main's content but not its"
+                m="$m commits, so the branches read as diverged and the next promotion PR will"
+                m="$m present every file main has touched since they last shared history --"
+                m="$m unreviewable, and a real defect can hide in it. Promote main to"
+                m="$m development with a MERGE COMMIT. Never squash, never rebase."
+                echo "::error::$m"
+                bad=$((bad + 1))
+              else
+                echo "  ok: $(git rev-parse --short "$c") is a merge ($nparents parents)"
+              fi
+            done
+
+            [ "$checked" -eq 0 ] && echo "  no cascade commits in $range"
+            [ "$bad" -gt 0 ] && return 1
+            return 0
+          }
+
+          if [ -z "$EVENT_BEFORE" ] || [ "$EVENT_BEFORE" = "$ZERO" ]; then
+            # NEW BRANCH OR UNKNOWN BASE: EXAMINE ONLY THE TIP, NEVER HISTORY.
+            #
+            # The obvious fallback -- scanning `origin/main..$AFTER` -- is WRONG,
+            # and testing rather than reasoning is what showed it. development's
+            # history permanently contains the squashed cascade 0cfad7d0: it stays
+            # reachable as a parent of the repair commit and is never on main, so
+            # that range would flag it on every run, forever. This job would be red
+            # from the day it merged, for a defect already fixed.
+            #
+            # ci.yml:99-101 makes the argument in those words for the classifier:
+            # "a check that is permanently red teaches people to ignore the colour.
+            # That is worse than no check."
+            #
+            # This guard exists to catch a squash AS IT LANDS, so the tip is the
+            # whole question. Repairing history is a different job.
+            check_range "${EVENT_AFTER}~1..${EVENT_AFTER}"
+          else
+            check_range "${EVENT_BEFORE}..${EVENT_AFTER}"
+          fi
+          rc=$?
+
+          case "$rc" in
+            0) echo "Cascade history is intact." ;;
+            1) echo "::error::A cascade commit was squashed. See above." ;;
+            *) echo "::error::The cascade guard could not run. Treating as failure." ;;
+          esac
+          exit "$rc"
