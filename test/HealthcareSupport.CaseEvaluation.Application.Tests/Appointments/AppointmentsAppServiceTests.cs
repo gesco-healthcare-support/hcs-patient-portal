@@ -373,7 +373,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     // PR, flip Skip to null and the test runs; failure then forces a decision.
     // =====================================================================
 
-    [Fact(Skip = "KNOWN GAP: DeleteAsync does not release DoctorAvailability.BookingStatusId back to Available. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md under 'Business Rules' rule 2.")]
+    [Fact(Skip = "SUPERSEDED PREMISE, corrected 2026-09-16 -- this describes a gap against a model the product no longer uses, so it is off permanently rather than pending. DeleteAsync (AppointmentsAppService.cs:683) genuinely does not write BookingStatusId, but it SHOULD NOT: since the 2026-05-15 slot rework that field is a manual-close override, not a derived value (SlotCascadeHandler.cs:8-20), so writing it on delete would silently undo an operator's deliberate close. What actually frees the slot is the active-appointment count dropping -- GetActiveCountForSlotAsync against Capacity is the authoritative bookability measure (AppointmentsAppService.cs:1480). Re-check: grep BookingStatusId writes across src/, excluding comments; none is in a delete path.")]
     public Task DeleteAsync_ReleasesSlotBackToAvailable()
     {
         // Expected behaviour (not yet implemented):
@@ -384,7 +384,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "KNOWN GAP: No enforced state-machine on AppointmentStatus. Any code path can set any status directly. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md under 'State Machine' warning.")]
+    [Fact(Skip = "KNOWN GAP, still live -- wording corrected 2026-09-16. A state machine DOES exist (AppointmentManager.BuildMachine, Stateless, with Permit rules) and ApplyTransitionAsync enforces it; the original 'no enforced state-machine' was imprecise. What remains true is the part that matters: it is not the only write path. Two approval paths set the status directly on the entity, bypassing the machine -- AppointmentChangeRequestsAppService.Approval.cs:133 and :683. Tracked as issue #926. Re-check by enumerating '.AppointmentStatus =' writes across src/ with comment lines excluded: exactly three, and only AppointmentManager.cs:566 is the machine's own setter.")]
     public Task UpdateAsync_TransitionFromBilledToPending_ShouldThrow()
     {
         // Expected behaviour (not yet implemented):
@@ -472,7 +472,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     // Skipped on the epic for the same reason as the sibling create-flow tests:
     // db-per-office makes catalogs IMultiTenant per office and the shared-SQLite
     // test rig can't seed per-tenant catalogs (Phase F harness restore).
-    [Fact(Skip = "KNOWN GAP: AppointmentsAppService.CreateAsync should transition slot Available -> Reserved (pending office review) -> Booked, but currently flips directly to Booked. Tracked: docs/product/doctor-availabilities.md slot-lifecycle section AND src/.../Domain/Appointments/CLAUDE.md Business Rule 4 (slot booking is one-way). When production code is fixed to emit Reserved as the post-create state, this Fact flips live.")]
+    [Fact(Skip = "SUPERSEDED PREMISE, corrected 2026-09-16 -- BOTH halves of the original note were false, so it is off permanently rather than pending a fix. CreateAsync does not flip the slot to Booked: it writes nothing to BookingStatusId at all. And Reserved is not a state the booking flow produces -- since the 2026-05-15 slot rework it is a manual-close marker the create path READS in order to REFUSE a booking (AppointmentsAppService.cs:1472, arm 1, throwing AppointmentBookingSlotClosed). The comment two lines above that arm records the rest: Booked is treated as Available for backward compatibility because the active-count probe is authoritative. Re-check: grep BookingStatusId writes across src/, excluding comments; none is in a create path.")]
     public Task CreateAsync_BookingTransitionsSlotToReserved_NotBookedDirectly()
     {
         // Expected behaviour (not yet implemented):
