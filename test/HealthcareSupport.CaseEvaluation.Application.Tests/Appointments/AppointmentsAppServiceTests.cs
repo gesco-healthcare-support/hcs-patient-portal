@@ -9,7 +9,9 @@ using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Security;
+using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
@@ -41,6 +43,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     private readonly IAppointmentsAppService _appointmentsAppService;
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
@@ -50,6 +53,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         _appointmentsAppService = GetRequiredService<IAppointmentsAppService>();
         _appointmentRepository = GetRequiredService<IAppointmentRepository>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
+        _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
         _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
@@ -1006,5 +1010,181 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             ex.Code.ShouldBe(
                 CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked);
         }
+    }
+
+    // =====================================================================
+    // GetPatientLookupAsync -- the PII guard and the per-role scoping.
+    // Phase 8 tranche 1, item 4 (2026-09-15).
+    //
+    // WHY THESE ARE NOT REDUNDANT WITH PatientLookupFilterUnitTests.
+    // That suite proves the PREDICATE IsLookupFilterTooShort classifies a
+    // filter correctly. It cannot see whether GetPatientLookupAsync ever
+    // CALLS it. Delete the guard block from the service and every one of
+    // those unit tests stays green -- the predicate they exercise is still
+    // right, it has simply stopped being consulted. The Facts below assert
+    // the WIRING, which is the half that can rot in silence.
+    //
+    // EVERY FIXTURE HERE IS UNIQUE PER TEST, which is load-bearing rather
+    // than tidiness. Rows accumulate across the shared test collection, and
+    // other suites already seed appointments carrying the shared
+    // ClaimExaminer1Email (AppointmentReadAccessGuardTests.cs:124). A scoping
+    // assertion written against the shared identities would be answering a
+    // question about whatever else happened to run first.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds one patient in TenantA whose email embeds <paramref name="token"/>, so a lookup
+    /// filtered on that token reaches this row and no other -- including rows left behind by
+    /// earlier tests in the shared collection.
+    /// </summary>
+    private async Task<Guid> SeedLookupPatientAsync(string token, string suffix)
+    {
+        var patientId = Guid.NewGuid();
+        await _patientRepository.InsertAsync(
+            new Patient(
+                id: patientId,
+                stateId: null,
+                appointmentLanguageId: null,
+                identityUserId: null,
+                tenantId: TenantsTestData.TenantARef,
+                firstName: "TEST-Lookup",
+                lastName: "Synthetic",
+                email: $"TEST-lookup-{token}-{suffix}@test.local",
+                genderId: Gender.Unspecified,
+                dateOfBirth: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                phoneNumberTypeId: PhoneNumberType.Work),
+            autoSave: true);
+        return patientId;
+    }
+
+    /// <summary>
+    /// Seeds one TenantA appointment for <paramref name="patientId"/> naming
+    /// <paramref name="claimExaminerEmail"/> as its examiner. The confirmation number embeds the
+    /// token because (TenantId, RequestConfirmationNumber) is a hard unique index and these rows
+    /// accumulate across the collection.
+    /// </summary>
+    private async Task SeedLookupAppointmentAsync(
+        string token,
+        string suffix,
+        Guid patientId,
+        string claimExaminerEmail)
+    {
+        await _appointmentRepository.InsertAsync(
+            new Appointment(
+                id: Guid.NewGuid(),
+                patientId: patientId,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 6, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: $"A9-LK-{token}-{suffix}",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                TenantId = TenantsTestData.TenantARef,
+                ClaimExaminerEmail = claimExaminerEmail,
+            },
+            autoSave: true);
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_BelowMinimumFilterLength_ReturnsNothingEvenThoughAPatientMatches()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await SeedLookupPatientAsync(token, "short");
+
+                // One character, and deliberately a character the seeded email DOES contain, so
+                // an empty page can only be the guard firing -- never a filter that missed.
+                var result = await _appointmentsAppService.GetPatientLookupAsync(
+                    new LookupRequestDto { Filter = token[..1], MaxResultCount = 1000 });
+
+                result.TotalCount.ShouldBe(
+                    0,
+                    "A filter shorter than PatientLookupMinFilterLength must return an EMPTY page. "
+                    + "If this fails, GetPatientLookupAsync has stopped consulting "
+                    + "IsLookupFilterTooShort, and any caller can enumerate the tenant's patient "
+                    + "emails one character at a time -- the PII guard this endpoint exists for.");
+                result.Items.ShouldBeEmpty();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_WithASufficientFilter_ReturnsTheMatchingPatient()
+    {
+        // The companion to the guard Fact above, and the reason that one is not vacuous: same
+        // seed, same endpoint, a longer filter. Without this, an empty page would be evidence of
+        // nothing -- a lookup that never returns anybody would satisfy the guard test too.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var patientId = await SeedLookupPatientAsync(token, "long");
+
+                var result = await _appointmentsAppService.GetPatientLookupAsync(
+                    new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                result.Items.ShouldContain(
+                    x => x.Id == patientId,
+                    "A filter at or above the minimum length must reach a matching patient. "
+                    + "If this fails the guard Fact above proves nothing, because an endpoint "
+                    + "that returns nobody would pass it regardless.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsClaimExaminer_ExcludesPatientsWhoseAppointmentNamesAnotherExaminer()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var callerEmail = $"TEST-ce-{token}@test.local";
+        var otherExaminerEmail = $"TEST-ce-other-{token}@test.local";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // BOTH patients match the filter. That is the point: the scoping rule is the only
+                // thing that can separate them, so removing it changes the answer.
+                var minePatientId = await SeedLookupPatientAsync(token, "mine");
+                var otherPatientId = await SeedLookupPatientAsync(token, "other");
+
+                await SeedLookupAppointmentAsync(token, "mine", minePatientId, callerEmail);
+                await SeedLookupAppointmentAsync(token, "other", otherPatientId, otherExaminerEmail);
+
+                // RunWithEmail, NOT Run. GetClaimExaminerVisiblePatientIdsAsync reads
+                // CurrentUser.Email and returns an empty list when it is null, and Run emits no
+                // Email claim at all. Under Run this Fact would pass with the ENTIRE Claim
+                // Examiner scoping rule deleted, because the caller would see nothing either way.
+                using (WithCurrentUser.RunWithEmail(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.ClaimExaminer1UserId,
+                           callerEmail,
+                           IdentityUsersTestData.ClaimExaminerRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == minePatientId,
+                        "A Claim Examiner must still see the patient on the appointment that "
+                        + "names them. If this fails the exclusion below proves nothing.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherPatientId,
+                        "A Claim Examiner must NOT see a patient whose only appointment names a "
+                        + "DIFFERENT examiner. Both patients match the filter, so an unscoped "
+                        + "query returns both -- this is the tenant-wide patient enumeration the "
+                        + "Claim Examiner scoping exists to stop.");
+                }
+            }
+        });
     }
 }
