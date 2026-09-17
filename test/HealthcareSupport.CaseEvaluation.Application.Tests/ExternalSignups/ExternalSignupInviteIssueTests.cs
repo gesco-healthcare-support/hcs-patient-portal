@@ -178,13 +178,25 @@ public abstract class ExternalSignupInviteIssueTests<TStartupModule>
     {
         var token = NewToken();
 
-        // No exception. The companion test below shows that an address that DOES resolve reaches
-        // the dispatcher and throws, so this silence is the early return and not a dead method.
-        await _appService.SendPortalLinkAsync(new SendPortalLinkInput
-        {
-            Email = $"nobody-{token}@test.local",
-            TenantId = TenantsTestData.TenantARef,
-        });
+        // THIS FACT USED TO HAVE NO ASSERTION AT ALL -- the only one of the batch. It called the
+        // method and ended, relying on a comment pointing at the companion Fact below to establish
+        // that the silence means "returned early" rather than "the method does nothing".
+        //
+        // That link was real but IMPLICIT, and an implicit link is not a guarantee: delete or rename
+        // the companion and this becomes a test that passes against an empty method body, with
+        // nothing anywhere reporting the loss. Shouldly's NotThrowAsync makes the claim explicit and
+        // gives the failure a name and a reason.
+        await Should.NotThrowAsync(
+            async () => await _appService.SendPortalLinkAsync(new SendPortalLinkInput
+            {
+                Email = $"nobody-{token}@test.local",
+                TenantId = TenantsTestData.TenantARef,
+            }),
+            "An address with no account must be a silent no-op. Staff already learn from the invite "
+            + "result whether the address is registered, so throwing here adds noise to a support "
+            + "call without adding information. The companion Fact "
+            + "SendPortalLinkAsync_DispatchFailure_IsNotSwallowed proves a resolvable address DOES "
+            + "reach the dispatcher, so this silence is the early return rather than a dead method.");
     }
 
     /// <summary>

@@ -151,6 +151,24 @@ public abstract class DashboardTrendAndDonutTests<TStartupModule> : DashboardTes
         dto.Trend[0].WeekStart.ShouldBe(monthStartUtc);
         dto.Trend[0].Label.ShouldBe("Wk 1");
 
+        // THE LOOP BELOW IS THE POINT OF THIS TEST, AND IT DOES NOT ALWAYS RUN. Before the 8th of
+        // the month there is a single bucket, `index` starts at 1, and the body never executes --
+        // so the spacing rule this Fact is named for goes unasserted on seven days in every month,
+        // silently. The docstring admitted that; admitting it is not the same as detecting it.
+        //
+        // Asserting the precondition converts a silent no-op into a named failure. On those seven
+        // days this now FAILS rather than passing hollowly, which is the honest outcome: a test
+        // that cannot check its guarantee today should say so, not report success.
+        //
+        // The remedy if that proves annoying is to seed a month-old appointment so a second bucket
+        // always exists -- deliberately NOT done here, because it would change what the Fact
+        // measures from "the real window the product produces" to "a window I manufactured".
+        dto.Trend.Count.ShouldBeGreaterThan(
+            1,
+            $"Only {dto.Trend.Count} bucket(s) exist, so the weekly-spacing loop below cannot run "
+            + "and this Fact would pin nothing but the window origin. Today is day "
+            + $"{nowUtc.Day} of the month; the month range produces a second bucket from the 8th.");
+
         for (var index = 1; index < dto.Trend.Count; index++)
         {
             dto.Trend[index].WeekStart.ShouldBe(monthStartUtc.AddDays(7 * index));
