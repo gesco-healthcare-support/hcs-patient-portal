@@ -118,6 +118,10 @@ def attorney_notice():
         + '<li>A Fully executed Joint/Advocacy Letter and all medical records <u>MUST</u> be received no '
         + 'later than 15 days before the applicant\'s scheduled appointment with the accompanied Declaration '
         + 'and Attestation.</li>'
+        # VERBATIM OFFICE WORDING (do not "correct"): "the applicant may to have return" is the
+        # office's approved phrasing (Patrick's), confirmed 2026-09-17. It reads as broken English
+        # but is intentional -- changing it to "may have to return" would diverge from the approved
+        # medical-legal notice served on attorneys and claim examiners.
         + '<li>If the medical records are not received by one week before the appointment, it may become '
         + 'necessary to issue a supplemental report and/or the applicant may to have return for a second '
         + 'appointment.</li>'
@@ -127,6 +131,8 @@ def attorney_notice():
         + '<li>Physical Delivery of Medical Records must be sent to the following address: 16530 Ventura '
         + 'Blvd., Suite 510, Encino, CA 91436.</li>'
         + '<li>All other correspondence must be sent to the following address: P.O. Box 261656 Encino, CA 91426.</li>'
+        # Parking line matches the revised source: the "WEST COAST SPINE" prefix is dropped
+        # (the address block above already names the practice); location + fee only.
         + f'<li>The Parking fee for {tok("##Appointments.Location##")} is $ '
         + f'{tok("##Appointments.LocationParkingFee##")}. Please be sure the patient is given a map to our location.</li>'
         + '<li><u>Missed Appointment</u> charge: If the appointment is cancelled within six (6) business days '
