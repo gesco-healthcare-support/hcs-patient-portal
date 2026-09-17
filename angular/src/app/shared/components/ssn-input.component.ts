@@ -285,6 +285,25 @@ export class SsnInputComponent implements ControlValueAccessor {
       this.onFileRevealed.set(false);
       return;
     }
+    /**
+     * Defence in depth (2026-09-17). The eye button is already disabled via eyeDisabled()
+     * for a caller who may not reveal, so reaching here means a stale click or a call from
+     * somewhere other than that button.
+     *
+     * This is NOT the security boundary -- the server's SsnRevealAccess predicate is, and it
+     * re-checks every request and returns 403. What this adds is consistency: the ACTION now
+     * re-checks as well as the BUTTON, matching AppointmentDocumentsComponent.approve(),
+     * which guards its own permission rather than trusting a disabled attribute.
+     *
+     * It reuses canReveal() rather than restating the rule, so the client cannot drift from
+     * the server predicate it mirrors (internal role, or record owner).
+     *
+     * Placed AFTER the hide branch on purpose: hiding removes disclosure and must always be
+     * allowed. Only the two paths that actually disclose a stored number are gated.
+     */
+    if (!this.canReveal()) {
+      return;
+    }
     if (this.onFileFull() !== null) {
       this.onFileRevealed.set(true);
       return;
