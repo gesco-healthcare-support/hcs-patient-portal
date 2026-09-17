@@ -1632,12 +1632,21 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     // "Changing an intake field publishes AppointmentIntakeChangedEto" CANNOT be asserted in this
     // rig. Publishing it runs the real production handler, IntakeChangedEmailHandler, which renders
     // a notification template -- and NotificationTemplateDataSeedContributor is TENANT-SCOPED, so
-    // with no tenant in the seed context only host codes are seeded and a tenant render throws.
-    // The exception propagates out of UpdateAsync, so the update itself fails.
+    // with no tenant in the seed context only the four host codes are seeded and a tenant render
+    // throws BusinessException("CaseEvaluation:NotificationTemplate.NotFound").
     //
-    // Measured, not inferred: the failing stack was
-    //   NotificationTemplateRenderer.RenderAsync -> NotificationDispatcher.DispatchAsync
-    //   -> IntakeChangedEmailHandler.HandleEventAsync -> AppointmentsAppService.UpdateAsync
+    // CORRECTED 2026-09-17. An earlier version of this comment said the exception "propagates out of
+    // UpdateAsync, so the update itself fails", and presented a call stack ending in
+    // AppointmentsAppService.UpdateAsync as "measured, not inferred". That stack cannot be right and
+    // I did not capture it verbatim -- I reconstructed it. ABP queues locally-published events on the
+    // unit of work (onUnitOfWorkComplete defaults to true) and dispatches them at CompleteAsync();
+    // UpdateAsync joins the ambient unit of work as a ChildUnitOfWork whose CompleteAsync is a no-op
+    // forwarding to its parent. So the handler runs at the OUTER unit-of-work completion and the
+    // throw surfaces there, after UpdateAsync has already returned.
+    //
+    // Recording the shape of the error rather than just the fix: the conclusion was right, the
+    // reason was wrong, and the wrong reason read as more authoritative than the conclusion because
+    // it carried a stack trace. Nobody re-runs a reason.
     //
     // This is the SAME root cause that blocks ExternalAccountAppService's send paths, now confirmed
     // to block a second area. Seeding a template here to force it green would be asserting against
@@ -1653,25 +1662,60 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // The negative half, and it needs the Fact above to mean anything. AppointmentIntakeDiff
         // only reports genuine differences, so re-saving identical values must NOT notify anyone --
         // otherwise every incidental save mails the whole party list.
+        //
+        // THE ASSERTION SITS OUTSIDE THE UNIT OF WORK ON PURPOSE, and the first version of this
+        // Fact had it inside, where it COULD NOT FAIL. ABP's IEventBus.PublishAsync defaults
+        // onUnitOfWorkComplete: true, so a locally-published event is QUEUED on the unit of work and
+        // dispatched by CompleteAsync(). WithUnitOfWorkAsync runs the lambda and only then completes,
+        // so an assertion inside the lambda reads the capture bag before any handler has run: it was
+        // satisfied by an empty bag on every possible input, including a broken product.
+        //
+        // The old version still went RED under mutation, which is why it survived review as long as
+        // it did: the red came from another component throwing, not from its own assertion. A red
+        // test is not evidence. The NAME of the failure is the evidence.
+        //
+        // THIS VERSION IS PROVEN BY ASSERTION, measured 2026-09-17, not predicted:
+        //   mutate AppointmentsAppService.cs:1619  if (intakeChanges.Count > 0) -> (... >= 0)
+        //   baseline   Passed!  1/1
+        //   mutated    Failed!  Shouldly.ShouldAssertException : capture.IntakeChanged
+        //
+        // Why no template exception drowns it, which is the part worth keeping: the mutation
+        // publishes an ETO whose ChangedFields is EMPTY (nothing changed, so the diff is empty), and
+        // IntakeChangedEmailHandler.cs:50-53 early-returns on `ChangedFields.Count == 0` before it
+        // ever reaches the renderer. Only the capture handler records it. So the guarantee under
+        // test -- "no intake change means no event" -- has a mutation that isolates it cleanly, and
+        // this Fact needs NO notification-template fixture to be provable.
+        //
+        // Both predictions about this were wrong, mine included: I expected the real handler to
+        // throw at unit-of-work completion and mask the assertion. It does not, for the reason
+        // above. The measurement is why that is a footnote rather than a wrong comment shipped.
         var token = Guid.NewGuid().ToString("N")[..8];
         var capture = GetRequiredService<AppointmentEventCapture>();
+        var appointmentId = Guid.Empty;
 
         await WithUnitOfWorkAsync(async () =>
         {
             using (_currentTenant.Change(TenantsTestData.TenantARef))
             {
-                var (appointmentId, input) = await SeedUpdatableAppointmentAsync(token);
+                var seeded = await SeedUpdatableAppointmentAsync(token);
+                appointmentId = seeded.AppointmentId;
 
                 // Every field left exactly as seeded.
-                await _appointmentsAppService.UpdateAsync(appointmentId, input);
-
-                capture.IntakeChanged.ShouldNotContain(
-                    e => e.AppointmentId == appointmentId,
-                    "Re-saving identical intake values must publish NOTHING. If it does, every "
-                    + "incidental save notifies the whole party list about a change that did not "
-                    + "happen.");
+                await _appointmentsAppService.UpdateAsync(appointmentId, seeded.Input);
             }
         });
+
+        // Guard the guard: if the lambda never ran, the ShouldNotContain below would pass against a
+        // default Guid and be vacuous all over again, in a new way.
+        appointmentId.ShouldNotBe(
+            Guid.Empty,
+            "The fixture must have run, or the assertion that follows proves nothing.");
+
+        capture.IntakeChanged.ShouldNotContain(
+            e => e.AppointmentId == appointmentId,
+            "Re-saving identical intake values must publish NOTHING. If it does, every "
+            + "incidental save notifies the whole party list about a change that did not "
+            + "happen.");
     }
 
     // =====================================================================
