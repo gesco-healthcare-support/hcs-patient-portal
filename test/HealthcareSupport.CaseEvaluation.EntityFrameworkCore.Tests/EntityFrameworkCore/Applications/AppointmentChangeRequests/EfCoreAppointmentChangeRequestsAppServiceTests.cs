@@ -10,6 +10,7 @@ using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Security;
+using HealthcareSupport.CaseEvaluation.Timing;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
@@ -243,7 +244,7 @@ public class EfCoreAppointmentChangeRequestsAppServiceTests
                     new DoctorAvailability(
                         id: fixture.CurrentSlotId,
                         locationId: LocationsTestData.Location1Id,
-                        availableDate: DateTime.UtcNow.Date.AddDays(currentSlotDayOffset),
+                        availableDate: PacificTime.TodayFrom(DateTime.UtcNow).AddDays(currentSlotDayOffset),
                         fromTime: NextFromTime(),
                         toTime: new TimeOnly(23, 59),
                         bookingStatusId: BookingStatus.Booked)
@@ -281,7 +282,7 @@ public class EfCoreAppointmentChangeRequestsAppServiceTests
                     appointmentTypeId: fixture.AppointmentTypeId,
                     locationId: LocationsTestData.Location1Id,
                     doctorAvailabilityId: fixture.CurrentSlotId,
-                    appointmentDate: DateTime.UtcNow.Date.AddDays(currentSlotDayOffset),
+                    appointmentDate: PacificTime.TodayFrom(DateTime.UtcNow).AddDays(currentSlotDayOffset),
                     // (TenantId, RequestConfirmationNumber) is a hard unique index and these rows
                     // accumulate for the whole run, so the token goes in the number.
                     requestConfirmationNumber: $"A9CR{token}",
@@ -313,7 +314,7 @@ public class EfCoreAppointmentChangeRequestsAppServiceTests
                     new DoctorAvailability(
                         id: slotId,
                         locationId: LocationsTestData.Location1Id,
-                        availableDate: DateTime.UtcNow.Date.AddDays(dayOffset),
+                        availableDate: PacificTime.TodayFrom(DateTime.UtcNow).AddDays(dayOffset),
                         fromTime: NextFromTime(),
                         toTime: new TimeOnly(23, 59),
                         bookingStatusId: BookingStatus.Available)

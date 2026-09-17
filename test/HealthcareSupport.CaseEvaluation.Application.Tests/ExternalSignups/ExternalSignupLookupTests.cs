@@ -214,39 +214,39 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
         var attorneyUserId = Guid.Empty;
         await WithUnitOfWorkAsync(async () =>
         {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var patientAccount = await _userManager.FindByEmailAsync(patientEmail);
-            patientAccount.ShouldNotBeNull();
-            patientUserId = patientAccount!.Id;
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var patientAccount = await _userManager.FindByEmailAsync(patientEmail);
+                patientAccount.ShouldNotBeNull();
+                patientUserId = patientAccount!.Id;
 
-            var attorneyAccount = await _userManager.FindByEmailAsync(attorneyEmail);
-            attorneyAccount.ShouldNotBeNull();
-            attorneyUserId = attorneyAccount!.Id;
+                var attorneyAccount = await _userManager.FindByEmailAsync(attorneyEmail);
+                attorneyAccount.ShouldNotBeNull();
+                attorneyUserId = attorneyAccount!.Id;
 
-            var patientMaster = await _patientRepository.FirstOrDefaultAsync(
-                p => p.Email == patientEmail);
-            patientMaster.ShouldNotBeNull();
+                var patientMaster = await _patientRepository.FirstOrDefaultAsync(
+                    p => p.Email == patientEmail);
+                patientMaster.ShouldNotBeNull();
 
-            // One shared appointment naming both parties. Slot2 is the free seeded slot in
-            // TenantA; the confirmation number is token-keyed because (TenantId, number) is unique.
-            await _appointmentRepository.InsertAsync(
-                new Appointment(
-                    id: Guid.NewGuid(),
-                    patientId: patientMaster!.Id,
-                    identityUserId: patientUserId,
-                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
-                    locationId: LocationsTestData.Location1Id,
-                    doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot2Id,
-                    appointmentDate: new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc),
-                    requestConfirmationNumber: $"A9C{token}",
-                    appointmentStatus: AppointmentStatusType.Pending)
-                {
-                    PatientEmail = patientEmail,
-                    ApplicantAttorneyEmail = attorneyEmail,
-                },
-                autoSave: true);
-        }
+                // One shared appointment naming both parties. Slot2 is the free seeded slot in
+                // TenantA; the confirmation number is token-keyed because (TenantId, number) is unique.
+                await _appointmentRepository.InsertAsync(
+                    new Appointment(
+                        id: Guid.NewGuid(),
+                        patientId: patientMaster!.Id,
+                        identityUserId: patientUserId,
+                        appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                        locationId: LocationsTestData.Location1Id,
+                        doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot2Id,
+                        appointmentDate: new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc),
+                        requestConfirmationNumber: $"A9C{token}",
+                        appointmentStatus: AppointmentStatusType.Pending)
+                    {
+                        PatientEmail = patientEmail,
+                        ApplicantAttorneyEmail = attorneyEmail,
+                    },
+                    autoSave: true);
+            }
         });
 
         using (_currentTenant.Change(TenantsTestData.TenantARef))
