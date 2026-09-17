@@ -85,8 +85,8 @@ def _letterhead():
 
 
 def _lfoot():
-    return ('<div class="lfoot">SCHEDULING: (818) 582-2600<br>'
-            'P.O. Box 261656, Encino, CA 91426<br>FAX: (818) 855-2466</div>')
+    return ('<div class="lfoot">P.O. Box 261656, Encino, CA 91426<br>'
+            'Phone: (818) 582-2600<br>FAX: (818) 855-2466</div>')
 
 
 def attorney_notice():
@@ -105,7 +105,8 @@ def attorney_notice():
         + f'DOI: {tok("##InjuryDetails.DateOfInjury##")}<br>'
         + f'Claim: {tok("##InjuryDetails.ClaimNumber##")}</div>'
         + f'<p>Please be advised that {tok("##Patients.FirstName##")} {tok("##Patients.LastName##")} '
-        + f'has been scheduled with Yuri Falkinstein, M.D. on <u>{tok("##Appointments.AvailableDate##")}</u> at '
+        + f'has been scheduled for a {tok("##Appointments.AppointmentType##")} with Yuri Falkinstein, M.D. on '
+        + f'<u>{tok("##Appointments.AvailableDate##")}</u> at '
         + f'<u>{tok("##Appointments.AppointmenTime##")}</u>. The appointment will be held at:</p>'
         + '<div class="addr">West Coast Spine Institute<br>'
         + f'{tok("##Appointments.Location##")}<br>{tok("##Appointments.LocationAddress##")}<br>'
@@ -115,17 +116,21 @@ def attorney_notice():
         + 'requesting the following:</p>'
         + '<ul>'
         + '<li>A Fully executed Joint/Advocacy Letter and all medical records <u>MUST</u> be received no '
-        + 'later than 30 days before the patient\'s scheduled appointment. <u>If this does not occur, '
-        + 'the above appointment may be RESCHEDULED</u>.</li>'
-        + '<li><u>If the medical records are not received within the timeline given, it may become necessary '
-        + 'to issue a supplemental report and/or the patient will be rescheduled for a second appointment.</u></li>'
-        + '<li>All overnight packages must be sent to 16530 Ventura Blvd., Suite 130, Encino, CA 91436. '
-        + 'All other correspondence must be sent to P.O. Box 261656 Encino, CA 91426.</li>'
-        + f'<li>The Parking fee for WEST COAST SPINE {tok("##Appointments.Location##")} is $ '
-        + f'{tok("##Appointments.LocationParkingFee##")} .Please be sure the patient is given a map to our location.</li>'
-        + '<li><u>Missed Appointment</u> charge is $503.75. If the appointment is <u>cancelled within six (6) days</u> '
-        + 'of the scheduled appointment, we will charge $503.75 plus the time spent reviewing the medical '
-        + 'records per the labor code.</li>'
+        + 'later than 15 days before the applicant\'s scheduled appointment with the accompanied Declaration '
+        + 'and Attestation.</li>'
+        + '<li>If the medical records are not received by one week before the appointment, it may become '
+        + 'necessary to issue a supplemental report and/or the applicant may to have return for a second '
+        + 'appointment.</li>'
+        + '<li><u>IMPORTANT:</u> Please provide the authorized preferred vendor\'s information for any '
+        + 'recommended diagnostic studies as soon as possible, as this would help expedite scheduling of '
+        + 'the studies at the time of the appointment.</li>'
+        + '<li>Physical Delivery of Medical Records must be sent to the following address: 16530 Ventura '
+        + 'Blvd., Suite 510, Encino, CA 91436.</li>'
+        + '<li>All other correspondence must be sent to the following address: P.O. Box 261656 Encino, CA 91426.</li>'
+        + f'<li>The Parking fee for {tok("##Appointments.Location##")} is $ '
+        + f'{tok("##Appointments.LocationParkingFee##")}. Please be sure the patient is given a map to our location.</li>'
+        + '<li><u>Missed Appointment</u> charge: If the appointment is cancelled within six (6) business days '
+        + 'there will be a charge of $503.75 plus the cost of reviewing the medical records per the fee schedule.</li>'
         + '</ul>'
         + '<div class="signoff"><p>Thank you,</p><p>APPOINTMENT DEPARTMENT</p></div>'
         + _lfoot()
@@ -149,13 +154,13 @@ def patient_notice():
         + f'{tok("##Appointments.Location##")}<br>{tok("##Appointments.LocationAddress##")}<br>'
         + f'{tok("##Appointments.LocationCity##")}, {tok("##Appointments.LocationState##")} '
         + f'{tok("##Appointments.LocationZipCode##")}</div>'
-        + f'<p>The parking fee for this location is $ {tok("##Appointments.LocationParkingFee##")}.</p>'
+        + f'<p>The maximum parking fee for this location is $ {tok("##Appointments.LocationParkingFee##")}.</p>'
         + '<p>Please make sure you keep this appointment as it is the most important medical appointment for your '
         + 'case. Please allow ample time (minimum 3 hours) to be at our office.</p>'
         + '<p>Please review and compare this appointment with any other appointment letter you may have received. '
         + 'In case of any discrepancies, please contact our office immediately for clarification.</p>'
         + '<p>Kindly note that <u>you must check in at the above address 15 minutes prior</u> to your scheduled '
-        + 'appointment time with proof of identification.</p>'
+        + 'appointment time with valid proof of identification.</p>'
         + '<p>It is necessary that you contact our office at 818-582-2600, 10 days prior to your appointment, for a '
         + 'detailed history of your injury. This will save you time at your scheduled appointment.</p>'
         + '<p>If you have no knowledge of this appointment, please contact your attorney ASAP.</p>'
@@ -239,6 +244,7 @@ def qme_form():
         + 'medical reports and medical records prior to the scheduled examination with the QME. You must also provide '
         + 'the employee with a DWC-AD form 100 (DEU) (Employee\'s Disability Questionnaire)(See, 8 Cal. Code Regs. '
         + f'{_SECT}{_SECT} 10160 and 10161) prior to the examination.</div>'
+        + '<div class="qmeform-id">QME Form 110 (rev. 10/2013)</div>'
         + '</div>')
 
 
