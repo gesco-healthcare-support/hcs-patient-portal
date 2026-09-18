@@ -429,7 +429,48 @@ def summarise(per_file: dict[str, dict[int, int]],
     return found, hit, files
 
 
-def write_per_file(path: Path,
+def validated_output_path(destination: str) -> Path:
+    """Resolve and check a CLI-supplied output path BEFORE anything is written.
+
+    Two reasons, and the second is the one that made this a review finding.
+
+    The path arrives from `--per-file`, so it is command-line input reaching a
+    file write. SonarCloud grades that as path traversal, and the same rule
+    already fires three times in this file on `main` -- `load_exclusions`,
+    `load_tracked` and `parse_changed_lines` all read a path that came from a
+    flag. That is what a CLI gate is: every path it touches is an argument. The
+    difference here is that this one WRITES, so it is worth being explicit about
+    what it will and will not write to rather than inheriting the read path's
+    silence.
+
+    And EVERY OTHER FAILURE IN THIS SCRIPT IS EXPLAINED. `require_report`,
+    `require_floor`, `load_exclusions`, `discover_tracked` and `assert_tracked`
+    all end at `die()` with a sentence saying what was wrong. A bare
+    `write_text` on a missing directory would have been the one path that exits
+    on a raw traceback -- the newest line in a file whose whole design is that a
+    failure tells you what to do about it.
+    """
+    candidate = Path(destination).expanduser()
+    try:
+        resolved = candidate.resolve()
+    except OSError as exc:
+        die(f"--per-file was given {destination!r}, which cannot be resolved to a "
+            f"path: {exc}")
+    if resolved.is_dir():
+        die(f"--per-file was given {destination!r}, which is an existing "
+            "directory. Pass the path of the JSON file to write, not the "
+            "directory to write it into.")
+    parent = resolved.parent
+    if not parent.is_dir():
+        die(f"--per-file was given {destination!r}, whose parent directory "
+            f"{parent} does not exist. This gate does not create directories: "
+            "the caller decides where its output belongs, and silently making "
+            "one would hide a mistyped path until someone went looking for a "
+            "report that was written somewhere else.")
+    return resolved
+
+
+def write_per_file(destination: str,
                    per_file: dict[str, dict[int, int]],
                    patterns: list[re.Pattern[str]]) -> int:
     """Write a per-file coverage breakdown as JSON. Returns the file count.
@@ -464,7 +505,11 @@ def write_per_file(path: Path,
         rows.append({"path": source, "found": found, "hit": hit,
                      "uncovered": found - hit})
     rows.sort(key=lambda r: (-r["uncovered"], r["path"]))
-    path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    path = validated_output_path(destination)
+    try:
+        path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        die(f"could not write the per-file breakdown to {path}: {exc}")
     return len(rows)
 
 
@@ -777,7 +822,7 @@ def main() -> int:
     # when the breakdown is wanted, and a flag that worked in only one mode
     # would be a second thing to remember.
     if args.per_file is not None:
-        count = write_per_file(Path(args.per_file), coverage_by_file, patterns)
+        count = write_per_file(args.per_file, coverage_by_file, patterns)
         print(f"per-file: wrote {count} file(s) to {args.per_file}")
 
     if args.measure_only:

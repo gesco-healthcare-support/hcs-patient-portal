@@ -81,7 +81,7 @@ class WritePerFile(unittest.TestCase):
             report.write_text(lcov_text, encoding="utf-8")
             out = root / "per-file.json"
             per_file = gate.parse_lcov(report, prefix)
-            count = gate.write_per_file(out, per_file, patterns())
+            count = gate.write_per_file(str(out), per_file, patterns())
             return json.loads(out.read_text(encoding="utf-8")), count, per_file
 
     def test_one_object_per_counted_file(self):
@@ -123,7 +123,7 @@ class WritePerFile(unittest.TestCase):
             report = Path(tmp) / "lcov.info"
             report.write_text(LCOV, encoding="utf-8")
             out = Path(tmp) / "out.json"
-            gate.write_per_file(out, gate.parse_lcov(report, "angular"), [])
+            gate.write_per_file(str(out), gate.parse_lcov(report, "angular"), [])
             unfiltered = json.loads(out.read_text(encoding="utf-8"))
         self.assertEqual(unfiltered[0]["path"], "angular/src/app/proxy/generated.ts")
 
@@ -142,8 +142,8 @@ class WritePerFile(unittest.TestCase):
             report = root / "lcov.info"
             report.write_text(LCOV, encoding="utf-8")
             first, second = root / "1.json", root / "2.json"
-            gate.write_per_file(first, gate.parse_lcov(report, "angular"), patterns())
-            gate.write_per_file(second, gate.parse_lcov(report, "angular"), patterns())
+            gate.write_per_file(str(first), gate.parse_lcov(report, "angular"), patterns())
+            gate.write_per_file(str(second), gate.parse_lcov(report, "angular"), patterns())
             self.assertEqual(first.read_bytes(), second.read_bytes())
 
     def test_the_lcov_prefix_is_already_applied(self):
@@ -160,7 +160,7 @@ class WritePerFile(unittest.TestCase):
     def test_an_empty_map_writes_an_empty_array(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "per-file.json"
-            count = gate.write_per_file(out, {}, patterns())
+            count = gate.write_per_file(str(out), {}, patterns())
             self.assertEqual(count, 0)
             self.assertEqual(json.loads(out.read_text(encoding="utf-8")), [])
 
@@ -215,6 +215,61 @@ class WiredIntoMain(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertFalse(out.exists())
             self.assertNotIn("per-file:", output)
+
+
+class TheOutputPathIsValidated(unittest.TestCase):
+    """A bad --per-file path must fail the way everything else in this script
+    fails: through die(), with a sentence saying what was wrong.
+
+    Found twice, by two routes, which is why it is pinned rather than trusted:
+    the reviewer flagged the bare write_text as a missing-parent sharp edge, and
+    SonarCloud flagged the same line as a CLI argument reaching a file write.
+    The same rule already fires three times on this file on main, because every
+    path this gate touches arrives from a flag -- so the thing worth asserting
+    is not that the path is untainted, it is that a bad one is EXPLAINED.
+    """
+
+    def _dies(self, destination):
+        """Run the write and capture stdout, so the `::error::` cannot reach
+        Actions as an annotation on a green run -- and so the message survives
+        to be asserted.
+        """
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            with self.assertRaises(SystemExit) as caught:
+                gate.write_per_file(destination, {}, patterns())
+        return caught.exception.code, buf.getvalue()
+
+    def test_a_missing_parent_directory_is_explained_not_a_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "nope" / "per-file.json"
+            code, out = self._dies(str(target))
+        self.assertEqual(code, 1)
+        self.assertIn("parent directory", out)
+        self.assertIn("does not exist", out)
+
+    def test_it_refuses_to_create_the_directory_for_you(self):
+        # Stated as its own test because the alternative is defensible and was
+        # rejected: silently creating the tree hides a mistyped path until
+        # someone goes looking for a report written somewhere else.
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "nope" / "per-file.json"
+            self._dies(str(target))
+            self.assertFalse((Path(tmp) / "nope").exists())
+
+    def test_an_existing_directory_as_the_destination_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out = self._dies(tmp)
+        self.assertEqual(code, 1)
+        self.assertIn("existing", out)
+
+    # THE POSITIVE CONTROL. Without it the three above pass with the validation
+    # written as an unconditional die(), which would break the flag entirely.
+    def test_a_good_path_still_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "per-file.json"
+            count = gate.write_per_file(str(target), {}, patterns())
+        self.assertEqual(count, 0)
 
 
 if __name__ == "__main__":
