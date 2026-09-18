@@ -116,4 +116,24 @@ ngModel). Routes registered in `appointment-routes.ts`. Auto-generated proxy at
 - src/HealthcareSupport.CaseEvaluation.Domain/CLAUDE.md (state machine, capacity model)
 
 <!-- MANUAL:START -->
+
+## Dead states -- do not treat as live (PF-005)
+
+`CheckedIn` (9), `CheckedOut` (10) and `Billed` (11) are **dead code**. Their
+transitions exist in `AppointmentManager` (`CheckIn` / `CheckOut` / `Bill`), and
+so do their email handlers, templates and status-pill mapping -- but **nothing
+triggers them** in production (no endpoint, no UI, no job), so an appointment can
+never reach them. They are OLD's front-desk day-of-exam flow, carried over but
+never wired up; Case Tracker owns attendance and billing now. Do **not** build on
+them, wire them up, or assume they are reachable when adding or changing lifecycle
+code. Flagged, not deleted, pending a keep-vs-remove decision from Adrian.
+
+`NoShow` (4) and `NotSeen` (15) are the opposite -- **live but inbound-only**: the
+Case Tracker records them and pushes them in (`CaseTrackerAttendanceService`), so
+the portal never originates them but does reach and store them. Do not flag these
+as dead.
+
+Full evidence and the file-by-file reference list: `docs/parity/_parity-flags.md`
+PF-005.
+
 <!-- MANUAL:END -->
