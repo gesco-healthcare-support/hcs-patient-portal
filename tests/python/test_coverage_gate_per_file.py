@@ -19,10 +19,10 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import stat
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from gate_loader import gate
@@ -354,53 +354,36 @@ class TheOutputPathIsValidated(unittest.TestCase):
         """A path that validates but cannot be written must still die() with a
         message rather than escape as an OSError traceback.
 
-        A REAL read-only file, not a patched write_text. The branch exists for a
-        filesystem refusing a write, so the test makes the filesystem refuse.
+        MOCKED, and the distinction is worth stating because the obvious
+        objection is right in general: mocking your way to a green number is a
+        cheat. This is the other thing. The mock REACHES an error path that
+        cannot be produced portably, and pins the single property the whole fix
+        exists to provide -- that a failed write reports rather than tracebacks.
+        It earns its keep whatever the coverage figure says.
 
-        THE SKIP IS CONDITIONAL ON THE ACTUAL BEHAVIOUR, NOT ON THE PLATFORM.
-        A `skipIf(sys.platform == ...)` would report success having run nothing
-        wherever it fired, which is the shape that has cost this epic repeatedly.
-        Instead the read-only bit is PROBED, and the test only skips when the
-        filesystem genuinely did not enforce it -- POSIX as root being the case
-        that matters, since root bypasses the permission bits. Verified to raise
-        PermissionError on Windows, and on POSIX as a non-root user, which is
-        what CI runs as.
-
-        If this ever skips, the runner prints the reason and the write-failure
-        branch is uncovered on that platform. That is stated here so a skip is
-        read as a gap rather than as a pass.
+        The alternative was a real read-only file. That version was written and
+        measured (it raises PermissionError on Windows, and on POSIX as the
+        non-root user CI runs as) but it cannot cover the branch as root, where
+        the permission bits are bypassed, so it needs a conditional skip. A test
+        that can silently not run is a worse trade here than a mock that always
+        does. Kept in history at db852938 if the judgement is ever revisited.
         """
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "per-file.json"
-            target.write_text("placeholder", encoding="utf-8")
-            # Restored in the finally rather than through addCleanup, which runs
-            # AFTER this block and would find the file already gone -- and on
-            # Windows a still-read-only file blocks the directory's own cleanup.
-            target.chmod(stat.S_IREAD)
-            try:
-                try:
-                    target.write_text("probe", encoding="utf-8")
-                except OSError:
-                    pass
-                else:
-                    self.skipTest(
-                        "the filesystem did not enforce the read-only bit (running "
-                        "as root?), so the write-failure branch cannot be provoked "
-                        "here and is UNCOVERED on this platform")
-
-                # Everything but the call under test is hoisted out of the
-                # assertRaises block, so exactly one invocation can throw.
-                destination = str(target)
-                pats = patterns()
-                buf = io.StringIO()
+            # Everything but the call under test is hoisted out of the
+            # assertRaises block, so exactly one invocation inside it can throw.
+            destination = str(Path(tmp) / "per-file.json")
+            pats = patterns()
+            buf = io.StringIO()
+            with unittest.mock.patch.object(
+                Path, "write_text", side_effect=OSError("disk full")
+            ):
                 with contextlib.redirect_stdout(buf):
                     with self.assertRaises(SystemExit) as caught:
                         gate.write_per_file(destination, {}, pats)
-            finally:
-                target.chmod(stat.S_IWRITE | stat.S_IREAD)
 
         self.assertEqual(caught.exception.code, 1)
         self.assertIn("could not write the per-file breakdown", buf.getvalue())
+        self.assertIn("disk full", buf.getvalue())
 
     # THE POSITIVE CONTROL. Without it the three above pass with the validation
     # written as an unconditional die(), which would break the flag entirely.
