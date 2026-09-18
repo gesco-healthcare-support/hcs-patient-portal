@@ -1521,6 +1521,31 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(c.form.get('city')?.value).toBe('Encino');
     });
 
+    it('surfaces a message instead of failing silently when the patient load errors', () => {
+      // Without an error branch the demographic fields stayed blank while the picker held the
+      // id -- a half-populated patient with no explanation.
+      const c = create({
+        rest: {
+          'for-appointment-booking/': throwError(() => ({ status: 500 })),
+        },
+      });
+
+      c.onPatientSelected('patient-1');
+
+      expect(c.patientLoadMessage)
+        .withContext('a failed patient load must not be silent')
+        .not.toBe('');
+    });
+
+    it('ignores a load response that carries no patient id', () => {
+      const c = create({ rest: { 'for-appointment-booking/': of({ patient: null }) } });
+
+      c.onPatientSelected('patient-1');
+
+      expect(c.form.get('patientId')?.value).toBeNull();
+      expect(c.patientLabel).toBe('');
+    });
+
     it('never prefills the social security number', () => {
       /**
        * Design B: the SSN is write-only on this form. A REMOVAL that needs the value
