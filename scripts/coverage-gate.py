@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import json
 import re
 # The FIRST subprocess call in this file, and a deliberate narrowing of the
 # purity #856 chose. Its reasoning was "discovery lives in the workflow because
@@ -428,6 +429,45 @@ def summarise(per_file: dict[str, dict[int, int]],
     return found, hit, files
 
 
+def write_per_file(path: Path,
+                   per_file: dict[str, dict[int, int]],
+                   patterns: list[re.Pattern[str]]) -> int:
+    """Write a per-file coverage breakdown as JSON. Returns the file count.
+
+    THE POINT IS THE DENOMINATOR, not the convenience. Ranking which files to
+    test next was being done from raw lcov by throwaway scripts that applied
+    their own idea of what counts -- one of them dropped the ABP proxies by a
+    substring match and nothing else, which happened to agree here and would not
+    on a report with different contamination. A ranking that disagrees with the
+    gate about what is counted sends work at files the gate does not grade.
+
+    So this deliberately sits beside `summarise` and walks the same map through
+    the same `excluded` call. The set emitted here is exactly the set summarise
+    counts; if one ever changes, both must.
+
+    Two properties are inherited rather than reimplemented, which is the other
+    half of the point: paths have already been through `normalise` (so
+    `--lcov-prefix` is applied), and a line repeated across records has already
+    been resolved to its MAXIMUM hit count by the parser. A separate reader of
+    the same report would have to get both right again.
+
+    Sorted by uncovered DESCENDING with ties broken by path, so the output is a
+    ranking AND is byte-identical across two runs over one report. An unstable
+    order would make every regeneration a noisy diff.
+    """
+    rows = []
+    for source, lines in per_file.items():
+        if excluded(source, patterns):
+            continue
+        found = len(lines)
+        hit = sum(1 for h in lines.values() if h > 0)
+        rows.append({"path": source, "found": found, "hit": hit,
+                     "uncovered": found - hit})
+    rows.sort(key=lambda r: (-r["uncovered"], r["path"]))
+    path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    return len(rows)
+
+
 def summarise_changed(per_file: dict[str, dict[int, int]],
                       changed: dict[str, set[int]],
                       patterns: list[re.Pattern[str]]) -> tuple[int, int, int]:
@@ -554,6 +594,14 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--measure-only", action="store_true",
                     help="print the figures and skip floor enforcement; for "
                          "establishing a baseline, never for gating")
+    # Writes to a PATH rather than to stdout. The frontend stack alone counts
+    # 272 files, and stdout here is gate-output.txt, which a human reads on
+    # every run; a 272-line dump would change that artefact for everyone to
+    # serve the one caller that wants to parse it.
+    ap.add_argument("--per-file",
+                    help="write a JSON per-file coverage breakdown to this path "
+                         "(one object per counted file, ranked by uncovered "
+                         "lines); does not affect any figure or exit code")
     return ap
 
 
@@ -697,6 +745,15 @@ def main() -> int:
                if args.tracked_files is not None
                else discover_tracked())
     assert_tracked(coverage_by_file, patterns, tracked)
+
+    # AFTER assert_tracked, so a report contaminated with someone else's source
+    # cannot be written out as a ranking of "our" files -- the run dies first.
+    # BEFORE the measure-only return, because establishing a baseline is exactly
+    # when the breakdown is wanted, and a flag that worked in only one mode
+    # would be a second thing to remember.
+    if args.per_file is not None:
+        count = write_per_file(Path(args.per_file), coverage_by_file, patterns)
+        print(f"per-file: wrote {count} file(s) to {args.per_file}")
 
     if args.measure_only:
         return 0
