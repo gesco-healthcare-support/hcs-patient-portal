@@ -1060,7 +1060,36 @@ jobs:
       # .coverage-exclusions. A floor of 68 would have DRIFTED on every MessagePack
       # bump. Found only because the probe was run twice, against a control that
       # reproduced this file's own 73.61% exactly.
-      FLOOR_BACKEND: "72"
+      #
+      # 72 UNTIL 2026-09-18, AND IT WAS GRADING TEST CODE AS PRODUCTION. The three
+      # test-code entries in .coverage-exclusions are `tests/` PLURAL; the C# projects
+      # live in `test/` SINGULAR and matched none of them. So 326 C# test files sat in
+      # the denominator at 99.22%, because test code is covered by construction.
+      #
+      # MEASURED at c035a2a0, one report and one run:
+      #
+      #   backend: 65.94% (17601/26691 lines over 645 files)
+      #
+      # with the contaminated reading being 82.66% (44331/53631 over 971) and the test
+      # half alone 26730/26940 = 99.22% over 326 files. Both halves reconcile exactly.
+      #
+      # Same ruling as the 73 -> 72 re-baseline above and the front end's 69 -> 20: a
+      # number that was never right, not a number that got worse. NOT a coverage
+      # regression -- no production line's coverage changed, only which files count.
+      #
+      # 645 IS THIS ONE'S LOAD-BEARING NUMBER, replacing 916. And 916 had already
+      # drifted: the gate reported 971 by 2026-09-18, PAST the 961 named above as the
+      # contamination signal, so that tripwire could never fire again while still
+      # reading as armed. Accounted for rather than assumed:
+      #
+      #   916 + 56 report entries added since a8e221df - 1 deleted = 971  (exact)
+      #   of those 56: 52 under test/, 4 under src/
+      #
+      # 93% test files, which is why it could not hold: this epic's tranches add test
+      # files continuously. 645 counts PRODUCTION files only, so it moves when
+      # production moves -- which is the property a contamination detector needs. If a
+      # future run reports 971 again, `**/test/**` has stopped matching.
+      FLOOR_BACKEND: "65"
       # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
       # refuses to run without a floor and prints the figure to copy.
       #
