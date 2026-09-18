@@ -283,7 +283,9 @@ class PatientBuilderTest(unittest.TestCase):
         )
 
     def test_every_registered_page_renders_non_empty_markup(self):
-        self.assertEqual(len(self.mod.PAGES), 15)
+        # 12 pages since the revised source dropped the cover appointment letter and the
+        # two DEU disability-questionnaire pages (absent from the sample Teresa provided).
+        self.assertEqual(len(self.mod.PAGES), 12)
         for name, page in self.mod.PAGES:
             with self.subTest(page=name):
                 html = page()
@@ -337,7 +339,7 @@ class PatientBuilderTest(unittest.TestCase):
         """Every registered page contributes to the assembled document.
 
         The fragment is compared AFTER `_inline_images`, which is what the first version
-        of this test got wrong: three pages (cover, pregnancy, deu1) open with an
+        of this test got wrong: some pages (pregnancy, complaints) open with an
         `<img src="images/...">`, and `build()` rewrites those to base64 data URIs, so the
         raw fragment is not present in the finished file. Inlining is a per-`src`
         substitution and independent of surrounding text, so inlining one page alone
@@ -370,7 +372,10 @@ class AttorneyBuilderTest(unittest.TestCase):
 
     def test_letterhead_and_footer_render(self):
         self.assertIn("FELLOW, AMERICAN ACADEMY OF ORTHOPAEDIC SURGEONS", self.mod._letterhead())
-        self.assertIn("SCHEDULING:", self.mod._lfoot())
+        # The revised footer drops the "SCHEDULING:" label and leads with the phone line;
+        # pin the contact block that replaced it so a footer losing its numbers is caught.
+        self.assertIn("Phone: (818) 582-2600", self.mod._lfoot())
+        self.assertIn("FAX: (818) 855-2466", self.mod._lfoot())
 
     def test_the_three_notice_pages_render(self):
         for builder in (self.mod.attorney_notice, self.mod.patient_notice, self.mod.qme_form):
