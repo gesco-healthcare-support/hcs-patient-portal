@@ -217,6 +217,90 @@ class WiredIntoMain(unittest.TestCase):
             self.assertNotIn("per-file:", output)
 
 
+class DiagnosticsEmitAfterTheVerdict(unittest.TestCase):
+    """GATES EVALUATE BEFORE DIAGNOSTICS EMIT.
+
+    The emit sat above the floor loop until the review of #975. That placement,
+    not the unhandled write, was the real defect: a mistyped --per-file path
+    failed BEFORE the floor was evaluated, so a reporting flag could destroy the
+    answer the gate exists to give. Both the reviewer and SonarCloud stopped at
+    the missing try and neither named the ordering.
+
+    Pinning the ORDER rather than just the outcome, because the outcome is the
+    same either way on a healthy run -- the difference only shows when the write
+    fails, which is exactly when nobody is looking.
+    """
+
+    def _run(self, extra_argv, tmp):
+        report = Path(tmp) / "lcov.info"
+        report.write_text(LCOV, encoding="utf-8")
+        manifest = Path(tmp) / "tracked.txt"
+        manifest.write_text("angular/src/app/a.component.ts\n"
+                            "angular/src/app/b.component.ts\n", encoding="utf-8")
+        argv = ["--lcov", str(report), "--lcov-prefix", "angular",
+                "--exclusions", ".coverage-exclusions",
+                "--tracked-files", str(manifest)] + extra_argv
+        buf = io.StringIO()
+        original = sys.argv
+        sys.argv = ["coverage-gate.py"] + argv
+        try:
+            with contextlib.redirect_stdout(buf):
+                try:
+                    code = gate.main()
+                except SystemExit as exc:
+                    code = exc.code
+        finally:
+            sys.argv = original
+        return code, buf.getvalue()
+
+    def test_the_floor_verdict_is_printed_before_the_write_fails(self):
+        # The ordering assertion. If the emit moves back above the floor loop,
+        # the VERDICT line is absent and this fails.
+        #
+        # Keyed on "-> PASS" and not on "frontend:", and that distinction is the
+        # whole test. The first version asserted on the label and was VACUOUS:
+        # measure_stack prints `frontend: measured ...` during measurement,
+        # which happens before EITHER placement, so the assertion held with the
+        # emit moved back where the review rejected it. Caught by running the
+        # probe rather than by reading it. "-> PASS" is printed only by
+        # report(), which runs only inside the floor loop.
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "nope" / "per-file.json"
+            code, out = self._run(
+                ["--floor-frontend", "0", "--per-file", str(bad)], tmp)
+        self.assertEqual(code, 1)
+        self.assertIn("-> PASS", out)
+        self.assertIn("--per-file was given", out)
+        self.assertLess(out.index("-> PASS"), out.index("--per-file was given"))
+
+    def test_a_failing_write_cannot_turn_a_pass_into_a_silent_loss_of_the_verdict(self):
+        # The verdict is still readable from the log even though the run died,
+        # which is the whole point of computing it first.
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "nope" / "per-file.json"
+            _code, out = self._run(
+                ["--floor-frontend", "0", "--per-file", str(bad)], tmp)
+        self.assertIn("-> PASS", out)
+
+    def test_the_breakdown_is_written_on_a_FAILING_run_too(self):
+        # A failing floor is exactly when someone wants to know which files are
+        # dragging the figure down, so the report must not be skipped.
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "per-file.json"
+            code, out = self._run(
+                ["--floor-frontend", "99", "--per-file", str(out_path)], tmp)
+            self.assertTrue(out_path.is_file())
+        self.assertEqual(code, 1)
+        self.assertIn("-> FAIL", out)
+
+    def test_the_exit_code_is_the_floors_verdict_not_the_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "per-file.json"
+            code, _ = self._run(
+                ["--floor-frontend", "0", "--per-file", str(out_path)], tmp)
+        self.assertEqual(code, 0)
+
+
 class TheOutputPathIsValidated(unittest.TestCase):
     """A bad --per-file path must fail the way everything else in this script
     fails: through die(), with a sentence saying what was wrong.

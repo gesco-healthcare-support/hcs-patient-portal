@@ -470,6 +470,21 @@ def validated_output_path(destination: str) -> Path:
     return resolved
 
 
+def emit_per_file(args: argparse.Namespace,
+                  coverage_by_file: dict[str, dict[int, int]],
+                  patterns: list[re.Pattern[str]]) -> None:
+    """Write the breakdown if it was asked for. A no-op otherwise.
+
+    Its own function because `main` now calls it from TWO places -- once in the
+    measure-only branch and once after the floor verdict -- and the two must not
+    drift. Inlining it twice is how they would.
+    """
+    if args.per_file is None:
+        return
+    count = write_per_file(args.per_file, coverage_by_file, patterns)
+    print(f"per-file: wrote {count} file(s) to {args.per_file}")
+
+
 def write_per_file(destination: str,
                    per_file: dict[str, dict[int, int]],
                    patterns: list[re.Pattern[str]]) -> int:
@@ -643,10 +658,18 @@ def build_parser() -> argparse.ArgumentParser:
     # 272 files, and stdout here is gate-output.txt, which a human reads on
     # every run; a 272-line dump would change that artefact for everyone to
     # serve the one caller that wants to parse it.
+    # The help text says what the code does, including the awkward half. It
+    # previously ended "does not affect any figure or exit code", which stopped
+    # being true the moment a failed write could die() -- and a help string
+    # contradicting its own implementation is the stale-comment defect this
+    # programme has spent the day removing, not a rounding error.
     ap.add_argument("--per-file",
                     help="write a JSON per-file coverage breakdown to this path "
                          "(one object per counted file, ranked by uncovered "
-                         "lines); does not affect any figure or exit code")
+                         "lines). Affects no measured figure, and is written "
+                         "AFTER the floor verdict so it cannot turn a PASS into "
+                         "a FAIL -- but a path that cannot be written fails the "
+                         "run rather than being skipped silently")
     return ap
 
 
@@ -816,16 +839,10 @@ def main() -> int:
                else discover_tracked())
     assert_tracked(coverage_by_file, patterns, tracked)
 
-    # AFTER assert_tracked, so a report contaminated with someone else's source
-    # cannot be written out as a ranking of "our" files -- the run dies first.
-    # BEFORE the measure-only return, because establishing a baseline is exactly
-    # when the breakdown is wanted, and a flag that worked in only one mode
-    # would be a second thing to remember.
-    if args.per_file is not None:
-        count = write_per_file(args.per_file, coverage_by_file, patterns)
-        print(f"per-file: wrote {count} file(s) to {args.per_file}")
-
     if args.measure_only:
+        # Measure-only has no verdict for a diagnostic to pre-empt, so the
+        # breakdown is emitted here and the mode still supports it.
+        emit_per_file(args, coverage_by_file, patterns)
         return 0
 
     ok = True
@@ -835,6 +852,21 @@ def main() -> int:
 
     if args.changed_diff is not None:
         ok = enforce_changed_lines(args, coverage_by_file, patterns) and ok
+
+    # GATES EVALUATE BEFORE DIAGNOSTICS EMIT.
+    #
+    # This was above the floor loop until the review of #975, and the placement
+    # was the real defect rather than the unhandled write everyone stopped at: a
+    # mistyped --per-file path did not merely fail, it failed BEFORE the floor
+    # was evaluated, so the answer the gate exists to give was lost to a
+    # reporting flag. A diagnostic must not be able to pre-empt the verdict.
+    #
+    # `ok` is already decided here, so a failed write cannot change PASS into
+    # FAIL -- it can only fail a run whose verdict has already been printed and
+    # is therefore still knowable from the log. And the breakdown is written on
+    # a FAILING run too, which is exactly when someone wants to know which files
+    # are dragging the figure down.
+    emit_per_file(args, coverage_by_file, patterns)
 
     return 0 if ok else 1
 
