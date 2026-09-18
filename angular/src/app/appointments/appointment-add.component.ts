@@ -2998,37 +2998,48 @@ export class AppointmentAddComponent {
         },
         { apiName: 'Default' },
       )
-      .subscribe((profile) => {
-        const patient = profile?.patient;
-        if (!patient?.id) {
-          return;
-        }
-        this.currentPatientProfile = profile;
-        this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
-        this.form.patchValue({
-          patientId: patient.id,
-          identityUserId: patient.identityUserId ?? null,
-          firstName: patient.firstName ?? null,
-          lastName: patient.lastName ?? null,
-          middleName: patient.middleName ?? null,
-          email: patient.email ?? null,
-          genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
-          cellPhoneNumber: patient.cellPhoneNumber ?? null,
-          phoneNumber: patient.phoneNumber ?? null,
-          phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
-          street: patient.street ?? null,
-          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
-          address: unitForForm(patient),
-          city: patient.city ?? null,
-          stateId: patient.stateId ?? null,
-          zipCode: patient.zipCode ?? null,
-          appointmentLanguageId: patient.appointmentLanguageId ?? null,
-          interpreterVendorName: patient.interpreterVendorName ?? null,
-          needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
-        });
+      .subscribe({
+        next: (profile) => {
+          const patient = profile?.patient;
+          if (!patient?.id) {
+            return;
+          }
+          this.currentPatientProfile = profile;
+          this.patientLabel = [patient.firstName, patient.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          this.form.patchValue({
+            patientId: patient.id,
+            identityUserId: patient.identityUserId ?? null,
+            firstName: patient.firstName ?? null,
+            lastName: patient.lastName ?? null,
+            middleName: patient.middleName ?? null,
+            email: patient.email ?? null,
+            genderId: this.normalizePatientGender(patient.genderId),
+            dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+            cellPhoneNumber: patient.cellPhoneNumber ?? null,
+            phoneNumber: patient.phoneNumber ?? null,
+            phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+            socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+            street: patient.street ?? null,
+            // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+            address: unitForForm(patient),
+            city: patient.city ?? null,
+            stateId: patient.stateId ?? null,
+            zipCode: patient.zipCode ?? null,
+            appointmentLanguageId: patient.appointmentLanguageId ?? null,
+            interpreterVendorName: patient.interpreterVendorName ?? null,
+            needsInterpreter: !!patient.interpreterVendorName,
+            refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
+          });
+        },
+        error: (err) => {
+          // Mirror loadPatientByEmail's catch: a failed load left the demographic fields blank
+          // while the picker already held the id -- a half-populated patient with no explanation.
+          // patientLoadFailureMessage renders a friendly, PHI-safe message.
+          this.patientLoadMessage = patientLoadFailureMessage(err);
+        },
       });
   }
 
