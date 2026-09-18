@@ -22,6 +22,7 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from gate_loader import gate
@@ -71,6 +72,41 @@ end_of_record
 def patterns():
     """The one exclusion that can match an Angular lcov path."""
     return [gate.glob_to_regex("angular/src/app/proxy/**")]
+
+
+def run_main(extra_argv, tmp):
+    """Drive main() with a patched argv and return (exit code, stdout).
+
+    ONE copy, used by both test classes below. It was two identical copies until
+    SonarCloud pointed out the second -- the duplicate carried its own
+    `except SystemExit`, so the copy-paste showed up as a second finding rather
+    than as duplicated code, which is a roundabout way to be told.
+
+    The except is NOT avoidable here and is the accepted false positive in this
+    file: main() RETURNS a code on success and RAISES on die(), so capturing
+    both paths needs the catch. assertRaises cannot express "may or may not
+    raise, tell me the code either way".
+    """
+    report = Path(tmp) / "lcov.info"
+    report.write_text(LCOV, encoding="utf-8")
+    manifest = Path(tmp) / "tracked.txt"
+    manifest.write_text("angular/src/app/a.component.ts\n"
+                        "angular/src/app/b.component.ts\n", encoding="utf-8")
+    argv = ["--lcov", str(report), "--lcov-prefix", "angular",
+            "--exclusions", ".coverage-exclusions",
+            "--tracked-files", str(manifest)] + extra_argv
+    buf = io.StringIO()
+    original = sys.argv
+    sys.argv = ["coverage-gate.py"] + argv
+    try:
+        with contextlib.redirect_stdout(buf):
+            try:
+                code = gate.main()
+            except SystemExit as exc:
+                code = exc.code
+    finally:
+        sys.argv = original
+    return code, buf.getvalue()
 
 
 class WritePerFile(unittest.TestCase):
@@ -170,26 +206,7 @@ class WiredIntoMain(unittest.TestCase):
     silently ignored and every test above still passes."""
 
     def _run(self, extra_argv, tmp):
-        report = Path(tmp) / "lcov.info"
-        report.write_text(LCOV, encoding="utf-8")
-        manifest = Path(tmp) / "tracked.txt"
-        manifest.write_text("angular/src/app/a.component.ts\n"
-                            "angular/src/app/b.component.ts\n", encoding="utf-8")
-        argv = ["--lcov", str(report), "--lcov-prefix", "angular",
-                "--exclusions", ".coverage-exclusions",
-                "--tracked-files", str(manifest)] + extra_argv
-        buf = io.StringIO()
-        original = sys.argv
-        sys.argv = ["coverage-gate.py"] + argv
-        try:
-            with contextlib.redirect_stdout(buf):
-                try:
-                    code = gate.main()
-                except SystemExit as exc:
-                    code = exc.code
-        finally:
-            sys.argv = original
-        return code, buf.getvalue()
+        return run_main(extra_argv, tmp)
 
     def test_the_flag_writes_the_file_in_measure_only_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -232,26 +249,7 @@ class DiagnosticsEmitAfterTheVerdict(unittest.TestCase):
     """
 
     def _run(self, extra_argv, tmp):
-        report = Path(tmp) / "lcov.info"
-        report.write_text(LCOV, encoding="utf-8")
-        manifest = Path(tmp) / "tracked.txt"
-        manifest.write_text("angular/src/app/a.component.ts\n"
-                            "angular/src/app/b.component.ts\n", encoding="utf-8")
-        argv = ["--lcov", str(report), "--lcov-prefix", "angular",
-                "--exclusions", ".coverage-exclusions",
-                "--tracked-files", str(manifest)] + extra_argv
-        buf = io.StringIO()
-        original = sys.argv
-        sys.argv = ["coverage-gate.py"] + argv
-        try:
-            with contextlib.redirect_stdout(buf):
-                try:
-                    code = gate.main()
-                except SystemExit as exc:
-                    code = exc.code
-        finally:
-            sys.argv = original
-        return code, buf.getvalue()
+        return run_main(extra_argv, tmp)
 
     def test_the_floor_verdict_is_printed_before_the_write_fails(self):
         # The ordering assertion. If the emit moves back above the floor loop,
@@ -319,9 +317,14 @@ class TheOutputPathIsValidated(unittest.TestCase):
         to be asserted.
         """
         buf = io.StringIO()
+        # patterns() is hoisted OUT of the assertRaises block. Left inside, the
+        # block contains two invocations and the assertion no longer says which
+        # one was expected to throw -- if patterns() ever raised, this would
+        # pass for the wrong reason.
+        pats = patterns()
         with contextlib.redirect_stdout(buf):
             with self.assertRaises(SystemExit) as caught:
-                gate.write_per_file(destination, {}, patterns())
+                gate.write_per_file(destination, {}, pats)
         return caught.exception.code, buf.getvalue()
 
     def test_a_missing_parent_directory_is_explained_not_a_traceback(self):
@@ -346,6 +349,33 @@ class TheOutputPathIsValidated(unittest.TestCase):
             code, out = self._dies(tmp)
         self.assertEqual(code, 1)
         self.assertIn("existing", out)
+
+    def test_a_write_that_fails_is_explained_rather_than_raised(self):
+        """A path that validates but cannot be written must still die() with a
+        message, not escape as an OSError traceback.
+
+        FORCED rather than provoked, and deliberately so. The faithful version
+        is a read-only file, but whether the filesystem enforces that depends on
+        the runner -- as root it does not, and the test would SKIP. A skipped
+        test covers no lines, which is exactly what the changed-lines floor is
+        asking for here. Determinism wins over faithfulness for a branch whose
+        only job is to route an OSError into die().
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            # Everything but the call under test is hoisted out of the
+            # assertRaises block, so exactly one invocation inside it can throw.
+            destination = str(Path(tmp) / "per-file.json")
+            pats = patterns()
+            buf = io.StringIO()
+            with unittest.mock.patch.object(
+                Path, "write_text", side_effect=OSError("no space left on device")
+            ):
+                with contextlib.redirect_stdout(buf):
+                    with self.assertRaises(SystemExit) as caught:
+                        gate.write_per_file(destination, {}, pats)
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn("could not write the per-file breakdown", buf.getvalue())
+        self.assertIn("no space left on device", buf.getvalue())
 
     # THE POSITIVE CONTROL. Without it the three above pass with the validation
     # written as an unconditional die(), which would break the flag entirely.
