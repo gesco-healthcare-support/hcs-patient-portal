@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
@@ -54,6 +55,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
+    private readonly IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
     private readonly IAppointmentStatusRepository _appointmentStatusRepository;
     private readonly IAppointmentLanguageRepository _appointmentLanguageRepository;
     private readonly IWcabOfficeRepository _wcabOfficeRepository;
@@ -76,6 +78,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IAppointmentAccessorRepository appointmentAccessorRepository,
         IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
         IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
+        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
         IAppointmentStatusRepository appointmentStatusRepository,
         IAppointmentLanguageRepository appointmentLanguageRepository,
         IWcabOfficeRepository wcabOfficeRepository,
@@ -97,6 +100,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
+        _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentStatusRepository = appointmentStatusRepository;
         _appointmentLanguageRepository = appointmentLanguageRepository;
         _wcabOfficeRepository = wcabOfficeRepository;
@@ -150,6 +154,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await SeedAppointmentAccessorsAsync();
         await SeedAppointmentApplicantAttorneysAsync();
         await SeedAppointmentEmployerDetailsAsync();
+        await SeedAppointmentInjuryDetailsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -499,6 +504,51 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 appointmentId: AppointmentsTestData.Appointment2Id,
                 applicantAttorneyId: ApplicantAttorneysTestData.Attorney2Id,
                 identityUserId: IdentityUsersTestData.DefenseAttorney1UserId));
+        }
+    }
+
+    private async Task SeedAppointmentInjuryDetailsAsync()
+    {
+        // AppointmentInjuryDetail is IMultiTenant and is the PARENT of AppointmentBodyPart, so it
+        // is seeded rather than built per-test: two services in this tranche need a stable parent
+        // row, and later tranches will too.
+        //
+        // Detail1 populates WcabOfficeId (nav-prop join branch) and Detail2 leaves it null (null FK
+        // branch), mirroring how SeedAppointmentEmployerDetailsAsync splits StateId below.
+        // Detail2 is the cumulative-injury shape, which is the branch that carries ToDateOfInjury.
+        //
+        // WcabAdj IS PASSED DELIBERATELY EVEN THOUGH ITS PARAMETER DEFAULTS TO NULL. The ctor runs
+        // Check.NotNullOrWhiteSpace(wcabAdj, ...) on it, so the default the signature advertises
+        // throws. See AppointmentInjuryDetailsTestData for the note; the signature is misleading
+        // and is logged to the backlog rather than changed here.
+        //
+        // Runs after SeedAppointmentEmployerDetailsAsync so all appointment-child seeds stay
+        // grouped together.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentInjuryDetailRepository.InsertAsync(new AppointmentInjuryDetail(
+                id: AppointmentInjuryDetailsTestData.Detail1Id,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                dateOfInjury: AppointmentInjuryDetailsTestData.Detail1DateOfInjury,
+                claimNumber: AppointmentInjuryDetailsTestData.Detail1ClaimNumber,
+                isCumulativeInjury: AppointmentInjuryDetailsTestData.Detail1IsCumulativeInjury,
+                bodyPartsSummary: AppointmentInjuryDetailsTestData.Detail1BodyPartsSummary,
+                wcabAdj: AppointmentInjuryDetailsTestData.Detail1WcabAdj,
+                wcabOfficeId: WcabOfficesTestData.Office1Id));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentInjuryDetailRepository.InsertAsync(new AppointmentInjuryDetail(
+                id: AppointmentInjuryDetailsTestData.Detail2Id,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                dateOfInjury: AppointmentInjuryDetailsTestData.Detail2DateOfInjury,
+                claimNumber: AppointmentInjuryDetailsTestData.Detail2ClaimNumber,
+                isCumulativeInjury: AppointmentInjuryDetailsTestData.Detail2IsCumulativeInjury,
+                bodyPartsSummary: AppointmentInjuryDetailsTestData.Detail2BodyPartsSummary,
+                toDateOfInjury: AppointmentInjuryDetailsTestData.Detail2ToDateOfInjury,
+                wcabAdj: AppointmentInjuryDetailsTestData.Detail2WcabAdj,
+                wcabOfficeId: null));
         }
     }
 

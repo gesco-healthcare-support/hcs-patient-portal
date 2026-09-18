@@ -1,0 +1,9 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using Xunit;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+
+[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
+public class EfCoreAppointmentClaimExaminersAppServiceTests : AppointmentClaimExaminersAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}
