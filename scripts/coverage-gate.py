@@ -734,6 +734,31 @@ def main() -> int:
 
     measured, coverage_by_file = measure_all(args, patterns)
 
+    # NO STACK AT ALL IS A WIRING FAILURE, not an empty result.
+    #
+    # `require_report` guards a stack that IS named and `require_floor` guards a
+    # stack that IS measured, so neither is reachable when nothing is named --
+    # both were vacuous in precisely the case they exist for. The gate printed
+    # NOTHING and exited 0, which is the silent pass this file's own docstring
+    # forbids: "absent input is a HARD FAILURE here, never an absent
+    # constraint". Verified before this was written, not assumed.
+    #
+    # Nothing reaches it today: ci.yml appends --python-cobertura outside every
+    # `applicable()` branch and keeps an inverted empty-args detector of its own,
+    # sonarcloud.yml passes a report explicitly, and the one test that drives
+    # main() builds --cobertura into argv before any branch. This is defence in
+    # depth behind an invariant the workflow already asserts -- so that deleting
+    # that one workflow line fails loudly here instead of silently passing.
+    #
+    # FIRES IN MEASURE-ONLY MODE TOO. A baseline of nothing is not a baseline,
+    # and measure-only is the mode whose figures feed the rolling comparison, so
+    # a silent empty result does more damage there rather than less.
+    if not measured:
+        die("no coverage report was supplied, so nothing was measured and this "
+            "gate would otherwise have passed by default. A gate with no input "
+            "is a check that passes because nobody finished wiring it. Pass at "
+            "least one of --lcov, --cobertura or --python-cobertura.")
+
     # Runs in measure-only mode too: this validates the INPUT, it is not a floor.
     #
     # There is no longer a skip branch. It printed its own absence, which reads
