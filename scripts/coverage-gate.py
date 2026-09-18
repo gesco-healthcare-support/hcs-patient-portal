@@ -450,12 +450,20 @@ def validated_output_path(destination: str) -> Path:
     on a raw traceback -- the newest line in a file whose whole design is that a
     failure tells you what to do about it.
     """
-    candidate = Path(destination).expanduser()
-    try:
-        resolved = candidate.resolve()
-    except OSError as exc:
-        die(f"--per-file was given {destination!r}, which cannot be resolved to a "
-            f"path: {exc}")
+    # NO try/except around resolve(), and that is a decision rather than an
+    # omission. With the default strict=False, resolve() is documented to
+    # resolve "as far as possible" and append the remainder WITHOUT checking
+    # that it exists, so it does not raise for a path that is missing.
+    #
+    # Verified before the guard was deleted rather than argued from the docs:
+    # a missing path, an empty string, a deep missing chain, a Windows reserved
+    # name (CON), invalid characters (<>|), a 300-character segment, a `..`
+    # escape above the repo root and a trailing-dot-and-space name ALL returned
+    # normally. The only failure this function can actually meet is the
+    # is-a-directory case, which the explicit check below handles and a test
+    # covers. An except clause nothing can reach is untestable code that makes
+    # the next reader think a failure mode exists.
+    resolved = Path(destination).expanduser().resolve()
     if resolved.is_dir():
         die(f"--per-file was given {destination!r}, which is an existing "
             "directory. Pass the path of the JSON file to write, not the "
