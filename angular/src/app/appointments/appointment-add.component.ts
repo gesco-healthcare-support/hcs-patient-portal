@@ -876,6 +876,11 @@ export class AppointmentAddComponent {
       .get('locationId')
       ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
     this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
+      // A type change re-scopes availability (the calendar fetches slots by type + location),
+      // so a slot picked under the previous type is stale -- clear the picked time and the
+      // derived doctorAvailabilityId so a wrong slot id can never reach the payload. No-op
+      // during a re-book prefill, which leaves date/time/slot null (see loadPriorSource).
+      this.clearSelectedSlot();
       this.applyFieldConfigsForAppointmentType(appointmentTypeId);
       // B1 (2026-05-05): rebuild the custom-field FormArray for the newly
       // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
@@ -3394,6 +3399,12 @@ export class AppointmentAddComponent {
 
     if (this.isLocationSelected) {
       this.form.get('appointmentDate')?.setValidators([Validators.required]);
+      // A location change re-scopes availability, so any slot picked under the previous
+      // location is stale -- clear the picked time and the derived doctorAvailabilityId so a
+      // wrong slot id can never reach the submit payload. The calendar repopulates times for
+      // the kept date under the new location and the booker re-picks. During a re-book prefill
+      // this is a no-op: prefill deliberately leaves date/time/slot null (see loadPriorSource).
+      this.clearSelectedSlot();
     } else {
       this.form.patchValue({
         appointmentDate: null,
@@ -3507,6 +3518,21 @@ export class AppointmentAddComponent {
 
   private clearTimeSlots(): void {
     this.appointmentTimeOptions = [];
+  }
+
+  /**
+   * Clears the picked time and its derived doctorAvailabilityId. Called when the appointment
+   * type or location changes: both re-scope the availability the calendar fetches, so a slot
+   * chosen under the previous selection is stale and must not survive into the submit payload
+   * (the create/reval flow sends the form's doctorAvailabilityId verbatim). emitEvent is false
+   * because both values are set together here; the calendar's selectedTime input, bound to the
+   * form value, still updates so the picker reflects the cleared state.
+   */
+  private clearSelectedSlot(): void {
+    this.form.patchValue(
+      { appointmentTime: null, doctorAvailabilityId: null },
+      { emitEvent: false },
+    );
   }
 
   private onAppointmentTimeChanged(value: string | null): void {
