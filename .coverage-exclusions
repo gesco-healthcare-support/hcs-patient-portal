@@ -275,3 +275,59 @@ tests/python/**
 # for issues (qualifier=FIL, ncloc=84) and simply carrying no coverable lines. This
 # is sonar.coverage.exclusions, NOT sonar.exclusions -- analysis is unaffected.
 tools/packet-templates/tests/**
+
+# Test code, not application code -- the C# suites, and the entry the three above
+# should have had from the start. They are `tests/` PLURAL; the C# projects live in
+# `test/` SINGULAR and matched none of them, so every C# test file has been sitting
+# in the backend denominator at 99.22%, because test code is covered by construction:
+# running the suite executes it.
+#
+# MEASURED at c035a2a0, one report and one run, before and after this entry:
+#
+#   ALL (what the gate reported)   44331/53631 = 82.66%   over 971 files
+#     test code only               26730/26940 = 99.22%   over 326 files
+#     PRODUCTION only              17601/26691 = 65.94%   over 645 files
+#
+# Both halves reconcile to the gate's own totals. FLOOR_BACKEND moved 72 -> 65 in the
+# same change; it has to, or CI fails on the first run after merge.
+#
+# `test/**` WOULD MATCH NOTHING, AND THAT IS THE TRAP THIS ENTRY EXISTS TO AVOID.
+# glob_to_regex (scripts/coverage-gate.py:54-80) returns an ANCHORED regex and
+# excluded() at :272 uses .match, while the .NET Cobertura carries ABSOLUTE checkout
+# paths (see the in_repo docstring at :181-204). So:
+#
+#   test/**       -> ^test(?:/.*)?$           vs C:/.../test/X.Tests/Y.cs   NO MATCH
+#   **/test/**    -> ^(?:.*/)?test(?:/.*)?$   vs the same path              MATCH
+#
+# The three entries above are written root-relative because the Python and Angular
+# reports ARE repo-relative. The .NET one is not, and the obvious transcription of
+# their style would have merged and changed the figure by zero.
+#
+# MEASURED against the gate's own imported matcher, not an approximation of it:
+#   **/test/**      excludes all 326 C# test files
+#                   Application.Tests 150, Domain.Tests 89, EFCore.Tests 63, TestBase 24
+#                   production files also caught: NONE, checked explicitly
+#   **/*.Tests/**   was rejected: it excludes 302 and leaves TestBase's 24 counted, and
+#                   a naming convention silently re-admits any future project not
+#                   named *.Tests -- the same class of miss that caused this defect.
+#
+# WHY THE FILE COUNT IN ci.yml's FLOOR_BACKEND COMMENT HAD ALREADY DRIFTED. That block
+# named 916 as its load-bearing count and 961 as the contamination signal; the gate
+# reported 971, so the safeguard had gone PAST its own trigger and could never fire
+# again while still reading as armed. Accounted for rather than assumed:
+#
+#   916 + 56 report entries added since a8e221df - 1 deleted = 971   (exact)
+#   of those 56: 52 under test/, 4 under src/
+#   87 .cs files were added in that span; 31 never enter the report at all
+#     (migrations, Designer files, and const-only files with no instrumentable code)
+#
+# So 93% of the drift was test files, which means the tripwire could not have held
+# while they were counted -- this epic's tranches add test files continuously. After
+# this entry, 645 moves only when PRODUCTION files change, which is what a
+# contamination detector should key on. That is the argument for this change, not a
+# side effect of it.
+#
+# This is `sonar.coverage.exclusions`, NOT `sonar.exclusions`: sonarcloud.yml:124-137
+# greps this file into COVERAGE_EXCLUSIONS and feeds it to :183 only. Sonar keeps
+# analysing these files for issues; only the coverage denominator changes.
+**/test/**
