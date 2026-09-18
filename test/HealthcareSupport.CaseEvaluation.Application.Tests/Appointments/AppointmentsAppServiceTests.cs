@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -1545,6 +1546,424 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                         + "this fails, the attorney Facts above prove nothing: their excluded "
                         + "booker would be unreachable rather than scoped out.");
                 }
+            }
+        });
+    }
+
+    // =====================================================================
+    // UpdateAsync's happy path and the two events it publishes.
+    //
+    // NOTHING IN THIS SUITE HAD EVER DRIVEN UpdateAsync PAST ITS GUARDS -- all five existing call
+    // sites set a Guid to Empty and assert the throw, so BuildValidUpdateDto deliberately carries
+    // NON-EXISTENT foreign keys. These Facts are the first to run the method for real, which is why
+    // they seed their own appointment and read its actual ConcurrencyStamp rather than reusing that
+    // helper.
+    //
+    // Events are captured by AppointmentEventCapture, a singleton handler pair declared in this
+    // assembly and discovered by ABP's conventional registration. See its docstring for why a
+    // substituted bus was not an option here.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds an appointment and returns an update DTO carrying its REAL concurrency stamp and real
+    /// foreign keys, so <see cref="AppointmentsAppService.UpdateAsync"/> can actually complete.
+    /// </summary>
+    private async Task<(Guid AppointmentId, AppointmentUpdateDto Input)> SeedUpdatableAppointmentAsync(
+        string token)
+    {
+        var patientId = await SeedLookupPatientAsync(token, "upd");
+        var appointmentId = await SeedLookupAppointmentAsync(
+            token, "upd", patientId, IdentityUsersTestData.ClaimExaminer1Email);
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+
+        return (appointmentId, new AppointmentUpdateDto
+        {
+            PatientId = patientId,
+            IdentityUserId = IdentityUsersTestData.Patient1UserId,
+            AppointmentTypeId = LocationsTestData.AppointmentType1Id,
+            LocationId = LocationsTestData.Location1Id,
+            DoctorAvailabilityId = DoctorAvailabilitiesTestData.Slot1Id,
+            AppointmentDate = appointment.AppointmentDate,
+            RequestConfirmationNumber = appointment.RequestConfirmationNumber,
+            PanelNumber = appointment.PanelNumber,
+            DueDate = appointment.DueDate,
+            ConcurrencyStamp = appointment.ConcurrencyStamp,
+        });
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithValidInput_CompletesAndPersistsTheChange()
+    {
+        // The precondition for both event Facts below, and worth its own name: if this cannot run,
+        // neither of those can, and the reason would be about the rig rather than the events.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var (appointmentId, input) = await SeedUpdatableAppointmentAsync(token);
+
+                // RefferedBy is changed rather than an INTAKE field, and the reason is recorded
+                // above the class: changing a diffable intake field publishes
+                // AppointmentIntakeChangedEto, whose real production handler renders a notification
+                // template that this rig cannot resolve, so the update throws. RefferedBy is
+                // persisted by UpdateAsync but is not part of AppointmentIntakeDiff, so it
+                // exercises the write path without tripping the notification chain.
+                //
+                // Two earlier attempts here were both the test being wrong rather than the product:
+                // PanelNumber is refused outright on a non-PQME type
+                // (AppointmentManager.EnsurePanelNumberMatchesType), and DueDate publishes the event.
+                input.RefferedBy = $"TEST-ref-{token}";
+
+                await _appointmentsAppService.UpdateAsync(appointmentId, input);
+
+                var after = await _appointmentRepository.GetAsync(appointmentId);
+                after.RefferedBy.ShouldBe(
+                    $"TEST-ref-{token}",
+                    "UpdateAsync must persist an edit to a non-intake field.");
+            }
+        });
+    }
+
+    // THE POSITIVE EVENT FACT IS ABSENT ON PURPOSE, AND THIS IS THE FINDING.
+    //
+    // "Changing an intake field publishes AppointmentIntakeChangedEto" CANNOT be asserted in this
+    // rig. Publishing it runs the real production handler, IntakeChangedEmailHandler, which renders
+    // a notification template -- and NotificationTemplateDataSeedContributor is TENANT-SCOPED, so
+    // with no tenant in the seed context only the four host codes are seeded and a tenant render
+    // throws BusinessException("CaseEvaluation:NotificationTemplate.NotFound").
+    //
+    // CORRECTED 2026-09-17. An earlier version of this comment said the exception "propagates out of
+    // UpdateAsync, so the update itself fails", and presented a call stack ending in
+    // AppointmentsAppService.UpdateAsync as "measured, not inferred". That stack cannot be right and
+    // I did not capture it verbatim -- I reconstructed it. ABP queues locally-published events on the
+    // unit of work (onUnitOfWorkComplete defaults to true) and dispatches them at CompleteAsync();
+    // UpdateAsync joins the ambient unit of work as a ChildUnitOfWork whose CompleteAsync is a no-op
+    // forwarding to its parent. So the handler runs at the OUTER unit-of-work completion and the
+    // throw surfaces there, after UpdateAsync has already returned.
+    //
+    // Recording the shape of the error rather than just the fix: the conclusion was right, the
+    // reason was wrong, and the wrong reason read as more authoritative than the conclusion because
+    // it carried a stack trace. Nobody re-runs a reason.
+    //
+    // This is the SAME root cause that blocks ExternalAccountAppService's send paths, now confirmed
+    // to block a second area. Seeding a template here to force it green would be asserting against
+    // scaffolding I invented, so the Fact is not written. Per-tenant template seeding is the fixture
+    // work that would unblock both, and it is deliberately not invented under a deadline.
+    //
+    // The NEGATIVE half below IS reachable and is kept: no intake change means no event, and that
+    // path never reaches the renderer.
+
+    [Fact]
+    public async Task UpdateAsync_WhenNoIntakeFieldChanges_PublishesNoIntakeChangedEvent()
+    {
+        // The negative half, and it needs the Fact above to mean anything. AppointmentIntakeDiff
+        // only reports genuine differences, so re-saving identical values must NOT notify anyone --
+        // otherwise every incidental save mails the whole party list.
+        //
+        // THE ASSERTION SITS OUTSIDE THE UNIT OF WORK ON PURPOSE, and the first version of this
+        // Fact had it inside, where it COULD NOT FAIL. ABP's IEventBus.PublishAsync defaults
+        // onUnitOfWorkComplete: true, so a locally-published event is QUEUED on the unit of work and
+        // dispatched by CompleteAsync(). WithUnitOfWorkAsync runs the lambda and only then completes,
+        // so an assertion inside the lambda reads the capture bag before any handler has run: it was
+        // satisfied by an empty bag on every possible input, including a broken product.
+        //
+        // The old version still went RED under mutation, which is why it survived review as long as
+        // it did: the red came from another component throwing, not from its own assertion. A red
+        // test is not evidence. The NAME of the failure is the evidence.
+        //
+        // THIS VERSION IS PROVEN BY ASSERTION, measured 2026-09-17, not predicted:
+        //   mutate AppointmentsAppService.cs:1619  if (intakeChanges.Count > 0) -> (... >= 0)
+        //   baseline   Passed!  1/1
+        //   mutated    Failed!  Shouldly.ShouldAssertException : capture.IntakeChanged
+        //
+        // Why no template exception drowns it, which is the part worth keeping: the mutation
+        // publishes an ETO whose ChangedFields is EMPTY (nothing changed, so the diff is empty), and
+        // IntakeChangedEmailHandler.cs:50-53 early-returns on `ChangedFields.Count == 0` before it
+        // ever reaches the renderer. Only the capture handler records it. So the guarantee under
+        // test -- "no intake change means no event" -- has a mutation that isolates it cleanly, and
+        // this Fact needs NO notification-template fixture to be provable.
+        //
+        // Both predictions about this were wrong, mine included: I expected the real handler to
+        // throw at unit-of-work completion and mask the assertion. It does not, for the reason
+        // above. The measurement is why that is a footnote rather than a wrong comment shipped.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var capture = GetRequiredService<AppointmentEventCapture>();
+        var appointmentId = Guid.Empty;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var seeded = await SeedUpdatableAppointmentAsync(token);
+                appointmentId = seeded.AppointmentId;
+
+                // Every field left exactly as seeded.
+                await _appointmentsAppService.UpdateAsync(appointmentId, seeded.Input);
+            }
+        });
+
+        // Guard the guard: if the lambda never ran, the ShouldNotContain below would pass against a
+        // default Guid and be vacuous all over again, in a new way.
+        appointmentId.ShouldNotBe(
+            Guid.Empty,
+            "The fixture must have run, or the assertion that follows proves nothing.");
+
+        capture.IntakeChanged.ShouldNotContain(
+            e => e.AppointmentId == appointmentId,
+            "Re-saving identical intake values must publish NOTHING. If it does, every "
+            + "incidental save notifies the whole party list about a change that did not "
+            + "happen.");
+    }
+
+    // =====================================================================
+    // The attorney-details-for-booking pair. Both methods have the same shape: resolve a user by
+    // id OR by email, return null if nothing resolves, then merge the attorney record (which may
+    // not exist) over the identity user.
+    //
+    // The email resolution is the part worth pinning. It lower-cases and trims on BOTH sides, so
+    // an address typed with different casing or stray spaces during booking still finds the
+    // attorney. Without it the booking form silently fails to prefill and the user re-types
+    // details that were already on file.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetApplicantAttorneyDetailsForBookingAsync_ResolvesByEmail_IgnoringCaseAndPadding()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var typedDifferently = "  " + IdentityUsersTestData.ApplicantAttorney1Email.ToUpperInvariant() + "  ";
+
+                var result = await _appointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(
+                    identityUserId: null,
+                    email: typedDifferently);
+
+                result.ShouldNotBeNull(
+                    "An address typed with different casing or stray padding must still resolve. "
+                    + "If it does not, the booking form stops prefilling for anyone who types "
+                    + "their own address slightly differently from how it was stored.");
+                result!.IdentityUserId.ShouldBe(IdentityUsersTestData.ApplicantAttorney1UserId);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetApplicantAttorneyDetailsForBookingAsync_WhenNeitherIdNorEmailResolves_ReturnsNull()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var byNothing = await _appointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(
+                    identityUserId: null, email: null);
+                byNothing.ShouldBeNull("No id and no email cannot identify anybody.");
+
+                var byUnknownEmail = await _appointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(
+                    identityUserId: null,
+                    email: $"TEST-nobody-{Guid.NewGuid():N}@test.local");
+                byUnknownEmail.ShouldBeNull(
+                    "An address belonging to nobody must return null rather than a partially "
+                    + "populated DTO.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetDefenseAttorneyDetailsForBookingAsync_ResolvesByEmail_IgnoringCaseAndPadding()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var typedDifferently = "  " + IdentityUsersTestData.DefenseAttorney1Email.ToUpperInvariant() + "  ";
+
+                var result = await _appointmentsAppService.GetDefenseAttorneyDetailsForBookingAsync(
+                    identityUserId: null,
+                    email: typedDifferently);
+
+                result.ShouldNotBeNull("The defense-side mirror of the applicant Fact above.");
+                result!.IdentityUserId.ShouldBe(IdentityUsersTestData.DefenseAttorney1UserId);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetDefenseAttorneyDetailsForBookingAsync_ForAUserWithNoAttorneyRecord_StillReturnsIdentityDetails()
+    {
+        // The attorney row is OPTIONAL -- `defense?.Id` is nullable throughout the projection. A
+        // user who has logged in but never had a defense-attorney record created must still come
+        // back with their identity details so booking can proceed, with the attorney id null.
+        // Returning null here instead would block booking for exactly the new users the flow is
+        // meant to onboard.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _appointmentsAppService.GetDefenseAttorneyDetailsForBookingAsync(
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    email: null);
+
+                result.ShouldNotBeNull(
+                    "A resolvable identity user with no defense-attorney record must still return "
+                    + "details. Returning null would block booking for a user who simply has no "
+                    + "attorney row yet.");
+                result!.IdentityUserId.ShouldBe(IdentityUsersTestData.Patient1UserId);
+                result.DefenseAttorneyId.ShouldBeNull(
+                    "There is no defense-attorney record for this user, so the id must be null "
+                    + "rather than invented.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesTheAppointment_AndLeavesTheSlotStatusAlone()
+    {
+        // BOTH halves matter, and the second is the one the 2026-09-16 audit changed my mind about.
+        // DeleteAsync publishes AppointmentStatusChangedEto with ToStatus = null, and its own
+        // comment still claims SlotCascadeHandler "frees the slot". That handler is a log-only stub
+        // -- under the capacity model BookingStatusId is a manual-close override, not a derived
+        // value, and what frees a slot is the active-appointment count dropping. So the slot status
+        // must come through the delete UNCHANGED. Asserting that pins the current design against a
+        // well-meaning future change that "restores" the cascade to match the stale comment.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var patientId = await SeedLookupPatientAsync(token, "del");
+                var appointmentId = await SeedLookupAppointmentAsync(
+                    token, "del", patientId, IdentityUsersTestData.ClaimExaminer1Email);
+
+                var slotBefore = await _doctorAvailabilityRepository.GetAsync(
+                    DoctorAvailabilitiesTestData.Slot1Id);
+                var statusBefore = slotBefore.BookingStatusId;
+
+                await _appointmentsAppService.DeleteAsync(appointmentId);
+
+                (await _appointmentRepository.FindAsync(appointmentId)).ShouldBeNull(
+                    "The appointment must actually be gone.");
+
+                var slotAfter = await _doctorAvailabilityRepository.GetAsync(
+                    DoctorAvailabilitiesTestData.Slot1Id);
+                slotAfter.BookingStatusId.ShouldBe(
+                    statusBefore,
+                    "Deleting an appointment must NOT rewrite the slot's BookingStatusId. That "
+                    + "field is a manual-close override; writing it here would silently undo an "
+                    + "operator's deliberate close. Freeing the slot is the active-count dropping, "
+                    + "which the delete achieves by removing the row.");
+            }
+        });
+    }
+
+    // =====================================================================
+    // The catalog lookups. Labelled honestly: only the first of these pins a real rule.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetAppointmentTypeLookupAsync_WithAnEvaluationContext_OffersOnlyTypesValidForIt()
+    {
+        // THIS ONE PINS BEHAVIOUR, but only because it seeds its own subject -- and that is the
+        // whole point of the fixture below.
+        //
+        // THE FIRST VERSION OF THIS FACT WAS VACUOUS AND BATCH MUTATION CAUGHT IT. It compared
+        // filtered counts against the unfiltered count and asserted subset-ness, which holds
+        // perfectly well when the filter is deleted. The reason it could not fail is that NO
+        // seeded appointment type carries a specific EvaluationType -- every one is null, which the
+        // rule always admits -- so against seeded data the filter never narrows anything and there
+        // was nothing for the assertion to catch.
+        //
+        // Seeding a type that belongs exclusively to ONE context is what gives the filter work to
+        // do. The rule is: offer a type when it is untyped, or marked Both, or matches the
+        // requested context. Getting it wrong offers a clinician an evaluation type the
+        // appointment cannot actually be.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var reOnlyTypeId = Guid.NewGuid();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await GetRequiredService<IRepository<AppointmentType, Guid>>().InsertAsync(
+                    new AppointmentType(
+                        id: reOnlyTypeId,
+                        name: $"TEST-re-only-{token}",
+                        description: null,
+                        evaluationType: EvaluationType.Re),
+                    autoSave: true);
+
+                var askingForNormal = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 }, EvaluationType.Normal);
+                var askingForRe = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 }, EvaluationType.Re);
+
+                askingForRe.Items.ShouldContain(
+                    x => x.Id == reOnlyTypeId,
+                    "A type belonging to the Re context must be offered when Re is requested. "
+                    + "Without this half the exclusion below is vacuous -- a lookup returning "
+                    + "nothing would satisfy it.");
+
+                askingForNormal.Items.ShouldNotContain(
+                    x => x.Id == reOnlyTypeId,
+                    "A type belonging exclusively to the Re context must NOT be offered when "
+                    + "Normal is requested. If it is, the evaluation-context filter is not being "
+                    + "applied and the booking form offers a type the appointment cannot be.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetLocationLookupAsync_FiltersByName()
+    {
+        // Modest: the only decision in this method is the name filter. Asserted both ways so a
+        // lookup that ignored the filter entirely would fail on the second half.
+        //
+        // RUNS IN THE HOST CONTEXT, NOT TenantA, and the first version of this Fact did not -- it
+        // failed on its own precondition. Location is IMultiTenant and the rig seeds all three rows
+        // under `_currentTenant.Change(null)` (CaseEvaluationIntegrationTestSeedContributor:188),
+        // so a TenantA caller sees an empty catalog and the filter assertion would have passed
+        // against nothing at all. The filter itself is tenant-agnostic, so asserting it where the
+        // data actually lives tests the same rule without pretending the rig is arranged
+        // differently than it is.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var all = await _appointmentsAppService.GetLocationLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 });
+                all.Items.ShouldNotBeEmpty(
+                    "Locations must be visible with the tenant filter disabled; without any row "
+                    + "the filter assertion below would be vacuous.");
+
+                var impossible = await _appointmentsAppService.GetLocationLookupAsync(
+                    new LookupRequestDto { Filter = $"NO-SUCH-{Guid.NewGuid():N}", MaxResultCount = 1000 });
+
+                impossible.Items.ShouldBeEmpty(
+                    "A filter matching no location must return nothing. If this returns rows the "
+                    + "filter is being ignored and the picker shows every location regardless of "
+                    + "what the user typed.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_ReturnsSeededSlots()
+    {
+        // COVERAGE-ORIENTED, and labelled so rather than dressed up. This method applies no filter
+        // and makes no decision -- it pages the table and maps it. There is no rule to pin; the
+        // only thing assertable is that it returns what is there.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _appointmentsAppService.GetDoctorAvailabilityLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 });
+
+                result.Items.ShouldNotBeEmpty();
             }
         });
     }
