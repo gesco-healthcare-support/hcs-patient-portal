@@ -98,6 +98,23 @@ describe('PublicChangeRequestConsentComponent flow', () => {
     });
   });
 
+  describe('the noun form, which is not the verb form', () => {
+    // F-015 was about these two being confused. The existing sibling spec pins
+    // actionVerb; nothing pinned actionWord, so the pair could drift back into
+    // agreement and only one of them would complain.
+    it('uses the NOUN for a cancellation, where the verb would be "cancel"', () => {
+      const cmp = configure(of({ ...pending, changeRequestType: 1 }));
+      expect(cmp.actionWord).toBe('cancellation');
+      expect(cmp.actionVerb).toBe('cancel');
+    });
+
+    it('uses the same word for a reschedule, where noun and verb coincide', () => {
+      const cmp = configure(of({ ...pending, changeRequestType: 2 }));
+      expect(cmp.actionWord).toBe('reschedule');
+      expect(cmp.actionVerb).toBe('reschedule');
+    });
+  });
+
   describe('alreadyDecided and the closing message', () => {
     it('treats only Pending as undecided', () => {
       expect(configure(of({ ...pending, consentStatus: 1 })).alreadyDecided).toBeFalse();
