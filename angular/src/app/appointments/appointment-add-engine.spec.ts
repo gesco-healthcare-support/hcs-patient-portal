@@ -709,6 +709,53 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(c.form.get('refferedBy')?.enabled).toBeTrue();
     });
 
+    // A slot's doctorAvailabilityId is scoped to the type + location it was fetched under, so a
+    // slot picked before the booker changes either is stale and must not survive into the payload.
+    function pickSlotUnderType1Loc1(c: Probe): void {
+      c.form.get('appointmentTypeId')?.setValue('type-1');
+      c.form.get('locationId')?.setValue('loc-1');
+      c.form.patchValue(
+        {
+          appointmentDate: dateKeyIn(10),
+          appointmentTime: '09:00',
+          doctorAvailabilityId: 'avail-1',
+        },
+        { emitEvent: false },
+      );
+    }
+
+    it('clears the picked time and slot id when the appointment type changes', () => {
+      const c = create();
+      pickSlotUnderType1Loc1(c);
+      expect(c.form.get('doctorAvailabilityId')?.value).toBe('avail-1');
+
+      c.form.get('appointmentTypeId')?.setValue('type-2');
+
+      expect(c.form.get('appointmentTime')?.value).toBeNull();
+      expect(c.form.get('doctorAvailabilityId')?.value).toBeNull();
+    });
+
+    it('clears the picked time and slot id when the location changes', () => {
+      const c = create();
+      pickSlotUnderType1Loc1(c);
+      expect(c.form.get('doctorAvailabilityId')?.value).toBe('avail-1');
+
+      c.form.get('locationId')?.setValue('loc-2');
+
+      expect(c.form.get('appointmentTime')?.value).toBeNull();
+      expect(c.form.get('doctorAvailabilityId')?.value).toBeNull();
+    });
+
+    it('leaves a picked slot untouched when an unrelated field changes', () => {
+      const c = create();
+      pickSlotUnderType1Loc1(c);
+
+      c.form.get('firstName')?.setValue('Grace');
+
+      expect(c.form.get('doctorAvailabilityId')?.value).toBe('avail-1');
+      expect(c.form.get('appointmentTime')?.value).toBe('09:00');
+    });
+
     it('does not fetch a configuration for a cleared type', () => {
       const c = create();
       restRequest.calls.reset();
