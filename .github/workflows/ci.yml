@@ -1120,9 +1120,28 @@ jobs:
       # is to revert the value, the value being the thing that looks anomalous.
       #
       # THE KNOWN COST, so it is not discovered later: a check that is routinely overridden stops
-      # being read. Backend: Test and Coverage: Floors run in the SAME job, so a genuine test
-      # failure surfaces in the same place as the expected floor failure. Whoever overrides must
-      # confirm WHICH checks failed, every time -- not merely that a check failed.
+      # being read. Whoever overrides must confirm WHICH checks failed, every time -- not merely
+      # that a check failed.
+      #
+      # CORRECTED 2026-09-18, and the correction is recorded rather than quietly applied because
+      # this paragraph is the written justification for the override procedure covering the next
+      # several tranches. It previously said Backend: Test and Coverage: Floors "run in the SAME
+      # job, so a genuine test failure surfaces in the same place as the expected floor failure".
+      #
+      # THAT WAS FALSE. They are separate top-level jobs -- `backend-test:` and `coverage-floors:`
+      # in this file -- reporting the checks "Backend: Test" and "Coverage: Floors" independently.
+      # #980's own merge proves it empirically rather than by argument: on a single commit,
+      # Backend: Test was success while Coverage: Floors was failure. One job cannot report two
+      # conclusions.
+      #
+      # THE DISCIPLINE SURVIVES THE CORRECTION AND GETS CHEAPER. Because these are separate checks,
+      # which one failed is visible in the checks list; no log needs opening to tell an expected
+      # floor failure from a real test failure. The confirmation is still required every time --
+      # only the claim that it is expensive was wrong.
+      #
+      # Fixed the same day rather than deferred for one reason: a procedure justified by a
+      # mechanism any reader can disprove in thirty seconds is a procedure that gets abandoned,
+      # and the discipline goes with it.
       FLOOR_BACKEND: "75"
       # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
       # refuses to run without a floor and prints the figure to copy.
