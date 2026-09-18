@@ -228,29 +228,53 @@ export class AppointmentAddClaimInformationComponent {
    * (matching OLD). Returns the first failing message, or null when dates pass.
    */
   private checkInjuryDates(): string | null {
-    const fromValue = this.injuryForm.get('injuryDateOfInjury')?.value;
-    const toValue = this.injuryForm.get('injuryToDateOfInjury')?.value;
+    // Compare yyyy-MM-dd date-keys, never Date instants. The datepicker model is a
+    // yyyy-MM-dd string (ABP DateAdapter), which `new Date(...)` parses as UTC midnight
+    // while `new Date()` is local; mixing the two accepted a future injury date for the
+    // last hours of every Pacific day (and could reject today early morning in UTC+).
+    // Key strings sort chronologically, so the comparison is zone-independent -- the same
+    // parts-based approach shared/date-of-birth.util.ts adopted for the DOB off-by-one.
+    const fromKey = this.toDateKey(this.injuryForm.get('injuryDateOfInjury')?.value);
+    const toKey = this.toDateKey(this.injuryForm.get('injuryToDateOfInjury')?.value);
     const isCumulative = this.injuryForm.get('injuryCumulative')?.value === true;
-    const now = new Date();
+    const todayKey = this.todayDateKey();
 
-    if (isCumulative && fromValue && toValue) {
-      const from = new Date(fromValue);
-      const to = new Date(toValue);
-      if (from > to) {
+    if (isCumulative && fromKey && toKey) {
+      if (fromKey > toKey) {
         return "Injury 'From' date must be earlier than the 'To' date.";
       }
-      if (to > now) {
+      if (toKey > todayKey) {
         return "Injury 'To' date cannot be in the future.";
       }
-      if (from.getTime() === to.getTime()) {
+      if (fromKey === toKey) {
         return "Injury 'From' and 'To' dates must be different.";
       }
-    } else if (fromValue) {
-      if (new Date(fromValue) > now) {
+    } else if (fromKey) {
+      if (fromKey > todayKey) {
         return 'Injury date cannot be in the future.';
       }
     }
     return null;
+  }
+
+  /**
+   * The yyyy-MM-dd calendar key from the datepicker model value (already a
+   * yyyy-MM-dd string via ABP's DateAdapter), or null for an empty/partial entry.
+   */
+  private toDateKey(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+    return match ? match[1] : null;
+  }
+
+  /** Today's LOCAL calendar date as a yyyy-MM-dd key, built from parts so it never
+   *  round-trips through UTC. */
+  private todayDateKey(): string {
+    const now = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
 
   saveInjuryModal(): void {
