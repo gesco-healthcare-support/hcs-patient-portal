@@ -65,4 +65,33 @@ public static class RescheduleSplitPolicy
                 .WithData("sourceStatus", sourceStatus),
         };
     }
+
+    /// <summary>
+    /// The status the PARENT (source) appointment returns to when a reschedule request is
+    /// REJECTED, given the status it holds at rejection time.
+    ///
+    /// <para>An Approved source moved to <c>RescheduleRequested</c> on submit, so rejecting the
+    /// request reverts it to <c>Approved</c>.</para>
+    ///
+    /// <para>B1 (2026-07-01) lets internal staff reschedule a still-<c>Pending</c> appointment, and
+    /// the submit path fires the state-machine edge ONLY for an Approved source
+    /// (<c>AppointmentChangeRequestManager.SubmitRescheduleAsync</c>), so a Pending source never
+    /// leaves Pending. Rejecting must therefore leave it Pending: forcing it to Approved would
+    /// promote a never-approved appointment past the approval gate and the claim-information check
+    /// purely because a reschedule was rejected -- the same hazard
+    /// <see cref="ResolveNewAppointmentStatus"/> guards on the approve path.</para>
+    ///
+    /// <para>Unlike the finalize paths this does NOT throw on an unexpected status: a reject must
+    /// never fail hard and strand a change request, so anything other than the two reachable
+    /// sources is left untouched rather than coerced.</para>
+    /// </summary>
+    public static AppointmentStatusType ResolveParentStatusOnReject(AppointmentStatusType sourceStatus)
+    {
+        return sourceStatus switch
+        {
+            AppointmentStatusType.RescheduleRequested => AppointmentStatusType.Approved,
+            AppointmentStatusType.Pending => AppointmentStatusType.Pending,
+            _ => sourceStatus,
+        };
+    }
 }
