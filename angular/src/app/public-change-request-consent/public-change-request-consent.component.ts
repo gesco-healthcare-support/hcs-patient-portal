@@ -185,6 +185,17 @@ export class PublicChangeRequestConsentComponent {
 
   private fail(err: HttpErrorResponse): void {
     this.state = 'error';
+    // Drive the message by status, not the server body: this is an anonymous
+    // page, so we avoid leaking which check failed and never surface ABP's
+    // generic/dev-oriented text. Mirrors public-document-upload.component.ts,
+    // which carried this reasoning while this file did not.
+    //
+    // 403 AND 404 SHARE A MESSAGE DELIBERATELY. Splitting them into "invalid"
+    // and "expired" reads like a tidy-up and is not one: it would let an
+    // anonymous caller tell a token that never existed from one that did, which
+    // is the enumeration oracle this page must not answer. Pinned by
+    // public-change-request-consent-flow.component.spec.ts -- change the copy
+    // and that spec fails by name.
     switch (err.status) {
       case 403:
       case 404:
