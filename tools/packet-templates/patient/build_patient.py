@@ -620,69 +620,6 @@ def page_adl():
     return f'<div class="page" id="p-adl">{header}{table}</div>'
 
 
-# ----------------------------------------------------------------------------- Cover letter
-def page_cover():
-    """Falkinstein appointment cover letter (page 1; token-heavy, pre-filled+locked).
-
-    Letterhead is set in Footlight MT Light (proprietary) -> reproduced as an exact
-    image crop from the original render. Every token kept verbatim. Layout mirrors
-    the rendered original line-for-line (centred location block + footer).
-    """
-    blank = '<p class="cl">&nbsp;</p>'
-    parts = [
-        '<img class="cl-head" src="images/cover_letterhead.png" '
-        'alt="Yuri Falkinstein, M.D., FAAOS -- Fellow, American Academy of Orthopaedic Surgeons">',
-        blank, blank,
-        f'<p class="cl">{_tok("##Others.DateNow##")} </p>',
-        blank, blank,
-        f'<p class="cl"><b>{_tok("##Patients.FirstName##")}  {_tok("##Patients.LastName##")}</b></p>',
-        f'<p class="cl">{_tok("##Patients.Street##")} </p>',
-        f'<p class="cl">{_tok("##Patients.City##")},  {_tok("##Patients.State##")} {_tok("##Patients.ZipCode##")}</p>',
-        blank,
-        f'<p class="cl">Dear : <b>{_tok("##Patients.FirstName##")}  {_tok("##Patients.LastName##")}</b></p>',
-        blank,
-        '<p class="cl">Please be advised that an appointment has been scheduled for you to '
-        f'see Yuri Falkinstein, M.D. on {_tok("##Appointments.AvailableDate##")}  at '
-        f'{_tok("##Appointments.AppointmenTime##")}. Your appointment will be held at: </p>',
-        blank,
-        '<p class="cl center">WEST COAST SPINE INSTITUTE<br>'
-        f'{_tok("##Appointments.Location##")}<br>'
-        f'{_tok("##Appointments.LocationAddress##")} <br>'
-        f'{_tok("##Appointments.LocationCity##")},  {_tok("##Appointments.LocationState##")}<br>'
-        f'{_tok("##Appointments.LocationZipCode##")}</p>',
-        blank,
-        '<p class="cl">The parking fee for this location is parking fee '
-        f'{_tok("##Appointments.LocationParkingFee##")}</p>',
-        blank,
-        '<p class="cl">Please make sure you keep this appointment as it is the most important '
-        'medical appointment for your case.  Please allow ample time (minimum 4 hours) to be at '
-        'our office as you may require diagnostic testing on the day of your appointment.</p>',
-        blank,
-        '<p class="cl">Please review and compare this appointment with any other appointment '
-        'letter you may have received.  In case of any discrepancies, please contact our office '
-        'immediately for clarification.</p>',
-        blank,
-        '<p class="cl">Kindly note that <u>you must check in at the above address 30 minutes '
-        'prior</u> to your scheduled appointment time with proof of identification.</p>',
-        blank,
-        '<p class="cl"><b>It is necessary that you contact our office at 818-582-2600, 10 days '
-        'prior to your appointment, for a detailed history of your injury.  </b>This will save '
-        'you time at your scheduled appointment. </p>',
-        blank,
-        '<p class="cl">If you have no knowledge of this appointment, please contact your '
-        'attorney ASAP.</p>',
-        blank,
-        '<p class="cl">Thank you, </p>',
-        blank,
-        '<p class="cl">APPOINTMENT DEPARTMENT</p>',
-        blank, blank,
-        '<p class="cl center"><b>SCHEDULING: (818) 582-2600<br>' +
-        'P.O. Box 261656, Encino, CA 91426<br>' +
-        'FAX: (818)855-2466</b></p>',
-    ]
-    return f'<div class="page" id="p-cover">{"".join(parts)}</div>'
-
-
 # ----------------------------------------------------------------------------- Release of Medical Records
 def page_release():
     """Release of Medical Records (page 3).
@@ -1085,105 +1022,6 @@ def page_ama3():
     return f'<div class="page amapg" id="p-ama3">{"".join(parts)}</div>'
 
 
-# ----------------------------------------------------------------------------- CA DWC Disability Questionnaire (identity)
-def page_deu1():
-    """CA DWC Employee's Disability Questionnaire, page 1 (page 11). Barcode = faithful
-    image crop; identity blanks left EDITABLE (not pre-filled, per decision 2). Each
-    field is an entry line with its label BELOW it (government-form style)."""
-    def line(name, w):
-        return (f'<input type="text" class="deu-line" name="packet.patient.deu1.{name}" '
-                f'style="width:{w}">')
-
-    def fld(name, label, w):
-        return f'<div class="deu-fld">{line(name, w)}<div class="deu-lab">{label}</div></div>'
-
-    parts = [
-        '<div class="deu-head">' +
-        '<img class="deu-bc" src="images/deu_barcode.png" alt="form barcode">' +
-        '<div class="deu-h1">STATE OF CALIFORNIA</div>' +
-        '<div class="deu-h2">Division of Workers\u2019<br>Compensation Disability<br>Evaluation Unit</div>' +
-        '<div class="deu-h3">EMPLOYEE\u2019S DISABILITY QUESTIONNAIRE</div>' +
-        '</div>',
-        '<div class="deu-box">This form will aid the doctor in determining your permanent '
-        'impairment or disability. Please complete this form and give it to the physician who '
-        'will be performing the evaluation. The doctor will include this form with his or her '
-        'report and submit it to the Disability Evaluation Unit, with a copy to you and your '
-        'claims administrator.</div>',
-        '<div class="deu-emp">Employee</div>',
-        # First Name + MI (line above, label below)
-        '<div class="deu-fld"><div class="deu-row"><span class="col-fn">' + line("first_name", "100%")
-        + '</span><span class="col-mi">' + line("mi", "100%") + '</span></div>'
-        '<div class="deu-row"><span class="col-fn deu-lab">First Name</span>'
-        '<span class="col-mi deu-lab">MI</span></div></div>',
-        fld("last_name", "Last Name", _W_SHORT),
-        fld("ssn", "SSN (Numbers Only)", "6.5in"),
-        fld("street1", "Street Address 1/PO Box (Please leave blank spaces between numbers, names or words)", _W_FULL),
-        fld("street2", "Street Address 2/PO Box (Please leave blank spaces between numbers, names or words)", _W_FULL),
-        fld("intl_address", "International Address (Please leave blank spaces between numbers, names or words)", "5.2in"),
-        # City / State / Zip
-        '<div class="deu-fld"><div class="deu-row"><span class="col-city">' + line("city", "100%")
-        + '</span><span class="col-state">' + line("state", "100%") + '</span>'
-        '<span class="col-zip">' + line("zip", "100%") + '</span></div>'
-        '<div class="deu-row"><span class="col-city deu-lab">City</span>'
-        '<span class="col-state deu-lab">State</span><span class="col-zip deu-lab">Zip code</span></div></div>',
-        '<div class="deu-date">Date of Birth: ' + line("dob", _W_SHORT)
-        + '<div class="deu-mmdd">MM/DD/YYYY</div></div>',
-        '<div class="deu-date">Date of Injury: ' + line("doi", _W_SHORT)
-        + '<div class="deu-mmdd">MM/DD/YYYY</div></div>',
-        fld("employer", "Employer", _W_FULL),
-        fld("nature_business", "Nature of Employers Business", _W_FULL),
-    ]
-    return f'<div class="page" id="p-deu1">{"".join(parts)}</div>'
-
-
-# ----------------------------------------------------------------------------- CA DWC Disability Questionnaire (cont.)
-def page_deu2():
-    """CA DWC Employee's Disability Questionnaire, page 2 (page 12). Claim numbers,
-    'Check one' square radios (single-select), short-answer lines, multi-line answer
-    boxes (textarea), date/signature. All editable (not pre-filled)."""
-    def chk(group, value):
-        return f'<a class="dq-chk" href="cc:packet.patient.deu2.{group}#{value}"></a>'
-
-    def inline(name, w):
-        return (f'<input type="text" class="dq-line" name="packet.patient.deu2.{name}" '
-                f'style="width:{w}">')
-
-    def box(name, h):
-        return f'<textarea class="dq-box" name="packet.patient.deu2.{name}" style="height:{h}"></textarea>'
-
-    claims = ''.join(
-        f'<div class="dq-claim"><span class="lbl">Claim Number {i}</span>'
-        f'<input type="text" class="dq-line dq-claimline" name="packet.patient.deu2.claim{i}"></div>'
-        for i in range(1, 6))
-
-    parts = [
-        claims,
-        '<hr class="dq-rule">',
-        '<div class="dq-h">PLEASE ANSWER THE FOLLOWING QUESTIONS FULLY:</div>',
-        '<div class="dq-h">How was your evaluating doctor selected? (Check one)</div>',
-        '<div class="dq-chkrow">' + chk("doctor_selected", "from_list")
-        + 'From a list of doctors provided by the State of California, Division of Workers\u2019 Compensation.</div>',
-        '<div class="dq-chkrow">' + chk("doctor_selected", "other")
-        + 'Other (Explain) ' + inline("doctor_other", "5.3in") + '</div>',
-        '<div class="dq-q">What is the name of the doctor who will be doing the evaluation? '
-        + inline("doctor_name", "3.5in") + '</div>',
-        '<div class="dq-q">When is your examination scheduled? ' + inline("exam_scheduled", "5.0in") + '</div>',
-        '<div class="dq-q">What were your job duties at the time of your injury?'
-        + box("job_duties", "0.8in") + '</div>',
-        '<div class="dq-q">What is the disability resulting from your injury?'
-        + box("disability", "1.1in") + '</div>',
-        '<div class="dq-q">How does this injury affect you in your work?'
-        + box("work_effect", "1.0in") + '</div>',
-        '<div class="dq-q">Have you ever had a disability as a result of another injury or illness? '
-        + inline("prior_disability", "3.2in") + '</div>',
-        '<div class="dq-q">If so, when? ' + inline("prior_when", "3.0in") + '</div>',
-        '<div class="dq-q">Please describe the disability?' + box("describe_disability", "0.8in") + '</div>',
-        '<div class="dq-sign">Date' + inline("date", _W_SHORT)
-        + ' MM/DD/YYYY&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Signature' + inline("signature", "3.4in") + '</div>',
-    ]
-    return f'<div class="page" id="p-deu2">{"".join(parts)}</div>'
-
-
 # ----------------------------------------------------------------------------- Job Duties (DWC) p.1
 # Identity grid + 23-row activity/frequency matrix. Each activity row is one
 # 4-value checkmark radio; dominant hand is a 2-value circle choice.
@@ -1507,8 +1345,14 @@ def page_patinfo():
 # --- page registry: (slug, render-fn). One page per approval gate, in document
 # order. New order after the 2026-06-03 template edit: cover letter is page 1;
 # Epworth + QME-122 + Service-List pages removed; trailing empty page dropped. ---
+# Page order follows the revised PATIENT PACKET SAMPLE.docx from the office exactly.
+# Three pages present in the old packet were removed 2026-09-17 because the revised
+# source does not contain them (verified against the raw .docx, not just extracted text):
+#   - cover: the "Dear Mr./Mrs." appointment letter (the appointment notice already
+#     carries a patient letter; see build_attorney.py patient_notice())
+#   - deu1/deu2: the DWC "Employee's Disability Questionnaire" (DEU form 100)
+# Their generator functions are removed below. Re-add only if the office's source adds them back.
 PAGES = [
-    ("cover", page_cover),
     ("adl", page_adl),
     ("release", page_release),
     ("privacy", page_privacy),
@@ -1518,8 +1362,6 @@ PAGES = [
     ("ama1", page_ama1),
     ("ama2", page_ama2),
     ("ama3", page_ama3),
-    ("deu1", page_deu1),
-    ("deu2", page_deu2),
     ("jobduties1", page_jobduties1),
     ("jobduties2", page_jobduties2),
     ("patinfo", page_patinfo),

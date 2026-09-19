@@ -1,10 +1,12 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.Caching.Distributed;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Validation;
@@ -49,6 +51,7 @@ public class EfCoreExternalAccountAppServiceTests
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDistributedCache _cache;
+    private readonly IRepository<NotificationOutboxItem, Guid> _outboxRepository;
 
     public EfCoreExternalAccountAppServiceTests()
     {
@@ -56,6 +59,7 @@ public class EfCoreExternalAccountAppServiceTests
         _userManager = GetRequiredService<IdentityUserManager>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _cache = GetRequiredService<IDistributedCache>();
+        _outboxRepository = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
     }
 
     private static string EmailFor(string token) => $"TEST-acct-{token}@test.local";
@@ -462,5 +466,175 @@ public class EfCoreExternalAccountAppServiceTests
             CaseEvaluationDomainErrorCodes.ResetPasswordTokenInvalid,
             "An unresolvable user must surface as an INVALID TOKEN, never as user-not-found. "
             + "Any distinct error here lets a caller enumerate which user ids are real.");
+    }
+
+    // ========================================================================
+    // THE SEND PATHS, END TO END. This is the half the file could not reach before.
+    //
+    // WHY THESE WORK WHEN THE TENANT-SCOPED ONES DO NOT, AND IT IS NOT A WORKAROUND.
+    // All three codes these paths dispatch -- ResetPassword, PasswordChange, UserRegistered -- are
+    // in NotificationTemplateConsts.Codes.HostScoped, and the rig invokes IDataSeeder.SeedAsync()
+    // with no tenant, so the host branch of NotificationTemplateDataSeedContributor seeds exactly
+    // those. A HOST user therefore renders successfully where a tenant user throws
+    // NotificationTemplateNotFound. Measured both directions before these were written.
+    //
+    // So this file now pins BOTH halves of the same seam: the Facts above prove a MISSING template
+    // stays inside the service, and the Facts below prove the dispatch actually happens when the
+    // template is present. Neither is worth much alone -- "nothing was queued" passes trivially if
+    // nothing is ever queued for anybody.
+    //
+    // WHAT IS STILL NOT ASSERTED, deliberately:
+    //   - Actual SMTP. The outbox row is the boundary; the drain is a different component with its
+    //     own tests. Asserting delivery here would need a mail server.
+    //   - Any [Authorize] refusal. AddAlwaysAllowAuthorization() makes those unfailable in this
+    //     collection, so such a Fact could not go red.
+    // ========================================================================
+
+    /// <summary>
+    /// Creates a HOST operator: no tenant, an internal role, and no external marker -- the three
+    /// things <c>PasswordResetGate.IsHostAccountEligible</c> reads. "IT Admin" is host-scoped and
+    /// seeded by <c>InternalUserRoleDataSeedContributor</c>, and it is in
+    /// <c>BookingFlowRoles.InternalUserRoles</c>, which is the single definition the gate reuses.
+    /// </summary>
+    private Task<Guid> SeedHostOperatorAsync(string token, bool internalRole, bool confirmEmail = true) =>
+        // THE WHOLE BODY NEEDS AN AMBIENT UNIT OF WORK, and only one call in it actually forces that:
+        // AddToRoleAsync goes through IdentityUserStore, which calls EnsureCollectionLoadedAsync to
+        // hydrate the user's Roles navigation, and that needs a DbContext -- "A DbContext can only be
+        // created inside a unit of work!". CreateAsync does not, which is why the neighbouring
+        // SeedRegisteredUserAsync has never needed a wrapper and why only the role-granting Facts
+        // failed. An app service wraps itself; a manager called directly does not.
+        WithUnitOfWorkAsync(async () =>
+        {
+            var userId = Guid.NewGuid();
+            var user = new Volo.Abp.Identity.IdentityUser(
+                userId, $"TEST-acct-{token}", EmailFor(token), tenantId: null);
+
+            var created = await _userManager.CreateAsync(user, IdentityUsersTestData.SeedPassword);
+            created.Succeeded.ShouldBeTrue(
+                "Fixture failed to create the host operator: "
+                + string.Join("; ", created.Errors.Select(e => e.Description)));
+
+            if (internalRole)
+            {
+                var roled = await _userManager.AddToRoleAsync(user, "IT Admin");
+                roled.Succeeded.ShouldBeTrue(
+                    "Fixture failed to grant the internal role, so the eligibility gate below would "
+                    + "refuse for a fixture reason rather than a product one: "
+                    + string.Join("; ", roled.Errors.Select(e => e.Description)));
+            }
+
+            if (confirmEmail)
+            {
+                var confirmToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                (await _userManager.ConfirmEmailAsync(user, confirmToken)).Succeeded.ShouldBeTrue();
+            }
+
+            return userId;
+        });
+
+    private Task<List<NotificationOutboxItem>> OutboxRowsAsync(string contextTag) =>
+        WithUnitOfWorkAsync(() => _outboxRepository.GetListAsync(x => x.Context == contextTag));
+
+    [Fact]
+    public async Task SendPasswordResetCodeAsync_ForAnEligibleHostOperator_QueuesTheResetEmail()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var userId = await SeedHostOperatorAsync(token, internalRole: true);
+
+        await _externalAccountAppService.SendPasswordResetCodeAsync(
+            new SendPasswordResetCodeInput { Email = EmailFor(token) });
+
+        var rows = await OutboxRowsAsync($"PasswordReset/RequestLink/{userId}");
+
+        rows.Count.ShouldBe(
+            1,
+            "Exactly one reset email must be queued. The context tag carries a user id minted by "
+            + "this Fact, so 0 means the dispatch never happened and >1 means it fanned out.");
+        rows[0].To.ShouldBe(
+            EmailFor(token),
+            "The reset link goes to the requesting operator and nobody else.");
+        // Pins that the link targets THIS operator, not merely that some URL rendered. The seeded
+        // ResetPassword.html carries ##URL## and ##PatientFirstName##, and AccountUrlBuilder composes
+        // /Account/ResetPassword?userId=<id>&resetToken=<token> -- so a substitution that silently
+        // dropped ##URL## would still queue a row and send a link-less email, and a builder that
+        // mixed up users would send a working link to the wrong account.
+        //
+        // The first version asserted Contains("token=") and failed: the parameter is `resetToken`,
+        // and Contains is case-sensitive, so it was checking for a string the URL never contains.
+        rows[0].Body.Contains($"userId={userId}").ShouldBeTrue(
+            "The reset link must carry THIS operator's id. Body was: " + rows[0].Body);
+        rows[0].Body.Contains("resetToken=").ShouldBeTrue(
+            "The reset link must carry a token, or it is a link to a form that cannot authorise.");
+    }
+
+    [Fact]
+    public async Task SendPasswordResetCodeAsync_ForAHostUserWithNoInternalRole_QueuesNothing()
+    {
+        // THE DISCRIMINATING HALF, and the Fact above is what makes it mean anything. A null-tenant
+        // account that holds no internal role is one the product cannot create, so it is refused at
+        // ExternalAccountAppService.cs:153 before any dispatch. Without the positive Fact above,
+        // "nothing was queued" would pass in a rig where nothing is ever queued for anyone.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var userId = await SeedHostOperatorAsync(token, internalRole: false);
+
+        await _externalAccountAppService.SendPasswordResetCodeAsync(
+            new SendPasswordResetCodeInput { Email = EmailFor(token) });
+
+        (await OutboxRowsAsync($"PasswordReset/RequestLink/{userId}")).ShouldBeEmpty(
+            "A host account with no internal role is not reset-eligible. Queueing here would mean "
+            + "the privilege gate had stopped gating, and the caller still sees generic success "
+            + "either way, so the outbox is the only place the difference is visible.");
+    }
+
+    [Fact]
+    public async Task ResendEmailVerificationAsync_ForAnUnconfirmedHostOperator_QueuesTheVerification()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var userId = await SeedHostOperatorAsync(token, internalRole: true, confirmEmail: false);
+
+        await _externalAccountAppService.ResendEmailVerificationAsync(
+            new ResendEmailVerificationInput { Email = EmailFor(token) });
+
+        var rows = await OutboxRowsAsync($"UserRegistered/Resend/{userId}");
+
+        rows.Count.ShouldBe(1, "One verification email per request.");
+        rows[0].To.ShouldBe(EmailFor(token));
+        rows[0].IsBodyHtml.ShouldBeTrue(
+            "The verification body is an HTML template; queueing it as plain text would deliver "
+            + "raw markup to the recipient.");
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ForAHostOperator_QueuesTheSecurityReceipt()
+    {
+        // The post-reset confirmation is a SECURITY RECEIPT: it is how an operator learns their
+        // password changed when they did not change it. It dispatches after the reset succeeds, so
+        // this Fact needs a real token round trip rather than a fabricated one.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var userId = await SeedHostOperatorAsync(token, internalRole: true);
+
+        var resetToken = await WithUnitOfWorkAsync(async () =>
+        {
+            var user = await _userManager.GetByIdAsync(userId);
+            return await _userManager.GeneratePasswordResetTokenAsync(user);
+        });
+
+        await _externalAccountAppService.ResetPasswordAsync(
+            new ResetPasswordInput
+            {
+                UserId = userId,
+                ResetToken = resetToken,
+                Password = "Test-Changed1!",
+                ConfirmPassword = "Test-Changed1!",
+            });
+
+        var rows = await OutboxRowsAsync($"PasswordChange/PostReset/{userId}");
+
+        rows.Count.ShouldBe(
+            1,
+            "A successful reset must queue exactly one confirmation. If this is 0 the receipt was "
+            + "silently dropped, and an attacker-triggered reset would leave no trace for the "
+            + "account owner.");
+        rows[0].To.ShouldBe(EmailFor(token));
     }
 }

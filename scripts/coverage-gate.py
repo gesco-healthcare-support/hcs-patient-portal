@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import json
 import re
 # The FIRST subprocess call in this file, and a deliberate narrowing of the
 # purity #856 chose. Its reasoning was "discovery lives in the workflow because
@@ -428,6 +429,113 @@ def summarise(per_file: dict[str, dict[int, int]],
     return found, hit, files
 
 
+def validated_output_path(destination: str) -> Path:
+    """Resolve and check a CLI-supplied output path BEFORE anything is written.
+
+    Two reasons, and the second is the one that made this a review finding.
+
+    The path arrives from `--per-file`, so it is command-line input reaching a
+    file write. SonarCloud grades that as path traversal, and the same rule
+    already fires three times in this file on `main` -- `load_exclusions`,
+    `load_tracked` and `parse_changed_lines` all read a path that came from a
+    flag. That is what a CLI gate is: every path it touches is an argument. The
+    difference here is that this one WRITES, so it is worth being explicit about
+    what it will and will not write to rather than inheriting the read path's
+    silence.
+
+    And EVERY OTHER FAILURE IN THIS SCRIPT IS EXPLAINED. `require_report`,
+    `require_floor`, `load_exclusions`, `discover_tracked` and `assert_tracked`
+    all end at `die()` with a sentence saying what was wrong. A bare
+    `write_text` on a missing directory would have been the one path that exits
+    on a raw traceback -- the newest line in a file whose whole design is that a
+    failure tells you what to do about it.
+    """
+    # NO try/except around resolve(), and that is a decision rather than an
+    # omission. With the default strict=False, resolve() is documented to
+    # resolve "as far as possible" and append the remainder WITHOUT checking
+    # that it exists, so it does not raise for a path that is missing.
+    #
+    # Verified before the guard was deleted rather than argued from the docs:
+    # a missing path, an empty string, a deep missing chain, a Windows reserved
+    # name (CON), invalid characters (<>|), a 300-character segment, a `..`
+    # escape above the repo root and a trailing-dot-and-space name ALL returned
+    # normally. The only failure this function can actually meet is the
+    # is-a-directory case, which the explicit check below handles and a test
+    # covers. An except clause nothing can reach is untestable code that makes
+    # the next reader think a failure mode exists.
+    resolved = Path(destination).expanduser().resolve()
+    if resolved.is_dir():
+        die(f"--per-file was given {destination!r}, which is an existing "
+            "directory. Pass the path of the JSON file to write, not the "
+            "directory to write it into.")
+    parent = resolved.parent
+    if not parent.is_dir():
+        die(f"--per-file was given {destination!r}, whose parent directory "
+            f"{parent} does not exist. This gate does not create directories: "
+            "the caller decides where its output belongs, and silently making "
+            "one would hide a mistyped path until someone went looking for a "
+            "report that was written somewhere else.")
+    return resolved
+
+
+def emit_per_file(args: argparse.Namespace,
+                  coverage_by_file: dict[str, dict[int, int]],
+                  patterns: list[re.Pattern[str]]) -> None:
+    """Write the breakdown if it was asked for. A no-op otherwise.
+
+    Its own function because `main` now calls it from TWO places -- once in the
+    measure-only branch and once after the floor verdict -- and the two must not
+    drift. Inlining it twice is how they would.
+    """
+    if args.per_file is None:
+        return
+    count = write_per_file(args.per_file, coverage_by_file, patterns)
+    print(f"per-file: wrote {count} file(s) to {args.per_file}")
+
+
+def write_per_file(destination: str,
+                   per_file: dict[str, dict[int, int]],
+                   patterns: list[re.Pattern[str]]) -> int:
+    """Write a per-file coverage breakdown as JSON. Returns the file count.
+
+    THE POINT IS THE DENOMINATOR, not the convenience. Ranking which files to
+    test next was being done from raw lcov by throwaway scripts that applied
+    their own idea of what counts -- one of them dropped the ABP proxies by a
+    substring match and nothing else, which happened to agree here and would not
+    on a report with different contamination. A ranking that disagrees with the
+    gate about what is counted sends work at files the gate does not grade.
+
+    So this deliberately sits beside `summarise` and walks the same map through
+    the same `excluded` call. The set emitted here is exactly the set summarise
+    counts; if one ever changes, both must.
+
+    Two properties are inherited rather than reimplemented, which is the other
+    half of the point: paths have already been through `normalise` (so
+    `--lcov-prefix` is applied), and a line repeated across records has already
+    been resolved to its MAXIMUM hit count by the parser. A separate reader of
+    the same report would have to get both right again.
+
+    Sorted by uncovered DESCENDING with ties broken by path, so the output is a
+    ranking AND is byte-identical across two runs over one report. An unstable
+    order would make every regeneration a noisy diff.
+    """
+    rows = []
+    for source, lines in per_file.items():
+        if excluded(source, patterns):
+            continue
+        found = len(lines)
+        hit = sum(1 for h in lines.values() if h > 0)
+        rows.append({"path": source, "found": found, "hit": hit,
+                     "uncovered": found - hit})
+    rows.sort(key=lambda r: (-r["uncovered"], r["path"]))
+    path = validated_output_path(destination)
+    try:
+        path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        die(f"could not write the per-file breakdown to {path}: {exc}")
+    return len(rows)
+
+
 def summarise_changed(per_file: dict[str, dict[int, int]],
                       changed: dict[str, set[int]],
                       patterns: list[re.Pattern[str]]) -> tuple[int, int, int]:
@@ -554,6 +662,22 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--measure-only", action="store_true",
                     help="print the figures and skip floor enforcement; for "
                          "establishing a baseline, never for gating")
+    # Writes to a PATH rather than to stdout. The frontend stack alone counts
+    # 272 files, and stdout here is gate-output.txt, which a human reads on
+    # every run; a 272-line dump would change that artefact for everyone to
+    # serve the one caller that wants to parse it.
+    # The help text says what the code does, including the awkward half. It
+    # previously ended "does not affect any figure or exit code", which stopped
+    # being true the moment a failed write could die() -- and a help string
+    # contradicting its own implementation is the stale-comment defect this
+    # programme has spent the day removing, not a rounding error.
+    ap.add_argument("--per-file",
+                    help="write a JSON per-file coverage breakdown to this path "
+                         "(one object per counted file, ranked by uncovered "
+                         "lines). Affects no measured figure, and is written "
+                         "AFTER the floor verdict so it cannot turn a PASS into "
+                         "a FAIL -- but a path that cannot be written fails the "
+                         "run rather than being skipped silently")
     return ap
 
 
@@ -686,6 +810,31 @@ def main() -> int:
 
     measured, coverage_by_file = measure_all(args, patterns)
 
+    # NO STACK AT ALL IS A WIRING FAILURE, not an empty result.
+    #
+    # `require_report` guards a stack that IS named and `require_floor` guards a
+    # stack that IS measured, so neither is reachable when nothing is named --
+    # both were vacuous in precisely the case they exist for. The gate printed
+    # NOTHING and exited 0, which is the silent pass this file's own docstring
+    # forbids: "absent input is a HARD FAILURE here, never an absent
+    # constraint". Verified before this was written, not assumed.
+    #
+    # Nothing reaches it today: ci.yml appends --python-cobertura outside every
+    # `applicable()` branch and keeps an inverted empty-args detector of its own,
+    # sonarcloud.yml passes a report explicitly, and the one test that drives
+    # main() builds --cobertura into argv before any branch. This is defence in
+    # depth behind an invariant the workflow already asserts -- so that deleting
+    # that one workflow line fails loudly here instead of silently passing.
+    #
+    # FIRES IN MEASURE-ONLY MODE TOO. A baseline of nothing is not a baseline,
+    # and measure-only is the mode whose figures feed the rolling comparison, so
+    # a silent empty result does more damage there rather than less.
+    if not measured:
+        die("no coverage report was supplied, so nothing was measured and this "
+            "gate would otherwise have passed by default. A gate with no input "
+            "is a check that passes because nobody finished wiring it. Pass at "
+            "least one of --lcov, --cobertura or --python-cobertura.")
+
     # Runs in measure-only mode too: this validates the INPUT, it is not a floor.
     #
     # There is no longer a skip branch. It printed its own absence, which reads
@@ -699,6 +848,9 @@ def main() -> int:
     assert_tracked(coverage_by_file, patterns, tracked)
 
     if args.measure_only:
+        # Measure-only has no verdict for a diagnostic to pre-empt, so the
+        # breakdown is emitted here and the mode still supports it.
+        emit_per_file(args, coverage_by_file, patterns)
         return 0
 
     ok = True
@@ -708,6 +860,21 @@ def main() -> int:
 
     if args.changed_diff is not None:
         ok = enforce_changed_lines(args, coverage_by_file, patterns) and ok
+
+    # GATES EVALUATE BEFORE DIAGNOSTICS EMIT.
+    #
+    # This was above the floor loop until the review of #975, and the placement
+    # was the real defect rather than the unhandled write everyone stopped at: a
+    # mistyped --per-file path did not merely fail, it failed BEFORE the floor
+    # was evaluated, so the answer the gate exists to give was lost to a
+    # reporting flag. A diagnostic must not be able to pre-empt the verdict.
+    #
+    # `ok` is already decided here, so a failed write cannot change PASS into
+    # FAIL -- it can only fail a run whose verdict has already been printed and
+    # is therefore still knowable from the log. And the breakdown is written on
+    # a FAILING run too, which is exactly when someone wants to know which files
+    # are dragging the figure down.
+    emit_per_file(args, coverage_by_file, patterns)
 
     return 0 if ok else 1
 

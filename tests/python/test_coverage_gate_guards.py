@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -214,3 +215,78 @@ class TestParserPythonStack(unittest.TestCase):
 
     def test_measure_only_is_still_available_for_baselining(self):
         self.assertTrue(self.parse("--measure-only").measure_only)
+
+
+class TestNoReportSuppliedAtAll(unittest.TestCase):
+    """The gate must not pass when it measured NOTHING.
+
+    The same class of hole as the "check SKIPPED" branch `discover_tracked`
+    replaced, one level up: `require_report` guards a stack that IS named and
+    `require_floor` guards a stack that IS measured, so with no stack named at
+    all BOTH were unreachable. Measured before the fix -- the gate printed
+    nothing and exited 0.
+
+    The MESSAGE is asserted, not only the exit code. A guard that fails without
+    saying why sends the reader somewhere else, and this one fires on the script
+    that gates every build, where the first guess will be the coverage work.
+    """
+
+    COBERTURA = ('<?xml version="1.0" ?><coverage><packages><package><classes>'
+                 '<class filename="scripts/thing.py"><lines>'
+                 '<line number="1" hits="1"/></lines></class>'
+                 '</classes></package></packages></coverage>')
+
+    def _run(self, argv):
+        """Drive main() with a patched argv, capturing stdout so the `::error::`
+        never reaches Actions as an annotation -- the same contract `dying()`
+        provides above, with the buffer KEPT so the message can be asserted.
+        """
+        buf = io.StringIO()
+        original = sys.argv
+        sys.argv = ["coverage-gate.py"] + argv
+        try:
+            with contextlib.redirect_stdout(buf):
+                try:
+                    code = gate.main()
+                except SystemExit as exc:
+                    code = exc.code
+        finally:
+            sys.argv = original
+        return code, buf.getvalue()
+
+    def test_no_report_at_all_fails_while_gating(self):
+        code, out = self._run(["--exclusions", ".coverage-exclusions"])
+        self.assertEqual(code, 1)
+        self.assertIn("no coverage report was supplied", out)
+
+    def test_it_names_the_flags_that_would_satisfy_it(self):
+        _code, out = self._run(["--exclusions", ".coverage-exclusions"])
+        self.assertIn("--lcov", out)
+        self.assertIn("--cobertura", out)
+        self.assertIn("--python-cobertura", out)
+
+    def test_no_report_at_all_ALSO_fails_in_measure_only_mode(self):
+        # The half that is easy to leave open. measure-only is the mode whose
+        # figures feed the rolling baseline, so a silent empty result is worse
+        # there rather than better.
+        code, out = self._run(["--exclusions", ".coverage-exclusions", "--measure-only"])
+        self.assertEqual(code, 1)
+        self.assertIn("no coverage report was supplied", out)
+
+    # THE POSITIVE CONTROL. Without it the three above pass with the guard
+    # written as an unconditional die(), which would fail every build.
+    def test_one_report_is_enough_to_proceed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "coverage.xml"
+            report.write_text(self.COBERTURA, encoding="utf-8")
+            manifest = Path(tmp) / "tracked.txt"
+            manifest.write_text("scripts/thing.py\n", encoding="utf-8")
+            code, out = self._run([
+                "--exclusions", ".coverage-exclusions",
+                "--cobertura", str(report),
+                "--tracked-files", str(manifest),
+                "--measure-only",
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("backend:", out)
+        self.assertNotIn("no coverage report was supplied", out)

@@ -679,8 +679,13 @@ public class AppointmentChangeRequestsApprovalAppService :
         var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var fromStatus = sourceAppointment.AppointmentStatus;
 
-        // Revert parent appointment to Approved.
-        sourceAppointment.AppointmentStatus = AppointmentStatusType.Approved;
+        // Revert the parent to the status it held BEFORE the reschedule request, not a hardcoded
+        // Approved. An Approved source became RescheduleRequested on submit, so it reverts to
+        // Approved -- but B1 lets internal staff reschedule a still-Pending source, which never
+        // left Pending, and forcing Approved here would promote a never-approved appointment past
+        // the approval gate purely because its reschedule was rejected. Mirrors the approve path.
+        sourceAppointment.AppointmentStatus =
+            RescheduleSplitPolicy.ResolveParentStatusOnReject(fromStatus);
         await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
 
         // Mark change request Rejected. Outcome, rejector and timestamp move together.
@@ -689,8 +694,12 @@ public class AppointmentChangeRequestsApprovalAppService :
         changeRequest.RejectionNotes = input.Reason.Trim();
         await PersistChangeRequestAsync(changeRequest);
 
-        // Drive the slot cascade for the parent: RescheduleRequested -> Approved
-        // means the source slot stays Booked (mapping says Approved -> Booked).
+        // Publish the parent's transition for the downstream notification + audit handlers.
+        // The slot cascade is capacity/count-based now (SlotCascadeHandler is a log-only stub),
+        // so this does not move the slot. toStatus is the reverted status: Approved for a
+        // RescheduleRequested source, Pending for an internal-staff Pending source -- a Pending
+        // -> Pending transition raises no approval notification, which is the correct outcome
+        // for a rejected reschedule of an unapproved appointment.
         await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
             appointmentId: sourceAppointment.Id,
             tenantId: sourceAppointment.TenantId,

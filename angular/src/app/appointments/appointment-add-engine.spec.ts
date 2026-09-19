@@ -709,6 +709,53 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(c.form.get('refferedBy')?.enabled).toBeTrue();
     });
 
+    // A slot's doctorAvailabilityId is scoped to the type + location it was fetched under, so a
+    // slot picked before the booker changes either is stale and must not survive into the payload.
+    function pickSlotUnderType1Loc1(c: Probe): void {
+      c.form.get('appointmentTypeId')?.setValue('type-1');
+      c.form.get('locationId')?.setValue('loc-1');
+      c.form.patchValue(
+        {
+          appointmentDate: dateKeyIn(10),
+          appointmentTime: '09:00',
+          doctorAvailabilityId: 'avail-1',
+        },
+        { emitEvent: false },
+      );
+    }
+
+    it('clears the picked time and slot id when the appointment type changes', () => {
+      const c = create();
+      pickSlotUnderType1Loc1(c);
+      expect(c.form.get('doctorAvailabilityId')?.value).toBe('avail-1');
+
+      c.form.get('appointmentTypeId')?.setValue('type-2');
+
+      expect(c.form.get('appointmentTime')?.value).toBeNull();
+      expect(c.form.get('doctorAvailabilityId')?.value).toBeNull();
+    });
+
+    it('clears the picked time and slot id when the location changes', () => {
+      const c = create();
+      pickSlotUnderType1Loc1(c);
+      expect(c.form.get('doctorAvailabilityId')?.value).toBe('avail-1');
+
+      c.form.get('locationId')?.setValue('loc-2');
+
+      expect(c.form.get('appointmentTime')?.value).toBeNull();
+      expect(c.form.get('doctorAvailabilityId')?.value).toBeNull();
+    });
+
+    it('leaves a picked slot untouched when an unrelated field changes', () => {
+      const c = create();
+      pickSlotUnderType1Loc1(c);
+
+      c.form.get('firstName')?.setValue('Grace');
+
+      expect(c.form.get('doctorAvailabilityId')?.value).toBe('avail-1');
+      expect(c.form.get('appointmentTime')?.value).toBe('09:00');
+    });
+
     it('does not fetch a configuration for a cleared type', () => {
       const c = create();
       restRequest.calls.reset();
@@ -1472,6 +1519,31 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(c.form.get('patientId')?.value).toBe('patient-1');
       expect(c.patientLabel).toBe('Ada Lovelace');
       expect(c.form.get('city')?.value).toBe('Encino');
+    });
+
+    it('surfaces a message instead of failing silently when the patient load errors', () => {
+      // Without an error branch the demographic fields stayed blank while the picker held the
+      // id -- a half-populated patient with no explanation.
+      const c = create({
+        rest: {
+          'for-appointment-booking/': throwError(() => ({ status: 500 })),
+        },
+      });
+
+      c.onPatientSelected('patient-1');
+
+      expect(c.patientLoadMessage)
+        .withContext('a failed patient load must not be silent')
+        .not.toBe('');
+    });
+
+    it('ignores a load response that carries no patient id', () => {
+      const c = create({ rest: { 'for-appointment-booking/': of({ patient: null }) } });
+
+      c.onPatientSelected('patient-1');
+
+      expect(c.form.get('patientId')?.value).toBeNull();
+      expect(c.patientLabel).toBe('');
     });
 
     it('never prefills the social security number', () => {

@@ -205,7 +205,7 @@ def page1():
         <tr><td class="secthead" colspan="2">Vitals</td></tr>
         <tr><td class="rowlabel">Height</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.height"></td></tr>
         <tr><td class="rowlabel">Weight</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.weight"></td></tr>
-        <tr><td class="rowlabel">Blood Pressure</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.blood_pressure"></td></tr>
+        <tr><td class="rowlabel">BMI</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.bmi"></td></tr>
         <tr><td class="rowlabel">Pulse</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.pulse"></td></tr>
         <tr><td class="rowlabel">Respiratory</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.respiratory"></td></tr>
         <tr><td class="rowlabel">Temperature</td><td class="fieldcell"><input type="text" name="packet.doctor.vitals.temperature"></td></tr>
@@ -532,7 +532,7 @@ def page2():
               + '</div><div class="rcell">' + _inspection_table() + _neuro_table() + '</div></div>')
     return (title + cerv
             + '<div class="ama">AMA 5TH EDITION PAGE 411</div>' + thor
-            + '<div class="ama">AMA 5TH EDITION PAGE 407, 424</div>' + lumb + bottom)
+            + '<div class="ama">AMA 5TH EDITION PAGE 407, 409</div>' + lumb + bottom)
 
 
 # ----------------------------------------------------------------------------- Page 3 (Upper Extremities)
@@ -1169,6 +1169,8 @@ def page6():
         f'<span class="ofill">{ta("comment", "66px")}</span></div></div>'
         f'<div class="orow gap indent">{cb("claim_status", "CLAIM STATUS:")} {uin("claim_status_val", "1.3in")}'
         f' &nbsp;&nbsp;&nbsp; MA INITIALS: {uin("ma_initials", "0.9in")}</div>'
+        f'<div class="orow indent">Re-Evaluation Requested: &nbsp; {cb("reeval.yes", "YES")} {cb("reeval.no", "NO")}'
+        f' &nbsp;&nbsp;&nbsp; {cb("reeval.3mo", "3 Months")} {cb("reeval.6mo", "6 Months")} {cb("reeval.9mo", "9 Months")}</div>'
         '</div>')
 
 
