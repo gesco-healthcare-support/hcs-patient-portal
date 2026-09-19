@@ -7,11 +7,17 @@ namespace HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 
 public class ApplicantAttorneyDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 {
+    public string? FirstName { get; set; }
+
+    public string? LastName { get; set; }
+
     public string? FirmName { get; set; }
 
     public string? FirmAddress { get; set; }
 
     public string? WebAddress { get; set; }
+
+    public string? Email { get; set; }
 
     public string? PhoneNumber { get; set; }
 

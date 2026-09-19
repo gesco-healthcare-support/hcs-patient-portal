@@ -9,6 +9,12 @@ public class LocationCreateDto
     [Required]
     [StringLength(LocationConsts.NameMaxLength)]
     public string Name { get; set; } = null!;
+
+    // #11 (task_59b8c23a): external integration ID (CalMed / Case Tracker), required + unique.
+    [Required]
+    [StringLength(LocationConsts.FacilityIdMaxLength)]
+    public string FacilityId { get; set; } = null!;
+
     [StringLength(LocationConsts.AddressMaxLength)]
     public string? Address { get; set; }
 
@@ -16,12 +22,15 @@ public class LocationCreateDto
     public string? City { get; set; }
 
     [StringLength(LocationConsts.ZipCodeMaxLength)]
+    [RegularExpression(@"^(\d{5}(-\d{4})?)?$")]
     public string? ZipCode { get; set; }
 
+    [Range(0, double.MaxValue)]
     public decimal ParkingFee { get; set; }
 
     public bool IsActive { get; set; } = true;
     public Guid? StateId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    // I3 (2026-06-08): a Location offers multiple appointment types (M2M).
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 }

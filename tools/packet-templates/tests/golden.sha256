@@ -1,0 +1,10 @@
+# SHA-256 of every document the packet generators emit.
+# The builders write LF explicitly, so these are the same bytes on
+# every platform and the same bytes the packet-renderer image ships.
+# Regenerate with:
+#   python tools/packet-templates/tests/test_golden_output.py --update
+# A change here must ship with the template edit that caused it.
+f7a915057e9b636b6dfd5dd5180e38dafddf1564c8ae393b25bfbeaf15ba2aee  ame_ime.html
+421b5d321b18d65991b4226997ac16c527637a05fe4fc3798478b38f0729ba99  doctor.html
+cb92b642596bd40f7f693adca42f3d2dfb5b51fd6b0dfb7e38d7dc7a596c0272  patient.html
+2f0640f6c71369e1f21b9fda247ce4300e9df79daedd64f5717dd02c9a002b3f  pqme.html

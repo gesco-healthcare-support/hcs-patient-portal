@@ -27,14 +27,51 @@ feature/* --> main --> development --> staging --> production
 Merges flow one direction only. Promotion PRs between long-lived branches must
 use **rebase**, never a merge commit, to preserve linear history.
 
-## Branch Protection (Progressive Hardening)
+## Branch Protection
 
-| Branch        | Required checks                    | Approvals |
-| ------------- | ---------------------------------- | --------- |
-| `main`        | Backend Build, Frontend Build      | 1         |
-| `development` | + Backend Test, Frontend Lint      | 1         |
-| `staging`     | + Frontend Test, Dependency Review | 1         |
-| `production`  | + Secret Detection                 | 2         |
+**The same 17 checks are required on all four branches.** There is no longer a
+per-branch gradient: a change that cannot merge to `main` cannot merge anywhere.
+The only thing that varies by branch is how many approvals a pull request needs.
+
+| Branch        | Required checks | Approvals | Up to date with base |
+| ------------- | --------------- | --------- | -------------------- |
+| `main`        | all 17 below    | 1         | required             |
+| `development` | all 17 below    | 1         | required             |
+| `staging`     | all 17 below    | 1         | required             |
+| `production`  | all 17 below    | **2**     | required             |
+
+The 17, exactly as configured:
+
+| Check                            | What it covers                                                            |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `Meta: Changed paths`            | Classifies the diff; unrecognised paths run the full suite                |
+| `Backend: Build`                 | Compiles the solution, warnings as errors, and checks both migration sets |
+| `Backend: Test`                  | Backend test suite                                                        |
+| `Backend: Format Check`          | `dotnet format`                                                           |
+| `Frontend: Build`                | Compiles the SPA                                                          |
+| `Frontend: Test`                 | Angular specs                                                             |
+| `Frontend: Lint`                 | Angular static analysis                                                   |
+| `Frontend: Format Check`         | Prettier                                                                  |
+| `Coverage: Floors`               | Per-stack coverage floors and the changed-lines floor                     |
+| `Dependency Review`              | Licences and vulnerabilities in changed dependencies                      |
+| `TruffleHog: PR commits`         | Secret scan of the diff                                                   |
+| `CodeQL: csharp`                 | Code scanning, backend                                                    |
+| `CodeQL: javascript-typescript`  | Code scanning, frontend                                                   |
+| `Lint: Markdown`                 | Every markdown file in the repository                                     |
+| `Lint: YAML workflows`           | `.github/workflows/`                                                      |
+| `Commitlint: PR commits`         | Commit message format                                                     |
+| `PR Title: Conventional Commits` | Pull request title format                                                 |
+
+Two checks run on pull requests but are deliberately **not** required:
+
+- `Docs: Structure Check` -- it is conditional on the diff touching shared paths,
+  and a skipped job reports success. Requiring it would let a pull request that
+  does not touch those paths satisfy it without running.
+- `SonarCloud: Analysis` -- informational while its quality gate is being
+  settled; making it required would block on conditions unrelated to the change.
+
+Promotion PRs between long-lived branches still use rebase, and "up to date with
+base" is enforced, so a promotion must be rebased on its target before it merges.
 
 ## Development Workflow
 

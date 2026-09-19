@@ -66,6 +66,22 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.EntityFrameworkCore\HealthcareSupport.CaseEvaluation.EntityFrameworkCore.csproj" />
+    <!--
+      Phase 1.D follow-up (2026-05-08): the Account/ResendVerification Razor
+      page injects IExternalAccountAppService to call ResendEmailVerificationAsync
+      directly via DI. Both Application + Application.Contracts must be
+      project references on the AuthServer csproj for the interface to be
+      compile-visible AND the implementation to be DI-resolvable.
+    -->
+    <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Application.Contracts\HealthcareSupport.CaseEvaluation.Application.Contracts.csproj" />
+    <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Application\HealthcareSupport.CaseEvaluation.Application.csproj" />
+    <!--
+      ADR-007 (2026-05-11): AuthServer reuses HttpApi's
+      HostAwareDomainTenantResolveContributor so the reserved "admin"
+      subdomain maps to Host context on the OpenIddict surface too
+      (not just on the API).
+    -->
+    <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.HttpApi\HealthcareSupport.CaseEvaluation.HttpApi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

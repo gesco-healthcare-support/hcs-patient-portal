@@ -1,0 +1,110 @@
+<!-- #121 phase T3 (2026-05-13) -- Employer Details section. The 7
+     FormControls live on the parent's `form` FormGroup; the child wraps
+     in [formGroup]="form" so formControlName directives bind to the
+     same controls the parent owns. -->
+<div [formGroup]="form" class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0 fw-bold">Employer Details</h5>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label for="appointment-employer-name" class="form-label fw-semibold">
+          Employer Name *
+        </label>
+        <input
+          id="appointment-employer-name"
+          class="form-control"
+          formControlName="employerName"
+          maxlength="255"
+          placeholder="EMPLOYER NAME"
+          [class.is-invalid]="
+            form.get('employerName')?.invalid && form.get('employerName')?.touched
+          "
+        />
+        @if (form.get('employerName')?.invalid && form.get('employerName')?.touched) {
+          <div class="invalid-feedback d-block">Required.</div>
+        }
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="appointment-employer-occupation" class="form-label fw-semibold">
+          Occupation *
+        </label>
+        <input
+          id="appointment-employer-occupation"
+          class="form-control"
+          formControlName="employerOccupation"
+          maxlength="255"
+          placeholder="OCCUPATION"
+          [class.is-invalid]="
+            form.get('employerOccupation')?.invalid && form.get('employerOccupation')?.touched
+          "
+        />
+        @if (form.get('employerOccupation')?.invalid && form.get('employerOccupation')?.touched) {
+          <div class="invalid-feedback d-block">Required.</div>
+        }
+      </div>
+      <div class="col-md-4 mb-3">
+        <label for="appointment-employer-phone-number" class="form-label fw-semibold">
+          {{ '::PhoneNumber' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-employer-phone-number"
+          appPhoneNumber
+          class="form-control"
+          formControlName="employerPhoneNumber"
+          placeholder="PHONE NUMBER"
+        />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label for="appointment-employer-street" class="form-label fw-semibold">
+          {{ '::Street' | abpLocalization }}
+        </label>
+        <!-- F2 (2026-05-29): autocomplete fills street/city/state/zip. -->
+        <app-address-autocomplete
+          inputId="appointment-employer-street"
+          [group]="form"
+          [fields]="addressFields"
+          placeholder="STREET"
+        ></app-address-autocomplete>
+      </div>
+      <div class="col-md-3 mb-3">
+        <label for="appointment-employer-city" class="form-label fw-semibold">
+          {{ '::City' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-employer-city"
+          class="form-control"
+          formControlName="employerCity"
+          maxlength="255"
+          placeholder="CITY"
+        />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label for="appointment-employer-state-id" class="form-label fw-semibold">
+          {{ '::State' | abpLocalization }}
+        </label>
+        <app-lookup-select
+          cid="appointment-employer-state-id"
+          formControlName="employerStateId"
+          [getFn]="getStateLookup"
+          [class.is-invalid]="
+            form.get('employerStateId')?.invalid && form.get('employerStateId')?.touched
+          "
+        ></app-lookup-select>
+      </div>
+      <div class="col-md-3 mb-3">
+        <label for="appointment-employer-zip-code" class="form-label fw-semibold">
+          {{ '::ZipCode' | abpLocalization }}
+        </label>
+        <input
+          id="appointment-employer-zip-code"
+          class="form-control"
+          formControlName="employerZipCode"
+          maxlength="10"
+          placeholder="ZIP"
+        />
+      </div>
+    </div>
+  </div>
+</div>

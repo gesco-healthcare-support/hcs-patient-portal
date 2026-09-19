@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -10,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
@@ -53,6 +55,7 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<State, States.EfCoreStateRepository>();
             options.AddRepository<AppointmentType, AppointmentTypes.EfCoreAppointmentTypeRepository>();
             options.AddRepository<AppointmentStatus, AppointmentStatuses.EfCoreAppointmentStatusRepository>();
+            options.AddRepository<AppointmentDocumentType, AppointmentDocumentTypes.EfCoreAppointmentDocumentTypeRepository>();
             options.AddRepository<AppointmentLanguage, AppointmentLanguages.EfCoreAppointmentLanguageRepository>();
             options.AddRepository<Location, Locations.EfCoreLocationRepository>();
             options.AddRepository<WcabOffice, WcabOffices.EfCoreWcabOfficeRepository>();
@@ -63,7 +66,12 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<AppointmentEmployerDetail, AppointmentEmployerDetails.EfCoreAppointmentEmployerDetailRepository>();
             options.AddRepository<AppointmentAccessor, AppointmentAccessors.EfCoreAppointmentAccessorRepository>();
             options.AddRepository<ApplicantAttorney, ApplicantAttorneys.EfCoreApplicantAttorneyRepository>();
+            options.AddRepository<ClaimExaminer, ClaimExaminers.EfCoreClaimExaminerRepository>();
             options.AddRepository<AppointmentApplicantAttorney, AppointmentApplicantAttorneys.EfCoreAppointmentApplicantAttorneyRepository>();
+            // task_349a723c (2026-07-21): custom outbox repo adds the atomic status-gated lease.
+            options.AddRepository<Notifications.Outbox.NotificationOutboxItem, Notifications.Outbox.EfCoreNotificationOutboxRepository>();
+            // Phase 4c (2026-08-05): consent-round lookups by token hash + current round.
+            options.AddRepository<AppointmentChangeRequests.ChangeRequestConsentRound, AppointmentChangeRequests.EfCoreChangeRequestConsentRoundRepository>();
         });
         context.Services.AddAbpDbContext<CaseEvaluationTenantDbContext>(options =>
         {

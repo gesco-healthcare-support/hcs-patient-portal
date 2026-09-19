@@ -13,4 +13,8 @@ public static class LocationConsts
     public const int AddressMaxLength = 100;
     public const int CityMaxLength = 50;
     public const int ZipCodeMaxLength = 15;
+
+    // #11 (task_59b8c23a): external integration ID (CalMed / Case Tracker) -- an external
+    // system key, so a generous but bounded string length.
+    public const int FacilityIdMaxLength = 50;
 }

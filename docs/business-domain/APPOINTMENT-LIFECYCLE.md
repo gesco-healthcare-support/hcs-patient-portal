@@ -1,5 +1,7 @@
 # Appointment Lifecycle
 
+> Purpose: Documents all 13 appointment statuses, valid state transitions, and billing implications for the HCS Case Evaluation Portal. Audience: backend and frontend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Business Domain](./) > Appointment Lifecycle
 
 ## Overview

@@ -1,26 +1,32 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using Volo.Abp.Domain.Entities;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 
 public class AppointmentClaimExaminerUpdateDto : IHasConcurrencyStamp
 {
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
+    // CI1 (2026-06-05): CE required -- Name + Email mandatory on a CE record.
+    [Required]
     [StringLength(AppointmentClaimExaminerConsts.NameMaxLength)]
     public string? Name { get; set; }
 
-    [StringLength(AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength)]
-    public string? ClaimExaminerNumber { get; set; }
+    [StringLength(AppointmentClaimExaminerConsts.SuiteMaxLength)]
+    public string? Suite { get; set; }
 
+    [Required]
     [StringLength(AppointmentClaimExaminerConsts.EmailMaxLength)]
     public string? Email { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.FaxMaxLength)]
+    [PhoneNumber]
     public string? Fax { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.StreetMaxLength)]
