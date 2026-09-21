@@ -32,6 +32,38 @@ public abstract class CaseEvaluationMultiOfficeTestBase
     private static readonly SemaphoreSlim SeedLock = new(1, 1);
     private static (SeededOffice A, SeededOffice B)? _seededOffices;
 
+    /// <summary>
+    /// The day every MultiOffice slot date is measured from, fixed ONCE per process.
+    ///
+    /// <para><b>Use this, never <c>DateTime.Today</c>, when seeding a slot.</b> The two offices
+    /// above are process-wide static, so every test in every MultiOffice class writes against the
+    /// same OfficeId and LocationId in one shared database that never rolls back. A slot's identity
+    /// is the five-column unique index (TenantId, LocationId, AvailableDate, FromTime, ToTime), and
+    /// tests keep those distinct by hand-allocating a different <c>AddDays(N)</c> per test. That
+    /// allocation is only collision-free while every test computes its day on the SAME calendar
+    /// day: across local midnight, offset N computed after midnight equals offset N+1 computed
+    /// before it, so two tests that differ only by one day alias onto one key.</para>
+    ///
+    /// <para><b>This is not hypothetical.</b> On 2026-09-19T00:00:04Z -- four seconds past UTC
+    /// midnight -- <c>MultiOfficeAppointmentsAppServiceTests.CreateAsync_WhenSlotTypesEmpty_AnyTypeWorks</c>
+    /// (+20, 09:00-10:00) collided with <c>MultiOfficeAtomicBookingSubmitTests</c>'s
+    /// <c>SubmitAsync_WithEveryChildGroup_PersistsAllOfThem</c> (+21, 09:00-10:00) and failed with
+    /// <c>SQLite Error 19: UNIQUE constraint failed</c> in CI run 35407439109's sibling Sonar run.
+    /// Both offsets resolved to 2026-10-09. Pinning the day here makes that aliasing impossible,
+    /// because all offsets are then measured from one value.</para>
+    ///
+    /// <para>The earlier remedy -- "pick an offset no other test uses" -- addressed the static case
+    /// and is blind to this one, since nobody using N says nothing about N+1. It had already been
+    /// applied three times and left 45/46/47 as three consecutive 09:00-10:00 offsets.</para>
+    ///
+    /// <para>Cost of pinning, bounded deliberately: a run crossing midnight leaves seeds one day
+    /// staler than production's clock. The tightest seed is +7 against
+    /// <c>SystemParameterConsts.DefaultAppointmentLeadTime</c> = 3, so the lead-time gate at
+    /// <c>AppointmentBookingValidators.IsSlotWithinLeadTime</c> keeps 3 days of spare margin, and
+    /// the skew moves slots AWAY from the max-horizon ceiling rather than toward it.</para>
+    /// </summary>
+    protected static readonly DateTime TestToday = DateTime.Today;
+
     protected override void SetAbpApplicationCreationOptions(AbpApplicationCreationOptions options)
     {
         options.UseAutofac();

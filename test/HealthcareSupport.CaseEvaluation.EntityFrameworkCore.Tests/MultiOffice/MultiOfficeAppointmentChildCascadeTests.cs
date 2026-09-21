@@ -310,7 +310,7 @@ public class MultiOfficeAppointmentChildCascadeTests : CaseEvaluationMultiOffice
             appointmentTypeId: office.AppointmentTypeId,
             locationId: office.LocationId,
             doctorAvailabilityId: office.DoctorAvailabilityId,
-            appointmentDate: DateTime.Today.AddDays(30),
+            appointmentDate: TestToday.AddDays(30),
             // The Substring(0, 20) this used to carry kept only FOUR hex characters of the GUID,
             // because "RCN-CASCADE-SRC-" is already 16 characters. That left 65,536 possible values
             // shared by every appointment this collection seeds into one tenant, which made the
