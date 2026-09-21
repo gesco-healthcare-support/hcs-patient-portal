@@ -1082,10 +1082,25 @@ jobs:
       # 0.011 points and cannot reach the 0.138 available, so display rounding and ordinary
       # two-line jitter cannot trip a whole number here. The exposure is real code change.
       #
-      # RUN-TO-RUN VARIANCE IS ZERO, MEASURED RATHER THAN ASSUMED. Two full suites 26 minutes
-      # apart on identical code at 5b1b0781, compared line by line with the gate's own MAX-hits
-      # semantics: 0 covered/uncovered state flips and 0 hit-count changes across all 9,118
-      # counted lines, with identical per-file output. This floor does not wobble on a re-run.
+      # SAME-MACHINE VARIANCE IS ZERO. CROSS-ENVIRONMENT VARIANCE IS ONE LINE. Both measured.
+      #
+      # Two full local suites 26 minutes apart on identical code at 5b1b0781, compared line by
+      # line with the gate's own MAX-hits semantics: 0 state flips, 0 hit-count changes across all
+      # 9,118 counted lines, byte-identical per-file output. So a re-run on one machine does not
+      # move this figure.
+      #
+      # THAT IS NOT THE SAME AS STABLE, and the difference showed up the same afternoon. The
+      # local and CI reports for the SAME commit were diffed against each other, and across 9,118
+      # lines there was exactly ONE state flip:
+      #
+      #   appointments/wizard/appointment-wizard.component.ts:190   local hit=2   CI hit=0
+      #
+      # That is #965's line, so this is no longer a historical observation about it -- it is the
+      # measured behaviour, and the flip has now been seen between two CI runs of two of this
+      # epic's own pull requests. ONE LINE IS 1/12 OF THIS FLOOR'S MARGIN. It does not break an 80
+      # floor on its own, and it cannot cascade (see the bound below), but the drift is live rather
+      # than retired, and it consumes margin in the environment where the floor is actually
+      # enforced. If #965 is ever fixed, this floor gets that twelfth back.
       #
       # THE ONE KNOWN NONDETERMINISTIC LINE IS #965, AND ITS COST IS BOUNDED AT ONE LINE.
       # appointment-wizard.component.ts:190 is the arrow body of a debounceTime(600) subscription
