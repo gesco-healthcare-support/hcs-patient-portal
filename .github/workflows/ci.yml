@@ -1098,11 +1098,18 @@ jobs:
       # to a one-line cause for a twelve-line budget is how a day gets lost.
       #
       # WHAT THIS FLOOR BUYS, stated so nobody widens a diff without knowing the cost. The
-      # classifier at :150-152 maps `angular/*` to frontend alone, so an angular-only pull request
-      # leaves the backend NOT APPLICABLE (:1274-1280) and `Coverage: Floors` returns FULLY GREEN,
+      # changed-path classifier's `angular/*` case sets `frontend=true` and nothing else, so an
+      # angular-only pull request leaves the backend NOT APPLICABLE -- see the `applicable()`
+      # helper in this job's "Evaluate floors" step -- and `Coverage: Floors` returns FULLY GREEN,
       # which makes any red on such a submission real signal. Add one docs/ or .github/ file and
-      # `shared=true` makes the backend applicable, failing the job on FLOOR_BACKEND's deliberate
-      # 75 and forfeiting that signal.
+      # the classifier's `shared=true` arm makes the backend applicable, failing the job on
+      # FLOOR_BACKEND's deliberate 75 and forfeiting that signal.
+      #
+      # REFERRED TO BY NAME RATHER THAN BY LINE, deliberately. A first draft of this paragraph
+      # cited `:150-152` and `:1274-1280`. The first pointed at the SHARED arm rather than the
+      # angular one, and the second was already stale when it was written, because the 80 lines
+      # of comment above it had pushed `applicable()` down by exactly that much. A line number in
+      # a comment is invalidated by the comment itself.
       FLOOR_FRONTEND: "80"
       # BACKEND -- MEASURED, by the mechanism this job was built around. It was
       # deliberately unset until 2026-09-03 so the gate's own first run would
