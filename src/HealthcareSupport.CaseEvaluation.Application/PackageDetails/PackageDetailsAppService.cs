@@ -23,10 +23,10 @@ namespace HealthcareSupport.CaseEvaluation.PackageDetails;
 ///
 /// OLD-bug-fix exception (Phase 5 audit, 2026-05-03):
 ///   OLD's <c>Delete</c> only soft-deletes the FIRST linked DocumentPackage
-///   (PackageDetailDomain.cs:102-107) and orphans the rest. NEW cascades
-///   the soft-delete across all link rows so no orphan rows remain. This
-///   is treated as the OLD-bug-fix exception per the audit-doc lifecycle
-///   convention.
+///   (PackageDetailDomain.cs:102-107) and orphans the rest. NEW hard-deletes
+///   EVERY link row (DocumentPackage has no ISoftDelete) and soft-deletes only
+///   the package, so no orphan rows remain. This is treated as the
+///   OLD-bug-fix exception per the audit-doc lifecycle convention.
 /// </summary>
 [RemoteService(IsEnabled = false)]
 [Authorize(CaseEvaluationPermissions.PackageDetails.Default)]
@@ -202,9 +202,9 @@ public class PackageDetailsAppService : CaseEvaluationAppService, IPackageDetail
     /// <summary>
     /// Pure diff between the persisted set of document links and the desired
     /// set the caller supplied. Extracted as <c>internal static</c> so unit
-    /// tests can exercise the diff without standing up the full ABP harness
-    /// (which currently exhibits a pre-existing test-host crash unrelated
-    /// to this work). Mirrors the same testable-helper pattern Phase 3 used
+    /// tests can exercise the diff without standing up the full ABP harness,
+    /// which also runs this service end to end (PackageDetailsAppServiceTests).
+    /// Mirrors the same testable-helper pattern Phase 3 used
     /// for <c>SystemParametersAppService.ApplyUpdate</c>.
     ///
     /// Idempotency: passing the same set twice yields empty toAdd / toRemove.
