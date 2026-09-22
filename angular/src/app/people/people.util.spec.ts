@@ -134,6 +134,25 @@ describe('people.util', () => {
         false,
       );
     });
+
+    // Each filter is shown to KEEP a matching row and EXCLUDE a non-matching one, so neither a
+    // filter that is ignored nor one that rejects everything can pass.
+    it('excludes a row born after the latest date of birth', () => {
+      expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), dobMax: '1990-12-31' })).toBe(true);
+      expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), dobMax: '1980-12-31' })).toBe(
+        false,
+      );
+    });
+
+    it('excludes a row in a different state', () => {
+      expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), stateId: 'ca' })).toBe(true);
+      expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), stateId: 'ny' })).toBe(false);
+    });
+
+    it('excludes a row with a different language', () => {
+      expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), languageId: 'en' })).toBe(true);
+      expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), languageId: 'es' })).toBe(false);
+    });
   });
 
   describe('initials + avatarColor', () => {

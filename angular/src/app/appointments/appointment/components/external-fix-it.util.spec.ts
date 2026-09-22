@@ -46,6 +46,10 @@ describe('external-fix-it.util', () => {
     it('does not double up when group and label match', () => {
       expect(fieldLabelOf('documents')).toBe('Documents');
     });
+
+    it('falls back to the raw key for a field it has no label for', () => {
+      expect(fieldLabelOf('someFutureField')).toBe('someFutureField');
+    });
   });
 
   describe('fixItProgress', () => {
