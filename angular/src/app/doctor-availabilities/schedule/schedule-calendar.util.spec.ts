@@ -163,6 +163,17 @@ describe('schedule-calendar.util', () => {
       expect(toAppointmentEvents([slot()])).toHaveSize(0);
     });
 
+    it('skips a slot whose start time is malformed rather than plotting its appointments', () => {
+      // "0900" has no separator, so it cannot be placed. The well-formed slot alongside it is
+      // the control: its two appointments still arrive, and nothing else does.
+      const malformed = slot({ fromTime: '0900', appointments: booked.appointments });
+
+      const events = toAppointmentEvents([malformed, booked]);
+
+      expect(events).toHaveSize(2);
+      expect(events.every((e) => e.start === '2026-08-03T09:00:00')).toBeTrue();
+    });
+
     it('flattens appointments across every slot', () => {
       const other = slot({
         slotId: '22222222-2222-2222-2222-222222222222',

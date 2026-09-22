@@ -2,6 +2,8 @@ import {
   canApproveReschedule,
   canConfirmDate,
   canFinalizeReschedule,
+  consentStatusLabel,
+  formatSlotLabel,
   requiresAdminReason,
   rescheduleStage,
   rowActionIsFinal,
@@ -273,6 +275,53 @@ describe('cr-approve.util', () => {
 
     it('is true for every cancellation stage', () => {
       expect(rowActionIsFinal(false, 'needs-date')).toBeTrue();
+    });
+  });
+
+  describe('formatSlotLabel', () => {
+    // A timestamp WITHOUT a zone, as the server sends it, so it parses as local midnight and
+    // reads as the same calendar day in every timezone. A bare '2026-08-27' would parse as UTC
+    // midnight and read as Aug 26 in Pacific time -- a test that passes in CI and fails locally.
+    const DAY = '2026-08-27T00:00:00';
+
+    it('labels a slot with its date and start time', () => {
+      expect(formatSlotLabel(DAY, '10:30')).toBe('Aug 27, 2026 at 10:30');
+    });
+
+    it('labels a slot with its date alone when there is no start time', () => {
+      expect(formatSlotLabel(DAY, null)).toBe('Aug 27, 2026');
+    });
+
+    it('gives no label for an unparseable date', () => {
+      // Positive control: the tests above show a parseable date DOES label.
+      expect(formatSlotLabel('not-a-date', '10:30')).toBeNull();
+    });
+  });
+
+  describe('consentStatusLabel', () => {
+    it('labels a consent that was not needed', () => {
+      expect(consentStatusLabel(0)).toBe('Not needed');
+    });
+
+    it('labels a consent still awaiting a reply', () => {
+      expect(consentStatusLabel(1)).toBe('Awaiting reply');
+    });
+
+    it('labels an agreed consent', () => {
+      expect(consentStatusLabel(2)).toBe('Agreed');
+    });
+
+    it('labels a declined consent', () => {
+      expect(consentStatusLabel(3)).toBe('Declined');
+    });
+
+    it('labels an expired consent', () => {
+      expect(consentStatusLabel(4)).toBe('Expired');
+    });
+
+    it('labels a consent round that never asked', () => {
+      expect(consentStatusLabel(null)).toBe('Not asked');
+      expect(consentStatusLabel(undefined)).toBe('Not asked');
     });
   });
 });
