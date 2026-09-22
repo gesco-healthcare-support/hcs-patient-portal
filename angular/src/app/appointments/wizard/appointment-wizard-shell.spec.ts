@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder } from '@angular/forms';
 import { Injector } from '@angular/core';
@@ -64,6 +64,9 @@ describe('AppointmentWizardComponent shell', () => {
   interface Probe {
     [key: string]: any;
   }
+
+  /** Every wizard create() has built in the current test. afterEach destroys them. */
+  let built: Probe[] = [];
 
   /** Shape-correct responses per endpoint -- several callers index `.items` directly. */
   function restFor(url: string): Observable<unknown> {
@@ -194,14 +197,22 @@ describe('AppointmentWizardComponent shell', () => {
       ],
     });
 
-    return TestBed.runInInjectionContext(
+    const wizard = TestBed.runInInjectionContext(
       () => new AppointmentWizardComponent(),
     ) as unknown as Probe;
+    built.push(wizard);
+    return wizard;
   }
 
   beforeEach(() => localStorage.removeItem(DRAFT_KEY));
 
   afterEach(() => {
+    // Built with `new`, so nothing destroys these for us. A wizard left alive keeps its 600ms
+    // autosave subscription, and a form change in one test then fires saveDraft on a REAL timer
+    // inside a LATER one -- which is how #965's line came to be covered by timing rather than by
+    // an assertion. Destroy first, so no leaked write can land after the key is cleared below.
+    built.forEach((wizard) => wizard.ngOnDestroy());
+    built = [];
     localStorage.removeItem(DRAFT_KEY);
     TestBed.resetTestingModule();
   });
@@ -888,6 +899,71 @@ describe('AppointmentWizardComponent shell', () => {
       const c = create();
       draftService.discardMine.and.returnValue(throwError(() => ({ status: 500 })));
       expect(() => c.discardServerDraft()).not.toThrow();
+    });
+
+    /**
+     * #965. The debounced autosave -- the `debounceTime(600)` subscription ngOnInit registers --
+     * used to be reached only by the two attorney-prefill tests below, whose form patch left a REAL
+     * 600ms timer running after they finished. Whether the line counted as covered depended on
+     * wall-clock timing. These drive the debounce on a fake clock, so it is covered by assertion.
+     */
+    describe('debounced autosave (#965)', () => {
+      /** What autosave has written to the local cache, or null if it has written nothing. */
+      function cached(): { v: { employerName?: string } } | null {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        return raw === null ? null : JSON.parse(raw);
+      }
+
+      it('writes the local cache once the booker has paused for 600ms, and not before', fakeAsync(() => {
+        const c = create();
+        c.ngOnInit();
+        c.form.get('employerName')?.setValue('Acme Manufacturing');
+
+        tick(599);
+        expect(cached()).toBeNull();
+
+        tick(1);
+        expect(cached()?.v.employerName).toBe('Acme Manufacturing');
+      }));
+
+      it('restarts the wait on every change, so a burst of typing is written only after the last one', fakeAsync(() => {
+        const c = create();
+        c.ngOnInit();
+        c.form.get('employerName')?.setValue('Acme');
+        tick(400);
+        c.form.get('employerName')?.setValue('Acme Manufacturing');
+
+        // 999ms after the FIRST change. A throttle or an audit window would have written by now;
+        // a debounce restarts its wait on every change, so it has not.
+        tick(599);
+        expect(cached()).toBeNull();
+
+        tick(1);
+        expect(cached()?.v.employerName).toBe('Acme Manufacturing');
+      }));
+
+      it('does not autosave a re-evaluation, whose prefill a stale cache would collide with', fakeAsync(() => {
+        // The reason is the 2026-06-22 decision recorded above draftEnabled in ngOnInit. The
+        // window test is this one's positive control: the same steps in 'new' mode DO write.
+        const c = create({ queryParams: { type: '2' } });
+        c.ngOnInit();
+        c.form.get('employerName')?.setValue('Acme Manufacturing');
+
+        tick(600);
+
+        expect(cached()).toBeNull();
+      }));
+
+      it('stops autosaving once the wizard is destroyed', fakeAsync(() => {
+        const c = create();
+        c.ngOnInit();
+        c.ngOnDestroy();
+        c.form.get('employerName')?.setValue('Acme Manufacturing');
+
+        tick(600);
+
+        expect(cached()).toBeNull();
+      }));
     });
   });
 
