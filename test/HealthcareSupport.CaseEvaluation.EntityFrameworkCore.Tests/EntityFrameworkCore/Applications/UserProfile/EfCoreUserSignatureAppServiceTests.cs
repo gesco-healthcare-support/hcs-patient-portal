@@ -385,9 +385,28 @@ public class EfCoreUserSignatureAppServiceTests
     // explicitly rejected: it is test-infrastructure surgery to reach guards, and it would still need
     // separate proof that the guards then actually fire.
     //
-    // Production most likely does not hit this at all -- the controller binds [FromForm] IFormFile
-    // and calls OpenReadStream(), which is buffered and seekable under default model binding. That is
-    // unverified, and logged in docs/backlog.md as a test-rig constraint rather than a live defect.
+    // SETTLED 2026-09-18, AND THE GUESS THAT USED TO SIT HERE WAS REMOVED RATHER THAN UPDATED.
+    // It read: production "most likely does not hit this at all ... buffered and seekable under
+    // default model binding", flagged unverified. It was wrong, and worse, it was the sentence that
+    // sent two sessions back down the refuted MinIO theory a day after that theory was written down
+    // three paragraphs above. A plausible guess in a file people trust is a trap, not a note.
+    //
+    // WHAT IS ACTUALLY TRUE: issue #959 is CLOSED (COMPLETED) by PR #969, squash 4a91e848,
+    // "fix(validation): disable reflective validation on Stream endpoints". `[DisableValidation]`
+    // now sits on UploadAsync and suppresses the reflection described above.
+    //
+    // CHECK THE BRANCH, NOT THE ISSUE STATE. At the time of writing the fix is on `main` ONLY:
+    //     git grep -c "DisableValidation" <ref> -- src/.../UserProfile/UserSignatureAppService.cs
+    //       origin/main 1   origin/development 0   origin/feat/production-hardening 0
+    // So on this branch the guards are STILL unreachable and the eleven Facts are still unwritable.
+    // They become writable when this branch takes main, and not one commit before. 23 of the 59
+    // uncovered lines are reachable once it does -- the 10 guard lines at :64-83 plus the 13 in
+    // EnsureValidImageMagicBytes; everything past SaveAsync stays blob-bound regardless.
+    //
+    // The proof that the attribute is the operative difference is a controlled comparison, not an
+    // inference: BrandingAppService.UploadLogoAsync carries it and IS driven with a MemoryStream at
+    // BrandingAppServiceTests.cs:130, :138, :147, asserting the guards' own UserFriendlyException.
+    // Same rig, same argument type, opposite outcome.
     // ------------------------------------------------------------------------
 
     // ------------------------------------------------------------------------
