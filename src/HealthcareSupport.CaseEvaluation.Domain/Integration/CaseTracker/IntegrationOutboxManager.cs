@@ -152,37 +152,30 @@ public class IntegrationOutboxManager : DomainService
         row.Status is IntegrationOutboxStatus.Pending or IntegrationOutboxStatus.Sent;
 
     /// <summary>
-    /// Claims up to <paramref name="batchSize"/> due Pending rows (oldest first) via the ATOMIC
-    /// status-gated lease, so overlapping drains never collide on save: a row already leased
-    /// elsewhere updates 0 rows and is skipped. A freshly-leased row is reloaded so the send and the
-    /// subsequent mark run against its current state (the lease UPDATE bypasses the change tracker).
+    /// Claims the OLDEST due Pending row via the atomic status-gated lease and returns it, or null when
+    /// nothing is due (#917). One row at a time, immediately before its own send, so the lease always
+    /// covers the HTTP call it protects: the old batch claim leased up to 50 rows at once and then sent
+    /// them one after another, so late rows' leases could expire while they still waited in the pass.
+    ///
+    /// <para>A few candidates are read so that losing a lease race to another drain moves on to the next
+    /// row instead of ending the pass. A leased row is reloaded, because the lease UPDATE bypasses the
+    /// change tracker.</para>
     /// </summary>
-    public virtual async Task<List<IntegrationOutboxItem>> ClaimDueBatchAsync(
-        DateTime nowUtc,
-        TimeSpan leaseDuration,
-        int batchSize)
+    public virtual async Task<IntegrationOutboxItem?> ClaimNextDueAsync(DateTime nowUtc, TimeSpan leaseDuration)
     {
+        const int candidates = 5;
         var leaseUntil = nowUtc.Add(leaseDuration);
-        var queryable = await _outboxRepository.GetQueryableAsync();
-        var candidateIds = queryable
-            .Where(x => x.Status == IntegrationOutboxStatus.Pending
-                && (x.LockedUntil == null || x.LockedUntil <= nowUtc)
-                && (x.NextAttemptAt == null || x.NextAttemptAt <= nowUtc))
-            .OrderBy(x => x.CreationTime)
-            .Take(batchSize)
-            .Select(x => x.Id)
-            .ToList();
+        var candidateIds = await _outboxRepository.GetDueIdsAsync(nowUtc, candidates);
 
-        var claimed = new List<IntegrationOutboxItem>();
         foreach (var id in candidateIds)
         {
             if (await _outboxRepository.TryLeaseAsync(id, nowUtc, leaseUntil))
             {
-                claimed.Add(await _outboxRepository.GetAsync(id));
+                return await _outboxRepository.GetAsync(id);
             }
         }
 
-        return claimed;
+        return null;
     }
 
     /// <summary>Persists a post-send state transition (MarkSent / MarkFailed / MarkFatal).</summary>

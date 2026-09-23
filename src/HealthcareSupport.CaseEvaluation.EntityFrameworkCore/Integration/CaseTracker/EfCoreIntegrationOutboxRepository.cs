@@ -95,6 +95,55 @@ public class EfCoreIntegrationOutboxRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<List<Guid>> GetDueIdsAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // The same gate TryLeaseAsync enforces, so a candidate read here is normally leasable; the lease
+        // itself stays the arbiter when two drains race for it.
+        return await dbSet
+            .Where(x => x.Status == IntegrationOutboxStatus.Pending
+                && (x.LockedUntil == null || x.LockedUntil <= nowUtc)
+                && (x.NextAttemptAt == null || x.NextAttemptAt <= nowUtc))
+            .OrderBy(x => x.CreationTime)
+            .ThenBy(x => x.Id)
+            .Take(take)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<IntegrationOutboxItem>> GetUnwarnedRetryingAsync(
+        int minimumAttempts,
+        CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        return await dbSet
+            .Where(x => x.Status == IntegrationOutboxStatus.Pending
+                && x.AttemptCount >= minimumAttempts
+                && x.EarlyWarnedAt == null)
+            .OrderBy(x => x.CreationTime)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task StampEarlyWarnedAsync(
+        IReadOnlyCollection<Guid> ids,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var dbSet = await GetDbSetAsync();
+
+        // Only where still null, so a second run can never move the stamp -- the stamp IS the throttle.
+        await dbSet
+            .Where(x => ids.Contains(x.Id) && x.EarlyWarnedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.EarlyWarnedAt, nowUtc), cancellationToken);
+    }
+
     public async Task AcquireAppointmentLockAsync(
         Guid appointmentId,
         CancellationToken cancellationToken = default)

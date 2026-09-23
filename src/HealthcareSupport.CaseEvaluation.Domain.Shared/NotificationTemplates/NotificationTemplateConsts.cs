@@ -232,6 +232,14 @@ public static class NotificationTemplateConsts
         public const string CaseTrackerPushFailed = "CaseTrackerPushFailed";
 
         /// <summary>
+        /// #917 (2026-09-23) -- early warning to internal staff that Case Tracker pushes have failed at
+        /// least twice and are still being retried inside the 24-hour window. Sent once per push, batched
+        /// per office like <see cref="CaseTrackerPushFailed"/>, and carries the same fields: confirmation
+        /// number and error text only, no PHI.
+        /// </summary>
+        public const string CaseTrackerPushRetrying = "CaseTrackerPushRetrying";
+
+        /// <summary>
         /// Item F (2026-08-22) -- sent when staff try to invite an email that already has an account
         /// in the office. The invite is a dead end (registration rejects the duplicate), so instead of
         /// an error the staff surface offers to email the person a sign-in link. Tenant-scoped, NOT in
@@ -294,6 +302,7 @@ public static class NotificationTemplateConsts
             // Prompt 17 (2026-06-17) -- send-back / request-info notice.
             PatientAppointmentInfoRequested,
             CaseTrackerPushFailed,
+            CaseTrackerPushRetrying,
 
             // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
             AccessorAppointmentAdded,

@@ -1582,6 +1582,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerReconciliationJob.CronExpression,
             options);
 
+        // #917 (2026-09-23) -- kicks every office's outbox drain every 5 minutes, so a failed push is
+        // retried when its wait (5, 10, 20, then 30 minutes) expires rather than at the next 15-minute
+        // sweep. Enqueue only; the drain itself skips if that office already has a pass running.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob.CronExpression,
+            options);
+
         // Case Tracker integration Part 5 (2026-07-28) -- alerts internal staff about dead-lettered
         // pushes (every 15 min). A permanently failed push means a case silently never reached the
         // Case Tracker; without this it is visible only in the server logs. Batched per office, so a

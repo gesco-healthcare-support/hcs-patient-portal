@@ -17,6 +17,9 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <para>Also pins the intake-exists query behind the #931 document gate. Its rules live in the
 /// query, so this is the only layer where they can be proven: every status counts, only Intake rows
 /// count, and the answer is per appointment.</para>
+///
+/// <para>And the #917 queries: the due-row candidates the drain leases one at a time, the rows owed an
+/// early warning, and the set-based stamp that must never move once written.</para>
 /// </summary>
 [Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
@@ -206,7 +209,7 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
     {
         var id = Guid.NewGuid();
         var backedOff = NewPending(id);
-        backedOff.MarkFailed(Now, "503", TimeSpan.FromSeconds(IntegrationOutboxConsts.RetryBackoffSeconds));
+        backedOff.MarkFailed(Now, "503"); // first failure: due again in 5 minutes
         await InsertAsync(backedOff);
 
         await WithUnitOfWorkAsync(async () =>
@@ -214,9 +217,104 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
 
         await WithUnitOfWorkAsync(async () =>
         {
-            var due = Now.AddSeconds(IntegrationOutboxConsts.RetryBackoffSeconds + 1);
+            var due = Now.AddMinutes(5).AddSeconds(1);
             (await _outboxRepository.TryLeaseAsync(id, due, due.AddSeconds(120))).ShouldBeTrue();
         });
+    }
+
+    [Fact]
+    public async Task GetDueIdsAsync_ReturnsOnlyLeasableRows_OldestFirst()
+    {
+        // The same gate TryLeaseAsync enforces: Pending, not leased, past its wait. Each insert is its
+        // own unit of work, so creation times strictly increase.
+        var older = await InsertAsync(NewPending(Guid.NewGuid()));
+        var leased = await InsertAsync(NewPending(Guid.NewGuid()));
+        var waiting = NewPending(Guid.NewGuid());
+        waiting.MarkFailed(Now, "503");
+        await InsertAsync(waiting);
+        var sent = NewPending(Guid.NewGuid());
+        sent.MarkSent(Now);
+        await InsertAsync(sent);
+        var newer = await InsertAsync(NewPending(Guid.NewGuid()));
+        await WithUnitOfWorkAsync(() => _outboxRepository.TryLeaseAsync(leased.Id, Now, Now.AddMinutes(2)));
+
+        var due = await WithUnitOfWorkAsync(() => _outboxRepository.GetDueIdsAsync(Now.AddMinutes(1), 1000));
+
+        due.ShouldNotContain(leased.Id);
+        due.ShouldNotContain(waiting.Id);
+        due.ShouldNotContain(sent.Id);
+        due.IndexOf(older.Id).ShouldBeGreaterThanOrEqualTo(0);
+        due.IndexOf(older.Id).ShouldBeLessThan(due.IndexOf(newer.Id));
+    }
+
+    [Fact]
+    public async Task GetDueIdsAsync_TakesAtMostTheRequestedNumber()
+    {
+        await InsertAsync(NewPending(Guid.NewGuid()));
+        await InsertAsync(NewPending(Guid.NewGuid()));
+
+        var due = await WithUnitOfWorkAsync(() => _outboxRepository.GetDueIdsAsync(Now, 1));
+
+        due.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task GetUnwarnedRetryingAsync_ReturnsPendingRowsAtTheThreshold_NotYetWarned()
+    {
+        var twice = NewPending(Guid.NewGuid());
+        twice.MarkFailed(Now, "503");
+        twice.MarkFailed(Now.AddMinutes(5), "503");
+        await InsertAsync(twice);
+        var once = NewPending(Guid.NewGuid());
+        once.MarkFailed(Now, "503");
+        await InsertAsync(once);
+        var deadLettered = NewPending(Guid.NewGuid());
+        deadLettered.MarkFailed(Now, "503");
+        deadLettered.MarkFatal(Now.AddMinutes(5), "401 invalid token");
+        await InsertAsync(deadLettered);
+
+        var rows = await WithUnitOfWorkAsync(() => _outboxRepository.GetUnwarnedRetryingAsync(2));
+        var ids = rows.Select(r => r.Id).ToList();
+
+        ids.ShouldContain(twice.Id);
+        ids.ShouldNotContain(once.Id);
+        ids.ShouldNotContain(deadLettered.Id); // Failed: the dead-letter email covers it
+    }
+
+    [Fact]
+    public async Task StampEarlyWarnedAsync_StampsOnce_AndASecondStampNeverMovesIt()
+    {
+        // The stamp IS the throttle: once written, the row is never warned about again.
+        var row = NewPending(Guid.NewGuid());
+        row.MarkFailed(Now, "503");
+        row.MarkFailed(Now.AddMinutes(5), "503");
+        await InsertAsync(row);
+
+        await WithUnitOfWorkAsync(() => _outboxRepository.StampEarlyWarnedAsync(new[] { row.Id }, Now));
+        await WithUnitOfWorkAsync(() => _outboxRepository.StampEarlyWarnedAsync(new[] { row.Id }, Now.AddHours(1)));
+
+        var stored = await WithUnitOfWorkAsync(() => _outboxRepository.GetAsync(row.Id));
+        stored.EarlyWarnedAt.ShouldBe(Now);
+        var owed = await WithUnitOfWorkAsync(() => _outboxRepository.GetUnwarnedRetryingAsync(2));
+        owed.Select(r => r.Id).ShouldNotContain(row.Id);
+    }
+
+    [Fact]
+    public async Task StampEarlyWarnedAsync_LeavesTheRowsOtherColumnsAlone()
+    {
+        // Set-based on purpose: the drain may be recording an attempt on the same row. The stamp must
+        // write its one column and nothing else.
+        var row = NewPending(Guid.NewGuid());
+        row.MarkFailed(Now, "503");
+        row.MarkFailed(Now.AddMinutes(5), "503");
+        await InsertAsync(row);
+
+        await WithUnitOfWorkAsync(() => _outboxRepository.StampEarlyWarnedAsync(new[] { row.Id }, Now));
+
+        var stored = await WithUnitOfWorkAsync(() => _outboxRepository.GetAsync(row.Id));
+        stored.AttemptCount.ShouldBe(2);
+        stored.Status.ShouldBe(IntegrationOutboxStatus.Pending);
+        stored.NextAttemptAt.ShouldBe(Now.AddMinutes(15));
     }
 
     [Fact]

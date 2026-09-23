@@ -5,17 +5,29 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Settings;
 using Volo.Abp.Timing;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
-/// Sends due outbox rows for the current office. Claims a batch via the manager's lease, POSTs each
-/// row, and records the outcome per the agreed status matrix: Sent on a confirmed 2xx, rescheduled
-/// on a retryable failure, dead-lettered immediately on a fatal one.
+/// Sends due outbox rows for the current office. Claims ONE row at a time via the manager's lease,
+/// POSTs it, and records the outcome per the agreed status matrix: Sent on a confirmed 2xx,
+/// rescheduled on a retryable failure (#917's 24-hour window), dead-lettered on a fatal one.
 ///
-/// <para>A row is therefore never lost (a crash before the mark leaves it Pending for the next
-/// drain) and never double-sent (the idempotency key collapses a logical push to one row, and
-/// MarkSent is idempotent).</para>
+/// <para>ONE SHORT TRANSACTION PER ROW, and none across the HTTP call (#917, decided 2026-09-23).
+/// Each row is claimed in its own committed transaction, sent with no transaction open, and its result
+/// recorded in a second short transaction. The pass used to be a single transaction held across every
+/// call: in a slow outage (30-second timeouts on up to 50 rows) that held row locks for about 25
+/// minutes -- blocking anything that read those rows, including the enqueue's per-appointment lookup
+/// behind staff actions -- held back the feed position (#927), and a crash mid-pass rolled back every
+/// Sent mark so the whole batch was sent again.</para>
+///
+/// <para>A row is still never lost (a crash between send and record leaves it leased Pending, and the
+/// lease expiry hands it to a later pass) and at most re-sent once in that crash window; the receiver
+/// upserts, and <see cref="IntegrationOutboxItem.MarkSent"/> is idempotent.</para>
+///
+/// <para>This service opens its own units of work, so its caller must NOT hold one around it: an outer
+/// transaction would swallow the per-row commits and bring back exactly the lock hold above.</para>
 /// </summary>
 public class IntegrationOutboxDrainService : ITransientDependency
 {
@@ -24,6 +36,7 @@ public class IntegrationOutboxDrainService : ITransientDependency
     private readonly ICaseTrackerClient _client;
     private readonly IClock _clock;
     private readonly ISettingProvider _settingProvider;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<IntegrationOutboxDrainService> _logger;
 
     public IntegrationOutboxDrainService(
@@ -32,6 +45,7 @@ public class IntegrationOutboxDrainService : ITransientDependency
         ICaseTrackerClient client,
         IClock clock,
         ISettingProvider settingProvider,
+        IUnitOfWorkManager unitOfWorkManager,
         ILogger<IntegrationOutboxDrainService> logger)
     {
         _outboxManager = outboxManager;
@@ -39,109 +53,154 @@ public class IntegrationOutboxDrainService : ITransientDependency
         _client = client;
         _clock = clock;
         _settingProvider = settingProvider;
+        _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
     }
 
     /// <summary>
-    /// Drains up to <paramref name="batchSize"/> due rows in the current office scope. Returns
-    /// (sent, failed) counts for logging.
+    /// Drains up to <paramref name="batchSize"/> due rows in the current office scope, one at a time.
+    /// Returns (sent, failed) counts for logging.
     /// </summary>
     public virtual async Task<IntegrationDrainResult> DrainDueAsync(int? batchSize = null)
     {
-        // Master switch, read per drain in the current office scope so a per-office override beats
-        // the host default and a toggle takes effect on the next pass. When disabled we claim
-        // NOTHING: due rows stay Pending and resume automatically once enabled, with no
-        // failed-attempt cost burned against the fail-fast cap.
+        if (!await IsDeliveryOpenAsync())
+        {
+            return new IntegrationDrainResult(0, 0);
+        }
+
+        var lease = TimeSpan.FromSeconds(IntegrationOutboxConsts.LeaseDurationSeconds);
+        var size = batchSize ?? IntegrationOutboxConsts.DrainBatchSize;
+        var sent = 0;
+        var failed = 0;
+
+        for (var i = 0; i < size; i++)
+        {
+            var row = await ClaimNextAsync(lease);
+            if (row == null)
+            {
+                break;
+            }
+
+            var result = await SendAsync(row);
+            await RecordAsync(row.Id, result);
+
+            if (result.IsSuccess)
+            {
+                sent++;
+            }
+            else
+            {
+                failed++;
+            }
+        }
+
+        return new IntegrationDrainResult(sent, failed);
+    }
+
+    /// <summary>
+    /// The master switch and the volume guard, read in their own short unit of work. When either holds,
+    /// NOTHING is claimed: due rows stay Pending with no attempt spent, and resume on a later pass.
+    /// </summary>
+    private async Task<bool> IsDeliveryOpenAsync()
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+
+        // Master switch, read per drain in the current office scope so a per-office override beats the
+        // host default and a toggle takes effect on the next pass.
         if (!await _settingProvider.IsTrueAsync(CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled))
         {
             _logger.LogInformation(
                 "IntegrationOutboxDrainService: Case Tracker push is disabled; holding due rows Pending.");
-            return new IntegrationDrainResult(0, 0);
+            await uow.CompleteAsync();
+            return false;
         }
 
-        // Volume guard. DrainBatchSize caps ONE invocation, but every enqueue schedules its own drain,
-        // so N queued rows become N drains on parallel workers -- without this there is no ceiling at
-        // all. Three current paths can produce a burst: releasing an office's accumulated backlog when
-        // its switch is first turned on ("all sent on enable"), a patient edit fanning out across all
-        // that patient's published appointments, and any future deliberate backfill.
-        //
-        // It matters more than a typical rate limit because each intake becomes a CASE their staff must
-        // handle. Holding rows Pending is cheap and reversible; delivering hundreds of wrong ones is
-        // not, because someone has to unpick them by hand.
-        //
-        // Deliberately NOT a trip flag: the count is measured over a rolling window from SentAt, so it
-        // clears itself as the window slides. There is nothing to reset, and therefore no way to leave
-        // an office switched off by accident -- which was the main risk of a breaker with its own state.
+        // Volume guard. DrainBatchSize caps ONE invocation, but every enqueue schedules its own drain, so
+        // without this there is no ceiling at all. It matters more than a typical rate limit because each
+        // intake becomes a CASE their staff must handle. Deliberately NOT a trip flag: the count is
+        // measured over a rolling window from SentAt, so it clears itself as the window slides.
         var windowStart = _clock.Now.AddMinutes(-IntegrationOutboxConsts.VolumeWindowMinutes);
         var sentInWindow = await _outboxRepository.CountSentSinceAsync(windowStart);
+        await uow.CompleteAsync();
+
         if (sentInWindow >= IntegrationOutboxConsts.VolumeThresholdPerWindow)
         {
-            // Warning, not Error: hitting the cap is a legitimate outcome for a large backlog, which
-            // simply drains over the following windows. Logged with the numbers so a genuine runaway is
-            // distinguishable from a slow release.
+            // Warning, not Error: hitting the cap is a legitimate outcome for a large backlog.
             _logger.LogWarning(
                 "IntegrationOutboxDrainService: volume guard held delivery -- {SentInWindow} sent since {WindowStart:o} reaches the {Threshold} per {WindowMinutes} min cap. Rows stay Pending and resume as the window slides.",
                 sentInWindow,
                 windowStart,
                 IntegrationOutboxConsts.VolumeThresholdPerWindow,
                 IntegrationOutboxConsts.VolumeWindowMinutes);
-            return new IntegrationDrainResult(0, 0);
+            return false;
         }
 
-        var lease = TimeSpan.FromSeconds(IntegrationOutboxConsts.LeaseDurationSeconds);
-        var backoff = TimeSpan.FromSeconds(IntegrationOutboxConsts.RetryBackoffSeconds);
-        var size = batchSize ?? IntegrationOutboxConsts.DrainBatchSize;
+        return true;
+    }
 
-        var claimed = await _outboxManager.ClaimDueBatchAsync(_clock.Now, lease, size);
+    /// <summary>Claims and leases the next due row, and COMMITS the lease before any HTTP happens.</summary>
+    private async Task<IntegrationOutboxItem?> ClaimNextAsync(TimeSpan lease)
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+        var row = await _outboxManager.ClaimNextDueAsync(_clock.Now, lease);
+        await uow.CompleteAsync();
+        return row;
+    }
 
-        var sent = 0;
-        var failed = 0;
-        foreach (var row in claimed)
+    /// <summary>
+    /// Sends one row with NO transaction open. Never throws: the client already reports transport
+    /// faults as retryable results, and anything unexpected is treated as retryable too, so one bad row
+    /// cannot abort the pass or be lost.
+    /// </summary>
+    private async Task<CaseTrackerPushResult> SendAsync(IntegrationOutboxItem row)
+    {
+        try
         {
-            try
-            {
-                var result = await _client.PostAsync(row.TargetPath, row.Payload);
-                if (result.IsSuccess)
-                {
-                    row.MarkSent(_clock.Now);
-                    sent++;
-                }
-                else if (result.Outcome == CaseTrackerPushOutcome.Fatal)
-                {
-                    // Cannot succeed on retry (bad token, malformed request). Dead-letter now so a
-                    // human sees it in minutes instead of after the cap.
-                    row.MarkFatal(_clock.Now, result.Error);
-                    failed++;
-                    _logger.LogError(
-                        "IntegrationOutboxDrainService: row {RowId} for appointment {AppointmentId} FATALLY failed ({Error}); dead-lettered.",
-                        row.Id, row.AppointmentId, result.Error);
-                }
-                else
-                {
-                    row.MarkFailed(_clock.Now, result.Error, backoff);
-                    failed++;
-                    _logger.LogWarning(
-                        "IntegrationOutboxDrainService: row {RowId} for appointment {AppointmentId} failed ({Error}); attempt {Attempt}/{Max}.",
-                        row.Id, row.AppointmentId, result.Error, row.AttemptCount, row.MaxAttempts);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Do NOT rethrow: one bad row must not abort the batch or leave the rest claimed.
-                // The client already swallows transport faults, so reaching here means something
-                // unexpected -- treat it as retryable rather than losing the row.
-                row.MarkFailed(_clock.Now, ex.Message, backoff);
-                failed++;
-                _logger.LogError(
-                    ex,
-                    "IntegrationOutboxDrainService: row {RowId} for appointment {AppointmentId} threw; attempt {Attempt}/{Max}.",
-                    row.Id, row.AppointmentId, row.AttemptCount, row.MaxAttempts);
-            }
+            return await _client.PostAsync(row.TargetPath, row.Payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "IntegrationOutboxDrainService: row {RowId} for appointment {AppointmentId} threw while sending; treating it as retryable.",
+                row.Id, row.AppointmentId);
+            return CaseTrackerPushResult.FromTransportFailure(ex.Message);
+        }
+    }
 
-            await _outboxManager.SaveAsync(row);
+    /// <summary>
+    /// Records one row's result in its own short transaction, against a FRESH copy of the row: the copy
+    /// the claim loaded belongs to a unit of work that has already completed.
+    /// </summary>
+    private async Task RecordAsync(Guid rowId, CaseTrackerPushResult result)
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+        var row = await _outboxRepository.GetAsync(rowId);
+        var now = _clock.Now;
+
+        if (result.IsSuccess)
+        {
+            row.MarkSent(now);
+        }
+        else if (result.Outcome == CaseTrackerPushOutcome.Fatal)
+        {
+            // Cannot succeed on retry (bad token, malformed request). Dead-letter now so a human sees it
+            // in minutes instead of after the retry window.
+            row.MarkFatal(now, result.Error);
+            _logger.LogError(
+                "IntegrationOutboxDrainService: row {RowId} for appointment {AppointmentId} FATALLY failed ({Error}); dead-lettered.",
+                row.Id, row.AppointmentId, result.Error);
+        }
+        else
+        {
+            row.MarkFailed(now, result.Error);
+            _logger.LogWarning(
+                "IntegrationOutboxDrainService: row {RowId} for appointment {AppointmentId} failed ({Error}); attempt {Attempt}, {Status}.",
+                row.Id, row.AppointmentId, result.Error, row.AttemptCount, row.Status);
         }
 
-        return new IntegrationDrainResult(sent, failed);
+        await _outboxManager.SaveAsync(row);
+        await uow.CompleteAsync();
     }
 }
 

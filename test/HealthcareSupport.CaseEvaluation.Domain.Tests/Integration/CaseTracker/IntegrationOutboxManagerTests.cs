@@ -12,7 +12,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
 /// Unit tests for <see cref="IntegrationOutboxManager"/>: the idempotent enqueue that stops a
-/// redelivered approval event from pushing the same case twice, and the due-batch claim.
+/// redelivered approval event from pushing the same case twice, and the one-row-at-a-time claim (#917).
 /// </summary>
 public class IntegrationOutboxManagerTests
 {
@@ -22,6 +22,13 @@ public class IntegrationOutboxManagerTests
     private static readonly TimeSpan Lease = TimeSpan.FromSeconds(IntegrationOutboxConsts.LeaseDurationSeconds);
 
     private static (IntegrationOutboxManager Manager, List<IntegrationOutboxItem> Rows) Build()
+    {
+        var (manager, rows, _) = BuildWithRepository();
+        return (manager, rows);
+    }
+
+    private static (IntegrationOutboxManager Manager, List<IntegrationOutboxItem> Rows, IIntegrationOutboxRepository Repository)
+        BuildWithRepository()
     {
         var rows = new List<IntegrationOutboxItem>();
         var repo = Substitute.For<IIntegrationOutboxRepository>();
@@ -50,8 +57,23 @@ public class IntegrationOutboxManagerTests
             });
         repo.GetAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(rows.First(r => r.Id == ci.ArgAt<Guid>(0))));
+        // Mirrors EfCoreIntegrationOutboxRepository.GetDueIdsAsync: the lease gate, oldest first.
+        repo.GetDueIdsAsync(Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var now = ci.ArgAt<DateTime>(0);
+                return Task.FromResult(rows
+                    .Where(r => r.Status == IntegrationOutboxStatus.Pending
+                        && (r.LockedUntil == null || r.LockedUntil <= now)
+                        && (r.NextAttemptAt == null || r.NextAttemptAt <= now))
+                    .OrderBy(r => r.CreationTime)
+                    .ThenBy(r => r.Id)
+                    .Take(ci.ArgAt<int>(1))
+                    .Select(r => r.Id)
+                    .ToList());
+            });
 
-        return (new IntegrationOutboxManager(repo, SimpleGuidGenerator.Instance), rows);
+        return (new IntegrationOutboxManager(repo, SimpleGuidGenerator.Instance), rows, repo);
     }
 
     private static Task<IntegrationOutboxItem> EnqueueAsync(IntegrationOutboxManager manager, string key) =>
@@ -102,30 +124,61 @@ public class IntegrationOutboxManagerTests
     }
 
     [Fact]
-    public async Task ClaimDueBatchAsync_ClaimsDueRows_AndSkipsAlreadyLeasedOnes()
+    public async Task ClaimNextDueAsync_LeasesADueRow_AndAnOverlappingDrainDoesNotGetIt()
     {
         var (manager, _) = Build();
-        await EnqueueAsync(manager, "key-1");
+        var row = await EnqueueAsync(manager, "key-1");
 
-        var first = await manager.ClaimDueBatchAsync(Now, Lease, batchSize: 10);
-        first.Count.ShouldBe(1);
+        var first = await manager.ClaimNextDueAsync(Now, Lease);
+        first.ShouldNotBeNull();
+        first.Id.ShouldBe(row.Id);
+        first.LockedUntil.ShouldBe(Now.Add(Lease));
 
         // A second, overlapping drain must not get the same row while the lease holds.
-        var second = await manager.ClaimDueBatchAsync(Now.AddSeconds(1), Lease, batchSize: 10);
-        second.ShouldBeEmpty();
+        (await manager.ClaimNextDueAsync(Now.AddSeconds(1), Lease)).ShouldBeNull();
     }
 
     [Fact]
-    public async Task ClaimDueBatchAsync_RespectsTheBatchSize()
+    public async Task ClaimNextDueAsync_ClaimsOneRowPerCall()
     {
-        var (manager, _) = Build();
+        // #917: one row at a time, so each claim can commit before that row's HTTP call.
+        var (manager, rows) = Build();
         await EnqueueAsync(manager, "key-1");
         await EnqueueAsync(manager, "key-2");
-        await EnqueueAsync(manager, "key-3");
 
-        var claimed = await manager.ClaimDueBatchAsync(Now, Lease, batchSize: 2);
+        await manager.ClaimNextDueAsync(Now, Lease);
 
-        claimed.Count.ShouldBe(2);
+        rows.Count(r => r.LockedUntil != null).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ClaimNextDueAsync_WhenAnotherDrainWinsTheFirstCandidate_TakesTheNext()
+    {
+        // The candidate list is read before the lease; another drain can take a row in between. That
+        // row's lease then fails, and the claim must move on rather than report nothing due.
+        var (manager, rows, repo) = BuildWithRepository();
+        await EnqueueAsync(manager, "key-1");
+        await EnqueueAsync(manager, "key-2");
+        var due = await repo.GetDueIdsAsync(Now, 5);
+        var lost = due[0];
+        repo.TryLeaseAsync(lost, Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(false));
+
+        var claimed = await manager.ClaimNextDueAsync(Now, Lease);
+
+        claimed.ShouldNotBeNull();
+        claimed.Id.ShouldBe(due[1]);
+        rows.Single(r => r.Id == lost).LockedUntil.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ClaimNextDueAsync_WhenNothingIsDue_ReturnsNull()
+    {
+        var (manager, _) = Build();
+        var row = await EnqueueAsync(manager, "key-1");
+        row.MarkFailed(Now, "503"); // waiting 5 minutes
+
+        (await manager.ClaimNextDueAsync(Now.AddMinutes(1), Lease)).ShouldBeNull();
     }
 
     [Fact]

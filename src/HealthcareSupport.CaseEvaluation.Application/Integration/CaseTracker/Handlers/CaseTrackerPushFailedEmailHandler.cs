@@ -16,7 +16,8 @@ using Volo.Abp.Uow;
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 
 /// <summary>
-/// Emails one internal staff member about a batch of dead-lettered Case Tracker pushes.
+/// Emails one internal staff member about a batch of failed Case Tracker pushes: dead letters, or since
+/// #917 pushes still retrying (<see cref="CaseTrackerPushFailedEto.Kind"/> picks the template).
 ///
 /// <para>Lives in Application because the notification dispatcher does; the job that decides WHEN to
 /// alert lives in Domain. Mirrors <c>InternalStaffQueueDigestEmailHandler</c>, including linking to the
@@ -77,17 +78,30 @@ public class CaseTrackerPushFailedEmailHandler :
                 ["PortalUrl"] = portalUrl ?? string.Empty,
             };
 
+            var templateCode = TemplateCodeFor(eventData.Kind);
+
             await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.CaseTrackerPushFailed,
+                templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"CaseTrackerPushFailed/{eventData.TenantId}/{eventData.StaffUserId}");
+                contextTag: $"{templateCode}/{eventData.TenantId}/{eventData.StaffUserId}");
 
             _logger.LogInformation(
-                "CaseTrackerPushFailedEmailHandler: alerted {Email} about {Count} dead letter(s) in office {TenantId}.",
-                eventData.StaffEmail, eventData.FailureCount, eventData.TenantId);
+                "CaseTrackerPushFailedEmailHandler: alerted {Email} about {Count} push(es) ({Kind}) in office {TenantId}.",
+                eventData.StaffEmail, eventData.FailureCount, eventData.Kind, eventData.TenantId);
         }
     }
+
+    /// <summary>
+    /// The template for each alert kind. An unknown kind throws rather than falling back to either email:
+    /// sending "retrying" for a dead letter would tell staff no action is needed when it is.
+    /// </summary>
+    public static string TemplateCodeFor(CaseTrackerPushAlertKind kind) => kind switch
+    {
+        CaseTrackerPushAlertKind.DeadLettered => NotificationTemplateConsts.Codes.CaseTrackerPushFailed,
+        CaseTrackerPushAlertKind.StillRetrying => NotificationTemplateConsts.Codes.CaseTrackerPushRetrying,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Case Tracker alert kind."),
+    };
 
     /// <summary>
     /// One line per failure, plain text. Rendered inside a <c>pre</c> block, so this deliberately emits
@@ -115,10 +129,11 @@ public class CaseTrackerPushFailedEmailHandler :
         var undisclosed = eventData.FailureCount - eventData.Failures.Count;
         if (undisclosed > 0)
         {
-            // Never let the list imply it is the whole story.
-            builder.AppendLine(string.Create(
-                CultureInfo.InvariantCulture,
-                $"... and {undisclosed} more. Open the portal to see all of them."));
+            // Never let the list imply it is the whole story. Only dead letters point at the portal: the
+            // failures screen lists nothing that is still retrying.
+            builder.AppendLine(eventData.Kind == CaseTrackerPushAlertKind.DeadLettered
+                ? string.Create(CultureInfo.InvariantCulture, $"... and {undisclosed} more. Open the portal to see all of them.")
+                : string.Create(CultureInfo.InvariantCulture, $"... and {undisclosed} more."));
         }
 
         return builder.ToString().TrimEnd();

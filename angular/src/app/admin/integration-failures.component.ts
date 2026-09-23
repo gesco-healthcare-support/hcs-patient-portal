@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RestService } from '@abp/ng.core';
 import { firstValueFrom } from 'rxjs';
@@ -25,12 +25,30 @@ export interface DeadLetterRow {
   alertedAt?: string | null;
 }
 
+/** Counts from a retry-all, mirroring `CaseTrackerDeadLetterRetryAllResultDto`. */
+export interface RetryAllResult {
+  requeued: number;
+  alreadyDelivered: number;
+  notRetried: number;
+  remaining: number;
+}
+
+/** One office that has failures, for the filter. */
+export interface FailureOffice {
+  id: string;
+  name: string;
+}
+
 /**
- * Admin screen listing Case Tracker pushes that failed permanently, with a per-row Retry.
+ * Admin screen listing Case Tracker pushes that failed permanently, with a per-row Retry, an office
+ * filter and a Retry all for the filtered office (#917).
  *
  * <p>A standalone component rather than another branch inside the admin hub: that component is already
  * 662 lines against the repo's 250-line ceiling for an Angular component, so adding a fifth section
  * inline would make an existing problem materially worse. The hub renders this one instead.</p>
+ *
+ * <p>Template and styles live in their own files since #917 added the filter and bulk retry: inline,
+ * the component passed the same 250-line ceiling.</p>
  *
  * <p>Calls the API through `RestService` with literal URLs -- the pattern used elsewhere in this app
  * (see `appointment-documents.component.ts`) -- against the explicit route on
@@ -41,151 +59,8 @@ export interface DeadLetterRow {
   selector: 'app-integration-failures',
   standalone: true,
   imports: [CommonModule, IconComponent, PacificDatePipe],
-  template: `
-    <div class="if-head">
-      <div>
-        <h2>Case Tracker failures</h2>
-        <p class="if-sub">
-          Pushes that failed permanently and will not retry on their own. Each one means a case has
-          not reached the Case Tracker. Retry re-sends the appointment's current details.
-        </p>
-      </div>
-      <button type="button" class="if-btn" (click)="load()" [disabled]="loading()">
-        <app-icon name="refresh" [size]="14" />
-        Refresh
-      </button>
-    </div>
-
-    @if (loading()) {
-      <div class="if-empty">
-        <app-icon name="clock" [size]="26" />
-        Loading failures...
-      </div>
-    } @else if (error()) {
-      <div class="if-empty if-error">
-        <app-icon name="alert" [size]="26" />
-        <b>Could not load failures</b>
-        {{ error() }}
-      </div>
-    } @else if (!rows().length) {
-      <!-- Explicit empty state: a blank table reads as "broken", not as "nothing wrong". -->
-      <div class="if-empty">
-        <app-icon name="check" [size]="26" />
-        <b>No failed pushes</b>
-        Every appointment has reached the Case Tracker, or is still queued to.
-      </div>
-    } @else {
-      <table class="if-table">
-        <thead>
-          <tr>
-            <th>Confirmation</th>
-            <th>Clinic</th>
-            <th>Type</th>
-            <th>Attempts</th>
-            <th>Failed</th>
-            <th>Error</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (r of rows(); track r.id) {
-            <tr>
-              <td>
-                <strong>{{ r.confirmationNumber || '(unknown)' }}</strong>
-                <div class="if-dim">{{ r.appointmentId }}</div>
-              </td>
-              <td>{{ r.officeName }}</td>
-              <td>{{ r.messageType }}</td>
-              <td>{{ r.attemptCount }}</td>
-              <td>{{ r.failedAt | pacificDate: 'short' }}</td>
-              <td class="if-err">{{ r.lastError || '--' }}</td>
-              <td>
-                <button
-                  type="button"
-                  class="if-btn"
-                  (click)="retry(r)"
-                  [disabled]="retrying() === r.id"
-                >
-                  {{ retrying() === r.id ? 'Retrying...' : 'Retry' }}
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    }
-  `,
-  styles: [
-    `
-      .if-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-      }
-      .if-head h2 {
-        margin: 0 0 4px;
-        font-size: 18px;
-      }
-      .if-sub {
-        margin: 0;
-        color: #555;
-        font-size: 13px;
-        max-width: 70ch;
-      }
-      .if-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        background: #fff;
-        cursor: pointer;
-        font-size: 13px;
-        white-space: nowrap;
-      }
-      .if-btn:disabled {
-        opacity: 0.55;
-        cursor: default;
-      }
-      .if-empty {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-        padding: 40px 20px;
-        color: #555;
-        text-align: center;
-      }
-      .if-error {
-        color: #a11;
-      }
-      .if-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-      }
-      .if-table th,
-      .if-table td {
-        text-align: left;
-        padding: 8px 10px;
-        border-bottom: 1px solid #eee;
-        vertical-align: top;
-      }
-      .if-dim {
-        color: #888;
-        font-size: 11px;
-        font-family: Consolas, Menlo, monospace;
-      }
-      .if-err {
-        max-width: 40ch;
-        word-break: break-word;
-        color: #a11;
-      }
-    `,
-  ],
+  templateUrl: './integration-failures.component.html',
+  styleUrl: './integration-failures.component.scss',
 })
 export class IntegrationFailuresComponent implements OnInit {
   private readonly rest = inject(RestService);
@@ -196,6 +71,37 @@ export class IntegrationFailuresComponent implements OnInit {
 
   /** Id of the row whose Retry is in flight, so only that button disables. */
   protected readonly retrying = signal<string | null>(null);
+
+  /** Office id the list is narrowed to; empty string for all offices. */
+  protected readonly officeFilter = signal('');
+
+  /** True between pressing "Retry all for this office" and confirming or cancelling. */
+  protected readonly confirmingRetryAll = signal(false);
+
+  protected readonly retryingAll = signal(false);
+
+  /** Outcome of the last retry-all, stated as counts. */
+  protected readonly notice = signal<string | null>(null);
+
+  /** Offices that currently have failures, by name. Derived from the list, so it is never stale. */
+  protected readonly offices = computed<FailureOffice[]>(() => {
+    const byId = new Map<string, string>();
+    for (const r of this.rows()) {
+      byId.set(r.officeId, r.officeName);
+    }
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  protected readonly visibleRows = computed(() => {
+    const office = this.officeFilter();
+    return office ? this.rows().filter((r) => r.officeId === office) : this.rows();
+  });
+
+  protected readonly selectedOfficeName = computed(
+    () => this.offices().find((o) => o.id === this.officeFilter())?.name ?? '',
+  );
 
   /**
    * Sweep #644 (S7059): the load used to run from the constructor. Angular constructs a
@@ -217,6 +123,7 @@ export class IntegrationFailuresComponent implements OnInit {
         ),
       );
       this.rows.set(rows ?? []);
+      this.dropFilterIfEmpty();
     } catch {
       this.error.set('The failure list could not be loaded. Please try again.');
     } finally {
@@ -243,6 +150,7 @@ export class IntegrationFailuresComponent implements OnInit {
         ),
       );
       this.rows.update((current) => current.filter((r) => r.id !== row.id));
+      this.dropFilterIfEmpty();
     } catch {
       this.error.set(
         `Retry failed for ${row.confirmationNumber || row.appointmentId}. It may already have been retried.`,
@@ -251,4 +159,69 @@ export class IntegrationFailuresComponent implements OnInit {
       this.retrying.set(null);
     }
   }
+
+  protected selectOffice(officeId: string): void {
+    this.officeFilter.set(officeId);
+    this.confirmingRetryAll.set(false);
+    this.notice.set(null);
+  }
+
+  /**
+   * Retries every failure in the filtered office, then reloads: unlike a single retry, some rows may
+   * stay (not retried, or past the per-call limit), so only the server knows what is left.
+   */
+  protected async retryAll(): Promise<void> {
+    const officeId = this.officeFilter();
+    if (!officeId) {
+      return;
+    }
+    this.retryingAll.set(true);
+    this.error.set(null);
+    this.notice.set(null);
+    try {
+      const result = await firstValueFrom(
+        this.rest.request<null, RetryAllResult>(
+          {
+            method: 'POST',
+            url: `/api/app/case-tracker/offices/${officeId}/dead-letters/retry-all`,
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      this.notice.set(describeRetryAll(result));
+    } catch {
+      // A notice, not the error state: the reload below must still show the table, because some rows
+      // may have been retried before the call failed.
+      this.notice.set('Retry all did not finish. The list below shows what is still outstanding.');
+    } finally {
+      this.retryingAll.set(false);
+      this.confirmingRetryAll.set(false);
+    }
+    await this.load();
+  }
+
+  /** An office with nothing left drops out of the filter, so the filter falls back to all offices. */
+  private dropFilterIfEmpty(): void {
+    const office = this.officeFilter();
+    if (office && !this.rows().some((r) => r.officeId === office)) {
+      this.officeFilter.set('');
+      this.confirmingRetryAll.set(false);
+    }
+  }
+}
+
+/** The retry-all outcome as one line of counts, naming only the parts that happened. */
+export function describeRetryAll(result: RetryAllResult | null | undefined): string {
+  const r = result ?? { requeued: 0, alreadyDelivered: 0, notRetried: 0, remaining: 0 };
+  const parts = [`${r.requeued} queued to send again.`];
+  if (r.alreadyDelivered) {
+    parts.push(`${r.alreadyDelivered} already delivered.`);
+  }
+  if (r.notRetried) {
+    parts.push(`${r.notRetried} could not be retried and are still listed.`);
+  }
+  if (r.remaining) {
+    parts.push(`${r.remaining} not yet retried; select Retry all again.`);
+  }
+  return parts.join(' ');
 }

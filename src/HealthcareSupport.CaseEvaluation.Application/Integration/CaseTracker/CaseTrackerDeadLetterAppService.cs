@@ -12,6 +12,7 @@ using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Timing;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
@@ -27,6 +28,13 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 [Authorize]
 public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTrackerDeadLetterAppService
 {
+    /// <summary>
+    /// Dead letters one "Retry all" press handles. Each retry rebuilds its payload from current data, so
+    /// an unbounded pass after a long outage could outrun the request timeout and fail with nothing
+    /// reported; the remainder is counted and handled by pressing again.
+    /// </summary>
+    public const int MaxRetryAllPerCall = 100;
+
     private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IIntegrationOutboxRepository _outboxRepository;
     private readonly IntegrationOutboxManager _outboxManager;
@@ -143,28 +151,13 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
                     "Only a permanently failed push can be retried. This one is no longer in that state.");
             }
 
-            // Fresh payload from CURRENT data, not the stored snapshot -- an intake as an intake, a
-            // document update as a document update (see CaseTrackerDeadLetterRequeuer).
-            var queued = await _deadLetterRequeuer.RequeueAsync(row, officeId);
-
-            // Judge what came back rather than trust it (#961): this is the only recovery a human has
-            // for a stuck message, and it once reported "queued" while sending nothing. On a refusal
-            // the exception rolls back anything the requeue wrote, and the dead letter stays listed.
-            var outcome = DeadLetterRetryOutcome.Evaluate(row, queued);
+            // On a refusal the exception rolls back anything the requeue wrote, and the dead letter stays
+            // listed.
+            var outcome = await RetryRowAsync(row, officeId);
             if (!outcome.CanResolve)
             {
-                Logger.LogWarning(
-                    "CaseTrackerDeadLetterAppService: retry of dead letter {RowId} for appointment {AppointmentId} in office {OfficeId} refused; {QueuedCount} row(s) came back.",
-                    row.Id, row.AppointmentId, officeId, queued.Count);
                 throw new UserFriendlyException(outcome.RefusalReason!);
             }
-
-            row.MarkResolved(_clock.Now);
-            await _outboxManager.SaveAsync(row);
-
-            Logger.LogInformation(
-                "CaseTrackerDeadLetterAppService: retried dead letter {RowId} for appointment {AppointmentId} in office {OfficeId}; queued {QueuedId}, already delivered {AlreadyDelivered}.",
-                row.Id, row.AppointmentId, officeId, outcome.QueuedOutboxItemId, outcome.AlreadyDelivered);
 
             return new CaseTrackerDeadLetterRetryResultDto
             {
@@ -173,5 +166,130 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
                 AlreadyDelivered = outcome.AlreadyDelivered,
             };
         }
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    public virtual async Task<CaseTrackerDeadLetterRetryAllResultDto> RetryAllAsync(Guid officeId)
+    {
+        if (officeId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "OfficeId"]);
+        }
+
+        var result = new CaseTrackerDeadLetterRetryAllResultDto();
+
+        using (_currentTenant.Change(officeId))
+        {
+            var ids = await GetFailedIdsOldestFirstAsync();
+            result.Remaining = Math.Max(0, ids.Count - MaxRetryAllPerCall);
+
+            foreach (var id in ids.Take(MaxRetryAllPerCall))
+            {
+                var outcome = await RetryInOwnTransactionAsync(id, officeId);
+                if (outcome == null || !outcome.CanResolve)
+                {
+                    result.NotRetried++;
+                }
+                else if (outcome.AlreadyDelivered)
+                {
+                    result.AlreadyDelivered++;
+                }
+                else
+                {
+                    result.Requeued++;
+                }
+            }
+        }
+
+        Logger.LogInformation(
+            "CaseTrackerDeadLetterAppService: retry-all in office {OfficeId}: requeued {Requeued}, already delivered {AlreadyDelivered}, not retried {NotRetried}, remaining {Remaining}.",
+            officeId, result.Requeued, result.AlreadyDelivered, result.NotRetried, result.Remaining);
+
+        return result;
+    }
+
+    /// <summary>Oldest first, so repeated presses work through a backlog in the order it failed.</summary>
+    private async Task<List<Guid>> GetFailedIdsOldestFirstAsync()
+    {
+        var queryable = await _outboxRepository.GetQueryableAsync();
+        return queryable
+            .Where(x => x.Status == IntegrationOutboxStatus.Failed)
+            .OrderBy(x => x.LastModificationTime ?? x.CreationTime)
+            .ThenBy(x => x.Id)
+            .Select(x => x.Id)
+            .ToList();
+    }
+
+    /// <summary>
+    /// One row of a retry-all, in its OWN transaction: committed when the retry is judged sound, rolled
+    /// back when it is refused or throws, so a bad row never undoes the rows before it. Returns null when
+    /// the row is no longer a dead letter (resolved or retried by someone else since the list was read),
+    /// or when its retry threw -- logged here, and the row stays listed for a person to look at.
+    /// </summary>
+    private async Task<DeadLetterRetryOutcome?> RetryInOwnTransactionAsync(Guid rowId, Guid officeId)
+    {
+        using var uow = UnitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+        try
+        {
+            var row = await _outboxRepository.FindAsync(rowId);
+            if (row == null || row.Status != IntegrationOutboxStatus.Failed)
+            {
+                await uow.RollbackAsync();
+                return null;
+            }
+
+            var outcome = await RetryRowAsync(row, officeId);
+            if (outcome.CanResolve)
+            {
+                await uow.CompleteAsync();
+            }
+            else
+            {
+                await uow.RollbackAsync();
+            }
+
+            return outcome;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(
+                ex,
+                "CaseTrackerDeadLetterAppService: retry-all could not retry dead letter {RowId} in office {OfficeId}; it stays listed.",
+                rowId, officeId);
+            await uow.RollbackAsync();
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The retry itself, shared by the single and bulk paths. Requeues from CURRENT data and judges what
+    /// came back; resolves the dead letter only when the judgement allows. Never throws on a refusal:
+    /// each caller decides what a refusal means for its transaction.
+    /// </summary>
+    private async Task<DeadLetterRetryOutcome> RetryRowAsync(IntegrationOutboxItem row, Guid officeId)
+    {
+        // Fresh payload from CURRENT data, not the stored snapshot -- an intake as an intake, a
+        // document update as a document update (see CaseTrackerDeadLetterRequeuer).
+        var queued = await _deadLetterRequeuer.RequeueAsync(row, officeId);
+
+        // Judge what came back rather than trust it (#961): this is the only recovery a human has
+        // for a stuck message, and it once reported "queued" while sending nothing.
+        var outcome = DeadLetterRetryOutcome.Evaluate(row, queued);
+        if (!outcome.CanResolve)
+        {
+            Logger.LogWarning(
+                "CaseTrackerDeadLetterAppService: retry of dead letter {RowId} for appointment {AppointmentId} in office {OfficeId} refused; {QueuedCount} row(s) came back.",
+                row.Id, row.AppointmentId, officeId, queued.Count);
+            return outcome;
+        }
+
+        row.MarkResolved(_clock.Now);
+        await _outboxManager.SaveAsync(row);
+
+        Logger.LogInformation(
+            "CaseTrackerDeadLetterAppService: retried dead letter {RowId} for appointment {AppointmentId} in office {OfficeId}; queued {QueuedId}, already delivered {AlreadyDelivered}.",
+            row.Id, row.AppointmentId, officeId, outcome.QueuedOutboxItemId, outcome.AlreadyDelivered);
+
+        return outcome;
     }
 }

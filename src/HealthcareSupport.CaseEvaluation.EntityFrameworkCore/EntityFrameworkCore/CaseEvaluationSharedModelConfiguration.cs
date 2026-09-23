@@ -254,6 +254,10 @@ internal static class CaseEvaluationSharedModelConfiguration
             // Part 5: alert throttle + human-resolution audit. Nullable, so no default is needed.
             b.Property(x => x.AlertedAt).HasColumnName(nameof(IntegrationOutboxItem.AlertedAt));
             b.Property(x => x.ResolvedAt).HasColumnName(nameof(IntegrationOutboxItem.ResolvedAt));
+            // #917: the 24-hour retry window is measured from the first failure, and the early-warning
+            // email needs its own once-only stamp. Nullable, so existing rows need no backfill.
+            b.Property(x => x.FirstFailedAt).HasColumnName(nameof(IntegrationOutboxItem.FirstFailedAt));
+            b.Property(x => x.EarlyWarnedAt).HasColumnName(nameof(IntegrationOutboxItem.EarlyWarnedAt));
             b.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique().HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
             b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
             // Staff search the dead-letter view by appointment.

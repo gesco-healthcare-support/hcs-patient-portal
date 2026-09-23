@@ -59,3 +59,25 @@ public class CaseTrackerDeadLetterRetryResultDto
     /// </summary>
     public bool AlreadyDelivered { get; set; }
 }
+
+/// <summary>
+/// Outcome of retrying every dead letter in one office (#917). Counts only: the screen reloads the list
+/// afterwards, and every row that was not dealt with is still on it.
+/// </summary>
+public class CaseTrackerDeadLetterRetryAllResultDto
+{
+    /// <summary>Dead letters resolved by queueing a fresh push.</summary>
+    public int Requeued { get; set; }
+
+    /// <summary>Dead letters resolved because a newer push had already delivered the current content.</summary>
+    public int AlreadyDelivered { get; set; }
+
+    /// <summary>Dead letters that could not be retried. Each is still listed, unchanged.</summary>
+    public int NotRetried { get; set; }
+
+    /// <summary>
+    /// Dead letters left for another press because this one reached its per-call limit. Each is still
+    /// listed, unchanged.
+    /// </summary>
+    public int Remaining { get; set; }
+}
