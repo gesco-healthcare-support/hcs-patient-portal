@@ -13,6 +13,7 @@ using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.TestData;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NSubstitute;
@@ -130,6 +131,12 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
         _recipients.ResolveAsync(Arg.Any<Guid>(), NotificationKind.Submitted)
             .Returns(parties.Select(p => new SendAppointmentEmailArgs { To = p.Email, Role = p.Role }).ToList());
 
+    /// <summary>
+    /// A calendar date this many days after today in Pacific time. The office's windows are Pacific
+    /// dates, and a UTC date is tomorrow's Pacific date after about 5pm (#623).
+    /// </summary>
+    private static DateTime DaysFromToday(int days) => PacificTime.TodayFrom(DateTime.UtcNow).AddDays(days);
+
     private async Task<T> InTenantA<T>(Func<Task<T>> read)
     {
         using (_currentTenant.Change(TenantsTestData.TenantARef))
@@ -150,7 +157,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
             await WithUnitOfWorkAsync(async () =>
             {
                 var slot = await _slotRepository.GetAsync(slotId);
-                slot.AvailableDate = DateTime.UtcNow.Date.AddDays(90);
+                slot.AvailableDate = DaysFromToday(90);
                 await _slotRepository.UpdateAsync(slot, autoSave: true);
             });
         }
@@ -195,7 +202,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
         InTenantA(async () =>
         {
             var slot = new DoctorAvailability(
-                Guid.NewGuid(), LocationsTestData.Location1Id, DateTime.UtcNow.Date.AddDays(60),
+                Guid.NewGuid(), LocationsTestData.Location1Id, DaysFromToday(60),
                 new TimeOnly(10, 0), new TimeOnly(11, 0), BookingStatus.Available);
             slot.TenantId = TenantsTestData.TenantARef;
             slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
@@ -368,7 +375,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
             AppointmentTypeId = AppointmentTypesTestData.AppointmentType1Id,
             LocationId = LocationsTestData.Location1Id,
             DoctorAvailabilityId = slotId,
-            AppointmentDate = DateTime.UtcNow.Date.AddDays(60).AddHours(10).AddMinutes(15),
+            AppointmentDate = DaysFromToday(60).AddHours(10).AddMinutes(15),
             RequestConfirmationNumber = before.RequestConfirmationNumber,
             PanelNumber = before.PanelNumber,
             DueDate = before.DueDate,
