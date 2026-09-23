@@ -1,7 +1,8 @@
 # Coverage exclusions -- ONE list, TWO consumers (phase 2 item 2.10, 2026-09-03).
 #
 # Read by BOTH:
-#   - .github/workflows/sonarcloud.yml  (joined with commas into sonar.coverage.exclusions)
+#   - .github/workflows/ci.yml, job `sonarcloud`  (joined with commas into sonar.coverage.exclusions;
+#     this was sonarcloud.yml until #1032 folded the analysis into ci.yml)
 #   - scripts/coverage-gate.py          (the independent CI coverage floors)
 #
 # THAT WAS A FALSE CLAIM UNTIL 2026-09-03, and it is recorded here rather than
@@ -10,8 +11,8 @@
 # same patterns instead. The two were byte-identical, which is exactly why the
 # claim survived unexamined -- there was no symptom to notice. It surfaced only
 # when the two backend patterns below were added and the copies diverged, which
-# is the very failure the paragraph beneath this one warns about. sonarcloud.yml
-# now builds its list from this file, and fails if the file yields nothing.
+# is the very failure the paragraph beneath this one warns about. The SonarCloud
+# analysis now builds its list from this file, and fails if the file yields nothing.
 #
 # WHY ONE FILE. Two lists drift, and a drift here means two gates measuring the
 # same code disagree with nobody able to say which is right. That is not
@@ -191,7 +192,7 @@ angular/src/app/proxy/**
 # every line carries a reason and warns that an entry which can never match is
 # noise. These four are NOT that case, but they are not the usual case either:
 #
-#   sonarcloud.yml      APPLIES them. Sonar analyses Python and TypeScript, counts
+#   SonarCloud job      APPLIES them. Sonar analyses Python and TypeScript, counts
 #                       these files, and reports them 100% uncovered today.
 #   coverage-gate.py    READS them and they match nothing, because it ingests only
 #                       --lcov (karma, angular/src) and --cobertura (.NET). No Python
@@ -327,7 +328,7 @@ tools/packet-templates/tests/**
 # contamination detector should key on. That is the argument for this change, not a
 # side effect of it.
 #
-# This is `sonar.coverage.exclusions`, NOT `sonar.exclusions`: sonarcloud.yml:124-137
-# greps this file into COVERAGE_EXCLUSIONS and feeds it to :183 only. Sonar keeps
+# This is `sonar.coverage.exclusions`, NOT `sonar.exclusions`: the `sonarcloud` job in ci.yml
+# greps this file into COVERAGE_EXCLUSIONS and feeds it to sonar.coverage.exclusions only. Sonar keeps
 # analysing these files for issues; only the coverage denominator changes.
 **/test/**
