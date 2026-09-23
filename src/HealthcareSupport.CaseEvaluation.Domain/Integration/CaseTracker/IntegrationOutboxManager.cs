@@ -134,4 +134,11 @@ public class IntegrationOutboxManager : DomainService
     /// </summary>
     public virtual Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default) =>
         _outboxRepository.HasIntakeAsync(appointmentId, cancellationToken);
+
+    /// <summary>
+    /// Takes the per-appointment ordering lock until the current transaction ends. See
+    /// <see cref="IIntegrationOutboxRepository.AcquireAppointmentLockAsync"/> for the race it closes.
+    /// </summary>
+    public virtual Task AcquireAppointmentLockAsync(Guid appointmentId, CancellationToken cancellationToken = default) =>
+        _outboxRepository.AcquireAppointmentLockAsync(appointmentId, cancellationToken);
 }

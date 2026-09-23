@@ -334,4 +334,37 @@ public class CaseTrackerDocumentQueueTests
 
         await h.Repository.Received(1).HasIntakeAsync(AppointmentId, cts.Token);
     }
+
+    [Fact]
+    public async Task EnqueueDocumentEntriesAsync_TakesTheAppointmentLockBeforeCheckingForAnIntake()
+    {
+        // The review of #1020 found the gate alone loses a document accepted while an intake is
+        // being built: the intake reads the document list, then writes its row. The per-appointment
+        // lock closes that only if it is taken BEFORE the check; taken after, the check can still
+        // read "no intake" while the intake build is in flight. The intake queue's own test pins
+        // the other half (lock before the build).
+        var h = Build(withAmbientUow: false);
+        using var cts = new CancellationTokenSource();
+
+        await h.Queue.EnqueueDocumentEntriesAsync(
+            AppointmentId, TenantId, new[] { Entry(DocumentId, "2026-07-28T11:00:00.0000000Z") }, cts.Token);
+
+        Received.InOrder(() =>
+        {
+            h.Repository.AcquireAppointmentLockAsync(AppointmentId, cts.Token);
+            h.Repository.HasIntakeAsync(AppointmentId, cts.Token);
+        });
+    }
+
+    [Fact]
+    public async Task EnqueueDocumentEntriesAsync_WithNoEntries_TakesNoLock()
+    {
+        // Nothing to write means nothing to order; the empty-payload guard returns before the lock,
+        // so a no-op trigger does not queue behind an intake build.
+        var h = Build(withAmbientUow: false);
+
+        await h.Queue.EnqueueDocumentEntriesAsync(AppointmentId, TenantId, Array.Empty<IntakeDocumentEntry>());
+
+        await h.Repository.DidNotReceiveWithAnyArgs().AcquireAppointmentLockAsync(default, default);
+    }
 }

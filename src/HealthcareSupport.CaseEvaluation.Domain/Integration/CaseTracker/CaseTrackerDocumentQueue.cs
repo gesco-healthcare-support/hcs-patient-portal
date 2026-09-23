@@ -28,9 +28,14 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// deadlock rather than a retry: the receiver meets an update for a case it has never seen, and the
 /// intake it is waiting for sits LATER in the same stream. The gate is here, not in the handlers,
 /// because this class is the only place a <see cref="IntegrationMessageType.DocumentUpdate"/> row is
-/// created, so it covers every trigger including ones added later. Nothing is lost by suppressing:
-/// the intake is built from the current document list at settle time, so an accepted document ships
-/// inside it, and a removed one is simply never listed.</para>
+/// created, so it covers every trigger including ones added later.</para>
+///
+/// <para>Nothing is lost by suppressing, BECAUSE of the per-appointment ordering lock taken before
+/// the check. The intake is built from the current document list, so an accepted document ships
+/// inside it and a removed one is never listed. Without the lock that fails under interleaving: the
+/// intake reads the list and only then writes its row, so a document accepted in between would be
+/// suppressed here AND missing from the intake. The intake queue takes the same lock before it reads,
+/// so whichever runs second waits for the first to commit and sees its result.</para>
 /// </summary>
 public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDependency
 {
@@ -116,6 +121,9 @@ public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDep
         {
             return null;
         }
+
+        // BEFORE the check, and held to commit: see the class remarks for the race this closes.
+        await _outboxManager.AcquireAppointmentLockAsync(appointmentId, cancellationToken);
 
         if (!await _outboxManager.HasIntakeAsync(appointmentId, cancellationToken))
         {

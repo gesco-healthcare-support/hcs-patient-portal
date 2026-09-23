@@ -40,6 +40,13 @@ public static class IntegrationOutboxConsts
     public const int DrainBatchSize = 50;
 
     /// <summary>
+    /// How long an intake or document enqueue waits for the per-appointment ordering lock (#931)
+    /// before failing loudly. The lock is held only for one enqueue's transaction, so a wait anywhere
+    /// near this long means something is stuck, not busy.
+    /// </summary>
+    public const int AppointmentLockTimeoutMilliseconds = 30_000;
+
+    /// <summary>
     /// Rolling window the volume guard measures sends over, per office.
     ///
     /// <para><see cref="DrainBatchSize"/> bounds ONE drain invocation, not throughput: every enqueue

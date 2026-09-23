@@ -217,4 +217,24 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
             (await _outboxRepository.TryLeaseAsync(id, due, due.AddSeconds(120))).ShouldBeTrue();
         });
     }
+
+    [Fact]
+    public async Task AcquireAppointmentLockAsync_OnTheSqliteTestProvider_IsANoOp()
+    {
+        // The lock is a SQL Server application lock. On SQLite it must return quietly: sp_getapplock
+        // is not SQLite syntax, so a missing provider check would fail every provider-backed test that
+        // enqueues anything. Blocking is proven against SQL Server itself (see PR #1020), not here.
+        await WithUnitOfWorkAsync(() => _outboxRepository.AcquireAppointmentLockAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void AppointmentLockResource_IsPerAppointmentAndWithinTheSqlServerNameLimit()
+    {
+        var a = EfCoreIntegrationOutboxRepository.AppointmentLockResource(AppointmentId);
+        var b = EfCoreIntegrationOutboxRepository.AppointmentLockResource(Guid.NewGuid());
+
+        a.ShouldNotBe(b);
+        a.ShouldContain(AppointmentId.ToString("D"));
+        a.Length.ShouldBeLessThanOrEqualTo(255); // sp_getapplock @Resource is nvarchar(255)
+    }
 }

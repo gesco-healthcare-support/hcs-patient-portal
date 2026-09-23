@@ -60,4 +60,25 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
     /// suppressed SILENTLY. Such a job must keep intake rows, or this must stop filtering them.</para>
     /// </summary>
     Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes the per-appointment ordering lock for the rest of the current transaction (#931). Both
+    /// the intake enqueue and the document enqueue take it BEFORE they read anything, so they cannot
+    /// interleave for the same appointment.
+    ///
+    /// <para>Why it is needed: the intake reads the document list and only then writes its row, while
+    /// the document path checks for that row. Without the lock, a document accepted in that gap is
+    /// suppressed by the document gate AND missing from the intake -- lost. With it, whichever path
+    /// runs second waits for the first to commit and then sees its result.</para>
+    ///
+    /// <para>A SQL Server application lock (<c>sp_getapplock</c>), owned by the transaction and named
+    /// after the appointment: it touches no data rows, so it cannot block staff reading or saving the
+    /// appointment, and the database releases it at commit or rollback. It REQUIRES an active
+    /// transaction; every caller runs inside a transactional unit of work.</para>
+    ///
+    /// <para>Throws when the lock is not granted (timeout, deadlock victim, error) rather than
+    /// carrying on unlocked. On a provider other than SQL Server -- the SQLite test database -- it is
+    /// a no-op, so tests prove the lock is ASKED FOR in order, not that it blocks.</para>
+    /// </summary>
+    Task AcquireAppointmentLockAsync(Guid appointmentId, CancellationToken cancellationToken = default);
 }
