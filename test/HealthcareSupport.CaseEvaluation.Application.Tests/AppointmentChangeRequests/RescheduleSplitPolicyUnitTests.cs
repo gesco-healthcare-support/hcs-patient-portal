@@ -89,4 +89,46 @@ public class RescheduleSplitPolicyUnitTests
             () => RescheduleSplitPolicy.ResolveNewAppointmentStatus(sourceStatus));
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestAppointmentNotApproved);
     }
+
+    // ---- the parent appointment's status when a reschedule request is REJECTED ----
+
+    /// <summary>
+    /// An Approved source moved to RescheduleRequested on submit, so rejecting the request reverts
+    /// it to Approved. (A source that is somehow still Approved reverts to Approved unchanged.)
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.RescheduleRequested)]
+    [InlineData(AppointmentStatusType.Approved)]
+    public void Rejecting_an_approved_source_reverts_it_to_approved(AppointmentStatusType sourceStatus)
+    {
+        RescheduleSplitPolicy.ResolveParentStatusOnReject(sourceStatus)
+            .ShouldBe(AppointmentStatusType.Approved);
+    }
+
+    /// <summary>
+    /// The regression guard for the reject-promotes-Pending bug. B1 lets internal staff reschedule
+    /// a still-Pending appointment, which never leaves Pending. Rejecting that reschedule must leave
+    /// it Pending -- the old code hardcoded Approved here, promoting a never-approved appointment
+    /// past the approval gate purely because its reschedule was rejected.
+    /// </summary>
+    [Fact]
+    public void Rejecting_a_pending_source_leaves_it_pending()
+    {
+        RescheduleSplitPolicy.ResolveParentStatusOnReject(AppointmentStatusType.Pending)
+            .ShouldBe(AppointmentStatusType.Pending);
+    }
+
+    /// <summary>
+    /// A reject must never fail hard and strand a change request, so an unexpected source status is
+    /// left untouched rather than coerced (or thrown) -- and never silently promoted.
+    /// </summary>
+    [Theory]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.CancelledNoBill)]
+    [InlineData(AppointmentStatusType.NoShow)]
+    public void Rejecting_an_unexpected_source_leaves_it_untouched(AppointmentStatusType sourceStatus)
+    {
+        RescheduleSplitPolicy.ResolveParentStatusOnReject(sourceStatus)
+            .ShouldBe(sourceStatus);
+    }
 }

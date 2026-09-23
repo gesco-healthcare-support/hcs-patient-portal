@@ -876,6 +876,11 @@ export class AppointmentAddComponent {
       .get('locationId')
       ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
     this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
+      // A type change re-scopes availability (the calendar fetches slots by type + location),
+      // so a slot picked under the previous type is stale -- clear the picked time and the
+      // derived doctorAvailabilityId so a wrong slot id can never reach the payload. No-op
+      // during a re-book prefill, which leaves date/time/slot null (see loadPriorSource).
+      this.clearSelectedSlot();
       this.applyFieldConfigsForAppointmentType(appointmentTypeId);
       // B1 (2026-05-05): rebuild the custom-field FormArray for the newly
       // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
@@ -2998,37 +3003,48 @@ export class AppointmentAddComponent {
         },
         { apiName: 'Default' },
       )
-      .subscribe((profile) => {
-        const patient = profile?.patient;
-        if (!patient?.id) {
-          return;
-        }
-        this.currentPatientProfile = profile;
-        this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
-        this.form.patchValue({
-          patientId: patient.id,
-          identityUserId: patient.identityUserId ?? null,
-          firstName: patient.firstName ?? null,
-          lastName: patient.lastName ?? null,
-          middleName: patient.middleName ?? null,
-          email: patient.email ?? null,
-          genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
-          cellPhoneNumber: patient.cellPhoneNumber ?? null,
-          phoneNumber: patient.phoneNumber ?? null,
-          phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
-          street: patient.street ?? null,
-          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
-          address: unitForForm(patient),
-          city: patient.city ?? null,
-          stateId: patient.stateId ?? null,
-          zipCode: patient.zipCode ?? null,
-          appointmentLanguageId: patient.appointmentLanguageId ?? null,
-          interpreterVendorName: patient.interpreterVendorName ?? null,
-          needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
-        });
+      .subscribe({
+        next: (profile) => {
+          const patient = profile?.patient;
+          if (!patient?.id) {
+            return;
+          }
+          this.currentPatientProfile = profile;
+          this.patientLabel = [patient.firstName, patient.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          this.form.patchValue({
+            patientId: patient.id,
+            identityUserId: patient.identityUserId ?? null,
+            firstName: patient.firstName ?? null,
+            lastName: patient.lastName ?? null,
+            middleName: patient.middleName ?? null,
+            email: patient.email ?? null,
+            genderId: this.normalizePatientGender(patient.genderId),
+            dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+            cellPhoneNumber: patient.cellPhoneNumber ?? null,
+            phoneNumber: patient.phoneNumber ?? null,
+            phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+            socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+            street: patient.street ?? null,
+            // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+            address: unitForForm(patient),
+            city: patient.city ?? null,
+            stateId: patient.stateId ?? null,
+            zipCode: patient.zipCode ?? null,
+            appointmentLanguageId: patient.appointmentLanguageId ?? null,
+            interpreterVendorName: patient.interpreterVendorName ?? null,
+            needsInterpreter: !!patient.interpreterVendorName,
+            refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
+          });
+        },
+        error: (err) => {
+          // Mirror loadPatientByEmail's catch: a failed load left the demographic fields blank
+          // while the picker already held the id -- a half-populated patient with no explanation.
+          // patientLoadFailureMessage renders a friendly, PHI-safe message.
+          this.patientLoadMessage = patientLoadFailureMessage(err);
+        },
       });
   }
 
@@ -3394,6 +3410,12 @@ export class AppointmentAddComponent {
 
     if (this.isLocationSelected) {
       this.form.get('appointmentDate')?.setValidators([Validators.required]);
+      // A location change re-scopes availability, so any slot picked under the previous
+      // location is stale -- clear the picked time and the derived doctorAvailabilityId so a
+      // wrong slot id can never reach the submit payload. The calendar repopulates times for
+      // the kept date under the new location and the booker re-picks. During a re-book prefill
+      // this is a no-op: prefill deliberately leaves date/time/slot null (see loadPriorSource).
+      this.clearSelectedSlot();
     } else {
       this.form.patchValue({
         appointmentDate: null,
@@ -3507,6 +3529,21 @@ export class AppointmentAddComponent {
 
   private clearTimeSlots(): void {
     this.appointmentTimeOptions = [];
+  }
+
+  /**
+   * Clears the picked time and its derived doctorAvailabilityId. Called when the appointment
+   * type or location changes: both re-scope the availability the calendar fetches, so a slot
+   * chosen under the previous selection is stale and must not survive into the submit payload
+   * (the create/reval flow sends the form's doctorAvailabilityId verbatim). emitEvent is false
+   * because both values are set together here; the calendar's selectedTime input, bound to the
+   * form value, still updates so the picker reflects the cleared state.
+   */
+  private clearSelectedSlot(): void {
+    this.form.patchValue(
+      { appointmentTime: null, doctorAvailabilityId: null },
+      { emitEvent: false },
+    );
   }
 
   private onAppointmentTimeChanged(value: string | null): void {

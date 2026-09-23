@@ -11,6 +11,7 @@ using Volo.Abp.Authorization;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Data;
 using Volo.Abp.Identity;
+using Volo.Abp.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.UserProfile;
 
@@ -55,6 +56,7 @@ public class UserSignatureAppService : CaseEvaluationAppService, IUserSignatureA
     }
 
     [Authorize(CaseEvaluationPermissions.UserSignatures.ManageOwn)]
+    [DisableValidation] // the Stream argument must not be reflectively validated (mirrors UploadStreamAsync).
     public virtual async Task<UserSignatureInfoDto> UploadAsync(
         string fileName,
         string? contentType,
