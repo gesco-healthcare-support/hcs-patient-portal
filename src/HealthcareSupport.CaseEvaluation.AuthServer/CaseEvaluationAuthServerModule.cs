@@ -222,10 +222,17 @@ public class CaseEvaluationAuthServerModule : AbpModule
         //
         // #928: X-Forwarded-For added for parity with the API host. This module had
         // only ever set X-Forwarded-Proto, so RemoteIpAddress here was the nginx
-        // container even with no load balancer in front -- inert today because nothing
-        // in the AuthServer reads the client address, and wrong the moment something
-        // does. The allowlist now comes from configuration; see TrustedProxyNetworks
-        // for why the value is the container network rather than the balancer's range.
+        // container address rather than the caller.
+        //
+        // That was NOT inert. ABP records the client address through
+        // IWebClientInfoProvider, and both AbpAuditLogs and AbpSecurityLogs carry a
+        // ClientIpAddress column in our model. Every login, lockout and audit entry
+        // written by this host has therefore recorded the proxy instead of the person.
+        // With this change they record the caller, which is the point of having the
+        // column at all.
+        //
+        // The allowlist now comes from configuration; see TrustedProxyNetworks for why
+        // the value is the container network rather than the balancer's range.
         Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;

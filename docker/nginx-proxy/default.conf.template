@@ -32,11 +32,31 @@
 # and nothing is rewritten. That is why the header directive can be unconditional
 # while the trust list stays deployment-specific.
 #
-# real_ip_recursive is deliberately left at its default (off), so nginx takes the LAST
-# entry of X-Forwarded-For. A client forging "1.2.3.4" arrives at the balancer, which
-# appends the real address, giving "1.2.3.4, <real>" -- and the last entry wins. Turning
-# recursion on would walk leftward and is only correct with a fully enumerated proxy
-# chain; we do not have one.
+# WHICH ENTRY NGINX TAKES IS A PER-BALANCER DECISION, NOT A CONSTANT. Both settings are
+# correct for some balancers and wrong for others, so this is a deployment value rather
+# than something to hardcode.
+#
+#   recursion OFF -- nginx takes the LAST entry. Correct where the balancer appends exactly
+#   ONE address, its caller. A client forging "1.2.3.4" then arrives as "1.2.3.4, <real>"
+#   and the last entry wins.
+#
+#   recursion ON  -- nginx walks leftward, skipping entries that ARE in set_real_ip_from,
+#   and stops at the first untrusted one. Required where the balancer appends MORE than one
+#   address. Google Cloud's external Application Load Balancer appends TWO,
+#   "<client-ip>,<load-balancer-ip>", so with recursion off nginx would take the balancer's
+#   own forwarding-rule address and every caller would land in one bucket again -- which is
+#   the defect this block exists to fix.
+#   Ref: https://docs.cloud.google.com/load-balancing/docs/https ("X-Forwarded-For header")
+#
+# Recursion is SAFE here only because set_real_ip_from lists the balancer's own addresses
+# and nothing else. nginx stops at the first entry outside that list, so a forged value
+# further left is never reached. Widening the list to a range the balancer does not own is
+# what would make it spoofable.
+#
+# UNVERIFIED, and worth a real request before trusting either setting: Azure Application
+# Gateway writes x-forwarded-for as a comma-separated list of IP:PORT pairs, and whether
+# nginx's realip module parses an address carrying a port has not been tested here.
+# Ref: https://learn.microsoft.com/en-us/azure/application-gateway/how-application-gateway-works
 #
 # ${TRUSTED_PROXY_SET_REAL_IP_FROM} is EMPTY on the LAN and carries one or more
 # complete directives on a cloud deployment, for example:
@@ -51,6 +71,7 @@
 # spoofing this control exists to prevent.
 real_ip_header X-Forwarded-For;
 ${TRUSTED_PROXY_SET_REAL_IP_FROM}
+${TRUSTED_PROXY_REAL_IP_RECURSIVE}
 
 # WebSocket upgrade passthrough (ABP SignalR notification hub).
 map $http_upgrade $connection_upgrade {
