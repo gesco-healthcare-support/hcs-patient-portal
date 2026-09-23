@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Domain.Services;
@@ -125,4 +126,12 @@ public class IntegrationOutboxManager : DomainService
     /// <summary>Persists a post-send state transition (MarkSent / MarkFailed / MarkFatal).</summary>
     public virtual Task SaveAsync(IntegrationOutboxItem item) =>
         _outboxRepository.UpdateAsync(item, autoSave: true);
+
+    /// <summary>
+    /// Whether an intake has ever been queued for the appointment, in any status. See
+    /// <see cref="IIntegrationOutboxRepository.HasIntakeAsync"/> for why every status counts and what
+    /// the answer depends on.
+    /// </summary>
+    public virtual Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default) =>
+        _outboxRepository.HasIntakeAsync(appointmentId, cancellationToken);
 }

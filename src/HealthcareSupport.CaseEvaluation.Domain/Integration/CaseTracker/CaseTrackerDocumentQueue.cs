@@ -20,6 +20,17 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <para>Separate from the intake queue rather than folded into it because the two build genuinely
 /// different bodies (envelope vs bare array) and version their idempotency keys off different facts
 /// (the appointment's <c>UpdatedAt</c> vs the entry set).</para>
+///
+/// <para>ORDERING INVARIANT (#931): no document update is written for an appointment that has no
+/// intake row yet. The appointment's STATUS cannot answer that -- since 2026-07-30 an approved
+/// appointment's intake waits for its packet set to settle, so a document accepted in that window
+/// passed every status check and was queued ahead of its own intake. Under a pull feed that is a
+/// deadlock rather than a retry: the receiver meets an update for a case it has never seen, and the
+/// intake it is waiting for sits LATER in the same stream. The gate is here, not in the handlers,
+/// because this class is the only place a <see cref="IntegrationMessageType.DocumentUpdate"/> row is
+/// created, so it covers every trigger including ones added later. Nothing is lost by suppressing:
+/// the intake is built from the current document list at settle time, so an accepted document ships
+/// inside it, and a removed one is simply never listed.</para>
 /// </summary>
 public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDependency
 {
@@ -50,9 +61,10 @@ public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDep
     private const string DeletionsKind = "deletions";
 
     /// <summary>
-    /// Enqueues an upsert for the given entries. Returns the ledger row, or <c>null</c> when there is
-    /// nothing to say -- an empty array would tell the receiver the appointment has NO documents,
-    /// which is a destructive statement rather than a no-op.
+    /// Enqueues an upsert for the given entries. Returns the ledger row, or <c>null</c> when nothing
+    /// was written: either there is nothing to say -- an empty array would tell the receiver the
+    /// appointment has NO documents, which is a destructive statement rather than a no-op -- or the
+    /// appointment has no intake row yet (see the class remarks).
     /// </summary>
     public virtual Task<IntegrationOutboxItem?> EnqueueDocumentEntriesAsync(
         Guid appointmentId,
@@ -67,10 +79,14 @@ public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDep
             tenantId,
             entries.Count == 0 ? null : IntakePayloadSerializer.SerializeDocumentEntries(entries),
             EntriesKind,
-            entries.Select(e => (e.Id, e.UpdatedAt)));
+            entries.Select(e => (e.Id, e.UpdatedAt)),
+            cancellationToken);
     }
 
-    /// <summary>Enqueues tombstones for documents the portal has removed or repudiated.</summary>
+    /// <summary>
+    /// Enqueues tombstones for documents the portal has removed or repudiated. Returns <c>null</c>
+    /// when nothing was written, on the same two grounds as <see cref="EnqueueDocumentEntriesAsync"/>.
+    /// </summary>
     public virtual Task<IntegrationOutboxItem?> EnqueueDeletionsAsync(
         Guid appointmentId,
         Guid? tenantId,
@@ -84,7 +100,8 @@ public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDep
             tenantId,
             entries.Count == 0 ? null : IntakePayloadSerializer.SerializeDeletionEntries(entries),
             DeletionsKind,
-            entries.Select(e => (e.Id, e.UpdatedAt)));
+            entries.Select(e => (e.Id, e.UpdatedAt)),
+            cancellationToken);
     }
 
     private async Task<IntegrationOutboxItem?> EnqueueAsync(
@@ -92,10 +109,21 @@ public class CaseTrackerDocumentQueue : ICaseTrackerDocumentQueue, ITransientDep
         Guid? tenantId,
         string? payloadJson,
         string kind,
-        IEnumerable<(Guid Id, string UpdatedAt)> keyParts)
+        IEnumerable<(Guid Id, string UpdatedAt)> keyParts,
+        CancellationToken cancellationToken)
     {
         if (payloadJson == null)
         {
+            return null;
+        }
+
+        if (!await _outboxManager.HasIntakeAsync(appointmentId, cancellationToken))
+        {
+            // Information, not Debug: a silently dropped message is the failure class this
+            // integration keeps hitting, so a suppression must be visible in a normal log.
+            _logger.LogInformation(
+                "CaseTrackerDocumentQueue: appointment {AppointmentId} has no intake queued yet; {Kind} update not written. The intake carries the current document list when it is built.",
+                appointmentId, kind);
             return null;
         }
 

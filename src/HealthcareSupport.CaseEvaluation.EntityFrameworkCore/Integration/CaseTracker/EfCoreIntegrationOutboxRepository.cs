@@ -59,4 +59,18 @@ public class EfCoreIntegrationOutboxRepository
             .Where(x => x.Status == IntegrationOutboxStatus.Sent && x.SentAt >= sinceUtc)
             .CountAsync(cancellationToken);
     }
+
+    public async Task<bool> HasIntakeAsync(
+        Guid appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // Deliberately NO status filter: every status counts (see the interface). EF's query filters
+        // scope it to the current office's live rows -- which is exactly why a purge would break it.
+        return await dbSet
+            .AnyAsync(
+                x => x.AppointmentId == appointmentId && x.MessageType == IntegrationMessageType.Intake,
+                cancellationToken);
+    }
 }

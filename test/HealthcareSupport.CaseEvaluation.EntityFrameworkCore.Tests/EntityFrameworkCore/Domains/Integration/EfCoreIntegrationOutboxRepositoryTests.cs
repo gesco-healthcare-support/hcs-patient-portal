@@ -12,6 +12,10 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// wins a due row, a second is skipped WITHOUT an exception (the whole reason this repository exists
 /// rather than an optimistic UpdateAsync), an expired lease is reclaimable, and terminal rows are
 /// not leasable.
+///
+/// <para>Also pins the intake-exists query behind the #931 document gate. Its rules live in the
+/// query, so this is the only layer where they can be proven: every status counts, only Intake rows
+/// count, and the answer is per appointment.</para>
 /// </summary>
 [Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
@@ -38,6 +42,96 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
 
     private Task<IntegrationOutboxItem> InsertAsync(IntegrationOutboxItem item) =>
         WithUnitOfWorkAsync(() => _outboxRepository.InsertAsync(item, autoSave: true));
+
+    /// <summary>
+    /// A row of the given type for an appointment of the test's own, so the intake-exists tests
+    /// cannot see the Intake rows the lease tests insert for <see cref="AppointmentId"/>.
+    /// </summary>
+    private static IntegrationOutboxItem NewRow(Guid appointmentId, IntegrationMessageType messageType)
+    {
+        var id = Guid.NewGuid();
+        return new(
+            id,
+            tenantId: null,
+            messageType,
+            targetPath: messageType == IntegrationMessageType.Intake
+                ? CaseTrackerEndpoints.Intake
+                : CaseTrackerEndpoints.DocumentUpdate(appointmentId),
+            appointmentId: appointmentId,
+            payload: "{\"data\":{}}",
+            idempotencyKey: "key-" + id.ToString("N"));
+    }
+
+    private Task<bool> HasIntakeAsync(Guid appointmentId) =>
+        WithUnitOfWorkAsync(() => _outboxRepository.HasIntakeAsync(appointmentId));
+
+    [Theory]
+    [InlineData(IntegrationOutboxStatus.Pending)]
+    [InlineData(IntegrationOutboxStatus.Sent)]
+    [InlineData(IntegrationOutboxStatus.Failed)]
+    [InlineData(IntegrationOutboxStatus.Resolved)]
+    public async Task HasIntakeAsync_WithAnIntakeRowInAnyStatus_ReturnsTrue(IntegrationOutboxStatus status)
+    {
+        // The rule a later reader is most likely to "tighten" to Sent. A Failed or still-Pending
+        // intake is already in hand; holding back the document updates that follow it would strand
+        // them behind a retry that is the outbox's job, not the gate's.
+        var appointmentId = Guid.NewGuid();
+        var row = NewRow(appointmentId, IntegrationMessageType.Intake);
+        switch (status)
+        {
+            case IntegrationOutboxStatus.Sent:
+                row.MarkSent(Now);
+                break;
+            case IntegrationOutboxStatus.Failed:
+                row.MarkFatal(Now, "401 invalid token");
+                break;
+            case IntegrationOutboxStatus.Resolved:
+                row.MarkFatal(Now, "401 invalid token");
+                row.MarkResolved(Now);
+                break;
+        }
+
+        // Guards the fixture: MarkResolved is a no-op on anything but a Failed row, so a wrong
+        // sequence above would silently test a different status than the case claims.
+        row.Status.ShouldBe(status);
+        await InsertAsync(row);
+
+        (await HasIntakeAsync(appointmentId)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task HasIntakeAsync_WithOnlyADocumentUpdateRow_ReturnsFalse()
+    {
+        // Without the message-type filter the first document update would create the row that
+        // authorises the second, and the gate would open itself.
+        var appointmentId = Guid.NewGuid();
+        await InsertAsync(NewRow(appointmentId, IntegrationMessageType.DocumentUpdate));
+
+        (await HasIntakeAsync(appointmentId)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task HasIntakeAsync_WithAnIntakeForAnotherAppointmentOnly_ReturnsFalse()
+    {
+        var appointmentId = Guid.NewGuid();
+        await InsertAsync(NewRow(Guid.NewGuid(), IntegrationMessageType.Intake));
+
+        (await HasIntakeAsync(appointmentId)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task HasIntakeAsync_WithASoftDeletedIntakeRow_ReturnsFalse()
+    {
+        // Pins the hazard the interface documents rather than a behaviour anyone wants: nothing
+        // deletes outbox rows today, and if a purge is ever added this is what it does to the #931
+        // gate -- every later document update for the appointment is suppressed, silently. A change
+        // that makes this test fail is the fix, not a regression.
+        var appointmentId = Guid.NewGuid();
+        var row = await InsertAsync(NewRow(appointmentId, IntegrationMessageType.Intake));
+        await WithUnitOfWorkAsync(() => _outboxRepository.DeleteAsync(row.Id, autoSave: true));
+
+        (await HasIntakeAsync(appointmentId)).ShouldBeFalse();
+    }
 
     [Fact]
     public async Task TryLeaseAsync_FirstWins_SecondBlockedWithinLease()

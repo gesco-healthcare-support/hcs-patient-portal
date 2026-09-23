@@ -39,10 +39,15 @@ public abstract class DocumentRemovalHandlerBase
     /// Queues a tombstone for one document. Never throws: the staff action that triggered it has
     /// already succeeded and must not be undone by an integration failure.
     ///
-    /// <para>Deliberately does NOT check whether the document was ever published. Deleting an id the
-    /// receiver does not hold is a harmless no-op, so tracking published-state would duplicate the
-    /// outbox ledger to prevent nothing. It also could not work here: by the time this runs the row
-    /// is soft-deleted, so a lookup would come back empty.</para>
+    /// <para>Deliberately does NOT check whether this DOCUMENT was ever published. Deleting an id the
+    /// receiver does not hold is a harmless no-op, so tracking per-document published-state would
+    /// duplicate the outbox ledger to prevent nothing. It also could not work here: by the time this
+    /// runs the row is soft-deleted, so a lookup would come back empty.</para>
+    ///
+    /// <para>The APPOINTMENT-level check is different and does apply: the queue writes no tombstone
+    /// for an appointment with no intake row yet (#931), because the tombstone would sit ahead of the
+    /// intake it refers to. Nothing is lost -- the intake, built later from the current document list,
+    /// never lists the removed document. A null row from the queue means exactly that.</para>
     /// </summary>
     protected async Task PublishRemovalAsync(Guid appointmentId, Guid documentId, string trigger)
     {

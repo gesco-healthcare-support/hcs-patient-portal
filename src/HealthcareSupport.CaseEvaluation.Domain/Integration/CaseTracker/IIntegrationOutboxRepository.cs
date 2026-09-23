@@ -40,4 +40,24 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
     /// repository; the drain always runs inside one office's scope.</para>
     /// </summary>
     Task<int> CountSentSinceAsync(DateTime sinceUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether this appointment has EVER had an intake row, in any status. Pending, Sent, Failed and
+    /// Resolved all count: the question is "has an intake for this appointment been queued", and a
+    /// Failed or still-Pending row means that telling is already in hand -- retrying it is the
+    /// outbox's job, not a reason to queue a second intake or to hold back what follows it.
+    ///
+    /// <para>The document queue gates on this (#931) so a document update can never sit AHEAD of its
+    /// own intake in the stream, and the packet publisher branches on it to choose between an intake
+    /// and a document update.</para>
+    ///
+    /// <para>Office scoping is the ambient tenant filter, matching every other query on this
+    /// repository.</para>
+    ///
+    /// <para>DEPENDS ON OUTBOX ROWS NEVER BEING DELETED. Nothing purges this table today. The entity
+    /// is soft-deletable, so EF's soft-delete filter would hide a deleted intake row from this query:
+    /// if a retention job is ever added, every later document update for that appointment is
+    /// suppressed SILENTLY. Such a job must keep intake rows, or this must stop filtering them.</para>
+    /// </summary>
+    Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default);
 }
