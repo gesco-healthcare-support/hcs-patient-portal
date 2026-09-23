@@ -150,6 +150,7 @@ describe('admin-hub.util', () => {
     it('maps method to a chip class', () => {
       expect(auditMethodClass('GET')).toBe('get');
       expect(auditMethodClass('post')).toBe('post');
+      expect(auditMethodClass('PUT')).toBe('put');
       expect(auditMethodClass('DELETE')).toBe('del');
       expect(auditMethodClass(null)).toBe('');
     });

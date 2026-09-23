@@ -4,6 +4,63 @@ import { ExternalNavbarComponent } from './external-navbar.component';
 import { BrandingService } from '../../branding/branding.service';
 import { avatarColor } from '../../ui/avatar.util';
 
+/**
+ * The notifications dropdown's own state: the unread badge count, one menu open at a time, and
+ * mark-all-read clearing the badge without dropping any row.
+ */
+describe('ExternalNavbarComponent notifications menu', () => {
+  interface Probe {
+    notifications: { title?: string; unread: boolean }[];
+    unreadCount: number;
+    openMenu: 'notif' | 'acct' | null;
+    toggle(menu: 'notif' | 'acct'): void;
+    markAllRead(): void;
+  }
+
+  function create(): Probe {
+    TestBed.configureTestingModule({
+      imports: [ExternalNavbarComponent],
+      providers: [{ provide: BrandingService, useValue: brandingStub }],
+    });
+    return TestBed.createComponent(ExternalNavbarComponent).componentInstance as unknown as Probe;
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('counts only the unread notifications for the badge', () => {
+    const c = create();
+    c.notifications = [{ unread: true }, { unread: false }, { unread: true }];
+
+    expect(c.unreadCount).toBe(2);
+  });
+
+  it('marks every notification read without dropping any', () => {
+    const c = create();
+    c.notifications = [
+      { title: 'a', unread: true },
+      { title: 'b', unread: false },
+    ];
+
+    c.markAllRead();
+
+    expect(c.unreadCount).toBe(0);
+    expect(c.notifications.map((n) => n.title)).toEqual(['a', 'b']);
+  });
+
+  it('opens a menu, closes it on a second toggle, and keeps only one open at a time', () => {
+    const c = create();
+
+    c.toggle('notif');
+    expect(c.openMenu).toBe('notif');
+
+    c.toggle('acct');
+    expect(c.openMenu).toBe('acct');
+
+    c.toggle('acct');
+    expect(c.openMenu).toBeNull();
+  });
+});
+
 // Stub the branding service so the navbar's DI does not pull in RestService
 // (and its ABP CORE_OPTIONS) for this pure initials-logic spec.
 const brandingStub = {

@@ -651,7 +651,10 @@ jobs:
     # always() so a failed classifier does not skip it; the build must have
     # SUCCEEDED, so a skipped or failed build still skips the test.
     if: ${{ always() && needs.backend-build.result == 'success' }}
-    timeout-minutes: 25
+    # 45, raised from 25 on 2026-09-23 (#1029). The EF Core integration suite alone ran
+    # 21-23 min that day and jobs were being cancelled at 25 with every test passing.
+    # Still bounded, so a hung test is cut off. Making the suite faster is #1032.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
@@ -1023,7 +1026,109 @@ jobs:
       # Trustworthy for the same reason the old figure was: the UNFILTERED read
       # of that same report reproduces karma's own summary exactly (20.73%,
       # 2049/9881), which validates the parser rather than merely the number.
-      FLOOR_FRONTEND: "20"
+      #
+      # 20 UNTIL 2026-09-21, AND IT COULD NOT FIRE. Phase-8 tranches 1-9 took the front end from
+      # 20.97% to 80.14% and the floor never followed, so four fifths of the frontend suite could
+      # have been deleted without tripping it. Issue #979 carried the trigger -- raise it once the
+      # epic branch's coverage reached `main` -- and that happened 2026-09-19: #987 promoted the
+      # epic at 00:11:29Z, #974 cascaded main to development at 00:20:55Z.
+      #
+      # MEASURED TWICE, IN TWO ENVIRONMENTS, because one instrument agreeing with itself is the
+      # null result you would get either way:
+      #
+      #   CI, ubuntu runner. PR #984, whose base was the epic branch, run 35405349286:
+      #     frontend: measured 80.14% (7307/9118 lines over 272 files)
+      #
+      #   LOCAL, Windows / Node 24 / Chrome Headless 153, at epic tip 5b1b0781:
+      #     npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
+      #       -> Executed 3057 of 3057 SUCCESS / TOTAL: 3057 SUCCESS
+      #     git ls-files > tracked.txt
+      #     python scripts/coverage-gate.py --measure-only --exclusions .coverage-exclusions \
+      #       --lcov angular/coverage/CaseEvaluation/lcov.info --lcov-prefix angular \
+      #       --tracked-files tracked.txt
+      #       -> frontend: 80.14% (7307/9118 lines over 272 files)
+      #
+      # Agreement was exact, including both line counts AND the file count. `main` measures
+      # 80.19% (7319/9127) on run 35408497124. Pass --tracked-files a REAL FILE: a process
+      # substitution hands a /dev/fd path to a Windows Python and resolves somewhere else.
+      #
+      # BEWARE WHICH RUN YOU READ. The most recent runs on the epic and on `main` are both
+      # pull_request events, so Actions measured the MERGE COMMIT rather than either branch tip.
+      # Both report 80.19% (7319/9127), which is post-cascade content and NOT the epic's tree --
+      # the 9-line difference is #983. Read a run whose base was the branch you care about.
+      #
+      # 80 IS THE CONVENTION FIGURE FROM :976-990 (truncate the measurement DOWN to a whole
+      # number), and it is the TIGHT choice rather than the headroom one. FLOOR_PYTHON below
+      # departs from that convention deliberately -- 90 against 92.05% -- on the PR review lane's
+      # #971 argument that one production file added without tests can turn CI red on a submission
+      # that did nothing wrong. Adrian ruled the other way here on 2026-09-21: take the ratchet,
+      # because every change to this app should be intended and the app should be protected as
+      # far as possible. #979's own text proposed 75 and computed "3.82 points of headroom";
+      # BOTH figures were derived against the 78.82% the epic measured on 2026-09-18 and are now
+      # stale twice over. Do not reintroduce either number.
+      #
+      # THE MARGIN, IN LINES, IN BOTH DIRECTIONS, because points hide how small it is. The
+      # comparison uses the UNROUNDED value, per :976-987:
+      #
+      #                                        epic (7307/9118)   main (7319/9127)
+      #     covered lines that may be LOST            12                 17
+      #     NEW production lines at 0% coverage       15                 21
+      #     one flipped line is worth              0.011 pts          0.011 pts
+      #
+      # THE 15 IS THE NUMBER TO WATCH, not the 12. One new component of ~40 lines merged without
+      # a spec takes the epic under this floor while breaking nothing -- exactly the failure mode
+      # #971 named, here with about a sixth of the slack that argument was about. FLOOR_CHANGED
+      # at 90% already gates new code per submission, so if this floor starts producing false
+      # reds it is the ABSOLUTE one to reconsider, never the changed-lines one.
+      #
+      # THE ROUNDING ARGUMENT AT :989 STILL HOLDS, and is not what makes this tight. One line is
+      # 0.011 points and cannot reach the 0.138 available, so display rounding and ordinary
+      # two-line jitter cannot trip a whole number here. The exposure is real code change.
+      #
+      # SAME-MACHINE VARIANCE IS ZERO. CROSS-ENVIRONMENT VARIANCE IS ONE LINE. Both measured.
+      #
+      # Two full local suites 26 minutes apart on identical code at 5b1b0781, compared line by
+      # line with the gate's own MAX-hits semantics: 0 state flips, 0 hit-count changes across all
+      # 9,118 counted lines, byte-identical per-file output. So a re-run on one machine does not
+      # move this figure.
+      #
+      # THAT IS NOT THE SAME AS STABLE, and the difference showed up the same afternoon. The
+      # local and CI reports for the SAME commit were diffed against each other, and across 9,118
+      # lines there was exactly ONE state flip:
+      #
+      #   appointments/wizard/appointment-wizard.component.ts:190   local hit=2   CI hit=0
+      #
+      # That is #965's line, so this is no longer a historical observation about it -- it is the
+      # measured behaviour, and the flip has now been seen between two CI runs of two of this
+      # epic's own pull requests. ONE LINE IS 1/12 OF THIS FLOOR'S MARGIN. It does not break an 80
+      # floor on its own, and it cannot cascade (see the bound below), but the drift is live rather
+      # than retired, and it consumes margin in the environment where the floor is actually
+      # enforced. If #965 is ever fixed, this floor gets that twelfth back.
+      #
+      # THE ONE KNOWN NONDETERMINISTIC LINE IS #965, AND ITS COST IS BOUNDED AT ONE LINE.
+      # appointment-wizard.component.ts:190 is the arrow body of a debounceTime(600) subscription
+      # that no spec drives deliberately, and karma.conf.js:14-20 leaves jasmine's random spec
+      # ordering on. It was observed flipping between two runs whose spec SET differed -- which is
+      # what every coverage tranche does, so expect it at a tranche boundary, not on a re-run. It
+      # cannot cascade: saveDraft() is called directly at appointment-wizard-shell.spec.ts:825,
+      # so the method body stays covered when the debounce does not fire. One line of the twelve.
+      # IF THIS FLOOR GOES RED, read the per-file delta FIRST and #965 second -- sending a reader
+      # to a one-line cause for a twelve-line budget is how a day gets lost.
+      #
+      # WHAT THIS FLOOR BUYS, stated so nobody widens a diff without knowing the cost. The
+      # changed-path classifier's `angular/*` case sets `frontend=true` and nothing else, so an
+      # angular-only pull request leaves the backend NOT APPLICABLE -- see the `applicable()`
+      # helper in this job's "Evaluate floors" step -- and `Coverage: Floors` returns FULLY GREEN,
+      # which makes any red on such a submission real signal. Add one docs/ or .github/ file and
+      # the classifier's `shared=true` arm makes the backend applicable, failing the job on
+      # FLOOR_BACKEND's deliberate 75 and forfeiting that signal.
+      #
+      # REFERRED TO BY NAME RATHER THAN BY LINE, deliberately. A first draft of this paragraph
+      # cited `:150-152` and `:1274-1280`. The first pointed at the SHARED arm rather than the
+      # angular one, and the second was already stale when it was written, because the 80 lines
+      # of comment above it had pushed `applicable()` down by exactly that much. A line number in
+      # a comment is invalidated by the comment itself.
+      FLOOR_FRONTEND: "80"
       # BACKEND -- MEASURED, by the mechanism this job was built around. It was
       # deliberately unset until 2026-09-03 so the gate's own first run would
       # fail and print the figure, which is exactly what happened:
@@ -1120,9 +1225,28 @@ jobs:
       # is to revert the value, the value being the thing that looks anomalous.
       #
       # THE KNOWN COST, so it is not discovered later: a check that is routinely overridden stops
-      # being read. Backend: Test and Coverage: Floors run in the SAME job, so a genuine test
-      # failure surfaces in the same place as the expected floor failure. Whoever overrides must
-      # confirm WHICH checks failed, every time -- not merely that a check failed.
+      # being read. Whoever overrides must confirm WHICH checks failed, every time -- not merely
+      # that a check failed.
+      #
+      # CORRECTED 2026-09-18, and the correction is recorded rather than quietly applied because
+      # this paragraph is the written justification for the override procedure covering the next
+      # several tranches. It previously said Backend: Test and Coverage: Floors "run in the SAME
+      # job, so a genuine test failure surfaces in the same place as the expected floor failure".
+      #
+      # THAT WAS FALSE. They are separate top-level jobs -- `backend-test:` and `coverage-floors:`
+      # in this file -- reporting the checks "Backend: Test" and "Coverage: Floors" independently.
+      # #980's own merge proves it empirically rather than by argument: on a single commit,
+      # Backend: Test was success while Coverage: Floors was failure. One job cannot report two
+      # conclusions.
+      #
+      # THE DISCIPLINE SURVIVES THE CORRECTION AND GETS CHEAPER. Because these are separate checks,
+      # which one failed is visible in the checks list; no log needs opening to tell an expected
+      # floor failure from a real test failure. The confirmation is still required every time --
+      # only the claim that it is expensive was wrong.
+      #
+      # Fixed the same day rather than deferred for one reason: a procedure justified by a
+      # mechanism any reader can disprove in thirty seconds is a procedure that gets abandoned,
+      # and the discipline goes with it.
       FLOOR_BACKEND: "75"
       # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
       # refuses to run without a floor and prints the figure to copy.
@@ -1200,10 +1324,14 @@ jobs:
       # slow leak: the shipping files described above sit in the denominator at 0%, so the first
       # test written for one RAISES this figure.
       #
-      # THE FRONTEND HALF IS HELD AT #979, deliberately, so this does not read as one floor raised
-      # and its sibling forgotten. Frontend measures 74.78% on main; the proposed 75 would sit 0.22
-      # points ABOVE the measurement and fail every pull request to main. #979 carries the trigger
-      # condition and the verification command.
+      # THE FRONTEND HALF WAS HELD AT #979 AND IS NOW DONE (2026-09-21). This paragraph used to
+      # read "Frontend measures 74.78% on main; the proposed 75 would sit 0.22 points ABOVE the
+      # measurement and fail every pull request to main", which was true when written and went
+      # false the moment the epic cascaded to `main` on 2026-09-19. Frontend now measures 80.19%
+      # there, and FLOOR_FRONTEND above is 80 -- the convention figure, not the 75 #979 proposed.
+      # Kept as a correction rather than deleted, per this file's convention: an entry that argues
+      # FROM a measurement outlives the measurement, and this one was found only because the
+      # change that invalidated it went looking for entries citing the old number.
       FLOOR_PYTHON: "90"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one

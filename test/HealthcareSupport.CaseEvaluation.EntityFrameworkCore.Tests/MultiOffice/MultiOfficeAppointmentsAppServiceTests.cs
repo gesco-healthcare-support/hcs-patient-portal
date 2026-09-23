@@ -81,7 +81,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(7);
+            var date = TestToday.AddDays(7);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15));
 
@@ -102,7 +102,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(8);
+            var date = TestToday.AddDays(8);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15));
             input.IsPatientAlreadyExist = true;
@@ -131,11 +131,11 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
                 appointmentTypeId: officeA.AppointmentTypeId,
                 locationId: officeA.LocationId,
                 doctorAvailabilityId: officeA.DoctorAvailabilityId,
-                appointmentDate: DateTime.Today.AddDays(-1),
+                appointmentDate: TestToday.AddDays(-1),
                 requestConfirmationNumber: sourceConfirmation,
                 appointmentStatus: AppointmentStatusType.Approved), autoSave: true);
 
-            var date = DateTime.Today.AddDays(9);
+            var date = TestToday.AddDays(9);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(13).AddMinutes(15));
 
@@ -167,7 +167,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(9);
+            var date = TestToday.AddDays(9);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(14, 0), new TimeOnly(15, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(14).AddMinutes(15));
 
@@ -185,7 +185,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(10);
+            var date = TestToday.AddDays(10);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(30));
 
@@ -204,12 +204,12 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var dateA = DateTime.Today.AddDays(11);
+            var dateA = TestToday.AddDays(11);
             var slotA = await InsertSlotAsync(officeA, dateA, new TimeOnly(10, 0), new TimeOnly(11, 0));
             var first = await _appointmentsAppService.CreateAsync(
                 BuildCreateDto(officeA, slotA, dateA.AddHours(10).AddMinutes(15)));
 
-            var dateB = DateTime.Today.AddDays(12);
+            var dateB = TestToday.AddDays(12);
             var slotB = await InsertSlotAsync(officeA, dateB, new TimeOnly(10, 0), new TimeOnly(11, 0));
             var second = await _appointmentsAppService.CreateAsync(
                 BuildCreateDto(officeA, slotB, dateB.AddHours(10).AddMinutes(15)));
@@ -227,7 +227,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(13);
+            var date = TestToday.AddDays(13);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
 
             await _appointmentsAppService.CreateAsync(
@@ -245,7 +245,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(14);
+            var date = TestToday.AddDays(14);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
             await CloseSlotAsync(slotId);
 
@@ -266,7 +266,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
         {
             // Seed a second location, put the slot there, then ask for the original.
             var otherLocationId = await InsertSecondLocationAsync(officeA);
-            var date = DateTime.Today.AddDays(15);
+            var date = TestToday.AddDays(15);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0), locationId: otherLocationId);
 
             var input = BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15));
@@ -285,7 +285,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(16);
+            var date = TestToday.AddDays(16);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
 
             // Request a different calendar day than the slot's date.
@@ -304,7 +304,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(17);
+            var date = TestToday.AddDays(17);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
             await CloseSlotAsync(slotId);
 
@@ -323,7 +323,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(18);
+            var date = TestToday.AddDays(18);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0), capacity: 2);
             await InsertPendingAppointmentAsync(officeA, slotId, date.AddHours(9).AddMinutes(10), "A-CAP-1");
             await InsertPendingAppointmentAsync(officeA, slotId, date.AddHours(9).AddMinutes(20), "A-CAP-2");
@@ -345,7 +345,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(19);
+            var date = TestToday.AddDays(19);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0), capacity: 1);
 
             // A Rejected appointment must NOT count toward active capacity.
@@ -394,7 +394,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(dayOffset);
+            var date = TestToday.AddDays(dayOffset);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0), capacity: 1);
 
             await _appointmentRepository.InsertAsync(new Appointment(
@@ -421,7 +421,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(20);
+            var date = TestToday.AddDays(20);
             // Loose slot: no appointment types -> accepts any.
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0),
                 types: Array.Empty<Guid>());
@@ -442,7 +442,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
             // +47, not +21: MultiOfficeAtomicBookingSubmitTests also seeds a 09:00-10:00 slot at
             // +21, and both classes write against the SAME shared office and location, so the two
             // tuples collided. Offsets above 46 are unused by any other test.
-            var date = DateTime.Today.AddDays(47);
+            var date = TestToday.AddDays(47);
             // Slot accepts only the primary type; request the second type.
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
             var input = BuildCreateDto(officeA, slotId, date.AddHours(9).AddMinutes(15));
@@ -461,7 +461,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
 
         await InOfficeAsync(officeA, async () =>
         {
-            var date = DateTime.Today.AddDays(22);
+            var date = TestToday.AddDays(22);
             var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0),
                 types: new[] { officeA.AppointmentTypeId, officeA.SecondAppointmentTypeId });
             var input = BuildCreateDto(officeA, slotId, date.AddHours(9).AddMinutes(15));
@@ -481,7 +481,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
         {
             // Past date: slot is Available + non-full + correct type, so the capacity
             // gate passes; the booking-policy past-date check then throws.
-            var pastDate = DateTime.Today.AddDays(-5);
+            var pastDate = TestToday.AddDays(-5);
             var slotId = await InsertSlotAsync(officeA, pastDate, new TimeOnly(9, 0), new TimeOnly(10, 0));
             var input = BuildCreateDto(officeA, slotId, pastDate.AddHours(9).AddMinutes(15));
 
@@ -500,7 +500,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
         {
             using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId))
             {
-                var date = DateTime.Today.AddDays(23);
+                var date = TestToday.AddDays(23);
                 var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
                 var appointment = await _appointmentsAppService.CreateAsync(
                     BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15)));
@@ -536,7 +536,7 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
         {
             using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId))
             {
-                var date = DateTime.Today.AddDays(24);
+                var date = TestToday.AddDays(24);
                 var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
                 var appointment = await _appointmentsAppService.CreateAsync(
                     BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15)));

@@ -110,5 +110,17 @@ describe('SmartyAddressProvider', () => {
       });
       httpMock.expectOne(() => true).error(new ProgressEvent('error'));
     });
+
+    it('reports an address with no candidate as unverified but matching the input', (done) => {
+      // An empty candidate list is a successful answer, not a transport error. Pinned as the
+      // current behaviour (approved 2026-09-22): unverified, matchesInput true, nothing standardized.
+      provider.validate({ street: '1 Example Way', city: 'Exampleville' }).subscribe((r) => {
+        expect(r.status).toBe('unverified');
+        expect(r.matchesInput).toBeTrue();
+        expect(r.standardized).toBeUndefined();
+        done();
+      });
+      httpMock.expectOne((r) => r.url === config.verifyUrl).flush([]);
+    });
   });
 });

@@ -13,6 +13,7 @@ import {
 import { ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 
 import { InternalAppointmentDetailComponent } from './internal-appointment-detail.component';
+import { AppointmentViewComponent } from './appointment-view.component';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
 import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
@@ -553,6 +554,82 @@ describe('InternalAppointmentDetailComponent surfaces', () => {
       infoRequests.getHistory.and.returnValue(of(null));
       c.onChangeRequestSucceeded({ changeRequestType: ChangeRequestType.Cancel });
       expect(c.infoHistory).toEqual([]);
+    });
+  });
+
+  /**
+   * The subclass's own `ngOnInit`: the appointment-language lookup behind the read ledger, and
+   * the send-back history.
+   *
+   * <p>`super.ngOnInit()` is still not driven, for the reason given at the top of this file. The
+   * BASE prototype's `ngOnInit` is replaced with a spy for these tests only (jasmine restores it
+   * after each one), which keeps the inherited load chain out while still proving the subclass
+   * calls it.</p>
+   */
+  describe('initialisation', () => {
+    let baseInit: jasmine.Spy;
+
+    beforeEach(() => {
+      baseInit = spyOn(AppointmentViewComponent.prototype, 'ngOnInit');
+    });
+
+    /** The inherited lookup is an instance arrow field, so it is replaced per instance. */
+    function withLanguages(c: Probe, response: unknown): jasmine.Spy {
+      const lookup = jasmine
+        .createSpy('getAppointmentLanguageLookup')
+        .and.returnValue(of(response));
+      c.getAppointmentLanguageLookup = lookup;
+      return lookup;
+    }
+
+    it('still runs the inherited load', () => {
+      const c = create();
+      withLanguages(c, { items: [] });
+      c.ngOnInit();
+      expect(baseInit).toHaveBeenCalled();
+    });
+
+    it('names the patient language from the lookup it loads', () => {
+      const c = create();
+      const lookup = withLanguages(c, {
+        items: [
+          { id: 'lang-1', displayName: 'Spanish' },
+          { id: 'lang-2' },
+          { displayName: 'No id' },
+        ],
+      });
+
+      c.ngOnInit();
+
+      expect(lookup).toHaveBeenCalledWith({ filter: '', skipCount: 0, maxResultCount: 100 });
+      expect(c.languageName('lang-1')).toBe('Spanish');
+      expect(c.languageName('lang-2')).withContext('a row with no display name').toBe('');
+      expect(c.languageName('lang-9')).withContext('an id the lookup did not return').toBe('');
+      expect(c.languageNamesById.size).withContext('the row with no id is skipped').toBe(2);
+    });
+
+    it('treats a lookup with no rows as no languages', () => {
+      const c = create();
+      withLanguages(c, {});
+      c.ngOnInit();
+      expect(c.languageNamesById.size).toBe(0);
+    });
+
+    it('loads the send-back history for the routed appointment', () => {
+      const c = create();
+      withLanguages(c, { items: [] });
+      c.ngOnInit();
+      expect(infoRequests.getHistory).toHaveBeenCalledWith('appt-1');
+    });
+
+    it('skips the history when the route carries no id', () => {
+      const c = create();
+      withLanguages(c, { items: [] });
+      routeId = null;
+
+      c.ngOnInit();
+
+      expect(infoRequests.getHistory).not.toHaveBeenCalled();
     });
   });
 });

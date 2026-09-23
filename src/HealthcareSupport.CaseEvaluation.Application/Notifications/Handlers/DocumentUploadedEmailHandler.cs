@@ -15,30 +15,33 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
 /// Phase 14b (2026-05-04) -- subscribes to
-/// <see cref="AppointmentDocumentUploadedEto"/> and dispatches the
-/// OLD-parity <c>PatientDocumentUploaded</c> /
-/// <c>PatientNewDocumentUploaded</c> email to the uploader + the
-/// appointment's <c>PrimaryResponsibleUserId</c>. Mirrors OLD's
+/// <see cref="AppointmentDocumentUploadedEto"/> and dispatches ONE email:
+/// To the uploader, CC every other party the recipient resolver returns.
+/// The office mailbox is NOT filtered out of the CC here (staff want a copy
+/// of new uploads; the accept and reject emails drop it), and the dispatcher
+/// drops a CC equal to the To. Mirrors OLD's
 /// <c>SendDocumentEmail</c> at
 /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:289-303
 /// (package-doc upload) and the parallel <c>AppointmentNewDocumentDomain.SendDocumentEmail</c>
 /// for ad-hoc uploads.
 ///
-/// <para>Template-code routing per (IsAdHoc, IsJointDeclaration):</para>
+/// <para>The uploader is the event's <c>UploadedByUserId</c>, else the
+/// document's stored uploader, with the patient email (else the booker
+/// email) as the fallback address -- an anonymous verification-code upload
+/// has no user id. The To is "registered" only when the EVENT carries a
+/// user id.</para>
+///
+/// <para>Template-code routing per (IsAdHoc, IsJointDeclaration), via
+/// <see cref="DocumentNotificationContext.ClassifyDocumentTemplateCode"/>;
+/// the Joint Declaration flag wins over ad-hoc:</para>
 /// <list type="bullet">
 ///   <item>(false, false) -> <c>PatientDocumentUploaded</c></item>
-///   <item>(true, false) -> <c>PatientDocumentUploaded</c> (OLD shares
-///         the same template enum across the two tables; per
-///         <c>docs/parity/external-user-appointment-ad-hoc-documents.md</c>
-///         "Email templates shared with package docs")</item>
-///   <item>(*, true) -> <c>PatientDocumentUploaded</c> (JDF reuses
-///         the same template surface; subject builder includes
-///         "Joint Declaration" via the document name)</item>
+///   <item>(true, false) -> <c>PatientNewDocumentUploaded</c></item>
+///   <item>(*, true) -> <c>JointAgreementLetterUploaded</c></item>
 /// </list>
 ///
-/// <para>Responsible-user email skip when <c>PrimaryResponsibleUserId</c>
-/// is null (OLD-bug-fix per the ad-hoc audit -- OLD's <c>.Value</c>
-/// access NRE'd in that case).</para>
+/// <para>There is no separate responsible-user
+/// (<c>PrimaryResponsibleUserId</c>) recipient.</para>
 /// </summary>
 public class DocumentUploadedEmailHandler :
     ILocalEventHandler<AppointmentDocumentUploadedEto>,

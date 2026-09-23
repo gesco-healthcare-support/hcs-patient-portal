@@ -158,6 +158,32 @@ describe('validateRuntimeConfig', () => {
       };
       expect(validateRuntimeConfig(cfg).join(' ')).toContain('apis.SomeFutureApi.url');
     });
+
+    it('rejects an api entry that is not an object', () => {
+      const cfg = validDevConfig();
+      (cfg['apis'] as Record<string, unknown>)['default'] = 'https://api.portal.example.com';
+      expect(validateRuntimeConfig(cfg)).toContain('apis.default must be an object');
+    });
+
+    it('rejects an empty rootNamespace', () => {
+      const cfg = validDevConfig();
+      (cfg['apis'] as Record<string, unknown>)['default'] = {
+        url: 'http://localhost:44327',
+        rootNamespace: '',
+      };
+      expect(validateRuntimeConfig(cfg)).toContain(
+        'apis.default.rootNamespace must be a non-empty value',
+      );
+    });
+  });
+
+  describe('logoUrl is checked for type only', () => {
+    it('rejects a logoUrl that is not a string', () => {
+      // Positive control: 'allows an empty logoUrl' below shows a string, even an empty one, passes.
+      const cfg = validDevConfig();
+      (cfg['application'] as Record<string, unknown>)['logoUrl'] = 42;
+      expect(validateRuntimeConfig(cfg)).toEqual(['application.logoUrl must be a string']);
+    });
   });
 
   describe('https is required only when production is true', () => {
