@@ -29,9 +29,11 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// they registered (booking creates the record and the link with no user) is never claimed.
 /// <c>RegisterAsync</c> claims the attorney record first (<c>ExternalSignupAppService.cs:922</c>
 /// and <c>:963</c>), so the auto-link step (<c>:1009</c>) finds no unclaimed record and its
-/// link-claiming block (<c>:1157-1167</c>, <c>:1220-1230</c>) never runs. Attorney visibility reads
-/// the link's user (<c>AppointmentsAppService.cs:542</c> and <c>:580</c>), so that appointment stays invisible to
-/// them. A test asserting today's behaviour would pin the defect; the fix belongs to a src change.
+/// link-claiming block (<c>:1157-1167</c>, <c>:1220-1230</c>) never runs. The attorney still SEES
+/// the appointment: the list and read guard admit them by the email stored on it. What the unclaimed
+/// link costs is the attorney-scoped patient and booker lookups (<c>AppointmentsAppService.cs:542</c>,
+/// <c>:561</c>, <c>:580</c>, <c>:599</c>), which read the link's user. Tracked as #1037. A test
+/// asserting today's behaviour would pin the defect; the fix belongs to a src change.
 /// </para>
 /// Each test seeds a DECOY: an unlinked attorney record under a different email, which the
 /// registration must leave alone. Without it, a claim that ignored the email would pass. All names
