@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Observable, Subject, of } from 'rxjs';
 import { ManagedTableComponent } from './managed-table.component';
 import {
@@ -30,13 +31,17 @@ interface Row {
       [reload$]="reload$"
       emptyText="Nothing here."
     >
-      <b *managedTableCell="'name'; let row">NAME:{{ row.name }}</b>
+      @if (showCell) {
+        <b *managedTableCell="'name'; let row">NAME:{{ row.name }}</b>
+      }
       <button class="act" *managedTableRowActions="let row">ACT:{{ row.id }}</button>
     </app-managed-table>
   `,
 })
 class HostComponent {
   pageSize = 2;
+  /** Toggled by one test to add and remove the projected cell template after first render. */
+  showCell = true;
   readonly reload$ = new Subject<void>();
   columns: ManagedTableColumn[] = [
     { key: 'name', header: 'Name', sortable: true, sortKey: 'name' },
@@ -126,5 +131,94 @@ describe('ManagedTableComponent (QA item B)', () => {
     host.reload$.next();
     fixture.detectChanges();
     expect(host.queries).toHaveSize(before + 1);
+  });
+
+  /**
+   * The Sort by list and its direction button, the paging guards, and a cell template that
+   * comes and goes after the first render.
+   *
+   * <p>The guards are called on the table directly: the template disables the buttons that
+   * would reach them, and a click on a disabled button never fires, so the DOM cannot prove
+   * the method refuses on its own.</p>
+   */
+  describe('sort controls, paging guards and template changes', () => {
+    interface TableProbe {
+      toggleDir(): void;
+      prev(): void;
+      next(): void;
+    }
+    const table = () =>
+      fixture.debugElement.query(By.directive(ManagedTableComponent))
+        .componentInstance as unknown as TableProbe;
+
+    function chooseSort(value: string): void {
+      const select = el().querySelector('.mt__sort select') as HTMLSelectElement;
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    }
+
+    it('sorts ascending by the column chosen in Sort by, from the first page', () => {
+      table().next();
+      chooseSort('name');
+      expect(last().sorting).toBe('name asc');
+      expect(last().skipCount).toBe(0);
+    });
+
+    it('returns to the default order when Default is chosen', () => {
+      chooseSort('name');
+      chooseSort('');
+      expect(last().sorting).toBe('');
+    });
+
+    it('flips the direction from the direction button once a column is chosen', () => {
+      chooseSort('name');
+      (el().querySelector('button.mt__dir') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(last().sorting).toBe('name desc');
+      expect(last().skipCount).toBe(0);
+    });
+
+    it('does not reload for a direction change with no sort column', () => {
+      const before = host.queries.length;
+      table().toggleDir();
+      expect(host.queries).toHaveSize(before);
+    });
+
+    it('ignores a click on a column that is not sortable', () => {
+      const before = host.queries.length;
+      (el().querySelectorAll('thead th')[1] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(host.queries).toHaveSize(before);
+    });
+
+    it('pages back by one page, and not past the first', () => {
+      const before = host.queries.length;
+      table().prev();
+      expect(host.queries).withContext('already on the first page').toHaveSize(before);
+
+      table().next();
+      table().prev();
+      expect(last().skipCount).toBe(0);
+      expect(host.queries).toHaveSize(before + 2);
+    });
+
+    it('does not page past the last page', () => {
+      host.page = { items: [], totalCount: 2 };
+      host.reload$.next();
+      const before = host.queries.length;
+      table().next();
+      expect(host.queries).toHaveSize(before);
+    });
+
+    it('picks up a cell template that is removed or added after the first render', () => {
+      host.showCell = false;
+      fixture.detectChanges();
+      expect(el().textContent).not.toContain('NAME:Alpha');
+
+      host.showCell = true;
+      fixture.detectChanges();
+      expect(el().textContent).toContain('NAME:Alpha');
+    });
   });
 });

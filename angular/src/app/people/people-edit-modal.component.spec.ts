@@ -49,3 +49,67 @@ describe('PeopleEditModalComponent Escape handling (sweep #636)', () => {
     expect(c.cancelled).toHaveSize(1);
   });
 });
+
+/**
+ * The rest of the modal's own logic: which sections carry an email field, how edits merge into the
+ * draft, and the same `busy` guard on Save that Escape has -- a double-click must not send the
+ * same save twice.
+ */
+describe('PeopleEditModalComponent draft and save', () => {
+  interface Probe {
+    busy: boolean;
+    showEmail: boolean;
+    draft: () => Record<string, unknown>;
+    patch(partial: Record<string, unknown>): void;
+    onSave(): void;
+  }
+
+  function create(section: Partial<PeopleSection>, form: Record<string, unknown> = {}) {
+    TestBed.configureTestingModule({ imports: [PeopleEditModalComponent] });
+    const fixture = TestBed.createComponent(PeopleEditModalComponent);
+    fixture.componentRef.setInput('section', section as PeopleSection);
+    fixture.componentRef.setInput('form', form);
+    const saved: unknown[] = [];
+    fixture.componentInstance.save.subscribe((value) => saved.push(value));
+    return { probe: fixture.componentInstance as unknown as Probe, saved };
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('shows the email field for patients', () => {
+    expect(create({ key: 'patients', isPatient: true }).probe.showEmail).toBeTrue();
+  });
+
+  it('shows the email field for claim examiners', () => {
+    expect(create({ key: 'ce', isPatient: false }).probe.showEmail).toBeTrue();
+  });
+
+  it('hides the email field for attorneys', () => {
+    expect(create({ key: 'aa', isPatient: false }).probe.showEmail).toBeFalse();
+  });
+
+  it('merges an edit into the draft without dropping the other fields', () => {
+    const { probe } = create({ key: 'aa' }, { firstName: 'Grace', lastName: 'Example' });
+
+    probe.patch({ lastName: 'Sample' });
+
+    expect(probe.draft()).toEqual({ firstName: 'Grace', lastName: 'Sample' });
+  });
+
+  it('emits the draft on Save', () => {
+    const { probe, saved } = create({ key: 'aa' }, { firstName: 'Grace' });
+
+    probe.onSave();
+
+    expect(saved).toEqual([{ firstName: 'Grace' }]);
+  });
+
+  it('does not emit a second save while one is in flight', () => {
+    const { probe, saved } = create({ key: 'aa' }, { firstName: 'Grace' });
+    probe.busy = true;
+
+    probe.onSave();
+
+    expect(saved).toEqual([]);
+  });
+});

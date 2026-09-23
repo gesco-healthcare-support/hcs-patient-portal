@@ -621,4 +621,33 @@ describe('AppointmentDocumentsComponent surfaces', () => {
       expect(APPROVE_POLICY).toBeTruthy();
     });
   });
+
+  /**
+   * Two guards the blocks above do not reach: deleting with no appointment loaded, and
+   * rejecting a document that has no id. Neither may reach the server, and the delete guard
+   * must refuse before the confirmation prompt is shown.
+   */
+  describe('guards without an appointment or a document id', () => {
+    it('does not prompt or delete while no appointment is loaded', () => {
+      const c = create();
+      c.appointmentId = null;
+      const confirmSpy = spyOn(window, 'confirm').and.returnValue(true);
+
+      c.delete(doc());
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(service['delete']).not.toHaveBeenCalled();
+    });
+
+    it('does not send a rejection for a document with no id', () => {
+      const c = create({ canApprove: true });
+      c.openRejectModal(doc({ id: undefined }));
+      c.rejectionReason = 'Illegible scan';
+
+      c.submitReject();
+
+      expect(service['reject']).not.toHaveBeenCalled();
+      expect(c.isSubmittingReject).toBeFalse();
+    });
+  });
 });

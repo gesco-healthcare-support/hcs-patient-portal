@@ -616,9 +616,9 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         // the supersede test requires. Uniqueness comes from the minute offset -- see
         // _scenarioCounter.
         var scenarioMinute = Interlocked.Increment(ref _scenarioCounter);
-        var originSlotDate = DateTime.Today.AddDays(20);
-        var firstSlotDate = DateTime.Today.AddDays(30);
-        var secondSlotDate = DateTime.Today.AddDays(40);
+        var originSlotDate = TestToday.AddDays(20);
+        var firstSlotDate = TestToday.AddDays(30);
+        var secondSlotDate = TestToday.AddDays(40);
 
         await InOfficeAsync(office, async () =>
         {

@@ -126,6 +126,36 @@ describe('UsersSectionGateway', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
+  describe('the internal users page', () => {
+    it('sends the trimmed search, the sort and the page window', () => {
+      gateway().internalUsersPage(
+        query({ search: '  sam ', sorting: 'name asc', skipCount: 20, maxResultCount: 10 }),
+      );
+
+      expect(internalUsers['getInternalUsers']).toHaveBeenCalledWith({
+        filter: 'sam',
+        sorting: 'name asc',
+        skipCount: 20,
+        maxResultCount: 10,
+      });
+    });
+
+    it('sends no filter or sort when they are blank', () => {
+      gateway().internalUsersPage(query({ search: '   ' }));
+
+      const sent = internalUsers['getInternalUsers'].calls.mostRecent().args[0];
+      expect(sent.filter).toBeUndefined();
+      expect(sent.sorting).toBeUndefined();
+    });
+
+    it('maps a response with no items to an empty page', () => {
+      const g = gateway();
+      internalUsers['getInternalUsers'].and.returnValue(of({ items: null, totalCount: null }));
+
+      expect(emitted(g.internalUsersPage(query()))).toEqual({ items: [], totalCount: 0 });
+    });
+  });
+
   describe('toggling a user active', () => {
     it('READS the user first, then writes -- it does not blind-write a partial dto', () => {
       const g = gateway();
