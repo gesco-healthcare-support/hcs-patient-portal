@@ -101,7 +101,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(21);
+        var date = TestToday.AddDays(21);
         AppointmentSubmitResultDto? result = null;
 
         await InOfficeAsync(office, async () =>
@@ -152,7 +152,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(22);
+        var date = TestToday.AddDays(22);
         var patientEmail = $"rb-{Guid.NewGuid().ToString("N")[..8]}@example.test";
         var claimNumber = $"ROLLBACK-{Guid.NewGuid():N}";
         Guid slotId = Guid.Empty;
@@ -212,7 +212,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(23);
+        var date = TestToday.AddDays(23);
         BusinessException? thrown = null;
 
         await InOfficeAsync(office, async () =>
@@ -235,7 +235,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(24);
+        var date = TestToday.AddDays(24);
         AppointmentSubmitResultDto? first = null;
         AppointmentSubmitResultDto? second = null;
 
@@ -288,7 +288,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(25);
+        var date = TestToday.AddDays(25);
         AppointmentSubmitResultDto? result = null;
 
         await InOfficeAsync(office, async () =>
@@ -333,7 +333,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(25);
+        var date = TestToday.AddDays(25);
         var suffix = Guid.NewGuid().ToString("N")[..8];
         Patient? seeded = null;
 
@@ -368,7 +368,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(26);
+        var date = TestToday.AddDays(26);
         var suffix = Guid.NewGuid().ToString("N")[..8];
         Patient? seeded = null;
 
@@ -402,7 +402,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(27);
+        var date = TestToday.AddDays(27);
         var suffix = Guid.NewGuid().ToString("N")[..8];
         Patient? seeded = null;
         var slotId = Guid.Empty;
@@ -446,7 +446,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(28);
+        var date = TestToday.AddDays(28);
         var suffix = Guid.NewGuid().ToString("N")[..8];
         Patient? seeded = null;
         var slotId = Guid.Empty;
@@ -502,7 +502,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
-        var date = DateTime.Today.AddDays(29);
+        var date = TestToday.AddDays(29);
         var slotId = Guid.Empty;
 
         await InOfficeAsync(office, async () =>
@@ -529,10 +529,10 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         // Left Pending. Reval requires Approved, so the gate must refuse -- this is the test that
         // proves /submit did not become a way around the eligibility checks.
         var source = await CreateSourceAppointmentAsync(
-            office, DateTime.Today.AddDays(30), new TimeOnly(9, 0),
+            office, TestToday.AddDays(30), new TimeOnly(9, 0),
             AppointmentStatusType.Pending, dayOffset: 300);
 
-        var date = DateTime.Today.AddDays(31);
+        var date = TestToday.AddDays(31);
         var slotId = Guid.Empty;
         await InOfficeAsync(office, async () =>
             slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
@@ -556,10 +556,10 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         await SeedNotificationTemplatesAsync(office);
 
         var source = await CreateSourceAppointmentAsync(
-            office, DateTime.Today.AddDays(32), new TimeOnly(9, 0),
+            office, TestToday.AddDays(32), new TimeOnly(9, 0),
             AppointmentStatusType.Approved, dayOffset: 320);
 
-        var date = DateTime.Today.AddDays(33);
+        var date = TestToday.AddDays(33);
         AppointmentSubmitResultDto? result = null;
 
         await InOfficeAsync(office, async () =>
@@ -590,10 +590,10 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         // CanCreateReBook accepts CancelledNoBill / CancelledLate / an attendance outcome. There is
         // no plain "Cancelled" status in this product.
         var source = await CreateSourceAppointmentAsync(
-            office, DateTime.Today.AddDays(34), new TimeOnly(9, 0),
+            office, TestToday.AddDays(34), new TimeOnly(9, 0),
             AppointmentStatusType.CancelledNoBill, dayOffset: 340);
 
-        var date = DateTime.Today.AddDays(35);
+        var date = TestToday.AddDays(35);
         AppointmentSubmitResultDto? result = null;
 
         await InOfficeAsync(office, async () =>
@@ -622,10 +622,10 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
 
         // Approved, and ReSubmit requires Rejected -- so the gate must refuse.
         var source = await CreateSourceAppointmentAsync(
-            office, DateTime.Today.AddDays(36), new TimeOnly(9, 0),
+            office, TestToday.AddDays(36), new TimeOnly(9, 0),
             AppointmentStatusType.Approved, dayOffset: 360);
 
-        var date = DateTime.Today.AddDays(37);
+        var date = TestToday.AddDays(37);
         var slotId = Guid.Empty;
         await InOfficeAsync(office, async () =>
             slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
@@ -654,10 +654,10 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         await SeedNotificationTemplatesAsync(office);
 
         var source = await CreateSourceAppointmentAsync(
-            office, DateTime.Today.AddDays(38), new TimeOnly(9, 0),
+            office, TestToday.AddDays(38), new TimeOnly(9, 0),
             AppointmentStatusType.Rejected, dayOffset: 380);
 
-        var date = DateTime.Today.AddDays(39);
+        var date = TestToday.AddDays(39);
         AppointmentSubmitResultDto? result = null;
 
         await InOfficeAsync(office, async () =>

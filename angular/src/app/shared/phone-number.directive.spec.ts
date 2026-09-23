@@ -119,4 +119,67 @@ describe('PhoneNumberDirective', () => {
     // Several of these fields shipped with maxlength="12", which truncates '(213)-555-0134'.
     expect(input.maxLength).toBe(14);
   });
+
+  it('marks the control touched when the field is left', () => {
+    input.dispatchEvent(new Event('blur'));
+
+    expect(host.control.touched).toBeTrue();
+  });
+
+  /**
+   * Without this, Backspace just after a separator deletes the separator, and the mask puts it
+   * straight back -- the key appears to do nothing. The directive widens the selection back to the
+   * digit behind the punctuation so the browser's own Backspace removes one digit.
+   */
+  describe('Backspace over a separator', () => {
+    function backspaceAt(value: string, caret: number, selectionEnd = caret): void {
+      input.value = value;
+      input.setSelectionRange(caret, selectionEnd);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }));
+    }
+
+    function selection(): [number | null, number | null] {
+      return [input.selectionStart, input.selectionEnd];
+    }
+
+    it('widens the selection back to the digit behind the separator', () => {
+      // '(213)-5' with the caret just after '-': select '3)-' so one Backspace removes the 3.
+      backspaceAt('(213)-5', 6);
+
+      expect(selection()).toEqual([3, 6]);
+    });
+
+    it('leaves an ordinary Backspace after a digit alone', () => {
+      backspaceAt('(213)-5', 7);
+
+      expect(selection()).toEqual([7, 7]);
+    });
+
+    it('leaves a Backspace over a selected range alone', () => {
+      backspaceAt('(213)-5', 2, 6);
+
+      expect(selection()).toEqual([2, 6]);
+    });
+
+    it('leaves a Backspace at the very start alone', () => {
+      backspaceAt('(213)-5', 0);
+
+      expect(selection()).toEqual([0, 0]);
+    });
+
+    it('does nothing when only punctuation lies behind the caret', () => {
+      backspaceAt('(213)-5', 1);
+
+      expect(selection()).toEqual([1, 1]);
+    });
+
+    it('ignores every key other than Backspace', () => {
+      input.value = '(213)-5';
+      input.setSelectionRange(6, 6);
+
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+
+      expect(selection()).toEqual([6, 6]);
+    });
+  });
 });

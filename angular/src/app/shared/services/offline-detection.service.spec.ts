@@ -31,4 +31,14 @@ describe('OfflineDetectionService', () => {
     service.refresh();
     expect(service.offline()).toBe(navigator.onLine === false);
   });
+
+  it('attaches its window listeners only once however often it is started', () => {
+    // beforeEach has already started it; a second start must not stack a second pair of
+    // listeners, which ngOnDestroy would then only half remove.
+    const add = spyOn(window, 'addEventListener').and.callThrough();
+
+    service.start();
+
+    expect(add).not.toHaveBeenCalled();
+  });
 });
