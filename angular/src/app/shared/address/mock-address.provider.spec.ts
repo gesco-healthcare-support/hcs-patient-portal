@@ -63,5 +63,14 @@ describe('MockAddressProvider', () => {
           done();
         });
     });
+
+    it('leaves the state empty when none was entered, rather than inventing one', (done) => {
+      provider
+        .validate({ street: '1 example way', city: 'exampleville', state: '', zip: '00000' })
+        .subscribe((r) => {
+          expect(r.standardized!.state).toBe('');
+          done();
+        });
+    });
   });
 });
