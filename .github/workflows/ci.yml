@@ -651,7 +651,10 @@ jobs:
     # always() so a failed classifier does not skip it; the build must have
     # SUCCEEDED, so a skipped or failed build still skips the test.
     if: ${{ always() && needs.backend-build.result == 'success' }}
-    timeout-minutes: 25
+    # 45, raised from 25 on 2026-09-23 (#1029). The EF Core integration suite alone ran
+    # 21-23 min that day and jobs were being cancelled at 25 with every test passing.
+    # Still bounded, so a hung test is cut off. Making the suite faster is #1032.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
