@@ -884,4 +884,133 @@ describe('InternalUsersHubComponent surfaces', () => {
       expect(toaster.success).toHaveBeenCalled();
     });
   });
+
+  /**
+   * The three server-driven tables' data sources, what a failed mutation leaves behind, and the
+   * New Practice guards the practices block above does not reach.
+   *
+   * <p>The failure handlers show nothing of their own. What they must do is release the busy
+   * flag -- or every later action is refused -- and not report success or reload.</p>
+   */
+  describe('data sources, failed mutations and the remaining practice guards', () => {
+    const fail = () => throwError(() => ({ status: 500 }));
+
+    it('hands each table query straight to the gateway', () => {
+      const c = create();
+      const query = { search: 'ada', sorting: 'email asc', skipCount: 20, maxResultCount: 10 };
+      for (const [source, method] of [
+        ['invitesDataSource', 'invitesPage'],
+        ['internalUsersDataSource', 'internalUsersPage'],
+        ['officesDataSource', 'officesPage'],
+      ]) {
+        c[source](query);
+        expect(gateway[method]).withContext(source).toHaveBeenCalledWith(query);
+      }
+    });
+
+    for (const { label, method, act } of [
+      {
+        label: 'revoking an invite',
+        method: 'revokeInvite',
+        act: (c: Probe) => c.revoke({ id: 'inv-1' }),
+      },
+      {
+        label: 'switching a user on or off',
+        method: 'setUserActive',
+        act: (c: Probe) => c.toggleActive({ id: 'u1', isActive: true }),
+      },
+      {
+        label: 'queueing a password reset',
+        method: 'sendPasswordReset',
+        act: (c: Probe) => c.sendReset({ id: 'u1' }),
+      },
+    ]) {
+      it(`releases the busy flag and reports nothing when ${label} fails`, () => {
+        const c = create({ section: 'staff' });
+        const reloaded = spyOn(c.reload$, 'next');
+        gateway[method].and.returnValue(fail());
+
+        act(c);
+
+        expect(gateway[method]).toHaveBeenCalled();
+        expect(c.isBusy()).toBeFalse();
+        expect(toaster.success).not.toHaveBeenCalled();
+        expect(reloaded).not.toHaveBeenCalled();
+      });
+    }
+
+    it('keeps the edit form open when saving a practice fails', () => {
+      const c = create({ section: 'tenants' });
+      gateway['updateTenant'].and.returnValue(fail());
+      c.openEditTenant({
+        id: 'office-1',
+        name: 'valley',
+        isActive: true,
+        concurrencyStamp: 'stamp-1',
+      });
+
+      c.saveTenant();
+
+      expect(c.tenantForm()).withContext('the operator must be able to retry').not.toBeNull();
+      expect(c.isBusy()).toBeFalse();
+      expect(toaster.success).not.toHaveBeenCalled();
+    });
+
+    it('keeps the create form open, and uploads no logo, when creating a practice fails', () => {
+      const c = create({ section: 'tenants' });
+      gateway['createPractice'].and.returnValue(fail());
+      c.openNewTenant();
+      c.patchTenant({
+        name: 'valley',
+        doctorFirstName: 'Yuri',
+        doctorLastName: 'Falkinstein',
+        doctorEmail: 'yuri@example.test',
+      });
+      c.tenantLogo.set(new File([''], 'logo.png'));
+
+      c.saveTenant();
+
+      expect(c.tenantForm()).not.toBeNull();
+      expect(c.isBusy()).toBeFalse();
+      expect(gateway['uploadOfficeLogo']).not.toHaveBeenCalled();
+      expect(toaster.success).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when no practice form is open', () => {
+      const c = create({ section: 'tenants' });
+      c.saveTenant();
+      expect(gateway['createPractice']).not.toHaveBeenCalled();
+      expect(gateway['updateTenant']).not.toHaveBeenCalled();
+      expect(toaster.warn).not.toHaveBeenCalled();
+    });
+
+    it('does not save a practice while another action is in flight', () => {
+      const c = create({ section: 'tenants' });
+      c.openNewTenant();
+      c.isBusy.set(true);
+
+      c.saveTenant();
+
+      expect(gateway['createPractice']).not.toHaveBeenCalled();
+      expect(c.tenantTriedSave()).withContext('refused before the attempt is recorded').toBeFalse();
+    });
+
+    it('flags a blank doctor last name, but only once a save has been attempted', () => {
+      const c = create({ section: 'tenants' });
+      c.openNewTenant();
+      c.patchTenant({
+        name: 'valley',
+        doctorFirstName: 'Yuri',
+        doctorLastName: '  ',
+        doctorEmail: 'yuri@example.test',
+      });
+      expect(c.doctorLastError()).toBeFalse();
+
+      c.saveTenant();
+
+      expect(c.doctorLastError()).toBeTrue();
+      expect(c.doctorFirstError()).toBeFalse();
+      expect(gateway['createPractice']).not.toHaveBeenCalled();
+    });
+  });
 });

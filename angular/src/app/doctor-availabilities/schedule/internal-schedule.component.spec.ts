@@ -127,4 +127,46 @@ describe('InternalScheduleComponent', () => {
     expect(cmp.loadFailed()).toBeTrue();
     expect(cmp.events()).toHaveSize(0);
   });
+
+  it('does not reload when the calendar reports the same window again', () => {
+    // FullCalendar fires datesSet on re-render as well as on navigation; an unchanged window
+    // must not refetch.
+    const fixture = create();
+    const cmp = internals(fixture);
+    cmp.onDatesSet({ start: new Date(2026, 7, 3), end: new Date(2026, 7, 10) });
+    fixture.detectChanges();
+    getScheduleSpy.calls.reset();
+
+    cmp.onDatesSet({ start: new Date(2026, 7, 3), end: new Date(2026, 7, 10) });
+    fixture.detectChanges();
+
+    expect(getScheduleSpy).not.toHaveBeenCalled();
+  });
+
+  it('routes a chip click that arrives through the calendar options', () => {
+    // The wiring FullCalendar actually calls, not only the handler behind it.
+    const options = (
+      create().componentInstance as unknown as {
+        calendarOptions: { eventClick: (info: unknown) => void };
+      }
+    ).calendarOptions;
+
+    options.eventClick({
+      event: { id: 'appt-7', extendedProps: { kind: 'appointment', appointmentId: 'appt-7' } },
+    });
+
+    expect(navigateSpy).toHaveBeenCalledWith('/appointments/view/appt-7');
+  });
+
+  it('offers no locations when the location lookup fails', () => {
+    const service = TestBed.inject(DoctorAvailabilityService) as unknown as {
+      getLocationLookup: jasmine.Spy;
+    };
+    service.getLocationLookup.and.returnValue(throwError(() => new Error('boom')));
+
+    const fixture = create();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('#sched-location option')).toHaveSize(0);
+  });
 });

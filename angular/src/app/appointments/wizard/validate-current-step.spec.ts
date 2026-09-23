@@ -181,4 +181,71 @@ describe('AppointmentWizardComponent step validation (#628)', () => {
       expect(c.attorneyAnswerMissing).toBeFalse();
     });
   });
+
+  /**
+   * The two step rules below the attorney guard: the claim step needs at least one injury,
+   * and a PQME docs step whose panel has a strike list needs a strike list staged.
+   *
+   * <p>As above, the flag is asserted rather than only the returned boolean where a bare form
+   * could fail the step's field validation for unrelated reasons.</p>
+   */
+  describe('claim and docs step rules', () => {
+    interface StepProbe extends Probe {
+      injuryDrafts: unknown[];
+      claimInformationMissing: boolean;
+      isPqmeType: boolean;
+      hasPanelStrikeList: boolean;
+      stagedDocuments: { isStrikeList: boolean }[];
+      panelStrikeListMissing: boolean;
+    }
+
+    /** Index into the wizard's STEPS array, as STEP above. */
+    const LATER_STEP = { claim: 6, docs: 7 } as const;
+
+    function at(step: number): StepProbe {
+      const c = create() as StepProbe;
+      c.current = step;
+      return c;
+    }
+
+    function pqmeDocsStep(staged: { isStrikeList: boolean }[]): StepProbe {
+      const c = at(LATER_STEP.docs);
+      c.isPqmeType = true;
+      c.hasPanelStrikeList = true;
+      c.stagedDocuments = staged;
+      return c;
+    }
+
+    it('refuses the claim step until an injury is added', () => {
+      const c = at(LATER_STEP.claim);
+      expect(c.validateCurrentStep()).toBeFalse();
+      expect(c.claimInformationMissing).toBeTrue();
+    });
+
+    it('does not flag the claim step once an injury is present', () => {
+      const c = at(LATER_STEP.claim);
+      c.injuryDrafts = [{}];
+      c.validateCurrentStep();
+      expect(c.claimInformationMissing).toBeFalse();
+    });
+
+    it('refuses a PQME docs step with a panel strike list until a strike list is staged', () => {
+      const c = pqmeDocsStep([{ isStrikeList: false }]);
+      expect(c.validateCurrentStep()).toBeFalse();
+      expect(c.panelStrikeListMissing).toBeTrue();
+    });
+
+    it('does not flag the docs step once a strike list is staged', () => {
+      const c = pqmeDocsStep([{ isStrikeList: false }, { isStrikeList: true }]);
+      c.validateCurrentStep();
+      expect(c.panelStrikeListMissing).toBeFalse();
+    });
+
+    it('does not ask for a strike list when the appointment is not a PQME', () => {
+      const c = pqmeDocsStep([]);
+      c.isPqmeType = false;
+      c.validateCurrentStep();
+      expect(c.panelStrikeListMissing).toBeFalse();
+    });
+  });
 });

@@ -177,5 +177,22 @@ describe('cf-config.util', () => {
         defaultValue: 'Suite 100',
       });
     });
+
+    it('skips a field that has no state rather than failing', () => {
+      // A partial state -- one field absent, one deviating. The deviating field is the control:
+      // it still arrives, so an empty batch here could not pass by accident.
+      const state = emptyFieldState();
+      delete state['panelNumber'];
+      state['appointmentLanguageId'] = {
+        hidden: true,
+        readOnly: false,
+        required: false,
+        defaultValue: '',
+      };
+
+      const batch = fieldStateToBatch(state);
+
+      expect(batch.map((item) => item.fieldName)).toEqual(['appointmentLanguageId']);
+    });
   });
 });
