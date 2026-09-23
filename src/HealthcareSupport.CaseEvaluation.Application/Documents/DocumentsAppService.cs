@@ -7,6 +7,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
+using Volo.Abp.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.Documents;
 
@@ -91,6 +92,7 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
     }
 
     [Authorize(CaseEvaluationPermissions.Documents.Create)]
+    [DisableValidation] // the Stream argument must not be reflectively validated (mirrors UploadStreamAsync).
     public virtual async Task<DocumentDto> CreateAsync(DocumentCreateDto input, Stream fileStream, string fileName)
     {
         Check.NotNull(input, nameof(input));
@@ -126,6 +128,7 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
     }
 
     [Authorize(CaseEvaluationPermissions.Documents.Edit)]
+    [DisableValidation] // the Stream argument must not be reflectively validated (mirrors UploadStreamAsync).
     public virtual async Task<DocumentDto> ReplaceFileAsync(Guid id, Stream fileStream, string fileName, string? contentType)
     {
         Check.NotNull(fileStream, nameof(fileStream));

@@ -259,6 +259,69 @@ describe('AppointmentAddClaimInformationComponent cumulative trauma (BUG-040 / #
     expect(drafts).toHaveSize(0);
     expect(fixture.componentInstance.injuryModalError).toContain('earlier than');
   });
+
+  // yyyy-MM-dd for today + offsetDays, from LOCAL parts -- the same zone-independent
+  // basis the fix uses, so these hold at any clock time. The bug (comparing a UTC-parsed
+  // yyyy-MM-dd against a local `new Date()`) let a future injury date through for the last
+  // hours of every Pacific day; these pin the corrected behaviour.
+  function localDateKey(offsetDays: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  it('rejects a future single injury date regardless of local clock time', () => {
+    const drafts: AppointmentInjuryDraft[] = [];
+    const fixture = create(drafts);
+    openModal(fixture);
+
+    setControl(fixture, 'injuryDateOfInjury', localDateKey(1)); // tomorrow
+    setControl(fixture, 'injuryClaimNumber', 'CLM-FUT');
+    setControl(fixture, 'injuryWcabAdj', 'ADJ-FUT');
+    fixture.componentInstance.injuryForm.get('injuryBodyParts')!.setValue(['Lower back']);
+
+    fixture.componentInstance.saveInjuryModal();
+
+    expect(drafts).toHaveSize(0);
+    expect(fixture.componentInstance.injuryModalError).toContain('future');
+  });
+
+  it('accepts today as the injury date (not treated as future)', () => {
+    const drafts: AppointmentInjuryDraft[] = [];
+    const fixture = create(drafts);
+    openModal(fixture);
+
+    setControl(fixture, 'injuryDateOfInjury', localDateKey(0)); // today
+    setControl(fixture, 'injuryClaimNumber', 'CLM-TODAY');
+    setControl(fixture, 'injuryWcabAdj', 'ADJ-TODAY');
+    fixture.componentInstance.injuryForm.get('injuryBodyParts')!.setValue(['Neck']);
+
+    fixture.componentInstance.saveInjuryModal();
+
+    expect(fixture.componentInstance.injuryModalError).toBeNull();
+    expect(drafts).toHaveSize(1);
+  });
+
+  it('rejects a future cumulative To date', () => {
+    const drafts: AppointmentInjuryDraft[] = [];
+    const fixture = create(drafts);
+    openModal(fixture);
+
+    clickCumulativeYes(fixture.nativeElement as HTMLElement);
+    fixture.detectChanges();
+
+    setControl(fixture, 'injuryDateOfInjury', '2025-01-01');
+    setControl(fixture, 'injuryToDateOfInjury', localDateKey(1)); // tomorrow
+    setControl(fixture, 'injuryClaimNumber', 'CLM-CUMFUT');
+    setControl(fixture, 'injuryWcabAdj', 'ADJ-CUMFUT');
+    fixture.componentInstance.injuryForm.get('injuryBodyParts')!.setValue(['Back']);
+
+    fixture.componentInstance.saveInjuryModal();
+
+    expect(drafts).toHaveSize(0);
+    expect(fixture.componentInstance.injuryModalError).toContain('future');
+  });
 });
 
 /**
