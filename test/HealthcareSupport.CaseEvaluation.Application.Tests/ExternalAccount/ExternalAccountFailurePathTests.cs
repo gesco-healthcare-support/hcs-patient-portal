@@ -272,6 +272,12 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
 
         using (_currentTenant.Change(null))
         {
+            // Self-proving fixture: the host lookup DOES find this unconfirmed user, so the refusal
+            // below comes from host eligibility, not from the user being invisible.
+            var visible = await WithUnitOfWorkAsync(() => _userManager.FindByEmailAsync(email));
+            visible.ShouldNotBeNull();
+            visible.EmailConfirmed.ShouldBeFalse();
+
             await WithUnitOfWorkAsync(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
         }
 

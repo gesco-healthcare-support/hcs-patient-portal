@@ -142,6 +142,12 @@ public abstract class MyAttorneyProfileAppServiceTests<TStartupModule> : CaseEva
     [Fact]
     public async Task GetAsync_denies_a_defense_caller_with_no_defense_master()
     {
+        // LOAD-BEARING: another attorney's defense master exists in the same office. Against an
+        // empty table this fact would also pass with the service's `IdentityUserId == userId`
+        // predicate removed; with this row present, that regression hands the caller someone
+        // else's profile instead of refusing.
+        await InsertDefenseMasterAsync();
+
         using (_currentTenant.Change(TenantsTestData.TenantBRef))
         using (WithCurrentUser.Run(_principal, Guid.NewGuid(), IdentityUsersTestData.DefenseAttorneyRoleName))
         {
