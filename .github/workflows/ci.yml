@@ -996,7 +996,7 @@ jobs:
       #
       # ~273 backend lines could go uncovered before the absolute floor fires.
       # That is real, and it is acceptable for one reason: THE ABSOLUTE FLOORS
-      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 90% on the lines
+      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 80% on the lines
       # each submission touches, and it catches new uncovered code per pull
       # request, long before it could accumulate into a 273-line drift. The
       # absolute floors are a backstop against slow erosion.
@@ -1075,7 +1075,7 @@ jobs:
       # THE 15 IS THE NUMBER TO WATCH, not the 12. One new component of ~40 lines merged without
       # a spec takes the epic under this floor while breaking nothing -- exactly the failure mode
       # #971 named, here with about a sixth of the slack that argument was about. FLOOR_CHANGED
-      # at 90% already gates new code per submission, so if this floor starts producing false
+      # at 80% already gates new code per submission, so if this floor starts producing false
       # reds it is the ABSOLUTE one to reconsider, never the changed-lines one.
       #
       # THE ROUNDING ARGUMENT AT :989 STILL HOLDS, and is not what makes this tight. One line is
@@ -1334,7 +1334,12 @@ jobs:
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
       # rather than discovered by a first run.
-      FLOOR_CHANGED: "90"
+      #
+      # 80 SINCE 2026-09-23 (was 90). Adrian ruled that SonarCloud's new_coverage >= 80% is the
+      # requirement for new code in fix and feature PRs, and this floor now matches it. It is
+      # POOLED across stacks, so backend, frontend and Python changed lines all moved together.
+      # The same day #1024 made it measure backend lines at all.
+      FLOOR_CHANGED: "80"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
@@ -1509,12 +1514,11 @@ jobs:
 
           args=()
           if applicable "$CHANGED_BACKEND"; then
-            # --cobertura-prefix is left at its empty default pending the first
-            # real CI run. The path shape dotnet-coverage writes into Cobertura
-            # has not been observed here, and the shared exclusions only match
-            # if it is repo-relative. The measured line and file counts printed
-            # below are what confirm it: a wrong prefix shows up as an
-            # implausible file count, not as an error.
+            # --cobertura-prefix stays at its empty default. dotnet-coverage
+            # writes ABSOLUTE checkout paths, and a prefix can only prepend, so
+            # coverage-gate.py removes the checkout root itself when it reads the
+            # report (#1024). Before that, no backend path matched the diff and
+            # the changed-lines floor passed every backend PR unmeasured.
             args+=(--cobertura "$BACKEND_REPORT" --floor-backend "$FLOOR_BACKEND")
           fi
           if applicable "$CHANGED_FRONTEND"; then
@@ -1553,7 +1557,7 @@ jobs:
           fi
 
           # The changed-lines floor. Added only once at least one stack is
-          # applicable, because 90% of the changed lines is a question about
+          # applicable, because the changed-lines percentage is a question about
           # coverage reports, and with none of them present there is nothing to
           # ask it of.
           #
