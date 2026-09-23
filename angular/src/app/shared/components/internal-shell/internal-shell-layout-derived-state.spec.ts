@@ -51,6 +51,8 @@ describe('InternalShellLayoutComponent derived state', () => {
   };
   let title: { setTitle: jasmine.Spy };
   let configUpdates: Subject<unknown>;
+  /** The selector the shell hands `createOnUpdateStream`, captured so a test can apply it. */
+  let configSelector: ((state: unknown) => unknown) | null;
   let routerEvents: Subject<unknown>;
   let tenantOptions: jasmine.Spy;
   let switchableOffices: jasmine.Spy;
@@ -66,6 +68,7 @@ describe('InternalShellLayoutComponent derived state', () => {
     options: { granted?: boolean; withOAuth?: boolean; issuer?: string } = {},
   ): Probe {
     configUpdates = new Subject();
+    configSelector = null;
     routerEvents = new Subject();
     configValues = {};
     impersonation = {
@@ -94,7 +97,10 @@ describe('InternalShellLayoutComponent derived state', () => {
       {
         provide: ConfigStateService,
         useValue: {
-          createOnUpdateStream: () => configUpdates,
+          createOnUpdateStream: (selector: (state: unknown) => unknown) => {
+            configSelector = selector;
+            return configUpdates;
+          },
           getOne: (key: string) => configValues[key] ?? null,
           getAll: () => ({}),
           getDeep: () => null,
@@ -981,6 +987,17 @@ describe('InternalShellLayoutComponent derived state', () => {
       configUpdates.next({});
 
       expect(c.userName()).toBe('Grace Hopper');
+    });
+
+    it('listens to the whole config state rather than one slice of it', () => {
+      // An identity selector: any config change -- user, tenant or anything else -- re-reads
+      // identity. A slice selector would silently stop the chrome following the others.
+      const c = createComponent();
+      c.ngOnInit();
+      const state = { currentUser: {}, currentTenant: {} };
+
+      expect(configSelector).withContext('ngOnInit must subscribe').not.toBeNull();
+      expect(configSelector!(state)).toBe(state);
     });
 
     it('follows the router to the redirected URL', () => {
