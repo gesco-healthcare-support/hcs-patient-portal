@@ -50,6 +50,18 @@ describe('avail-grid.util', () => {
       expect(formatTimeRange(undefined, undefined)).toBe('');
       expect(formatTimeRange(null, '')).toBe('');
     });
+
+    it('labels a band with only a start time', () => {
+      expect(formatTimeRange('09:30:00', null)).toBe('9:30 AM');
+    });
+
+    it('labels a band with only an end time', () => {
+      expect(formatTimeRange(null, '13:00:00')).toBe('1:00 PM');
+    });
+
+    it('drops a time it cannot read rather than printing it', () => {
+      expect(formatTimeRange('ab:cd', '10:00:00')).toBe('10:00 AM');
+    });
   });
 
   describe('isoDate', () => {
@@ -96,6 +108,10 @@ describe('avail-grid.util', () => {
     it('shows both months when the week spans a boundary', () => {
       // Week containing 2026-07-01 starts Mon 2026-06-29.
       expect(formatWeekRange(weekDatesFor(new Date(2026, 6, 1), 0))).toBe('Jun 29 - Jul 5, 2026');
+    });
+
+    it('gives an empty label for an empty week', () => {
+      expect(formatWeekRange([])).toBe('');
     });
   });
 

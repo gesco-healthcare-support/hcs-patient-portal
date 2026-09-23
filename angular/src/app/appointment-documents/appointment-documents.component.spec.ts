@@ -154,6 +154,19 @@ describe('AppointmentDocumentsComponent document name derivation (#612)', () => 
     expect(component.documentName).toBe('Operative note');
   });
 
+  it('ignores a drop while an upload is running, and a drop with no files', () => {
+    choose('first.pdf');
+
+    component.isUploading = true;
+    component.onFilesDropped([file('second.pdf')]);
+    expect(component.selectedFile?.name).withContext('mid-upload').toBe('first.pdf');
+
+    component.isUploading = false;
+    component.onFilesDropped([]);
+    expect(component.selectedFile?.name).withContext('empty drop').toBe('first.pdf');
+    expect(component.documentName).toBe('first');
+  });
+
   it('strips only the final extension', () => {
     choose('report.2026.06.01.pdf');
     expect(component.documentName).toBe('report.2026.06.01');

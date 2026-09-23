@@ -302,4 +302,10 @@ describe('ClaimExaminerProfileComponent', () => {
       expect(router.navigateByUrl).toHaveBeenCalledWith('/');
     });
   });
+
+  describe('the role shown on the page', () => {
+    it('labels the account as a Claim Examiner', () => {
+      expect(create().roleLabel).toBe('Claim Examiner');
+    });
+  });
 });

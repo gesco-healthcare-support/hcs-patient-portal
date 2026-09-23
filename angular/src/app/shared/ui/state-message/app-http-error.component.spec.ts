@@ -70,4 +70,22 @@ describe('AppHttpErrorComponent', () => {
     expect(navSpy.calls.mostRecent().args[0]).toBe('/');
     expect(dismissed).toBe(true);
   });
+
+  it('reloads the current page and dismisses the overlay on Try again', () => {
+    const router = TestBed.inject(Router);
+    const navSpy = spyOn(router, 'navigateByUrl').and.returnValue(Promise.resolve(true));
+    const destroy$ = new Subject<void>();
+    let dismissed = false;
+    destroy$.subscribe(() => {
+      dismissed = true;
+    });
+    component.destroy$ = destroy$;
+
+    const el = renderStatus(500);
+    (el.querySelector('.ap-btn') as HTMLButtonElement).click();
+
+    expect(navSpy.calls.mostRecent().args[0]).toBe(router.url);
+    expect(navSpy.calls.mostRecent().args[1]).toEqual({ onSameUrlNavigation: 'reload' });
+    expect(dismissed).toBe(true);
+  });
 });

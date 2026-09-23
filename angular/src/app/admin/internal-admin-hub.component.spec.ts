@@ -1028,4 +1028,17 @@ describe('InternalAdminHubComponent', () => {
       expect(() => c.exportAudit()).not.toThrow();
     });
   });
+
+  describe('template type lookup failure', () => {
+    it('falls back to no type filter and still loads the templates', () => {
+      // The type list only feeds the filter dropdown; losing it must not cost the page its rows.
+      const c = create({ tenant: { id: 'office-a' } });
+      gateway['listTemplateTypes'].and.returnValue(throwError(() => new Error('boom')));
+
+      routeData.next({});
+
+      expect(c.ntTypes()).toEqual([]);
+      expect(gateway['listTemplates']).toHaveBeenCalled();
+    });
+  });
 });

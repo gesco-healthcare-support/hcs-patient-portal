@@ -4,6 +4,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { of, throwError } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
 import { InternalAvailabilitiesComponent } from './internal-availabilities.component';
+import { BookingStatus } from '../../proxy/enums/booking-status.enum';
 
 /**
  * Covers the "All locations" default (issue #1): on load the page should query
@@ -498,5 +499,130 @@ describe('InternalAvailabilitiesComponent CRUD and presentation', () => {
     it('does not pad a day that has fewer slots than the cap', () => {
       expect(probe().previewSlots(column)).toHaveSize(4);
     });
+  });
+});
+
+/**
+ * The status filter over the week grid, the selected-location label, and a location lookup
+ * that returns nothing or fails.
+ *
+ * <p>Built without change detection, so `ngOnInit` runs only where a test calls it. Rows are
+ * dated inside the component's own current week, read back from `weekDates()`, so the grid
+ * buckets them whatever day the suite runs on.</p>
+ *
+ * <p>All identifiers below are synthetic.</p>
+ */
+describe('InternalAvailabilitiesComponent status filter and location lookup', () => {
+  let getLocationLookup: jasmine.Spy;
+  let getList: jasmine.Spy;
+
+  interface Probe {
+    [key: string]: any;
+  }
+
+  beforeEach(() => {
+    getLocationLookup = jasmine.createSpy('getLocationLookup').and.returnValue(of({ items: [] }));
+    getList = jasmine.createSpy('getList').and.returnValue(of({ items: [] }));
+
+    TestBed.configureTestingModule({
+      imports: [InternalAvailabilitiesComponent],
+      providers: [
+        {
+          provide: DoctorAvailabilityService,
+          useValue: {
+            getLocationLookup,
+            getList,
+            getSlotPatientNames: () => of([]),
+            delete: () => of(undefined),
+            deleteByDate: () => of({ deletedCount: 0, skippedSlotIds: [] }),
+          },
+        },
+        { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
+        { provide: Router, useValue: { navigateByUrl: () => Promise.resolve(true) } },
+      ],
+    });
+  });
+
+  function probe(): Probe {
+    return TestBed.createComponent(InternalAvailabilitiesComponent)
+      .componentInstance as unknown as Probe;
+  }
+
+  /** One slot on the first day of the component's current week. */
+  function slotOn(
+    c: Probe,
+    id: string,
+    fromTime: string,
+    status: { bookingStatusId?: BookingStatus; remainingCapacity?: number },
+  ) {
+    const day: Date = c.weekDates()[0];
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const iso = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+    return { doctorAvailability: { id, availableDate: `${iso}T00:00:00`, fromTime, ...status } };
+  }
+
+  /** An open slot, a fully booked one and a reserved one, all on the same day. */
+  function seededWeek(): Probe {
+    const c = probe();
+    c.rows.set([
+      slotOn(c, 'open', '09:00', { remainingCapacity: 1 }),
+      slotOn(c, 'booked', '10:00', { remainingCapacity: 0 }),
+      slotOn(c, 'held', '11:00', { bookingStatusId: BookingStatus.Reserved }),
+    ]);
+    return c;
+  }
+
+  const shownIds = (c: Probe) => c.displayColumns()[0].slots.map((s: { id: string }) => s.id);
+
+  it('shows only booked and reserved slots under the busy filter', () => {
+    const c = seededWeek();
+    c.statusFilter.set('busy');
+    expect(shownIds(c)).toEqual(['booked', 'held']);
+  });
+
+  it('shows only the chosen status under any other filter', () => {
+    const c = seededWeek();
+    c.statusFilter.set('available');
+    expect(shownIds(c)).toEqual(['open']);
+  });
+
+  it('keeps the day counts complete while a filter narrows the slots', () => {
+    const c = seededWeek();
+    c.statusFilter.set('available');
+    expect(c.displayColumns()[0].total).toBe(3);
+    expect(c.displayColumns()[0].busy).toBe(2);
+  });
+
+  it('names the selected location, and nothing while all locations are shown', () => {
+    const c = probe();
+    c.locations.set([
+      { id: 'loc-1', name: 'Downtown' },
+      { id: 'loc-2', name: 'Uptown' },
+    ]);
+    c.locationId.set('loc-2');
+    expect(c.selectedLocationName()).toBe('Uptown');
+
+    c.locationId.set('');
+    expect(c.selectedLocationName()).toBe('');
+  });
+
+  it('stops loading without querying slots when there are no locations', () => {
+    getLocationLookup.and.returnValue(of({}));
+    const c = probe();
+
+    c.ngOnInit();
+
+    expect(c.loading()).toBeFalse();
+    expect(getList).not.toHaveBeenCalled();
+  });
+
+  it('stops loading when the location lookup fails', () => {
+    getLocationLookup.and.returnValue(throwError(() => ({ status: 500 })));
+    const c = probe();
+
+    c.ngOnInit();
+
+    expect(c.loading()).toBeFalse();
+    expect(getList).not.toHaveBeenCalled();
   });
 });

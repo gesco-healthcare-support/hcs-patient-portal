@@ -108,6 +108,27 @@ describe('step-errors.util', () => {
       expect(msg).toContain('long');
     });
 
+    it('describes a pattern error as an invalid format', () => {
+      const msg = describeControlError({
+        pattern: { requiredPattern: '^[0-9]+$', actualValue: 'abc' },
+      }).toLowerCase();
+      expect(msg).toContain('format');
+    });
+
+    it('describes a minlength error as too short', () => {
+      const msg = describeControlError({
+        minlength: { requiredLength: 5, actualLength: 2 },
+      }).toLowerCase();
+      expect(msg).toContain('short');
+    });
+
+    it('describes a min or a max error as out of range', () => {
+      expect(describeControlError({ min: { min: 1, actual: 0 } }).toLowerCase()).toContain('range');
+      expect(describeControlError({ max: { max: 9, actual: 10 } }).toLowerCase()).toContain(
+        'range',
+      );
+    });
+
     it('falls back to a generic reason for an unknown validator', () => {
       expect(describeControlError({ someCustomRule: true })).toBeTruthy();
     });
