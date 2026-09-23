@@ -106,15 +106,25 @@ public class EfCoreIntegrationOutboxRepository
             },
             cancellationToken);
 
-        // 0 = granted at once, 1 = granted after waiting. Negative = not granted: -1 timeout,
-        // -2 cancelled, -3 chosen as deadlock victim, -999 call error. Carrying on unlocked would
-        // silently reopen the race, so fail loudly instead.
-        var result = (int)status.Value;
-        if (result < 0)
+        EnsureLockGranted((int)status.Value, appointmentId);
+    }
+
+    /// <summary>
+    /// Interprets <c>sp_getapplock</c>'s return value. 0 = granted at once, 1 = granted after waiting.
+    /// Negative = NOT granted: -1 timeout, -2 cancelled, -3 chosen as deadlock victim, -999 call error
+    /// -- including a call made with no active transaction, which SQL Server reports this way rather
+    /// than by raising an error. Carrying on unlocked would silently reopen the race, so this throws.
+    ///
+    /// <para>Separate and pure so the refusal path is unit-testable: the call that produces the status
+    /// only runs on SQL Server, which the test suite does not use.</para>
+    /// </summary>
+    public static void EnsureLockGranted(int status, Guid appointmentId)
+    {
+        if (status < 0)
         {
             throw new InvalidOperationException(string.Create(
                 CultureInfo.InvariantCulture,
-                $"Case Tracker ordering lock for appointment {appointmentId:D} was not granted (sp_getapplock returned {result})."));
+                $"Case Tracker ordering lock for appointment {appointmentId:D} was not granted (sp_getapplock returned {status})."));
         }
     }
 
