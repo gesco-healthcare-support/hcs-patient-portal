@@ -96,9 +96,15 @@ query parameter in normal operation. The leftmost DNS label is the office slug.
 {office}.api.<BASE_DOMAIN>      -> HttpApi.Host
 {office}.auth.<BASE_DOMAIN>     -> AuthServer
 minio.<BASE_DOMAIN>             -> MinIO S3 API (exact match, not wildcard)
+api.<BASE_DOMAIN>               -> 404 JSON from the proxy, code missing_office_label (exact match)
+auth.<BASE_DOMAIN>              -> 404 JSON from the proxy, code missing_office_label (exact match)
 admin                           -> RESERVED slug meaning host scope
-minio                           -> RESERVED slug, consumed by the exact-match rule above
+minio, api, auth                -> RESERVED slugs, consumed by the exact-match rules above
 ```
+
+The bare `api.` and `auth.` names are answered by the proxy rather than forwarded (#921). The API's
+resolver would extract no office from them and run the request in host scope, so forwarding would
+have made a second, undocumented route to the admin surface.
 
 A custom `HostAwareDomainTenantResolveContributor` reads the office from the Host. A request whose
 Host matches no office returns "Tenant not found". **A bare IP address cannot reach the

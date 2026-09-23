@@ -92,7 +92,7 @@ server {
     return 301 https://$host$request_uri;
 }
 
-# Catch-all for 443: refuse any Host that matches none of the four server blocks below.
+# Catch-all for 443: refuse any Host that matches none of the named server blocks below.
 #
 # Without this, no 443 block carries `default_server`, so nginx falls back to the FIRST 443
 # block in the file -- the AuthServer -- and every unmatched hostname reaches it. That is
@@ -172,6 +172,51 @@ server {
         proxy_set_header Upgrade           $http_upgrade;
         proxy_set_header Connection        $connection_upgrade;
     }
+}
+
+# api.<domain> and auth.<domain> WITHOUT an office label -> a JSON 404 from the proxy itself.
+#
+# #921, raised by the Case Tracker side 2026-09-16 after it caught them. `*.api.${BASE_DOMAIN}`
+# needs a label in FRONT of `api`, so it matches falkinstein.api.<domain> but NOT the bare
+# api.<domain>. The bare name therefore fell through to `*.${BASE_DOMAIN}` below -- an nginx
+# wildcard spans several labels -- and the Angular container answered 200 with an HTML page.
+# A JSON client reads that as an unexplained parse failure. `auth.<domain>` had the same hole.
+#
+# An EXACT server_name outranks every wildcard whatever the file order, the same technique
+# minio.${BASE_DOMAIN} uses below.
+#
+# WHY WE ANSWER HERE RATHER THAN PROXYING TO THE API. The API's resolver chain is two
+# contributors and the domain one extracts NO slug from a bare api.<domain> -- the host is
+# shorter than the ".api.<domain>" suffix it must end with -- so an unauthenticated request
+# would run in HOST context. That would make this an undocumented second alias for the admin
+# surface, reached by slug extraction failing rather than by the reserved-slug rule that puts
+# admin.api.<domain> there on purpose.
+#
+# WHY 404 AND NOT THE 421 ABOVE. 421 means "retry on a different connection" (RFC 9110), so a
+# client that honours it retries a hostname that will never work. The 421 above answers a
+# different question (HTTP/2 coalescing across one shared certificate) and stays as it is.
+#
+# default_type, NOT `add_header Content-Type`: nginx takes the type of a `return` body from
+# default_type, and add_header is dropped on 4xx anyway unless marked `always`. Keep this block
+# free of `location` sections for the same reason -- an inner add_header discards inherited ones.
+#
+# `missing_office_label` is a marker a check can grep for. A 404 alone cannot tell "the proxy
+# refused" from "the API has no such route", which is how a check comes back green having proved
+# nothing. The body names the correct hostname shape; that discloses nothing new, because the
+# certificate announces *.api.<domain> and *.auth.<domain> during the handshake, before Host is
+# read -- the same reasoning the 421 block records.
+#
+# SIDE EFFECT, exactly as for minio: `api` and `auth` become RESERVED office slugs.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    default_type application/json;
+    return 404 '{"error":{"code":"missing_office_label","message":"This hostname needs an office label: use <office>.api.${BASE_DOMAIN} or <office>.auth.${BASE_DOMAIN}."}}';
 }
 
 # minio.<domain> -> MinIO S3 API (Case Tracker document exchange, 2026-08-13).
