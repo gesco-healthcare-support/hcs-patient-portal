@@ -16,6 +16,69 @@
 # `*.${BASE_DOMAIN}`, so nginx routes falkinstein.api.<domain> to the API even
 # though `*.<domain>` would also match.
 
+# Real client address behind a managed load balancer (#928).
+#
+# WHY THIS EXISTS. On the LAN nginx is the first hop, so $remote_addr IS the caller
+# and $proxy_add_x_forwarded_for appends the right address. Put a cloud load balancer
+# in front and that stops being true: the balancer becomes our peer, $remote_addr
+# becomes the balancer, and every per-IP control downstream collapses into ONE bucket
+# for the whole deployment -- the integration limiter (300/hr, whose stated job is
+# stopping enumeration with a leaked token), external-signup register, password reset,
+# document-upload-by-IP and consent. It also makes an IP allowlist impossible to
+# enforce here at all, which #927 depends on.
+#
+# HOW IT IS SAFE. real_ip_header only rewrites $remote_addr when the CONNECTION comes
+# from an address listed in set_real_ip_from, so with no such line nothing is trusted
+# and nothing is rewritten. That is why the header directive can be unconditional
+# while the trust list stays deployment-specific.
+#
+# WHICH ENTRY NGINX TAKES IS A PER-BALANCER DECISION, NOT A CONSTANT. Both settings are
+# correct for some balancers and wrong for others, so this is a deployment value rather
+# than something to hardcode.
+#
+#   recursion OFF -- nginx takes the LAST entry. Correct where the balancer appends exactly
+#   ONE address, its caller. A client forging "1.2.3.4" then arrives as "1.2.3.4, <real>"
+#   and the last entry wins.
+#
+#   recursion ON  -- nginx walks leftward, skipping entries that ARE in set_real_ip_from,
+#   and stops at the first untrusted one. Required where the balancer appends MORE than one
+#   address. Google Cloud's external Application Load Balancer appends TWO,
+#   "<client-ip>,<load-balancer-ip>", so with recursion off nginx would take the balancer's
+#   own forwarding-rule address and every caller would land in one bucket again -- which is
+#   the defect this block exists to fix.
+#   Ref: https://docs.cloud.google.com/load-balancing/docs/https ("X-Forwarded-For header")
+#
+# Recursion is SAFE here only because set_real_ip_from lists the balancer's own addresses
+# and nothing else. nginx stops at the first entry outside that list, so a forged value
+# further left is never reached. Widening the list to a range the balancer does not own is
+# what would make it spoofable.
+#
+# UNVERIFIED, and worth a real request before trusting either setting: Azure Application
+# Gateway writes x-forwarded-for as a comma-separated list of IP:PORT pairs, and whether
+# nginx's realip module parses an address carrying a port has not been tested here.
+# Ref: https://learn.microsoft.com/en-us/azure/application-gateway/how-application-gateway-works
+#
+# Both variables below are named WITHOUT the dollar-brace form on purpose: envsubst does not
+# know a line is a comment, so writing them that way would substitute the VALUE into this
+# documentation at render time. Harmless for a hostname like BASE_DOMAIN above, not harmless
+# for a value that carries directives and semicolons -- and a value containing a newline
+# would escape the comment entirely and become live configuration.
+#
+# TRUSTED_PROXY_SET_REAL_IP_FROM is EMPTY on the LAN and carries one or more
+# complete directives on a cloud deployment, for example:
+#   TRUSTED_PROXY_SET_REAL_IP_FROM="set_real_ip_from 10.0.0.0/16; set_real_ip_from 10.1.0.0/16;"
+# Whole directives rather than bare addresses because envsubst cannot emit a line
+# conditionally, and "set_real_ip_from ;" is a syntax error that would stop the proxy
+# booting. Compose always DEFINES the variable (empty by default) -- an undefined one
+# would be left as a literal ${...} and fail the same way.
+#
+# Trust only the balancer's own range. Widening it to a range the balancer does not
+# own would let anything in that range set its own $remote_addr, which is exactly the
+# spoofing this control exists to prevent.
+real_ip_header X-Forwarded-For;
+${TRUSTED_PROXY_SET_REAL_IP_FROM}
+${TRUSTED_PROXY_REAL_IP_RECURSIVE}
+
 # WebSocket upgrade passthrough (ABP SignalR notification hub).
 map $http_upgrade $connection_upgrade {
     default upgrade;
@@ -29,7 +92,7 @@ server {
     return 301 https://$host$request_uri;
 }
 
-# Catch-all for 443: refuse any Host that matches none of the four server blocks below.
+# Catch-all for 443: refuse any Host that matches none of the named server blocks below.
 #
 # Without this, no 443 block carries `default_server`, so nginx falls back to the FIRST 443
 # block in the file -- the AuthServer -- and every unmatched hostname reaches it. That is
@@ -109,6 +172,51 @@ server {
         proxy_set_header Upgrade           $http_upgrade;
         proxy_set_header Connection        $connection_upgrade;
     }
+}
+
+# api.<domain> and auth.<domain> WITHOUT an office label -> a JSON 404 from the proxy itself.
+#
+# #921, raised by the Case Tracker side 2026-09-16 after it caught them. `*.api.${BASE_DOMAIN}`
+# needs a label in FRONT of `api`, so it matches falkinstein.api.<domain> but NOT the bare
+# api.<domain>. The bare name therefore fell through to `*.${BASE_DOMAIN}` below -- an nginx
+# wildcard spans several labels -- and the Angular container answered 200 with an HTML page.
+# A JSON client reads that as an unexplained parse failure. `auth.<domain>` had the same hole.
+#
+# An EXACT server_name outranks every wildcard whatever the file order, the same technique
+# minio.${BASE_DOMAIN} uses below.
+#
+# WHY WE ANSWER HERE RATHER THAN PROXYING TO THE API. The API's resolver chain is two
+# contributors and the domain one extracts NO slug from a bare api.<domain> -- the host is
+# shorter than the ".api.<domain>" suffix it must end with -- so an unauthenticated request
+# would run in HOST context. That would make this an undocumented second alias for the admin
+# surface, reached by slug extraction failing rather than by the reserved-slug rule that puts
+# admin.api.<domain> there on purpose.
+#
+# WHY 404 AND NOT THE 421 ABOVE. 421 means "retry on a different connection" (RFC 9110), so a
+# client that honours it retries a hostname that will never work. The 421 above answers a
+# different question (HTTP/2 coalescing across one shared certificate) and stays as it is.
+#
+# default_type, NOT `add_header Content-Type`: nginx takes the type of a `return` body from
+# default_type, and add_header is dropped on 4xx anyway unless marked `always`. Keep this block
+# free of `location` sections for the same reason -- an inner add_header discards inherited ones.
+#
+# `missing_office_label` is a marker a check can grep for. A 404 alone cannot tell "the proxy
+# refused" from "the API has no such route", which is how a check comes back green having proved
+# nothing. The body names the correct hostname shape; that discloses nothing new, because the
+# certificate announces *.api.<domain> and *.auth.<domain> during the handshake, before Host is
+# read -- the same reasoning the 421 block records.
+#
+# SIDE EFFECT, exactly as for minio: `api` and `auth` become RESERVED office slugs.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    default_type application/json;
+    return 404 '{"error":{"code":"missing_office_label","message":"This hostname needs an office label: use <office>.api.${BASE_DOMAIN} or <office>.auth.${BASE_DOMAIN}."}}';
 }
 
 # minio.<domain> -> MinIO S3 API (Case Tracker document exchange, 2026-08-13).
