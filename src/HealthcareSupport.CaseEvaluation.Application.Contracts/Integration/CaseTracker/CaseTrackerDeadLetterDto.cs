@@ -43,9 +43,19 @@ public class CaseTrackerDeadLetterDto
 /// <summary>Outcome of a retry, so the screen can report what happened without a refetch.</summary>
 public class CaseTrackerDeadLetterRetryResultDto
 {
-    /// <summary>The outbox row the retry created or collapsed onto.</summary>
+    /// <summary>
+    /// The outbox row the retry created or collapsed onto. When <see cref="AlreadyDelivered"/> is true
+    /// this is the NEWER row that already delivered the current content, not a newly queued one.
+    /// </summary>
     public Guid QueuedOutboxItemId { get; set; }
 
     /// <summary>The dead letter that was marked resolved.</summary>
     public Guid ResolvedOutboxItemId { get; set; }
+
+    /// <summary>
+    /// True when nothing new was queued because a newer row had already delivered the appointment's
+    /// current content (#961): the Case Tracker holds the current state, so the dead letter was
+    /// resolved without sending again.
+    /// </summary>
+    public bool AlreadyDelivered { get; set; }
 }
