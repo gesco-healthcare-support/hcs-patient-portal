@@ -29,6 +29,12 @@ public class DocxContainerValidatorTests
         DocxContainerValidator.Inspect(stream).ShouldBe(DocxContainerVerdict.Valid);
     }
 
+    [Fact]
+    public void Inspect_NoStream_IsNotAZip()
+    {
+        DocxContainerValidator.Inspect(null!).ShouldBe(DocxContainerVerdict.NotAZip);
+    }
+
     /// <summary>
     /// THE case this whole check exists for: a macro-bearing package renamed to .docx. The extension
     /// is allowed and the magic bytes are a valid zip header, so nothing before this point can
