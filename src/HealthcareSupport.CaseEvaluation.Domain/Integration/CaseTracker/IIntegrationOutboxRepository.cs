@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Volo.Abp.Domain.Repositories;
@@ -60,6 +61,17 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
     /// suppressed SILENTLY. Such a job must keep intake rows, or this must stop filtering them.</para>
     /// </summary>
     Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// This office's live rows for one appointment and message type, NEWEST FIRST by creation time.
+    /// The enqueue's collapse rule (#915) reads it: an intake compares its content against the newest
+    /// row only, a document update against any of them. Office scoping and soft delete are the
+    /// ambient filters, as for every query on this repository.
+    /// </summary>
+    Task<List<IntegrationOutboxItem>> GetForAppointmentAsync(
+        Guid appointmentId,
+        IntegrationMessageType messageType,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Takes the per-appointment ordering lock for the rest of the current transaction (#931). Both

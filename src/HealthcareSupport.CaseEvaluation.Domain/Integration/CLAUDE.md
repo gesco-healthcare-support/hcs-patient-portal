@@ -11,7 +11,7 @@ source of truth for field names and semantics.
 | File | Purpose |
 |---|---|
 | `CaseTracker/IntegrationOutboxItem.cs` | Durable per-office message ledger. `TryClaim` leases a row, `MarkSent` is idempotent, `MarkFailed` reschedules or dead-letters at the cap, and `MarkFatal` dead-letters immediately for a response a retry can never fix. |
-| `CaseTracker/IntegrationOutboxManager.cs` | Idempotent enqueue (SHA-256 key over message type + appointment + version) and the atomic due-batch claim. |
+| `CaseTracker/IntegrationOutboxManager.cs` | Enqueue with a content key (SHA-256 over message type + appointment + version) and the atomic due-batch claim. Same content collapses only onto a Pending or Sent row (never Failed/Resolved); an intake is compared with the NEWEST intake row only (so A -> B -> A is sent), a document update with any earlier row (#915). A repeat of content takes a generation key. |
 | `CaseTracker/IIntegrationOutboxRepository.cs` | Adds `TryLeaseAsync`, `CountSentSinceAsync`, `HasIntakeAsync` and `AcquireAppointmentLockAsync`; the EF implementation lives in the EntityFrameworkCore layer. |
 | `CaseTracker/CaseTrackerDocumentQueue.cs` | The ONLY writer of document-update rows. Writes nothing for an appointment with no intake row yet (#931), so an update can never sit ahead of its own intake. |
 | `CaseTracker/IntegrationOutboxDrainService.cs` | Sends due rows: gates on the enabled setting, then applies the status matrix to each result. |

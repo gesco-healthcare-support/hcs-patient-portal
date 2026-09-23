@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using Shouldly;
@@ -216,6 +217,26 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
             var due = Now.AddSeconds(IntegrationOutboxConsts.RetryBackoffSeconds + 1);
             (await _outboxRepository.TryLeaseAsync(id, due, due.AddSeconds(120))).ShouldBeTrue();
         });
+    }
+
+    [Fact]
+    public async Task GetForAppointmentAsync_ReturnsThatAppointmentsRowsOfThatType_NewestFirst_WithoutDeletedOnes()
+    {
+        // The #915 collapse rule compares an intake with the NEWEST intake row, so the order is
+        // load-bearing, and it must not see another appointment's rows, the other message type, or a
+        // soft-deleted row. Each insert is its own unit of work, so creation times strictly increase.
+        var appointmentId = Guid.NewGuid();
+        var oldest = await InsertAsync(NewRow(appointmentId, IntegrationMessageType.Intake));
+        await InsertAsync(NewRow(appointmentId, IntegrationMessageType.DocumentUpdate));
+        await InsertAsync(NewRow(Guid.NewGuid(), IntegrationMessageType.Intake));
+        var deleted = await InsertAsync(NewRow(appointmentId, IntegrationMessageType.Intake));
+        await WithUnitOfWorkAsync(() => _outboxRepository.DeleteAsync(deleted.Id, autoSave: true));
+        var newest = await InsertAsync(NewRow(appointmentId, IntegrationMessageType.Intake));
+
+        var rows = await WithUnitOfWorkAsync(() =>
+            _outboxRepository.GetForAppointmentAsync(appointmentId, IntegrationMessageType.Intake));
+
+        rows.Select(r => r.Id).ShouldBe(new[] { newest.Id, oldest.Id });
     }
 
     [Fact]

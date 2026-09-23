@@ -35,10 +35,11 @@ public class IntegrationOutboxManager : DomainService
     }
 
     /// <summary>
-    /// Deterministic dedup key: a SHA-256 digest over (message type, appointment, version). Two
-    /// enqueues describing the SAME state of the same appointment collapse to one row, so a
-    /// redelivered domain event cannot push a duplicate case -- while a genuinely newer version of
-    /// the appointment produces a different key and is therefore pushed.
+    /// Deterministic CONTENT key: a SHA-256 digest over (message type, appointment, version). Two
+    /// enqueues describing the same state of the same appointment get the same key, so a redelivered
+    /// domain event can be recognised -- while a genuinely different version gets a different key.
+    /// Whether same content actually collapses onto an earlier row is decided in
+    /// <see cref="EnqueueAsync"/> (#915); the key alone no longer decides it.
     ///
     /// <para>Hashed rather than concatenated so the column stays bounded and carries no readable
     /// identifiers.</para>
@@ -57,8 +58,27 @@ public class IntegrationOutboxManager : DomainService
     }
 
     /// <summary>
-    /// Idempotent enqueue: if a row already exists for this key within the current office, returns
-    /// it untouched; otherwise inserts a new Pending row.
+    /// Enqueues a message, or returns an earlier row that already carries the same content.
+    /// <paramref name="idempotencyKey"/> is the CONTENT key from <see cref="BuildIdempotencyKey"/>.
+    ///
+    /// <para>WHEN SAME CONTENT COLLAPSES (#915). Only onto a row that is still Pending or already
+    /// Sent: those mean the message is in hand or delivered, so a replayed event must not send it
+    /// twice. A Failed row never arrived and a Resolved one was set aside by a person, so same content
+    /// after either is a genuine new attempt and gets a new row. Before #915 any row with the key
+    /// collapsed whatever its status, which is how a manual retry of an unchanged dead letter
+    /// "succeeded" and sent nothing (#961).</para>
+    ///
+    /// <para>WHICH ROW IT IS COMPARED WITH. An intake is a full snapshot, so it is compared with the
+    /// NEWEST intake row only: a value changed A -> B -> A must reach the Case Tracker a third time,
+    /// and matching the first A (already Sent) is how that revert used to be dropped. A document
+    /// update is a delta for particular documents, so it is compared with ANY earlier row: a replayed
+    /// accept for an older document must still collapse after a newer document went out, and
+    /// document keys cannot revert because each document's timestamp only moves forward.</para>
+    ///
+    /// <para>A new row takes the content key if it is free, otherwise the first free generation key
+    /// (<see cref="BuildGenerationKey"/>), which satisfies the unique index without a new column.
+    /// Both callers hold the per-appointment ordering lock, so two enqueues cannot pick the same
+    /// generation; without it the unique index would refuse the second, as it always has.</para>
     /// </summary>
     public virtual async Task<IntegrationOutboxItem> EnqueueAsync(
         Guid? tenantId,
@@ -70,11 +90,22 @@ public class IntegrationOutboxManager : DomainService
     {
         Check.NotNullOrWhiteSpace(idempotencyKey, nameof(idempotencyKey));
 
-        var queryable = await _outboxRepository.GetQueryableAsync();
-        var existing = queryable.FirstOrDefault(x => x.IdempotencyKey == idempotencyKey);
+        var rows = await _outboxRepository.GetForAppointmentAsync(appointmentId, messageType);
+        var sameContentKeys = ContentKeys(idempotencyKey, rows.Count);
+
+        var comparedWith = messageType == IntegrationMessageType.Intake ? rows.Take(1) : rows;
+        var existing = comparedWith.FirstOrDefault(r =>
+            sameContentKeys.Contains(r.IdempotencyKey) && CanCollapseOnto(r));
         if (existing != null)
         {
-            return existing; // idempotent: a replayed enqueue collapses to the existing row
+            return existing; // a replayed enqueue of content already in hand or delivered
+        }
+
+        var usedKeys = rows.Select(r => r.IdempotencyKey).ToHashSet(StringComparer.Ordinal);
+        var key = idempotencyKey;
+        for (var generation = 1; usedKeys.Contains(key); generation++)
+        {
+            key = BuildGenerationKey(idempotencyKey, generation);
         }
 
         var item = new IntegrationOutboxItem(
@@ -84,10 +115,41 @@ public class IntegrationOutboxManager : DomainService
             targetPath,
             appointmentId,
             payload,
-            idempotencyKey);
+            key);
 
         return await _outboxRepository.InsertAsync(item, autoSave: true);
     }
+
+    /// <summary>
+    /// The key for the <paramref name="generation"/>-th re-send of the same content: a SHA-256 over
+    /// the content key and the generation, so it is the same length as a content key and cannot
+    /// collide with any other appointment's or message type's keys (the content key already carries
+    /// both).
+    /// </summary>
+    public static string BuildGenerationKey(string contentKey, int generation)
+    {
+        var material = string.Create(CultureInfo.InvariantCulture, $"{contentKey}|generation|{generation}");
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+    }
+
+    /// <summary>
+    /// Every key a row carrying this content could have: the content key itself, or one of its
+    /// generation keys. A generation is only ever taken when all lower ones are in use, so it can
+    /// never exceed the number of rows that exist -- which bounds the set.
+    /// </summary>
+    private static HashSet<string> ContentKeys(string contentKey, int rowCount)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal) { contentKey };
+        for (var generation = 1; generation <= rowCount; generation++)
+        {
+            keys.Add(BuildGenerationKey(contentKey, generation));
+        }
+
+        return keys;
+    }
+
+    private static bool CanCollapseOnto(IntegrationOutboxItem row) =>
+        row.Status is IntegrationOutboxStatus.Pending or IntegrationOutboxStatus.Sent;
 
     /// <summary>
     /// Claims up to <paramref name="batchSize"/> due Pending rows (oldest first) via the ATOMIC
