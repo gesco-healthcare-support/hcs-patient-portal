@@ -223,7 +223,9 @@ public class NotificationTemplatesValidatorUnitTests
         // the 24-hour retry window (+1 -> 68).
         // #927 (2026-09-24) added CaseTrackerFeedAlert, the changes-feed alert to the technical list
         // (+1 -> 69).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(69);
+        // #944 (2026-09-24) added CaseTrackerMissingIntakes, the weekly missing-intake report to the
+        // technical list (+1 -> 70).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(70);
     }
 
     [Fact]
