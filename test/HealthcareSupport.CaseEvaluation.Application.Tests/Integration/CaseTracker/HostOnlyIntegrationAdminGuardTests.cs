@@ -164,7 +164,7 @@ public class HostOnlyIntegrationAdminGuardTests
             _outboxRepository,
             null!,
             Substitute.For<IRepository<Appointment, Guid>>(),
-            Substitute.For<ICaseTrackerIntakeQueue>(),
+            null!, // the requeuer (#961): never reached, the guard refuses first
             _currentTenant,
             Substitute.For<ITenantStore>(),
             Substitute.For<IClock>())
