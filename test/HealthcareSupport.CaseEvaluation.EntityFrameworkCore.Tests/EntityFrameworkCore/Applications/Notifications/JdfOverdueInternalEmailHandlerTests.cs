@@ -18,7 +18,8 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 /// <see cref="JdfOverdueInternalEmailHandler"/> on the real rig: an overdue joint declaration is an
 /// internal problem, so it goes to the office's Staff Supervisor and Intake Staff users only, once
 /// each. A user in another role is seeded as a decoy, because "internal only" is the guarantee --
-/// telling a patient's attorney that a form is late would leak an internal workflow problem.
+/// telling a patient's attorney that a form is late would leak an internal workflow problem. The same
+/// two roles are also seeded in office B, because "the office's staff" is the other half of it.
 /// </summary>
 public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
@@ -41,6 +42,8 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
         sent.To.ShouldBeNull();
         sent.Recipients.ShouldBe(new[] { staff.Supervisor, staff.Intake }, ignoreOrder: true);
         sent.Recipients.ShouldNotContain(staff.Decoy);
+        sent.Recipients.ShouldNotContain(staff.OtherOfficeSupervisor);
+        sent.Recipients.ShouldNotContain(staff.OtherOfficeIntake);
         sent.Variables.Values.ShouldContain("Joint Declaration Form");
         sent.Variables.Values.ShouldContain(AppointmentsTestData.Appointment1RequestConfirmationNumber);
     }
@@ -92,9 +95,11 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
 
     /// <summary>
     /// A Staff Supervisor who ALSO holds Intake Staff (so the dedup is exercised), an Intake Staff
-    /// user, and a decoy in another role, all in office A.
+    /// user, and a decoy in another role, all in office A. Plus the OFFICE decoys: a Staff Supervisor
+    /// and an Intake Staff user in office B, the right roles in the wrong office, which must never
+    /// hear about office A's appointment.
     /// </summary>
-    private async Task<(string Supervisor, string Intake, string Decoy)> SeedStaffAsync()
+    private async Task<(string Supervisor, string Intake, string Decoy, string OtherOfficeSupervisor, string OtherOfficeIntake)> SeedStaffAsync()
     {
         string supervisor = string.Empty, intake = string.Empty, decoy = string.Empty;
         await WithUnitOfWorkAsync(async () =>
@@ -110,6 +115,21 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
                 (await users.AddToRoleAsync((await users.FindByEmailAsync(supervisor))!, "Intake Staff")).Succeeded.ShouldBeTrue();
             }
         });
-        return (supervisor, intake, decoy);
+
+        string otherSupervisor = string.Empty, otherIntake = string.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+            {
+                var users = GetRequiredService<IdentityUserManager>();
+                var roles = GetRequiredService<IdentityRoleManager>();
+                var office = TenantsTestData.TenantBRef;
+                await RoleUserSeeder.CreateRoleSortingFirstAsync(roles, office, "Staff Supervisor", 1);
+                await RoleUserSeeder.CreateRoleSortingFirstAsync(roles, office, "Intake Staff", 2);
+                otherSupervisor = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, office, "Staff Supervisor", "jdf-officeb-supervisor");
+                otherIntake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, office, "Intake Staff", "jdf-officeb-intake");
+            }
+        });
+        return (supervisor, intake, decoy, otherSupervisor, otherIntake);
     }
 }

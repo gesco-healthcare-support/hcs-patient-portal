@@ -66,6 +66,24 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
     }
 
     [Fact]
+    public async Task ConfirmationNumberOfAnotherOfficesApprovedAppointment_FallsBackToTheItAdmins()
+    {
+        // The OFFICE decoy. Appointment2 is Approved in office B with Patient2 responsible -- the exact
+        // setup the first Fact routes to Patient2. Raised from office A, the number must not resolve
+        // across offices, or a query would reach another office's user with that appointment's
+        // identity suffix in the subject.
+        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.Patient2UserId);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantARef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldNotContain(IdentityUsersTestData.Patient2Email);
+        sent.Recipients.ShouldContain(admins.Admin);
+        sent.Variables["UserQuerySubjectIdentity"].ShouldBe(string.Empty);
+    }
+
+    [Fact]
     public async Task ConfirmationNumberOfANonApprovedAppointment_FallsBackToTheItAdmins()
     {
         // Appointment1 is seeded Pending in office A: its responsible user must NOT be used.

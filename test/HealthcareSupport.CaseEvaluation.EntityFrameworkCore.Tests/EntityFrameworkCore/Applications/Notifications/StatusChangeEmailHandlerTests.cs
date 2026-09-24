@@ -222,6 +222,15 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
             // The supervisor also holds Intake Staff, so the dedup is what keeps them to one email.
             (await users.AddToRoleAsync((await users.FindByEmailAsync(supervisor))!, "Intake Staff")).Succeeded.ShouldBeTrue();
         });
+        // The OFFICE decoys: the right two roles in the wrong office.
+        string otherOfficeSupervisor = string.Empty, otherOfficeIntake = string.Empty;
+        await InOfficeAsync(TenantsTestData.TenantBRef, async (users, roles) =>
+        {
+            await RoleUserSeeder.CreateRoleSortingFirstAsync(roles, TenantsTestData.TenantBRef, "Staff Supervisor", 1);
+            await RoleUserSeeder.CreateRoleSortingFirstAsync(roles, TenantsTestData.TenantBRef, "Intake Staff", 2);
+            otherOfficeSupervisor = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantBRef, "Staff Supervisor", "noshow-officeb-supervisor");
+            otherOfficeIntake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantBRef, "Intake Staff", "noshow-officeb-intake");
+        });
 
         await RaiseAsync(AppointmentStatusType.NoShow);
 
@@ -231,6 +240,8 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         sent.Recipients.ShouldBe(new[] { supervisor, intake }, ignoreOrder: true);
         sent.Recipients.ShouldNotContain(decoy);
         sent.Recipients.ShouldNotContain(StakeholderEmail);
+        sent.Recipients.ShouldNotContain(otherOfficeSupervisor);
+        sent.Recipients.ShouldNotContain(otherOfficeIntake);
     }
 
     // ---- Guards ----
@@ -317,9 +328,12 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         }
     });
 
-    private Task InTenantAAsync(Func<IdentityUserManager, IdentityRoleManager, Task> action) => WithUnitOfWorkAsync(async () =>
+    private Task InTenantAAsync(Func<IdentityUserManager, IdentityRoleManager, Task> action) =>
+        InOfficeAsync(TenantsTestData.TenantARef, action);
+
+    private Task InOfficeAsync(Guid officeId, Func<IdentityUserManager, IdentityRoleManager, Task> action) => WithUnitOfWorkAsync(async () =>
     {
-        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        using (GetRequiredService<ICurrentTenant>().Change(officeId))
         {
             await action(GetRequiredService<IdentityUserManager>(), GetRequiredService<IdentityRoleManager>());
         }
