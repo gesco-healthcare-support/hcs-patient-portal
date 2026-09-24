@@ -66,6 +66,9 @@ export class CaseTrackerMissingIntakesComponent {
   /** Offices whose before-integration list is open. */
   protected readonly expanded = signal<ReadonlySet<string>>(new Set<string>());
 
+  /** The report's offices, or none before a check has succeeded. */
+  protected readonly offices = computed(() => this.report()?.offices ?? []);
+
   protected readonly likelyLostTotal = computed(
     () => this.report()?.offices.reduce((sum, o) => sum + o.likelyLost.length, 0) ?? 0,
   );

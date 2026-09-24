@@ -2,9 +2,9 @@
   <div>
     <h2>Missing intakes</h2>
     <p class="cmi-sub">
-      Approved appointments in every office that have no Case Tracker intake row, with no date limit.
-      This check only reads: it queues nothing. To send one, use Push to Case Tracker on the appointment
-      inside its office.
+      Approved appointments in every office that have no Case Tracker intake row, with no date
+      limit. This check only reads: it queues nothing. To send one, use Push to Case Tracker on the
+      appointment inside its office.
     </p>
   </div>
   <button type="button" class="cmi-btn" (click)="check()" [disabled]="loading()">
@@ -24,12 +24,14 @@
     <b>Could not run the check</b>
     {{ error() }}
   </div>
-} @else if (report(); as r) {
+} @else if (report()) {
   <p class="cmi-summary">
-    Likely lost: <b>{{ likelyLostTotal() }}</b> across {{ r.offices.length }} office(s). Checked
-    {{ r.generatedAt | pacificDate: 'short' }}.
+    Likely lost:
+    <b>{{ likelyLostTotal() }}</b>
+    across {{ offices().length }} office(s). Checked
+    {{ report()?.generatedAt | pacificDate: 'short' }}.
   </p>
-  @for (o of r.offices; track o.officeId) {
+  @for (o of offices(); track o.officeId) {
     <section class="cmi-office">
       <h3>{{ o.officeName }}</h3>
       @if (o.failed) {
@@ -66,7 +68,8 @@
         }
         @if (o.settling.length) {
           <p class="cmi-note">
-            {{ o.settling.length }} still settling: packets are rendering, so no row is expected yet.
+            {{ o.settling.length }} still settling: packets are rendering, so no row is expected
+            yet.
           </p>
         }
         @if (o.beforeIntegrationCount) {

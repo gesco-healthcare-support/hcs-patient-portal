@@ -142,7 +142,9 @@ describe('CaseTrackerMissingIntakesComponent', () => {
     expect(el.textContent).toContain('A00104');
     expect(el.textContent).toContain('This office could not be read. It was not checked.');
     expect(el.textContent).not.toContain('A00001');
-    const buttons = Array.from(el.querySelectorAll('button')).map((b) => b.textContent?.trim() ?? '');
+    const buttons = Array.from(el.querySelectorAll('button')).map(
+      (b) => b.textContent?.trim() ?? '',
+    );
     expect(buttons.length).toBe(2);
     expect(buttons[0]).toContain('Check for missing intakes');
     expect(buttons[1]).toContain("Before this office's integration: 250");
