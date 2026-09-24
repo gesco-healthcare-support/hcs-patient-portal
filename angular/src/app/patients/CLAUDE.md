@@ -50,8 +50,8 @@ return in `save()` is intentional (W-B-2 fix, 2026-04-30).
 
 - `PatientProfileComponent` uses `ChangeDetectionStrategy.Default`, not OnPush -- no need
   for `markForCheck()` on async loads here, unlike the `abp-lookup-select` OnPush issue.
-- The admin modal (`patient-detail`) re-uses `AbstractPatientDetailViewService`; do not add
-  a second SSN input or bypass `app-ssn-input` there.
+- The SSN is entered only through `app-ssn-input` (patient profile, booking demographics,
+  internal appointment detail); do not add a second SSN input or bypass it.
 
 ## Related
 

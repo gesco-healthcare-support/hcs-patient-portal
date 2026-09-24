@@ -119,8 +119,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
  * engine with zero duplication; this subclass only adds the redesigned .ad-*
  * read-only presentation (status banner, sticky section nav, field ledgers) and
  * reuses the existing document-manager + change-request modal components.
- * Mounted at a temp route; external-only. (Distinct from the ABP-Suite
- * AppointmentDetailModalComponent, which is the list-page edit modal.)
+ * Mounted at a temp route; external-only.
  */
 @Component({
   selector: 'app-external-appointment-detail',
