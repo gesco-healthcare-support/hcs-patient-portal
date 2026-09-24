@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
@@ -75,6 +76,23 @@ public class EfCoreIntegrationOutboxRepository
             .AnyAsync(
                 x => x.AppointmentId == appointmentId && x.MessageType == IntegrationMessageType.Intake,
                 cancellationToken);
+    }
+
+    public async Task<List<IntegrationOutboxItem>> GetForAppointmentAsync(
+        Guid appointmentId,
+        IntegrationMessageType messageType,
+        CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // Tracked on purpose: the enqueue can hand one of these rows back to a caller that then saves
+        // it (the dead-letter retry resolves the row it loaded). The id is only a deterministic
+        // tiebreaker for equal creation times; the per-appointment lock makes those near-impossible.
+        return await dbSet
+            .Where(x => x.AppointmentId == appointmentId && x.MessageType == messageType)
+            .OrderByDescending(x => x.CreationTime)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task AcquireAppointmentLockAsync(
