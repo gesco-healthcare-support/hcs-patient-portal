@@ -21,14 +21,30 @@ source of truth for field names and semantics.
 | `CaseTracker/CaseTrackerIntakeQueue.cs` | Shared enqueue path used by BOTH the approval trigger and the manual push, so they cannot drift. |
 | `CaseTracker/CaseTrackerEndpoints.cs` | Relative paths on the Case Tracker API. |
 | `CaseTracker/IntakePayloadSerializer.cs` | The one place integration JSON is produced (camelCase, nulls kept). |
-| `CaseTracker/Jobs/` | `IntegrationOutboxDrainJob` (one office; skips if that office's drain lock is held), `CaseTrackerDrainKickJob` (5-min kick of every office's drain, #917), `CaseTrackerReconciliationJob` (15-min sweep across offices) and `CaseTrackerFailureAlertJob` (dead-letter alert plus the #917 early warning). |
+| `CaseTracker/Jobs/` | `IntegrationOutboxDrainJob` (one office; skips if that office's drain lock is held), `CaseTrackerDrainKickJob` (5-min kick of every office's drain, #917), `CaseTrackerReconciliationJob` (15-min sweep across offices), `CaseTrackerFailureAlertJob` (dead-letter alert plus the #917 early warning) and `CaseTrackerFeedHealthJob` (5-min silence and stall check for offices on the feed, #927). |
+| `CaseTracker/CaseTrackerFeedService.cs` + `CaseTrackerFeedResult.cs` | The changes feed the Case Tracker pulls (#927). The cursor IS the acknowledgement: malformed, below-floor and never-issued cursors are refused before anything moves; no cursor resumes from the stored position. Reports of deliberately skipped rows are validated, logged and alerted. Served by `HttpApi.Host/Controllers/Integration/CaseTrackerFeedController.cs` behind `X-Feed-Token` and a per-office allowance. |
+| `CaseTracker/CaseTrackerFeedState.cs` + `ICaseTrackerFeedStateRepository.cs` | One row per office: the floor, the acknowledged and highest-issued positions, request and advance times, alert stamps. An ACTIVE record is what puts an office on the feed. Polls and the health job write set-based and monotonic. |
+| `CaseTracker/ICaseTrackerFeedStore.cs` | The feed's rowversion reads. SQL SERVER ONLY (the EF implementation throws elsewhere); proved by `CaseTrackerFeedSqlServerTests` on a real SQL Server. |
+| `CaseTracker/CaseTrackerFeedManager.cs` | Start feed (floor below the oldest Pending row or in-flight write) and Return to push, for the offices screen. |
+| `CaseTracker/CaseTrackerDeliveryModeReader.cs` | Push switch on AND no active feed record = the drain may push. The one place that rule lives. |
 | `CaseTracker/Payload/` | `IIntakePayloadBuilder` facade over four focused resolvers, plus the DTOs and the pure helpers (`ObjectKeyBuilder`, `DocumentEntryMapper`, `IntegrationTimestamp`, `EvaluationKindWire`). |
 
 ## Conventions
 
 - **Nothing leaves the portal unless an office opts in.** The drain gates on
   `CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled`, which defaults to false.
-  When off, due rows stay Pending with no failed-attempt cost and resume once enabled.
+  When off, due rows stay Pending with no failed-attempt cost and resume once enabled. The changes
+  feed honours the same switch (#927), and so do reconcile and attendance -- which is why the switch
+  stays ON at cutover and a separate feed record decides push versus feed.
+- **Under the feed, nothing may update a served row (#927).** The cursor is the rows' rowversion,
+  which changes on EVERY update, so an updated row is served again. Hence delivery lives on the feed
+  record, not the row; the drain and the early warning skip fed offices; and the feed serves only
+  `Pending` rows (a dead letter updated after cutover gets a fresh rowversion above the floor). A new
+  writer that touches Pending rows must skip offices on the feed.
+- **The feed reads strictly below `MIN_ACTIVE_ROWVERSION()`.** A row written by a transaction still
+  open is withheld, with everything after it, so a cursor can never move past it. An empty page while
+  a write is in flight is normal. A long-running or abandoned transaction holds the feed back; that
+  shows as a stall alert, which names it as a possible cause.
 - **Retry for a day, and tell a human early.** Since #917 a retryable failure keeps retrying for 24
   hours from its FIRST failure, on waits of 5, 10, 20, then 30 minutes; `MaxAttempts` (100) is only
   a backstop, and rows queued before #917 keep their stored 3. Internal staff get a one-off early
