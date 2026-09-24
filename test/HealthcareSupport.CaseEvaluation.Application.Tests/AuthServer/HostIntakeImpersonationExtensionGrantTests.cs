@@ -13,6 +13,7 @@ using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Shouldly;
 using Volo.Abp.Authorization.Permissions;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.OpenIddict.ExtensionGrantTypes;
 using Volo.Abp.Users;
 using Volo.Saas.Host;
@@ -51,17 +52,35 @@ public class HostIntakeImpersonationExtensionGrantTests
     /// <summary>Exposes the protected switch-in entry point and sets the collaborators it reads.</summary>
     private sealed class TestableGrant : HostIntakeImpersonationExtensionGrant
     {
-        public TestableGrant(IPermissionChecker permissions, ICurrentUser user)
+        public TestableGrant(IPermissionChecker permissions, ICurrentUser user, ICurrentTenant? tenant)
         {
             permissionChecker = permissions;
             currentUser = user;
+            currentTenant = tenant!;
         }
 
         public Task<IActionResult> SwitchIntoAsync(ExtensionGrantContext context, Guid officeId) =>
             ImpersonateTenantAsync(context, new ClaimsPrincipal(new ClaimsIdentity()), officeId, "TEST-requested-admin");
     }
 
-    private TestableGrant Grant(bool saasImpersonation, bool intakeImpersonation, Guid? operatorId, string? email)
+    /// <summary>
+    /// Raised by the recording tenant the moment the grant enters an office. The sign-in beyond that
+    /// point needs ABP's concrete user manager, so the test stops here: reaching it proves the call
+    /// went PAST the assignment gate, and carries the office it entered.
+    /// </summary>
+    private sealed class OfficeEnteredException : Exception
+    {
+        public OfficeEnteredException(Guid? officeId)
+            : base($"The grant entered office {officeId}.")
+        {
+            OfficeId = officeId;
+        }
+
+        public Guid? OfficeId { get; }
+    }
+
+    private TestableGrant Grant(
+        bool saasImpersonation, bool intakeImpersonation, Guid? operatorId, string? email, ICurrentTenant? tenant = null)
     {
         var permissions = Substitute.For<IPermissionChecker>();
         permissions.IsGrantedAsync(SaasHostPermissions.Tenants.Impersonation).Returns(saasImpersonation);
@@ -72,7 +91,7 @@ public class HostIntakeImpersonationExtensionGrantTests
         user.Email.Returns(email);
         user.UserName.Returns(email);
 
-        return new TestableGrant(permissions, user);
+        return new TestableGrant(permissions, user, tenant);
     }
 
     private ExtensionGrantContext Context()
@@ -133,6 +152,22 @@ public class HostIntakeImpersonationExtensionGrantTests
 
         ShouldBeRefused(result, "You are not assigned to this office.");
         _assignmentQuestions.ShouldBe(new[] { (OperatorId, OtherOfficeId) });
+    }
+
+    [Fact]
+    public async Task An_intake_operator_assigned_to_the_office_gets_past_the_gate_into_that_office()
+    {
+        // ADMITTED CONTROL for the refusal above: without it, a gate that refused EVERY Intake
+        // operator would pass the whole class.
+        var tenant = Substitute.For<ICurrentTenant>();
+        tenant.When(t => t.Change(Arg.Any<Guid?>(), Arg.Any<string?>()))
+            .Do(call => throw new OfficeEnteredException(call.ArgAt<Guid?>(0)));
+        var grant = Grant(saasImpersonation: false, intakeImpersonation: true, OperatorId, OperatorEmail, tenant);
+
+        var entered = await Should.ThrowAsync<OfficeEnteredException>(() => grant.SwitchIntoAsync(Context(), AssignedOfficeId));
+
+        entered.OfficeId.ShouldBe(AssignedOfficeId);
+        _assignmentQuestions.ShouldBe(new[] { (OperatorId, AssignedOfficeId) });
     }
 
     [Theory]
