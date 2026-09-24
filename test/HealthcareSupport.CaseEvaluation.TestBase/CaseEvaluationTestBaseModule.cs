@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Autofac;
@@ -29,6 +30,13 @@ public class CaseEvaluationTestBaseModule : AbpModule
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
     {
+        // A database copied from the seeded template already holds every seeded row; seeding it
+        // again would duplicate them (#1033).
+        if (context.ServiceProvider.GetRequiredService<IOptions<CaseEvaluationTestSeedOptions>>().Value.SkipInitialSeed)
+        {
+            return;
+        }
+
         SeedTestData(context);
     }
 
