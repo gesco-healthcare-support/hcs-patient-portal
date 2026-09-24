@@ -20,7 +20,8 @@ namespace HealthcareSupport.CaseEvaluation.Reports;
 /// </summary>
 /// <remarks>
 /// The CSV test is also a PHI guard. Patient 1 HAS a full SSN on file, so an export that wrote the
-/// unmasked value would fail it. Office A, seeded data only.
+/// unmasked value would fail it. Office A, seeded data only; office B's seeded appointment is inside
+/// the date window, so the office boundary is what keeps it out.
 /// </remarks>
 public abstract class ReportsStatusAndCsvTests<TStartupModule>
     : CaseEvaluationApplicationTestBase<TStartupModule>
@@ -35,35 +36,54 @@ public abstract class ReportsStatusAndCsvTests<TStartupModule>
         _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
-    private async Task<T> InOfficeA<T>(Func<Task<T>> call)
+    private Task<T> InOfficeA<T>(Func<Task<T>> call) => InOffice(TenantsTestData.TenantARef, call);
+
+    private Task<T> InOfficeB<T>(Func<Task<T>> call) => InOffice(TenantsTestData.TenantBRef, call);
+
+    private async Task<T> InOffice<T>(Guid officeId, Func<Task<T>> call)
     {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (_currentTenant.Change(officeId))
         {
             return await WithUnitOfWorkAsync(call);
         }
     }
 
-    private static GetAppointmentReportInput AroundAppointment1() => new()
+    /// <summary>
+    /// A date window that holds BOTH seeded appointments: office A's pending Appointment 1 and
+    /// office B's approved Appointment 2.
+    /// </summary>
+    /// <remarks>
+    /// LOAD-BEARING DECOY: Appointment 2 must sit inside this window. If the window excluded it, the
+    /// date filter would drop it first and the "not office B" assertions below would pass with the
+    /// office boundary removed. Do not narrow the window below Appointment 2's date.
+    /// </remarks>
+    private static GetAppointmentReportInput SpanningBothOffices() => new()
     {
         AppointmentDateMin = AppointmentsTestData.Appointment1Date.AddDays(-1),
-        AppointmentDateMax = AppointmentsTestData.Appointment1Date.AddDays(1),
+        AppointmentDateMax = AppointmentsTestData.Appointment2Date.AddDays(1),
         MaxResultCount = 100,
     };
 
     [Fact]
     public async Task Status_counts_report_the_offices_pending_booking_in_the_date_range()
     {
-        var counts = await InOfficeA(() => _reports.GetStatusCountsAsync(AroundAppointment1()));
+        var counts = await InOfficeA(() => _reports.GetStatusCountsAsync(SpanningBothOffices()));
 
         counts.Single(c => c.Status == AppointmentStatusType.Pending).Count.ShouldBe(1);
         counts.ShouldNotContain(c => c.Status == AppointmentStatusType.Approved && c.Count > 0,
             "office B's approved appointment must not be counted in office A");
+
+        // Control: the same window, read as office B, DOES count Appointment 2. So the date filter
+        // lets it through, and only the office boundary keeps it out of office A above.
+        var officeBCounts = await InOfficeB(() => _reports.GetStatusCountsAsync(SpanningBothOffices()));
+        officeBCounts.Single(c => c.Status == AppointmentStatusType.Approved).Count.ShouldBe(1,
+            "Appointment 2 must fall inside the window, or the office A assertion proves nothing");
     }
 
     [Fact]
     public async Task The_csv_export_lists_the_booking_and_never_the_full_ssn()
     {
-        var file = await InOfficeA(() => _reports.GetReportCsvAsync(AroundAppointment1()));
+        var file = await InOfficeA(() => _reports.GetReportCsvAsync(SpanningBothOffices()));
 
         file.ContentType.ShouldBe("text/csv");
         file.FileName.ShouldBe("appointment-request-report.csv");
@@ -72,6 +92,12 @@ public abstract class ReportsStatusAndCsvTests<TStartupModule>
         text.ShouldContain(AppointmentsTestData.Appointment1RequestConfirmationNumber);
         text.ShouldNotContain(PatientsTestData.Patient1SocialSecurityNumber);
         text.ShouldNotContain(AppointmentsTestData.Appointment2RequestConfirmationNumber);
+
+        // Control: office B's export of the same window lists Appointment 2, so the office
+        // boundary, not the date filter, is what kept it out of office A's file.
+        var officeBFile = await InOfficeB(() => _reports.GetReportCsvAsync(SpanningBothOffices()));
+        using var officeBReader = new StreamReader(officeBFile.Content, Encoding.UTF8);
+        (await officeBReader.ReadToEndAsync()).ShouldContain(AppointmentsTestData.Appointment2RequestConfirmationNumber);
     }
 
     [Fact]
