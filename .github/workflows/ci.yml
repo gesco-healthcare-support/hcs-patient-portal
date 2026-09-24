@@ -737,9 +737,14 @@ jobs:
       # The filter travels in shard.runsettings, not on the command line: the command runs
       # inside dotnet-coverage's single command string, and dozens of `|` terms are fragile
       # through that second layer of quoting.
+      #
+      # -s dotnet-coverage.settings.xml (both collect steps): instrument ONLY our own
+      # HealthcareSupport.CaseEvaluation.* assemblies, so a dependency's SourceLinked source is
+      # never graded as ours. The reason and the known limit are in that file.
       - name: Test (EF Core, this shard)
         run: >
           dotnet-coverage collect
+          -s dotnet-coverage.settings.xml
           'dotnet test ${{ env.EF_TESTS }} --no-build -c Release
           --settings shard.runsettings
           --logger trx
@@ -757,6 +762,7 @@ jobs:
             i=$((i + 1))
             echo "::group::$project"
             dotnet-coverage collect \
+              -s dotnet-coverage.settings.xml \
               "dotnet test $project --no-build -c Release --logger trx --results-directory ./test-results/other" \
               -f coverage -o "coverage-other-$i.coverage"
             echo "::endgroup::"
