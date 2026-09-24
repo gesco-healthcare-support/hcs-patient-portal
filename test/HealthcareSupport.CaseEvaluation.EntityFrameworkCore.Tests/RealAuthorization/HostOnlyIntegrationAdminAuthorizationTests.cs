@@ -142,6 +142,18 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         await AssertSecondOfficeUntouchedAsync(second);
     }
 
+    [Fact]
+    public async Task MissingIntakeReport_IsRefused_ForAnOfficeCaller()
+    {
+        // #944: the report reads every office's appointments.
+        var second = await EnsureSecondOfficeAsync();
+
+        await AssertRefusedInOfficeAsync(
+            sp => sp.GetRequiredService<ICaseTrackerMissingIntakeAppService>().GetReportAsync());
+
+        await AssertSecondOfficeUntouchedAsync(second);
+    }
+
     // ---- Positive controls: a host operator is admitted. Without these, a harness that refused
     // everyone would make every refusal above pass. ----
 
@@ -200,6 +212,18 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
 
         var state = offices.Where(o => o.OfficeId == second.OfficeId).ShouldHaveSingleItem();
         state.PushEnabled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task MissingIntakeReport_IsAdmitted_ForAHostOperator_AndReadsTheSecondOffice()
+    {
+        var second = await EnsureSecondOfficeAsync();
+
+        var report = await RunAsHostOperatorAsync(
+            sp => sp.GetRequiredService<ICaseTrackerMissingIntakeAppService>().GetReportAsync());
+
+        // Also runs the report's queries against a real office database on the rig.
+        report.Offices.Where(o => o.OfficeId == second.OfficeId).ShouldHaveSingleItem().Failed.ShouldBeFalse();
     }
 
     [Fact]

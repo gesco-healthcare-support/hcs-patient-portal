@@ -267,6 +267,7 @@ HealthcareSupport.CaseEvaluation.HostOperators.IntakeAssignmentsAppService.Unass
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.GetListAsync() -> class=(authenticated) method=CaseEvaluation.Appointments.ViewIntegrationDeadLetters
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.RetryAllAsync(Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.RetryAsync(Guid, Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
+HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerMissingIntakeAppService.GetReportAsync() -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushAppService.PushAppointmentAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.GetOfficesAsync() -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.ReturnToPushAsync(Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
