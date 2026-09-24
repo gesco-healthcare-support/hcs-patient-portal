@@ -20,6 +20,7 @@ using HealthcareSupport.CaseEvaluation.TestData;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
@@ -37,9 +38,9 @@ namespace HealthcareSupport.CaseEvaluation.Testing;
 ///
 /// Tenants are created via <c>ITenantManager.CreateAsync(name)</c> -- the same
 /// framework path production uses (DoctorTenantAppService.CreateAsync hits this
-/// transitively through TenantAppService). Returned tenant GUIDs are captured
-/// into <see cref="TenantsTestData"/> static properties so downstream seeds and
-/// tests can reference them.
+/// transitively through TenantAppService). Each new tenant's id is then pinned to
+/// the fixed value in <see cref="TenantsTestData"/>, so every test application
+/// seeds the same tenant ids and downstream seeds and tests can reference them.
 /// </summary>
 public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor, ISingletonDependency
 {
@@ -167,14 +168,29 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // each CreateAsync so the row exists before downstream FKs reference it.
         using (_currentTenant.Change(null))
         {
-            var tenantA = await _tenantManager.CreateAsync(TenantsTestData.TenantAName);
-            await _tenantRepository.InsertAsync(tenantA);
-            TenantsTestData.TenantARef = tenantA.Id;
-
-            var tenantB = await _tenantManager.CreateAsync(TenantsTestData.TenantBName);
-            await _tenantRepository.InsertAsync(tenantB);
-            TenantsTestData.TenantBRef = tenantB.Id;
+            await CreateTenantWithFixedIdAsync(TenantsTestData.TenantAName, TenantsTestData.TenantARef);
+            await CreateTenantWithFixedIdAsync(TenantsTestData.TenantBName, TenantsTestData.TenantBRef);
         }
+    }
+
+    /// <summary>
+    /// Creates a tenant through the production manager path, then pins its id to the
+    /// fixed <see cref="TenantsTestData"/> value before it is inserted, so every test
+    /// application seeds the same ids (#1034). Throws when the id did not take: a silent
+    /// miss would leave tests reading a tenant id their database does not have.
+    /// </summary>
+    private async Task CreateTenantWithFixedIdAsync(string name, Guid fixedId)
+    {
+        var tenant = await _tenantManager.CreateAsync(name);
+        EntityHelper.TrySetId(tenant, () => fixedId);
+        if (tenant.Id != fixedId)
+        {
+            throw new InvalidOperationException(
+                $"Test tenant '{name}' kept the generated id {tenant.Id} instead of the fixed id {fixedId}; " +
+                "EntityHelper.TrySetId did not set it.");
+        }
+
+        await _tenantRepository.InsertAsync(tenant);
     }
 
     private async Task SeedSystemParametersAsync()
