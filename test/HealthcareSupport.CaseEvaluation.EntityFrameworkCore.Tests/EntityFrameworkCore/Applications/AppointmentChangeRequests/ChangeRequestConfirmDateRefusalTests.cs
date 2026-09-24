@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -43,7 +44,8 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
     [Fact]
     public async Task ConfirmDate_OnASlotBookedByOthers_IsRefused_AndOpensNoRound()
     {
-        var day = DateTime.UtcNow.Date.AddDays(30); // inside the internal 90-day horizon, past any lead time
+        // Pacific today, as the booking policy counts it: inside the internal 90-day horizon, past any lead time.
+        var day = PacificTime.TodayFrom(DateTime.UtcNow).AddDays(30);
         // Decoy: the request DOES hold a slot of its own (held slots are exempt), just not this one.
         var heldByRequest = await InsertSlotAsync(day, 9, BookingStatus.Reserved);
         var bookedByOthers = await InsertSlotAsync(day, 11, BookingStatus.Booked);
@@ -75,7 +77,7 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
                 appointmentTypeId: type.Id,
                 locationId: LocationsTestData.Location1Id,
                 doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
-                appointmentDate: DateTime.UtcNow.Date.AddDays(20),
+                appointmentDate: PacificTime.TodayFrom(DateTime.UtcNow).AddDays(20),
                 requestConfirmationNumber: "TEST-" + Guid.NewGuid().ToString("N")[..8],
                 appointmentStatus: AppointmentStatusType.Approved)
             {
