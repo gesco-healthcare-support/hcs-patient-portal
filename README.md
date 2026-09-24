@@ -421,7 +421,7 @@ scanning, and branch promotion.
 flowchart LR
     subgraph PR["On PR"]
         CI["ci.yml<br/>backend build/format/test<br/>frontend build/format/lint/test<br/>docs structure"]
-        QUAL["sonarcloud.yml + codeql-pr.yml<br/>coverage + code scan"]
+        QUAL["ci.yml sonarcloud job + codeql-pr.yml<br/>coverage + code scan"]
         DEP["dependency-review.yml<br/>+ trufflehog-pr.yml"]
         META["commitlint + pr-title<br/>lint-meta + labeler + pr-size"]
         DOC["doc-check.yml<br/>(placeholder)"]
@@ -447,7 +447,7 @@ flowchart LR
 - **Security** (`security.yml`) -- weekly Monday 06:00 UTC cron + manual
   dispatch. .NET vulnerability audit, npm audit, TruffleHog secret scan,
   CodeQL for C# and JavaScript/TypeScript.
-- **Quality and PR gates** -- `sonarcloud.yml` (coverage + quality gate),
+- **Quality and PR gates** -- the `sonarcloud` job in `ci.yml` (coverage + quality gate),
   `codeql-pr.yml` and `trufflehog-pr.yml` (code + secret scan on every PR),
   `commitlint.yml`, `pr-title.yml`, and `lint-meta.yml` (Markdown + YAML), plus
   `scorecard.yml` (OpenSSF Scorecard).
