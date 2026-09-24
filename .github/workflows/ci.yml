@@ -1170,6 +1170,26 @@ jobs:
       # Both report 80.19% (7319/9127), which is post-cascade content and NOT the epic's tree --
       # the 9-line difference is #983. Read a run whose base was the branch you care about.
       #
+      # 90 FROM 2026-09-24 (was 80), ADRIAN'S END STATE FOR THE TEST PUSH. READ THIS BEFORE
+      # "CORRECTING" IT.
+      #
+      # Adrian set the end state of the phase-8 test-writing push: once the in-flight test pull
+      # requests take the frontend to about 92-94%, this floor is 90 (and FLOOR_BACKEND is 85), and
+      # test writing for the phase ends. THIS CHANGE MERGES LAST. The epic measured 85.50% frontend
+      # when it was written, so until those pull requests merge 90 sits ABOVE the measurement and
+      # fails; after they merge it is a backstop a few points below it. 90 is his figure, not the
+      # truncate-down arithmetic.
+      #
+      # THE 80-FLOOR ARITHMETIC BELOW IS HISTORY, not a description of 90. These were all computed for
+      # a floor of 80 against 80.14% and 80.19%:
+      #   - the "80 IS THE CONVENTION FIGURE" paragraph;
+      #   - the margin table (12 lines lost, 15 new lines at 0%);
+      #   - the "0.138 available";
+      #   - "1/12 OF THIS FLOOR'S MARGIN" and the "twelve-line budget".
+      # Re-measure the margin in lines, in both directions, from the first Floors run after the test
+      # pull requests merge, and replace them then. The measurement method and the #965 one-line
+      # bound still hold.
+      #
       # 80 IS THE CONVENTION FIGURE FROM :976-990 (truncate the measurement DOWN to a whole
       # number), and it is the TIGHT choice rather than the headroom one. FLOOR_PYTHON below
       # departs from that convention deliberately -- 90 against 92.05% -- on the PR review lane's
@@ -1235,15 +1255,16 @@ jobs:
       # which makes any red on such a submission real signal. Add one docs/ or .github/ file and
       # the classifier's `shared=true` arm makes the backend applicable. While FLOOR_BACKEND was a
       # target set above the measurement (75, until 2026-09-24) that failed the job and forfeited
-      # the signal. At 80, below the measured figure (see FLOOR_BACKEND), the backend passes, so
-      # the signal survives unless backend coverage has genuinely fallen.
+      # the signal. At 85, once the in-flight test pull requests merge (see FLOOR_BACKEND), the
+      # backend sits below the measurement and passes, so the signal survives unless backend
+      # coverage has genuinely fallen.
       #
       # REFERRED TO BY NAME RATHER THAN BY LINE, deliberately. A first draft of this paragraph
       # cited `:150-152` and `:1274-1280`. The first pointed at the SHARED arm rather than the
       # angular one, and the second was already stale when it was written, because the 80 lines
       # of comment above it had pushed `applicable()` down by exactly that much. A line number in
       # a comment is invalidated by the comment itself.
-      FLOOR_FRONTEND: "80"
+      FLOOR_FRONTEND: "90"
       # BACKEND -- MEASURED, by the mechanism this job was built around. It was
       # deliberately unset until 2026-09-03 so the gate's own first run would
       # fail and print the figure, which is exactly what happened:
@@ -1310,7 +1331,7 @@ jobs:
       # production moves -- which is the property a contamination detector needs. If a
       # future run reports 971 again, `**/test/**` has stopped matching.
       #
-      # 80 FROM 2026-09-24, ADRIAN'S PIN, AND A BACKSTOP AGAIN. READ THIS BEFORE "CORRECTING" IT.
+      # 85 FROM 2026-09-24, ADRIAN'S END STATE FOR THE TEST PUSH. READ THIS BEFORE "CORRECTING" IT.
       #
       # HISTORY, kept so `git log` does not read as a mistake. #971 set 65, the honest truncate-down
       # of 67.73% (18077/26691 lines over 645 files at 52662e89). On 2026-09-18 Adrian raised it to
@@ -1319,18 +1340,23 @@ jobs:
       # backend reached 75, and those merges were admin-overridden with the failed checks confirmed
       # each time. This block's git history has the full procedure and its 2026-09-18 correction.
       #
-      # THE TARGET WAS MET. Against the epic, backend measured 81.34% (21734/26720 lines over 646
+      # THAT TARGET WAS MET. Against the epic, backend measured 81.34% (21734/26720 lines over 646
       # files) on #1053's run 36035624090, and 83.42% (22290/26720) on #1056's sharded run
-      # 36043940417. On 2026-09-24 Adrian pinned the floor at 80 ("Pin at 80, finish in-flight").
-      # That is a whole number at or below the measurement, as the truncate-down convention above
-      # requires. But 80, rather than the strict truncation, is HIS CHOICE, not the arithmetic, so
-      # do not raise it to "match" a newer measurement without asking either.
+      # 36043940417. On 2026-09-24 Adrian first pinned the floor at 80 ("Pin at 80, finish
+      # in-flight"). Later that day he set the END STATE of the phase-8 test-writing push instead:
+      # once the in-flight test pull requests take the backend to about 89-91%, this floor is 85 and
+      # test writing for the phase ends.
       #
-      # So this floor is a BACKSTOP again. The paragraph above that begins "THE ABSOLUTE FLOORS ARE
-      # NOT THE SENSITIVE CONTROL" describes it once more: FLOOR_CHANGED is the per-PR control, and
-      # this one catches slow erosion. A red here now means backend coverage fell below 80. It is no
-      # longer an expected failure to override.
-      FLOOR_BACKEND: "80"
+      # SO THIS CHANGE MERGES LAST. At 83.42% it sits ABOVE the measurement and fails until those
+      # pull requests merge; after they merge it is a whole number a few points BELOW the
+      # measurement. 85 is his figure, not the truncate-down arithmetic, so do not raise it to
+      # "match" a newer measurement without asking, and do not lower it to make a red go away.
+      #
+      # ONCE THAT HAS HAPPENED, this floor is a BACKSTOP again. The paragraph above that begins "THE
+      # ABSOLUTE FLOORS ARE NOT THE SENSITIVE CONTROL" describes it once more: FLOOR_CHANGED is the
+      # per-PR control, and this one catches slow erosion, so a red means backend coverage fell
+      # below 85.
+      FLOOR_BACKEND: "85"
       # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
       # refuses to run without a floor and prints the figure to copy.
       #
@@ -1411,7 +1437,8 @@ jobs:
       # read "Frontend measures 74.78% on main; the proposed 75 would sit 0.22 points ABOVE the
       # measurement and fail every pull request to main", which was true when written and went
       # false the moment the epic cascaded to `main` on 2026-09-19. Frontend now measures 80.19%
-      # there, and FLOOR_FRONTEND above is 80 -- the convention figure, not the 75 #979 proposed.
+      # there, and FLOOR_FRONTEND above became 80 -- the convention figure, not the 75 #979 proposed
+      # (and 90 from 2026-09-24; see its own block).
       # Kept as a correction rather than deleted, per this file's convention: an entry that argues
       # FROM a measurement outlives the measurement, and this one was found only because the
       # change that invalidated it went looking for entries citing the old number.
