@@ -10,7 +10,6 @@ classes a shard executed differ from the classes it was given, in either directi
 from __future__ import annotations
 
 import io
-import random
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -103,9 +102,11 @@ class TestPartition(unittest.TestCase):
 
     def test_the_result_does_not_depend_on_input_order(self):
         items = list(self.COUNTS.items())
-        random.Random(7).shuffle(items)
+        expected = shard.partition(self.COUNTS, 4)
 
-        self.assertEqual(shard.partition(dict(items), 4), shard.partition(self.COUNTS, 4))
+        # Fixed reorderings rather than a shuffle: reproducible, and they move every class.
+        for reordered in (items[::-1], items[1::2] + items[::2]):
+            self.assertEqual(shard.partition(dict(reordered), 4), expected)
 
     def test_shards_differ_by_at_most_the_heaviest_class(self):
         shards = shard.partition(self.COUNTS, 4)
