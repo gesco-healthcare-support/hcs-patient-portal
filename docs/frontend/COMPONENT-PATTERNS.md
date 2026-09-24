@@ -176,9 +176,9 @@ Only **Doctors** (`doctor-management/doctors`) still uses the full abstract/conc
 
 The other Suite-generated entities (Appointments, Patients, Doctor Availabilities, Locations, WCAB Offices,
 States, Appointment Types, Statuses and Languages, Applicant and Defense Attorneys) had their generated
-list and detail pages replaced by custom screens. Their unused generated view services were removed in
-#1062. Their `*-routes.ts` files remain and load the custom screens; for example, States load
-`InternalConfigurationComponent`.
+list and detail pages replaced by custom screens, and their unused generated view services were
+removed in #1062. Their `*-routes.ts` files remain and load the custom screens; for example, States
+load `InternalConfigurationComponent`.
 
 ---
 
