@@ -97,6 +97,24 @@ public static class StaffSeeder
         return (email, userName);
     }
 
+    /// <summary>
+    /// Creates <paramref name="roleName"/> in <paramref name="tenantId"/> with an id that sorts before
+    /// any random one, for an OTHER-office decoy. Call it before <see cref="CreateAsync"/>, which then
+    /// reuses the role.
+    ///
+    /// <para>Why the id matters: ABP resolves a role NAME to the lowest-id role of that name
+    /// (<c>EfCoreIdentityUserRepository.GetListByNormalizedRoleNameAsync</c>: <c>OrderBy(Id)</c> then
+    /// <c>FirstOrDefault</c>) and returns only that role's users. With random ids, a role lookup that
+    /// lost its office filter would pick the other office's role only by the luck of the ids; sorting
+    /// first makes the decoy catch that leak every time.</para>
+    /// </summary>
+    public static async Task CreateRoleSortingFirstAsync(
+        IdentityRoleManager roles, Guid? tenantId, string roleName, byte ordinal)
+    {
+        var lowId = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ordinal);
+        Require((await roles.CreateAsync(new IdentityRole(lowId, roleName, tenantId))).Succeeded, $"low-id role {roleName}");
+    }
+
     private static void Require(bool succeeded, string what)
     {
         if (!succeeded)

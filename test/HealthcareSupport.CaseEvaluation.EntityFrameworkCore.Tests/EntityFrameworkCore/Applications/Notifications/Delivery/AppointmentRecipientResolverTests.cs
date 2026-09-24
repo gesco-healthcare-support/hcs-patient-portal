@@ -18,7 +18,8 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Del
 /// an applicant-attorney link that names a registered user, the same user linked twice, and an
 /// appointment that does not exist. The attorney's address can also arrive through a later pass
 /// (the appointment's own attorney-email column), so these Facts assert WHICH pass produced the
-/// entry, via its context, rather than merely that the address appears.
+/// entry, via its context, rather than merely that the address appears. Office B's Appointment2 is the
+/// office decoy, resolved from both offices.
 /// </summary>
 public class AppointmentRecipientResolverTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
@@ -66,12 +67,32 @@ public class AppointmentRecipientResolverTests : CaseEvaluationEntityFrameworkCo
         recipients.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task AnotherOfficesAppointment_HasNoRecipientsFromThisOffice()
+    {
+        // The OFFICE decoy: Appointment2 is real, in office B, with Patient2 on it. Resolved from office
+        // A it must yield nobody, or office A's notice would go to office B's parties.
+        var recipients = await ResolveAsync(AppointmentsTestData.Appointment2Id);
+
+        recipients.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task TheSameAppointment_HasRecipientsFromItsOwnOffice()
+    {
+        // Positive control for the Fact above: same appointment, its own office.
+        var recipients = await ResolveAsync(AppointmentsTestData.Appointment2Id, TenantsTestData.TenantBRef);
+
+        recipients.ShouldNotBeEmpty();
+        recipients.ShouldAllBe(r => r.TenantId == TenantsTestData.TenantBRef);
+    }
+
     // ------------------------------------------------------------------------
 
-    private async Task<List<SendAppointmentEmailArgs>> ResolveAsync(Guid appointmentId)
+    private async Task<List<SendAppointmentEmailArgs>> ResolveAsync(Guid appointmentId, Guid? officeId = null)
     {
         List<SendAppointmentEmailArgs> result = new();
-        await InOfficeAAsync(async () =>
+        await InOfficeAsync(officeId ?? TenantsTestData.TenantARef, async () =>
         {
             result = await GetRequiredService<IAppointmentRecipientResolver>()
                 .ResolveAsync(appointmentId, NotificationKind.Approved);
@@ -79,9 +100,11 @@ public class AppointmentRecipientResolverTests : CaseEvaluationEntityFrameworkCo
         return result;
     }
 
-    private Task InOfficeAAsync(Func<Task> action) => WithUnitOfWorkAsync(async () =>
+    private Task InOfficeAAsync(Func<Task> action) => InOfficeAsync(TenantsTestData.TenantARef, action);
+
+    private Task InOfficeAsync(Guid officeId, Func<Task> action) => WithUnitOfWorkAsync(async () =>
     {
-        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        using (GetRequiredService<ICurrentTenant>().Change(officeId))
         {
             await action();
         }

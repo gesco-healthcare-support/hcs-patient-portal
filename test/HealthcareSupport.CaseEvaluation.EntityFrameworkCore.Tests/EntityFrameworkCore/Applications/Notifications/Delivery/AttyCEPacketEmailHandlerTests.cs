@@ -24,7 +24,8 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Del
 /// to applicant attorneys, defense attorneys and claim examiners ONLY, one email each with the
 /// packet attached. The chosen parties always include decoys the handler must skip: a patient, a
 /// blank address, and an attorney with no role. So "only these roles" is shown against people who
-/// could have been included.
+/// could have been included. Two Facts add OFFICE decoys: a named user who exists only in office B,
+/// and office B's appointment raised from office A.
 /// </summary>
 public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
@@ -32,6 +33,7 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
     private const string ExaminerEmail = "TEST-atty-examiner@test.local";
     private const string PatientDecoy = "TEST-atty-patient-decoy@test.local";
     private const string RolelessDecoy = "TEST-atty-roleless-decoy@test.local";
+    private const string OfficeBExaminerEmail = "TEST-atty-officeb-examiner@test.local";
 
     private readonly NotificationRecorder _recorder = new();
     private readonly ChosenRecipients _parties = new();
@@ -78,6 +80,35 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
 
         GreetingFor(IdentityUsersTestData.ApplicantAttorney1Email).ShouldBe("Hello TEST-Ada TEST-Atty,");
         GreetingFor(DefenseEmail).ShouldBe("Hello,");
+    }
+
+    [Fact]
+    public async Task AnotherOfficesNamedUser_IsGreetedNeutrally_NotByName()
+    {
+        // The OFFICE decoy for the name lookup: the examiner's address belongs to a NAMED user in office
+        // B only. Office A's email must not find them, so it greets neutrally; greeting them by name
+        // would show that the address has an account in another office.
+        WithPartiesAndDecoys();
+        await NameApplicantAttorneyAsync("TEST-Ada", "TEST-Atty");
+        await CreateNamedOfficeBUserAsync(OfficeBExaminerEmail, "TEST-Bea", "TEST-Other");
+        _parties.Parties.Add(new SendAppointmentEmailArgs { To = OfficeBExaminerEmail, Role = RecipientRole.ClaimExaminer, IsRegistered = false });
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        GreetingFor(OfficeBExaminerEmail).ShouldBe("Hello,");
+        GreetingFor(IdentityUsersTestData.ApplicantAttorney1Email).ShouldBe("Hello TEST-Ada TEST-Atty,");
+    }
+
+    [Fact]
+    public async Task PacketRaisedFromThisOffice_ForAnotherOfficesAppointment_SendsNothing()
+    {
+        // The OFFICE decoy for the appointment lookup: Appointment2 is real, in office B. Positive
+        // control: the first Fact, the same parties on office A's own appointment.
+        WithPartiesAndDecoys();
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer, appointmentId: AppointmentsTestData.Appointment2Id);
+
+        _recorder.Sent.ShouldBeEmpty();
     }
 
     [Theory]
@@ -153,6 +184,19 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
             OccurredAt = new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc),
         }));
     }
+
+    private Task CreateNamedOfficeBUserAsync(string email, string name, string surname) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+        {
+            var user = new IdentityUser(Guid.NewGuid(), $"TEST-officeb-{Guid.NewGuid():N}", email, TenantsTestData.TenantBRef)
+            {
+                Name = name,
+                Surname = surname,
+            };
+            (await GetRequiredService<IdentityUserManager>().CreateAsync(user)).Succeeded.ShouldBeTrue();
+        }
+    });
 
     private Task NameApplicantAttorneyAsync(string name, string surname) => WithUnitOfWorkAsync(async () =>
     {

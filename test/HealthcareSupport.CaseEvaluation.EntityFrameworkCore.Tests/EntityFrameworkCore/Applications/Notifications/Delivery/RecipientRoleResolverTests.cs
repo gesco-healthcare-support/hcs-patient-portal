@@ -12,7 +12,8 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Del
 /// <see cref="RecipientRoleResolver"/> against real seeded users and roles in office A. It decides
 /// whether an email is a registered user holding the role the notice is for -- which picks the
 /// "log in" versus "register" wording. The wrong-role and unmapped-role cases use a REAL user, so a
-/// "not registered" verdict there cannot come from the lookup simply finding nobody.
+/// "not registered" verdict there cannot come from the lookup simply finding nobody. Office B's
+/// seeded Patient2 is the office decoy: a real user in the right role, in the wrong office.
 /// </summary>
 public class RecipientRoleResolverTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
@@ -71,6 +72,27 @@ public class RecipientRoleResolverTests : CaseEvaluationEntityFrameworkCoreTestB
             IsRegistered: false, MatchesRole: false, UserId: IdentityUsersTestData.ApplicantAttorney1UserId));
     }
 
+    [Fact]
+    public async Task AnotherOfficesUserInTheRole_IsUnknownFromThisOffice()
+    {
+        // The OFFICE decoy. Patient2 holds the Patient role, but in office B only. Classified from
+        // office A they must read as unknown, with no id, or office A's notice would be worded (and
+        // attributed) as if it were addressed to office B's account.
+        var result = await ClassifyAsync(IdentityUsersTestData.Patient2Email, RecipientRole.Patient);
+
+        result.ShouldBe(new RecipientRoleClassification(IsRegistered: false, MatchesRole: false, UserId: null));
+    }
+
+    [Fact]
+    public async Task TheSameUser_IsRegisteredFromTheirOwnOffice()
+    {
+        // Positive control for the Fact above: same user, same role, their own office.
+        var result = await ClassifyAsync(IdentityUsersTestData.Patient2Email, RecipientRole.Patient, TenantsTestData.TenantBRef);
+
+        result.ShouldBe(new RecipientRoleClassification(
+            IsRegistered: true, MatchesRole: true, UserId: IdentityUsersTestData.Patient2UserId));
+    }
+
     [Theory]
     [InlineData(RecipientRole.InsuranceCarrierContact)]
     [InlineData(RecipientRole.Employer)]
@@ -94,10 +116,10 @@ public class RecipientRoleResolverTests : CaseEvaluationEntityFrameworkCoreTestB
 
     // ------------------------------------------------------------------------
 
-    private Task<RecipientRoleClassification> ClassifyAsync(string email, RecipientRole role) =>
+    private Task<RecipientRoleClassification> ClassifyAsync(string email, RecipientRole role, Guid? officeId = null) =>
         WithUnitOfWorkAsync(async () =>
         {
-            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            using (GetRequiredService<ICurrentTenant>().Change(officeId ?? TenantsTestData.TenantARef))
             {
                 return await GetRequiredService<IRecipientRoleResolver>().ClassifyAsync(email, role);
             }

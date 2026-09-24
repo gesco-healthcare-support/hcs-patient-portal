@@ -14,8 +14,9 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Del
 
 /// <summary>
 /// <see cref="AccessorInvitedEmailHandler"/> on the real rig: an invited accessor is emailed a
-/// set-your-password link. Its guards (no event, an unknown appointment, an unknown invited user)
-/// each send nothing, and each sits beside the sending Fact on the same seeded data.
+/// set-your-password link. Its guards (no event, an unknown appointment, an unknown invited user, and
+/// a real user who belongs to another office) each send nothing, and each sits beside the sending
+/// Fact on the same seeded data.
 /// </summary>
 public class AccessorInvitedEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
@@ -50,6 +51,16 @@ public class AccessorInvitedEmailHandlerTests : CaseEvaluationEntityFrameworkCor
     public async Task UnknownInvitedUser_SendsNothing()
     {
         await RaiseAsync(AppointmentsTestData.Appointment1Id, Guid.NewGuid());
+
+        _recorder.Sent.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task InviteNamingAnotherOfficesUser_SendsNothing()
+    {
+        // The OFFICE decoy: Patient2 is a real user, in office B. An office-A invite naming them must
+        // not find them, or office A's setup link would go to office B's account.
+        await RaiseAsync(AppointmentsTestData.Appointment1Id, IdentityUsersTestData.Patient2UserId);
 
         _recorder.Sent.ShouldBeEmpty();
     }

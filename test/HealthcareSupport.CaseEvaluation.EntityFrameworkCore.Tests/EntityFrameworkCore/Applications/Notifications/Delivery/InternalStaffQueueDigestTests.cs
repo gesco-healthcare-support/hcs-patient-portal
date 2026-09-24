@@ -24,9 +24,10 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Del
 /// email. Only the dispatcher is replaced (it records), so the job, the real local event bus, the
 /// real users and roles, and the real counts are all exercised.
 ///
-/// <para>Office A is seeded with one Pending appointment and office B with one Approved; staff are
-/// seeded in office A only, with a decoy in another role, so the counts, the office scoping and the
-/// role filter each have something to be wrong about.</para>
+/// <para>Office A is seeded with one Pending appointment and office B with one Approved. Staff are
+/// seeded in office A with a decoy in another role, and one Fact also seeds the same two roles in
+/// office B, so the counts, the office scoping and the role filter each have something to be wrong
+/// about.</para>
 /// </summary>
 public class InternalStaffQueueDigestTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
@@ -53,6 +54,32 @@ public class InternalStaffQueueDigestTests : CaseEvaluationEntityFrameworkCoreTe
             // Office A holds Appointment1 (Pending); office B's Approved appointment must not leak in.
             sent.Variables["PendingAppointmentCount"].ShouldBe(1);
             sent.Variables["ApprovedAppointmentCount"].ShouldBe(0);
+        }
+    }
+
+    [Fact]
+    public async Task EachOfficesStaff_GetTheirOwnOfficesCounts_Only()
+    {
+        // The OFFICE decoys: the same two roles in office B. Office B's staff are entitled to office
+        // B's digest (0 pending, 1 approved) and must never receive office A's, and vice versa.
+        var officeA = await SeedOfficeAStaffAsync();
+        var officeB = await SeedOfficeBStaffAsync();
+
+        await RunJobAsync();
+
+        _recorder.Sent.Count.ShouldBe(4);
+        foreach (var address in new[] { officeA.Supervisor, officeA.Intake })
+        {
+            var sent = _recorder.Sent.Where(s => s.Recipients.Contains(address)).ShouldHaveSingleItem();
+            sent.Variables["PendingAppointmentCount"].ShouldBe(1);
+            sent.Variables["ApprovedAppointmentCount"].ShouldBe(0);
+        }
+
+        foreach (var address in new[] { officeB.Supervisor, officeB.Intake })
+        {
+            var sent = _recorder.Sent.Where(s => s.Recipients.Contains(address)).ShouldHaveSingleItem();
+            sent.Variables["PendingAppointmentCount"].ShouldBe(0);
+            sent.Variables["ApprovedAppointmentCount"].ShouldBe(1);
         }
     }
 
@@ -140,6 +167,29 @@ public class InternalStaffQueueDigestTests : CaseEvaluationEntityFrameworkCoreTe
             }
         });
         return (supervisor.Email, intake.Email, intake.UserName, decoy.Email);
+    }
+
+    /// <summary>
+    /// A Staff Supervisor and an Intake Staff user in office B, whose roles are created with ids that
+    /// sort first (see <see cref="StaffSeeder.CreateRoleSortingFirstAsync"/>).
+    /// </summary>
+    private async Task<(string Supervisor, string Intake)> SeedOfficeBStaffAsync()
+    {
+        (string Email, string UserName) supervisor = ("", ""), intake = ("", "");
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+            {
+                var users = GetRequiredService<IdentityUserManager>();
+                var roles = GetRequiredService<IdentityRoleManager>();
+                var office = TenantsTestData.TenantBRef;
+                await StaffSeeder.CreateRoleSortingFirstAsync(roles, office, "Staff Supervisor", 1);
+                await StaffSeeder.CreateRoleSortingFirstAsync(roles, office, "Intake Staff", 2);
+                supervisor = await StaffSeeder.CreateAsync(users, roles, office, "Staff Supervisor", "digest-officeb-supervisor");
+                intake = await StaffSeeder.CreateAsync(users, roles, office, "Intake Staff", "digest-officeb-intake");
+            }
+        });
+        return (supervisor.Email, intake.Email);
     }
 
     private Task NameUserAsync(string email, string name) => WithUnitOfWorkAsync(async () =>
