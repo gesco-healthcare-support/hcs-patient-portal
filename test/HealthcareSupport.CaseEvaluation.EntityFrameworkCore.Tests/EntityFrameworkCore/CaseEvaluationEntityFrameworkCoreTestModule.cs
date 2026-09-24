@@ -1,4 +1,6 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System.Diagnostics;
+using HealthcareSupport.CaseEvaluation.Timing;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -69,7 +71,11 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
 
     private void ConfigureInMemorySqlite(IServiceCollection services)
     {
+        // Issue #1031 measurement (draft PR, never merged): the schema build runs inside
+        // ConfigureServices, so it is timed here and subtracted from the configure phase.
+        var schemaStarted = Stopwatch.GetTimestamp();
         _sqliteConnection = CreateDatabaseAndGetConnection();
+        PhaseClock.Current?.AddSchema(Stopwatch.GetTimestamp() - schemaStarted);
 
         services.Configure<AbpDbContextOptions>(options =>
         {
