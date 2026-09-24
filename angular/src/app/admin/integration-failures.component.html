@@ -2,8 +2,8 @@
   <div>
     <h2>Case Tracker failures</h2>
     <p class="if-sub">
-      Pushes that failed permanently and will not retry on their own. Each one means a case has
-      not reached the Case Tracker. Retry re-sends the appointment's current details.
+      Pushes that failed permanently and will not retry on their own. Each one means a case has not
+      reached the Case Tracker. Retry re-sends the appointment's current details.
     </p>
   </div>
   <button type="button" class="if-btn" (click)="load()" [disabled]="loading()">
@@ -31,10 +31,20 @@
         <span class="if-confirm">
           Retry all {{ visibleRows().length }} for {{ selectedOfficeName() }}?
         </span>
-        <button type="button" class="if-btn if-btn-primary" (click)="retryAll()" [disabled]="retryingAll()">
+        <button
+          type="button"
+          class="if-btn if-btn-primary"
+          (click)="retryAll()"
+          [disabled]="retryingAll()"
+        >
           {{ retryingAll() ? 'Retrying...' : 'Retry all' }}
         </button>
-        <button type="button" class="if-btn" (click)="confirmingRetryAll.set(false)" [disabled]="retryingAll()">
+        <button
+          type="button"
+          class="if-btn"
+          (click)="confirmingRetryAll.set(false)"
+          [disabled]="retryingAll()"
+        >
           Cancel
         </button>
       } @else {

@@ -178,7 +178,12 @@ describe('IntegrationFailuresComponent', () => {
 
   // #917: office filter + "Retry all for this office".
   describe('office filter', () => {
-    const otherOffice = { ...failure, id: 'dl-9', officeId: 'office-2', officeName: 'Another Office' };
+    const otherOffice = {
+      ...failure,
+      id: 'dl-9',
+      officeId: 'office-2',
+      officeName: 'Another Office',
+    };
 
     it('offers each office that has failures, once, by name', async () => {
       request.and.returnValue(of([failure, { ...failure, id: 'dl-2' }, otherOffice]));
@@ -244,11 +249,16 @@ describe('IntegrationFailuresComponent', () => {
       await cmp.load();
       cmp.selectOffice('office-1');
       request.calls.reset();
-      request.and.returnValues(throwError(() => new Error('boom')), of([failure]));
+      request.and.returnValues(
+        throwError(() => new Error('boom')),
+        of([failure]),
+      );
 
       await cmp.retryAll();
 
-      expect(cmp.notice()).toBe('Retry all did not finish. The list below shows what is still outstanding.');
+      expect(cmp.notice()).toBe(
+        'Retry all did not finish. The list below shows what is still outstanding.',
+      );
       expect(cmp.error()).toBeNull(); // a notice, so the reloaded table still shows
       expect(request.calls.count()).toBe(2);
       expect(cmp.retryingAll()).toBeFalse();
@@ -257,13 +267,15 @@ describe('IntegrationFailuresComponent', () => {
 
   describe('describeRetryAll', () => {
     it('names only the parts that happened', () => {
-      expect(describeRetryAll({ requeued: 3, alreadyDelivered: 0, notRetried: 0, remaining: 0 })).toBe(
-        '3 queued to send again.',
-      );
+      expect(
+        describeRetryAll({ requeued: 3, alreadyDelivered: 0, notRetried: 0, remaining: 0 }),
+      ).toBe('3 queued to send again.');
     });
 
     it('says what is still listed and what is left for another press', () => {
-      expect(describeRetryAll({ requeued: 1, alreadyDelivered: 0, notRetried: 2, remaining: 5 })).toBe(
+      expect(
+        describeRetryAll({ requeued: 1, alreadyDelivered: 0, notRetried: 2, remaining: 5 }),
+      ).toBe(
         '1 queued to send again. 2 could not be retried and are still listed. ' +
           '5 not yet retried; select Retry all again.',
       );
