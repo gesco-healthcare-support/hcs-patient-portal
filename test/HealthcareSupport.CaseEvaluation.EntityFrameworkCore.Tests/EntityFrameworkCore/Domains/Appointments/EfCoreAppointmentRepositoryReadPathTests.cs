@@ -224,10 +224,41 @@ public class EfCoreAppointmentRepositoryReadPathTests : CaseEvaluationEntityFram
         rows[0].AppointmentInjuryDetails[0].WcabOffice.ShouldNotBeNull().Id.ShouldBe(wcabOfficeId);
     }
 
-    private Task<T> InTenantAAsync<T>(Func<Task<T>> action) =>
+    [Fact]
+    public async Task FindByConfirmationNumber_DoesNotSeeAnotherOfficesAppointment()
+    {
+        // Office decoy: the confirmation number exists in TenantB only. TenantA's lookup must not
+        // find it (office isolation), while TenantB's own lookup does (positive control).
+        var number = "T" + NewToken();
+        var slotB = await InTenantAsync(TenantsTestData.TenantBRef, async () =>
+        {
+            var id = Guid.NewGuid();
+            await _slots.InsertAsync(new DoctorAvailability(id, LocationsTestData.Location1Id,
+                new DateTime(2033, 8, 8, 0, 0, 0, DateTimeKind.Utc), new TimeOnly(9, 0), new TimeOnly(10, 0), BookingStatus.Available), autoSave: true);
+            return id;
+        });
+        var appointmentB = await InTenantAsync(TenantsTestData.TenantBRef, async () =>
+        {
+            var id = Guid.NewGuid();
+            await _appointmentStore.InsertAsync(new Appointment(id, PatientsTestData.Patient2Id, IdentityUsersTestData.Patient2UserId,
+                LocationsTestData.AppointmentType1Id, LocationsTestData.Location1Id, slotB,
+                new DateTime(2033, 8, 8, 9, 0, 0, DateTimeKind.Utc), number, AppointmentStatusType.Pending), autoSave: true);
+            return id;
+        });
+
+        var fromOfficeA = await InTenantAAsync(() => _appointments.FindByConfirmationNumberAsync(number));
+        var fromOfficeB = await InTenantAsync(TenantsTestData.TenantBRef, () => _appointments.FindByConfirmationNumberAsync(number));
+
+        fromOfficeA.ShouldBeNull();
+        fromOfficeB.ShouldNotBeNull().Id.ShouldBe(appointmentB);
+    }
+
+    private Task<T> InTenantAAsync<T>(Func<Task<T>> action) => InTenantAsync(TenantsTestData.TenantARef, action);
+
+    private Task<T> InTenantAsync<T>(Guid tenantId, Func<Task<T>> action) =>
         WithUnitOfWorkAsync(async () =>
         {
-            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            using (_currentTenant.Change(tenantId))
             {
                 return await action();
             }

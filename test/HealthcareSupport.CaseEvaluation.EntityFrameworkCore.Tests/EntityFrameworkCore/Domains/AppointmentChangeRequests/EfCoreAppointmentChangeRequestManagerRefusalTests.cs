@@ -143,6 +143,31 @@ public class EfCoreAppointmentChangeRequestManagerRefusalTests : CaseEvaluationE
         (await CountRequestsAsync(appointmentId)).ShouldBe(0);
     }
 
+    [Fact]
+    public async Task Cancellation_OfAnotherOfficesAppointment_IsNotFound_AndWritesNoRequest()
+    {
+        // Office decoy: an approved, cancellable appointment exists in TenantB. TenantA must not be
+        // able to file a cancellation against it; TenantB still sees its own appointment.
+        var appointmentB = await InTenantAsync(TenantsTestData.TenantBRef, async () =>
+        {
+            var slotId = Guid.NewGuid();
+            await _slots.InsertAsync(new DoctorAvailability(slotId, LocationsTestData.Location1Id, FarFuture().AddDays(9),
+                new TimeOnly(9, 0), new TimeOnly(10, 0), BookingStatus.Booked), autoSave: true);
+            var id = Guid.NewGuid();
+            await _appointments.InsertAsync(new Appointment(id, PatientsTestData.Patient2Id, IdentityUsersTestData.Patient2UserId,
+                LocationsTestData.AppointmentType1Id, LocationsTestData.Location1Id, slotId,
+                FarFuture().AddDays(9).AddHours(9), "T" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
+                AppointmentStatusType.Approved), autoSave: true);
+            return id;
+        });
+
+        await Should.ThrowAsync<EntityNotFoundException>(() => InTenantAAsync(() =>
+            _manager.SubmitCancellationAsync(appointmentB, "TEST-reason", allowPendingSource: false, actingUserId: null)));
+
+        (await InTenantAsync(TenantsTestData.TenantBRef, () => _requests.CountAsync(r => r.AppointmentId == appointmentB))).ShouldBe(0);
+        (await InTenantAsync(TenantsTestData.TenantBRef, () => _appointments.FindAsync(appointmentB))).ShouldNotBeNull();
+    }
+
     private static DateTime FarFuture() => new(2035, 6, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private Task<int> CountRequestsAsync(Guid appointmentId) =>
@@ -173,10 +198,12 @@ public class EfCoreAppointmentChangeRequestManagerRefusalTests : CaseEvaluationE
             return id;
         });
 
-    private Task<T> InTenantAAsync<T>(Func<Task<T>> action) =>
+    private Task<T> InTenantAAsync<T>(Func<Task<T>> action) => InTenantAsync(TenantsTestData.TenantARef, action);
+
+    private Task<T> InTenantAsync<T>(Guid tenantId, Func<Task<T>> action) =>
         WithUnitOfWorkAsync(async () =>
         {
-            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            using (_currentTenant.Change(tenantId))
             {
                 return await action();
             }

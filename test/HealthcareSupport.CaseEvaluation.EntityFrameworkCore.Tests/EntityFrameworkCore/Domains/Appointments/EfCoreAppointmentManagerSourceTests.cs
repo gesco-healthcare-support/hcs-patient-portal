@@ -123,6 +123,32 @@ public class EfCoreAppointmentManagerSourceTests : CaseEvaluationEntityFramework
         (await InTenantAAsync(() => _appointments.CountAsync(a => a.Id == AppointmentsTestData.Appointment1Id))).ShouldBe(1);
     }
 
+    [Fact]
+    public async Task LoadResubmitSource_CannotLoadAnotherOfficesRejectedAppointment()
+    {
+        // Office decoy: an eligible (Rejected) source with this number exists in TenantB only.
+        // TenantA must get "not found", not TenantB's appointment; TenantB loads its own.
+        var number = "T" + NewToken();
+        var slotB = await InTenantAsync(TenantsTestData.TenantBRef, async () =>
+        {
+            var id = Guid.NewGuid();
+            await _slots.InsertAsync(new DoctorAvailability(id, LocationsTestData.Location1Id,
+                new DateTime(2034, 2, 2, 0, 0, 0, DateTimeKind.Utc), new TimeOnly(9, 0), new TimeOnly(10, 0), BookingStatus.Available), autoSave: true);
+            return id;
+        });
+        await InTenantAsync(TenantsTestData.TenantBRef, async () =>
+        {
+            await _appointments.InsertAsync(new Appointment(Guid.NewGuid(), PatientsTestData.Patient2Id, IdentityUsersTestData.Patient2UserId,
+                LocationsTestData.AppointmentType1Id, LocationsTestData.Location1Id, slotB,
+                new DateTime(2034, 2, 2, 9, 0, 0, DateTimeKind.Utc), number, AppointmentStatusType.Rejected), autoSave: true);
+            return true;
+        });
+
+        await Should.ThrowAsync<EntityNotFoundException>(() => InTenantAAsync(() => _manager.LoadResubmitSourceAsync(number)));
+        (await InTenantAsync(TenantsTestData.TenantBRef, () => _manager.LoadResubmitSourceAsync(number)))
+            .RequestConfirmationNumber.ShouldBe(number);
+    }
+
     private Task<Appointment> LoadAsync(string loader, string number) => loader switch
     {
         "resubmit" => _manager.LoadResubmitSourceAsync(number),
@@ -130,10 +156,12 @@ public class EfCoreAppointmentManagerSourceTests : CaseEvaluationEntityFramework
         _ => _manager.LoadReBookSourceAsync(number, callerIsInternal: false),
     };
 
-    private Task<T> InTenantAAsync<T>(Func<Task<T>> action) =>
+    private Task<T> InTenantAAsync<T>(Func<Task<T>> action) => InTenantAsync(TenantsTestData.TenantARef, action);
+
+    private Task<T> InTenantAsync<T>(Guid tenantId, Func<Task<T>> action) =>
         WithUnitOfWorkAsync(async () =>
         {
-            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            using (_currentTenant.Change(tenantId))
             {
                 return await action();
             }
