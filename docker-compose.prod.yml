@@ -416,6 +416,16 @@ services:
       # Substituted into default.conf.template by the nginx image's envsubst (only
       # defined env vars are substituted, so nginx's $host/$scheme are preserved).
       BASE_DOMAIN: "${BASE_DOMAIN}"
+      # #928. Empty on the LAN, where nginx is the first hop and $remote_addr is
+      # already the caller. Carries complete set_real_ip_from directives once a
+      # managed load balancer sits in front. ALWAYS defined, never merely unset:
+      # envsubst leaves an undefined variable as a literal ${...} and nginx will
+      # not start. See the block at the top of default.conf.template.
+      TRUSTED_PROXY_SET_REAL_IP_FROM: "${TRUSTED_PROXY_SET_REAL_IP_FROM:-}"
+      # #928. Empty, or the single directive "real_ip_recursive on;". Which one is correct
+      # depends on how many addresses the chosen balancer appends -- see the block at the top
+      # of default.conf.template. Same always-defined rule as the line above.
+      TRUSTED_PROXY_REAL_IP_RECURSIVE: "${TRUSTED_PROXY_REAL_IP_RECURSIVE:-}"
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
