@@ -696,6 +696,7 @@
     "Permission:IntakeImpersonation": "Switch into assigned offices (intake operator)",
     "Permission:Branding": "Office branding (name + logo)",
     "Permission:Branding.Edit": "Edit office branding",
+    "Permission:CaseTrackerIntegration": "Manage Case Tracker delivery for all offices",
     "Menu:UserManagement": "User Management",
     "Menu:InviteExternalUser": "Invite External User",
     "Menu:InternalUsers": "Internal Users",

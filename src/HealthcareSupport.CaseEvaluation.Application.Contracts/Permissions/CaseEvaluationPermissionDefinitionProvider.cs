@@ -33,7 +33,12 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.RequestReschedule, L("Permission:RequestReschedule"));
         // 2026-07-27 -- manual (re-)push of an approved appointment to the Case Tracker.
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.PushToCaseTracker, L("Permission:PushToCaseTracker"));
-        appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters, L("Permission:ViewIntegrationDeadLetters"));
+        // 2026-09-24 -- Host-only: the failures list it gates aggregates every office, so it is
+        // never granted inside one. The name is unchanged, so existing host grants keep working.
+        appointmentPermission.AddChild(
+            CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters,
+            L("Permission:ViewIntegrationDeadLetters"),
+            MultiTenancySides.Host);
 
         var appointmentEmployerDetailPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentEmployerDetails.Default, L("Permission:AppointmentEmployerDetails"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Create, L("Permission:Create"));
@@ -269,6 +274,14 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         administration.AddPermission(
             CaseEvaluationPermissions.IntakeImpersonation.Default,
             L("Permission:IntakeImpersonation"),
+            MultiTenancySides.Host);
+
+        // 2026-09-24 -- Case Tracker delivery for every office (retry a failed push, read or switch
+        // each office's push setting). HOST side, like the two above: these actions reach every
+        // office, so an office-side grant must never open them.
+        administration.AddPermission(
+            CaseEvaluationPermissions.CaseTrackerIntegration.Default,
+            L("Permission:CaseTrackerIntegration"),
             MultiTenancySides.Host);
 
         // Phase E (2026-06-25) -- per-office branding (name + logo). Both sides.

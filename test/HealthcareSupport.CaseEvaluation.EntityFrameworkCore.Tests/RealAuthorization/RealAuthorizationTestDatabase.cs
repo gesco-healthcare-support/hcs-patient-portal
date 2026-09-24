@@ -30,6 +30,22 @@ public static class RealAuthorizationTestDatabase
     public const string OfficeConnectionString =
         "Data Source=F2AuthzOffice;Mode=Memory;Cache=Shared;Foreign Keys=True";
 
+    /// <summary>
+    /// A SECOND office (2026-09-24), for tests that must show a caller inside one office cannot
+    /// reach another. Created and seeded only by the tests that need it; the shared fixture in
+    /// <see cref="CaseEvaluationRealAuthorizationTestBase"/> does not touch it.
+    /// </summary>
+    public const string SecondOfficeConnectionString =
+        "Data Source=F2AuthzOfficeB;Mode=Memory;Cache=Shared;Foreign Keys=True";
+
+    /// <summary>
+    /// A database used only by the grant-cleanup tests (2026-09-24), so the grant rows they delete can
+    /// never be rows another test in this collection relies on. Two offices share it on purpose, to
+    /// prove the cleanup is scoped to one office even when the database is not.
+    /// </summary>
+    public const string CleanupOfficesConnectionString =
+        "Data Source=F2AuthzCleanup;Mode=Memory;Cache=Shared;Foreign Keys=True";
+
     private static readonly object SyncRoot = new();
     private static readonly List<SqliteConnection> Keepers = new();
     private static bool _initialized;
@@ -61,6 +77,10 @@ public static class RealAuthorizationTestDatabase
             // migration creates.
             CreateSchema<CaseEvaluationTenantDbContext>(
                 OfficeConnectionString, options => new CaseEvaluationTenantDbContext(options));
+            CreateSchema<CaseEvaluationTenantDbContext>(
+                SecondOfficeConnectionString, options => new CaseEvaluationTenantDbContext(options));
+            CreateSchema<CaseEvaluationTenantDbContext>(
+                CleanupOfficesConnectionString, options => new CaseEvaluationTenantDbContext(options));
 
             _initialized = true;
         }

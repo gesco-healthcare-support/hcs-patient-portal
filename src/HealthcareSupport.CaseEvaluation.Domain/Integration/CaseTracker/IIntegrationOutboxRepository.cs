@@ -40,4 +40,45 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
     /// repository; the drain always runs inside one office's scope.</para>
     /// </summary>
     Task<int> CountSentSinceAsync(DateTime sinceUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether this appointment has EVER had an intake row, in any status. Pending, Sent, Failed and
+    /// Resolved all count: the question is "has an intake for this appointment been queued", and a
+    /// Failed or still-Pending row means that telling is already in hand -- retrying it is the
+    /// outbox's job, not a reason to queue a second intake or to hold back what follows it.
+    ///
+    /// <para>The document queue gates on this (#931) so a document update can never sit AHEAD of its
+    /// own intake in the stream, and the packet publisher branches on it to choose between an intake
+    /// and a document update.</para>
+    ///
+    /// <para>Office scoping is the ambient tenant filter, matching every other query on this
+    /// repository.</para>
+    ///
+    /// <para>DEPENDS ON OUTBOX ROWS NEVER BEING DELETED. Nothing purges this table today. The entity
+    /// is soft-deletable, so EF's soft-delete filter would hide a deleted intake row from this query:
+    /// if a retention job is ever added, every later document update for that appointment is
+    /// suppressed SILENTLY. Such a job must keep intake rows, or this must stop filtering them.</para>
+    /// </summary>
+    Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes the per-appointment ordering lock for the rest of the current transaction (#931). Both
+    /// the intake enqueue and the document enqueue take it BEFORE they read anything, so they cannot
+    /// interleave for the same appointment.
+    ///
+    /// <para>Why it is needed: the intake reads the document list and only then writes its row, while
+    /// the document path checks for that row. Without the lock, a document accepted in that gap is
+    /// suppressed by the document gate AND missing from the intake -- lost. With it, whichever path
+    /// runs second waits for the first to commit and then sees its result.</para>
+    ///
+    /// <para>A SQL Server application lock (<c>sp_getapplock</c>), owned by the transaction and named
+    /// after the appointment: it touches no data rows, so it cannot block staff reading or saving the
+    /// appointment, and the database releases it at commit or rollback. It REQUIRES an active
+    /// transaction; every caller runs inside a transactional unit of work.</para>
+    ///
+    /// <para>Throws when the lock is not granted (timeout, deadlock victim, error) rather than
+    /// carrying on unlocked. On a provider other than SQL Server -- the SQLite test database -- it is
+    /// a no-op, so tests prove the lock is ASKED FOR in order, not that it blocks.</para>
+    /// </summary>
+    Task AcquireAppointmentLockAsync(Guid appointmentId, CancellationToken cancellationToken = default);
 }
