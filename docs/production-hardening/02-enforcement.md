@@ -826,7 +826,8 @@ angular/src/app/proxy/**,**/*.module.ts
 **Why it matters NOW rather than later.** With a 90% changed-lines floor arriving in 2.10, every
 file that is wrongly INCLUDED becomes a source of false failure, and every file wrongly EXCLUDED
 inflates the number the floor is set against. At 80% there was slack for both errors; at 90% there
-is not.
+is not. (2026-09-23: the floor is 80% again, by Adrian's ruling below, so the slack argument is
+weaker; a wrongly included or excluded file still distorts the figure.)
 
 **One list, two consumers.** The same exclusion list must feed both SonarCloud and 2.10's check. Two
 lists drift, and a drift here means the two numbers disagree with nobody able to say which is real.
@@ -980,7 +981,9 @@ floor 53.0%  ->  trips after ~696
 - **SonarCloud's 80% new-code gate stays exactly as it is.** Do not touch the quality gate.
 - A **separate CI check** measures coverage and **blocks from day one.** Not warn-then-enforce.
 - **Two floors, one per stack** -- one for the server half, one for the browser half.
-- **90% on changed lines**, in addition to the overall floors.
+- **90% on changed lines**, in addition to the overall floors. **Superseded 2026-09-23: 80%.**
+  Adrian ruled that SonarCloud's `new_coverage >= 80%` is the requirement for new code in fix and
+  feature PRs, and `FLOOR_CHANGED` in `ci.yml` was lowered to match.
 - **The coverage figure goes in the root README.**
 - Long-term target, his words: _"as close to 100% coverage on tests as possible ... not just stop at
   80%."_
@@ -1080,8 +1083,8 @@ never real.
   a blocking status check.
 - WHEN a pull request's browser-side line coverage falls below the browser floor, THE SYSTEM SHALL
   fail a blocking status check.
-- WHEN the lines a pull request changes are covered at less than 90%, THE SYSTEM SHALL fail a
-  blocking status check.
+- WHEN the lines a pull request changes are covered at less than 80%, THE SYSTEM SHALL fail a
+  blocking status check. (90% until 2026-09-23; see the settled decisions above.)
 - WHEN a coverage report is missing, empty, or was not produced because its job did not run, THE
   SYSTEM SHALL fail rather than pass.
 
@@ -1320,7 +1323,7 @@ cost    +7 seconds  (17s -> 24s), against Backend: Test at 686-776s
 
 ### The decision this took, which was Adrian's and is the part a successor needs
 
-**`FLOOR_CHANGED: 90` now reaches those 184 files.** Touching any previously-untested Angular file
+**`FLOOR_CHANGED` (90 at the time; 80 since 2026-09-23) now reaches those 184 files.** Touching any previously-untested Angular file
 requires covering the lines you touch. His reasoning, verbatim in effect:
 
 > A rule that only applies to files which already have tests creates an incentive never to write the
