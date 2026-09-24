@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -25,20 +24,20 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class CaseTrackerPacketPublishService : ITransientDependency
 {
-    private readonly IIntegrationOutboxRepository _outboxRepository;
+    private readonly IntegrationOutboxManager _outboxManager;
     private readonly ICaseTrackerIntakeQueue _intakeQueue;
     private readonly ICaseTrackerDocumentQueue _documentQueue;
     private readonly IDocumentListResolver _documentListResolver;
     private readonly ILogger<CaseTrackerPacketPublishService> _logger;
 
     public CaseTrackerPacketPublishService(
-        IIntegrationOutboxRepository outboxRepository,
+        IntegrationOutboxManager outboxManager,
         ICaseTrackerIntakeQueue intakeQueue,
         ICaseTrackerDocumentQueue documentQueue,
         IDocumentListResolver documentListResolver,
         ILogger<CaseTrackerPacketPublishService> logger)
     {
-        _outboxRepository = outboxRepository;
+        _outboxManager = outboxManager;
         _intakeQueue = intakeQueue;
         _documentQueue = documentQueue;
         _documentListResolver = documentListResolver;
@@ -58,7 +57,8 @@ public class CaseTrackerPacketPublishService : ITransientDependency
     {
         ArgumentNullException.ThrowIfNull(appointment);
 
-        if (!await HasIntakeAsync(appointment.Id, cancellationToken))
+        // Every status of an intake row counts here -- see IIntegrationOutboxRepository.HasIntakeAsync.
+        if (!await _outboxManager.HasIntakeAsync(appointment.Id, cancellationToken))
         {
             // First contact: the packets ride along inside the intake, which the payload builder
             // assembles from the same resolver, so no entry list is needed here.
@@ -89,20 +89,5 @@ public class CaseTrackerPacketPublishService : ITransientDependency
             appointment.Id, entries.Count, documentRow?.Id);
 
         return documentRow != null;
-    }
-
-    /// <summary>
-    /// Whether this appointment has EVER had an intake row, in any state. Pending, Sent, Failed and
-    /// Resolved all count: the question is "has the Case Tracker been told about this appointment",
-    /// and a Failed or still-Pending row means the telling is already in hand and retrying is the
-    /// outbox's job, not a reason to queue a second intake.
-    /// </summary>
-    private async Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken)
-    {
-        var queryable = await _outboxRepository.GetQueryableAsync();
-
-        return queryable.Any(x =>
-            x.AppointmentId == appointmentId &&
-            x.MessageType == IntegrationMessageType.Intake);
     }
 }

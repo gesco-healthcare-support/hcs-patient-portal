@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Guids;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -108,15 +109,14 @@ public class PacketsCompleteHandlerTests
         intakeQueue.EnqueueIntakeAsync(Arg.Any<Guid>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(NewOutboxRow(ci.ArgAt<Guid>(0), ci.ArgAt<Guid?>(1))));
 
-        var existingRows = hasExistingIntake
-            ? new List<IntegrationOutboxItem> { NewOutboxRow(AppointmentId, TenantId) }
-            : new List<IntegrationOutboxItem>();
-
+        // A real manager over a substituted repository: the intake-exists QUERY is proven against the
+        // real provider in EfCoreIntegrationOutboxRepositoryTests, so here only its answer matters.
         var outboxRepo = Substitute.For<IIntegrationOutboxRepository>();
-        outboxRepo.GetQueryableAsync().Returns(Task.FromResult(existingRows.AsQueryable()));
+        outboxRepo.HasIntakeAsync(AppointmentId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(hasExistingIntake));
 
         var publishService = new CaseTrackerPacketPublishService(
-            outboxRepo,
+            new IntegrationOutboxManager(outboxRepo, SimpleGuidGenerator.Instance),
             intakeQueue,
             documentQueue,
             resolver,

@@ -13,6 +13,7 @@
 docker/packet-renderer/app.py
 scripts/coverage-gate.py
 scripts/maintenance/import-issues.py
+scripts/shard-tests.py
 tools/packet-templates/attorney/build_attorney.py
 tools/packet-templates/doctor/build_doctor.py
 tools/packet-templates/patient/build_patient.py
