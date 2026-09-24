@@ -17,7 +17,6 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// query, so this is the only layer where they can be proven: every status counts, only Intake rows
 /// count, and the answer is per appointment.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private static readonly DateTime Now = new(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);

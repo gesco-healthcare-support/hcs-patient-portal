@@ -66,16 +66,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 /// would be a large change to how every test in this project boots, made for one assertion.</para>
 /// </summary>
 /// <remarks>
-/// The <c>[Collection]</c> attribute is REQUIRED, not decoration. Every other test class in this
-/// project carries it, and without it xUnit runs this class in parallel with them; they share one
-/// SQLite database, so two applications initialize and seed at once. Measured 2026-09-08: omitting
-/// it made both facts below fail in the FULL suite with
+/// This class carries no <c>[Collection]</c> and runs in parallel with the other EF Core test
+/// classes (#1034). History worth keeping: measured 2026-09-08, when this class ALONE was left out
+/// of the then-shared collection, both facts below failed in the FULL suite with
 /// <c>SqliteException: SQLite Error 19: 'FOREIGN KEY constraint failed'</c> thrown from this
-/// class's constructor, while passing when run under a filter. <b>A filtered run cannot detect
-/// this</b> -- if you verify a new test class here only with <c>--filter</c>, you have not
-/// verified it.
+/// class's constructor, while passing under a filter. It was put down to a shared SQLite database,
+/// but each test builds its own. The symptom matches the race #1034 removed instead: every seed
+/// wrote freshly generated ids into the static <c>TenantsTestData.TenantARef/TenantBRef</c>, so a
+/// seed running at the same time in another class could swap them mid-seed. Those ids are now
+/// fixed. <b>The lesson stands: a filtered run cannot detect interference between classes</b> --
+/// a change to the test harness needs a full run.
 /// </remarks>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class BootedTenantResolverDefaultsTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     /// <summary>
