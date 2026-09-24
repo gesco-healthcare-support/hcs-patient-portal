@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -591,5 +592,128 @@ public class CaseEvaluationHttpApiHostModuleTests
         // to a per-code-sized value would lock out a law firm or insurer behind one
         // NAT while protecting nothing extra.
         CaseEvaluationHttpApiHostModule.ConsentRequestsPerHour.ShouldBeGreaterThanOrEqualTo(50);
+    }
+
+    // ------------------------------------------------------------------
+    // #927 -- the changes feed. Its office allowance is counted in the controller AFTER the token check;
+    // the middleware only caps callers WITHOUT the feed token, and never lets the feed spend the 300/hour
+    // bucket reconcile and attendance share.
+    // ------------------------------------------------------------------
+
+    private const string SampleFeedToken = "sample-feed-token-value";
+
+    private static IServiceProvider FeedServices()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedConsts.FeedTokenConfigurationKey] = SampleFeedToken,
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddTransient<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.FeedTokenValidator>();
+        return services.BuildServiceProvider();
+    }
+
+    private static DefaultHttpContext FeedRequestFrom(string ip, string? token)
+    {
+        var ctx = new DefaultHttpContext { RequestServices = FeedServices() };
+        ctx.Request.Method = "GET";
+        ctx.Request.Path = "/api/integration/offices/b8844bba-414c-e238-4a71-3a22841f21af/feed";
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(ip);
+        if (token != null)
+        {
+            ctx.Request.Headers[HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedConsts.FeedTokenHeaderName] = token;
+        }
+
+        return ctx;
+    }
+
+    [Theory]
+    [InlineData("/api/integration/offices/abc/feed", true)]
+    [InlineData("/api/integration/offices/abc/feed/", true)]
+    [InlineData("/API/Integration/Offices/abc/FEED", true)]
+    [InlineData("/api/integration/offices/abc/appointments/def", false)]
+    [InlineData("/api/integration/offices/abc/feed/extra", false)]
+    [InlineData("/api/integration/offices/feed", false)]
+    [InlineData("/api/app/case-tracker/offices/abc/feed/start", false)]
+    public void IsFeedPath_MatchesOnlyTheFeedRoute(string path, bool expected)
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = path;
+
+        CaseEvaluationHttpApiHostModule.IsFeedPath(ctx).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void FeedRequestsWithoutTheToken_AreCappedPerAddress()
+    {
+        var limiter = BuildConfiguredGlobalLimiter();
+
+        RateLimitLease? last = null;
+        for (var i = 0; i <= HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedConsts.UnauthenticatedRequestsPerHourPerIp; i++)
+        {
+            last = limiter.AttemptAcquire(FeedRequestFrom("203.0.113.9", token: "wrong"));
+        }
+
+        last!.IsAcquired.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void FeedRequestsWithTheToken_AreNeverRefusedByTheMiddleware()
+    {
+        // Their office's allowance is counted in the controller; counting here too would let the per-address
+        // bucket refuse the real consumer polling several offices from one address.
+        var limiter = BuildConfiguredGlobalLimiter();
+
+        for (var i = 0; i < CaseEvaluationHttpApiHostModule.IntegrationRequestsPerHour + 50; i++)
+        {
+            limiter.AttemptAcquire(FeedRequestFrom("203.0.113.10", SampleFeedToken)).IsAcquired.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public void FeedRequests_DoNotSpendTheSharedIntegrationBucket()
+    {
+        // Agreed with the Case Tracker side: the feed does not share the 300/hour with reconcile and attendance.
+        var limiter = BuildConfiguredGlobalLimiter();
+        for (var i = 0; i < CaseEvaluationHttpApiHostModule.IntegrationRequestsPerHour; i++)
+        {
+            limiter.AttemptAcquire(FeedRequestFrom("203.0.113.11", SampleFeedToken));
+        }
+
+        var reconcile = new DefaultHttpContext();
+        reconcile.Request.Method = "GET";
+        reconcile.Request.Path = "/api/integration/offices/abc/appointments/def";
+        reconcile.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.11");
+
+        limiter.AttemptAcquire(reconcile).IsAcquired.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AMiddlewareRefusalOnTheFeed_Is403WithTheEnvelope_NotA429()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        CaseEvaluationHttpApiHostModule.ConfigurePasswordResetRateLimiter(new ServiceConfigurationContext(services));
+        var options = services.BuildServiceProvider().GetRequiredService<IOptions<RateLimiterOptions>>().Value;
+
+        RateLimitLease lease = null!;
+        for (var i = 0; i <= HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedConsts.UnauthenticatedRequestsPerHourPerIp; i++)
+        {
+            lease = options.GlobalLimiter!.AttemptAcquire(FeedRequestFrom("203.0.113.12", token: null));
+        }
+
+        lease.IsAcquired.ShouldBeFalse();
+        var ctx = FeedRequestFrom("203.0.113.12", token: null);
+        ctx.Response.Body = new System.IO.MemoryStream();
+
+        await options.OnRejected!(new OnRejectedContext { HttpContext = ctx, Lease = lease }, CancellationToken.None);
+
+        ctx.Response.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+        ctx.Response.Body.Position = 0;
+        var body = await new System.IO.StreamReader(ctx.Response.Body).ReadToEndAsync();
+        body.ShouldContain("\"code\":\"forbidden\"");
     }
 }

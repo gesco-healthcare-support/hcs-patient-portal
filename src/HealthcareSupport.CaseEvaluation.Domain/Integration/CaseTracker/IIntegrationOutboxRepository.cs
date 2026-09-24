@@ -83,6 +83,9 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
     /// <summary>
     /// This office's rows that have failed at least <paramref name="minimumAttempts"/> times, are STILL
     /// retrying (Pending), and have not had the early-warning email yet (#917). Oldest first.
+    ///
+    /// <para>Nothing for an office on the changes feed (#927): it retries nothing, and stamping one of its
+    /// rows would change that row's rowversion, so the feed would serve it a second time.</para>
     /// </summary>
     Task<List<IntegrationOutboxItem>> GetUnwarnedRetryingAsync(
         int minimumAttempts,

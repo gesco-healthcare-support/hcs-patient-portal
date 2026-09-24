@@ -40,6 +40,23 @@ public class IntegrationOutboxDrainServiceTests
         public required ICaseTrackerClient Client { get; init; }
         public required IntegrationOutboxDrainService Service { get; init; }
         public required List<string> Log { get; init; }
+        public required FeedSwitch Feed { get; init; }
+    }
+
+    /// <summary>
+    /// The office's feed record as the delivery-mode reader sees it (#927). Mutable so a test can start the
+    /// feed part-way through a pass, which is the race the per-row check exists for.
+    /// </summary>
+    private sealed class FeedSwitch
+    {
+        public CaseTrackerFeedState? State { get; set; }
+
+        public void Start()
+        {
+            var state = new CaseTrackerFeedState(Guid.NewGuid(), TenantId);
+            state.Start(0, Now);
+            State = state;
+        }
     }
 
     /// <summary>A unit-of-work manager that records what the drain does with it.</summary>
@@ -67,7 +84,7 @@ public class IntegrationOutboxDrainServiceTests
     /// What the volume guard sees as already sent this window. Defaults to 0 -- well under the cap --
     /// so every pre-existing test exercises the normal path unchanged.
     /// </param>
-    private static Harness Build(bool pushEnabled = true, int sentInWindow = 0)
+    private static Harness Build(bool pushEnabled = true, int sentInWindow = 0, bool feedActive = false)
     {
         var rows = new List<IntegrationOutboxItem>();
         var repo = Substitute.For<IIntegrationOutboxRepository>();
@@ -128,8 +145,18 @@ public class IntegrationOutboxDrainServiceTests
         repo.CountSentSinceAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(sentInWindow));
 
+        var feed = new FeedSwitch();
+        if (feedActive)
+        {
+            feed.Start();
+        }
+
+        var feedRepository = Substitute.For<ICaseTrackerFeedStateRepository>();
+        feedRepository.FindCurrentAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(feed.State));
+        var deliveryMode = new CaseTrackerDeliveryModeReader(settingProvider, feedRepository);
+
         var service = new IntegrationOutboxDrainService(
-            manager, repo, client, clock, settingProvider, RecordingUnitOfWorkManager(log),
+            manager, repo, client, clock, deliveryMode, RecordingUnitOfWorkManager(log),
             NullLogger<IntegrationOutboxDrainService>.Instance);
 
         return new Harness
@@ -140,6 +167,7 @@ public class IntegrationOutboxDrainServiceTests
             Client = client,
             Service = service,
             Log = log,
+            Feed = feed,
         };
     }
 
@@ -282,6 +310,62 @@ public class IntegrationOutboxDrainServiceTests
         var row = h.Rows.Single();
         row.Status.ShouldBe(IntegrationOutboxStatus.Pending);
         row.AttemptCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_WhileTheOfficeIsOnTheFeed_ClaimsAndPostsNothing()
+    {
+        // #927: the push switch stays ON after cutover (reconcile and attendance need it), so the feed
+        // record alone must stop the drain. The row is untouched: no lease, no attempt.
+        var h = Build(feedActive: true);
+        await SeedPendingAsync(h);
+
+        var result = await h.Service.DrainDueAsync();
+
+        result.Sent.ShouldBe(0);
+        await h.Client.DidNotReceive().PostAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        var row = h.Rows.Single();
+        row.Status.ShouldBe(IntegrationOutboxStatus.Pending);
+        row.LockedUntil.ShouldBeNull();
+        row.AttemptCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_WhenTheFeedStartsMidPass_ClaimsNoFurtherRow()
+    {
+        // The race the per-row check closes: the pass passed its opening check, then the operator started the
+        // feed. Only the row already in flight may still be pushed; the next one must be left to the feed.
+        var h = Build();
+        await SeedPendingAsync(h, "key-1");
+        await SeedPendingAsync(h, "key-2");
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                h.Feed.Start();
+                return CaseTrackerPushResult.FromStatusCode(200);
+            });
+
+        var result = await h.Service.DrainDueAsync();
+
+        result.Sent.ShouldBe(1);
+        await h.Client.Received(1).PostAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        h.Rows.Count(r => r.Status == IntegrationOutboxStatus.Pending && r.LockedUntil == null).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_AfterReturningToPush_SendsAgain()
+    {
+        var h = Build(feedActive: true);
+        await SeedPendingAsync(h);
+        h.Feed.State!.ReturnToPush(Now);
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(CaseTrackerPushResult.FromStatusCode(200));
+
+        var result = await h.Service.DrainDueAsync();
+
+        result.Sent.ShouldBe(1);
     }
 
     [Fact]

@@ -116,6 +116,16 @@ public class EfCoreIntegrationOutboxRepository
         int minimumAttempts,
         CancellationToken cancellationToken = default)
     {
+        var dbContext = await GetDbContextAsync();
+
+        // #927: an office on the changes feed retries nothing, so none of its rows is "still retrying". Left
+        // in, a row that failed twice before cutover would be stamped here, and that UPDATE gives it a new
+        // rowversion, so the feed would serve it a second time. The tenant filter scopes this to the office.
+        if (await dbContext.Set<CaseTrackerFeedState>().AnyAsync(s => s.IsActive, cancellationToken))
+        {
+            return new List<IntegrationOutboxItem>();
+        }
+
         var dbSet = await GetDbSetAsync();
 
         return await dbSet
