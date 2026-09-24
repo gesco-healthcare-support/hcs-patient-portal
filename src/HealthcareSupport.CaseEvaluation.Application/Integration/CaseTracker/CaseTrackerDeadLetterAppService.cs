@@ -173,9 +173,12 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
         }
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
     public virtual async Task<CaseTrackerDeadLetterRetryAllResultDto> RetryAllAsync(Guid officeId)
     {
+        // Before the office named in the route is entered: retry-all acts on whichever office it is given.
+        EnsureHostCaller();
+
         if (officeId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", "OfficeId"]);
