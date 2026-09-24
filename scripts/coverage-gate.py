@@ -84,8 +84,8 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
 def load_exclusions(path: Path) -> list[re.Pattern[str]]:
     """Read the shared exclusion list, ignoring comments and blank lines."""
     if not path.is_file():
-        die(f"exclusion list not found: {path}. It is shared with sonarcloud.yml "
-            "and both consumers must read the same file.")
+        die(f"exclusion list not found: {path}. It is shared with the SonarCloud job in "
+            "ci.yml and both consumers must read the same file.")
     patterns = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -821,7 +821,7 @@ def main() -> int:
     #
     # Nothing reaches it today: ci.yml appends --python-cobertura outside every
     # `applicable()` branch and keeps an inverted empty-args detector of its own,
-    # sonarcloud.yml passes a report explicitly, and the one test that drives
+    # and the one test that drives
     # main() builds --cobertura into argv before any branch. This is defence in
     # depth behind an invariant the workflow already asserts -- so that deleting
     # that one workflow line fails loudly here instead of silently passing.

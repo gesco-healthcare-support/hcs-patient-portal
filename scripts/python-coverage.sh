@@ -18,8 +18,10 @@
 #
 # The output path is an ARGUMENT and not a constant, deliberately. ci.yml wants
 # `coverage.xml`, which is also what its upload step publishes; sonarcloud.yml
-# CANNOT use that name, because its .NET step already writes `coverage.xml` at
-# the repository root for `sonar.cs.vscoveragexml.reportsPaths`. One of the two
+# could NOT use that name, because its .NET step wrote `coverage.xml` at the
+# repository root for `sonar.cs.vscoveragexml.reportsPaths`. (Since #1032 the
+# SonarCloud job reuses CI's artifact instead of running this script; the
+# argument stays so a second caller can never collide on the name again.) One of the two
 # would silently overwrite the other's report, and the loser would be graded
 # against the winner's figures.
 set -euo pipefail

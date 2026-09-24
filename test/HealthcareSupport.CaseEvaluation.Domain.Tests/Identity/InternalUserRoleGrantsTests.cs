@@ -58,8 +58,9 @@ public class InternalUserRoleGrantsTests
     [InlineData("CaseEvaluation.InternalUsers.Edit")]
     // 2026-07-31 -- the Supervisor operates the host dead-letter screen, so it needs the
     // same Case Tracker pair IT Admin got in #406; without them the rail entry is hidden
-    // from its own navigation and the retry action 403s.
-    [InlineData("CaseEvaluation.Appointments.PushToCaseTracker")]
+    // from its own navigation and the retry action 403s. 2026-09-24 -- the switch and the
+    // retry moved to the Host-only CaseTrackerIntegration, so that is the pair now.
+    [InlineData("CaseEvaluation.CaseTrackerIntegration")]
     [InlineData("CaseEvaluation.Appointments.ViewIntegrationDeadLetters")]
     public void SupervisorHost_has_operator_powers(string permission) =>
         SupervisorHost.ShouldContain(permission);
@@ -111,6 +112,8 @@ public class InternalUserRoleGrantsTests
     {
         ItAdmin.ShouldContain("CaseEvaluation.Appointments.PushToCaseTracker");
         ItAdmin.ShouldContain("CaseEvaluation.Appointments.ViewIntegrationDeadLetters");
+        // 2026-09-24 -- the Host-only permission that now gates the push switch and the retry.
+        ItAdmin.ShouldContain("CaseEvaluation.CaseTrackerIntegration");
     }
 
     [Theory]

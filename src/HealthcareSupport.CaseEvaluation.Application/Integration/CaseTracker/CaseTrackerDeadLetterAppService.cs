@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
+using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
@@ -59,6 +60,8 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
     [Authorize(CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters)]
     public virtual async Task<List<CaseTrackerDeadLetterDto>> GetListAsync()
     {
+        EnsureHostCaller();
+
         var perOffice = await _tenantWorkRunner.AggregateAcrossOfficesAsync(
             async officeId => await CollectOfficeFailuresAsync(officeId));
 
@@ -117,9 +120,11 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
             .ToList();
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
     public virtual async Task<CaseTrackerDeadLetterRetryResultDto> RetryAsync(Guid officeId, Guid outboxItemId)
     {
+        EnsureHostCaller();
+
         if (officeId == Guid.Empty || outboxItemId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", "OfficeId"]);
@@ -172,6 +177,21 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
                 ResolvedOutboxItemId = row.Id,
                 AlreadyDelivered = outcome.AlreadyDelivered,
             };
+        }
+    }
+
+    /// <summary>
+    /// Refuses a caller who is inside an office, before any office is entered or aggregated. Both
+    /// actions here reach every office, so they belong to the host alone. The Host-only permissions on
+    /// each method already stop an office caller at the authorization interceptor; this check keeps
+    /// the refusal in place even if a permission's side is ever widened again.
+    /// </summary>
+    private void EnsureHostCaller()
+    {
+        if (_currentTenant.IsAvailable)
+        {
+            throw new AbpAuthorizationException(
+                "Case Tracker delivery is managed from the host, not from inside an office.");
         }
     }
 }

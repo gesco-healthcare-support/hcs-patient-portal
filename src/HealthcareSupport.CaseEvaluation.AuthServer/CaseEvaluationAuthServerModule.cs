@@ -14,6 +14,7 @@ using Volo.Abp.DistributedLocking;
 using Volo.Abp.TextTemplateManagement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using HealthcareSupport.CaseEvaluation.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
@@ -218,11 +219,24 @@ public class CaseEvaluationAuthServerModule : AbpModule
         // ignores forwarded headers from proxies not in the allowlist; the LAN box's
         // only ingress is our own nginx, so the allowlist is cleared to trust the
         // in-network proxy (MS proxy-load-balancer guidance).
+        //
+        // #928: X-Forwarded-For added for parity with the API host. This module had
+        // only ever set X-Forwarded-Proto, so RemoteIpAddress here was the nginx
+        // container address rather than the caller.
+        //
+        // That was NOT inert. ABP records the client address through
+        // IWebClientInfoProvider, and both AbpAuditLogs and AbpSecurityLogs carry a
+        // ClientIpAddress column in our model. Every login, lockout and audit entry
+        // written by this host has therefore recorded the proxy instead of the person.
+        // With this change they record the caller, which is the point of having the
+        // column at all.
+        //
+        // The allowlist now comes from configuration; see TrustedProxyNetworks for why
+        // the value is the container network rather than the balancer's range.
         Configure<ForwardedHeadersOptions>(options =>
         {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            TrustedProxyNetworks.Apply(options, configuration);
         });
 
         // In-house hosting (2026-07-09, CHECKPOINT 1 / F2): OpenIddict must not reject requests
