@@ -12,14 +12,20 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public interface ICaseTrackerDocumentQueue
 {
-    /// <summary>Upserts entries. Returns null when <paramref name="entries"/> is empty.</summary>
+    /// <summary>
+    /// Upserts entries. Returns null when <paramref name="entries"/> is empty, or when the
+    /// appointment has no intake row yet (#931).
+    /// </summary>
     Task<IntegrationOutboxItem?> EnqueueDocumentEntriesAsync(
         Guid appointmentId,
         Guid? tenantId,
         IReadOnlyList<IntakeDocumentEntry> entries,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Publishes tombstones. Returns null when <paramref name="entries"/> is empty.</summary>
+    /// <summary>
+    /// Publishes tombstones. Returns null when <paramref name="entries"/> is empty, or when the
+    /// appointment has no intake row yet (#931).
+    /// </summary>
     Task<IntegrationOutboxItem?> EnqueueDeletionsAsync(
         Guid appointmentId,
         Guid? tenantId,
