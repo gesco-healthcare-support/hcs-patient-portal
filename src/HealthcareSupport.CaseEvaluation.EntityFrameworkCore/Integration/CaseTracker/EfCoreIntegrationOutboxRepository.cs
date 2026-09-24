@@ -1,8 +1,11 @@
 using System;
+using System.Data;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Domain.Repositories.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
@@ -59,4 +62,76 @@ public class EfCoreIntegrationOutboxRepository
             .Where(x => x.Status == IntegrationOutboxStatus.Sent && x.SentAt >= sinceUtc)
             .CountAsync(cancellationToken);
     }
+
+    public async Task<bool> HasIntakeAsync(
+        Guid appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // Deliberately NO status filter: every status counts (see the interface). EF's query filters
+        // scope it to the current office's live rows -- which is exactly why a purge would break it.
+        return await dbSet
+            .AnyAsync(
+                x => x.AppointmentId == appointmentId && x.MessageType == IntegrationMessageType.Intake,
+                cancellationToken);
+    }
+
+    public async Task AcquireAppointmentLockAsync(
+        Guid appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        var dbContext = await GetDbContextAsync();
+
+        // The SQLite test provider has no application locks. Deliberately a no-op there rather than
+        // a fake: the interface says tests prove the lock is REQUESTED in order, not that it blocks.
+        if (!dbContext.Database.IsSqlServer())
+        {
+            return;
+        }
+
+        var status = new SqlParameter("@status", SqlDbType.Int) { Direction = ParameterDirection.Output };
+
+        // Transaction-owned, so the database itself releases it at commit or rollback -- there is no
+        // release call to forget. Application locks are per database, and each office has its own,
+        // so the name only needs to be unique within an office.
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "EXEC @status = sp_getapplock @Resource = @resource, @LockMode = N'Exclusive', " +
+            "@LockOwner = N'Transaction', @LockTimeout = @timeoutMs;",
+            new object[]
+            {
+                status,
+                new SqlParameter("@resource", SqlDbType.NVarChar, 255) { Value = AppointmentLockResource(appointmentId) },
+                new SqlParameter("@timeoutMs", SqlDbType.Int) { Value = IntegrationOutboxConsts.AppointmentLockTimeoutMilliseconds },
+            },
+            cancellationToken);
+
+        EnsureLockGranted((int)status.Value, appointmentId);
+    }
+
+    /// <summary>
+    /// Interprets <c>sp_getapplock</c>'s return value. 0 = granted at once, 1 = granted after waiting.
+    /// Negative = NOT granted: -1 timeout, -2 cancelled, -3 chosen as deadlock victim, -999 call error
+    /// -- including a call made with no active transaction, which SQL Server reports this way rather
+    /// than by raising an error. Carrying on unlocked would silently reopen the race, so this throws.
+    ///
+    /// <para>Separate and pure so the refusal path is unit-testable: the call that produces the status
+    /// only runs on SQL Server, which the test suite does not use.</para>
+    /// </summary>
+    public static void EnsureLockGranted(int status, Guid appointmentId)
+    {
+        if (status < 0)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Case Tracker ordering lock for appointment {appointmentId:D} was not granted (sp_getapplock returned {status})."));
+        }
+    }
+
+    /// <summary>
+    /// The application-lock name for one appointment. Public so a live check against SQL Server can
+    /// take the very same lock the enqueue paths take.
+    /// </summary>
+    public static string AppointmentLockResource(Guid appointmentId) =>
+        string.Create(CultureInfo.InvariantCulture, $"case-tracker-integration:{appointmentId:D}");
 }
