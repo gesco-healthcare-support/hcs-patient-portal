@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.AppointmentBodyParts;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentBodyPartManagerTests : AppointmentBodyPartManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

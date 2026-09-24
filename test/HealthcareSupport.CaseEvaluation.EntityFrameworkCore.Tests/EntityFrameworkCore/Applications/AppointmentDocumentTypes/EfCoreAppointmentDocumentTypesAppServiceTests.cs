@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentDocumentTypesAppServiceTests : AppointmentDocumentTypesAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

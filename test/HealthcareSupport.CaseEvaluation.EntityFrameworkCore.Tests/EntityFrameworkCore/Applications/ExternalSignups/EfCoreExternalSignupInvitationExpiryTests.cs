@@ -28,7 +28,6 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// the accepted-before-expired checks inside <c>InvitationManager.ValidateAsync</c>, which is that
 /// class's own concern.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreExternalSignupInvitationExpiryTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

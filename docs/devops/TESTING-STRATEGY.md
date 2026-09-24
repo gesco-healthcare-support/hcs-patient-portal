@@ -22,7 +22,7 @@ Key classes:
 
 - **`CaseEvaluationTestBase<TStartupModule>`** -- Extends `AbpIntegratedTest<TStartupModule>`. Configures Autofac, loads `appsettings.json`, and provides `WithUnitOfWorkAsync()` helper methods for wrapping test logic in a unit of work.
 - **`CaseEvaluationTestDataBuilder`** -- Builds shared test data.
-- **`CaseEvaluationTestConsts`** -- Shared constants including `CollectionDefinitionName` for xUnit collection fixtures.
+- **`CaseEvaluationTestConsts`** -- Shared constants. Its `CollectionDefinitionName` (the old shared EF Core collection) is `[Obsolete(error: true)]`, kept only so a leftover `[Collection]` attribute fails to compile (#1034).
 - **`FakeCurrentPrincipalAccessor`** (in `Security/`) -- Provides a fake principal for testing authenticated scenarios.
 
 ### 2. HealthcareSupport.CaseEvaluation.Domain.Tests
@@ -68,8 +68,8 @@ Test patterns:
 
 Key contents:
 
-- **`CaseEvaluationEntityFrameworkCoreCollection`** -- xUnit `[CollectionDefinition]` that uses `CaseEvaluationEntityFrameworkCoreFixture` as `ICollectionFixture`, ensuring a shared database setup across all EF Core tests.
-- **`CaseEvaluationEntityFrameworkCoreFixture`** -- Implements `IDisposable` for shared test database lifecycle management.
+- **One database per test, classes in parallel (#1034).** Each test builds its own ABP application, and `CaseEvaluationEntityFrameworkCoreTestModule` opens a new in-memory SQLite connection for it. So the test classes carry no `[Collection]` attribute and xUnit runs them in parallel, one collection per class. Only the `MultiOffice` and `RealAuthorization` classes keep named collections, because their named shared-cache databases outlive a single test.
+- **`TestCollectionAllowlistTests`** -- Fails if any test class joins a collection other than those two. **`PerTestDatabaseIsolationTests`** proves at run time that each test has its own database. **`TestTenantIdentityTests`** proves the fixed test-tenant ids resolve in each test's own database.
 - **`DoctorRepositoryTests`** -- Tests `IDoctorRepository` custom methods:
   - `GetListAsync()` -- Filters by firstName, lastName, email and verifies exact match
   - `GetCountAsync()` -- Filters and verifies count
@@ -79,7 +79,7 @@ Key contents:
 Test patterns:
 
 - Wrap repository calls in `WithUnitOfWorkAsync()` for proper transaction scoping
-- Use collection fixtures for shared database state
+- Do not share state between tests: every test starts from a freshly seeded database, and classes run concurrently, so a static that one test or seed writes is visible to another
 - Test custom repository query methods (filtering, counting)
 - Test navigation property loading
 

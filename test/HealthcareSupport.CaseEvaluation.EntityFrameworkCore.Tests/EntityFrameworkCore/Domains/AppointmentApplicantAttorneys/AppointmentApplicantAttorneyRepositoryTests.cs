@@ -8,7 +8,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentApplicantAttorneyRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IAppointmentApplicantAttorneyRepository _joinRepository;

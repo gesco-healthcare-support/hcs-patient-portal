@@ -22,7 +22,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 /// <c>CaseEvaluationIntegrationTestSeedContributor.CreateTenantWithFixedIdAsync</c>). If the seed
 /// kept going with generated ids, the lookups here would come back empty.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class TestTenantIdentityTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     [Fact]
