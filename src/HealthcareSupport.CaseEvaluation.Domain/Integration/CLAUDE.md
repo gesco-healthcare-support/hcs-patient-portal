@@ -12,7 +12,8 @@ source of truth for field names and semantics.
 |---|---|
 | `CaseTracker/IntegrationOutboxItem.cs` | Durable per-office message ledger. `TryClaim` leases a row, `MarkSent` is idempotent, `MarkFailed` reschedules or dead-letters at the cap, and `MarkFatal` dead-letters immediately for a response a retry can never fix. |
 | `CaseTracker/IntegrationOutboxManager.cs` | Idempotent enqueue (SHA-256 key over message type + appointment + version) and the atomic due-batch claim. |
-| `CaseTracker/IIntegrationOutboxRepository.cs` | Adds `TryLeaseAsync`; the EF implementation lives in the EntityFrameworkCore layer. |
+| `CaseTracker/IIntegrationOutboxRepository.cs` | Adds `TryLeaseAsync`, `CountSentSinceAsync`, `HasIntakeAsync` and `AcquireAppointmentLockAsync`; the EF implementation lives in the EntityFrameworkCore layer. |
+| `CaseTracker/CaseTrackerDocumentQueue.cs` | The ONLY writer of document-update rows. Writes nothing for an appointment with no intake row yet (#931), so an update can never sit ahead of its own intake. |
 | `CaseTracker/IntegrationOutboxDrainService.cs` | Sends due rows: gates on the enabled setting, then applies the status matrix to each result. |
 | `CaseTracker/CaseTrackerClient.cs` + `ICaseTrackerClient.cs` | Typed HttpClient. Sends `X-Intake-Token` and `application/json`; never logs the token or the payload. |
 | `CaseTracker/CaseTrackerPushResult.cs` | Pure classifier: 2xx succeeds, 404/408/429/5xx retry, every other 4xx is fatal. |
@@ -30,6 +31,16 @@ source of truth for field names and semantics.
 - **Fail fast, then tell a human.** `MaxAttempts` is 3 with a flat 5-minute backoff (~10 minutes
   to dead-letter), unlike the email outbox's 5. Case timelines are legally significant, so a
   stuck case must surface quickly rather than retry quietly for hours.
+- **An appointment's status does not say whether its intake has gone.** Since 2026-07-30 the
+  intake waits for the packet set, so an approved appointment can have no intake row for a while.
+  `CaseTrackerPublishPolicy` is a status test only; "has an intake been queued" is
+  `IIntegrationOutboxRepository.HasIntakeAsync`, and it counts every status. It relies on outbox
+  rows never being deleted -- a purge job would silently suppress later document updates.
+- **Intake and document enqueues for one appointment are serialized.** Both take
+  `AcquireAppointmentLockAsync` (a transaction-owned SQL Server application lock) BEFORE they read.
+  Without it, a document accepted while an intake is being built is suppressed by the document gate
+  and missing from the intake. Any new path that writes Intake or DocumentUpdate rows must take the
+  lock first. It is a no-op on the SQLite test provider, so tests prove order, not blocking.
 - **PHI discipline.** `IntegrationOutboxItem.Payload` is a rendered intake body and DOES contain
   PHI. Never log it, never echo it into an alert or an exception message. Log lines carry
   appointment ids, target paths and status codes only.

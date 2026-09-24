@@ -184,6 +184,8 @@ jobs:
     needs: changes
     # always(): the classifier's OWN failure must not skip this job. If it
     # cannot classify, run -- the same deny-by-default rule as `unclassified`.
+    # KEEP IDENTICAL to backend-test-shard's `if:`, which copies it so the shards
+    # need not wait for this job (they build for themselves).
     if: >-
       ${{ always() && (needs.changes.result != 'success'
       || needs.changes.outputs.backend == 'true'
@@ -262,11 +264,18 @@ jobs:
       # lines in the log, and a message naming the right folder -- a generic
       # failure sends people to the wrong migration set.
       #
-      # `--no-build` is NOT used, though the Release build above would allow it.
-      # The command form below is the one whose exit codes were verified (0 on a
-      # clean tree, 1 on a pending change, per context); adding --no-build is an
-      # unproven variant, and the cost of being wrong here is a gate that cannot
-      # fail. The extra compile is the price of that certainty.
+      # `--no-build --configuration Release` (2026-09-24) reads the Release build two
+      # steps above instead of compiling the project again in Debug. The long
+      # `--configuration` is required: in dotnet-ef, `-c` is --context. Until then
+      # this comment called --no-build an unproven variant, so it was proven before
+      # being adopted, on this exact command form (dotnet-ef 10.0.7), per context:
+      #   - clean tree: exit 0, "No changes have been made to the model";
+      #   - a throwaway property on an entity mapped in BOTH contexts, rebuilt:
+      #     exit 1, "Changes have been made to the model", for host AND tenant, and
+      #     the regeneration probe below reported snapshot drift;
+      #   - the same property WITHOUT rebuilding: exit 0. That control shows the
+      #     check reads the build output rather than compiling, which is why it must
+      #     stay AFTER the Release build in this job.
       # A NOTE ON EXIT 1, which is why these steps are not a bare `if`.
       #
       # `has-pending-model-changes` exits 1 for a pending model change AND for
@@ -292,7 +301,7 @@ jobs:
           set +e
           set -uo pipefail
           P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
-          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationDbContext -p "$P" 2>&1)
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationDbContext -p "$P" --no-build --configuration Release 2>&1)
           rc=$?
           printf '%s\n' "$out"
           if [ "$rc" -eq 0 ]; then
@@ -333,7 +342,7 @@ jobs:
           set +e
           set -uo pipefail
           P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
-          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationTenantDbContext -p "$P" 2>&1)
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationTenantDbContext -p "$P" --no-build --configuration Release 2>&1)
           rc=$?
           printf '%s\n' "$out"
           if [ "$rc" -eq 0 ]; then
@@ -488,7 +497,7 @@ jobs:
               return 2
             fi
             cp "$snap_path" "$WORK/$snap.orig"
-            out=$(dotnet ef migrations add "$PROBE" -c "$ctx" -o "$dir" -p "$P" 2>&1)
+            out=$(dotnet ef migrations add "$PROBE" -c "$ctx" -o "$dir" -p "$P" --no-build --configuration Release 2>&1)
             add_rc=$?
             if [ "$add_rc" -ne 0 ]; then
               printf '%s\n' "$out"
@@ -660,10 +669,19 @@ jobs:
   backend-test-shard:
     name: "Backend: Test (shard ${{ matrix.shard }}/4)"
     runs-on: ubuntu-latest
-    needs: [changes, backend-build]
-    # Same gate as before the split: the build must have SUCCEEDED; always() so a failed
-    # classifier does not skip it.
-    if: ${{ always() && needs.backend-build.result == 'success' }}
+    # NOT gated on backend-build (2026-09-24). Each shard restores and builds for itself below,
+    # so waiting for that job only delayed the suite by the length of the build (3 m 18 s on run
+    # 36029959278). What the build gates is unchanged: the aggregate `backend-test` below still
+    # needs backend-build to have SUCCEEDED, so after a build or migration-check failure it is
+    # skipped exactly as before, whatever the shards did. The `if:` is backend-build's own
+    # path condition, copied --
+    # KEEP THE TWO IDENTICAL, or the shards and the build disagree about when the backend runs.
+    needs: changes
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
     # A shard runs about a quarter of the suite (5-6 min) plus setup. #1029's 45 covered the
     # whole suite in one job; 30 leaves room for the suite to grow and still cuts off a hang.
     timeout-minutes: 30
