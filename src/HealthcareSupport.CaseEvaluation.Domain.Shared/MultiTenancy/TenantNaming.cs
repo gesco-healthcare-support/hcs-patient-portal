@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Text.RegularExpressions;
 
@@ -20,6 +21,11 @@ namespace HealthcareSupport.CaseEvaluation.MultiTenancy;
 /// creation by DoctorTenantAppService.ReservedTenantNameAdmin; this is the
 /// lowest-layer copy so Domain/Application can validate without referencing
 /// the host projects.)
+///
+/// <see cref="ProxyReservedSlugs"/> reserves a SECOND, unrelated group: the
+/// single-label hosts the reverse proxy answers itself. Those are not host-context
+/// aliases and never reach the application, which is exactly why they need a guard
+/// here -- nothing downstream would ever see the request and complain.
 /// </summary>
 public static class TenantNaming
 {
@@ -28,6 +34,28 @@ public static class TenantNaming
 
     /// <summary>Subdomain reserved for the host-context surface; never an office slug.</summary>
     public const string ReservedSlug = "admin";
+
+    /// <summary>
+    /// Single-label hosts the reverse proxy claims with an EXACT <c>server_name</c>, which nginx
+    /// ranks above every wildcard whatever the file order. An office by one of these names is
+    /// accepted everywhere else and then simply unreachable: its SPA host
+    /// <c>{slug}.{BASE_DOMAIN}</c> is captured by that exact block instead of falling through to
+    /// <c>*.{BASE_DOMAIN}</c>, so the office has no front door. The request never reaches the
+    /// application, so this is the only layer that can refuse it.
+    ///
+    /// <para>Kept SEPARATE from <see cref="ReservedSlug"/> rather than merged into one list,
+    /// because the two are reserved for different reasons and only "admin" carries host-context
+    /// meaning. Merging them would invite adding these to
+    /// <c>HostAwareDomainTenantResolveContributor.ReservedHostSlug</c>, where they do not belong.</para>
+    ///
+    /// <para>Sourced from <c>docker/nginx-proxy/default.conf.template</c>: <c>api</c> and
+    /// <c>auth</c> at its <c>server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN}</c> block (#1021),
+    /// and <c>minio</c> at <c>server_name minio.${BASE_DOMAIN}</c>, whose own comment already
+    /// noted it "becomes a RESERVED office slug, like `admin`" without anything enforcing it.
+    /// A new exact-name block in that file needs a matching entry here.</para>
+    /// </summary>
+    public static readonly IReadOnlySet<string> ProxyReservedSlugs =
+        new HashSet<string>(StringComparer.Ordinal) { "api", "auth", "minio" };
 
     /// <summary>DNS label length limit; also bounds the database name.</summary>
     public const int MaxSlugLength = 63;
@@ -63,6 +91,18 @@ public static class TenantNaming
                 nameof(officeName));
         }
 
+        if (ProxyReservedSlugs.Contains(slug))
+        {
+            // Distinct message from the one above: this name is refused because the proxy owns
+            // the hostname, not because it means something in host context. Telling an admin
+            // "reserved for the host-context surface" about `minio` would send them looking in
+            // the wrong place.
+            throw new ArgumentException(
+                $"Office name '{slug}' is reserved by the reverse proxy, which answers that " +
+                "hostname itself, so the office would have no reachable address.",
+                nameof(officeName));
+        }
+
         if (!IsValidSlug(slug))
         {
             throw new ArgumentException(
@@ -86,7 +126,8 @@ public static class TenantNaming
             return false;
         }
 
-        if (string.Equals(slug, ReservedSlug, StringComparison.Ordinal))
+        if (string.Equals(slug, ReservedSlug, StringComparison.Ordinal) ||
+            ProxyReservedSlugs.Contains(slug))
         {
             return false;
         }
