@@ -26,6 +26,9 @@ public class WcabOffice : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? Address { get; set; }
 
+    // THROWAWAY (never merged): an unmigrated property, to prove the migration gate fails in CI.
+    public virtual string? ZzDriftProbe { get; set; }
+
     [CanBeNull]
     public virtual string? City { get; set; }
 
