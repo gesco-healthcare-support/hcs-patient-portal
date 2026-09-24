@@ -347,8 +347,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // all-granted system role, leaving both checkboxes disabled and unticked. The first grant
         // gates the per-office switch and the manual re-push, the second gates the failures screen
         // that those actions are operated from.
+        //
+        // 2026-09-24 -- the per-office switch and the retry moved to the Host-only
+        // CaseTrackerIntegration, and ViewIntegrationDeadLetters became Host-only. PushToCaseTracker
+        // stays because IT Admin holds the full CaseEvaluation.* tree; it now gates only the
+        // in-office per-appointment push.
         yield return $"{Group}.Appointments.PushToCaseTracker";
         yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
+        yield return $"{Group}.CaseTrackerIntegration";
 
         // 2026-06-26 -- the internal-users hub LISTS staff via UserExtendedAppService
         // (extends Volo IdentityUserAppService), whose endpoints are gated by the
@@ -457,7 +463,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // /admin/integration-failures and the retry action 403'd. Granted HOST-side only:
         // that screen aggregates every office through ITenantWorkRunner, so a tenant-side
         // grant would gate nothing it reads.
-        yield return $"{Group}.Appointments.PushToCaseTracker";
+        //
+        // 2026-09-24 -- the switch and the retry are now gated on the Host-only
+        // CaseTrackerIntegration, so the Supervisor holds that instead of PushToCaseTracker, which
+        // gates nothing on the host side any more.
+        yield return $"{Group}.CaseTrackerIntegration";
         yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
     }
 

@@ -47,9 +47,10 @@ CI additionally passes `--logger "trx;LogFileName=results.trx"` and `--results-d
 ./test-results` inside the quoted inner command; both exist only so the run can be uploaded as an
 artefact and neither changes the measurement.
 
-Cobertura is the format `scripts/coverage-gate.py` parses. SonarCloud is fed a _different_ format
-from a _different_ workflow -- `sonarcloud.yml` collects `-f xml` for
-`sonar.cs.vscoveragexml.reportsPaths` -- so the two artefacts are not interchangeable.
+Cobertura is the format `scripts/coverage-gate.py` parses. SonarCloud reads a _different_ format:
+since #1032 the backend tests run as 4 shards that each collect `.coverage`, and the `Backend: Test`
+job merges them once into Cobertura (for the floors) and into `-f xml` (for
+`sonar.cs.vscoveragexml.reportsPaths`), so the two artefacts are not interchangeable.
 
 ## Frontend
 

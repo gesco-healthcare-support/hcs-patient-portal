@@ -266,10 +266,10 @@ HealthcareSupport.CaseEvaluation.HostOperators.IntakeAssignmentsAppService.GetSw
 HealthcareSupport.CaseEvaluation.HostOperators.IntakeAssignmentsAppService.UnassignAsync(Guid, Guid) -> class=(authenticated) method=CaseEvaluation.IntakeAssignments.Manage
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.GetListAsync() -> class=(authenticated) method=CaseEvaluation.Appointments.ViewIntegrationDeadLetters
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.RetryAllAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
-HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.RetryAsync(Guid, Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
+HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.RetryAsync(Guid, Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushAppService.PushAppointmentAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
-HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.GetOfficesAsync() -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
-HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.SetPushEnabledAsync(Guid, Boolean) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
+HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.GetOfficesAsync() -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
+HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.SetPushEnabledAsync(Guid, Boolean) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.CreateAsync(CreateInternalUserDto) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers.Create
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetInternalUsersAsync(GetInternalUsersInput) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String) -> class=CaseEvaluation.InternalUsers method=(anonymous)

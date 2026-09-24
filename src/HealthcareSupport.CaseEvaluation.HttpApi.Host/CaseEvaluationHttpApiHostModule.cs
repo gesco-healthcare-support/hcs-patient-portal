@@ -19,6 +19,7 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using HealthcareSupport.CaseEvaluation.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.RateLimiting;
@@ -106,7 +107,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
         ConfigureUploadLimits(context);
-        ConfigureForwardedHeaders(context);
+        ConfigureForwardedHeaders(context, configuration);
         ConfigureMultiTenancy(context, configuration);
 
         // OLD-parity label overrides: inject extra JSON into AbpUi +
@@ -499,13 +500,19 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer
     /// </para>
     /// </summary>
-    internal static void ConfigureForwardedHeaders(ServiceConfigurationContext context)
+    internal static void ConfigureForwardedHeaders(
+        ServiceConfigurationContext context,
+        IConfiguration configuration)
     {
         context.Services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
+
+            // #928: the allowlist decides which PEER may send forwarded headers, and our peer is
+            // always our own nginx. Blank configuration keeps the historical "trust any peer",
+            // which is correct while nginx is the only ingress. ForwardLimit is untouched -- see
+            // the remarks above for why raising it is what would make the partitions spoofable.
+            TrustedProxyNetworks.Apply(options, configuration);
         });
     }
 
