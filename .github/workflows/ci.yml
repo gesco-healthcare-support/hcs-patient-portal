@@ -1233,8 +1233,10 @@ jobs:
       # angular-only pull request leaves the backend NOT APPLICABLE -- see the `applicable()`
       # helper in this job's "Evaluate floors" step -- and `Coverage: Floors` returns FULLY GREEN,
       # which makes any red on such a submission real signal. Add one docs/ or .github/ file and
-      # the classifier's `shared=true` arm makes the backend applicable, failing the job on
-      # FLOOR_BACKEND's deliberate 75 and forfeiting that signal.
+      # the classifier's `shared=true` arm makes the backend applicable. While FLOOR_BACKEND was a
+      # target set above the measurement (75, until 2026-09-24) that failed the job and forfeited
+      # the signal. At 80, below the measured figure (see FLOOR_BACKEND), the backend passes, so
+      # the signal survives unless backend coverage has genuinely fallen.
       #
       # REFERRED TO BY NAME RATHER THAN BY LINE, deliberately. A first draft of this paragraph
       # cited `:150-152` and `:1274-1280`. The first pointed at the SHARED arm rather than the
@@ -1308,59 +1310,27 @@ jobs:
       # production moves -- which is the property a contamination detector needs. If a
       # future run reports 971 again, `**/test/**` has stopped matching.
       #
-      # 65 UNTIL 2026-09-18, AND 75 IS NOT A MEASUREMENT. READ THIS BEFORE "CORRECTING" IT.
+      # 80 FROM 2026-09-24, ADRIAN'S PIN, AND A BACKSTOP AGAIN. READ THIS BEFORE "CORRECTING" IT.
       #
-      # Every other floor in this file is a measured figure truncated down, and the block at :985
-      # says so as the convention. THIS ONE INVERTS THAT DELIBERATELY. Backend production coverage
-      # measured 67.73% (18077/26691 lines over 645 files) at 52662e89, the content merged as
-      # #977 -- and 65.94% (17601/26691) at c035a2a0 before it. The floor is 75. It is SEVEN POINTS
-      # ABOVE the measurement on purpose.
+      # HISTORY, kept so `git log` does not read as a mistake. #971 set 65, the honest truncate-down
+      # of 67.73% (18077/26691 lines over 645 files at 52662e89). On 2026-09-18 Adrian raised it to
+      # 75, SEVEN points above the measurement, as a TARGET to force the coverage work ("we are going
+      # to get the coverage up anyways"). It failed every pull request carrying this file until the
+      # backend reached 75, and those merges were admin-overridden with the failed checks confirmed
+      # each time. This block's git history has the full procedure and its 2026-09-18 correction.
       #
-      # IT IS A TARGET, NOT A BACKSTOP. Adrian set it to force the remaining coverage work, not to
-      # catch erosion. His words: "we are going to get the coverage up anyways".
+      # THE TARGET WAS MET. Against the epic, backend measured 81.34% (21734/26720 lines over 646
+      # files) on #1053's run 36035624090, and 83.42% (22290/26720) on #1056's sharded run
+      # 36043940417. On 2026-09-24 Adrian pinned the floor at 80 ("Pin at 80, finish in-flight").
+      # That is a whole number at or below the measurement, as the truncate-down convention above
+      # requires. But 80, rather than the strict truncation, is HIS CHOICE, not the arithmetic, so
+      # do not raise it to "match" a newer measurement without asking either.
       #
-      # SO IT IS EXPECTED TO FAIL, AND THAT IS NOT A DEFECT. The floors job marks backend
-      # APPLICABLE even when no backend code changed, so this fails EVERY pull request whose merge
-      # result carries this file -- tranche PRs into feat/production-hardening, and the epic->main
-      # cascade -- until backend reaches 75. Merges in that window are admin-overridden. The gap
-      # when this was set: 26691 x 0.75 = 20018 needed against 18077 held, so 1,941 covered
-      # production lines, roughly four tranches at the measured +476 per tranche.
-      #
-      # IT REPLACES #971's 65, which was the honest truncate-down figure from the same 67.73%
-      # measurement. Without that sentence `git log` shows a floor raised from 65 to 75 while
-      # coverage sat at 67.73%, and reads as a mistake someone should undo.
-      #
-      # AND IT MAKES THE PARAGRAPH AT :999 UNTRUE OF THIS FLOOR. That paragraph says "THE ABSOLUTE
-      # FLOORS ARE NOT THE SENSITIVE CONTROL... The absolute floors are a backstop against slow
-      # erosion", with FLOOR_CHANGED as the sensitive one. That still describes FLOOR_FRONTEND and
-      # FLOOR_PYTHON. It no longer describes this floor, which is now a target. The contradiction
-      # is recorded here rather than left for a reader to resolve -- because the cheap resolution
-      # is to revert the value, the value being the thing that looks anomalous.
-      #
-      # THE KNOWN COST, so it is not discovered later: a check that is routinely overridden stops
-      # being read. Whoever overrides must confirm WHICH checks failed, every time -- not merely
-      # that a check failed.
-      #
-      # CORRECTED 2026-09-18, and the correction is recorded rather than quietly applied because
-      # this paragraph is the written justification for the override procedure covering the next
-      # several tranches. It previously said Backend: Test and Coverage: Floors "run in the SAME
-      # job, so a genuine test failure surfaces in the same place as the expected floor failure".
-      #
-      # THAT WAS FALSE. They are separate top-level jobs -- `backend-test:` and `coverage-floors:`
-      # in this file -- reporting the checks "Backend: Test" and "Coverage: Floors" independently.
-      # #980's own merge proves it empirically rather than by argument: on a single commit,
-      # Backend: Test was success while Coverage: Floors was failure. One job cannot report two
-      # conclusions.
-      #
-      # THE DISCIPLINE SURVIVES THE CORRECTION AND GETS CHEAPER. Because these are separate checks,
-      # which one failed is visible in the checks list; no log needs opening to tell an expected
-      # floor failure from a real test failure. The confirmation is still required every time --
-      # only the claim that it is expensive was wrong.
-      #
-      # Fixed the same day rather than deferred for one reason: a procedure justified by a
-      # mechanism any reader can disprove in thirty seconds is a procedure that gets abandoned,
-      # and the discipline goes with it.
-      FLOOR_BACKEND: "75"
+      # So this floor is a BACKSTOP again. The paragraph above that begins "THE ABSOLUTE FLOORS ARE
+      # NOT THE SENSITIVE CONTROL" describes it once more: FLOOR_CHANGED is the per-PR control, and
+      # this one catches slow erosion. A red here now means backend coverage fell below 80. It is no
+      # longer an expected failure to override.
+      FLOOR_BACKEND: "80"
       # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
       # refuses to run without a floor and prints the figure to copy.
       #
