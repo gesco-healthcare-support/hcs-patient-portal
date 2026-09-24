@@ -269,7 +269,9 @@ HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAp
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerDeadLetterAppService.RetryAsync(Guid, Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushAppService.PushAppointmentAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.GetOfficesAsync() -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
+HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.ReturnToPushAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.SetPushEnabledAsync(Guid, Boolean) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
+HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.StartFeedAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.PushToCaseTracker
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.CreateAsync(CreateInternalUserDto) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers.Create
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetInternalUsersAsync(GetInternalUsersInput) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String) -> class=CaseEvaluation.InternalUsers method=(anonymous)
