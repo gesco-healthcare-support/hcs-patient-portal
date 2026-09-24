@@ -10,6 +10,7 @@ using Volo.Abp.EntityFrameworkCore.Sqlite;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Modularity;
 using Volo.Abp.PermissionManagement;
+using Volo.Abp.SettingManagement;
 using Volo.Abp.TextTemplateManagement;
 using Volo.Abp.Uow;
 
@@ -61,6 +62,15 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
             options.SaveStaticTemplatesToDatabase = false;
             options.IsDynamicTemplateStoreEnabled = false;
         });
+        // #1033: like the three stores above, the settings store saves its static definitions from a
+        // background task started at application start-up. Once a test skips the one-second seed (its
+        // database is a template copy), the test body raced that task on the shared SQLite connection
+        // and failed at random with "database is locked".
+        Configure<SettingManagementOptions>(options =>
+        {
+            options.SaveStaticSettingsToDatabase = false;
+            options.IsDynamicSettingStoreEnabled = false;
+        });
         context.Services.AddAlwaysDisableUnitOfWorkTransaction();
 
         ConfigureInMemorySqlite(context.Services);
@@ -69,7 +79,21 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
 
     private void ConfigureInMemorySqlite(IServiceCollection services)
     {
-        _sqliteConnection = CreateDatabaseAndGetConnection();
+        // #1033: by default the application gets a copy of the once-per-process seeded template, and
+        // the TestBase start-up seed is skipped because the copy already holds its rows. Fresh mode
+        // (the template builder, the equivalence test, or CASEEVAL_TEST_DB_FRESH=1) builds the tables
+        // and runs the seed, as every test did before.
+        var buildFresh = services.ExecutePreConfiguredActions<CaseEvaluationTestDatabaseOptions>().BuildFresh
+            || TestDatabaseTemplate.FreshBuildsRequested();
+
+        _sqliteConnection = buildFresh ? CreateDatabaseAndGetConnection() : TestDatabaseTemplate.CreateCopy();
+
+        if (!buildFresh)
+        {
+            services.Configure<CaseEvaluationTestSeedOptions>(options => options.SkipInitialSeed = true);
+        }
+
+        services.AddSingleton(new CaseEvaluationTestDatabase(_sqliteConnection, fromTemplate: !buildFresh));
 
         services.Configure<AbpDbContextOptions>(options =>
         {
@@ -109,7 +133,12 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
         }
     }
 
-    private static SqliteConnection CreateDatabaseAndGetConnection()
+    /// <summary>
+    /// Opens a new, empty in-memory database with foreign-key enforcement on. Used for both fresh
+    /// builds and template copies: foreign-key enforcement belongs to the connection, and a copy
+    /// carries database pages only, so every connection must switch it on itself.
+    /// </summary>
+    internal static SqliteConnection OpenConnection()
     {
         // Microsoft.Data.Sqlite defaults FK enforcement OFF and EF Core's
         // per-connection PRAGMA only fires when EF Core itself opens the
@@ -128,6 +157,13 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
             pragmaCommand.CommandText = "PRAGMA foreign_keys = ON;";
             pragmaCommand.ExecuteNonQuery();
         }
+
+        return connection;
+    }
+
+    private static SqliteConnection CreateDatabaseAndGetConnection()
+    {
+        var connection = OpenConnection();
 
         var options = new DbContextOptionsBuilder<CaseEvaluationDbContext>()
             .UseSqlite(connection)
