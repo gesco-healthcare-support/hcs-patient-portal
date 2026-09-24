@@ -172,20 +172,13 @@ Used by `HomeComponent` and `AppointmentAddComponent` to provide a simplified na
 
 ## Entities Using Suite Pattern
 
-All of the following use the full abstract/concrete generation pattern:
+Only **Doctors** (`doctor-management/doctors`) still uses the full abstract/concrete pattern.
 
-- Appointments
-- Patients
-- Doctors
-- Doctor Availabilities
-- Locations
-- WCAB Offices
-- States
-- Appointment Types
-- Appointment Statuses
-- Appointment Languages
-- Applicant Attorneys
-- Defense Attorneys
+The other Suite-generated entities (Appointments, Patients, Doctor Availabilities, Locations, WCAB Offices,
+States, Appointment Types, Statuses and Languages, Applicant and Defense Attorneys) had their generated
+list and detail pages replaced by custom screens. Their unused generated view services were removed in
+#1062. Their `*-routes.ts` files remain and load the custom screens; for example, States load
+`InternalConfigurationComponent`.
 
 ---
 
