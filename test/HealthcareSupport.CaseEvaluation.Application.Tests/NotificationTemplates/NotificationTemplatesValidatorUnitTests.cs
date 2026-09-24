@@ -221,7 +221,9 @@ public class NotificationTemplatesValidatorUnitTests
         // the email they tried to invite already has an account (+1 -> 67).
         // #917 (2026-09-23) added CaseTrackerPushRetrying, the early warning for pushes still inside
         // the 24-hour retry window (+1 -> 68).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(68);
+        // #927 (2026-09-24) added CaseTrackerFeedAlert, the changes-feed alert to the technical list
+        // (+1 -> 69).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(69);
     }
 
     [Fact]

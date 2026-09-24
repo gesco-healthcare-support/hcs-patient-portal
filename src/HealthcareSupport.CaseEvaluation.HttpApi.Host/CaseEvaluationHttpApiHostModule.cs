@@ -1668,6 +1668,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob.CronExpression,
             options);
 
+        // #927 (2026-09-24) -- every 5 minutes, checks each office on the Case Tracker changes feed for a silent
+        // consumer (no request for 15 minutes) or a stalled position (a row waiting 30 minutes, position not
+        // moving), and emails the technical list when either starts and when it clears. Shipped with the
+        // endpoint: under the feed nothing is marked Failed, so the failures screen cannot show undelivered rows.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFeedHealthJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFeedHealthJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFeedHealthJob.CronExpression,
+            options);
+
         // Case Tracker integration Part 5 (2026-07-28) -- alerts internal staff about dead-lettered
         // pushes (every 15 min). A permanently failed push means a case silently never reached the
         // Case Tracker; without this it is visible only in the server logs. Batched per office, so a

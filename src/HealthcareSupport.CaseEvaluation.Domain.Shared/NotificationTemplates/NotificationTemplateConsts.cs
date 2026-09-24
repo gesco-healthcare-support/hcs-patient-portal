@@ -240,6 +240,14 @@ public static class NotificationTemplateConsts
         public const string CaseTrackerPushRetrying = "CaseTrackerPushRetrying";
 
         /// <summary>
+        /// #927 (2026-09-24) -- a Case Tracker changes-feed alert: an office's consumer has gone silent or
+        /// stalled (and when either clears), a cursor was refused as beyond anything issued, or the consumer
+        /// reported abandoning a row. Sent to the technical list in <c>CaseTracker:FeedAlertRecipients</c>, not
+        /// to staff. Carries ids, times, counts and a cursor only; no PHI.
+        /// </summary>
+        public const string CaseTrackerFeedAlert = "CaseTrackerFeedAlert";
+
+        /// <summary>
         /// Item F (2026-08-22) -- sent when staff try to invite an email that already has an account
         /// in the office. The invite is a dead end (registration rejects the duplicate), so instead of
         /// an error the staff surface offers to email the person a sign-in link. Tenant-scoped, NOT in
@@ -303,6 +311,7 @@ public static class NotificationTemplateConsts
             PatientAppointmentInfoRequested,
             CaseTrackerPushFailed,
             CaseTrackerPushRetrying,
+            CaseTrackerFeedAlert,
 
             // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
             AccessorAppointmentAdded,
