@@ -18,8 +18,9 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// Reads and writes the per-office <c>CaseTrackerPushEnabled</c> switch from the host surface.
 ///
 /// <para>Gated on <see cref="CaseEvaluationPermissions.CaseTrackerIntegration"/>, a Host-only
-/// permission, and every method also refuses a caller inside an office (2026-09-24). Both methods act
-/// on every office, so they belong to the host alone. They used to share
+/// permission, and every method also refuses a caller inside an office (2026-09-24). Each acts on the
+/// office it names, or on all of them, so they belong to the host alone -- including starting the #927
+/// feed and returning an office to push. They used to share
 /// <see cref="CaseEvaluationPermissions.Appointments.PushToCaseTracker"/> with the per-appointment
 /// push button, but that permission is Both-sided because the button lives inside an office. The new
 /// permission reaches IT Admin and the host Supervisor through the role seed
@@ -96,9 +97,11 @@ public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICase
     /// Cutover (#927). Refused while the office's push switch is off: that switch stays the gate for everything
     /// the portal sends the Case Tracker, and the feed refuses an office that has it off.
     /// </summary>
-    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
     public virtual async Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId)
     {
+        EnsureHostCaller();
+
         using (_currentTenant.Change(officeId))
         {
             if (!await IsPushSwitchOnAsync())
@@ -122,9 +125,11 @@ public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICase
     }
 
     /// <summary>Rollback (#927). Refused when the office is not on the feed.</summary>
-    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
     public virtual async Task<CaseTrackerOfficePushStateDto> ReturnToPushAsync(Guid officeId)
     {
+        EnsureHostCaller();
+
         using (_currentTenant.Change(officeId))
         {
             if (!await _feedManager.ReturnToPushAsync())
