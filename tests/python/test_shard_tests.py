@@ -124,6 +124,78 @@ class TestPartition(unittest.TestCase):
             shard.partition(self.COUNTS, 0)
 
 
+SHARED_ALPHA_BETA = """\
+using Xunit;
+
+namespace Ns;
+
+[Collection(SharedDb.Name)]
+public class Alpha : SharedBase
+{
+}
+
+[Collection(SharedDb.Name)]
+[Trait("Area", "TEST")]
+public sealed partial class Beta : SharedBase
+{
+}
+
+[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
+public class Gamma
+{
+}
+"""
+
+
+class TestCollectionMembers(_TempDirCase):
+    def test_reads_named_collection_members_with_their_namespace(self):
+        members = shard.collection_members({"Shared.cs": SHARED_ALPHA_BETA})
+
+        self.assertEqual(members, {"Ns.Alpha": "SharedDb.Name", "Ns.Beta": "SharedDb.Name"})
+
+    def test_the_serial_only_default_collection_may_be_split(self):
+        """Gamma is in the default collection, which shares no state, so it is not a member."""
+        members = shard.collection_members({"Shared.cs": SHARED_ALPHA_BETA})
+
+        self.assertNotIn("Ns.Gamma", members)
+
+    def test_a_block_scoped_namespace_is_read_too(self):
+        text = "namespace Ns.Block\n{\n    [Collection(SharedDb.Name)]\n    public class Baz { }\n}\n"
+
+        self.assertEqual(shard.collection_members({"B.cs": text}), {"Ns.Block.Baz": "SharedDb.Name"})
+
+    def test_a_member_with_no_namespace_is_refused(self):
+        with self.assertRaises(ValueError):
+            shard.collection_members({"N.cs": "[Collection(SharedDb.Name)]\npublic class Lost { }\n"})
+
+    def test_build_output_is_not_scanned(self):
+        """Stale copies under bin/ or obj/ must not add members the build no longer has."""
+        self.write("src/Shared.cs", SHARED_ALPHA_BETA)
+        self.write("src/obj/Old.cs", "namespace Ns;\n[Collection(SharedDb.Name)]\npublic class Stale { }\n")
+
+        members = shard.collection_members(shard.read_sources(self.tmp / "src"))
+
+        self.assertNotIn("Ns.Stale", members)
+        self.assertIn("Ns.Alpha", members)
+
+
+class TestPartitionWithCollections(unittest.TestCase):
+    COUNTS = {f"Ns.C{i:02d}": (i % 7) + 1 for i in range(40)}
+    GROUP = {f"Ns.C{i:02d}": "SharedDb.Name" for i in (3, 11, 19, 27, 35)}
+
+    def test_a_collection_lands_whole_in_one_shard(self):
+        shards = shard.partition(self.COUNTS, 4, self.GROUP)
+
+        holders = [i for i, bucket in enumerate(shards) if set(self.GROUP) & set(bucket)]
+        self.assertEqual(len(holders), 1)
+        self.assertTrue(set(self.GROUP) <= set(shards[holders[0]]))
+
+    def test_grouping_still_places_every_class_exactly_once(self):
+        flat = [cls for bucket in shard.partition(self.COUNTS, 4, self.GROUP) for cls in bucket]
+
+        self.assertEqual(sorted(flat), sorted(self.COUNTS))
+
+
 class TestFilterFor(unittest.TestCase):
     def test_each_class_is_matched_up_to_its_trailing_dot(self):
         """The trailing dot stops `Ns.Alpha` from also matching `Ns.AlphaBeta`."""
@@ -235,12 +307,46 @@ class TestMain(_TempDirCase):
                 code = stop.code
         return code, out.getvalue(), err.getvalue()
 
-    def _partition(self, listing: Path, shards: str, index: str) -> tuple[object, str, str]:
+    def _partition(
+        self, listing: Path, shards: str, index: str, sources: Path | None = None
+    ) -> tuple[object, str, str]:
+        if sources is None:
+            sources = self.tmp / "src-empty"
+            sources.mkdir(exist_ok=True)
         return self._run(
-            "partition", "--listing", str(listing), "--shards", shards, "--index", index,
+            "partition", "--listing", str(listing), "--sources", str(sources),
+            "--shards", shards, "--index", index,
             "--classes-out", str(self.tmp / "classes.txt"),
             "--runsettings-out", str(self.tmp / "shard.runsettings"),
         )
+
+    def test_partition_keeps_a_shared_collection_in_one_shard(self):
+        """Alpha and Beta share a named database, so every shard holds both or neither."""
+        listing = self.write("list.txt", LISTING)
+        self.write("src/Shared.cs", SHARED_ALPHA_BETA)
+        out = ""
+
+        for index in ("1", "2", "3"):
+            code, out, _ = self._partition(listing, "3", index, self.tmp / "src")
+            self.assertEqual(code, 0)
+            chosen = set((self.tmp / "classes.txt").read_text(encoding="utf-8").split())
+            self.assertIn(len(chosen & {"Ns.Alpha", "Ns.Beta"}), (0, 2))
+        self.assertIn("kept whole: SharedDb.Name (2 classes)", out)
+
+    def test_partition_refuses_a_collection_member_missing_from_the_listing(self):
+        """A scan that names a class the build does not list would keep nothing together."""
+        self.write("src/Ghost.cs", "namespace Ns;\n[Collection(SharedDb.Name)]\npublic class Ghost { }\n")
+
+        code, _, err = self._partition(self.write("list.txt", LISTING), "2", "1", self.tmp / "src")
+
+        self.assertEqual(code, 1)
+        self.assertIn("not in the test listing: Ns.Ghost", err)
+
+    def test_partition_refuses_a_missing_sources_directory(self):
+        code, _, err = self._partition(self.write("list.txt", LISTING), "2", "1", self.tmp / "nope")
+
+        self.assertEqual(code, 1)
+        self.assertIn("does not exist", err)
 
     def test_partition_writes_the_classes_and_runsettings_of_the_chosen_shard(self):
         listing = self.write("list.txt", LISTING)

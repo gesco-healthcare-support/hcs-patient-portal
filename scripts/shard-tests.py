@@ -17,10 +17,19 @@ builds one application per test, so a class is a natural, cheap unit. Comparing 
 than test counts also keeps `verify` honest if a theory ever expands at run time into more
 results than discovery listed.
 
+WHY SOME COLLECTIONS STAY WHOLE. The MultiOffice and RealAuthorization collections share named
+in-memory databases (Cache=Shared) across their classes within one process, so a test in one class
+can depend on rows another class left behind. Split across shards, those classes land in different
+processes and behave differently: the first run lost 44 covered lines this way (#1051). So every
+class in a named xUnit collection moves as one unit with its collection. The one exception is the
+default "CaseEvaluation collection", which exists only to serialise and shares no state: each test
+there builds its own database. Membership is read from the `[Collection(...)]` attributes in the
+test sources, so a class added to a shared collection later is kept with it automatically.
+
 Stdlib only, so the CI job needs nothing installed beyond Python.
 
 Usage:
-  shard-tests.py partition --listing LIST --shards N --index K --classes-out F --runsettings-out F
+  shard-tests.py partition --listing LIST --sources DIR --shards N --index K --classes-out F --runsettings-out F
   shard-tests.py other-projects --slnx SOLUTION --sharded PROJECT
   shard-tests.py verify --classes F --trx-dir DIR
 """
@@ -28,6 +37,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -37,6 +47,18 @@ from xml.sax.saxutils import escape
 
 LISTING_MARKER = "The following Tests are available:"
 TRX_NS = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
+
+# Collections whose classes may be split across shards: they exist only to run one at a time and
+# share no state. Matched against the attribute's argument text as written in the source.
+SPLITTABLE_COLLECTIONS = frozenset({"CaseEvaluationTestConsts.CollectionDefinitionName"})
+
+NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][\w.]*)", re.MULTILINE)
+# `[Collection(X)]`, optionally other attributes, then modifiers, then `class Name`.
+COLLECTION_CLASS_RE = re.compile(
+    r"\[\s*(?:Xunit\.)?Collection(?:Attribute)?\s*\(\s*([^)\]]+?)\s*\)\s*\]"
+    r"\s*(?:\[[^\]]*\]\s*)*"
+    r"(?:(?:public|internal|sealed|abstract|partial|static)\s+)*class\s+(\w+)"
+)
 
 
 def die(msg: str) -> NoReturn:
@@ -77,24 +99,65 @@ def class_of(test_name: str) -> str:
     return head.rsplit(".", 1)[0]
 
 
-def partition(counts: dict[str, int], shards: int) -> list[list[str]]:
+def collection_members(sources: dict[str, str]) -> dict[str, str]:
+    """Return {fully qualified class: collection} for classes that must stay with their collection.
+
+    `sources` maps a file name to its C# text. Classes in a SPLITTABLE collection are left out,
+    as are classes with no `[Collection]` at all; both may go to any shard.
+    """
+    members: dict[str, str] = {}
+    for path, text in sources.items():
+        found = COLLECTION_CLASS_RE.findall(text)
+        if not found:
+            continue
+        namespace = NAMESPACE_RE.search(text)
+        if namespace is None:
+            raise ValueError(f"{path} declares a collection member but no namespace")
+        for collection, name in found:
+            if collection not in SPLITTABLE_COLLECTIONS:
+                members[f"{namespace.group(1)}.{name}"] = collection
+    return members
+
+
+def read_sources(directory: Path) -> dict[str, str]:
+    """Return {path: text} for every .cs file under `directory`, skipping build output."""
+    if not directory.is_dir():
+        raise ValueError(f"test source directory {directory} does not exist")
+    return {
+        str(path): path.read_text(encoding="utf-8-sig")
+        for path in sorted(directory.rglob("*.cs"))
+        if not {"bin", "obj"} & set(path.parts)
+    }
+
+
+def partition(
+    counts: dict[str, int], shards: int, groups: dict[str, str] | None = None
+) -> list[list[str]]:
     """Assign classes to shards, balancing test counts; deterministic for the same classes.
 
-    Greedy: heaviest class first (ties by name), each to the currently lightest shard (ties by
-    shard number). That keeps any two shards within one class of each other. Refuses a result
-    with an empty shard, because an empty filter would make that shard run every test.
+    Classes named in `groups` move as one unit with the other classes of the same collection;
+    every other class is its own unit. Greedy: heaviest unit first (ties by name), each to the
+    currently lightest shard (ties by shard number). That keeps any two shards within one unit of
+    each other. Refuses a result with an empty shard, because an empty filter would make that shard
+    run every test.
     """
     if shards < 1:
         raise ValueError(f"shard count must be at least 1, got {shards}")
+    groups = groups or {}
+    units: dict[str, list[str]] = {}
+    for cls in counts:
+        key = f"collection:{groups[cls]}" if cls in groups else f"class:{cls}"
+        units.setdefault(key, []).append(cls)
+    weight = {key: sum(counts[c] for c in members) for key, members in units.items()}
     buckets: list[list[str]] = [[] for _ in range(shards)]
     loads = [0] * shards
-    for cls in sorted(counts, key=lambda c: (-counts[c], c)):
+    for key in sorted(units, key=lambda k: (-weight[k], k)):
         lightest = min(range(shards), key=lambda i: (loads[i], i))
-        buckets[lightest].append(cls)
-        loads[lightest] += counts[cls]
+        buckets[lightest].extend(units[key])
+        loads[lightest] += weight[key]
     if any(not bucket for bucket in buckets):
         raise ValueError(
-            f"{len(counts)} classes cannot fill {shards} shards; an empty shard would run everything"
+            f"{len(units)} units cannot fill {shards} shards; an empty shard would run everything"
         )
     return [sorted(bucket) for bucket in buckets]
 
@@ -194,11 +257,21 @@ def cmd_partition(args: argparse.Namespace) -> int:
         die(f"shard index {args.index} is outside 1..{args.shards}")
     counts = Counter(class_of(name) for name in names)
     try:
-        buckets = partition(dict(counts), args.shards)
+        groups = collection_members(read_sources(Path(args.sources)))
+        # A member the listing does not know means the source scan and the build disagree (a
+        # renamed namespace, a parse miss). Keeping it whole would then silently do nothing.
+        unknown = sorted(cls for cls in groups if cls not in counts)
+        if unknown:
+            raise ValueError(f"collection members not in the test listing: {', '.join(unknown)}")
+        buckets = partition(dict(counts), args.shards, groups)
     except ValueError as exc:
         die(str(exc))
     for i, bucket in enumerate(buckets, start=1):
         print(f"shard {i}/{args.shards}: {len(bucket)} classes, {sum(counts[c] for c in bucket)} tests")
+    for collection in sorted(set(groups.values())):
+        members = [c for c in groups if groups[c] == collection]
+        home = sorted({i for i, bucket in enumerate(buckets, start=1) for c in members if c in bucket})
+        print(f"kept whole: {collection} ({len(members)} classes) -> shard {', '.join(map(str, home))}")
     chosen = buckets[args.index - 1]
     Path(args.classes_out).write_text("\n".join(chosen) + "\n", encoding="utf-8")
     Path(args.runsettings_out).write_text(runsettings_for(chosen), encoding="utf-8")
@@ -238,6 +311,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("partition", help="choose this shard's classes and filter")
     p.add_argument("--listing", required=True)
+    p.add_argument("--sources", required=True, help="the sharded project's source directory")
     p.add_argument("--shards", type=int, required=True)
     p.add_argument("--index", type=int, required=True)
     p.add_argument("--classes-out", required=True)

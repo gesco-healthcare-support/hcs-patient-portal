@@ -710,7 +710,10 @@ jobs:
         run: |
           set -euo pipefail
           dotnet test "$EF_TESTS" --no-build -c Release --list-tests > ef-tests.txt
+          # --sources: classes in a shared-database collection (MultiOffice, RealAuthorization)
+          # are read from their [Collection] attributes and kept together in one shard.
           python3 scripts/shard-tests.py partition --listing ef-tests.txt \
+            --sources "$(dirname "$EF_TESTS")" \
             --shards "$SHARDS" --index "${{ matrix.shard }}" \
             --classes-out shard-classes.txt --runsettings-out shard.runsettings
       # The filter travels in shard.runsettings, not on the command line: the command runs
