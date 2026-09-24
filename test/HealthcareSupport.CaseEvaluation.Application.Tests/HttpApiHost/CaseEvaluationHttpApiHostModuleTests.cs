@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Hosting;
 using HealthcareSupport.CaseEvaluation.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +15,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.AspNetCore.ExceptionHandling;
 using Volo.Abp.Modularity;
 using Xunit;
@@ -253,17 +256,31 @@ public class CaseEvaluationHttpApiHostModuleTests
     // partitions see the real client instead of the nginx container.
     // ------------------------------------------------------------------
 
-    [Fact]
-    public void ConfigureForwardedHeaders_ProcessesXForwardedProtoAndXForwardedFor()
+    private static ForwardedHeadersOptions BuildForwardedHeadersOptions(string? trustedProxyNetworks = null)
     {
         var services = new ServiceCollection();
         services.AddOptions();
         var context = new ServiceConfigurationContext(services);
 
-        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context);
+        var settings = new Dictionary<string, string?>();
+        if (trustedProxyNetworks != null)
+        {
+            settings[TrustedProxyNetworks.ConfigurationKey] = trustedProxyNetworks;
+        }
 
-        var options = services.BuildServiceProvider()
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+
+        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context, configuration);
+
+        return services.BuildServiceProvider()
             .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+    }
+
+    [Fact]
+    public void ConfigureForwardedHeaders_ProcessesXForwardedProtoAndXForwardedFor()
+    {
+        var options = BuildForwardedHeadersOptions();
+
         options.ForwardedHeaders.HasFlag(ForwardedHeaders.XForwardedProto).ShouldBeTrue();
         options.ForwardedHeaders.HasFlag(ForwardedHeaders.XForwardedFor).ShouldBeTrue();
     }
@@ -277,14 +294,8 @@ public class CaseEvaluationHttpApiHostModuleTests
         // so at 1 a forged header ("1.2.3.4, <real>") still resolves to the real address.
         // Raising it would start honoring client-supplied hops and make the per-IP
         // partitions spoofable.
-        var services = new ServiceCollection();
-        services.AddOptions();
-        var context = new ServiceConfigurationContext(services);
+        var options = BuildForwardedHeadersOptions();
 
-        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context);
-
-        var options = services.BuildServiceProvider()
-            .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
         options.ForwardLimit.ShouldBe(1);
     }
 
@@ -295,16 +306,46 @@ public class CaseEvaluationHttpApiHostModuleTests
         // single-ingress LAN box the only proxy is our own nginx, so both lists are
         // cleared to trust it. Guards against a future default that would silently
         // drop the forwarded scheme behind the proxy.
-        var services = new ServiceCollection();
-        services.AddOptions();
-        var context = new ServiceConfigurationContext(services);
+        var options = BuildForwardedHeadersOptions();
 
-        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context);
-
-        var options = services.BuildServiceProvider()
-            .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
         options.KnownProxies.ShouldBeEmpty();
         options.KnownIPNetworks.ShouldBeEmpty();
+    }
+
+    // ------------------------------------------------------------------
+    // #928 -- the allowlist becomes configurable so a deployment with a
+    // managed load balancer in front of nginx can narrow which peer may
+    // send forwarded headers, without changing how many hops are trusted.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ConfigureForwardedHeaders_AppliesConfiguredTrustedProxyNetworks()
+    {
+        var options = BuildForwardedHeadersOptions("172.16.0.0/12, 10.0.0.0/16");
+
+        options.KnownIPNetworks.Count.ShouldBe(2);
+        options.KnownIPNetworks.ShouldContain(System.Net.IPNetwork.Parse("172.16.0.0/12"));
+        options.KnownIPNetworks.ShouldContain(System.Net.IPNetwork.Parse("10.0.0.0/16"));
+    }
+
+    [Fact]
+    public void ConfigureForwardedHeaders_LeavesForwardLimitAtOneEvenWhenNetworksAreConfigured()
+    {
+        // The allowlist decides WHICH PEER may send the headers; ForwardLimit decides HOW
+        // MANY hops are believed. Configuring the first must never widen the second, or a
+        // forged X-Forwarded-For could pick its own rate-limit bucket again.
+        var options = BuildForwardedHeadersOptions("172.16.0.0/12");
+
+        options.ForwardLimit.ShouldBe(1);
+    }
+
+    [Fact]
+    public void ConfigureForwardedHeaders_ThrowsOnAnInvalidTrustedProxyNetwork()
+    {
+        // Fails at startup rather than skipping the entry. A silently ignored range leaves
+        // the real peer outside the allowlist, which drops every forwarded header and
+        // collapses the per-IP partitions -- the defect this setting exists to close.
+        Should.Throw<AbpException>(() => BuildForwardedHeadersOptions("172.16.0.0/12, not-a-cidr"));
     }
 
     // ------------------------------------------------------------------

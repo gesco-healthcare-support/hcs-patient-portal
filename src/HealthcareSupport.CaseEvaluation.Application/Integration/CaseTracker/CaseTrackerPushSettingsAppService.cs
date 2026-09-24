@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
+using Volo.Abp.Authorization;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.SettingManagement;
 
@@ -16,12 +17,14 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <summary>
 /// Reads and writes the per-office <c>CaseTrackerPushEnabled</c> switch from the host surface.
 ///
-/// <para>Gated on <see cref="CaseEvaluationPermissions.Appointments.PushToCaseTracker"/> rather than a
-/// new permission. That is the permission the dead-letter retry already uses, and both actions do the
-/// same thing in kind -- cause the portal to send ePHI to the Case Tracker. A new permission would
-/// have to be granted before the control appeared, and the IT Admin role cannot be re-permissioned
-/// through the UI, so the realistic outcome of being stricter here is an invisible button during a
-/// live test. The screen is host-only and internal-staff-only.</para>
+/// <para>Gated on <see cref="CaseEvaluationPermissions.CaseTrackerIntegration"/>, a Host-only
+/// permission, and every method also refuses a caller inside an office (2026-09-24). Both methods act
+/// on every office, so they belong to the host alone. They used to share
+/// <see cref="CaseEvaluationPermissions.Appointments.PushToCaseTracker"/> with the per-appointment
+/// push button, but that permission is Both-sided because the button lives inside an office. The new
+/// permission reaches IT Admin and the host Supervisor through the role seed
+/// (<c>InternalUserRoleDataSeedContributor</c>), which matters because the IT Admin role cannot be
+/// re-permissioned through the UI.</para>
 /// </summary>
 [Authorize]
 public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICaseTrackerPushSettingsAppService
@@ -52,18 +55,22 @@ public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICase
         _logger = logger;
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
     public virtual async Task<List<CaseTrackerOfficePushStateDto>> GetOfficesAsync()
     {
+        EnsureHostCaller();
+
         var states = await _tenantWorkRunner.AggregateAcrossOfficesAsync(
             async officeId => await ReadStateAsync(officeId));
 
         return states.OrderBy(s => s.OfficeName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.PushToCaseTracker)]
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
     public virtual async Task<CaseTrackerOfficePushStateDto> SetPushEnabledAsync(Guid officeId, bool enabled)
     {
+        EnsureHostCaller();
+
         // Entering the office scope before writing is what makes this correct under
         // database-per-office: the setting store follows the current tenant's connection, so writing
         // here puts the row in the SAME database the drain reads from when it enters the same scope
@@ -139,6 +146,20 @@ public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICase
         var raw = await _settingManager.GetOrNullForCurrentTenantAsync(
             CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled);
         return bool.TryParse(raw, out var parsed) && parsed;
+    }
+
+    /// <summary>
+    /// Refuses a caller who is inside an office, before any office is entered or aggregated. The
+    /// Host-only permission already stops an office caller at the authorization interceptor; this
+    /// check keeps the refusal in place even if that permission's side is ever widened again.
+    /// </summary>
+    private void EnsureHostCaller()
+    {
+        if (_currentTenant.IsAvailable)
+        {
+            throw new AbpAuthorizationException(
+                "Case Tracker delivery is managed from the host, not from inside an office.");
+        }
     }
 
     private async Task<CaseTrackerOfficePushStateDto> ReadStateAsync(Guid officeId)

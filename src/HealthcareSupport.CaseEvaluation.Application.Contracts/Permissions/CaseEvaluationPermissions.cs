@@ -451,4 +451,16 @@ public static class CaseEvaluationPermissions
         public const string Default = GroupName + ".Branding";
         public const string Edit = Default + ".Edit";
     }
+
+    /// <summary>
+    /// 2026-09-24 -- manage Case Tracker delivery for every office from the host: retry a failed push
+    /// and read or switch each office's push setting. Registered MultiTenancySides.Host, so ABP never
+    /// grants it inside an office. It is separate from <see cref="Appointments.PushToCaseTracker"/>,
+    /// which stays Both-sided because it also gates the in-office, per-appointment push button. Keeping
+    /// the host-wide actions on their own Host-only permission means no office-side grant can open them.
+    /// </summary>
+    public static class CaseTrackerIntegration
+    {
+        public const string Default = GroupName + ".CaseTrackerIntegration";
+    }
 }

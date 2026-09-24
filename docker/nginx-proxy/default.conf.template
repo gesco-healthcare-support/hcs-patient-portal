@@ -16,6 +16,69 @@
 # `*.${BASE_DOMAIN}`, so nginx routes falkinstein.api.<domain> to the API even
 # though `*.<domain>` would also match.
 
+# Real client address behind a managed load balancer (#928).
+#
+# WHY THIS EXISTS. On the LAN nginx is the first hop, so $remote_addr IS the caller
+# and $proxy_add_x_forwarded_for appends the right address. Put a cloud load balancer
+# in front and that stops being true: the balancer becomes our peer, $remote_addr
+# becomes the balancer, and every per-IP control downstream collapses into ONE bucket
+# for the whole deployment -- the integration limiter (300/hr, whose stated job is
+# stopping enumeration with a leaked token), external-signup register, password reset,
+# document-upload-by-IP and consent. It also makes an IP allowlist impossible to
+# enforce here at all, which #927 depends on.
+#
+# HOW IT IS SAFE. real_ip_header only rewrites $remote_addr when the CONNECTION comes
+# from an address listed in set_real_ip_from, so with no such line nothing is trusted
+# and nothing is rewritten. That is why the header directive can be unconditional
+# while the trust list stays deployment-specific.
+#
+# WHICH ENTRY NGINX TAKES IS A PER-BALANCER DECISION, NOT A CONSTANT. Both settings are
+# correct for some balancers and wrong for others, so this is a deployment value rather
+# than something to hardcode.
+#
+#   recursion OFF -- nginx takes the LAST entry. Correct where the balancer appends exactly
+#   ONE address, its caller. A client forging "1.2.3.4" then arrives as "1.2.3.4, <real>"
+#   and the last entry wins.
+#
+#   recursion ON  -- nginx walks leftward, skipping entries that ARE in set_real_ip_from,
+#   and stops at the first untrusted one. Required where the balancer appends MORE than one
+#   address. Google Cloud's external Application Load Balancer appends TWO,
+#   "<client-ip>,<load-balancer-ip>", so with recursion off nginx would take the balancer's
+#   own forwarding-rule address and every caller would land in one bucket again -- which is
+#   the defect this block exists to fix.
+#   Ref: https://docs.cloud.google.com/load-balancing/docs/https ("X-Forwarded-For header")
+#
+# Recursion is SAFE here only because set_real_ip_from lists the balancer's own addresses
+# and nothing else. nginx stops at the first entry outside that list, so a forged value
+# further left is never reached. Widening the list to a range the balancer does not own is
+# what would make it spoofable.
+#
+# UNVERIFIED, and worth a real request before trusting either setting: Azure Application
+# Gateway writes x-forwarded-for as a comma-separated list of IP:PORT pairs, and whether
+# nginx's realip module parses an address carrying a port has not been tested here.
+# Ref: https://learn.microsoft.com/en-us/azure/application-gateway/how-application-gateway-works
+#
+# Both variables below are named WITHOUT the dollar-brace form on purpose: envsubst does not
+# know a line is a comment, so writing them that way would substitute the VALUE into this
+# documentation at render time. Harmless for a hostname like BASE_DOMAIN above, not harmless
+# for a value that carries directives and semicolons -- and a value containing a newline
+# would escape the comment entirely and become live configuration.
+#
+# TRUSTED_PROXY_SET_REAL_IP_FROM is EMPTY on the LAN and carries one or more
+# complete directives on a cloud deployment, for example:
+#   TRUSTED_PROXY_SET_REAL_IP_FROM="set_real_ip_from 10.0.0.0/16; set_real_ip_from 10.1.0.0/16;"
+# Whole directives rather than bare addresses because envsubst cannot emit a line
+# conditionally, and "set_real_ip_from ;" is a syntax error that would stop the proxy
+# booting. Compose always DEFINES the variable (empty by default) -- an undefined one
+# would be left as a literal ${...} and fail the same way.
+#
+# Trust only the balancer's own range. Widening it to a range the balancer does not
+# own would let anything in that range set its own $remote_addr, which is exactly the
+# spoofing this control exists to prevent.
+real_ip_header X-Forwarded-For;
+${TRUSTED_PROXY_SET_REAL_IP_FROM}
+${TRUSTED_PROXY_REAL_IP_RECURSIVE}
+
 # WebSocket upgrade passthrough (ABP SignalR notification hub).
 map $http_upgrade $connection_upgrade {
     default upgrade;
