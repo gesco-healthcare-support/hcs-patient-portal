@@ -19,7 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class SamePersonGroupKeyTests
 {
-    private static readonly Guid OfficeA = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid OfficeA = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid OfficeB = new("c3d4e5f6-a7b8-49ca-8bdc-ed2143658709");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
     private static readonly Guid OtherPatientId = new("f97796c9-365b-4ad3-a164-08f72981cae3");

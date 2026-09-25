@@ -138,7 +138,7 @@ public class CaseTrackerDocumentQueueTests
         FileName = "records.pdf",
         ContentType = "application/pdf",
         Status = "Accepted",
-        ObjectKey = "tenants/b8844bba-414c-e238-4a71-3a22841f21af/records",
+        ObjectKey = "tenants/0ff1ce00-0000-4000-8000-000000000001/records",
         CreatedAtUtc = "2026-07-28T10:00:00.0000000Z",
         UpdatedAt = updatedAt,
     };

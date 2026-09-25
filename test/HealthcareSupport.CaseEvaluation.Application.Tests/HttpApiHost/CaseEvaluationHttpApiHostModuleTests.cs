@@ -661,7 +661,7 @@ public class CaseEvaluationHttpApiHostModuleTests
     {
         var ctx = new DefaultHttpContext { RequestServices = FeedServices() };
         ctx.Request.Method = "GET";
-        ctx.Request.Path = "/api/integration/offices/b8844bba-414c-e238-4a71-3a22841f21af/feed";
+        ctx.Request.Path = "/api/integration/offices/0ff1ce00-0000-4000-8000-000000000001/feed";
         ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(ip);
         if (token != null)
         {
