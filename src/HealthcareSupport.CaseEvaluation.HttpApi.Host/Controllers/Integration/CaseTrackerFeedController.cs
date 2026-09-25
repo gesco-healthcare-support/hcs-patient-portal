@@ -26,11 +26,24 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 /// office's hourly allowance, so only the real consumer can spend it; then the feed.</para>
 ///
 /// <para>Statuses (decided 2026-09-24, for the consumer's client): 403 for a bad token, a spent allowance, and
-/// an office not on the feed or unknown -- never 401, which latches that client, and never 429, which pauses
-/// both of its features. 409 for a cursor or skip the feed cannot accept (changed from 400 on 2026-09-24): that
-/// client acts on the status alone, halts the office where an operator sees it on a 409, and retries anything else it
-/// does not know -- 400 included -- every minute forever, silently. None of the four can be fixed by retrying. Every
-/// body is the Gesco envelope.</para>
+/// an office not on the feed or unknown -- never 401, which latches that client. 409 for a cursor or skip the
+/// feed cannot accept (changed from 400 on 2026-09-24): their DEPLOYED client acts on the status alone, halts
+/// the office where an operator sees it on a 409, and retries anything else it does not know -- 400 included --
+/// every minute forever, silently. None of the four can be fixed by retrying. Every body is the Gesco envelope,
+/// and every 409 carries one, so a bare 409 did not come from here.</para>
+///
+/// <para><b>Why not 429, corrected 2026-09-25.</b> This comment used to say 429 "pauses both of its features".
+/// That was my claim and it was wrong: it came from section 9 of the feed contract, which is about reconcile
+/// and attendance sharing a rate-limit window, and I assumed the feed shared it. Read from their source, it does
+/// not -- their feed client holds its own non-static backoff field, while the shared window and the 401 latch
+/// both live on their reconcile client. A 429 here could not stall attendance, which is the only path that can
+/// set NoShow or NotSeen.</para>
+///
+/// <para>429 stays unused anyway, for a reason that survives the correction: their feed backoff is per PROCESS
+/// rather than per office, so one office's 429 would pause polling for all of them -- a far wider blast radius
+/// than the breach. At one poll a minute against
+/// <see cref="CaseTrackerFeedConsts.RequestsPerHourPerOffice"/> the allowance should never be reached at all,
+/// so this is a choice about the failure shape rather than a hot path.</para>
 /// </summary>
 [AllowAnonymous]
 [ControllerName("CaseTrackerFeed")]
