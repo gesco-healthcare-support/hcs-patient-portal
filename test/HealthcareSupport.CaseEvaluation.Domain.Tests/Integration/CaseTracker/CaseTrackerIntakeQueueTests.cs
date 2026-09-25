@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -14,15 +15,25 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
-/// Unit tests for <see cref="CaseTrackerIntakeQueue"/>'s half of the #931 ordering guarantee.
+/// Unit tests for <see cref="CaseTrackerIntakeQueue"/>, which turns "push this appointment" into an
+/// outbox row plus a drain job.
 ///
-/// <para>The intake builds its payload from the current document list and only then writes its row.
-/// A document accepted in that gap would be suppressed by the document gate (no intake row yet) and
-/// be missing from the payload. The per-appointment lock closes the gap only if the intake takes it
-/// BEFORE it reads; <c>CaseTrackerDocumentQueueTests</c> pins the other half.</para>
+/// <para><b>The #931 ordering guarantee.</b> The intake builds its payload from the current document
+/// list and only then writes its row. A document accepted in that gap would be suppressed by the
+/// document gate (no intake row yet) and be missing from the payload. The per-appointment lock closes
+/// the gap only if the intake takes it BEFORE it reads; <c>CaseTrackerDocumentQueueTests</c> pins the
+/// other half. The lock itself is a SQL Server application lock, a no-op on the SQLite test database,
+/// so these tests prove ORDER, not blocking.</para>
 ///
-/// <para>The lock itself is a SQL Server application lock, a no-op on the SQLite test database, so
-/// these tests prove ORDER, not blocking. All fixture data is synthetic.</para>
+/// <para><b>The row and the drain.</b> Queueing the SAME appointment state twice collapses to one row --
+/// a replayed event cannot push a duplicate case. The drain is enqueued at once when there is no unit
+/// of work, and only AFTER COMMIT when there is one, so a worker can never race a row that is not saved
+/// yet. A drain enqueue that fails because the scope was already disposed is swallowed (the row is
+/// committed and the sweep re-drives it); any other failure is not.</para>
+///
+/// <para>The outbox manager is real over a substituted repository backed by a list; the payload
+/// builder, job manager and unit of work are substitutes. Nothing is sent. All fixture data is
+/// synthetic.</para>
 /// </summary>
 public class CaseTrackerIntakeQueueTests
 {
@@ -34,7 +45,25 @@ public class CaseTrackerIntakeQueueTests
         public CaseTrackerIntakeQueue Queue { get; init; } = null!;
         public IIntegrationOutboxRepository Repository { get; init; } = null!;
         public IIntakePayloadBuilder PayloadBuilder { get; init; } = null!;
+        public IBackgroundJobManager Jobs { get; init; } = null!;
+        public IUnitOfWorkManager UnitOfWorkManager { get; init; } = null!;
         public List<IntegrationOutboxItem> Rows { get; init; } = null!;
+
+        public List<IntegrationOutboxDrainArgs> DrainJobs() =>
+            Jobs.ReceivedCalls().SelectMany(c => c.GetArguments()).OfType<IntegrationOutboxDrainArgs>().ToList();
+
+        /// <summary>
+        /// Makes the queue run inside a unit of work and returns a getter for the after-commit callback
+        /// the queue registers on it (null until it registers one).
+        /// </summary>
+        public Func<Func<Task>?> RunInsideAUnitOfWork()
+        {
+            var uow = Substitute.For<IUnitOfWork>();
+            Func<Task>? onCompleted = null;
+            uow.When(u => u.OnCompleted(Arg.Any<Func<Task>>())).Do(ci => onCompleted = ci.Arg<Func<Task>>());
+            UnitOfWorkManager.Current.Returns(uow);
+            return () => onCompleted;
+        }
     }
 
     private static IntakeEnvelope Envelope() => new()
@@ -88,16 +117,20 @@ public class CaseTrackerIntakeQueueTests
         var uowManager = Substitute.For<IUnitOfWorkManager>();
         uowManager.Current.Returns((IUnitOfWork?)null);
 
+        var jobs = Substitute.For<IBackgroundJobManager>();
+
         return new Harness
         {
             Queue = new CaseTrackerIntakeQueue(
                 payloadBuilder,
                 new IntegrationOutboxManager(repo, SimpleGuidGenerator.Instance),
-                Substitute.For<IBackgroundJobManager>(),
+                jobs,
                 uowManager,
                 NullLogger<CaseTrackerIntakeQueue>.Instance),
             Repository = repo,
             PayloadBuilder = payloadBuilder,
+            Jobs = jobs,
+            UnitOfWorkManager = uowManager,
             Rows = rows,
         };
     }
@@ -146,5 +179,85 @@ public class CaseTrackerIntakeQueueTests
 
         h.Rows.ShouldBeEmpty();
         await h.PayloadBuilder.DidNotReceiveWithAnyArgs().BuildAsync(default, default);
+    }
+
+    [Fact]
+    public async Task EnqueueIntakeAsync_WithNoUnitOfWork_WritesAPendingRowForTheOffice_AndEnqueuesTheDrainAtOnce()
+    {
+        var h = Build();
+
+        var row = await h.Queue.EnqueueIntakeAsync(AppointmentId, TenantId);
+
+        h.Rows.ShouldHaveSingleItem().ShouldBeSameAs(row);
+        row.TenantId.ShouldBe(TenantId);
+        row.Status.ShouldBe(IntegrationOutboxStatus.Pending);
+        h.DrainJobs().ShouldHaveSingleItem().TenantId.ShouldBe(TenantId);
+    }
+
+    /// <summary>
+    /// The same appointment in the same state queues ONE row: a redelivered event returns the existing
+    /// row instead of inserting a duplicate case.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueIntakeAsync_TheSameStateTwice_CollapsesToOneRow()
+    {
+        var h = Build();
+
+        var first = await h.Queue.EnqueueIntakeAsync(AppointmentId, TenantId);
+        var second = await h.Queue.EnqueueIntakeAsync(AppointmentId, TenantId);
+
+        second.ShouldBeSameAs(first);
+        h.Rows.Count.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Inside a unit of work the drain is NOT enqueued at once -- it is registered to run after commit,
+    /// so a worker cannot pick up a row that is not saved yet.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueIntakeAsync_InsideAUnitOfWork_EnqueuesTheDrainOnlyAfterCommit()
+    {
+        var h = Build();
+        var onCompleted = h.RunInsideAUnitOfWork();
+
+        await h.Queue.EnqueueIntakeAsync(AppointmentId, TenantId);
+
+        h.DrainJobs().ShouldBeEmpty("before commit, no drain may be queued");
+        var afterCommit = onCompleted().ShouldNotBeNull();
+        await afterCommit();
+        h.DrainJobs().ShouldHaveSingleItem().TenantId.ShouldBe(TenantId);
+    }
+
+    /// <summary>
+    /// After commit, a drain enqueue that fails because the scope was already disposed is swallowed --
+    /// the row is committed and the reconciliation sweep will re-drive it -- so a successful approval
+    /// is not failed by it. The Fact after this one is its control: any other failure propagates.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueIntakeAsync_ADisposedScopeAfterCommit_IsSwallowed()
+    {
+        var h = Build();
+        var onCompleted = h.RunInsideAUnitOfWork();
+        h.Jobs.EnqueueAsync(Arg.Any<IntegrationOutboxDrainArgs>(), Arg.Any<BackgroundJobPriority>(), Arg.Any<TimeSpan?>())
+            .Returns(Task.FromException<string>(new ObjectDisposedException("TEST-scope")));
+
+        await h.Queue.EnqueueIntakeAsync(AppointmentId, TenantId);
+
+        await Should.NotThrowAsync(() => onCompleted()!());
+        h.Rows.Count.ShouldBe(1, "the row is committed whatever happens to the drain enqueue");
+    }
+
+    [Fact]
+    public async Task EnqueueIntakeAsync_AnyOtherFailureAfterCommit_IsNotSwallowed()
+    {
+        var h = Build();
+        var onCompleted = h.RunInsideAUnitOfWork();
+        h.Jobs.EnqueueAsync(Arg.Any<IntegrationOutboxDrainArgs>(), Arg.Any<BackgroundJobPriority>(), Arg.Any<TimeSpan?>())
+            .Returns(Task.FromException<string>(new InvalidOperationException("TEST-job store down")));
+
+        await h.Queue.EnqueueIntakeAsync(AppointmentId, TenantId);
+
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(() => onCompleted()!());
+        thrown.Message.ShouldBe("TEST-job store down");
     }
 }
