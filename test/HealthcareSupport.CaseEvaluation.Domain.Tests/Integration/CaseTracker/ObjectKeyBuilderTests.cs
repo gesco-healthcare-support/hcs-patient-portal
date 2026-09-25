@@ -16,16 +16,16 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class ObjectKeyBuilderTests
 {
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
 
     [Fact]
     public void TenantScopedKey_IsPrefixedWithDashedTenantSegment()
     {
-        const string blobName = "b8844bba-414c-e238-4a71-3a22841f21af/ada5e3c5-0034-ebde-253c-3a2293631dee/packet/patient/228d6bed62e04be7b1146e58629bf901.pdf";
+        const string blobName = "0ff1ce00-0000-4000-8000-000000000001/ada5e3c5-0034-ebde-253c-3a2293631dee/packet/patient/228d6bed62e04be7b1146e58629bf901.pdf";
 
         var key = ObjectKeyBuilder.BuildFullyQualifiedKey(TenantId, blobName);
 
-        key.ShouldBe("tenants/b8844bba-414c-e238-4a71-3a22841f21af/" + blobName);
+        key.ShouldBe("tenants/0ff1ce00-0000-4000-8000-000000000001/" + blobName);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class ObjectKeyBuilderTests
 
         var key = ObjectKeyBuilder.BuildFullyQualifiedKey(TenantId, blobName);
 
-        key.ShouldBe("tenants/b8844bba-414c-e238-4a71-3a22841f21af/" + blobName);
+        key.ShouldBe("tenants/0ff1ce00-0000-4000-8000-000000000001/" + blobName);
     }
 
     [Theory]
