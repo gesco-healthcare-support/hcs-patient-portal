@@ -219,6 +219,80 @@ server {
     return 404 '{"error":{"code":"missing_office_label","message":"This hostname needs an office label: use <office>.api.${BASE_DOMAIN} or <office>.auth.${BASE_DOMAIN}."}}';
 }
 
+# health.<domain> -> the API's /health-status, and nothing else.
+#
+# The load balancer's health probe asks for health.<domain>. Without this block that name matches
+# `*.${BASE_DOMAIN}` below, so the probe would measure the Angular container instead of the API.
+#
+# The upstream Host is pinned to admin.api.<domain>, so the API resolves the request to host context
+# ON PURPOSE, through the reserved admin slug. Forwarding health.<domain> itself would reach host
+# context only by the domain resolver failing to extract a slug, which is the accident the api/auth
+# block above exists to prevent.
+#
+# Every other path gets a JSON 404 whose `health_probe_only` code a check can grep for, the same
+# reasoning as `missing_office_label` above. `health` becomes a RESERVED office slug.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name health.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    default_type application/json;
+
+    location = /health-status {
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              admin.api.${BASE_DOMAIN};
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        return 404 '{"error":{"code":"health_probe_only","message":"This hostname only answers /health-status."}}';
+    }
+}
+
+# www.<domain> -> a permanent redirect to the apex.
+#
+# A separate block rather than an `if ($host ...)` inside the apex block: `if` in nginx
+# server/location context has well-known surprises. `www` becomes a RESERVED office slug.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name www.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    return 301 https://${BASE_DOMAIN}$request_uri;
+}
+
+# <domain> (the apex) -> one static explanation page served by the proxy itself.
+#
+# Without this block the apex matches no name (`*.${BASE_DOMAIN}` never matches the bare domain) and
+# falls to the 421 catch-all. The page names no office and makes no upstream request. The file is
+# mounted read-only from docker/nginx-proxy/apex/ by docker-compose.prod.yml.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    root /usr/share/nginx/apex;
+    default_type text/html;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'" always;
+
+    location / {
+        try_files /index.html =404;
+    }
+}
+
 # minio.<domain> -> MinIO S3 API (Case Tracker document exchange, 2026-08-13).
 #
 # An EXACT server_name, not a wildcard: nginx ranks exact names above every

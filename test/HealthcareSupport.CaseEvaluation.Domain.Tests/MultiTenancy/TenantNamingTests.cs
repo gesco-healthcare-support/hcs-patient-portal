@@ -54,6 +54,10 @@ public class TenantNamingTests
     [InlineData("auth")]
     [InlineData("minio")]
     [InlineData("MinIO")]
+    [InlineData("health")]
+    [InlineData("Health")]
+    [InlineData("www")]
+    [InlineData("WWW")]
     public void DeriveSlug_rejects_slugs_the_reverse_proxy_answers_itself(string name)
         => Should.Throw<ArgumentException>(() => TenantNaming.DeriveSlug(name));
 
@@ -112,6 +116,8 @@ public class TenantNamingTests
     [InlineData("api", false)]        // claimed by the proxy
     [InlineData("auth", false)]       // claimed by the proxy
     [InlineData("minio", false)]      // claimed by the proxy
+    [InlineData("health", false)]     // claimed by the proxy (load-balancer probe)
+    [InlineData("www", false)]        // claimed by the proxy (redirects to the apex)
     [InlineData("Falkinstein", false)] // uppercase: a SLUG is already-lowercased
     [InlineData("dr smith", false)]
     [InlineData("-foo", false)]

@@ -52,10 +52,12 @@ public static class TenantNaming
     /// <c>auth</c> at its <c>server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN}</c> block (#1021),
     /// and <c>minio</c> at <c>server_name minio.${BASE_DOMAIN}</c>, whose own comment already
     /// noted it "becomes a RESERVED office slug, like `admin`" without anything enforcing it.
+    /// <c>health</c> (the load-balancer probe host, answered only on <c>/health-status</c>) and
+    /// <c>www</c> (redirected to the apex) joined with the production-hosting plan's C1.
     /// A new exact-name block in that file needs a matching entry here.</para>
     /// </summary>
     public static readonly IReadOnlySet<string> ProxyReservedSlugs =
-        new HashSet<string>(StringComparer.Ordinal) { "api", "auth", "minio" };
+        new HashSet<string>(StringComparer.Ordinal) { "api", "auth", "minio", "health", "www" };
 
     /// <summary>DNS label length limit; also bounds the database name.</summary>
     public const int MaxSlugLength = 63;

@@ -435,6 +435,8 @@ services:
       - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./docker/nginx-proxy/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # The apex explanation page (D14), served by the proxy itself; see the apex block in the template.
+      - ./docker/nginx-proxy/apex:/usr/share/nginx/apex:ro
       - "${TLS_CERT_PATH}:/etc/nginx/certs/wildcard.crt:ro"
       - "${TLS_KEY_PATH}:/etc/nginx/certs/wildcard.key:ro"
     depends_on:
