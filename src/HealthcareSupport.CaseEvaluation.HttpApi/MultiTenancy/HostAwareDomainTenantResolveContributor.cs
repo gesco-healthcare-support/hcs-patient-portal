@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Volo.Abp;
 using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.MultiTenancy;
@@ -22,6 +25,11 @@ namespace HealthcareSupport.CaseEvaluation.MultiTenancy;
 /// <c>Abp-Tenant-Resolve-Error: Tenant not found!</c> when the slug is not
 /// a row in the tenant store. This contributor preserves that typo
 /// protection for unknown tenant slugs while letting "admin" pass through.
+///
+/// B1 (2026-09-25): a Host that names no office is REFUSED rather than run in
+/// Host context -- see <see cref="ResolveAsync"/>. Host context is now reached
+/// only on purpose: the reserved "admin" label, or an internal name listed in
+/// <see cref="InternalHosts"/>.
 /// </summary>
 public class HostAwareDomainTenantResolveContributor : TenantResolveContributorBase
 {
@@ -39,6 +47,31 @@ public class HostAwareDomainTenantResolveContributor : TenantResolveContributorB
 
     /// <summary>Template used when <see cref="DomainFormatConfigKey"/> is unset (local dev).</summary>
     public const string DefaultDomainFormat = "{0}.localhost";
+
+    /// <summary>
+    /// Error code of the refusal. Kept here rather than in <c>CaseEvaluationDomainErrorCodes</c>:
+    /// the refusal is written by ABP's multi-tenancy middleware, which uses the exception's
+    /// message verbatim and never goes through the localized exception handling that the
+    /// codes in that class (and their <c>en.json</c> entries) exist for.
+    /// </summary>
+    public const string HostNotServedErrorCode = "CaseEvaluation:MultiTenancy.HostNotServed";
+
+    /// <summary>
+    /// Fixed refusal text. It never includes the request's Host: that value is caller-controlled
+    /// and would otherwise reach both a response header and the logs.
+    /// </summary>
+    public const string HostNotServedMessage = "This host does not serve an office.";
+
+    /// <summary>
+    /// Host names (without port, compared ignoring case) that keep host context although
+    /// they name no office, because a caller inside the deployment sends them:
+    /// <c>localhost</c> -- the container health checks and the HealthChecks UI poll
+    /// (<c>docker-compose.prod.yml</c> <c>curl -f http://localhost:8080/health-status</c>,
+    /// <c>App__HealthUiCheckUrl</c>) and local development; <c>authserver</c> -- the API's
+    /// OpenID metadata and signing-key fetch (<c>AuthServer__MetaAddress: http://authserver:8080</c>).
+    /// Anything else that names no office is refused.
+    /// </summary>
+    public static readonly IReadOnlyList<string> InternalHosts = ["localhost", "authserver"];
 
     public override string Name => ContributorName;
 
@@ -62,42 +95,80 @@ public class HostAwareDomainTenantResolveContributor : TenantResolveContributorB
             string.IsNullOrWhiteSpace(format) ? DefaultDomainFormat : format);
     }
 
+    /// <summary>
+    /// Resolves the office from the Host, in this order:
+    /// <list type="number">
+    /// <item><description>No HTTP request at all (a background job, a console host): nothing
+    /// to read, so abstain.</description></item>
+    /// <item><description>A single office label under <see cref="DomainFormat"/>: the reserved
+    /// <c>admin</c> label keeps host context; any other label is handed to ABP, whose middleware
+    /// answers 404 for an office that does not exist (ADR-007).</description></item>
+    /// <item><description>An <see cref="InternalHosts"/> name: host context, for the health
+    /// checks and the metadata fetch.</description></item>
+    /// <item><description>Anything else -- an empty or dotted label, the bare or the other
+    /// service's host, a foreign host, an IP, an empty Host: REFUSED (B1, 2026-09-25).</description></item>
+    /// </list>
+    /// <para>The refusal is a throw on purpose. ABP 10.0.2's <c>TenantResolver</c> does not catch
+    /// contributor exceptions, and <c>MultiTenancyMiddleware.InvokeAsync</c> catches any exception
+    /// from tenant resolution and hands it to the default
+    /// <c>MultiTenancyMiddlewareErrorPageBuilder</c>, which answers 404 with an
+    /// <c>Abp-Tenant-Resolve-Error</c> header -- the same shape as an unknown office, and with no
+    /// tenant-store lookup. Abstaining instead would BE host context: nothing follows this
+    /// contributor in either process's chain.</para>
+    /// <para>This governs anonymous requests only. <c>CurrentUserTenantResolveContributor</c>
+    /// runs first and handles every authenticated request from its token.</para>
+    /// </summary>
     public override Task ResolveAsync(ITenantResolveContext context)
     {
         var httpContext = context.ServiceProvider
             .GetService<IHttpContextAccessor>()?.HttpContext;
-        if (httpContext == null || !httpContext.Request.Host.HasValue)
+        if (httpContext == null)
         {
             return Task.CompletedTask;
         }
 
-        var slug = ExtractSlug(httpContext.Request.Host.Value, DomainFormat);
-        if (string.IsNullOrEmpty(slug))
+        var hostWithoutPort = StripPort(httpContext.Request.Host.Value ?? string.Empty);
+
+        var slug = ExtractSlug(hostWithoutPort, DomainFormat);
+        if (slug != null)
+        {
+            if (!string.Equals(slug, ReservedHostSlug, StringComparison.OrdinalIgnoreCase))
+            {
+                context.TenantIdOrName = slug;
+                context.Handled = true;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        if (IsInternalHost(hostWithoutPort))
         {
             return Task.CompletedTask;
         }
 
-        if (string.Equals(slug, ReservedHostSlug, StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.CompletedTask;
-        }
+        throw new BusinessException(HostNotServedErrorCode, HostNotServedMessage);
+    }
 
-        context.TenantIdOrName = slug;
-        context.Handled = true;
-        return Task.CompletedTask;
+    /// <summary>Exact, case-insensitive match against <see cref="InternalHosts"/>.</summary>
+    private static bool IsInternalHost(string hostWithoutPort) =>
+        InternalHosts.Any(internalHost =>
+            string.Equals(hostWithoutPort, internalHost, StringComparison.OrdinalIgnoreCase));
+
+    private static string StripPort(string host)
+    {
+        var colonIndex = host.IndexOf(':');
+        return colonIndex >= 0 ? host.Substring(0, colonIndex) : host;
     }
 
     /// <summary>
-    /// Extracts the {0} portion of <paramref name="host"/> against
-    /// <paramref name="format"/>. Strips port. Returns null when the host
-    /// does not match the format. Mirrors the parse intent of ABP's
-    /// <c>FormatStringValueExtracter</c> for the single-placeholder case.
+    /// Extracts the {0} portion of <paramref name="hostWithoutPort"/> against
+    /// <paramref name="format"/>. Returns null when the host does not match the
+    /// format, when the {0} slot is empty, and when it holds more than one label.
+    /// Mirrors the parse intent of ABP's <c>FormatStringValueExtracter</c> for the
+    /// single-placeholder case.
     /// </summary>
-    private static string? ExtractSlug(string host, string format)
+    private static string? ExtractSlug(string hostWithoutPort, string format)
     {
-        var colonIndex = host.IndexOf(':');
-        var hostWithoutPort = colonIndex >= 0 ? host.Substring(0, colonIndex) : host;
-
         var placeholderIndex = format.IndexOf("{0}", StringComparison.Ordinal);
         if (placeholderIndex < 0)
         {
