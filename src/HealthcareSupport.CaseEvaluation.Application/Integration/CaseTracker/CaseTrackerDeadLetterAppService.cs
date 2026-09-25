@@ -32,7 +32,7 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
     private readonly IIntegrationOutboxRepository _outboxRepository;
     private readonly IntegrationOutboxManager _outboxManager;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
-    private readonly ICaseTrackerIntakeQueue _intakeQueue;
+    private readonly CaseTrackerDeadLetterRequeuer _deadLetterRequeuer;
     private readonly ICurrentTenant _currentTenant;
     private readonly ITenantStore _tenantStore;
     private readonly IClock _clock;
@@ -42,7 +42,7 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
         IIntegrationOutboxRepository outboxRepository,
         IntegrationOutboxManager outboxManager,
         IRepository<Appointment, Guid> appointmentRepository,
-        ICaseTrackerIntakeQueue intakeQueue,
+        CaseTrackerDeadLetterRequeuer deadLetterRequeuer,
         ICurrentTenant currentTenant,
         ITenantStore tenantStore,
         IClock clock)
@@ -51,7 +51,7 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
         _outboxRepository = outboxRepository;
         _outboxManager = outboxManager;
         _appointmentRepository = appointmentRepository;
-        _intakeQueue = intakeQueue;
+        _deadLetterRequeuer = deadLetterRequeuer;
         _currentTenant = currentTenant;
         _tenantStore = tenantStore;
         _clock = clock;
@@ -148,20 +148,34 @@ public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTr
                     "Only a permanently failed push can be retried. This one is no longer in that state.");
             }
 
-            // Fresh payload from CURRENT data, not the stored snapshot.
-            var queued = await _intakeQueue.EnqueueIntakeAsync(row.AppointmentId, officeId);
+            // Fresh payload from CURRENT data, not the stored snapshot -- an intake as an intake, a
+            // document update as a document update (see CaseTrackerDeadLetterRequeuer).
+            var queued = await _deadLetterRequeuer.RequeueAsync(row, officeId);
+
+            // Judge what came back rather than trust it (#961): this is the only recovery a human has
+            // for a stuck message, and it once reported "queued" while sending nothing. On a refusal
+            // the exception rolls back anything the requeue wrote, and the dead letter stays listed.
+            var outcome = DeadLetterRetryOutcome.Evaluate(row, queued);
+            if (!outcome.CanResolve)
+            {
+                Logger.LogWarning(
+                    "CaseTrackerDeadLetterAppService: retry of dead letter {RowId} for appointment {AppointmentId} in office {OfficeId} refused; {QueuedCount} row(s) came back.",
+                    row.Id, row.AppointmentId, officeId, queued.Count);
+                throw new UserFriendlyException(outcome.RefusalReason!);
+            }
 
             row.MarkResolved(_clock.Now);
             await _outboxManager.SaveAsync(row);
 
             Logger.LogInformation(
-                "CaseTrackerDeadLetterAppService: retried dead letter {RowId} for appointment {AppointmentId} in office {OfficeId}; queued {QueuedId}.",
-                row.Id, row.AppointmentId, officeId, queued.Id);
+                "CaseTrackerDeadLetterAppService: retried dead letter {RowId} for appointment {AppointmentId} in office {OfficeId}; queued {QueuedId}, already delivered {AlreadyDelivered}.",
+                row.Id, row.AppointmentId, officeId, outcome.QueuedOutboxItemId, outcome.AlreadyDelivered);
 
             return new CaseTrackerDeadLetterRetryResultDto
             {
-                QueuedOutboxItemId = queued.Id,
+                QueuedOutboxItemId = outcome.QueuedOutboxItemId!.Value,
                 ResolvedOutboxItemId = row.Id,
+                AlreadyDelivered = outcome.AlreadyDelivered,
             };
         }
     }
