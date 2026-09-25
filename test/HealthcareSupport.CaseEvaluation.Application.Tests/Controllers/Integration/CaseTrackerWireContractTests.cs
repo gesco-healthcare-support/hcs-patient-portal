@@ -119,8 +119,13 @@ public sealed class CaseTrackerWireContractTests
     /// <summary>
     /// The consumer branches on these codes rather than on the status, so the STRING is the contract. Their
     /// mapping halts an office on the cursor and skip codes, never halts on <c>feed_not_enabled</c>, and backs
-    /// off on <c>allowance_exceeded</c>. An unrecognised code falls through to "never halt", so a renamed code
-    /// does not fail loudly on their side -- it quietly stops halting.
+    /// off on <c>allowance_exceeded</c>. An unrecognised code falls through to "never halt".
+    ///
+    /// <para>So a renamed code DEMOTES rather than silences, which they corrected me on: the office stops
+    /// halting and warns every tick instead. That is worse than it sounds, not better. A halt is a stopped
+    /// office an operator must clear; a warning every minute against an office their screen still shows as
+    /// RUNNING is the exact noise that trains people past warnings. The fault is a lost demand for action,
+    /// not a lost signal, so more logging would not address it.</para>
     /// </summary>
     [Theory]
     [InlineData("forbidden")]
@@ -135,8 +140,8 @@ public sealed class CaseTrackerWireContractTests
         var source = ControllerSourceOf(typeof(CaseTrackerFeedController));
         source.Contains($"\"{code}\"", StringComparison.Ordinal).ShouldBeTrue(
             $"The feed no longer emits the literal '{code}'. Their client branches on the code string, and an "
-            + "unrecognised one falls through to 'never halt' -- so a rename does not fail on their side, it "
-            + "silently stops halting an office that should stop.");
+            + "unrecognised one falls through to 'never halt'. So a rename does not fail on their side -- it "
+            + "demotes a halt to a warning every tick against an office that still reads as RUNNING.");
     }
 
     /// <summary>
@@ -148,6 +153,11 @@ public sealed class CaseTrackerWireContractTests
     /// default -- <c>feed_not_enabled</c> must not halt, and a new benign code stranding every office would be
     /// worse. But it means an eighth code is safe only because of a decision made on their side, and no
     /// assertion here could cover it.</para>
+    ///
+    /// <para>They are closing their half too: the unknown code's name now reaches their warning and their
+    /// stored failure behind a strict allow-list, and the first sighting of each unknown code is raised once
+    /// per process at ERROR, which their post-deploy check already counts. So an addition is caught by
+    /// whichever side notices first -- this test before it ships, their ERROR if it ships anyway.</para>
     ///
     /// <para>So this test does the one thing that IS in our power: it fails when the set changes, which puts a
     /// human in front of the decision rather than leaving it to a fall-through neither side chose. Adding a code
@@ -178,10 +188,10 @@ public sealed class CaseTrackerWireContractTests
                 "forbidden",
                 "skip_invalid",
             ],
-            "The feed's error-code set has changed. A RENAME breaks their branching outright. An ADDITION is "
-            + "quieter and worse: the new code is unrecognised on their side by construction and falls through "
-            + "to 'never halt', so an office that should stop will not, and nothing reports it. Tell the Case "
-            + "Tracker before this ships, then update this list.");
+            "The feed's error-code set has changed. Either way the new or renamed code is unrecognised on "
+            + "their side by construction and falls through to 'never halt', so an office that should stop "
+            + "does not -- it warns every tick while still reading as RUNNING. Tell the Case Tracker before "
+            + "this ships, then update this list.");
     }
 
     private static string RouteOn(Type controller)
