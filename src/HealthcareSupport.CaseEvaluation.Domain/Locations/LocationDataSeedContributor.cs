@@ -1,34 +1,41 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Data;
+using HealthcareSupport.CaseEvaluation.Saas;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.Locations;
 
 /// <summary>
-/// Seeds 2 SYNTHETIC demo locations so a fresh dev DB is walkable. Real HCS clinic
-/// addresses are deployment data (per-tenant operational), not host seed -- per the
-/// Wave 0 plan, that import path is post-MVP. Both demo rows reference California
-/// and the AME appointment type (AF1: QME is no longer seeded). Host-scoped; idempotent
-/// via simple count-guard
-/// (this seed is finite and replaced by deployment data).
+/// Seeds the ONE synthetic clinic of the synthetic TEST office (<see cref="OfficeSeedData"/>), so
+/// that office is walkable end to end. Every other office starts with no location: a real practice
+/// adds its own on the Locations page, and a seeded clinic there would be a fake address in a real
+/// office. Office-scoped; idempotent via a count guard.
 /// </summary>
 public class LocationDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
     private readonly IRepository<Location, Guid> _repository;
+    private readonly ITenantStore _tenantStore;
 
-    public LocationDataSeedContributor(IRepository<Location, Guid> repository)
+    public LocationDataSeedContributor(IRepository<Location, Guid> repository, ITenantStore tenantStore)
     {
         _repository = repository;
+        _tenantStore = tenantStore;
     }
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        // Per-office (db-per-office): seed demo clinic locations into the active office
-        // DB; skip host scope. Per-office seed execution + ordering is Phase B (B4).
+        // Per-office (db-per-office): locations live in the office database; the host has none.
         if (context?.TenantId == null)
+        {
+            return;
+        }
+
+        var tenant = await _tenantStore.FindAsync(context.TenantId.Value);
+        if (OfficeSeedData.FindByTenantName(tenant?.Name) == null)
         {
             return;
         }
@@ -38,30 +45,16 @@ public class LocationDataSeedContributor : IDataSeedContributor, ITransientDepen
             return;
         }
 
-        // I3 (2026-06-08): seed demo locations with the AME type via the M2M
-        // (replaces the single appointmentTypeId ctor arg). Only runs on a fresh DB.
-        var north = new Location(
-            id: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
+        var clinic = new Location(
+            id: CaseEvaluationSeedIds.Locations.TestClinic,
             stateId: CaseEvaluationSeedIds.States.California,
-            name: "Demo Clinic North",
+            name: "TEST Clinic",
             parkingFee: 0m,
             isActive: true,
-            address: "100 Demo Plaza",
+            address: "100 TEST Plaza",
             city: "Los Angeles",
             zipCode: "90001");
-        north.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
-        await _repository.InsertAsync(north, autoSave: false);
-
-        var south = new Location(
-            id: CaseEvaluationSeedIds.Locations.DemoClinicSouth,
-            stateId: CaseEvaluationSeedIds.States.California,
-            name: "Demo Clinic South",
-            parkingFee: 0m,
-            isActive: true,
-            address: "200 Demo Way",
-            city: "San Diego",
-            zipCode: "92101");
-        south.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
-        await _repository.InsertAsync(south, autoSave: false);
+        clinic.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
+        await _repository.InsertAsync(clinic, autoSave: false);
     }
 }

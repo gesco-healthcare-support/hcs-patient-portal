@@ -26,6 +26,15 @@ public class CaseEvaluationTestBaseModule : AbpModule
         });
 
         context.Services.AddAlwaysAllowAuthorization();
+
+        // The synthetic TEST office is registered by OfficeSeedDataContributor in every real
+        // environment, but the rigs seed their own offices (TenantA/TenantB) and have no office-database
+        // connection template, so that contributor cannot run in the start-up seed. TestOfficeSeedTests
+        // exercises it directly, over a fake connection-string provider.
+        Configure<AbpDataSeedOptions>(options =>
+        {
+            options.Contributors.RemoveAll(type => type == typeof(Saas.OfficeSeedDataContributor));
+        });
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)

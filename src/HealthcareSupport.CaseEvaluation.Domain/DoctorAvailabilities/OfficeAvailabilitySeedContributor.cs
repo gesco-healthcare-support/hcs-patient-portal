@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Timing;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
@@ -23,17 +24,20 @@ namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 public class OfficeAvailabilitySeedContributor : IDataSeedContributor, ITransientDependency
 {
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
+    private readonly IRepository<Location, Guid> _locationRepository;
     private readonly IGuidGenerator _guidGenerator;
     private readonly ILogger<OfficeAvailabilitySeedContributor> _logger;
     private readonly IClock _clock;
 
     public OfficeAvailabilitySeedContributor(
         IRepository<DoctorAvailability, Guid> slotRepository,
+        IRepository<Location, Guid> locationRepository,
         IGuidGenerator guidGenerator,
         ILogger<OfficeAvailabilitySeedContributor> logger,
         IClock clock)
     {
         _slotRepository = slotRepository;
+        _locationRepository = locationRepository;
         _guidGenerator = guidGenerator;
         _logger = logger;
         _clock = clock;
@@ -48,6 +52,14 @@ public class OfficeAvailabilitySeedContributor : IDataSeedContributor, ITransien
 
         // Slots are office data; the host DB has none.
         if (context?.TenantId == null)
+        {
+            return;
+        }
+
+        // Only the synthetic TEST office has the seeded clinic (LocationDataSeedContributor); an
+        // office created through New Practice has no location yet, and a slot's location is a
+        // foreign key.
+        if (await _locationRepository.FindAsync(CaseEvaluationSeedIds.Locations.TestClinic) == null)
         {
             return;
         }
@@ -67,13 +79,13 @@ public class OfficeAvailabilitySeedContributor : IDataSeedContributor, ITransien
         };
 
         // ~10 bookable days starting day+5 (past the 3-day lead time), one morning slot
-        // each (09:00-12:00, capacity 3) at the seeded north clinic, accepting all types.
+        // each (09:00-12:00, capacity 3) at the seeded TEST clinic, accepting all types.
         var seeded = 0;
         for (var dayOffset = 5; dayOffset <= 14; dayOffset++)
         {
             var slot = new DoctorAvailability(
                 id: _guidGenerator.Create(),
-                locationId: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
+                locationId: CaseEvaluationSeedIds.Locations.TestClinic,
                 availableDate: PacificTime.TodayFrom(_clock.Now).AddDays(dayOffset),
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(12, 0),

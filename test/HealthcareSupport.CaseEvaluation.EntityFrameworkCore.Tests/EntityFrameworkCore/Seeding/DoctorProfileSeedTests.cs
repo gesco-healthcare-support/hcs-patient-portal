@@ -17,8 +17,9 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Seeding;
 /// <summary>
 /// <see cref="DoctorProfileDataSeedContributor"/>: a new practice gets exactly one doctor, named
 /// from the New Practice form when given, else from the known-office table, else from the practice
-/// name, and linked to the three seeded appointment types and two demo clinics. With no admin
-/// email the practice gets no doctor. A second run adds nothing.
+/// name, and linked to the three seeded appointment types. Only the synthetic TEST office's doctor is
+/// also linked to a clinic, the one clinic seeded there. With no admin email the practice gets no
+/// doctor. A second run adds nothing.
 ///
 /// <para>The "does this practice already have a doctor?" check is per office, so every test carries
 /// an OFFICE decoy for free: office A's seeded doctor. A count that lost its office filter would
@@ -62,10 +63,8 @@ public class DoctorProfileSeedTests : SeedContributorTestBase
         {
             CaseEvaluationSeedIds.AppointmentTypes.Ame, CaseEvaluationSeedIds.AppointmentTypes.Ime, CaseEvaluationSeedIds.AppointmentTypes.PanelQme,
         }.OrderBy(g => g));
-        doctor.Locations.Select(l => l.LocationId).OrderBy(g => g).ShouldBe(new[]
-        {
-            CaseEvaluationSeedIds.Locations.DemoClinicNorth, CaseEvaluationSeedIds.Locations.DemoClinicSouth,
-        }.OrderBy(g => g));
+        // The clinic row exists in this practice too; only the TEST office's doctor is linked to it.
+        doctor.Locations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -84,10 +83,10 @@ public class DoctorProfileSeedTests : SeedContributorTestBase
     }
 
     [Fact]
-    public async Task AKnownOffice_WithNoFormNames_GetsThatOfficesDoctor()
+    public async Task TheTestOffice_WithNoFormNames_GetsItsSyntheticDoctor_LinkedToItsClinic()
     {
-        // The known-office table is production source data; the test reads it rather than restating it.
-        var office = OfficeSeedData.Offices[0];
+        // The office table is source data; the test reads it rather than restating it.
+        var office = OfficeSeedData.TestOffice;
         var practiceId = await CreatePracticeWithSeedCatalogAsync(office.TenantName);
 
         await SeedAsync(_seeder, new DataSeedContext(practiceId).WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, AdminEmail));
@@ -96,6 +95,7 @@ public class DoctorProfileSeedTests : SeedContributorTestBase
         doctor.FirstName.ShouldBe(office.DoctorFirstName);
         doctor.LastName.ShouldBe(office.DoctorLastName);
         doctor.Email.ShouldBe(office.DoctorEmail);
+        doctor.Locations.Select(l => l.LocationId).ShouldBe(new[] { CaseEvaluationSeedIds.Locations.TestClinic });
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class DoctorProfileSeedTests : SeedContributorTestBase
     }
 
     /// <summary>
-    /// A practice holding the three appointment types and two clinics the seeded doctor links to.
+    /// A practice holding the three appointment types and the one clinic the seeded doctor can link to.
     /// The links are foreign keys, and in production those rows are seeded into the office first.
     /// </summary>
     private async Task<Guid> CreatePracticeWithSeedCatalogAsync(string? name = null)
@@ -144,8 +144,7 @@ public class DoctorProfileSeedTests : SeedContributorTestBase
             await _appointmentTypes.InsertAsync(new AppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame, "TEST-AME"), autoSave: true);
             await _appointmentTypes.InsertAsync(new AppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ime, "TEST-IME"), autoSave: true);
             await _appointmentTypes.InsertAsync(new AppointmentType(CaseEvaluationSeedIds.AppointmentTypes.PanelQme, "TEST-PQME"), autoSave: true);
-            await _locations.InsertAsync(new Location(CaseEvaluationSeedIds.Locations.DemoClinicNorth, null, "TEST-Clinic North", 0m, true), autoSave: true);
-            await _locations.InsertAsync(new Location(CaseEvaluationSeedIds.Locations.DemoClinicSouth, null, "TEST-Clinic South", 0m, true), autoSave: true);
+            await _locations.InsertAsync(new Location(CaseEvaluationSeedIds.Locations.TestClinic, null, "TEST-Clinic", 0m, true), autoSave: true);
             return true;
         });
         return practiceId;

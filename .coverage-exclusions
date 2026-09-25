@@ -340,11 +340,12 @@ tools/packet-templates/tests/**
 # NOT listed on purpose: LocationDataSeedContributor and DoctorProfileDataSeedContributor, which
 # seed the test tenant in EVERY environment (Adrian's ruling), and Saas/OfficeSeedData.cs, which
 # CaseEvaluationDbMigrationService and the always-on DoctorProfileDataSeedContributor read.
+# Saas/OfficeSeedDataContributor.cs LEFT this list with the production plan's C6 (2026-09-25): it now
+# registers the one synthetic TEST office in every environment, so its only reason to be here is gone.
 **/Identity/InternalUsersDataSeedContributor.cs
 **/Identity/ExternalUsersDataSeedContributor.cs
 **/Identity/DemoExternalUsersDataSeedContributor.cs
 **/Identity/DemoPatientDataSeedContributor.cs
-**/Saas/OfficeSeedDataContributor.cs
 **/DoctorAvailabilities/OfficeAvailabilitySeedContributor.cs
 
 # REFERENCE-DATA SEEDERS MOVING TO THE CENTRAL MASTER-DATA PROJECT (Adrian, 2026-09-24). States,
