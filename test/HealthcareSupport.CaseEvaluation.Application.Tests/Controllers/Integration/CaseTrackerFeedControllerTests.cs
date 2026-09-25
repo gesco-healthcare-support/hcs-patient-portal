@@ -151,12 +151,15 @@ public class CaseTrackerFeedControllerTests
         await h.Service.Received(1).ReadAsync(OfficeId, "00000000000007D2", Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>());
     }
 
+    // The cursor and skip refusals are 409, not 400 (decided 2026-09-24, from the consumer's source): the Case
+    // Tracker client acts on the status alone, halts an office visibly on 409, and retries anything else it does
+    // not know -- 400 included -- every minute forever, silently. None of the four can be fixed by retrying.
     [Theory]
     [InlineData(CaseTrackerFeedOutcome.FeedNotEnabled, StatusCodes.Status403Forbidden, "feed_not_enabled")]
-    [InlineData(CaseTrackerFeedOutcome.CursorInvalid, StatusCodes.Status400BadRequest, "cursor_invalid")]
-    [InlineData(CaseTrackerFeedOutcome.CursorBelowFloor, StatusCodes.Status400BadRequest, "cursor_below_floor")]
-    [InlineData(CaseTrackerFeedOutcome.CursorAhead, StatusCodes.Status400BadRequest, "cursor_ahead")]
-    [InlineData(CaseTrackerFeedOutcome.SkipInvalid, StatusCodes.Status400BadRequest, "skip_invalid")]
+    [InlineData(CaseTrackerFeedOutcome.CursorInvalid, StatusCodes.Status409Conflict, "cursor_invalid")]
+    [InlineData(CaseTrackerFeedOutcome.CursorBelowFloor, StatusCodes.Status409Conflict, "cursor_below_floor")]
+    [InlineData(CaseTrackerFeedOutcome.CursorAhead, StatusCodes.Status409Conflict, "cursor_ahead")]
+    [InlineData(CaseTrackerFeedOutcome.SkipInvalid, StatusCodes.Status409Conflict, "skip_invalid")]
     public async Task EachRefusal_HasItsAgreedStatusAndCode_AndNeverA401Or429(
         CaseTrackerFeedOutcome outcome, int expectedStatus, string expectedCode)
     {
