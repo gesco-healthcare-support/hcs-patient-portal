@@ -116,7 +116,7 @@ FIRST if you built against an earlier version):
 - **Your proxy answers `5xx`, not `4xx`, while your backend boots** (8-15 seconds per deploy), as your
   side offered (section I).
 - **Refusals the portal returns** (new section I3): an allowlist or edge refusal must be `403`, never `401`,
-  preferably not `429`, and must answer rather than drop. The feed uses `403` and `400` only. Reconcile
+  preferably not `429`, and must answer rather than drop. The feed uses `403` and `409` only. Reconcile
   and attendance still answer a bad token with `401` and their shared limit with `429`; moving them to
   `403` is issue #1068, not agreed yet.
 - **Pausing an office** (new section I4): under 96 hours without notice; longer needs telling your side first.
@@ -1293,23 +1293,27 @@ The Gesco envelope. An example with synthetic ids and the bodies abridged:
 - If you abandon a row, report it: add `skipped=<that row's cursor>` to the request whose cursor moves
   past it. The parameter can repeat.
 - A skip must be the cursor of a row you received, above the office's floor and at or below the cursor
-  sent with it. Otherwise the whole request is refused with `400` `skip_invalid` and nothing moves.
+  sent with it. Otherwise the whole request is refused with `409` `skip_invalid` and nothing moves.
 - The portal logs every reported skip and emails its technical list. A skip repeated on a retried
   request (because the response was lost) is accepted and not emailed again.
 
 ### Status codes
 
 Every response, success or refusal, is the Gesco envelope. A refusal has `data: null` and one entry in
-`errors`, whose `code` says why. The feed never answers `401` or `429`. A `400` is not transient:
-repeating the same request gets the same `400`.
+`errors`, whose `code` says why. The feed never answers `401` or `429`. A `409` is not transient:
+repeating the same request gets the same `409`, and each one needs a person to look.
+
+CHANGED 2026-09-24: the four cursor and skip refusals were `400`. Your client acts on the status alone: it halts
+the office where an operator sees it on a `409`, and retries anything else it does not know every minute, silently.
+None of the four can be fixed by retrying, so they are `409`. The codes in `errors[0].code` are unchanged.
 
 | Status | `errors[0].code`     | Meaning                                                                                                   |
 | ------ | -------------------- | --------------------------------------------------------------------------------------------------------- |
 | `200`  | -                    | A page, possibly empty.                                                                                   |
-| `400`  | `cursor_invalid`     | The cursor is not 16 hex digits.                                                                          |
-| `400`  | `cursor_below_floor` | The cursor is from before this office's feed began. No cursor resumes from your last acknowledgement.     |
-| `400`  | `cursor_ahead`       | The cursor is beyond anything this feed has issued. The portal emails its list once per incident.         |
-| `400`  | `skip_invalid`       | A `skipped` value does not name a row this request acknowledges. Nothing moved.                           |
+| `409`  | `cursor_invalid`     | The cursor is not 16 hex digits.                                                                          |
+| `409`  | `cursor_below_floor` | The cursor is from before this office's feed began. No cursor resumes from your last acknowledgement.     |
+| `409`  | `cursor_ahead`       | The cursor is beyond anything this feed has issued. The portal emails its list once per incident.         |
+| `409`  | `skip_invalid`       | A `skipped` value does not name a row this request acknowledges. Nothing moved.                           |
 | `403`  | `forbidden`          | Missing or wrong `X-Feed-Token`; or more than 60 requests this hour from your address without it.         |
 | `403`  | `allowance_exceeded` | This office's 240 requests for the current hour are spent.                                                |
 | `403`  | `feed_not_enabled`   | The office is not on the feed, is paused (section I4), or does not exist. Deliberately indistinguishable. |
@@ -1333,6 +1337,9 @@ Alerts carry office ids, appointment ids, cursors and counts only, never a paylo
   push for that office in the same step. The office's `CaseTrackerPushEnabled` stays ON, because
   reconcile and attendance read it too. Start feed is refused for an office whose switch is off.
 - Your consumer then polls that office with no cursor and starts at the floor.
+- **Order, ADDED 2026-09-24.** Start the feed for an office BEFORE your polling turns on for it, and stop your
+  polling for an office BEFORE Return to push. In between, every poll is answered `403` `feed_not_enabled`, which
+  your client currently retries without surfacing anything (section I3).
 - **Return to push** (the rollback) puts the office back on the push, which re-sends everything still
   waiting, INCLUDING changes the feed already delivered to you. Your upsert and `updatedAt` guard
   (section G) absorb them.
