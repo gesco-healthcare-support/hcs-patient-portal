@@ -30,8 +30,9 @@ string, a header, a cookie or the route) and register exactly two, in this order
    against `App:TenantDomainFormat` (for example `{0}.api.<base>`; `{0}.localhost` in development):
    - a single office label resolves that office; ABP answers 404 if no such office exists;
    - the reserved `admin` label runs in host context;
-   - the internal names `localhost` (health checks) and `authserver` (the API's metadata fetch) run
-     in host context;
+   - the internal names `localhost` (health checks) and `authserver` (internal calls to the
+     AuthServer by its container name) run in host context. OpenIddict's own metadata and key
+     endpoints are answered before tenant resolution, so the API's metadata fetch works either way;
    - anything else -- an empty or dotted label, the bare or the other service's host, a foreign
      host, an IP, an empty Host -- is refused with a 404 (`Abp-Tenant-Resolve-Error: This host does
      not serve an office.`). Before 2026-09-25 these ran in host context.

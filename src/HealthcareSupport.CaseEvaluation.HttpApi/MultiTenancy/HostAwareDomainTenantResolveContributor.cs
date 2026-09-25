@@ -67,8 +67,11 @@ public class HostAwareDomainTenantResolveContributor : TenantResolveContributorB
     /// they name no office, because a caller inside the deployment sends them:
     /// <c>localhost</c> -- the container health checks and the HealthChecks UI poll
     /// (<c>docker-compose.prod.yml</c> <c>curl -f http://localhost:8080/health-status</c>,
-    /// <c>App__HealthUiCheckUrl</c>) and local development; <c>authserver</c> -- the API's
-    /// OpenID metadata and signing-key fetch (<c>AuthServer__MetaAddress: http://authserver:8080</c>).
+    /// <c>App__HealthUiCheckUrl</c>) and local development; <c>authserver</c> -- internal calls
+    /// to the AuthServer by its container name (<c>AuthServer__MetaAddress: http://authserver:8080</c>).
+    /// Measured 2026-09-25 on the dev stack: the metadata and signing-key endpoints themselves
+    /// are answered by OpenIddict during authentication, BEFORE tenant resolution, so that fetch
+    /// works either way; this entry keeps any other call on that Host out of the refusal.
     /// Anything else that names no office is refused.
     /// </summary>
     public static readonly IReadOnlyList<string> InternalHosts = ["localhost", "authserver"];
