@@ -258,10 +258,41 @@ internal static class CaseEvaluationSharedModelConfiguration
             // email needs its own once-only stamp. Nullable, so existing rows need no backfill.
             b.Property(x => x.FirstFailedAt).HasColumnName(nameof(IntegrationOutboxItem.FirstFailedAt));
             b.Property(x => x.EarlyWarnedAt).HasColumnName(nameof(IntegrationOutboxItem.EarlyWarnedAt));
+            // #927: the changes feed's cursor. A SHADOW property because only the feed's SQL reads it. Generated
+            // by SQL Server on every insert and update, but NOT a concurrency token -- IsRowVersion() would make
+            // every outbox save an optimistic-concurrency check. Nullable only because the SQLite test rig cannot
+            // generate it; SQL Server fills it for every row, including rows that exist when it is added.
+            b.Property<byte[]?>(CaseTrackerFeedConsts.ChangeVersionColumn)
+                .HasColumnName(CaseTrackerFeedConsts.ChangeVersionColumn)
+                .HasColumnType("rowversion")
+                .ValueGeneratedOnAddOrUpdate();
             b.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique().HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
             b.HasIndex(x => new { x.TenantId, x.Status, x.NextAttemptAt });
             // Staff search the dead-letter view by appointment.
             b.HasIndex(x => new { x.TenantId, x.AppointmentId });
+            // #927: the feed reads one office's Pending rows in cursor order.
+            b.HasIndex(nameof(IntegrationOutboxItem.TenantId), nameof(IntegrationOutboxItem.Status), CaseTrackerFeedConsts.ChangeVersionColumn);
+        });
+
+        // #927: one office's feed position, and the record that switches it from push to feed. Mapped in both
+        // contexts like the outbox it describes, so it lives in each office's own database beside those rows.
+        builder.Entity<CaseTrackerFeedState>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "CaseTrackerFeedStates", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
+            b.Property(x => x.IsActive).HasColumnName(nameof(CaseTrackerFeedState.IsActive));
+            b.Property(x => x.FloorPosition).HasColumnName(nameof(CaseTrackerFeedState.FloorPosition));
+            b.Property(x => x.AcknowledgedPosition).HasColumnName(nameof(CaseTrackerFeedState.AcknowledgedPosition));
+            b.Property(x => x.HighestIssuedPosition).HasColumnName(nameof(CaseTrackerFeedState.HighestIssuedPosition));
+            b.Property(x => x.StartedAt).HasColumnName(nameof(CaseTrackerFeedState.StartedAt));
+            b.Property(x => x.StoppedAt).HasColumnName(nameof(CaseTrackerFeedState.StoppedAt));
+            b.Property(x => x.LastRequestAt).HasColumnName(nameof(CaseTrackerFeedState.LastRequestAt));
+            b.Property(x => x.LastAdvancedAt).HasColumnName(nameof(CaseTrackerFeedState.LastAdvancedAt));
+            b.Property(x => x.SilenceAlertedAt).HasColumnName(nameof(CaseTrackerFeedState.SilenceAlertedAt));
+            b.Property(x => x.StallAlertedAt).HasColumnName(nameof(CaseTrackerFeedState.StallAlertedAt));
+            b.Property(x => x.CursorAheadAlertedAt).HasColumnName(nameof(CaseTrackerFeedState.CursorAheadAlertedAt));
+            b.HasIndex(x => x.TenantId).IsUnique().HasFilter("[TenantId] IS NOT NULL");
         });
 
         // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the

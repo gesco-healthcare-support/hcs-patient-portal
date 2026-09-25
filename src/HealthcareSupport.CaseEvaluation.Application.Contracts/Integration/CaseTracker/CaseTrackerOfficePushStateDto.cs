@@ -27,4 +27,22 @@ public class CaseTrackerOfficePushStateDto
     /// sends one message or several hundred.</para>
     /// </summary>
     public int PendingCount { get; set; }
+
+    /// <summary>True while the office is delivered by the changes feed rather than by push (#927).</summary>
+    public bool FeedActive { get; set; }
+
+    /// <summary>When the feed was last started for the office; null if it never was.</summary>
+    public DateTime? FeedStartedAt { get; set; }
+
+    /// <summary>When the Case Tracker last asked the office's feed for changes; null if it has not yet.</summary>
+    public DateTime? LastRequestAt { get; set; }
+
+    /// <summary>When the Case Tracker's acknowledged position last moved forward.</summary>
+    public DateTime? LastAdvancedAt { get; set; }
+
+    /// <summary>
+    /// While the feed is on: changes waiting beyond the acknowledged position, the feed's counterpart of
+    /// <see cref="PendingCount"/> (every feed-era row stays Pending, so that count only grows). Null on push.
+    /// </summary>
+    public int? OutstandingCount { get; set; }
 }

@@ -113,6 +113,21 @@ public class HostOnlyIntegrationAdminGuardTests
 
     // ---- Push settings ----
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FeedActions_InsideAnOffice_AreRefused_BeforeTheOtherOfficeIsEntered(bool start)
+    {
+        // #927: starting the feed or returning an office to push acts on the office the route names.
+        InsideAnOffice();
+        var service = BuildPushSettingsService();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(
+            () => start ? service.StartFeedAsync(SecondOfficeId) : service.ReturnToPushAsync(SecondOfficeId));
+
+        _currentTenant.DidNotReceive().Change(SecondOfficeId, Arg.Any<string?>());
+    }
+
     [Fact]
     public async Task PushSettingsList_InsideAnOffice_IsRefused_BeforeAnyOfficeIsAggregated()
     {
@@ -191,6 +206,12 @@ public class HostOnlyIntegrationAdminGuardTests
             _currentTenant,
             _settingManager,
             _outboxRepository,
+            // #927: a real manager over substitutes. On push-only offices it reads no feed store.
+            new CaseTrackerFeedManager(
+                Substitute.For<ICaseTrackerFeedStateRepository>(),
+                Substitute.For<ICaseTrackerFeedStore>(),
+                Substitute.For<IClock>(),
+                Substitute.For<Volo.Abp.Guids.IGuidGenerator>()),
             Substitute.For<ILogger<CaseTrackerPushSettingsAppService>>())
         {
             LazyServiceProvider = Substitute.For<IAbpLazyServiceProvider>(),

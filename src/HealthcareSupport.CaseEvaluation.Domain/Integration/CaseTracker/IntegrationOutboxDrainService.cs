@@ -1,9 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
-using Volo.Abp.Settings;
 using Volo.Abp.Timing;
 using Volo.Abp.Uow;
 
@@ -28,6 +26,11 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 ///
 /// <para>This service opens its own units of work, so its caller must NOT hold one around it: an outer
 /// transaction would swallow the per-row commits and bring back exactly the lock hold above.</para>
+///
+/// <para>FEED MODE (#927). An office switched to the changes feed is delivered by the Case Tracker pulling, so
+/// the drain sends nothing for it. That is checked per pass AND again before every row is claimed: a feed
+/// started while a pass is running then stops the pass at the next row, so at most the one row already in
+/// flight is pushed after the switch -- delivered once by push, or served once by the feed, never lost.</para>
 /// </summary>
 public class IntegrationOutboxDrainService : ITransientDependency
 {
@@ -35,7 +38,7 @@ public class IntegrationOutboxDrainService : ITransientDependency
     private readonly IIntegrationOutboxRepository _outboxRepository;
     private readonly ICaseTrackerClient _client;
     private readonly IClock _clock;
-    private readonly ISettingProvider _settingProvider;
+    private readonly CaseTrackerDeliveryModeReader _deliveryMode;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<IntegrationOutboxDrainService> _logger;
 
@@ -44,7 +47,7 @@ public class IntegrationOutboxDrainService : ITransientDependency
         IIntegrationOutboxRepository outboxRepository,
         ICaseTrackerClient client,
         IClock clock,
-        ISettingProvider settingProvider,
+        CaseTrackerDeliveryModeReader deliveryMode,
         IUnitOfWorkManager unitOfWorkManager,
         ILogger<IntegrationOutboxDrainService> logger)
     {
@@ -52,7 +55,7 @@ public class IntegrationOutboxDrainService : ITransientDependency
         _outboxRepository = outboxRepository;
         _client = client;
         _clock = clock;
-        _settingProvider = settingProvider;
+        _deliveryMode = deliveryMode;
         _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
     }
@@ -107,10 +110,19 @@ public class IntegrationOutboxDrainService : ITransientDependency
 
         // Master switch, read per drain in the current office scope so a per-office override beats the
         // host default and a toggle takes effect on the next pass.
-        if (!await _settingProvider.IsTrueAsync(CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled))
+        if (!await _deliveryMode.IsPushSwitchOnAsync())
         {
             _logger.LogInformation(
                 "IntegrationOutboxDrainService: Case Tracker push is disabled; holding due rows Pending.");
+            await uow.CompleteAsync();
+            return false;
+        }
+
+        // #927: an office on the changes feed is delivered by the Case Tracker pulling; nothing is pushed.
+        if (await _deliveryMode.IsFeedActiveAsync())
+        {
+            _logger.LogInformation(
+                "IntegrationOutboxDrainService: office is on the Case Tracker feed; the drain sends nothing.");
             await uow.CompleteAsync();
             return false;
         }
@@ -138,10 +150,19 @@ public class IntegrationOutboxDrainService : ITransientDependency
         return true;
     }
 
-    /// <summary>Claims and leases the next due row, and COMMITS the lease before any HTTP happens.</summary>
+    /// <summary>
+    /// Claims and leases the next due row, and COMMITS the lease before any HTTP happens. Claims nothing once
+    /// the office has been switched to the feed (#927), so a feed started mid-pass ends the pass here.
+    /// </summary>
     private async Task<IntegrationOutboxItem?> ClaimNextAsync(TimeSpan lease)
     {
         using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+        if (await _deliveryMode.IsFeedActiveAsync())
+        {
+            await uow.CompleteAsync();
+            return null;
+        }
+
         var row = await _outboxManager.ClaimNextDueAsync(_clock.Now, lease);
         await uow.CompleteAsync();
         return row;

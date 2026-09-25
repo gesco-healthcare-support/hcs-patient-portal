@@ -97,6 +97,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     // Case Tracker integration Part 1 (2026-07-27): outbound message ledger. IMultiTenant, so it
     // lives in BOTH the host and office DBs -- the office copy is the one that actually carries rows.
     public DbSet<IntegrationOutboxItem> IntegrationOutboxItems { get; set; } = null!;
+    public DbSet<CaseTrackerFeedState> CaseTrackerFeedStates { get; set; } = null!;
     // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
     public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
     // Phase E (2026-06-25): host/management per-office branding (name + logo).

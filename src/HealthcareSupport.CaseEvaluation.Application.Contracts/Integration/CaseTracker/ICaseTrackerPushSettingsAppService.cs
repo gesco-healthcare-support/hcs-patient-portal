@@ -20,4 +20,17 @@ public interface ICaseTrackerPushSettingsAppService : IApplicationService
 
     /// <summary>Turns the push on or off for ONE office. Returns that office's refreshed state.</summary>
     Task<CaseTrackerOfficePushStateDto> SetPushEnabledAsync(Guid officeId, bool enabled);
+
+    /// <summary>
+    /// Cutover (#927): switches ONE office from push to the changes feed, setting where the feed starts. The
+    /// office's push switch must be on, because it stays the office's gate for everything sent to the Case
+    /// Tracker. Returns that office's refreshed state.
+    /// </summary>
+    Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId);
+
+    /// <summary>
+    /// Rollback (#927): returns ONE office from the feed to push. Every Pending row is then pushed, including rows
+    /// the feed already delivered. Returns that office's refreshed state.
+    /// </summary>
+    Task<CaseTrackerOfficePushStateDto> ReturnToPushAsync(Guid officeId);
 }

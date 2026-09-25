@@ -50,6 +50,25 @@ public class CaseTrackerOfficesController : AbpController
     {
         return _pushSettingsAppService.SetPushEnabledAsync(officeId, input.Enabled);
     }
+
+    /// <summary>
+    /// Cutover (#927): switches one office from push to the changes feed. POST: it is an action with a starting
+    /// position chosen at the moment it runs, not an idempotent state write -- a repeat is refused.
+    /// </summary>
+    [HttpPost]
+    [Route("offices/{officeId}/feed/start")]
+    public virtual Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId)
+    {
+        return _pushSettingsAppService.StartFeedAsync(officeId);
+    }
+
+    /// <summary>Rollback (#927): returns one office from the feed to push.</summary>
+    [HttpPost]
+    [Route("offices/{officeId}/feed/return-to-push")]
+    public virtual Task<CaseTrackerOfficePushStateDto> ReturnToPushAsync(Guid officeId)
+    {
+        return _pushSettingsAppService.ReturnToPushAsync(officeId);
+    }
 }
 
 /// <summary>Body for the toggle. A named type rather than a bare bool so the JSON stays readable.</summary>

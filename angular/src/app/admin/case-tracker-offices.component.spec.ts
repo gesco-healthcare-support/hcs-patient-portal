@@ -27,8 +27,12 @@ describe('CaseTrackerOfficesComponent', () => {
     loading: Signal<boolean>;
     error: Signal<string | null>;
     saving: Signal<string | null>;
+    confirming: Signal<{ officeId: string; action: 'start' | 'return' } | null>;
     load(): Promise<void>;
     toggle(office: unknown): Promise<void>;
+    askFeed(office: unknown, action: 'start' | 'return'): void;
+    isConfirming(office: unknown, action: 'start' | 'return'): boolean;
+    confirmFeed(office: unknown): Promise<void>;
   }
 
   let request: jasmine.Spy;
@@ -192,6 +196,87 @@ describe('CaseTrackerOfficesComponent', () => {
       const cmp = probe();
       await cmp.toggle(downtown);
       expect(cmp.saving()).toBeNull();
+    });
+  });
+
+  // #927: the cutover between push and the changes feed. Both actions need an inline confirm, POST to a
+  // literal path, and -- like the toggle -- replace the row from the server's response.
+  describe('feed actions', () => {
+    const enabled = { ...downtown, pushEnabled: true, pendingCount: 0 };
+    const fed = { ...enabled, feedActive: true, outstandingCount: 4, lastRequestAt: null };
+
+    async function loaded(rows: unknown[]): Promise<Probe> {
+      request.and.returnValue(of(rows));
+      const cmp = probe();
+      cmp.ngOnInit();
+      await settle();
+      request.calls.reset();
+      return cmp;
+    }
+
+    it('asks for a confirm first, and only for the office and action chosen', async () => {
+      const cmp = await loaded([enabled]);
+      cmp.askFeed(enabled, 'start');
+      expect(cmp.isConfirming(enabled, 'start')).toBeTrue();
+      expect(cmp.isConfirming(enabled, 'return')).toBeFalse();
+      expect(cmp.isConfirming({ ...enabled, officeId: 'office-2' }, 'start')).toBeFalse();
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when confirmed without having been asked', async () => {
+      const cmp = await loaded([enabled]);
+      await cmp.confirmFeed(enabled);
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('starts the feed with a POST to the literal path and shows the returned row', async () => {
+      const cmp = await loaded([enabled]);
+      request.and.returnValue(of(fed));
+      cmp.askFeed(enabled, 'start');
+
+      await cmp.confirmFeed(enabled);
+
+      const [config] = request.calls.mostRecent().args as [{ method: string; url: string }];
+      expect(config.method).toBe('POST');
+      expect(config.url).toBe('/api/app/case-tracker/offices/office-1/feed/start');
+      expect(cmp.offices()).toEqual([fed]);
+      expect(cmp.confirming()).toBeNull();
+      expect(cmp.saving()).toBeNull();
+    });
+
+    it('returns an office to push with a POST to the literal path', async () => {
+      const cmp = await loaded([fed]);
+      request.and.returnValue(of({ ...fed, feedActive: false, outstandingCount: null }));
+      cmp.askFeed(fed, 'return');
+
+      await cmp.confirmFeed(fed);
+
+      const [config] = request.calls.mostRecent().args as [{ method: string; url: string }];
+      expect(config.url).toBe('/api/app/case-tracker/offices/office-1/feed/return-to-push');
+      expect((cmp.offices()[0] as { feedActive: boolean }).feedActive).toBeFalse();
+    });
+
+    it('names the office when starting fails, and keeps the row as it was', async () => {
+      const cmp = await loaded([enabled]);
+      request.and.returnValue(throwError(() => new Error('boom')));
+      cmp.askFeed(enabled, 'start');
+
+      await cmp.confirmFeed(enabled);
+
+      expect(cmp.error()).toBe('Could not start the feed for Example Downtown Clinic.');
+      expect(cmp.offices()).toEqual([enabled]);
+      expect(cmp.confirming()).toBeNull();
+      expect(cmp.saving()).toBeNull();
+    });
+
+    it('names the office when returning to push fails', async () => {
+      const cmp = await loaded([fed]);
+      request.and.returnValue(throwError(() => new Error('boom')));
+      cmp.askFeed(fed, 'return');
+
+      await cmp.confirmFeed(fed);
+
+      expect(cmp.error()).toBe('Could not return Example Downtown Clinic to push.');
     });
   });
 });

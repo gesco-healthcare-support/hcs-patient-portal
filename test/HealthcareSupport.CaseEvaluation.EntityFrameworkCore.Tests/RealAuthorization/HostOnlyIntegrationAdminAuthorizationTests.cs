@@ -95,6 +95,30 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         await AssertSecondOfficeUntouchedAsync(second);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FeedActions_AreRefused_ForAnOfficeCaller_TargetingAnotherOffice(bool start)
+    {
+        // #927: the cutover actions switch how another office's changes reach the Case Tracker.
+        var second = await EnsureSecondOfficeAsync();
+
+        await AssertRefusedInOfficeAsync(sp =>
+        {
+            var service = sp.GetRequiredService<ICaseTrackerPushSettingsAppService>();
+            return start ? service.StartFeedAsync(second.OfficeId) : service.ReturnToPushAsync(second.OfficeId);
+        });
+
+        await AssertSecondOfficeUntouchedAsync(second);
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(second.OfficeId))
+            {
+                (await GetRequiredService<ICaseTrackerFeedStateRepository>().FindCurrentAsync()).ShouldBeNull();
+            }
+        }, requiresNew: true);
+    }
+
     [Fact]
     public async Task PushSettingsList_IsRefused_ForAnOfficeCaller()
     {
@@ -153,6 +177,17 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         // refused one would throw AbpAuthorizationException instead. Nothing is retried either way.
         await Should.ThrowAsync<UserFriendlyException>(() => RunAsHostOperatorAsync(
             sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>().RetryAllAsync(Guid.Empty)));
+    }
+
+    [Fact]
+    public async Task FeedReturn_IsAdmitted_ForAHostOperator()
+    {
+        // The second office is not on the feed, so an admitted call reaches the method body and is refused
+        // there; a refused one would throw AbpAuthorizationException instead. Nothing changes either way.
+        var second = await EnsureSecondOfficeAsync();
+
+        await Should.ThrowAsync<UserFriendlyException>(() => RunAsHostOperatorAsync(
+            sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>().ReturnToPushAsync(second.OfficeId)));
     }
 
     [Fact]

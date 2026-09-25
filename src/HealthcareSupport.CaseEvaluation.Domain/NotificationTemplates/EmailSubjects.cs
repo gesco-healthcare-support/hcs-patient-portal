@@ -198,6 +198,13 @@ internal static class EmailSubjects
         "Retrying: appointment(s) have not yet reached the Case Tracker";
 
     /// <summary>
+    /// #927 (2026-09-24). The headline names what happened -- "no requests", "position advancing again" -- so
+    /// the start and the clearing email of one incident are told apart in an inbox.
+    /// </summary>
+    public const string CaseTrackerFeedAlert =
+        "Case Tracker feed: ##FeedAlertTitle## (##OfficeName##)";
+
+    /// <summary>
     /// Group F (2026-06-09) -- the single consolidated reminder subject. The
     /// body carries the due-date nudge plus any outstanding documents, so the
     /// subject stays generic enough to fit both the docs and no-docs cases.
@@ -384,6 +391,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.AppointmentApproveRejectInternal] = AppointmentApproveRejectInternal,
             [NotificationTemplateConsts.Codes.CaseTrackerPushFailed] = CaseTrackerPushFailed,
             [NotificationTemplateConsts.Codes.CaseTrackerPushRetrying] = CaseTrackerPushRetrying,
+            [NotificationTemplateConsts.Codes.CaseTrackerFeedAlert] = CaseTrackerFeedAlert,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.

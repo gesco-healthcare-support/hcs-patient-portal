@@ -281,6 +281,31 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
         ids.ShouldNotContain(deadLettered.Id); // Failed: the dead-letter email covers it
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task GetUnwarnedRetryingAsync_ForAnOfficeOnTheFeed_ReturnsNothing(bool feedActive, bool expectReturned)
+    {
+        // #927: in feed mode nothing retries, and stamping one of these rows would give it a new rowversion,
+        // so the feed would serve it twice. A record that has returned to push owes the warning again.
+        var twice = NewPending(Guid.NewGuid());
+        twice.MarkFailed(Now, "503");
+        twice.MarkFailed(Now.AddMinutes(5), "503");
+        await InsertAsync(twice);
+        var feed = new CaseTrackerFeedState(Guid.NewGuid(), tenantId: null);
+        feed.Start(0, Now);
+        if (!feedActive)
+        {
+            feed.ReturnToPush(Now.AddMinutes(1));
+        }
+
+        await WithUnitOfWorkAsync(() => GetRequiredService<ICaseTrackerFeedStateRepository>().InsertAsync(feed, autoSave: true));
+
+        var rows = await WithUnitOfWorkAsync(() => _outboxRepository.GetUnwarnedRetryingAsync(2));
+
+        rows.Select(r => r.Id).Contains(twice.Id).ShouldBe(expectReturned);
+    }
+
     [Fact]
     public async Task StampEarlyWarnedAsync_StampsOnce_AndASecondStampNeverMovesIt()
     {
