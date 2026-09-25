@@ -79,7 +79,13 @@ public class CaseTrackerAttendanceService : ITransientDependency
                 if (!await _settingProvider.IsTrueAsync(
                         CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled))
                 {
-                    _logger.LogDebug(
+                    // WARNING, not Debug. The bodyless 404 is deliberately ambiguous so a token
+                    // holder cannot enumerate offices, but that reasoning is about what the CALLER
+                    // is told. It does not apply to our own record, and Debug is not emitted at all
+                    // in production (Release selects MinimumLevel.Information), so this arm used to
+                    // leave no trace anywhere. An authenticated partner reporting against an office
+                    // we have switched off is a live disagreement between the two systems.
+                    _logger.LogWarning(
                         "CaseTrackerAttendanceService: office {TenantId} has the Case Tracker integration disabled; attendance report refused.",
                         tenantId);
                     return CaseTrackerAttendanceOutcome.NotFound;
@@ -89,7 +95,11 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     appointmentId, cancellationToken: cancellationToken);
                 if (appointment == null)
                 {
-                    _logger.LogDebug(
+                    // WARNING for the same reason as the arm above: the ambiguity is owed to the
+                    // caller, not to us. This is the arm that strands an appointment -- the report
+                    // is discarded, the status never moves, and nobody in either system has
+                    // anything to look at.
+                    _logger.LogWarning(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} not found in office {TenantId}; answering not-found.",
                         appointmentId, tenantId);
                     return CaseTrackerAttendanceOutcome.NotFound;
@@ -101,6 +111,9 @@ public class CaseTrackerAttendanceService : ITransientDependency
                 // it through would report a retry as a conflict.
                 if (appointment.AppointmentStatus == outcome)
                 {
+                    // Stays DEBUG deliberately, unlike the two arms above: this is a successful
+                    // retry of a report we already applied, which is ordinary and expected traffic.
+                    // Raising it would bury the two arms that mean something went wrong.
                     _logger.LogDebug(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} already carries {Outcome}; no-op.",
                         appointmentId, outcome);
