@@ -3,9 +3,11 @@
 Moving one office from the outbound push to the changes feed the Case Tracker pulls, and back again
 if it goes wrong.
 
-> **Status: drafted against `fix/927-case-tracker-changes-feed`, which is not merged.** Every portal
-> behaviour below was read from that branch's source, not from a description of it. Re-check this
-> document against the merged endpoint before the first real cutover.
+> **Verified against the merged endpoint.** The feed landed on `main` in #1065. Every portal
+> behaviour below was read from source rather than from a description of it, and re-checked after
+> the merge: the path, header, parameters, page size, allowance, alert thresholds and floor
+> derivation are all unchanged from the pre-merge branch. The four cursor and skip refusals moved
+> from 400 to 409 before merge; that is reflected below.
 
 ## Why there is a cutover at all
 
@@ -180,6 +182,20 @@ skipped   repeated key, one cursor per occurrence (skipped=a&skipped=b)
           NOT comma-joined
 ```
 
-Refusals carry a code in `errors[0]`: `forbidden`, `allowance_exceeded`, `feed_not_enabled`,
-`cursor_invalid`, `cursor_below_floor`, `cursor_ahead`, `skip_invalid`. The Case Tracker branches on
-the code, not the status.
+Page size is fixed at 200 and is not a request parameter. Anything sent is ignored.
+
+Every refusal carries a code in `errors[0]`, and every 409 carries one, so a bare 409 with no
+envelope did not come from the feed.
+
+| Status | Codes | Meaning |
+| --- | --- | --- |
+| 403 | `forbidden`, `allowance_exceeded`, `feed_not_enabled` | Bad token, spent allowance, or an office not on the feed. An unknown office answers the same, deliberately, so a token holder cannot enumerate offices. |
+| 409 | `cursor_invalid`, `cursor_below_floor`, `cursor_ahead`, `skip_invalid` | The cursor or skip cannot be accepted. None of the four can be fixed by retrying. |
+| 200 | -- | A page, possibly empty. An empty page while a write is in flight is normal. |
+
+Never 401, which would latch the Case Tracker's shared HTTP client. Never 429.
+
+The four cursor and skip refusals were 400 until #1065 and are 409 from it onwards. The Case
+Tracker's deployed client acts on the status alone and halts on 409, which is why the change
+matters; their newer code branches on `errors[0].code` and is unaffected either way, but it is
+committed rather than deployed.
