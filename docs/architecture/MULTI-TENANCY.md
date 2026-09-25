@@ -21,11 +21,21 @@ This means every doctor operates within their own isolated tenant context. Appoi
 
 ### Tenant Resolution
 
-ABP resolves the current tenant from the incoming request using its built-in resolution strategy:
+Both the API and the AuthServer clear ABP's default resolvers (which read `__tenant` from the query
+string, a header, a cookie or the route) and register exactly two, in this order
+(`ConfigureMultiTenancy` in each host module; pinned by `TenantResolverChainTests`):
 
-- Request headers (`__tenant`)
-- Cookies
-- Route values
+1. `CurrentUserTenantResolveContributor` -- a signed-in caller's office comes from their token.
+2. `HostAwareDomainTenantResolveContributor` -- an anonymous caller's office comes from the Host,
+   against `App:TenantDomainFormat` (for example `{0}.api.<base>`; `{0}.localhost` in development):
+   - a single office label resolves that office; ABP answers 404 if no such office exists;
+   - the reserved `admin` label runs in host context;
+   - the internal names `localhost` (health checks) and `authserver` (internal calls to the
+     AuthServer by its container name) run in host context. OpenIddict's own metadata and key
+     endpoints are answered before tenant resolution, so the API's metadata fetch works either way;
+   - anything else -- an empty or dotted label, the bare or the other service's host, a foreign
+     host, an IP, an empty Host -- is refused with a 404 (`Abp-Tenant-Resolve-Error: This host does
+     not serve an office.`). Before 2026-09-25 these ran in host context.
 
 Once resolved, `ICurrentTenant` is set for the request lifetime, and ABP's global query filters automatically append `WHERE TenantId = @currentTenant` to all `IMultiTenant` entity queries.
 
@@ -210,8 +220,8 @@ sequenceDiagram
     participant DbContext
     participant Database
 
-    Client->>Middleware: HTTP Request with __tenant header/cookie/route
-    Middleware->>Middleware: Resolve TenantId from request
+    Client->>Middleware: HTTP Request (bearer token and/or Host header)
+    Middleware->>Middleware: Resolve TenantId from the token, else from the Host (404 if the Host names no office)
     Middleware->>ICurrentTenant: Set current tenant
     ICurrentTenant-->>Middleware: TenantId active for request scope
 
