@@ -50,7 +50,7 @@ public class CaseTrackerMissingIntakesEmailHandlerTests
         [
             new CaseTrackerMissingIntakesOfficeEto
             {
-                TenantId = new Guid("b8844bba-414c-e238-4a71-3a22841f21af"),
+                TenantId = new Guid("0ff1ce00-0000-4000-8000-000000000001"),
                 OfficeName = "Sample Medical Group",
                 FirstIntakeRowAt = new DateTime(2026, 7, 30, 18, 0, 0, DateTimeKind.Utc),
                 Items =

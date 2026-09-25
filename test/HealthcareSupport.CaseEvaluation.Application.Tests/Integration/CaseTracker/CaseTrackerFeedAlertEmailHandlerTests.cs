@@ -23,7 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class CaseTrackerFeedAlertEmailHandlerTests
 {
-    private static readonly Guid OfficeId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid OfficeId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly DateTime Now = new(2026, 9, 24, 18, 0, 0, DateTimeKind.Utc);
 
     private static (CaseTrackerFeedAlertEmailHandler Handler, INotificationDispatcher Dispatcher) Build(string? recipients)

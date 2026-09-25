@@ -23,7 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class IntakeSettlePolicyTests
 {
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid AppointmentId = new("df9c4239-56cd-82e6-6f58-3a22c6ad1093");
     private static readonly DateTime Now = new(2026, 7, 30, 20, 0, 0, DateTimeKind.Utc);
 

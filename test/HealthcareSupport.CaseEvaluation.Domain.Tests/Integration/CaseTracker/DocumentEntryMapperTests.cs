@@ -13,7 +13,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class DocumentEntryMapperTests
 {
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid AppointmentId = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly Guid UploaderId = new("11111111-2222-3333-4444-555555555555");
 
@@ -109,7 +109,7 @@ public class DocumentEntryMapperTests
         entry.FileSize.ShouldBe(1024);
         entry.Status.ShouldBe("Accepted");
         entry.DocumentType.ShouldBe("Medical Records");
-        entry.ObjectKey.ShouldStartWith("tenants/b8844bba-414c-e238-4a71-3a22841f21af/");
+        entry.ObjectKey.ShouldStartWith("tenants/0ff1ce00-0000-4000-8000-000000000001/");
         entry.UpdatedAt.ShouldEndWith("Z");
     }
 

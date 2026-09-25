@@ -40,7 +40,7 @@ public class IntakePayloadBuilderTests
 {
     private const string SyntheticPanelNumber = "PN-SAMPLE";
 
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid AppointmentId = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly Guid SourceAppointmentId = new("3c9d1b77-2e40-4a51-8bb2-77f0a1c9d233");
     private static readonly Guid AppointmentTypeId = new("a1c2e3f4-5566-4778-9900-aabbccddeeff");

@@ -24,7 +24,7 @@ public class DocumentUpdateSerializerTests
         ContentType = "application/pdf",
         FileSize = 2048,
         Status = "Accepted",
-        ObjectKey = "tenants/b8844bba-414c-e238-4a71-3a22841f21af/records",
+        ObjectKey = "tenants/0ff1ce00-0000-4000-8000-000000000001/records",
         CreatedAtUtc = "2026-07-28T10:00:00.0000000Z",
         UpdatedAt = "2026-07-28T11:30:00.0000000Z",
         DocumentType = "Medical Records",
@@ -48,7 +48,7 @@ public class DocumentUpdateSerializerTests
 
         using var parsed = JsonDocument.Parse(json);
         var entry = parsed.RootElement[0];
-        entry.GetProperty("objectKey").GetString().ShouldBe("tenants/b8844bba-414c-e238-4a71-3a22841f21af/records");
+        entry.GetProperty("objectKey").GetString().ShouldBe("tenants/0ff1ce00-0000-4000-8000-000000000001/records");
         entry.GetProperty("documentName").GetString().ShouldBe("Medical Records");
         entry.GetProperty("updatedAt").GetString().ShouldBe("2026-07-28T11:30:00.0000000Z");
         entry.TryGetProperty("ObjectKey", out _).ShouldBeFalse();
