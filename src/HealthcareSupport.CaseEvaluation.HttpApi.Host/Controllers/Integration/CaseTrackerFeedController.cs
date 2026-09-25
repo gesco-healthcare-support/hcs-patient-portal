@@ -27,7 +27,10 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 ///
 /// <para>Statuses (decided 2026-09-24, for the consumer's client): 403 for a bad token, a spent allowance, and
 /// an office not on the feed or unknown -- never 401, which latches that client, and never 429, which pauses
-/// both of its features. 400 for a cursor or skip the feed cannot accept. Every body is the Gesco envelope.</para>
+/// both of its features. 409 for a cursor or skip the feed cannot accept (changed from 400 on 2026-09-24): that
+/// client acts on the status alone, halts the office where an operator sees it on a 409, and retries anything else it
+/// does not know -- 400 included -- every minute forever, silently. None of the four can be fixed by retrying. Every
+/// body is the Gesco envelope.</para>
 /// </summary>
 [AllowAnonymous]
 [ControllerName("CaseTrackerFeed")]
@@ -57,7 +60,7 @@ public class CaseTrackerFeedController : AbpController
     /// Each <paramref name="skipped"/> value names a row the consumer deliberately abandoned.
     /// </summary>
     /// <response code="200">A page, possibly empty. An empty page while a write is in flight is normal.</response>
-    /// <response code="400">A malformed cursor or skip, a cursor below the floor, or one never issued.</response>
+    /// <response code="409">A malformed cursor or skip, a cursor below the floor, or one never issued.</response>
     /// <response code="403">A bad token, a spent allowance, or an office not on the feed.</response>
     [HttpGet]
     [Route("offices/{tenantId}/feed")]
@@ -93,13 +96,13 @@ public class CaseTrackerFeedController : AbpController
             CaseTrackerFeedOutcome.FeedNotEnabled => Error(
                 StatusCodes.Status403Forbidden, "feed_not_enabled", "The feed is not enabled for this office.", null),
             CaseTrackerFeedOutcome.CursorBelowFloor => Error(
-                StatusCodes.Status400BadRequest, "cursor_below_floor", "The cursor is before this office's feed began.", "cursor"),
+                StatusCodes.Status409Conflict, "cursor_below_floor", "The cursor is before this office's feed began.", "cursor"),
             CaseTrackerFeedOutcome.CursorAhead => Error(
-                StatusCodes.Status400BadRequest, "cursor_ahead", "The cursor is beyond anything this feed has issued.", "cursor"),
+                StatusCodes.Status409Conflict, "cursor_ahead", "The cursor is beyond anything this feed has issued.", "cursor"),
             CaseTrackerFeedOutcome.SkipInvalid => Error(
-                StatusCodes.Status400BadRequest, "skip_invalid", "A skipped cursor does not name a row this request acknowledges.", "skipped"),
+                StatusCodes.Status409Conflict, "skip_invalid", "A skipped cursor does not name a row this request acknowledges.", "skipped"),
             CaseTrackerFeedOutcome.CursorInvalid => Error(
-                StatusCodes.Status400BadRequest, "cursor_invalid", "The cursor is not one this feed issued.", "cursor"),
+                StatusCodes.Status409Conflict, "cursor_invalid", "The cursor is not one this feed issued.", "cursor"),
             _ => throw new InvalidOperationException($"Unmapped feed outcome {result.Outcome}."),
         };
     }
