@@ -64,7 +64,8 @@ public static class CaseEvaluationSeedIds
 
     public static class Locations
     {
-        public static readonly Guid DemoClinicNorth = new("a0a00005-0000-4000-9000-000000000001");
-        public static readonly Guid DemoClinicSouth = new("a0a00005-0000-4000-9000-000000000002");
+        // The one clinic of the synthetic TEST office (Saas/OfficeSeedData). Same id the former
+        // "Demo Clinic North" used, so a database seeded before keeps a stable row.
+        public static readonly Guid TestClinic = new("a0a00005-0000-4000-9000-000000000001");
     }
 }

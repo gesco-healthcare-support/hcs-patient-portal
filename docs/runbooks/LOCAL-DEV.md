@@ -186,12 +186,12 @@ dotnet test ...EntityFrameworkCore.Tests          (no environment set)
 The second is exactly what CI reports, because CI does not set the variable.
 
 The demo seed contributors gate on the environment name and read it straight from the
-variable -- `OfficeSeedDataContributor.cs:54` runs only in Development and depends on
-`ITenantConnectionStringProvider` (`:29`); `DemoExternalUsersDataSeedContributor.cs:232`
-reads `ASPNETCORE_ENVIRONMENT ?? DOTNET_ENVIRONMENT`. In Development they wake up inside
-the test harness and demand a tenant connection string that
+variable -- `DemoExternalUsersDataSeedContributor.cs:232` reads
+`ASPNETCORE_ENVIRONMENT ?? DOTNET_ENVIRONMENT`. In Development they wake up inside the test
+harness and demand data and settings that
 `test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.json` deliberately does not
-carry.
+carry. (`OfficeSeedDataContributor` no longer gates on the environment: it registers the one
+synthetic TEST office everywhere, and the shared test base removes it from the start-up seed.)
 
 **Fix.** Do not set the environment for `dotnet test`:
 
