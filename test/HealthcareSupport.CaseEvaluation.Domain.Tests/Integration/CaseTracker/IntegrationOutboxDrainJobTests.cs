@@ -22,7 +22,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class IntegrationOutboxDrainJobTests
 {
-    private static readonly Guid OfficeId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid OfficeId = new("0ff1ce00-0000-4000-8000-000000000001");
 
     private sealed class Harness
     {
@@ -93,7 +93,7 @@ public class IntegrationOutboxDrainJobTests
         await h.Job.ExecuteAsync(new IntegrationOutboxDrainArgs { TenantId = OfficeId });
 
         await h.Lock.Received(1).TryAcquireAsync(
-            "CaseTracker:OutboxDrain:b8844bba-414c-e238-4a71-3a22841f21af",
+            "CaseTracker:OutboxDrain:0ff1ce00-0000-4000-8000-000000000001",
             TimeSpan.Zero,
             Arg.Any<CancellationToken>());
     }

@@ -28,7 +28,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class PacketsCompleteHandlerTests
 {
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid AppointmentId = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly DateTime Now = new(2026, 7, 28, 12, 0, 0, DateTimeKind.Utc);
 
