@@ -614,8 +614,29 @@ jobs:
       # residual risk a hash closes is a registry compromise, against which the cost
       # is a lock file regenerated in full on every bump. The reason is repeated here
       # because this is where a reader lands, not that Dockerfile.
+      #
+      # `--only-binary :all:` is ORTHOGONAL to that decision, and is what B9 adds here
+      # (2026-09-25) instead of hashes. It refuses source distributions, so no sdist
+      # `setup.py` runs during install -- which is the arbitrary-code-execution surface a
+      # version pin alone leaves open. #700 argues about REGISTRY compromise and says
+      # nothing against this, so both positions stand together and #700 is unchanged.
+      #
+      # It fails CLOSED: with no wheel for the runner platform the step errors rather than
+      # quietly building from source. Verified against the PyPI API before merging --
+      # coverage 7.15.2 ships 90 wheels including manylinux x86_64 for cp310 to cp314.
+      #
+      # THE VALUE IS QUOTED, and it has to be. `:all: coverage` contains a colon followed
+      # by a space, which YAML reads as a mapping key, so the unquoted form makes this file
+      # fail to parse entirely. Caught by a parser, not by review.
+      #
+      # ONE COUPLING THIS CREATES, recorded because it will outlive whoever reads it next:
+      # `python-version` in this job is "3.x", i.e. whatever the runner's newest stable
+      # Python is. Wheels exist for cp310-cp314 today. When the runner moves to a Python
+      # with no coverage 7.15.2 wheel, this step FAILS rather than silently building from
+      # source -- which is the intended behaviour, but the fix then is to bump coverage,
+      # not to drop this flag.
       - name: Install coverage
-        run: python -m pip install coverage==7.15.2
+        run: "python -m pip install --only-binary :all: coverage==7.15.2"
 
       # Configuration lives in pyproject.toml, deliberately, rather than on this
       # command line -- so a local run and CI cannot disagree about `source`,
