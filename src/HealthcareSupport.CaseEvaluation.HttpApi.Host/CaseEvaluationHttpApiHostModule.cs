@@ -1704,6 +1704,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerCompletenessSweepJob.CronExpression,
             options);
+
+        // #944 (2026-09-24) -- weekly missing-intake report. The sweep above must keep its 7-day floor, so an
+        // approval with no intake row older than that is invisible to it; this READ-ONLY report covers it and
+        // emails the technical list only when something is likely lost. Mondays 08:00 Pacific.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerMissingIntakeReportJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerMissingIntakeReportJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerMissingIntakeReportJob.CronExpression,
+            options);
     }
 
 }

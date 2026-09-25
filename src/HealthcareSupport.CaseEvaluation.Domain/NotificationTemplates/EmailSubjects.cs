@@ -205,6 +205,12 @@ internal static class EmailSubjects
         "Case Tracker feed: ##FeedAlertTitle## (##OfficeName##)";
 
     /// <summary>
+    /// #944 (2026-09-24). Weekly, and only when there is something in it, so the count is the headline.
+    /// </summary>
+    public const string CaseTrackerMissingIntakes =
+        "Case Tracker: ##MissingIntakeCount## appointment(s) with no intake row";
+
+    /// <summary>
     /// Group F (2026-06-09) -- the single consolidated reminder subject. The
     /// body carries the due-date nudge plus any outstanding documents, so the
     /// subject stays generic enough to fit both the docs and no-docs cases.
@@ -392,6 +398,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.CaseTrackerPushFailed] = CaseTrackerPushFailed,
             [NotificationTemplateConsts.Codes.CaseTrackerPushRetrying] = CaseTrackerPushRetrying,
             [NotificationTemplateConsts.Codes.CaseTrackerFeedAlert] = CaseTrackerFeedAlert,
+            [NotificationTemplateConsts.Codes.CaseTrackerMissingIntakes] = CaseTrackerMissingIntakes,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.

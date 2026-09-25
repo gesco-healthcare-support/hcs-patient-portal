@@ -903,6 +903,11 @@ retry window (section I), the early-warning email below is what tells a human wi
 - **ADDED 2026-09-24 (#927): under the feed this list goes quiet.** For an office on the changes feed the
   portal no longer sends, so nothing dead-letters and the screen shows nothing about rows waiting for you.
   The feed's own alerts (section L) cover that instead.
+- **ADDED 2026-09-24 (#944): a missing-intake report.** Every other net here needs an outbox row, and the
+  completeness sweep only looks back 7 days. So the portal also lists, with no date limit, approved
+  appointments that have no intake row: on demand on the host's Case Tracker failures page, and in a
+  weekly email to the technical list when any is likely lost. It only reports. It never queues anything,
+  so it cannot resend history your staff already entered by hand.
 
 ---
 
