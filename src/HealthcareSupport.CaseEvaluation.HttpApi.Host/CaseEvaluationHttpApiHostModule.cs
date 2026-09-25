@@ -951,7 +951,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         httpContext.Response.ContentType = "application/json";
         var body = HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedResponseWriter.WriteError(
             "forbidden", "The request is not authorised.", null, Guid.NewGuid(), DateTime.UtcNow);
-        return new System.Threading.Tasks.ValueTask(httpContext.Response.WriteAsync(body));
+        return new System.Threading.Tasks.ValueTask(httpContext.Response.WriteAsync(body, httpContext.RequestAborted));
     }
 
     /// <summary>

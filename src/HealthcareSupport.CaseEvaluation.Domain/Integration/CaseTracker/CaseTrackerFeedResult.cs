@@ -11,16 +11,16 @@ public enum CaseTrackerFeedOutcome
     /// <summary>The office is not on the feed, or is unknown -- deliberately the same answer (403).</summary>
     FeedNotEnabled = 1,
 
-    /// <summary>The cursor is not a cursor this feed writes (400).</summary>
+    /// <summary>The cursor is not a cursor this feed writes (409).</summary>
     CursorInvalid = 2,
 
-    /// <summary>The cursor is below the floor set at cutover (400).</summary>
+    /// <summary>The cursor is below the floor set at cutover (409).</summary>
     CursorBelowFloor = 3,
 
-    /// <summary>The cursor is beyond anything the feed has issued (400; alerted).</summary>
+    /// <summary>The cursor is beyond anything the feed has issued (409; alerted).</summary>
     CursorAhead = 4,
 
-    /// <summary>A reported skip does not name a row inside the range being acknowledged (400).</summary>
+    /// <summary>A reported skip does not name a row inside the range being acknowledged (409).</summary>
     SkipInvalid = 5,
 }
 
