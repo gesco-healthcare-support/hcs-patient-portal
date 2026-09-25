@@ -16,6 +16,8 @@ using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
+using Volo.Abp.Timing;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Xunit;
@@ -45,7 +47,12 @@ public class CaseTrackerAttendanceServiceTests
         public ICurrentTenant CurrentTenant { get; init; } = null!;
         public IDisposable TenantScope { get; init; } = null!;
         public CapturingLogger Logger { get; init; } = null!;
+        public CaseTrackerFeedAlertPublisher Alerts { get; init; } = null!;
+        public CaseTrackerInboundRefusalAlertPolicy AlertPolicy { get; init; } = null!;
     }
+
+    /// <summary>Fixed so suppression windows are exercised deliberately rather than by wall-clock drift.</summary>
+    private static readonly DateTime Now = new(2027, 3, 4, 9, 0, 0, DateTimeKind.Utc);
 
     private static Appointment AppointmentWith(AppointmentStatusType status)
     {
@@ -114,6 +121,14 @@ public class CaseTrackerAttendanceServiceTests
 
         var logger = new CapturingLogger();
 
+        // The publisher is substituted so a test can see what was raised; the POLICY is real, because its
+        // suppression is the behaviour under test and a substitute would answer whatever it was told.
+        var alerts = Substitute.For<CaseTrackerFeedAlertPublisher>(
+            Substitute.For<ILocalEventBus>(), Substitute.For<ITenantStore>());
+        var alertPolicy = new CaseTrackerInboundRefusalAlertPolicy();
+        var clock = Substitute.For<IClock>();
+        clock.Now.Returns(Now);
+
         return new Harness
         {
             Service = new CaseTrackerAttendanceService(
@@ -121,12 +136,17 @@ public class CaseTrackerAttendanceServiceTests
                 manager,
                 settingProvider,
                 currentTenant,
+                alerts,
+                alertPolicy,
+                clock,
                 logger),
             Manager = manager,
             Repository = repository,
             CurrentTenant = currentTenant,
             TenantScope = scope,
             Logger = logger,
+            Alerts = alerts,
+            AlertPolicy = alertPolicy,
         };
     }
 
@@ -356,5 +376,161 @@ public class CaseTrackerAttendanceServiceTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
             => Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
+    }
+
+    // ---- refusals are alerted, because nothing else records them (#1043) ----
+
+    /// <summary>
+    /// The two refusal arms are the only place an inbound report can vanish. The outbox and its 15-minute
+    /// failure alert cover outbound pushes, the failures screen lists rows with status Failed and a refusal
+    /// creates none, and the caller gets a bodyless 404 it cannot act on.
+    /// </summary>
+    [Theory]
+    [InlineData(true, CaseTrackerInboundRefusalReason.AppointmentNotFound)]
+    [InlineData(false, CaseTrackerInboundRefusalReason.IntegrationDisabled)]
+    public async Task ARefusedReport_RaisesAnAlertNamingWhy(
+        bool enabled, CaseTrackerInboundRefusalReason expected)
+    {
+        var h = Build(enabled: enabled, appointmentExists: false);
+
+        var result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+        await h.Alerts.Received(1).PublishAsync(
+            TenantId,
+            Now,
+            CaseTrackerFeedAlertKind.InboundAttendanceRefused,
+            Arg.Any<Action<CaseTrackerFeedAlertEto>>());
+
+        var eto = FilledEto(h);
+        eto.InboundRefusalReason.ShouldBe(expected);
+        eto.AppointmentId.ShouldBe(AppointmentId);
+        eto.RequestedOutcome.ShouldBe(nameof(AppointmentStatusType.NoShow));
+    }
+
+    /// <summary>
+    /// A consumer retrying every minute would otherwise send sixty emails an hour -- the volume the OUTBOUND
+    /// alert job batches specifically to avoid. Suppression mirrors the cursor-ahead alert.
+    /// </summary>
+    [Fact]
+    public async Task ASecondIdenticalRefusal_DoesNotRaiseASecondAlert()
+    {
+        var h = Build(appointmentExists: false);
+
+        await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+        await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+        await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+
+        await h.Alerts.Received(1).PublishAsync(
+            Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CaseTrackerFeedAlertKind>(),
+            Arg.Any<Action<CaseTrackerFeedAlertEto>>());
+    }
+
+    /// <summary>
+    /// Suppression that never lifts would hide the NEXT incident. A report that lands re-arms the appointment,
+    /// exactly as a good feed request re-arms cursor-ahead.
+    /// </summary>
+    [Fact]
+    public async Task ASuccessfulReport_ReArmsTheAlertForThatAppointment()
+    {
+        var refused = Build(appointmentExists: false);
+        await refused.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+        await refused.Alerts.Received(1).PublishAsync(
+            Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CaseTrackerFeedAlertKind>(),
+            Arg.Any<Action<CaseTrackerFeedAlertEto>>());
+
+        // Same policy instance, so this is the real re-arm rather than a fresh harness hiding it.
+        refused.AlertPolicy.ShouldAlert(
+            TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
+            .ShouldBeFalse();
+
+        refused.AlertPolicy.Clear(TenantId, AppointmentId);
+
+        refused.AlertPolicy.ShouldAlert(
+            TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
+            .ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// One stuck appointment must not mask a second one starting to fail, so suppression is keyed per
+    /// appointment rather than per office.
+    /// </summary>
+    [Fact]
+    public void SuppressingOneAppointment_DoesNotSuppressAnother()
+    {
+        var policy = new CaseTrackerInboundRefusalAlertPolicy();
+        var other = new Guid("0ff1ce00-0000-4000-8000-0000000000aa");
+
+        policy.ShouldAlert(TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
+            .ShouldBeTrue();
+        policy.ShouldAlert(TenantId, other, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
+            .ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// An office whose reports never succeed would otherwise hold its suppression for the process lifetime and
+    /// fall permanently silent.
+    /// </summary>
+    [Fact]
+    public void SuppressionLapsesAfterTheWindow()
+    {
+        var policy = new CaseTrackerInboundRefusalAlertPolicy();
+
+        policy.ShouldAlert(TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
+            .ShouldBeTrue();
+        policy.ShouldAlert(
+            TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound,
+            Now + CaseTrackerInboundRefusalAlertPolicy.SuppressionWindow)
+            .ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// What the alert's own try/catch actually buys, which is NOT the answer.
+    ///
+    /// <para>An earlier version of this test asserted "the answer is still not-found" and passed even with the
+    /// catch removed, because <c>ApplyAsync</c>'s outer catch-all already returns not-found for anything that
+    /// throws. It was green for a reason that had nothing to do with the code under test.</para>
+    ///
+    /// <para>The real value is the LOG. Without the inner catch, a failed alert falls into the outer handler
+    /// and is recorded as "could not apply {Outcome} to appointment", telling an operator the attendance apply
+    /// failed when the refusal was correct and only the notification broke. The answer is unchanged either
+    /// way; the diagnosis is not.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAlertThatThrows_IsLoggedAsAnAlertFailureRatherThanAnApplyFailure()
+    {
+        var h = Build(appointmentExists: false);
+        h.Alerts
+            .PublishAsync(Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CaseTrackerFeedAlertKind>(),
+                Arg.Any<Action<CaseTrackerFeedAlertEto>>())
+            .Throws(new InvalidOperationException("mail is down"));
+
+        var result = CaseTrackerAttendanceOutcome.Applied;
+        await Should.NotThrowAsync(async () =>
+            result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow));
+
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+
+        h.Logger.Entries.ShouldContain(
+            e => e.Level >= ProductionMinimumLevel && e.Message.Contains("could not raise the refusal alert"),
+            "A failed alert must name itself. Falling through to the outer handler would report it as a "
+            + "failure to APPLY the outcome, which is a different and misleading fault.");
+
+        h.Logger.Entries.ShouldNotContain(
+            e => e.Message.Contains("could not apply"),
+            "The apply was never attempted here -- the appointment does not exist. Recording an apply failure "
+            + "would send an operator looking at the wrong thing.");
+    }
+
+    /// <summary>Runs the callback the service passed, so the test sees the ETO the handler would receive.</summary>
+    private static CaseTrackerFeedAlertEto FilledEto(Harness h)
+    {
+        var fill = (Action<CaseTrackerFeedAlertEto>)h.Alerts.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(CaseTrackerFeedAlertPublisher.PublishAsync))
+            .GetArguments()[3]!;
+
+        var eto = new CaseTrackerFeedAlertEto();
+        fill(eto);
+        return eto;
     }
 }

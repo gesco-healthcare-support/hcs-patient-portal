@@ -3,12 +3,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
@@ -34,6 +36,9 @@ public class CaseTrackerAttendanceService : ITransientDependency
     private readonly AppointmentManager _appointmentManager;
     private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
+    private readonly CaseTrackerFeedAlertPublisher _alerts;
+    private readonly CaseTrackerInboundRefusalAlertPolicy _alertPolicy;
+    private readonly IClock _clock;
     private readonly ILogger<CaseTrackerAttendanceService> _logger;
 
     public CaseTrackerAttendanceService(
@@ -41,12 +46,18 @@ public class CaseTrackerAttendanceService : ITransientDependency
         AppointmentManager appointmentManager,
         ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
+        CaseTrackerFeedAlertPublisher alerts,
+        CaseTrackerInboundRefusalAlertPolicy alertPolicy,
+        IClock clock,
         ILogger<CaseTrackerAttendanceService> logger)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _settingProvider = settingProvider;
         _currentTenant = currentTenant;
+        _alerts = alerts;
+        _alertPolicy = alertPolicy;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -88,6 +99,8 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogWarning(
                         "CaseTrackerAttendanceService: office {TenantId} has the Case Tracker integration disabled; attendance report refused.",
                         tenantId);
+                    await RaiseRefusalAlertAsync(
+                        tenantId, appointmentId, outcome, CaseTrackerInboundRefusalReason.IntegrationDisabled);
                     return CaseTrackerAttendanceOutcome.NotFound;
                 }
 
@@ -102,6 +115,8 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogWarning(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} not found in office {TenantId}; answering not-found.",
                         appointmentId, tenantId);
+                    await RaiseRefusalAlertAsync(
+                        tenantId, appointmentId, outcome, CaseTrackerInboundRefusalReason.AppointmentNotFound);
                     return CaseTrackerAttendanceOutcome.NotFound;
                 }
 
@@ -117,6 +132,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     _logger.LogDebug(
                         "CaseTrackerAttendanceService: appointment {AppointmentId} already carries {Outcome}; no-op.",
                         appointmentId, outcome);
+                    _alertPolicy.Clear(tenantId, appointmentId);
                     return CaseTrackerAttendanceOutcome.Applied;
                 }
 
@@ -124,6 +140,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                 {
                     await _appointmentManager.MarkAttendanceOutcomeAsync(
                         appointmentId, outcome, reason: null, actingUserId: null);
+                    _alertPolicy.Clear(tenantId, appointmentId);
                     return CaseTrackerAttendanceOutcome.Applied;
                 }
                 catch (BusinessException ex)
@@ -150,6 +167,56 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     outcome, appointmentId, tenantId);
                 return CaseTrackerAttendanceOutcome.NotFound;
             }
+        }
+    }
+
+    /// <summary>
+    /// Emails the technical list the FIRST time this appointment is refused for this reason (#1043).
+    ///
+    /// <para>Nothing else records an inbound refusal. The outbox and its 15-minute failure alert cover
+    /// outbound pushes only, the failures screen lists rows with status <c>Failed</c> and a refusal creates
+    /// none, and the caller is answered with a bodyless 404 it cannot act on. Without this the appointment
+    /// simply never moves and nobody in either system is told.</para>
+    ///
+    /// <para>Suppressed after the first, and re-armed by a success, exactly as the cursor-ahead alert is: a
+    /// consumer retrying every minute would otherwise send sixty emails an hour, which is the volume the
+    /// outbound alert job batches specifically to avoid.</para>
+    ///
+    /// <para>Never allowed to fail the request. The caller is a partner system that has already been answered
+    /// 404, and turning a refusal into a 500 would tell it the appointment exists -- the exact inference the
+    /// bodyless 404 is there to prevent.</para>
+    /// </summary>
+    private async Task RaiseRefusalAlertAsync(
+        Guid tenantId,
+        Guid appointmentId,
+        AppointmentStatusType outcome,
+        CaseTrackerInboundRefusalReason reason)
+    {
+        try
+        {
+            var now = _clock.Now;
+            if (!_alertPolicy.ShouldAlert(tenantId, appointmentId, reason, now))
+            {
+                return;
+            }
+
+            await _alerts.PublishAsync(
+                tenantId,
+                now,
+                CaseTrackerFeedAlertKind.InboundAttendanceRefused,
+                eto =>
+                {
+                    eto.AppointmentId = appointmentId;
+                    eto.InboundRefusalReason = reason;
+                    eto.RequestedOutcome = outcome.ToString();
+                });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "CaseTrackerAttendanceService: could not raise the refusal alert for appointment {AppointmentId} in office {TenantId}. The refusal itself stands.",
+                appointmentId, tenantId);
         }
     }
 }

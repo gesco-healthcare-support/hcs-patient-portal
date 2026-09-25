@@ -1,8 +1,15 @@
 using System;
+using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 
-/// <summary>What happened to an office's Case Tracker feed (#927).</summary>
+/// <summary>
+/// What happened on an office's Case Tracker integration.
+///
+/// <para>Named for the feed because that is what it first carried (#927). It now also carries the inbound
+/// attendance path (#1043), which shares the same recipients, the same "never a patient field" rule and the
+/// same handler, so a second parallel alert type would have duplicated all three to say one more thing.</para>
+/// </summary>
 public enum CaseTrackerFeedAlertKind
 {
     /// <summary>No request from the office's consumer for the silence threshold: it looks dead.</summary>
@@ -22,6 +29,13 @@ public enum CaseTrackerFeedAlertKind
 
     /// <summary>The consumer reported that it deliberately abandoned a row.</summary>
     SkipReported = 5,
+
+    /// <summary>
+    /// An INBOUND attendance report was refused (#1043). Nothing else records this: the outbox and its
+    /// failure alert cover outbound pushes only, and the refusal answers a bodyless 404 the caller cannot
+    /// act on.
+    /// </summary>
+    InboundAttendanceRefused = 6,
 }
 
 /// <summary>
@@ -54,4 +68,13 @@ public class CaseTrackerFeedAlertEto
 
     /// <summary>Skip reports and cursor-ahead refusals: the cursor involved, as the consumer sent it.</summary>
     public string? Cursor { get; set; }
+
+    /// <summary>
+    /// Inbound attendance refusals: why it was refused. The alert says which; the 404 sent to the caller
+    /// stays ambiguous.
+    /// </summary>
+    public CaseTrackerInboundRefusalReason? InboundRefusalReason { get; set; }
+
+    /// <summary>Inbound attendance refusals: the outcome the Case Tracker was trying to record.</summary>
+    public string? RequestedOutcome { get; set; }
 }
