@@ -31,10 +31,16 @@ public class IntegrationTokenValidator : ITransientDependency
     /// True only when a token IS configured and <paramref name="presented"/> matches it exactly.
     /// Never logs or returns either value.
     /// </summary>
-    public virtual bool IsValid(string? presented)
-    {
-        var configured = _configuration[CaseTrackerIntegrationConsts.TokenConfigurationKey];
+    public virtual bool IsValid(string? presented) =>
+        Matches(_configuration[CaseTrackerIntegrationConsts.TokenConfigurationKey], presented);
 
+    /// <summary>
+    /// The comparison itself, shared with <see cref="FeedTokenValidator"/> (#927) so the two tokens cannot drift
+    /// apart in how strictly they are checked. True only when <paramref name="configured"/> is set and
+    /// <paramref name="presented"/> matches it exactly.
+    /// </summary>
+    public static bool Matches(string? configured, string? presented)
+    {
         // Fail closed. Whitespace counts as unconfigured: a blank value in a settings file is a
         // mistake, not an intent to disable authentication.
         if (string.IsNullOrWhiteSpace(configured) || string.IsNullOrEmpty(presented))

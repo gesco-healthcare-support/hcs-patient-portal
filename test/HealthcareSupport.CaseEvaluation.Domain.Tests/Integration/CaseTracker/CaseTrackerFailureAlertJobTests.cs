@@ -25,7 +25,8 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <summary>
 /// Unit tests for the dead-letter alert. The behaviour that matters is the THROTTLE: the usual cause of a
 /// dead letter is systemic, so the job must send one email covering a batch and must never re-send for a
-/// row it has already reported. All fixture data is synthetic.
+/// row it has already reported. Since #917 the same job also sends a one-off early warning for pushes
+/// that are still retrying. All fixture data is synthetic.
 /// </summary>
 public class CaseTrackerFailureAlertJobTests
 {
@@ -38,6 +39,23 @@ public class CaseTrackerFailureAlertJobTests
         public CaseTrackerFailureAlertJob Job { get; init; } = null!;
         public ILocalEventBus Bus { get; init; } = null!;
         public List<IntegrationOutboxItem> Rows { get; init; } = null!;
+        public IIntegrationOutboxRepository Repository { get; init; } = null!;
+    }
+
+    /// <summary>A push that has failed <paramref name="failures"/> times and is still retrying.</summary>
+    private static IntegrationOutboxItem NewRetrying(int failures)
+    {
+        var row = new IntegrationOutboxItem(
+            Guid.NewGuid(), OfficeId, IntegrationMessageType.Intake,
+            CaseTrackerEndpoints.Intake, AppointmentId, "{\"data\":{}}",
+            "key-" + Guid.NewGuid().ToString("N"));
+
+        for (var i = 0; i < failures; i++)
+        {
+            row.MarkFailed(Now.AddMinutes(-60 + i), "503 service unavailable");
+        }
+
+        return row;
     }
 
     private static IntegrationOutboxItem NewFailed(bool alreadyAlerted)
@@ -80,6 +98,14 @@ public class CaseTrackerFailureAlertJobTests
 
         var outboxRepo = Substitute.For<IIntegrationOutboxRepository>();
         outboxRepo.GetQueryableAsync().Returns(_ => rows.AsQueryable());
+        // Mirrors EfCoreIntegrationOutboxRepository.GetUnwarnedRetryingAsync.
+        outboxRepo.GetUnwarnedRetryingAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(rows
+                .Where(x => x.Status == IntegrationOutboxStatus.Pending
+                    && x.AttemptCount >= ci.ArgAt<int>(0)
+                    && x.EarlyWarnedAt == null)
+                .OrderBy(x => x.CreationTime)
+                .ToList()));
 
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetListAsync(
@@ -114,6 +140,7 @@ public class CaseTrackerFailureAlertJobTests
                 NullLogger<CaseTrackerFailureAlertJob>.Instance),
             Bus = bus,
             Rows = rows,
+            Repository = outboxRepo,
         };
     }
 
@@ -131,8 +158,8 @@ public class CaseTrackerFailureAlertJobTests
 
         await h.Job.ExecuteAsync();
 
-        await h.Bus.Received(1).PublishAsync(
-            Arg.Is<CaseTrackerPushFailedEto>(e => e.FailureCount == 3 && e.Failures.Count == 3));
+        await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e =>
+            e.Kind == CaseTrackerPushAlertKind.DeadLettered && e.FailureCount == 3 && e.Failures.Count == 3));
     }
 
     [Fact]
@@ -181,6 +208,62 @@ public class CaseTrackerFailureAlertJobTests
             e.Failures[0].ConfirmationNumber == "A00065"
             && e.Failures[0].MessageType == "Intake"
             && e.OfficeName == "Sample Medical Group"));
+    }
+
+    // -- #917 early warning ---------------------------------------------------------------------------
+
+    [Fact]
+    public async Task PushesStillRetryingAfterTwoFailures_GetOneEarlyWarning_AndAreStamped()
+    {
+        var rows = new List<IntegrationOutboxItem> { NewRetrying(2), NewRetrying(3) };
+        var h = Build(rows);
+
+        await h.Job.ExecuteAsync();
+
+        await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e =>
+            e.Kind == CaseTrackerPushAlertKind.StillRetrying
+            && e.FailureCount == 2
+            && e.Failures[0].ConfirmationNumber == "A00065"));
+        await h.Repository.Received(1).StampEarlyWarnedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2 && ids.Contains(rows[0].Id) && ids.Contains(rows[1].Id)),
+            Now,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task APushThatHasFailedOnce_IsNotWarnedYet()
+    {
+        // One failure is routine; the warning starts at the second.
+        var h = Build(new List<IntegrationOutboxItem> { NewRetrying(1) });
+
+        await h.Job.ExecuteAsync();
+
+        await h.Bus.DidNotReceiveWithAnyArgs().PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
+        await h.Repository.DidNotReceiveWithAnyArgs().StampEarlyWarnedAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task DeadLettersAndRetryingPushes_GoInSeparateEmails()
+    {
+        // They ask for different things: a dead letter needs a person, a retrying push does not yet.
+        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false), NewRetrying(2) });
+
+        await h.Job.ExecuteAsync();
+
+        await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e =>
+            e.Kind == CaseTrackerPushAlertKind.DeadLettered && e.FailureCount == 1));
+        await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e =>
+            e.Kind == CaseTrackerPushAlertKind.StillRetrying && e.FailureCount == 1));
+    }
+
+    [Fact]
+    public async Task WithNoInternalStaff_RetryingPushesAreLeftUnstamped()
+    {
+        var h = Build(new List<IntegrationOutboxItem> { NewRetrying(2) }, withStaff: false);
+
+        await h.Job.ExecuteAsync();
+
+        await h.Repository.DidNotReceiveWithAnyArgs().StampEarlyWarnedAsync(default!, default, default);
     }
 
     [Fact]

@@ -61,7 +61,9 @@ public class CaseTrackerIntakeQueue : ICaseTrackerIntakeQueue, ITransientDepende
         var payloadJson = IntakePayloadSerializer.Serialize(envelope);
 
         // Version the key by the payload's CONTENT: a replayed event for the SAME state collapses
-        // onto the existing row, while any genuine change enqueues a fresh push.
+        // onto the existing row, while any genuine change enqueues a fresh push. "Existing row" means
+        // the NEWEST intake row, and only while it is Pending or Sent (#915): a value changed back to
+        // an earlier one, or a retry after a dead letter, is sent again. See EnqueueAsync.
         //
         // 2026-08-13: this used to version by the appointment's own UpdatedAt, which silently lost
         // every correction made to something OTHER than the appointment row. A patient, attorney,

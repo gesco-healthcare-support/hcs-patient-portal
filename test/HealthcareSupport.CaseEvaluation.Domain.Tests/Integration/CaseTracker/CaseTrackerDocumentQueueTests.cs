@@ -79,6 +79,13 @@ public class CaseTrackerDocumentQueueTests
 
         var repo = Substitute.For<IIntegrationOutboxRepository>();
         repo.GetQueryableAsync().Returns(_ => rows.AsQueryable());
+        // Mirrors EfCoreIntegrationOutboxRepository.GetForAppointmentAsync: same appointment and type,
+        // NEWEST FIRST. The list is in insertion order, so reversing it gives newest first.
+        repo.GetForAppointmentAsync(Arg.Any<Guid>(), Arg.Any<IntegrationMessageType>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(rows
+                .Where(r => r.AppointmentId == ci.ArgAt<Guid>(0) && r.MessageType == ci.ArgAt<IntegrationMessageType>(1))
+                .Reverse()
+                .ToList()));
         repo.HasIntakeAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(rows.Any(x =>
                 x.AppointmentId == ci.ArgAt<Guid>(0) && x.MessageType == IntegrationMessageType.Intake)));

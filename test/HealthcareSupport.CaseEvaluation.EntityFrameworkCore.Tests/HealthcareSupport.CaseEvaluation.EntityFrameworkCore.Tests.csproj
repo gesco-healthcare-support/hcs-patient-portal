@@ -20,6 +20,9 @@
   <ItemGroup>
     <PackageReference Include="Volo.Abp.EntityFrameworkCore.Sqlite" Version="10.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <!-- #927: the changes feed pages on rowversion and MIN_ACTIVE_ROWVERSION(), which only a real SQL Server
+         has. Test-only; the tests start the image docker-compose.yml pins. MIT licensed. -->
+    <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
   </ItemGroup>
 
 </Project>

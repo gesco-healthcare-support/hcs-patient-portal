@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
@@ -75,6 +76,82 @@ public class EfCoreIntegrationOutboxRepository
             .AnyAsync(
                 x => x.AppointmentId == appointmentId && x.MessageType == IntegrationMessageType.Intake,
                 cancellationToken);
+    }
+
+    public async Task<List<IntegrationOutboxItem>> GetForAppointmentAsync(
+        Guid appointmentId,
+        IntegrationMessageType messageType,
+        CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // Tracked on purpose: the enqueue can hand one of these rows back to a caller that then saves
+        // it (the dead-letter retry resolves the row it loaded). The id is only a deterministic
+        // tiebreaker for equal creation times; the per-appointment lock makes those near-impossible.
+        return await dbSet
+            .Where(x => x.AppointmentId == appointmentId && x.MessageType == messageType)
+            .OrderByDescending(x => x.CreationTime)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Guid>> GetDueIdsAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default)
+    {
+        var dbSet = await GetDbSetAsync();
+
+        // The same gate TryLeaseAsync enforces, so a candidate read here is normally leasable; the lease
+        // itself stays the arbiter when two drains race for it.
+        return await dbSet
+            .Where(x => x.Status == IntegrationOutboxStatus.Pending
+                && (x.LockedUntil == null || x.LockedUntil <= nowUtc)
+                && (x.NextAttemptAt == null || x.NextAttemptAt <= nowUtc))
+            .OrderBy(x => x.CreationTime)
+            .ThenBy(x => x.Id)
+            .Take(take)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<IntegrationOutboxItem>> GetUnwarnedRetryingAsync(
+        int minimumAttempts,
+        CancellationToken cancellationToken = default)
+    {
+        var dbContext = await GetDbContextAsync();
+
+        // #927: an office on the changes feed retries nothing, so none of its rows is "still retrying". Left
+        // in, a row that failed twice before cutover would be stamped here, and that UPDATE gives it a new
+        // rowversion, so the feed would serve it a second time. The tenant filter scopes this to the office.
+        if (await dbContext.Set<CaseTrackerFeedState>().AnyAsync(s => s.IsActive, cancellationToken))
+        {
+            return new List<IntegrationOutboxItem>();
+        }
+
+        var dbSet = await GetDbSetAsync();
+
+        return await dbSet
+            .Where(x => x.Status == IntegrationOutboxStatus.Pending
+                && x.AttemptCount >= minimumAttempts
+                && x.EarlyWarnedAt == null)
+            .OrderBy(x => x.CreationTime)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task StampEarlyWarnedAsync(
+        IReadOnlyCollection<Guid> ids,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var dbSet = await GetDbSetAsync();
+
+        // Only where still null, so a second run can never move the stamp -- the stamp IS the throttle.
+        await dbSet
+            .Where(x => ids.Contains(x.Id) && x.EarlyWarnedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.EarlyWarnedAt, nowUtc), cancellationToken);
     }
 
     public async Task AcquireAppointmentLockAsync(

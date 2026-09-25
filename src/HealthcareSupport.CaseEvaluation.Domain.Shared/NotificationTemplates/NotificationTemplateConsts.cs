@@ -232,6 +232,31 @@ public static class NotificationTemplateConsts
         public const string CaseTrackerPushFailed = "CaseTrackerPushFailed";
 
         /// <summary>
+        /// #917 (2026-09-23) -- early warning to internal staff that Case Tracker pushes have failed at
+        /// least twice and are still being retried inside the 24-hour window. Sent once per push, batched
+        /// per office like <see cref="CaseTrackerPushFailed"/>, and carries the same fields: confirmation
+        /// number and error text only, no PHI.
+        /// </summary>
+        public const string CaseTrackerPushRetrying = "CaseTrackerPushRetrying";
+
+        /// <summary>
+        /// #927 (2026-09-24) -- a Case Tracker changes-feed alert: an office's consumer has gone silent or
+        /// stalled (and when either clears), a cursor was refused as beyond anything issued, or the consumer
+        /// reported abandoning a row. Sent to the technical list in <c>CaseTracker:FeedAlertRecipients</c>, not
+        /// to staff. Carries ids, times, counts and a cursor only; no PHI.
+        /// </summary>
+        public const string CaseTrackerFeedAlert = "CaseTrackerFeedAlert";
+
+        /// <summary>
+        /// #944 (2026-09-24) -- the weekly missing-intake report: published appointments, in every office, that
+        /// were approved after that office's first intake row and still have no intake row. One email per run,
+        /// sent from HOST scope to the technical list in <c>CaseTracker:FeedAlertRecipients</c>, only when
+        /// there is something to report. Carries confirmation numbers, ids, statuses and dates only; no PHI.
+        /// In <see cref="HostScoped"/> because it covers every office at once.
+        /// </summary>
+        public const string CaseTrackerMissingIntakes = "CaseTrackerMissingIntakes";
+
+        /// <summary>
         /// Item F (2026-08-22) -- sent when staff try to invite an email that already has an account
         /// in the office. The invite is a dead end (registration rejects the duplicate), so instead of
         /// an error the staff surface offers to email the person a sign-in link. Tenant-scoped, NOT in
@@ -241,7 +266,7 @@ public static class NotificationTemplateConsts
         public const string ExternalUserPortalLink = "ExternalUserPortalLink";
 
         /// <summary>
-        /// All 66 codes in seed order (count asserted by
+        /// All 70 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -294,6 +319,9 @@ public static class NotificationTemplateConsts
             // Prompt 17 (2026-06-17) -- send-back / request-info notice.
             PatientAppointmentInfoRequested,
             CaseTrackerPushFailed,
+            CaseTrackerPushRetrying,
+            CaseTrackerFeedAlert,
+            CaseTrackerMissingIntakes,
 
             // Issue #3 (2026-07-16) -- existing-account accessor "you were added" notice.
             AccessorAppointmentAdded,
@@ -318,6 +346,9 @@ public static class NotificationTemplateConsts
         ///         dispatches in their ambient scope, which is host for operators.</item>
         ///   <item><c>UserRegistered</c> -- account-emailer email-confirmation link /
         ///         2FA / confirmation code for a host user.</item>
+        ///   <item><c>CaseTrackerMissingIntakes</c> (#944, 2026-09-24) -- the weekly cross-office
+        ///         missing-intake report, sent by a host recurring job. The one entry that is not
+        ///         account lifecycle: it reports on every office at once, so no office scope fits.</item>
         /// </list>
         /// Every entry is also in <see cref="All"/>: host copies are additive; the
         /// per-office copies stay. Appointment-lifecycle codes are deliberately absent
@@ -329,6 +360,7 @@ public static class NotificationTemplateConsts
             ResetPassword,
             PasswordChange,
             UserRegistered,
+            CaseTrackerMissingIntakes,
         };
     }
 }

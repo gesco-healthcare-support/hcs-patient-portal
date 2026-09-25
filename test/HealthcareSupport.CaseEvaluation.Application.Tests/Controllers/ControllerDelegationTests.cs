@@ -67,6 +67,7 @@ public class ControllerDelegationTests
         "BrandingController.SetDisplayNameAsync(Nullable`1,SetBrandingDisplayNameInput)",
         "BrandingController.UploadLogoAsync(UploadBrandingLogoForm,Nullable`1)",
         "CaseTrackerDeadLetterController.GetDeadLettersAsync()",
+        "CaseTrackerDeadLetterController.RetryAllDeadLettersAsync(Guid)",
         "CaseTrackerDeadLetterController.RetryDeadLetterAsync(Guid,Guid)",
         "CaseTrackerOfficesController.SetPushEnabledAsync(Guid,CaseTrackerPushToggleInput)",
         "DocumentsController.CreateAsync(DocumentCreateDto,IFormFile)",
