@@ -133,12 +133,34 @@ human acts.
 
 | Cause | Fix |
 | --- | --- |
-| Wrong feed token (`forbidden`) | Correct the token, then Resume each halted office. |
+| Wrong feed token (`forbidden`) | Correct the token, **restart their service**, then Resume each halted office. See below: the token is not re-read without a restart. |
 | Cursor out of range (`cursor_ahead`, `cursor_below_floor`, `cursor_invalid`) | Their **Reset position** action. It clears their cursor so the next request sends none, and the portal then resumes from the position it recorded. Nothing needs to be hand-written. |
 | Bad skip (`skip_invalid`) | Reset position. Their reset also clears the pending skip list, so a stale skip cannot be carried forward. |
 
 Sending no cursor is not the same as replaying from the floor, and is safer: a floor replay would
 meet any row whose payload shape has changed since the floor and halt on it.
+
+### Correcting their token needs a restart, not just an edit
+
+`portal.feed.token` is read **once at boot** on the Case Tracker side. So the fix is a config change
+**plus a restart**, and only then a Resume per office.
+
+State this to whoever is doing it. Otherwise they edit the file, press Resume, watch the office halt
+again, and conclude the fix did not work -- when what actually happened is that the old token was
+still in memory.
+
+### A sustained stream of 403s is EXPECTED during a bad switch-on
+
+Their consumer keeps requesting once per tick while an office is halted. That is deliberate on their
+side: it is what keeps "stuck" distinguishable from "gone".
+
+So with a wrong token and N offices enabled, expect N x 60 rejected requests an hour from their
+address, continuing until a human fixes the token. It is self-contained, because only their own
+unauthenticated feed requests share that partition and a valid-token request is never bucketed, so
+it cannot affect reconcile, attendance or any other caller.
+
+Treat it as a symptom of the wrong token, not as a signal in its own right. It stops when the token
+is fixed and their service restarted, not before.
 
 ## Rollback: return an office to push
 
