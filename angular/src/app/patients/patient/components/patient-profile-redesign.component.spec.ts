@@ -1,3 +1,4 @@
+import { ElementRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -68,6 +69,46 @@ describe('PatientProfileRedesignComponent (sweep #645)', () => {
       c.probe.confirmVisible = true;
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       expect(c.probe.confirmVisible).toBeFalse();
+    });
+  });
+
+  // The backdrop used to close the modal through its own (click) binding, which was mouse-only; a
+  // document click listener does it now. Not rendered: the page drags in the navbar and the
+  // inherited profile form. So a backdrop is planted and handed to the listener's query, and the
+  // clicks are real. LIMITATION: this does not prove the template's #scrim reference; renaming it
+  // there would still pass here.
+  describe('a click on the backdrop closes the confirm modal', () => {
+    const planted: HTMLElement[] = [];
+
+    function withBackdrop() {
+      const c = create();
+      const backdrop = document.createElement('div');
+      const dialog = document.createElement('div');
+      backdrop.appendChild(dialog);
+      document.body.appendChild(backdrop);
+      planted.push(backdrop);
+      (c.fixture.componentInstance as unknown as { scrim: ElementRef<HTMLElement> }).scrim =
+        new ElementRef(backdrop);
+      c.probe.confirmVisible = true;
+      return { ...c, backdrop, dialog };
+    }
+
+    afterEach(() => planted.splice(0).forEach((el) => el.remove()));
+
+    it('closes it when the click lands on the backdrop', () => {
+      const c = withBackdrop();
+
+      c.backdrop.click();
+
+      expect(c.probe.confirmVisible).toBeFalse();
+    });
+
+    it('leaves it open when the click lands inside the dialog', () => {
+      const c = withBackdrop();
+
+      c.dialog.click();
+
+      expect(c.probe.confirmVisible).toBeTrue();
     });
   });
 

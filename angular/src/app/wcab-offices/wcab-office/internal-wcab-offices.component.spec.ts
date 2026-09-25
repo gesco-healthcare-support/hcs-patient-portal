@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { of, throwError } from 'rxjs';
@@ -295,6 +296,56 @@ describe('InternalWcabOfficesComponent', () => {
       cmp.save();
       expect(cmp.form()).not.toBeNull();
       expect(cmp.isBusy()).toBeFalse();
+    });
+  });
+
+  // The backdrops used to close their modals through their own (click) bindings, which were
+  // mouse-only; a document click listener does it now. Rendered and clicked for real, which needs a
+  // router for the config rail's links (see the PermissionService note above).
+  describe('closing on a click on a backdrop', () => {
+    beforeEach(() => {
+      TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    });
+
+    function rendered() {
+      const fixture = TestBed.createComponent(InternalWcabOfficesComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance as unknown as Probe;
+      return { fixture, cmp, root: fixture.nativeElement as HTMLElement };
+    }
+
+    it('closes the edit modal when the click lands on its backdrop', () => {
+      const { fixture, cmp, root } = rendered();
+      cmp.openNew();
+      fixture.detectChanges();
+
+      (root.querySelector('.ra-scrim') as HTMLElement).click();
+
+      expect(cmp.form()).toBeNull();
+    });
+
+    it('leaves the edit modal open when the click lands inside it', () => {
+      const { fixture, cmp, root } = rendered();
+      cmp.openNew();
+      fixture.detectChanges();
+
+      (root.querySelector('.ra-modal h3') as HTMLElement).click();
+
+      expect(cmp.form()).not.toBeNull();
+    });
+
+    it('closes only the delete prompt when its backdrop is clicked over the edit modal', () => {
+      const { fixture, cmp, root } = rendered();
+      cmp.openNew();
+      cmp.askDelete(row);
+      fixture.detectChanges();
+      const backdrops = root.querySelectorAll<HTMLElement>('.ra-scrim');
+      expect(backdrops.length).withContext('both modals must be open').toBe(2);
+
+      backdrops[1].click();
+
+      expect(cmp.confirmDelete()).toBeNull();
+      expect(cmp.form()).not.toBeNull();
     });
   });
 
