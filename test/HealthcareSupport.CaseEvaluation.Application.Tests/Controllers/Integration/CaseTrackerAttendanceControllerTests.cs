@@ -18,6 +18,7 @@ using NSubstitute.ExceptionExtensions;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Timing;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
@@ -116,6 +117,13 @@ public class CaseTrackerAttendanceControllerTests
                 manager,
                 settingProvider,
                 currentTenant,
+                // These tests are about the CONTROLLER's token and status mapping, so the alert path is
+                // inert here: a substituted publisher raises nothing and a real policy has nothing to
+                // suppress. Its behaviour is covered in CaseTrackerAttendanceServiceTests.
+                Substitute.For<CaseTrackerFeedAlertPublisher>(
+                    Substitute.For<ILocalEventBus>(), Substitute.For<ITenantStore>()),
+                new CaseTrackerInboundRefusalAlertPolicy(),
+                Substitute.For<IClock>(),
                 NullLogger<CaseTrackerAttendanceService>.Instance));
 
         var httpContext = new DefaultHttpContext();

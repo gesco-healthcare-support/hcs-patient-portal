@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
@@ -106,7 +107,18 @@ public class CaseTrackerFeedAlertEmailHandler :
         CaseTrackerFeedAlertKind.StallCleared => "position advancing again",
         CaseTrackerFeedAlertKind.CursorAhead => "cursor refused",
         CaseTrackerFeedAlertKind.SkipReported => "row skipped",
+        CaseTrackerFeedAlertKind.InboundAttendanceRefused => "attendance report refused",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Case Tracker feed alert kind."),
+    };
+
+    /// <summary>What a refusal reason means to someone who has to fix it, rather than its enum name.</summary>
+    public static string DescribeRefusal(CaseTrackerInboundRefusalReason? reason) => reason switch
+    {
+        CaseTrackerInboundRefusalReason.IntegrationDisabled =>
+            "this office has the Case Tracker integration switched off, while the Case Tracker believes it is live",
+        CaseTrackerInboundRefusalReason.AppointmentNotFound =>
+            "no appointment with that id exists in this office, so the two systems disagree about what exists",
+        _ => "unrecorded",
     };
 
     /// <summary>Plain text for a <c>pre</c> block: no markup, so escaping by the dispatcher cannot matter.</summary>
@@ -128,6 +140,8 @@ public class CaseTrackerFeedAlertEmailHandler :
                 $"A feed request was refused because its cursor ({e.Cursor}) is beyond anything the portal has issued ({at}). Further refusals are logged but not emailed until a request succeeds."),
             CaseTrackerFeedAlertKind.SkipReported => string.Create(CultureInfo.InvariantCulture,
                 $"The Case Tracker reported that it abandoned the {e.MessageType} change at cursor {e.Cursor} for appointment {e.AppointmentId:D} ({at}). That change will not be delivered by the feed."),
+            CaseTrackerFeedAlertKind.InboundAttendanceRefused => string.Create(CultureInfo.InvariantCulture,
+                $"The Case Tracker tried to record {e.RequestedOutcome} for appointment {e.AppointmentId:D} and the portal refused it ({at}). Reason: {DescribeRefusal(e.InboundRefusalReason)}. The appointment's status has NOT changed, and no dead letter is written because the outbox holds outbound pushes only. Further refusals for this appointment are logged but not emailed until a report for it succeeds."),
             _ => throw new ArgumentOutOfRangeException(nameof(e), e.Kind, "Unknown Case Tracker feed alert kind."),
         };
     }
