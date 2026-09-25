@@ -29,7 +29,6 @@
           }
         </button>
         @if (openMenu === 'notif') {
-          <div class="ext-clickaway" (click)="close()"></div>
           <div class="ext-pop ext-pop--notif" role="menu">
             <div class="ext-notif-head">
               <b>Notifications</b>
@@ -88,7 +87,6 @@
           <span class="cv"><app-icon name="chevDown" [size]="15" /></span>
         </button>
         @if (openMenu === 'acct') {
-          <div class="ext-clickaway" (click)="close()"></div>
           <div class="ext-pop ext-pop--acct" role="menu">
             <div class="ext-acct-head">
               <span class="ava">{{ initials }}</span>

@@ -210,6 +210,36 @@ describe('LanguageManagementComponent', () => {
     });
   });
 
+  // The backdrop used to close the modal through its own (click) binding, which was mouse-only; a
+  // document click listener does it now. Rendered and clicked for real, so a template reference
+  // that stops matching the listener's query fails here rather than in the browser.
+  describe('closing on a click on the backdrop', () => {
+    function rendered(): { cmp: Probe; root: HTMLElement } {
+      const fixture = TestBed.createComponent(LanguageManagementComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance as unknown as Probe;
+      cmp.openNew();
+      fixture.detectChanges();
+      return { cmp, root: fixture.nativeElement as HTMLElement };
+    }
+
+    it('closes the modal when the click lands on the backdrop', () => {
+      const { cmp, root } = rendered();
+
+      (root.querySelector('.ra-scrim') as HTMLElement).click();
+
+      expect(cmp.editing()).toBeNull();
+    });
+
+    it('leaves it open when the click lands inside the dialog', () => {
+      const { cmp, root } = rendered();
+
+      (root.querySelector('.ra-modal h3') as HTMLElement).click();
+
+      expect(cmp.editing()).not.toBeNull();
+    });
+  });
+
   describe('save', () => {
     it('does nothing with no draft open', () => {
       probe().save();

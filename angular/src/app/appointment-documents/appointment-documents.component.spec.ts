@@ -316,3 +316,48 @@ describe('AppointmentDocumentsComponent name handling after a FAILED upload (#61
     expect(component.isUploading).toBeFalse();
   });
 });
+
+/**
+ * The reject modal's backdrop used to close it through its own (click) binding, which was
+ * mouse-only; a document click listener does it now. Rendered and clicked for real, with the
+ * providers reject-modal-id-collision.spec.ts renders the same modal with. Synthetic values only.
+ */
+describe('AppointmentDocumentsComponent reject modal backdrop click', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: HttpClient, useValue: { get: () => of(null), post: () => of(null) } },
+        { provide: AppointmentDocumentService, useValue: { getList: () => of({ items: [] }) } },
+        { provide: AppointmentDocumentUrls, useValue: { build: () => '', buildPacket: () => '' } },
+        { provide: RestService, useValue: { request: () => of(null) } },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
+        { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
+      ],
+    });
+  });
+
+  function rendered() {
+    const fixture = TestBed.createComponent(AppointmentDocumentsComponent);
+    fixture.componentInstance.appointmentId = 'appt-1';
+    const cmp = fixture.componentInstance as unknown as { rejectingDoc: unknown };
+    cmp.rejectingDoc = { id: 'doc-1', documentName: 'referral.pdf' };
+    fixture.detectChanges();
+    return { cmp, root: fixture.nativeElement as HTMLElement };
+  }
+
+  it('closes the modal when the click lands on the backdrop', () => {
+    const { cmp, root } = rendered();
+
+    (root.querySelector('.reject-modal-backdrop') as HTMLElement).click();
+
+    expect(cmp.rejectingDoc).toBeNull();
+  });
+
+  it('leaves it open when the click lands inside the dialog', () => {
+    const { cmp, root } = rendered();
+
+    (root.querySelector('.reject-modal h5') as HTMLElement).click();
+
+    expect(cmp.rejectingDoc).not.toBeNull();
+  });
+});

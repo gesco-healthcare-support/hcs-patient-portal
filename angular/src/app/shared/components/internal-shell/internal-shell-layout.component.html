@@ -77,9 +77,6 @@
       <div class="spacer"></div>
 
       <div class="in-tenantwrap">
-        @if (switcherOpen()) {
-          <div class="in-clickaway" (click)="closeSwitcher()"></div>
-        }
         <!--
           A control built as a div. Focusable and Enter-activated only while canSwitch() is
           true: when there is nothing to switch to it is inert text, and putting it in the tab
@@ -151,9 +148,6 @@
       }
 
       <div class="in-acctwrap">
-        @if (acctOpen()) {
-          <div class="in-clickaway" (click)="closeAcct()"></div>
-        }
         <button
           class="in-acct"
           type="button"

@@ -367,7 +367,8 @@ public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFramew
         // The lock is a SQL Server application lock. On SQLite it must return quietly: sp_getapplock
         // is not SQLite syntax, so a missing provider check would fail every provider-backed test that
         // enqueues anything. Blocking is proven against SQL Server itself (see PR #1020), not here.
-        await WithUnitOfWorkAsync(() => _outboxRepository.AcquireAppointmentLockAsync(Guid.NewGuid()));
+        await Should.NotThrowAsync(
+            () => WithUnitOfWorkAsync(() => _outboxRepository.AcquireAppointmentLockAsync(Guid.NewGuid())));
     }
 
     [Fact]
