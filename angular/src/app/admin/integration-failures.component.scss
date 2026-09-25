@@ -1,0 +1,102 @@
+.if-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.if-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.if-sub {
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+  max-width: 70ch;
+}
+.if-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.if-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.if-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: #555;
+  text-align: center;
+}
+.if-error {
+  color: #a11;
+}
+.if-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.if-table th,
+.if-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+.if-dim {
+  color: #888;
+  font-size: 11px;
+  font-family: Consolas, Menlo, monospace;
+}
+.if-err {
+  max-width: 40ch;
+  word-break: break-word;
+  color: #a11;
+}
+.if-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.if-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.if-filter select {
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.if-confirm {
+  font-size: 13px;
+}
+.if-btn-primary {
+  border-color: #0d6efd;
+  background: #0d6efd;
+  color: #fff;
+}
+.if-notice {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid #b6d4fe;
+  border-radius: 4px;
+  background: #e7f1ff;
+  font-size: 13px;
+}

@@ -3128,10 +3128,18 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("datetime2")
                         .HasColumnName("DeletionTime");
 
+                    b.Property<DateTime?>("EarlyWarnedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("EarlyWarnedAt");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
+
+                    b.Property<DateTime?>("FirstFailedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("FirstFailedAt");
 
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()

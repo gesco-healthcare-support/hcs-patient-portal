@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
@@ -82,6 +83,19 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
     }
 
     [Fact]
+    public async Task DeadLetterRetryAll_IsRefused_ForAnOfficeCaller_TargetingAnotherOffice()
+    {
+        // Retry-all acts on whichever office its route names, so an office caller naming another office
+        // must be refused before that office is entered -- and its dead letter must still be Failed.
+        var second = await EnsureSecondOfficeAsync();
+
+        await AssertRefusedInOfficeAsync(
+            sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>().RetryAllAsync(second.OfficeId));
+
+        await AssertSecondOfficeUntouchedAsync(second);
+    }
+
+    [Fact]
     public async Task PushSettingsList_IsRefused_ForAnOfficeCaller()
     {
         var second = await EnsureSecondOfficeAsync();
@@ -130,6 +144,15 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         await Should.ThrowAsync<EntityNotFoundException>(() => RunAsHostOperatorAsync(
             sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>()
                 .RetryAsync(second.OfficeId, Guid.NewGuid())));
+    }
+
+    [Fact]
+    public async Task DeadLetterRetryAll_IsAdmitted_ForAHostOperator()
+    {
+        // No office id: an admitted call reaches the method body and is refused there as a bad request; a
+        // refused one would throw AbpAuthorizationException instead. Nothing is retried either way.
+        await Should.ThrowAsync<UserFriendlyException>(() => RunAsHostOperatorAsync(
+            sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>().RetryAllAsync(Guid.Empty)));
     }
 
     [Fact]

@@ -8,8 +8,8 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// Unit tests for the <see cref="IntegrationOutboxItem"/> delivery state machine. Mirrors
 /// <c>NotificationOutboxItemTests</c> (lease eligibility, idempotent mark-sent, attempt cap)
 /// and adds the behaviour this ledger has and the email one does not: <c>MarkFatal</c>, the
-/// immediate dead-letter for responses a retry can never fix (bad token, malformed payload).
-/// Pure entity tests -- no DB, no HTTP.
+/// immediate dead-letter for responses a retry can never fix (bad token, malformed payload), and
+/// since #917 a 24-hour retry window on growing waits. Pure entity tests -- no DB, no HTTP.
 /// </summary>
 public class IntegrationOutboxItemTests
 {
@@ -17,7 +17,8 @@ public class IntegrationOutboxItemTests
     private static readonly Guid AppointmentId = new("8f14e45f-ceea-467a-9f3a-1a2b3c4d5e6f");
     private static readonly DateTime Now = new(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);
     private static readonly TimeSpan Lease = TimeSpan.FromSeconds(IntegrationOutboxConsts.LeaseDurationSeconds);
-    private static readonly TimeSpan Backoff = TimeSpan.FromSeconds(IntegrationOutboxConsts.RetryBackoffSeconds);
+    private static readonly TimeSpan FirstWait = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan Window = TimeSpan.FromHours(24);
 
     private static IntegrationOutboxItem NewPending(int maxAttempts = IntegrationOutboxConsts.MaxAttempts) =>
         new(
@@ -45,9 +46,10 @@ public class IntegrationOutboxItemTests
     }
 
     [Fact]
-    public void NewItem_DefaultsMaxAttemptsToTheFailFastCap()
+    public void NewItem_DefaultsMaxAttemptsToTheBackstop()
     {
-        NewPending().MaxAttempts.ShouldBe(3);
+        // #917: the 24-hour window ends retries; this is only a ceiling on attempts inside it.
+        NewPending().MaxAttempts.ShouldBe(100);
     }
 
     [Fact]
@@ -81,15 +83,15 @@ public class IntegrationOutboxItemTests
     }
 
     [Fact]
-    public void TryClaim_BeforeBackoffElapsed_ReturnsFalse_ThenTrueWhenDue()
+    public void TryClaim_BeforeTheRetryWaitElapsed_ReturnsFalse_ThenTrueWhenDue()
     {
         var item = NewPending();
         item.TryClaim(Now, Lease);
-        item.MarkFailed(Now, "case tracker 503", Backoff);
+        item.MarkFailed(Now, "case tracker 503");
 
         item.Status.ShouldBe(IntegrationOutboxStatus.Pending);
         item.TryClaim(Now.AddSeconds(60), Lease).ShouldBeFalse();
-        item.TryClaim(Now.Add(Backoff).AddSeconds(1), Lease).ShouldBeTrue();
+        item.TryClaim(Now.Add(FirstWait).AddSeconds(1), Lease).ShouldBeTrue();
     }
 
     [Fact]
@@ -112,29 +114,99 @@ public class IntegrationOutboxItemTests
     }
 
     [Fact]
-    public void MarkFailed_BelowCap_ReschedulesPendingWithBackoff()
+    public void MarkFailed_FirstFailure_ReschedulesPendingAfterFiveMinutes_AndStartsTheWindow()
     {
         var item = NewPending();
 
-        item.MarkFailed(Now, "timeout", Backoff);
+        item.MarkFailed(Now, "timeout");
 
         item.AttemptCount.ShouldBe(1);
         item.Status.ShouldBe(IntegrationOutboxStatus.Pending);
-        item.NextAttemptAt.ShouldBe(Now.Add(Backoff));
+        item.NextAttemptAt.ShouldBe(Now.Add(FirstWait));
+        item.FirstFailedAt.ShouldBe(Now);
         item.LockedUntil.ShouldBeNull();
         item.LastError.ShouldBe("timeout");
     }
 
-    [Fact]
-    public void MarkFailed_AtCap_IsTerminalFailed_AndUnclaimable()
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(2, 10)]
+    [InlineData(3, 20)]
+    [InlineData(4, 30)]
+    [InlineData(40, 30)]
+    public void WaitAfterAttempt_GrowsThenHoldsAtThirtyMinutes(int attemptCount, int expectedMinutes)
     {
+        IntegrationOutboxItem.WaitAfterAttempt(attemptCount).ShouldBe(TimeSpan.FromMinutes(expectedMinutes));
+    }
+
+    [Fact]
+    public void MarkFailed_SchedulesEachRetryFromThatFailure_OnTheGrowingWaits()
+    {
+        var item = NewPending();
+        var at = Now;
+
+        foreach (var minutes in new[] { 5, 10, 20, 30, 30 })
+        {
+            item.MarkFailed(at, "503");
+            item.NextAttemptAt.ShouldBe(at.AddMinutes(minutes));
+            at = item.NextAttemptAt!.Value;
+        }
+
+        // Later failures never move the start of the window.
+        item.FirstFailedAt.ShouldBe(Now);
+    }
+
+    [Fact]
+    public void MarkFailed_InsideTheWindow_KeepsRetrying()
+    {
+        var item = NewPending();
+        item.MarkFailed(Now, "503");
+
+        item.MarkFailed(Now.Add(Window).AddMinutes(-1), "503");
+
+        item.Status.ShouldBe(IntegrationOutboxStatus.Pending);
+        item.NextAttemptAt.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void MarkFailed_OnceTheWindowHasPassed_DeadLetters()
+    {
+        // Measured from the FIRST failure, not the creation time or the last attempt.
+        var item = NewPending();
+        item.MarkFailed(Now, "503");
+
+        item.MarkFailed(Now.Add(Window), "503");
+
+        item.Status.ShouldBe(IntegrationOutboxStatus.Failed);
+        item.NextAttemptAt.ShouldBeNull();
+        item.TryClaim(Now.AddYears(1), Lease).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void MarkFailed_WindowStartsAtTheFirstFailure_NotAtCreation()
+    {
+        // A row can sit Pending for a day while the push is switched off; that must not count against it.
+        var item = NewPending();
+        var firstFailure = Now.AddDays(3);
+
+        item.MarkFailed(firstFailure, "503");
+        item.MarkFailed(firstFailure.AddHours(1), "503");
+
+        item.Status.ShouldBe(IntegrationOutboxStatus.Pending);
+        item.FirstFailedAt.ShouldBe(firstFailure);
+    }
+
+    [Fact]
+    public void MarkFailed_AtAStoredCapOfThree_IsTerminalFailed_AndUnclaimable()
+    {
+        // Rows queued before #917 keep the cap stored on them, so they end where they always did.
         var item = NewPending(maxAttempts: 3);
 
-        item.MarkFailed(Now, "e", Backoff); // 1
-        item.MarkFailed(Now, "e", Backoff); // 2
+        item.MarkFailed(Now, "e"); // 1
+        item.MarkFailed(Now, "e"); // 2
         item.Status.ShouldBe(IntegrationOutboxStatus.Pending);
 
-        item.MarkFailed(Now, "e", Backoff); // 3 -> terminal
+        item.MarkFailed(Now, "e"); // 3 -> terminal
 
         item.AttemptCount.ShouldBe(3);
         item.Status.ShouldBe(IntegrationOutboxStatus.Failed);
@@ -155,6 +227,7 @@ public class IntegrationOutboxItemTests
         item.NextAttemptAt.ShouldBeNull();
         item.LockedUntil.ShouldBeNull();
         item.LastError.ShouldBe("401 invalid token");
+        item.FirstFailedAt.ShouldBe(Now);
         item.TryClaim(Now.AddYears(1), Lease).ShouldBeFalse();
     }
 
@@ -176,7 +249,7 @@ public class IntegrationOutboxItemTests
         var item = NewPending();
         item.MarkSent(Now);
 
-        item.MarkFailed(Now.AddMinutes(1), "late error", Backoff);
+        item.MarkFailed(Now.AddMinutes(1), "late error");
 
         item.Status.ShouldBe(IntegrationOutboxStatus.Sent);
         item.AttemptCount.ShouldBe(0);
@@ -187,7 +260,7 @@ public class IntegrationOutboxItemTests
     {
         var item = NewPending();
 
-        item.MarkFailed(Now, new string('x', IntegrationOutboxConsts.LastErrorMaxLength + 50), Backoff);
+        item.MarkFailed(Now, new string('x', IntegrationOutboxConsts.LastErrorMaxLength + 50));
 
         item.LastError!.Length.ShouldBe(IntegrationOutboxConsts.LastErrorMaxLength);
     }

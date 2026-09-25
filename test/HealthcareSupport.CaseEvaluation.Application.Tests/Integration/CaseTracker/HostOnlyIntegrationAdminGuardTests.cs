@@ -99,6 +99,18 @@ public class HostOnlyIntegrationAdminGuardTests
         _currentTenant.Received(1).Change(SecondOfficeId, Arg.Any<string?>());
     }
 
+    [Fact]
+    public async Task DeadLetterRetryAll_InsideAnOffice_IsRefused_BeforeTheOtherOfficeIsEntered()
+    {
+        InsideAnOffice();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(
+            () => BuildDeadLetterService().RetryAllAsync(SecondOfficeId));
+
+        _currentTenant.DidNotReceive().Change(SecondOfficeId, Arg.Any<string?>());
+        await _outboxRepository.DidNotReceiveWithAnyArgs().GetQueryableAsync();
+    }
+
     // ---- Push settings ----
 
     [Fact]

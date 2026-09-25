@@ -191,6 +191,13 @@ internal static class EmailSubjects
         "Action needed: appointment(s) did not reach the Case Tracker";
 
     /// <summary>
+    /// #917 (2026-09-23). States the fact and that the portal is still acting on it, so it is not read
+    /// as a request to do something -- the dead-letter subject is the one that asks for action.
+    /// </summary>
+    public const string CaseTrackerPushRetrying =
+        "Retrying: appointment(s) have not yet reached the Case Tracker";
+
+    /// <summary>
     /// Group F (2026-06-09) -- the single consolidated reminder subject. The
     /// body carries the due-date nudge plus any outstanding documents, so the
     /// subject stays generic enough to fit both the docs and no-docs cases.
@@ -376,6 +383,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PendingAppointmentDailyNotification] = PendingAppointmentDailyNotification,
             [NotificationTemplateConsts.Codes.AppointmentApproveRejectInternal] = AppointmentApproveRejectInternal,
             [NotificationTemplateConsts.Codes.CaseTrackerPushFailed] = CaseTrackerPushFailed,
+            [NotificationTemplateConsts.Codes.CaseTrackerPushRetrying] = CaseTrackerPushRetrying,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.

@@ -10,6 +10,7 @@ using Shouldly;
 using Volo.Abp.Guids;
 using Volo.Abp.Settings;
 using Volo.Abp.Timing;
+using Volo.Abp.Uow;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -19,6 +20,11 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// case from being silently lost. Uses a real <see cref="IntegrationOutboxManager"/> over a
 /// List-backed mock repository so claim/mark actually mutate the ledger, mirroring
 /// <c>OutboxDrainServiceTests</c>; the HTTP client, clock and settings are mocked.
+///
+/// <para>The unit-of-work manager is a RECORDER, not a bare substitute (#917): the point of the change
+/// is where the transactions start and end relative to the HTTP call, and a substitute that silently
+/// accepts every Begin could not show that. Each begin, commit, dispose and send lands in
+/// <see cref="Harness.Log"/> in order.</para>
 /// </summary>
 public class IntegrationOutboxDrainServiceTests
 {
@@ -33,6 +39,28 @@ public class IntegrationOutboxDrainServiceTests
         public required IIntegrationOutboxRepository Repository { get; init; }
         public required ICaseTrackerClient Client { get; init; }
         public required IntegrationOutboxDrainService Service { get; init; }
+        public required List<string> Log { get; init; }
+    }
+
+    /// <summary>A unit-of-work manager that records what the drain does with it.</summary>
+    private static IUnitOfWorkManager RecordingUnitOfWorkManager(List<string> log)
+    {
+        var manager = Substitute.For<IUnitOfWorkManager>();
+        manager.Begin(Arg.Any<AbpUnitOfWorkOptions>(), Arg.Any<bool>())
+            .Returns(ci =>
+            {
+                var options = ci.ArgAt<AbpUnitOfWorkOptions>(0);
+                log.Add($"begin new={ci.ArgAt<bool>(1)} tx={options.IsTransactional}");
+                var uow = Substitute.For<IUnitOfWork>();
+                uow.CompleteAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+                {
+                    log.Add("commit");
+                    return Task.CompletedTask;
+                });
+                uow.When(u => u.Dispose()).Do(_ => log.Add("dispose"));
+                return uow;
+            });
+        return manager;
     }
 
     /// <param name="sentInWindow">
@@ -72,8 +100,24 @@ public class IntegrationOutboxDrainServiceTests
             });
         repo.GetAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(rows.First(r => r.Id == ci.ArgAt<Guid>(0))));
+        // Mirrors EfCoreIntegrationOutboxRepository.GetDueIdsAsync: the lease gate, oldest first.
+        repo.GetDueIdsAsync(Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var now = ci.ArgAt<DateTime>(0);
+                return Task.FromResult(rows
+                    .Where(r => r.Status == IntegrationOutboxStatus.Pending
+                        && (r.LockedUntil == null || r.LockedUntil <= now)
+                        && (r.NextAttemptAt == null || r.NextAttemptAt <= now))
+                    .OrderBy(r => r.CreationTime)
+                    .ThenBy(r => r.Id)
+                    .Take(ci.ArgAt<int>(1))
+                    .Select(r => r.Id)
+                    .ToList());
+            });
 
         var manager = new IntegrationOutboxManager(repo, SimpleGuidGenerator.Instance);
+        var log = new List<string>();
         var client = Substitute.For<ICaseTrackerClient>();
         var clock = Substitute.For<IClock>();
         clock.Now.Returns(Now);
@@ -85,7 +129,8 @@ public class IntegrationOutboxDrainServiceTests
             .Returns(Task.FromResult(sentInWindow));
 
         var service = new IntegrationOutboxDrainService(
-            manager, repo, client, clock, settingProvider, NullLogger<IntegrationOutboxDrainService>.Instance);
+            manager, repo, client, clock, settingProvider, RecordingUnitOfWorkManager(log),
+            NullLogger<IntegrationOutboxDrainService>.Instance);
 
         return new Harness
         {
@@ -94,6 +139,7 @@ public class IntegrationOutboxDrainServiceTests
             Repository = repo,
             Client = client,
             Service = service,
+            Log = log,
         };
     }
 
@@ -136,13 +182,15 @@ public class IntegrationOutboxDrainServiceTests
             CaseTrackerEndpoints.Intake, Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task DrainDueAsync_OnRetryableFailure_ReschedulesWithBackoff_AndIsNotLost()
+    [Theory]
+    [InlineData(503)]
+    [InlineData(403)] // #917: retried, because a revoked or unconfigured token is fixed on their side
+    public async Task DrainDueAsync_OnRetryableFailure_RetriesAfterFiveMinutes_AndIsNotLost(int statusCode)
     {
         var h = Build();
         await SeedPendingAsync(h);
         h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(CaseTrackerPushResult.FromStatusCode(503));
+            .Returns(CaseTrackerPushResult.FromStatusCode(statusCode));
 
         var result = await h.Service.DrainDueAsync();
 
@@ -150,15 +198,59 @@ public class IntegrationOutboxDrainServiceTests
         var row = h.Rows.Single();
         row.Status.ShouldBe(IntegrationOutboxStatus.Pending);
         row.AttemptCount.ShouldBe(1);
-        row.NextAttemptAt.ShouldBe(Now.AddSeconds(IntegrationOutboxConsts.RetryBackoffSeconds));
+        row.FirstFailedAt.ShouldBe(Now);
+        row.NextAttemptAt.ShouldBe(Now.AddMinutes(5));
         row.SentAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_CommitsTheClaimBeforeSending_AndRecordsInItsOwnTransaction()
+    {
+        // THE LOAD-BEARING ONE for #917's drain shape. No transaction may be open across the HTTP call:
+        // the claim commits first, the send runs with nothing open, and the result commits in a second
+        // transaction. The final claim finds nothing due and ends the pass.
+        var h = Build();
+        await SeedPendingAsync(h);
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                h.Log.Add("send");
+                return Task.FromResult(CaseTrackerPushResult.FromStatusCode(200));
+            });
+
+        await h.Service.DrainDueAsync();
+
+        h.Log.ShouldBe(new[]
+        {
+            "begin new=True tx=False", "commit", "dispose", // switch + volume guard: reads only
+            "begin new=True tx=True", "commit", "dispose",  // claim + lease, committed
+            "send",                                          // nothing open
+            "begin new=True tx=True", "commit", "dispose",  // record the result
+            "begin new=True tx=True", "commit", "dispose",  // next claim: nothing due
+        });
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_StopsAtTheBatchSize_LeavingTheRestDue()
+    {
+        var h = Build();
+        await SeedPendingAsync(h, "key-1");
+        await SeedPendingAsync(h, "key-2");
+        await SeedPendingAsync(h, "key-3");
+        h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(CaseTrackerPushResult.FromStatusCode(200)));
+
+        var result = await h.Service.DrainDueAsync(batchSize: 2);
+
+        result.Sent.ShouldBe(2);
+        h.Rows.Count(r => r.Status == IntegrationOutboxStatus.Pending && r.LockedUntil == null).ShouldBe(1);
     }
 
     [Fact]
     public async Task DrainDueAsync_OnFatalFailure_DeadLettersImmediately_WithoutBurningTheCap()
     {
-        // A 401 can never succeed on retry, so it must not consume three attempts before a human is
-        // told -- the whole point of the fail-fast policy.
+        // A 401 can never succeed on retry, so it must not spend the 24-hour window before a human is
+        // told.
         var h = Build();
         await SeedPendingAsync(h);
         h.Client.PostAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -236,8 +328,8 @@ public class IntegrationOutboxDrainServiceTests
 
         result.Sent.ShouldBe(0);
         result.Failed.ShouldBe(0);
-        // Pending, NOT failed: being held is not a delivery attempt, so it must not burn an attempt
-        // against the fail-fast cap or dead-letter a row that was never actually tried.
+        // Pending, NOT failed: being held is not a delivery attempt, so it must not count an attempt
+        // or start the retry window for a row that was never actually tried.
         h.Rows.Single().Status.ShouldBe(IntegrationOutboxStatus.Pending);
         h.Rows.Single().AttemptCount.ShouldBe(0);
         await h.Client.DidNotReceiveWithAnyArgs().PostAsync(default!, default!, default);

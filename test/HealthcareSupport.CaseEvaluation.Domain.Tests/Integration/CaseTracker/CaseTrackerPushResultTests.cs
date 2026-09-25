@@ -29,7 +29,6 @@ public class CaseTrackerPushResultTests
     [InlineData(401)] // missing / invalid X-Intake-Token -- a retry can never fix it
     [InlineData(400)] // malformed payload -- our bug
     [InlineData(415)] // wrong content type -- our bug
-    [InlineData(403)] // not in the contract, but a permission problem retrying will not solve
     [InlineData(422)] // semantic rejection of the body
     public void PermanentClientErrors_AreFatal(int statusCode)
     {
@@ -40,6 +39,7 @@ public class CaseTrackerPushResultTests
     }
 
     [Theory]
+    [InlineData(403)] // #917: a revoked or unconfigured token is fixed on their side, then retries land
     [InlineData(404)] // doc-update before its intake was accepted -- retry once the intake lands
     [InlineData(408)] // server-side request timeout
     [InlineData(429)] // rate limited -- transient by definition

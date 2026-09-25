@@ -53,4 +53,12 @@ public class CaseTrackerDeadLetterController : AbpController
     {
         return _deadLetterAppService.RetryAsync(officeId, id);
     }
+
+    /// <summary>Retries every dead letter in one office (#917), reporting counts.</summary>
+    [HttpPost]
+    [Route("offices/{officeId}/dead-letters/retry-all")]
+    public virtual Task<CaseTrackerDeadLetterRetryAllResultDto> RetryAllDeadLettersAsync(Guid officeId)
+    {
+        return _deadLetterAppService.RetryAllAsync(officeId);
+    }
 }
