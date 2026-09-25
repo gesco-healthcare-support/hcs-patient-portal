@@ -332,3 +332,29 @@ tools/packet-templates/tests/**
 # greps this file into COVERAGE_EXCLUSIONS and feeds it to sonar.coverage.exclusions only. Sonar keeps
 # analysing these files for issues; only the coverage denominator changes.
 **/test/**
+
+# DEVELOPMENT-ONLY DEMO SEEDERS (Adrian, 2026-09-24). Each returns at the top of SeedAsync
+# unless ASPNETCORE_ENVIRONMENT / DOTNET_ENVIRONMENT is "Development", so none of this code runs
+# in staging or production, and no test environment sets Development. This is the one reason
+# these are here: the code cannot run where coverage is measured, not "it is merely untested".
+# NOT listed on purpose: LocationDataSeedContributor and DoctorProfileDataSeedContributor, which
+# seed the test tenant in EVERY environment (Adrian's ruling), and Saas/OfficeSeedData.cs, which
+# CaseEvaluationDbMigrationService and the always-on DoctorProfileDataSeedContributor read.
+**/Identity/InternalUsersDataSeedContributor.cs
+**/Identity/ExternalUsersDataSeedContributor.cs
+**/Identity/DemoExternalUsersDataSeedContributor.cs
+**/Identity/DemoPatientDataSeedContributor.cs
+**/Saas/OfficeSeedDataContributor.cs
+**/DoctorAvailabilities/OfficeAvailabilitySeedContributor.cs
+
+# REFERENCE-DATA SEEDERS MOVING TO THE CENTRAL MASTER-DATA PROJECT (Adrian, 2026-09-24). States,
+# WCAB offices, appointment types, languages and statuses are shared reference data that the
+# hcs-master-data project will own; these seeders are being retired from this repo, so testing
+# them here would be work on code with a known end. NOT the other seeders (document types,
+# notification templates, system parameters, doctor profile, OpenIddict, roles, SaaS), which stay
+# and are covered by tests.
+**/States/StateDataSeedContributor.cs
+**/WcabOffices/WcabOfficeDataSeedContributor.cs
+**/AppointmentTypes/AppointmentTypeDataSeedContributor.cs
+**/AppointmentLanguages/AppointmentLanguageDataSeedContributor.cs
+**/AppointmentStatuses/AppointmentStatusDataSeedContributor.cs

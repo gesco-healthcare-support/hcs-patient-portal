@@ -33,7 +33,7 @@ place (that skips the capacity gate).
   For internal staff it is fully editable with its own Save; external roles get
   `form.disable()` (`appointment-view.component.ts:420-421`).
 - "Edit" opens the ABP-Suite generated CRUD modal via `update(row)` ->
-  `AbstractAppointmentDetailViewService.showForm()` (`appointment.abstract.component.ts:62-64`;
+  the generated appointment detail view service's `showForm()` (that service was removed in #1062) (`appointment.abstract.component.ts:62-64`;
   `appointment-detail.abstract.service.ts:50-100`). That modal exposes only 13 flat
   AppAppointments fields (panelNumber, appointmentDate, requestConfirmationNumber [readonly],
   dueDate, appointmentStatus [create-only], 5 lookup IDs) and PUTs via the proxy to
@@ -96,7 +96,7 @@ place (that skips the capacity gate).
 
 ## Phase 3 cross-reference
 
-- BUG-039 (Edit-half) -- same `AbstractAppointmentDetailViewService` CRUD modal; removing the
+- BUG-039 (Edit-half) -- same generated CRUD modal (removed in #1062); removing the
   Edit dropdown wiring closes its outstanding half. Fix here.
 - OBS-12 (reschedule/cancel UI gap) -- this item BUILDS the missing UI; close OBS-12 with it.
 - OBS-19 (folded into BUG-039) -- documents the generated modal as scaffolding; resolved by the

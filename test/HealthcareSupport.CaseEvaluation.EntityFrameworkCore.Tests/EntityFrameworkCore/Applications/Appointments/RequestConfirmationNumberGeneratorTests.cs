@@ -28,7 +28,6 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// accumulate across test classes -- a sibling test already seeds A99001-A99006 into TenantA --
 /// so asserting an exact number in a shared office would depend on class execution order.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class RequestConfirmationNumberGeneratorTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly RequestConfirmationNumberGenerator _generator;

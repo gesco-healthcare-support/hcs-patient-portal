@@ -115,5 +115,55 @@ class TestParseChangedLines(unittest.TestCase):
         self.assertEqual(gate.parse_changed_lines(self._diff("")), {})
 
 
+DIFF_ONE_BACKEND_FILE = """diff --git a/src/App/X.cs b/src/App/X.cs
+--- a/src/App/X.cs
++++ b/src/App/X.cs
+@@ -0,0 +1,2 @@
++covered
++uncovered
+"""
+
+
+class TestChangedLinesMeasureBackendFiles(unittest.TestCase):
+    """#1024. dotnet-coverage writes ABSOLUTE checkout paths into Cobertura; the diff is repo-relative.
+
+    Until the parser removed the checkout root, no backend key ever matched a
+    diff path. Every changed `.cs` file was reported as having no coverage
+    record, the floor found nothing coverable, and it PASSED -- on every
+    backend PR.
+
+    Deliberately built on the real `workspace_prefixes()`, the default
+    `parse_cobertura` falls back to, rather than an injected root: this is the
+    path CI takes. Seen to fail: with the strip removed from `parse_cobertura`,
+    `summarise_changed` returns (0, 0, 0) and `unmeasured_changed` names the file.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def _write(self, name: str, text: str) -> Path:
+        target = self.tmp_path / name
+        target.write_text(text, encoding="utf-8")
+        return target
+
+    def test_a_backend_file_reported_by_its_absolute_checkout_path_is_measured(self):
+        roots = gate.workspace_prefixes()
+        self.assertTrue(roots, "this test must run inside the git checkout it measures")
+        report = self._write(
+            "cov.xml",
+            '<coverage><class filename="' + roots[0] + '/src/App/X.cs"><lines>'
+            '<line number="1" hits="3"/><line number="2" hits="0"/>'
+            "</lines></class></coverage>",
+        )
+
+        per_file = gate.parse_cobertura(report, "")
+        changed = gate.parse_changed_lines(self._write("changed.diff", DIFF_ONE_BACKEND_FILE))
+
+        self.assertEqual(gate.summarise_changed(per_file, changed, []), (2, 1, 1))
+        self.assertEqual(gate.unmeasured_changed(per_file, changed, []), [])
+
+
 if __name__ == "__main__":
     unittest.main()

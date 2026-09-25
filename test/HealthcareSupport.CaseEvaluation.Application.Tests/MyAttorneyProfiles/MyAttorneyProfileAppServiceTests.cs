@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
@@ -80,6 +81,89 @@ public abstract class MyAttorneyProfileAppServiceTests<TStartupModule> : CaseEva
         {
             await Should.ThrowAsync<UserFriendlyException>(
                 () => _service.UpdateAsync(new UpdateMyAttorneyProfileInput { FirmName = "x" }));
+        }
+    }
+
+    // The defense-attorney half. No defense master is seeded, so each fact inserts one in office B
+    // for the seeded DefenseAttorney1 identity.
+
+    private async Task<Guid> InsertDefenseMasterAsync()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            return await WithUnitOfWorkAsync(async () => (await GetRequiredService<IRepository<DefenseAttorney, Guid>>()
+                .InsertAsync(new DefenseAttorney(Guid.NewGuid(), null, IdentityUsersTestData.DefenseAttorney1UserId,
+                    firmName: "Synthetic Defense Firm", email: "defense@example.test"), autoSave: true)).Id);
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_resolves_the_callers_own_defense_master()
+    {
+        await InsertDefenseMasterAsync();
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(_principal, IdentityUsersTestData.DefenseAttorney1UserId, IdentityUsersTestData.DefenseAttorneyRoleName))
+        {
+            var dto = await _service.GetAsync();
+
+            dto.Kind.ShouldBe("defense");
+            dto.FirmName.ShouldBe("Synthetic Defense Firm");
+            dto.Email.ShouldBe("defense@example.test");
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_updates_the_callers_own_defense_master_and_preserves_identity()
+    {
+        var defenseId = await InsertDefenseMasterAsync();
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(_principal, IdentityUsersTestData.DefenseAttorney1UserId, IdentityUsersTestData.DefenseAttorneyRoleName))
+        {
+            var dto = await _service.UpdateAsync(new UpdateMyAttorneyProfileInput
+            {
+                FirstName = "Synthetic-First",
+                LastName = "Synthetic-Last",
+                FirmName = "Synthetic Renamed Firm",
+                City = "Synthetic City",
+            });
+
+            dto.Kind.ShouldBe("defense");
+            var saved = await GetRequiredService<IRepository<DefenseAttorney, Guid>>().GetAsync(defenseId);
+            saved.FirmName.ShouldBe("Synthetic Renamed Firm");
+            saved.FirstName.ShouldBe("Synthetic-First");
+            saved.City.ShouldBe("Synthetic City");
+            saved.IdentityUserId.ShouldBe(IdentityUsersTestData.DefenseAttorney1UserId);
+            saved.Email.ShouldBe("defense@example.test");
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_denies_a_defense_caller_with_no_defense_master()
+    {
+        // LOAD-BEARING: another attorney's defense master exists in the same office. Against an
+        // empty table this fact would also pass with the service's `IdentityUserId == userId`
+        // predicate removed; with this row present, that regression hands the caller someone
+        // else's profile instead of refusing.
+        await InsertDefenseMasterAsync();
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(_principal, Guid.NewGuid(), IdentityUsersTestData.DefenseAttorneyRoleName))
+        {
+            (await Should.ThrowAsync<UserFriendlyException>(() => _service.GetAsync()))
+                .Message.ShouldContain("No attorney profile is linked");
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_denies_a_caller_in_neither_attorney_role()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(_principal, IdentityUsersTestData.ApplicantAttorney1UserId, IdentityUsersTestData.PatientRoleName))
+        {
+            (await Should.ThrowAsync<UserFriendlyException>(() => _service.GetAsync()))
+                .Message.ShouldContain("not registered as an applicant or defense attorney");
         }
     }
 }

@@ -7,7 +7,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentLanguageRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IAppointmentLanguageRepository _languageRepository;

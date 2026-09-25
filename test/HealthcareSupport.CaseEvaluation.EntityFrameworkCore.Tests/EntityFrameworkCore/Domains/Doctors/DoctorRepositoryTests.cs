@@ -8,7 +8,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.Doctors;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class DoctorRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IDoctorRepository _doctorRepository;
