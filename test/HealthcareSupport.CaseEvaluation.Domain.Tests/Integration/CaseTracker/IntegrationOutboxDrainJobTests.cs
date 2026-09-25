@@ -13,8 +13,12 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <summary>
 /// Unit tests for <see cref="IntegrationOutboxDrainJob"/>'s one-pass-per-office rule (#917). During an
 /// outage a pass runs long, and Hangfire queues overlapping jobs rather than skipping them, so without
-/// the lock the 5-minute kicks would stack passes against a service that is already down. All fixture
-/// data is synthetic.
+/// the lock the 5-minute kicks would stack passes against a service that is already down.
+///
+/// <para>Also pinned: the drain runs INSIDE the office's tenant scope and the scope is closed afterwards,
+/// even when the drain throws. Background workers start with no ambient tenant, so a drain outside the
+/// scope would read another database's rows -- or none -- and push nothing. All fixture data is
+/// synthetic.</para>
 /// </summary>
 public class IntegrationOutboxDrainJobTests
 {
@@ -27,6 +31,7 @@ public class IntegrationOutboxDrainJobTests
         public required IAbpDistributedLock Lock { get; init; }
         public required ICurrentTenant CurrentTenant { get; init; }
         public required IAbpDistributedLockHandle Handle { get; init; }
+        public required IDisposable TenantScope { get; init; }
     }
 
     /// <param name="lockHeld">True when another pass for the office already holds the lock.</param>
@@ -41,7 +46,9 @@ public class IntegrationOutboxDrainJobTests
         distributedLock.TryAcquireAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(lockHeld ? null : handle));
 
+        var tenantScope = Substitute.For<IDisposable>();
         var currentTenant = Substitute.For<ICurrentTenant>();
+        currentTenant.Change(Arg.Any<Guid?>(), Arg.Any<string?>()).Returns(tenantScope);
 
         return new Harness
         {
@@ -50,6 +57,7 @@ public class IntegrationOutboxDrainJobTests
             Lock = distributedLock,
             CurrentTenant = currentTenant,
             Handle = handle,
+            TenantScope = tenantScope,
         };
     }
 
@@ -95,5 +103,42 @@ public class IntegrationOutboxDrainJobTests
     {
         IntegrationOutboxDrainJob.LockName(null).ShouldBe("CaseTracker:OutboxDrain:host");
         IntegrationOutboxDrainJob.LockName(OfficeId).ShouldNotBe(IntegrationOutboxDrainJob.LockName(Guid.NewGuid()));
+    }
+
+    /// <summary>
+    /// Enter the office's scope, drain, leave it -- in that order. Both a drain that did work and one
+    /// that found nothing are run, covering the job's log branch.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 1)]
+    [InlineData(0, 0)]
+    public async Task TheDrainRunsBetweenEnteringAndLeavingTheOfficeScope(int sent, int failed)
+    {
+        var h = Build(lockHeld: false);
+        h.Drain.DrainDueAsync(Arg.Any<int?>()).Returns(Task.FromResult(new IntegrationDrainResult(sent, failed)));
+
+        await h.Job.ExecuteAsync(new IntegrationOutboxDrainArgs { TenantId = OfficeId });
+
+        Received.InOrder(() =>
+        {
+            h.CurrentTenant.Change(OfficeId, Arg.Any<string?>());
+            h.Drain.DrainDueAsync(Arg.Any<int?>());
+            h.TenantScope.Dispose();
+        });
+    }
+
+    [Fact]
+    public async Task ADrainThatThrows_Propagates_AndStillClosesTheScopeAndReleasesTheLock()
+    {
+        var h = Build(lockHeld: false);
+        h.Drain.DrainDueAsync(Arg.Any<int?>())
+            .Returns<IntegrationDrainResult>(_ => throw new InvalidOperationException("TEST-drain failure"));
+
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(
+            () => h.Job.ExecuteAsync(new IntegrationOutboxDrainArgs { TenantId = OfficeId }));
+
+        thrown.Message.ShouldBe("TEST-drain failure");
+        h.TenantScope.Received(1).Dispose();
+        await h.Handle.Received(1).DisposeAsync();
     }
 }
