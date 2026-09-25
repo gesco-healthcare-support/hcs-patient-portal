@@ -49,6 +49,9 @@ public class HostOnlyIntegrationAdminGuardTests
         _tenantWorkRunner
             .AggregateAcrossOfficesAsync(Arg.Any<Func<Guid, Task<CaseTrackerOfficePushStateDto>>>())
             .Returns(new List<CaseTrackerOfficePushStateDto>());
+        _tenantWorkRunner
+            .AggregateAcrossOfficesAsync(Arg.Any<Func<Guid, Task<CaseTrackerMissingIntakeOffice>>>())
+            .Returns(new List<CaseTrackerMissingIntakeOffice>());
         _outboxRepository.GetQueryableAsync()
             .Returns(new List<IntegrationOutboxItem>().AsQueryable());
     }
@@ -99,7 +102,34 @@ public class HostOnlyIntegrationAdminGuardTests
         _currentTenant.Received(1).Change(SecondOfficeId, Arg.Any<string?>());
     }
 
+    [Fact]
+    public async Task DeadLetterRetryAll_InsideAnOffice_IsRefused_BeforeTheOtherOfficeIsEntered()
+    {
+        InsideAnOffice();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(
+            () => BuildDeadLetterService().RetryAllAsync(SecondOfficeId));
+
+        _currentTenant.DidNotReceive().Change(SecondOfficeId, Arg.Any<string?>());
+        await _outboxRepository.DidNotReceiveWithAnyArgs().GetQueryableAsync();
+    }
+
     // ---- Push settings ----
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FeedActions_InsideAnOffice_AreRefused_BeforeTheOtherOfficeIsEntered(bool start)
+    {
+        // #927: starting the feed or returning an office to push acts on the office the route names.
+        InsideAnOffice();
+        var service = BuildPushSettingsService();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(
+            () => start ? service.StartFeedAsync(SecondOfficeId) : service.ReturnToPushAsync(SecondOfficeId));
+
+        _currentTenant.DidNotReceive().Change(SecondOfficeId, Arg.Any<string?>());
+    }
 
     [Fact]
     public async Task PushSettingsList_InsideAnOffice_IsRefused_BeforeAnyOfficeIsAggregated()
@@ -150,6 +180,29 @@ public class HostOnlyIntegrationAdminGuardTests
             Arg.Any<bool>());
     }
 
+    // ---- Missing-intake report (#944) ----
+
+    [Fact]
+    public async Task MissingIntakeReport_InsideAnOffice_IsRefused_BeforeAnyOfficeIsRead()
+    {
+        InsideAnOffice();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(() => BuildMissingIntakeService().GetReportAsync());
+
+        await _tenantWorkRunner.DidNotReceiveWithAnyArgs()
+            .AggregateAcrossOfficesAsync<CaseTrackerMissingIntakeOffice>(default!);
+    }
+
+    [Fact]
+    public async Task MissingIntakeReport_AtTheHost_ReadsTheOffices()
+    {
+        var report = await BuildMissingIntakeService().GetReportAsync();
+
+        report.Offices.ShouldBeEmpty();
+        await _tenantWorkRunner.Received(1)
+            .AggregateAcrossOfficesAsync(Arg.Any<Func<Guid, Task<CaseTrackerMissingIntakeOffice>>>());
+    }
+
     // ------------------------------------------------------------------------
 
     private void InsideAnOffice()
@@ -164,7 +217,7 @@ public class HostOnlyIntegrationAdminGuardTests
             _outboxRepository,
             null!,
             Substitute.For<IRepository<Appointment, Guid>>(),
-            Substitute.For<ICaseTrackerIntakeQueue>(),
+            null!, // the requeuer (#961): never reached, the guard refuses first
             _currentTenant,
             Substitute.For<ITenantStore>(),
             Substitute.For<IClock>())
@@ -179,7 +232,30 @@ public class HostOnlyIntegrationAdminGuardTests
             _currentTenant,
             _settingManager,
             _outboxRepository,
+            // #927: a real manager over substitutes. On push-only offices it reads no feed store.
+            new CaseTrackerFeedManager(
+                Substitute.For<ICaseTrackerFeedStateRepository>(),
+                Substitute.For<ICaseTrackerFeedStore>(),
+                Substitute.For<IClock>(),
+                Substitute.For<Volo.Abp.Guids.IGuidGenerator>()),
             Substitute.For<ILogger<CaseTrackerPushSettingsAppService>>())
+        {
+            LazyServiceProvider = Substitute.For<IAbpLazyServiceProvider>(),
+        };
+
+    private CaseTrackerMissingIntakeAppService BuildMissingIntakeService() =>
+        new(
+            // A real reporter over substitutes: the refusal must come before it reads any office.
+            new CaseTrackerMissingIntakeReporter(
+                _tenantWorkRunner,
+                Substitute.For<ITenantStore>(),
+                Substitute.For<IRepository<Appointment, Guid>>(),
+                Substitute.For<IRepository<AppointmentDocuments.AppointmentPacket, Guid>>(),
+                _outboxRepository,
+                Substitute.For<IClock>(),
+                Substitute.For<ILogger<CaseTrackerMissingIntakeReporter>>()),
+            _currentTenant,
+            Substitute.For<IClock>())
         {
             LazyServiceProvider = Substitute.For<IAbpLazyServiceProvider>(),
         };

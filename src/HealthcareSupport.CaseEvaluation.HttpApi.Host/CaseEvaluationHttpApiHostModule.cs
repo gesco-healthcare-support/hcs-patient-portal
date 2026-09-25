@@ -662,6 +662,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     rejectionContext.HttpContext.Response.Headers.RetryAfter =
                         ((int)retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 }
+
+                // #927: the changes feed answers every refusal with 403 and the Gesco envelope. Its consumer
+                // treats 403 as safe; a 429 would pause both of its features for minutes.
+                if (IsFeedPath(rejectionContext.HttpContext))
+                {
+                    return WriteFeedRejectionAsync(rejectionContext.HttpContext);
+                }
+
                 return System.Threading.Tasks.ValueTask.CompletedTask;
             };
 
@@ -739,6 +747,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                                 QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
                                 AutoReplenishment = true,
                             });
+                    }
+                    if (IsFeedPath(httpContext))
+                    {
+                        // #927 -- BEFORE the integration branch, so the feed never shares the 300/hour
+                        // bucket reconcile and attendance use.
+                        return ResolveFeedPartition(httpContext);
                     }
                     if (IsIntegrationPath(httpContext))
                     {
@@ -876,6 +890,69 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>Requests per hour, per source IP, allowed under <see cref="IntegrationPathPrefix"/>.</summary>
     public const int IntegrationRequestsPerHour = 300;
+
+    /// <summary>
+    /// #927 -- true for the changes feed, <c>/api/integration/offices/{officeId}/feed</c>, any verb. Checked BEFORE
+    /// <see cref="IsIntegrationPath"/> by the limiter, because the feed has its own allowance and must not
+    /// spend the one reconcile and attendance share.
+    /// </summary>
+    internal static bool IsFeedPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (!httpContext.Request.Path.StartsWithSegments(IntegrationPathPrefix + "/offices", out var rest))
+        {
+            return false;
+        }
+
+        var segments = (rest.Value ?? string.Empty).Trim('/').Split('/');
+        return segments.Length == 2 && string.Equals(segments[1], "feed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// #927 -- whether the request carries the valid feed token. False when the validator cannot be resolved,
+    /// so a request is never waved past the token-less cap by accident.
+    /// </summary>
+    internal static bool HasValidFeedToken(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var validator = httpContext.RequestServices?.GetService<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.FeedTokenValidator>();
+        return validator != null
+            && validator.IsValid(httpContext.Request.Headers[HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedConsts.FeedTokenHeaderName]);
+    }
+
+    /// <summary>
+    /// #927 -- the feed's middleware partition. A request WITH the valid token passes: its office's allowance is
+    /// counted in the controller after the token check (<see cref="CaseTrackerFeedAllowance"/>), so nobody
+    /// without the token can spend it. A request WITHOUT is capped per address, which bounds what a caller
+    /// without the token can cost us.
+    /// </summary>
+    internal static System.Threading.RateLimiting.RateLimitPartition<string> ResolveFeedPartition(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (HasValidFeedToken(httpContext))
+        {
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("feed-authenticated");
+        }
+
+        var key = ResolveClientIpPartitionKey(httpContext);
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"feed-unauth:{key}",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedConsts.UnauthenticatedRequestsPerHourPerIp,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                AutoReplenishment = true,
+            });
+    }
+
+    /// <summary>#927 -- a feed refusal from the middleware: 403 with the same generic body as a bad token.</summary>
+    private static System.Threading.Tasks.ValueTask WriteFeedRejectionAsync(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+        httpContext.Response.ContentType = "application/json";
+        var body = HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedResponseWriter.WriteError(
+            "forbidden", "The request is not authorised.", null, Guid.NewGuid(), DateTime.UtcNow);
+        return new System.Threading.Tasks.ValueTask(httpContext.Response.WriteAsync(body, httpContext.RequestAborted));
+    }
 
     /// <summary>
     /// 2026-09-08 (#702): path prefix matched by the public opposing-consent limiter.
@@ -1589,6 +1666,25 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerReconciliationJob.CronExpression,
             options);
 
+        // #917 (2026-09-23) -- kicks every office's outbox drain every 5 minutes, so a failed push is
+        // retried when its wait (5, 10, 20, then 30 minutes) expires rather than at the next 15-minute
+        // sweep. Enqueue only; the drain itself skips if that office already has a pass running.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerDrainKickJob.CronExpression,
+            options);
+
+        // #927 (2026-09-24) -- every 5 minutes, checks each office on the Case Tracker changes feed for a silent
+        // consumer (no request for 15 minutes) or a stalled position (a row waiting 30 minutes, position not
+        // moving), and emails the technical list when either starts and when it clears. Shipped with the
+        // endpoint: under the feed nothing is marked Failed, so the failures screen cannot show undelivered rows.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFeedHealthJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFeedHealthJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerFeedHealthJob.CronExpression,
+            options);
+
         // Case Tracker integration Part 5 (2026-07-28) -- alerts internal staff about dead-lettered
         // pushes (every 15 min). A permanently failed push means a case silently never reached the
         // Case Tracker; without this it is visible only in the server logs. Batched per office, so a
@@ -1607,6 +1703,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerCompletenessSweepJob.RecurringJobId,
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerCompletenessSweepJob.CronExpression,
+            options);
+
+        // #944 (2026-09-24) -- weekly missing-intake report. The sweep above must keep its 7-day floor, so an
+        // approval with no intake row older than that is invisible to it; this READ-ONLY report covers it and
+        // emails the technical list only when something is likely lost. Mondays 08:00 Pacific.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerMissingIntakeReportJob>(
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerMissingIntakeReportJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs.CaseTrackerMissingIntakeReportJob.CronExpression,
             options);
     }
 

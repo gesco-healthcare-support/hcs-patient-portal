@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
@@ -82,6 +83,43 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
     }
 
     [Fact]
+    public async Task DeadLetterRetryAll_IsRefused_ForAnOfficeCaller_TargetingAnotherOffice()
+    {
+        // Retry-all acts on whichever office its route names, so an office caller naming another office
+        // must be refused before that office is entered -- and its dead letter must still be Failed.
+        var second = await EnsureSecondOfficeAsync();
+
+        await AssertRefusedInOfficeAsync(
+            sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>().RetryAllAsync(second.OfficeId));
+
+        await AssertSecondOfficeUntouchedAsync(second);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FeedActions_AreRefused_ForAnOfficeCaller_TargetingAnotherOffice(bool start)
+    {
+        // #927: the cutover actions switch how another office's changes reach the Case Tracker.
+        var second = await EnsureSecondOfficeAsync();
+
+        await AssertRefusedInOfficeAsync(sp =>
+        {
+            var service = sp.GetRequiredService<ICaseTrackerPushSettingsAppService>();
+            return start ? service.StartFeedAsync(second.OfficeId) : service.ReturnToPushAsync(second.OfficeId);
+        });
+
+        await AssertSecondOfficeUntouchedAsync(second);
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(second.OfficeId))
+            {
+                (await GetRequiredService<ICaseTrackerFeedStateRepository>().FindCurrentAsync()).ShouldBeNull();
+            }
+        }, requiresNew: true);
+    }
+
+    [Fact]
     public async Task PushSettingsList_IsRefused_ForAnOfficeCaller()
     {
         var second = await EnsureSecondOfficeAsync();
@@ -100,6 +138,18 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         await AssertRefusedInOfficeAsync(
             sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>()
                 .SetPushEnabledAsync(second.OfficeId, false));
+
+        await AssertSecondOfficeUntouchedAsync(second);
+    }
+
+    [Fact]
+    public async Task MissingIntakeReport_IsRefused_ForAnOfficeCaller()
+    {
+        // #944: the report reads every office's appointments.
+        var second = await EnsureSecondOfficeAsync();
+
+        await AssertRefusedInOfficeAsync(
+            sp => sp.GetRequiredService<ICaseTrackerMissingIntakeAppService>().GetReportAsync());
 
         await AssertSecondOfficeUntouchedAsync(second);
     }
@@ -133,6 +183,26 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
     }
 
     [Fact]
+    public async Task DeadLetterRetryAll_IsAdmitted_ForAHostOperator()
+    {
+        // No office id: an admitted call reaches the method body and is refused there as a bad request; a
+        // refused one would throw AbpAuthorizationException instead. Nothing is retried either way.
+        await Should.ThrowAsync<UserFriendlyException>(() => RunAsHostOperatorAsync(
+            sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>().RetryAllAsync(Guid.Empty)));
+    }
+
+    [Fact]
+    public async Task FeedReturn_IsAdmitted_ForAHostOperator()
+    {
+        // The second office is not on the feed, so an admitted call reaches the method body and is refused
+        // there; a refused one would throw AbpAuthorizationException instead. Nothing changes either way.
+        var second = await EnsureSecondOfficeAsync();
+
+        await Should.ThrowAsync<UserFriendlyException>(() => RunAsHostOperatorAsync(
+            sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>().ReturnToPushAsync(second.OfficeId)));
+    }
+
+    [Fact]
     public async Task PushSettingsList_IsAdmitted_ForAHostOperator()
     {
         var second = await EnsureSecondOfficeAsync();
@@ -142,6 +212,18 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
 
         var state = offices.Where(o => o.OfficeId == second.OfficeId).ShouldHaveSingleItem();
         state.PushEnabled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task MissingIntakeReport_IsAdmitted_ForAHostOperator_AndReadsTheSecondOffice()
+    {
+        var second = await EnsureSecondOfficeAsync();
+
+        var report = await RunAsHostOperatorAsync(
+            sp => sp.GetRequiredService<ICaseTrackerMissingIntakeAppService>().GetReportAsync());
+
+        // Also runs the report's queries against a real office database on the rig.
+        report.Offices.Where(o => o.OfficeId == second.OfficeId).ShouldHaveSingleItem().Failed.ShouldBeFalse();
     }
 
     [Fact]

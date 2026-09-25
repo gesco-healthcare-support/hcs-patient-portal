@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Volo.Abp.Domain.Repositories;
@@ -60,6 +61,46 @@ public interface IIntegrationOutboxRepository : IRepository<IntegrationOutboxIte
     /// suppressed SILENTLY. Such a job must keep intake rows, or this must stop filtering them.</para>
     /// </summary>
     Task<bool> HasIntakeAsync(Guid appointmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// This office's live rows for one appointment and message type, NEWEST FIRST by creation time.
+    /// The enqueue's collapse rule (#915) reads it: an intake compares its content against the newest
+    /// row only, a document update against any of them. Office scoping and soft delete are the
+    /// ambient filters, as for every query on this repository.
+    /// </summary>
+    Task<List<IntegrationOutboxItem>> GetForAppointmentAsync(
+        Guid appointmentId,
+        IntegrationMessageType messageType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ids of up to <paramref name="take"/> rows that are due for an attempt: Pending, not leased (or the
+    /// lease has expired), and past any retry wait. Oldest first, with the id as a tiebreaker so equal
+    /// creation times still give a stable order. The drain leases them one at a time (#917).
+    /// </summary>
+    Task<List<Guid>> GetDueIdsAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// This office's rows that have failed at least <paramref name="minimumAttempts"/> times, are STILL
+    /// retrying (Pending), and have not had the early-warning email yet (#917). Oldest first.
+    ///
+    /// <para>Nothing for an office on the changes feed (#927): it retries nothing, and stamping one of its
+    /// rows would change that row's rowversion, so the feed would serve it a second time.</para>
+    /// </summary>
+    Task<List<IntegrationOutboxItem>> GetUnwarnedRetryingAsync(
+        int minimumAttempts,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stamps <c>EarlyWarnedAt</c> on the given rows where it is still null, in ONE set-based UPDATE.
+    /// Deliberately not a tracked save: these rows are still being retried, and the per-row drain may be
+    /// saving the same row at the same moment. A tracked save carries the concurrency stamp and would
+    /// fail on that race; this UPDATE touches one column and leaves the drain's write intact.
+    /// </summary>
+    Task StampEarlyWarnedAsync(
+        IReadOnlyCollection<Guid> ids,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Takes the per-appointment ordering lock for the rest of the current transaction (#931). Both

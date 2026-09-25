@@ -40,6 +40,7 @@ import {
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
 import { CaseTrackerOfficesComponent } from './case-tracker-offices.component';
 import { IntegrationFailuresComponent } from './integration-failures.component';
+import { CaseTrackerMissingIntakesComponent } from './case-tracker-missing-intakes.component';
 import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 import {
   catalogEntryFor,
@@ -109,6 +110,7 @@ function auditSortValue(row: AuditLogDto, key: string): SortValue {
     QuillEditorComponent,
     CaseTrackerOfficesComponent,
     IntegrationFailuresComponent,
+    CaseTrackerMissingIntakesComponent,
   ],
   templateUrl: './internal-admin-hub.component.html',
   styles: `

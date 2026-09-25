@@ -6,6 +6,8 @@ Description=Patient Portal off-box backup (databases + MinIO -> hcs-vc-server)
 Documentation=file:///home/apadmin/hcs-patient-portal/scripts/hosting/backup-offbox.sh
 After=docker.service
 Requires=docker.service
+# #945: a failed run emails a person instead of only reaching the journal.
+OnFailure=hcs-portal-backup-alert@%n.service
 
 [Service]
 Type=oneshot

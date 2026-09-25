@@ -191,6 +191,26 @@ internal static class EmailSubjects
         "Action needed: appointment(s) did not reach the Case Tracker";
 
     /// <summary>
+    /// #917 (2026-09-23). States the fact and that the portal is still acting on it, so it is not read
+    /// as a request to do something -- the dead-letter subject is the one that asks for action.
+    /// </summary>
+    public const string CaseTrackerPushRetrying =
+        "Retrying: appointment(s) have not yet reached the Case Tracker";
+
+    /// <summary>
+    /// #927 (2026-09-24). The headline names what happened -- "no requests", "position advancing again" -- so
+    /// the start and the clearing email of one incident are told apart in an inbox.
+    /// </summary>
+    public const string CaseTrackerFeedAlert =
+        "Case Tracker feed: ##FeedAlertTitle## (##OfficeName##)";
+
+    /// <summary>
+    /// #944 (2026-09-24). Weekly, and only when there is something in it, so the count is the headline.
+    /// </summary>
+    public const string CaseTrackerMissingIntakes =
+        "Case Tracker: ##MissingIntakeCount## appointment(s) with no intake row";
+
+    /// <summary>
     /// Group F (2026-06-09) -- the single consolidated reminder subject. The
     /// body carries the due-date nudge plus any outstanding documents, so the
     /// subject stays generic enough to fit both the docs and no-docs cases.
@@ -376,6 +396,9 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PendingAppointmentDailyNotification] = PendingAppointmentDailyNotification,
             [NotificationTemplateConsts.Codes.AppointmentApproveRejectInternal] = AppointmentApproveRejectInternal,
             [NotificationTemplateConsts.Codes.CaseTrackerPushFailed] = CaseTrackerPushFailed,
+            [NotificationTemplateConsts.Codes.CaseTrackerPushRetrying] = CaseTrackerPushRetrying,
+            [NotificationTemplateConsts.Codes.CaseTrackerFeedAlert] = CaseTrackerFeedAlert,
+            [NotificationTemplateConsts.Codes.CaseTrackerMissingIntakes] = CaseTrackerMissingIntakes,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.

@@ -3229,6 +3229,96 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.ToTable("AppIntakeOfficeAssignments", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("AcknowledgedPosition")
+                        .HasColumnType("bigint")
+                        .HasColumnName("AcknowledgedPosition");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<DateTime?>("CursorAheadAlertedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CursorAheadAlertedAt");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<long>("FloorPosition")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FloorPosition");
+
+                    b.Property<long>("HighestIssuedPosition")
+                        .HasColumnType("bigint")
+                        .HasColumnName("HighestIssuedPosition");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<DateTime?>("LastAdvancedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastAdvancedAt");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<DateTime?>("LastRequestAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastRequestAt");
+
+                    b.Property<DateTime?>("SilenceAlertedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SilenceAlertedAt");
+
+                    b.Property<DateTime?>("StallAlertedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("StallAlertedAt");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("StartedAt");
+
+                    b.Property<DateTime?>("StoppedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("StoppedAt");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppCaseTrackerFeedStates", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Integration.CaseTracker.IntegrationOutboxItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3245,6 +3335,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<int>("AttemptCount")
                         .HasColumnType("int")
                         .HasColumnName("AttemptCount");
+
+                    b.Property<byte[]>("ChangeVersion")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion")
+                        .HasColumnName("ChangeVersion");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -3269,10 +3364,18 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("DeletionTime");
 
+                    b.Property<DateTime?>("EarlyWarnedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("EarlyWarnedAt");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
+
+                    b.Property<DateTime?>("FirstFailedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("FirstFailedAt");
 
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
@@ -3349,6 +3452,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasIndex("TenantId", "IdempotencyKey")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Status", "ChangeVersion");
 
                     b.HasIndex("TenantId", "Status", "NextAttemptAt");
 

@@ -4,6 +4,8 @@
 Description=Patient Portal off-box backup WITH restore proof (weekly)
 After=docker.service
 Requires=docker.service
+# #945: a failed restore proof is reported the same way as a failed backup.
+OnFailure=hcs-portal-backup-alert@%n.service
 
 [Service]
 Type=oneshot

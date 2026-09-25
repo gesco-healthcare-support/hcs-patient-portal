@@ -358,6 +358,10 @@ services:
       CaseTracker__BaseUrl: "${CASE_TRACKER_BASE_URL:-}"
       CaseTracker__IntakeToken: "${CASE_TRACKER_INTAKE_TOKEN:-}"
       CaseTracker__IntegrationToken: "${CASE_TRACKER_INTEGRATION_TOKEN:-}"
+      # #927: the changes feed has its OWN token (blank = every feed request refused) and emails its
+      # alerts to a technical list, separated by ; or , (blank = logged as an error on every check).
+      CaseTracker__FeedToken: "${CASE_TRACKER_FEED_TOKEN:-}"
+      CaseTracker__FeedAlertRecipients: "${CASE_TRACKER_FEED_ALERT_RECIPIENTS:-}"
       CaseTracker__TimeoutSeconds: "${CASE_TRACKER_TIMEOUT_SECONDS:-30}"
     volumes:
       # dev target (2026-06-12): bind-mount source + NuGet named volume; build

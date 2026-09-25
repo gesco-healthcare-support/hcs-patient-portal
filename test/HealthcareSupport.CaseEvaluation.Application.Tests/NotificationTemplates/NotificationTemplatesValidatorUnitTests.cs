@@ -219,7 +219,13 @@ public class NotificationTemplatesValidatorUnitTests
         // staff notice replacing the auto-cancel mail to stakeholders (+1 -> 66).
         // Item F (2026-08-22) added ExternalUserPortalLink, the sign-in link staff can send when
         // the email they tried to invite already has an account (+1 -> 67).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(67);
+        // #917 (2026-09-23) added CaseTrackerPushRetrying, the early warning for pushes still inside
+        // the 24-hour retry window (+1 -> 68).
+        // #927 (2026-09-24) added CaseTrackerFeedAlert, the changes-feed alert to the technical list
+        // (+1 -> 69).
+        // #944 (2026-09-24) added CaseTrackerMissingIntakes, the weekly missing-intake report to the
+        // technical list (+1 -> 70).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(70);
     }
 
     [Fact]
