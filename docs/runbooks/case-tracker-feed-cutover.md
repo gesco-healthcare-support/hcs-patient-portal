@@ -161,6 +161,12 @@ Turn their polling for that office off as well, or they will poll an office that
   and a rejection there answers 403 `forbidden` with the same envelope as a bad token. So during a
   misconfigured switch-on, several offices polling with a wrong token exhaust that 60/hour quickly
   and the middleware refusal is indistinguishable from the token refusal.
+- **Correcting the token escapes that bucket immediately; there is no hour to wait out.** The
+  partition is chosen per request BY token validity, so once the token is right the request resolves
+  to no limiter at all and never touches the bucket it previously filled. During an incident the
+  instruction is "fix the token and resume", not "fix the token and wait". It also means a
+  middleware rejection can only ever reach a caller whose token is wrong, so the actionable fix is
+  always the token rather than the rate.
 - **It is held in memory, per API instance.** Exact while there is one instance, which is the case
   today. If the API is ever scaled out behind the public host, the effective allowance multiplies by
   the instance count and neither side will notice.
