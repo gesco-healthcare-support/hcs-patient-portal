@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.AppointmentPrimaryInsurances;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentPrimaryInsuranceManagerTests : AppointmentPrimaryInsuranceManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

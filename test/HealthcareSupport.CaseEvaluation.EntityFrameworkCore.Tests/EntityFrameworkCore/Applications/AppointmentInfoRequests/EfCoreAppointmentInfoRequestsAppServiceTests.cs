@@ -77,7 +77,6 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 /// read-back each get their own <c>WithUnitOfWorkAsync</c> so a multi-step sequence shares one
 /// ambient DbContext.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentInfoRequestsAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

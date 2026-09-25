@@ -9,7 +9,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentAccessorRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IAppointmentAccessorRepository _accessorRepository;

@@ -109,11 +109,10 @@ public class BootedAuthTenantResolverOrderingTestModule : AbpModule
 /// multi-tenancy module of its own.</para>
 /// </summary>
 /// <remarks>
-/// The <c>[Collection]</c> attribute is REQUIRED, not decoration -- see
-/// <c>BootedTenantResolverDefaultsTests</c>, which records the FOREIGN KEY failure that omitting it
-/// produces in a full run while passing under a filter.
+/// Carries no <c>[Collection]</c> and runs in parallel with the other EF Core test classes (#1034).
+/// See <c>BootedTenantResolverDefaultsTests</c> for the FOREIGN KEY failure a lone collection used
+/// to produce, and why it no longer applies.
 /// </remarks>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class BootedApiTenantResolverOrderingTests
     : CaseEvaluationTestBase<BootedApiTenantResolverOrderingTestModule>
 {
@@ -173,7 +172,6 @@ public class BootedApiTenantResolverOrderingTests
 /// <see cref="BootedApiTenantResolverOrderingTests"/> for the full reasoning; it is not repeated
 /// here so the two cannot drift.
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class BootedAuthTenantResolverOrderingTests
     : CaseEvaluationTestBase<BootedAuthTenantResolverOrderingTestModule>
 {

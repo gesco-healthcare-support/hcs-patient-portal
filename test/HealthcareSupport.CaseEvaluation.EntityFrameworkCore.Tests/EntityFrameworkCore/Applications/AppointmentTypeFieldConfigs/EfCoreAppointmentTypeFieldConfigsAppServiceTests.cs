@@ -76,7 +76,6 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
 /// <para>All data is synthetic: <c>TEST-</c> prefixed identifiers and neutral form-field keys.
 /// No Fact stores anything resembling a patient identifier.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentTypeFieldConfigsAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

@@ -4,8 +4,10 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.Testing;
 
@@ -23,7 +25,7 @@ namespace HealthcareSupport.CaseEvaluation.Testing;
 /// a tenant context.
 ///
 /// Must run AFTER the orchestrator's SeedTenantsAsync step -- this contributor
-/// reads TenantsTestData.TenantARef / TenantBRef which are populated there.
+/// seeds users into the TenantsTestData.TenantARef / TenantBRef tenants, which are created there.
 /// </summary>
 public class IdentityUsersDataSeedContributor : ISingletonDependency
 {
@@ -31,15 +33,18 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
     private readonly IdentityUserManager _userManager;
     private readonly IdentityRoleManager _roleManager;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IRepository<Tenant, Guid> _tenantRepository;
 
     public IdentityUsersDataSeedContributor(
         IdentityUserManager userManager,
         IdentityRoleManager roleManager,
-        ICurrentTenant currentTenant)
+        ICurrentTenant currentTenant,
+        IRepository<Tenant, Guid> tenantRepository)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _currentTenant = currentTenant;
+        _tenantRepository = tenantRepository;
     }
 
     public async Task SeedAsync(DataSeedContext context)
@@ -49,7 +54,7 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
             return;
         }
 
-        RequireTenantsSeeded();
+        await RequireTenantsSeededAsync();
 
         await SeedHostAdminAsync();
         await SeedTenantAUsersAsync();
@@ -58,13 +63,22 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
         _isSeeded = true;
     }
 
-    private static void RequireTenantsSeeded()
+    /// <summary>
+    /// Fails fast when the orchestrator has not created the two test tenants yet. The ids
+    /// in <see cref="TenantsTestData"/> are fixed, so they are never empty; the ordering
+    /// check has to look for the tenant rows themselves.
+    /// </summary>
+    private async Task RequireTenantsSeededAsync()
     {
-        if (TenantsTestData.TenantARef == Guid.Empty || TenantsTestData.TenantBRef == Guid.Empty)
+        using (_currentTenant.Change(null))
         {
-            throw new InvalidOperationException(
-                "IdentityUsersDataSeedContributor requires TenantsTestData.TenantARef/TenantBRef to be populated. " +
-                "The orchestrator must call its SeedTenantsAsync step before invoking this contributor.");
+            if (await _tenantRepository.FindAsync(TenantsTestData.TenantARef) == null
+                || await _tenantRepository.FindAsync(TenantsTestData.TenantBRef) == null)
+            {
+                throw new InvalidOperationException(
+                    "IdentityUsersDataSeedContributor requires the TenantsTestData tenants to exist. " +
+                    "The orchestrator must call its SeedTenantsAsync step before invoking this contributor.");
+            }
         }
     }
 

@@ -19,7 +19,6 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// before the report runs (LOAD-BEARING -- against an empty outbox "nothing changed" would prove nothing), and
 /// every field a write could move is compared before and after.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreCaseTrackerMissingIntakeReporterTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private static readonly DateTime FirstRowAt = new(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);

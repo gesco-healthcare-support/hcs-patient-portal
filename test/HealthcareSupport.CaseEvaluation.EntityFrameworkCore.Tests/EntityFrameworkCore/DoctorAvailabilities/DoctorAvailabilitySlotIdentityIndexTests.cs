@@ -23,7 +23,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.DoctorAvailabilit
 /// (host and per-office), so the index needs a migration in each set, and divergence between the
 /// two contexts has bitten this codebase before.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class DoctorAvailabilitySlotIdentityIndexTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private static readonly string[] ExpectedColumns =

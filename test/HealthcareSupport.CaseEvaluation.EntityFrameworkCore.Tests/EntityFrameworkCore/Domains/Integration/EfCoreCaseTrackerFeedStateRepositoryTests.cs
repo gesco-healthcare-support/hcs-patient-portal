@@ -13,7 +13,6 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// statements, so this is the only layer that can prove them: a poll never moves an office backwards, and
 /// <c>LastAdvancedAt</c> -- the stall alert's clock -- moves only when the position does.
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreCaseTrackerFeedStateRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private static readonly DateTime Started = new(2026, 9, 24, 17, 0, 0, DateTimeKind.Utc);

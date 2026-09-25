@@ -217,6 +217,55 @@ class TestInRepo(unittest.TestCase):
         self.assertTrue(gate.in_repo("src/App/Foo.cs", self.TRACKED, ()))
 
 
+class TestStripWorkspaceRoot(unittest.TestCase):
+    """#1024's key fix reuses #864's ANCHORED rule; the suffix search must not come back.
+
+    Each "left alone" case below is one a suffix search would have renamed into
+    one of our files. Seen to fail: with the helper changed to strip at any
+    `/src/` suffix, the vendor, vendored-copy, unrelated-tree and mid-path
+    cases all fail.
+    """
+
+    WORKSPACE = TestInRepo.WORKSPACE
+    ROOT = WORKSPACE[0]
+
+    def _strip(self, path: str, prefixes: tuple[str, ...] | None = None) -> str:
+        return gate.strip_workspace_root(path, self.WORKSPACE if prefixes is None else prefixes)
+
+    def test_removes_the_slashed_checkout_root(self):
+        self.assertEqual(self._strip(self.ROOT + "/src/App/Foo.cs"), "src/App/Foo.cs")
+
+    def test_removes_the_unslashed_checkout_root(self):
+        self.assertEqual(self._strip(self.ROOT.lstrip("/") + "/src/App/Foo.cs"), "src/App/Foo.cs")
+
+    def test_leaves_the_vendor_sourcelink_root_alone(self):
+        for path in ("_/src/App/Foo.cs", "/_/src/App/Foo.cs"):
+            self.assertEqual(self._strip(path), path)
+
+    def test_leaves_a_vendored_copy_alone(self):
+        self.assertEqual(self._strip("vendor/src/App/Foo.cs"), "vendor/src/App/Foo.cs")
+
+    def test_leaves_an_unrelated_absolute_tree_alone(self):
+        self.assertEqual(self._strip("/nix/store/abc/src/App/Foo.cs"), "/nix/store/abc/src/App/Foo.cs")
+
+    def test_leaves_the_root_appearing_mid_path_alone(self):
+        path = "/elsewhere" + self.ROOT + "/src/App/Foo.cs"
+        self.assertEqual(self._strip(path), path)
+
+    def test_requires_a_separator_boundary_after_the_root(self):
+        path = self.ROOT + "-other/src/App/Foo.cs"
+        self.assertEqual(self._strip(path), path)
+
+    def test_leaves_relative_paths_alone(self):
+        for path in ("src/App/Foo.cs", "scripts/x.py", ".claude/scripts/x.py", "angular/src/app/x.ts"):
+            self.assertEqual(self._strip(path), path)
+
+    def test_with_no_recognised_root_an_absolute_path_stays_absolute(self):
+        """The closed direction: the tracked guard then still refuses it."""
+        path = self.ROOT + "/src/App/Foo.cs"
+        self.assertEqual(self._strip(path, ()), path)
+
+
 class TestWorkspacePrefixes(unittest.TestCase):
     """The derivation, which is what makes this work off a GitHub runner."""
 

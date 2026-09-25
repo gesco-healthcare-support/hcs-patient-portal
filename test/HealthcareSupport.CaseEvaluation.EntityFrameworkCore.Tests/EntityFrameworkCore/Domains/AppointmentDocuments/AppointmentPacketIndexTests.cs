@@ -20,7 +20,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.Appointme
 /// filtered index is kept as defensive design for any future soft-delete
 /// of a packet row, and this test guards it.
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentPacketIndexTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IDbContextProvider<CaseEvaluationDbContext> _dbContextProvider;

@@ -89,7 +89,6 @@ namespace HealthcareSupport.CaseEvaluation.UserProfile;
 /// neither can be while the validator blocks the method -- see the UploadAsync section below for the
 /// measured reason. They are recorded here so the observations outlive the tests that carried them.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreUserSignatureAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

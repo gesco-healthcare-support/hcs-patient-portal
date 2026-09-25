@@ -2,22 +2,22 @@
 
 ## What Lives Here
 
-`patient/` -- admin CRUD modal (patient-detail), read-only list, and patient self-service
-profile (patient-profile).
+`patient/` -- the patient self-service profile (patient-profile, plus its redesign) and the
+patient routes. There is no admin patient CRUD modal here; office staff edit patient details
+from the internal appointment detail page.
 
 Key files:
 
-- `patient/services/patient-detail.abstract.service.ts` -- form builder + create/update logic
-- `patient/components/patient-detail.component.html` -- admin edit modal template
 - `patient/components/patient-profile.component.ts` -- self-service profile page
+- `patient/components/patient-profile-redesign.component.ts` -- redesigned profile page
 
 ## Conventions
 
 ### SSN -- Design B (app-ssn-input only)
 
-`<app-ssn-input>` is the sole SSN entry surface in both the admin modal and the profile
-page. See `patient-detail.component.html` for the full binding with `[patientId]`,
-`[patientIdentityUserId]`, and `[currentMaskedSsn]` inputs.
+`<app-ssn-input>` is the sole SSN entry surface: the profile page, the booking demographics
+section and the internal appointment detail. See `patient-profile.component.html` for the full
+binding with `[patientId]`, `[patientIdentityUserId]`, and `[currentMaskedSsn]` inputs.
 
 `currentMaskedSsn` receives the DTO value (last-4 display string such as `***-**-1234`).
 That string is NOT the real SSN; it is a masked sentinel used by `SsnInputComponent` for
@@ -50,8 +50,8 @@ return in `save()` is intentional (W-B-2 fix, 2026-04-30).
 
 - `PatientProfileComponent` uses `ChangeDetectionStrategy.Default`, not OnPush -- no need
   for `markForCheck()` on async loads here, unlike the `abp-lookup-select` OnPush issue.
-- The admin modal (`patient-detail`) re-uses `AbstractPatientDetailViewService`; do not add
-  a second SSN input or bypass `app-ssn-input` there.
+- The SSN is entered only through `app-ssn-input` (patient profile, booking demographics,
+  internal appointment detail); do not add a second SSN input or bypass it.
 
 ## Related
 
