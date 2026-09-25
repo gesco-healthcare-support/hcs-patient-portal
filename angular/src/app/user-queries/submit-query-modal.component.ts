@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
   Output,
+  ViewChild,
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -55,6 +57,21 @@ export class SubmitQueryModalComponent {
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.visible && !this.isBusy) {
+      this.setVisible(false);
+    }
+  }
+
+  @ViewChild('scrim') private readonly scrim?: ElementRef<HTMLElement>;
+
+  /**
+   * Closes the modal when a click lands on its backdrop. This replaced the backdrop's own (click)
+   * binding, which was mouse-only; Escape is the keyboard path (onEscape above). A click
+   * inside the dialog targets the dialog or its content, never the backdrop element, so it leaves
+   * the modal open.
+   */
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (event.target === this.scrim?.nativeElement) {
       this.setVisible(false);
     }
   }

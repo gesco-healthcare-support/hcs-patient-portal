@@ -106,16 +106,20 @@ admin                           -> RESERVED slug meaning host scope
 minio, api, auth, health, www   -> RESERVED slugs, consumed by the exact-match rules above
 ```
 
-The bare `api.` and `auth.` names are answered by the proxy rather than forwarded (#921). The API's
-resolver would extract no office from them and run the request in host scope, so forwarding would
-have made a second, undocumented route to the admin surface.
+The bare `api.` and `auth.` names are answered by the proxy rather than forwarded (#921). Before
+2026-09-25 the API's resolver would have extracted no office from them and run the request in host
+scope, so forwarding would have made a second, undocumented route to the admin surface. The
+resolver now refuses them itself, so both layers refuse.
 
 `health.` exists for the load balancer's health probe. The proxy pins the upstream Host to
 `admin.api.<BASE_DOMAIN>`, so the API reaches host scope through the reserved `admin` slug on purpose,
 not by failing to extract a slug.
 
 A custom `HostAwareDomainTenantResolveContributor` reads the office from the Host. A request whose
-Host matches no office returns "Tenant not found". **A bare IP address cannot reach the
+Host names an office that does not exist returns "Tenant not found"; one whose Host names no office
+at all (an empty or dotted label, a bare, foreign or IP host) returns 404 "This host does not serve
+an office". Only the reserved `admin` label and the internal names `localhost` and `authserver` run
+in host context. **A bare IP address cannot reach the
 application at all.**
 
 Important caveat recorded honestly: ABP registers four `__tenant` resolvers by default (query
