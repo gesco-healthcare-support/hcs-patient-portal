@@ -26,7 +26,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class CaseTrackerCompletenessSweepJobTests
 {
-    private static readonly Guid OfficeId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid OfficeId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid WithRow = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly Guid WithoutRow = new("3c9d1b77-2e40-4a51-8bb2-77f0a1c9d233");
 
