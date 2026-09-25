@@ -21,7 +21,6 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <para>And the #917 queries: the due-row candidates the drain leases one at a time, the rows owed an
 /// early warning, and the set-based stamp that must never move once written.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreIntegrationOutboxRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private static readonly DateTime Now = new(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);

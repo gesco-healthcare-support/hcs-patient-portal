@@ -12,7 +12,6 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 /// claim serializes: exactly one drain wins a due row, a second is skipped without an
 /// exception, an expired lease is reclaimable, and a terminal (Sent) row is not leasable.
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreNotificationOutboxRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private static readonly DateTime Now = new(2026, 7, 21, 12, 0, 0, DateTimeKind.Utc);

@@ -28,7 +28,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.DoctorAvailabilit
 /// time and this index cannot speak for them"). That sentence is a real limitation rather than a
 /// caveat, and until now nothing tested it -- deleting it would have broken nothing.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class DoctorAvailabilityDateNormalizationReachTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;

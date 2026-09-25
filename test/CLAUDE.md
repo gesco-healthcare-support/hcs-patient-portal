@@ -14,7 +14,7 @@ Five test projects that cover the domain, application, EF Core, and a console te
 
 1. **Base class chain:** Concrete tests inherit from `CaseEvaluationApplicationTestBase` or `CaseEvaluationDomainTestBase`, which in turn inherit from `CaseEvaluationTestBase<TModule>`. Do not skip the chain -- it wires up Autofac, `appsettings.json`, and test data seed contributors.
 
-2. **EF-backed test classes MUST use the shared collection.** Annotate EF-backed test classes with the shared `[Collection]` (`CaseEvaluationTestConsts.CollectionDefinitionName`); without it, tests corrupt the shared in-memory SQLite DB because xUnit runs them in parallel.
+2. **EF-backed test classes take NO `[Collection]` attribute.** Each test builds its own ABP application and its own in-memory SQLite database, so xUnit runs the classes in parallel, one collection per class (its default), and a run uses every core (#1034). Only the MultiOffice and RealAuthorization classes keep a named collection, because their NAMED shared-cache databases outlive a single test and must be used by one test at a time. A new `[Collection]` needs a stated reason and an entry in the allowlist of `TestCollectionAllowlistTests`, which fails on any other collection. The old shared name, `CaseEvaluationTestConsts.CollectionDefinitionName`, is `[Obsolete(error: true)]` so a leftover attribute fails to compile. Anything static that a seed or test writes is shared by classes running at the same time: keep test data in fixed values (see `TenantsTestData`), never in state one application writes and another reads.
 
 3. **SQLite in-memory, not real SQL Server.** The test infrastructure uses `AbpEntityFrameworkCoreSqliteModule` via `CaseEvaluationTestBaseModule`. Tests run fast and require no SQL Server instance.
 
@@ -31,7 +31,7 @@ Five test projects that cover the domain, application, EF Core, and a console te
 | File | Purpose |
 |------|---------|
 | `HealthcareSupport.CaseEvaluation.TestBase/CaseEvaluationTestBase.cs` | Generic base for all tests |
-| `HealthcareSupport.CaseEvaluation.TestBase/CaseEvaluationTestConsts.cs` | Shared constants incl. collection name |
+| `HealthcareSupport.CaseEvaluation.TestBase/CaseEvaluationTestConsts.cs` | Shared constants; the old collection name is kept only as a compile-time error |
 | `HealthcareSupport.CaseEvaluation.TestBase/Data/*DataSeedContributor.cs` | Seed contributors with hardcoded test data |
 | `HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/CaseEvaluationEntityFrameworkCoreTestBase.cs` | Base for repo tests (SQLite) |
 | `HealthcareSupport.CaseEvaluation.Application.Tests/CaseEvaluationApplicationTestBase.cs` | Base for AppService tests |

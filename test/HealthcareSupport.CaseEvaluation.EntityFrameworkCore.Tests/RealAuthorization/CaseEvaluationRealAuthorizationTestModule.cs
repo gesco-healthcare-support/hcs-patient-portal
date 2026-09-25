@@ -12,6 +12,7 @@ using Volo.Abp.EntityFrameworkCore.Sqlite;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Modularity;
 using Volo.Abp.PermissionManagement;
+using Volo.Abp.SettingManagement;
 using Volo.Abp.TextTemplateManagement;
 using Volo.Abp.Testing;
 using Volo.Abp.Uow;
@@ -86,6 +87,16 @@ public class CaseEvaluationRealAuthorizationTestModule : AbpModule
         {
             options.SaveStaticTemplatesToDatabase = false;
             options.IsDynamicTemplateStoreEnabled = false;
+        });
+        // #1034: ABP's setting store also saves its static definitions from a BACKGROUND task at
+        // start-up. With test classes running in parallel, that task raced the seed on this
+        // application's SQLite connection (not thread-safe) and failed a test in its constructor
+        // with "Index was out of range" in SqliteConnection.RemoveCommand. Switched off here for
+        // the same reason as the three stores above; #1056 did the same in the main EF module.
+        Configure<SettingManagementOptions>(options =>
+        {
+            options.SaveStaticSettingsToDatabase = false;
+            options.IsDynamicSettingStoreEnabled = false;
         });
 
         // PERMISSIONS ARE CONFIGURED DIFFERENTLY HERE THAN IN THE ISOLATION HARNESS, AND

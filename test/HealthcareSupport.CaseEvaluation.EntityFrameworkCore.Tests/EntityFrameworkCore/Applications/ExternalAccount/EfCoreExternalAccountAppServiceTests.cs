@@ -43,7 +43,6 @@ namespace HealthcareSupport.CaseEvaluation.ExternalAccount;
 /// <para>NO MAIL CAN LEAVE. Every address below is unregistered, so each flow returns before any
 /// template lookup or dispatch.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreExternalAccountAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

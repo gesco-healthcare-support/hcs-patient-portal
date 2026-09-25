@@ -33,7 +33,6 @@ namespace HealthcareSupport.CaseEvaluation.Documents;
 /// across the whole collection and never rolls back. No assertion below counts rows it did not
 /// create.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreDocumentsAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

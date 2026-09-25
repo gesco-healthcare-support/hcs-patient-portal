@@ -11,7 +11,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IAppointmentRepository _appointmentRepository;
