@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using HealthcareSupport.CaseEvaluation.Controllers.Integration;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using Microsoft.AspNetCore.Mvc;
@@ -136,6 +137,51 @@ public sealed class CaseTrackerWireContractTests
             $"The feed no longer emits the literal '{code}'. Their client branches on the code string, and an "
             + "unrecognised one falls through to 'never halt' -- so a rename does not fail on their side, it "
             + "silently stops halting an office that should stop.");
+    }
+
+    /// <summary>
+    /// The COMPLETE set of codes the feed emits. Pinning each code individually closes a rename; it cannot
+    /// close an ADDITION, and an addition is the more dangerous of the two.
+    ///
+    /// <para>A new code is legitimate, arrives unrecognised by construction, and lands entirely on the
+    /// consumer's fall-through. Their mapping treats an unrecognised code as "never halt", which is the right
+    /// default -- <c>feed_not_enabled</c> must not halt, and a new benign code stranding every office would be
+    /// worse. But it means an eighth code is safe only because of a decision made on their side, and no
+    /// assertion here could cover it.</para>
+    ///
+    /// <para>So this test does the one thing that IS in our power: it fails when the set changes, which puts a
+    /// human in front of the decision rather than leaving it to a fall-through neither side chose. Adding a code
+    /// is not forbidden. It requires telling them first, because it is the single change on this side that
+    /// their end cannot be made safe against in advance, however well either of us pins things.</para>
+    /// </summary>
+    [Fact]
+    public void TheFeedEmitsExactlyTheSevenAgreedCodes()
+    {
+        var emitted = Regex
+            .Matches(ControllerSourceOf(typeof(CaseTrackerFeedController)), @"Status\d{3}\w+,\s*""([a-z_]+)""")
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(c => c, StringComparer.Ordinal)
+            .ToList();
+
+        emitted.ShouldNotBeEmpty(
+            "Parsed no error codes from the feed controller. The shape the parser matches has changed, which "
+            + "would leave this guard permanently and silently green.");
+
+        emitted.ShouldBe(
+            [
+                "allowance_exceeded",
+                "cursor_ahead",
+                "cursor_below_floor",
+                "cursor_invalid",
+                "feed_not_enabled",
+                "forbidden",
+                "skip_invalid",
+            ],
+            "The feed's error-code set has changed. A RENAME breaks their branching outright. An ADDITION is "
+            + "quieter and worse: the new code is unrecognised on their side by construction and falls through "
+            + "to 'never halt', so an office that should stop will not, and nothing reports it. Tell the Case "
+            + "Tracker before this ships, then update this list.");
     }
 
     private static string RouteOn(Type controller)
