@@ -17,7 +17,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class CaseTrackerDrainKickJobTests
 {
-    private static readonly Guid OfficeA = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid OfficeA = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid OfficeB = new("5d1f0c3e-7a2b-4c6d-9e8f-0a1b2c3d4e5f");
 
     private static (CaseTrackerDrainKickJob Job, IBackgroundJobManager Jobs) Build()

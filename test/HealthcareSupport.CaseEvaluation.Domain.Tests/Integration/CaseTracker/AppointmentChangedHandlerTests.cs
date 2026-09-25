@@ -31,7 +31,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class AppointmentChangedHandlerTests
 {
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid AppointmentId = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly Guid SecondAppointmentId = new("3c9d1b77-2e40-4a51-8bb2-77f0a1c9d233");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
