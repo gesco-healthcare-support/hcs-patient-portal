@@ -154,6 +154,13 @@ Turn their polling for that office off as well, or they will poll an office that
 
 - **The hourly allowance is 240 per office**, four times the one-a-minute poll. It is counted in the
   controller after the token check, so a caller without the token cannot spend an office's budget.
+- **It does not share reconcile and attendance's 300/hour.** The feed path is matched before the
+  `/api/integration` branch in the limiter, and a request carrying a valid feed token gets no
+  middleware limiter at all, so however many offices poll, they cannot consume reconcile's budget.
+  A request to the feed WITHOUT a valid token falls into a per-address bucket of 60/hour instead,
+  and a rejection there answers 403 `forbidden` with the same envelope as a bad token. So during a
+  misconfigured switch-on, several offices polling with a wrong token exhaust that 60/hour quickly
+  and the middleware refusal is indistinguishable from the token refusal.
 - **It is held in memory, per API instance.** Exact while there is one instance, which is the case
   today. If the API is ever scaled out behind the public host, the effective allowance multiplies by
   the instance count and neither side will notice.
