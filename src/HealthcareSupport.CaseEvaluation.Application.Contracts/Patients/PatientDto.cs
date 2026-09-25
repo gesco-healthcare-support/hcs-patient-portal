@@ -27,8 +27,6 @@ public class PatientDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     public string? ZipCode { get; set; }
 
-    public string? RefferedBy { get; set; }
-
     public string? CellPhoneNumber { get; set; }
 
     public PhoneNumberType PhoneNumberTypeId { get; set; }
@@ -45,7 +43,8 @@ public class PatientDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): nullable -- a record-only patient has no login until claimed.
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 

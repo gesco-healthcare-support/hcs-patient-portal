@@ -1,0 +1,206 @@
+// Change-requests inbox (redesign, Prompt 13). Ported from the design handoff
+// (design_handoff_appointment_portal/styles/in-work.css, .cr-* block) onto the
+// global tokens. Rendered inside the internal shell; reuses ia-* (head/chips/
+// empty) from _in-appts.scss and ra-modal/ra-note from _ra-wizard.scss.
+
+.cr-row {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.14s;
+}
+.cr-row:hover {
+  box-shadow: var(--sh-sm);
+}
+.cr-row__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+.cr-row__type {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cr-row__tx {
+  flex: 1;
+  min-width: 240px;
+}
+.cr-row__tx .l1 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.cr-row__tx .l1 b {
+  font-size: 14px;
+  color: var(--n-900);
+  font-weight: 700;
+}
+.cr-row__tx .conf {
+  font-family: var(--font-num);
+  font-weight: 700;
+  color: var(--blue-700);
+  font-size: 13px;
+}
+.cr-row__tx .l2 {
+  font-size: 12.5px;
+  color: var(--n-500);
+  margin-top: 3px;
+}
+.cr-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cr-age {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-family: var(--font-num);
+}
+.cr-age.ok {
+  background: var(--n-100);
+  color: var(--n-600);
+}
+.cr-age.warn {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.cr-age.crit {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.cr-consent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 99px;
+}
+.cr-consent .d {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.cr-consent.pending {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.cr-consent.pending .d {
+  background: var(--st-pending-dot);
+}
+.cr-consent.agreed {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.cr-consent.agreed .d {
+  background: var(--green-600);
+}
+.cr-consent.declined {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.cr-consent.declined .d {
+  background: var(--st-rejected-dot);
+}
+.cr-row__acts {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.cr-row__chev {
+  color: var(--n-400);
+  transition: transform 0.16s;
+}
+.cr-row__main[data-open='true'] .cr-row__chev {
+  transform: rotate(90deg);
+}
+
+.cr-detail {
+  border-top: 1px solid var(--border);
+  background: var(--n-25);
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+.cr-detail .blk h4 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--n-500);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.cr-detail .blk p {
+  font-size: 13px;
+  color: var(--n-700);
+  margin: 0;
+  line-height: 1.5;
+}
+.cr-slots {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+.cr-slot {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 13px;
+  background: #fff;
+}
+.cr-slot.new {
+  background: var(--blue-50);
+  border-color: var(--blue-200);
+}
+.cr-slot .k {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--n-500);
+  margin-bottom: 3px;
+}
+.cr-slot.new .k {
+  color: var(--blue-700);
+}
+.cr-slot .v {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--n-900);
+}
+.cr-slot .v.strike {
+  text-decoration: line-through;
+  color: var(--n-400);
+  font-weight: 600;
+}
+.cr-slots .arr {
+  display: flex;
+  align-items: center;
+  color: var(--n-300);
+  flex: none;
+}
+
+@media (max-width: 760px) {
+  .cr-detail {
+    grid-template-columns: 1fr;
+  }
+}

@@ -106,9 +106,15 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         var scope = tenant == null ? "host" : tenant.Name + " tenant";
         Logger.LogInformation("Executing {Scope} database seed...", scope);
 
+        // Per-office admin email comes from the office seed config (Falkinstein + the
+        // other offices); the host pass + any unconfigured tenant fall back to the default.
+        // Password stays the shared dev default (force-reset on first login is set by the
+        // user seeders).
+        var adminEmail = Saas.OfficeSeedData.FindByTenantName(tenant?.Name)?.AdminEmail
+            ?? CaseEvaluationConsts.AdminEmailDefaultValue;
+
         await _dataSeeder.SeedAsync(new DataSeedContext(tenant?.Id)
-            .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName,
-                CaseEvaluationConsts.AdminEmailDefaultValue)
+            .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail)
             .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName,
                 CaseEvaluationConsts.AdminPasswordDefaultValue)
         );
@@ -147,14 +153,14 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         }
     }
 
-    private bool DbMigrationsProjectExists()
+    private static bool DbMigrationsProjectExists()
     {
         var dbMigrationsProjectFolder = GetEntityFrameworkCoreProjectFolderPath();
 
         return dbMigrationsProjectFolder != null;
     }
 
-    private bool MigrationsFolderExists()
+    private static bool MigrationsFolderExists()
     {
         var dbMigrationsProjectFolder = GetEntityFrameworkCoreProjectFolderPath();
 
@@ -193,7 +199,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         }
     }
 
-    private string? GetEntityFrameworkCoreProjectFolderPath()
+    private static string? GetEntityFrameworkCoreProjectFolderPath()
     {
         var slnDirectoryPath = GetSolutionDirectoryPath();
 

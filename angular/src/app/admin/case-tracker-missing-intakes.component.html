@@ -1,0 +1,97 @@
+<div class="cmi-head">
+  <div>
+    <h2>Missing intakes</h2>
+    <p class="cmi-sub">
+      Approved appointments in every office that have no Case Tracker intake row, with no date
+      limit. This check only reads: it queues nothing. To send one, use Push to Case Tracker on the
+      appointment inside its office.
+    </p>
+  </div>
+  <button type="button" class="cmi-btn" (click)="check()" [disabled]="loading()">
+    <app-icon name="refresh" [size]="14" />
+    Check for missing intakes
+  </button>
+</div>
+
+@if (loading()) {
+  <div class="cmi-empty">
+    <app-icon name="clock" [size]="26" />
+    Checking every office...
+  </div>
+} @else if (error()) {
+  <div class="cmi-empty cmi-error">
+    <app-icon name="alert" [size]="26" />
+    <b>Could not run the check</b>
+    {{ error() }}
+  </div>
+} @else if (report()) {
+  <p class="cmi-summary">
+    Likely lost:
+    <b>{{ likelyLostTotal() }}</b>
+    across {{ offices().length }} office(s). Checked
+    {{ report()?.generatedAt | pacificDate: 'short' }}.
+  </p>
+  @for (o of offices(); track o.officeId) {
+    <section class="cmi-office">
+      <h3>{{ o.officeName }}</h3>
+      @if (o.failed) {
+        <p class="cmi-warn">This office could not be read. It was not checked.</p>
+      } @else {
+        @if (!o.firstIntakeRowAt) {
+          <p class="cmi-note">No intake row has ever been written for this office.</p>
+        } @else {
+          <p class="cmi-note">First intake row {{ o.firstIntakeRowAt | pacificDate: 'short' }}.</p>
+        }
+        @if (o.likelyLost.length) {
+          <table class="cmi-table">
+            <thead>
+              <tr>
+                <th>Confirmation</th>
+                <th>Status</th>
+                <th>Approved</th>
+                <th>Appointment id</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of o.likelyLost; track item.appointmentId) {
+                <tr>
+                  <td>{{ item.confirmationNumber }}</td>
+                  <td>{{ statusLabel(item.status) }}</td>
+                  <td>{{ item.approvedAt | pacificDate: 'short' }}</td>
+                  <td class="cmi-id">{{ item.appointmentId }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else if (o.firstIntakeRowAt) {
+          <p class="cmi-note">None likely lost.</p>
+        }
+        @if (o.settling.length) {
+          <p class="cmi-note">
+            {{ o.settling.length }} still settling: packets are rendering, so no row is expected
+            yet.
+          </p>
+        }
+        @if (o.beforeIntegrationCount) {
+          <button type="button" class="cmi-link" (click)="toggleBefore(o.officeId)">
+            Before this office's integration: {{ o.beforeIntegrationCount }}
+            {{ isExpanded(o.officeId) ? '(hide)' : '(show)' }}
+          </button>
+          @if (isExpanded(o.officeId)) {
+            @if (o.beforeIntegration.length < o.beforeIntegrationCount) {
+              <p class="cmi-note">Showing the newest {{ o.beforeIntegration.length }}.</p>
+            }
+            <ul class="cmi-before">
+              @for (item of o.beforeIntegration; track item.appointmentId) {
+                <li>
+                  {{ item.confirmationNumber }} - {{ statusLabel(item.status) }} - approved
+                  {{ item.approvedAt | pacificDate: 'short' }}
+                </li>
+              }
+            </ul>
+          }
+        }
+      }
+    </section>
+  }
+}

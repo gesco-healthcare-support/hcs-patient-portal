@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.AppointmentDocumentTypes;
+
+public class EfCoreAppointmentDocumentTypeManagerTests : AppointmentDocumentTypeManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

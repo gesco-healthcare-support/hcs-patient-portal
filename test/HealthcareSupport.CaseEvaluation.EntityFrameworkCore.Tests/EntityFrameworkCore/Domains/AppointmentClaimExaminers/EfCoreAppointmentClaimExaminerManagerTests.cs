@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.AppointmentClaimExaminers;
+
+public class EfCoreAppointmentClaimExaminerManagerTests : AppointmentClaimExaminerManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

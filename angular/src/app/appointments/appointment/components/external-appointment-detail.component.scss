@@ -1,0 +1,8 @@
+// Host for the external appointment detail page. The bulk of the styling lives
+// in the global styles/_ad-detail.scss partial (shared with the reused
+// document-manager component).
+:host {
+  display: block;
+  background: var(--surface-app);
+  min-height: 100%;
+}

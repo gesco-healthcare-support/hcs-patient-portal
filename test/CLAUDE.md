@@ -13,16 +13,17 @@ Five test projects that cover the domain, application, EF Core, and a console te
 ## Conventions
 
 1. **Base class chain:** Concrete tests inherit from `CaseEvaluationApplicationTestBase` or `CaseEvaluationDomainTestBase`, which in turn inherit from `CaseEvaluationTestBase<TModule>`. Do not skip the chain -- it wires up Autofac, `appsettings.json`, and test data seed contributors.
-2. **EF Core tests MUST be in the shared collection:**
-   ```csharp
-   [Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
-   public class AppointmentsRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase { ... }
-   ```
-   Without the collection attribute, xUnit runs EF tests in parallel and they corrupt the shared in-memory SQLite database.
+
+2. **EF-backed test classes take NO `[Collection]` attribute.** Each test builds its own ABP application and its own in-memory SQLite database, so xUnit runs the classes in parallel, one collection per class (its default), and a run uses every core (#1034). Only the MultiOffice and RealAuthorization classes keep a named collection, because their NAMED shared-cache databases outlive a single test and must be used by one test at a time. A new `[Collection]` needs a stated reason and an entry in the allowlist of `TestCollectionAllowlistTests`, which fails on any other collection. The old shared name, `CaseEvaluationTestConsts.CollectionDefinitionName`, is `[Obsolete(error: true)]` so a leftover attribute fails to compile. Anything static that a seed or test writes is shared by classes running at the same time: keep test data in fixed values (see `TenantsTestData`), never in state one application writes and another reads.
+
 3. **SQLite in-memory, not real SQL Server.** The test infrastructure uses `AbpEntityFrameworkCoreSqliteModule` via `CaseEvaluationTestBaseModule`. Tests run fast and require no SQL Server instance.
+
 4. **Autofac, not default .NET DI.** Replace / substitute dependencies with `application.ServiceProvider.GetRequiredService<T>()` or via Autofac `IContainer` overrides inside the module override pattern.
+
 5. **Test data via seed contributors.** New test data goes through classes like `DoctorsDataSeedContributor` (which uses hardcoded GUIDs that tests assert against). Don't insert test data manually in test methods -- add a seed contributor instead.
+
 6. **HIPAA: never use real patient data.** All test fixtures must use synthetic data (fake names, fake DOBs, fake SSNs). This is enforced by `.claude/rules/hipaa-data.md` and `.claude/rules/test-data.md`.
+
 7. **Known coverage gaps:** Patients, Appointments, Locations, DoctorAvailabilities, and all host-only lookup entities have no tests. New features touching these should add tests, but existing code modifications do not require back-filling tests.
 
 ## Key Files
@@ -30,18 +31,14 @@ Five test projects that cover the domain, application, EF Core, and a console te
 | File | Purpose |
 |------|---------|
 | `HealthcareSupport.CaseEvaluation.TestBase/CaseEvaluationTestBase.cs` | Generic base for all tests |
-| `HealthcareSupport.CaseEvaluation.TestBase/CaseEvaluationTestConsts.cs` | Shared constants incl. collection name |
+| `HealthcareSupport.CaseEvaluation.TestBase/CaseEvaluationTestConsts.cs` | Shared constants; the old collection name is kept only as a compile-time error |
 | `HealthcareSupport.CaseEvaluation.TestBase/Data/*DataSeedContributor.cs` | Seed contributors with hardcoded test data |
 | `HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/CaseEvaluationEntityFrameworkCoreTestBase.cs` | Base for repo tests (SQLite) |
 | `HealthcareSupport.CaseEvaluation.Application.Tests/CaseEvaluationApplicationTestBase.cs` | Base for AppService tests |
 
 ## Running Tests
 
-```bash
-dotnet test                                                                 # all projects
-dotnet test test/HealthcareSupport.CaseEvaluation.Application.Tests         # one project
-dotnet test --filter "FullyQualifiedName~MethodName"                        # single test
-```
+See docs/devops/TESTING-STRATEGY.md for the full test strategy. To run: `dotnet test` (all projects), `dotnet test test/<ProjectName>` (one project), or `dotnet test --filter "FullyQualifiedName~MethodName"` (single test).
 
 ## Related Docs
 

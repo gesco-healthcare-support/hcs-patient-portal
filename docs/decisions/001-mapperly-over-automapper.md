@@ -35,12 +35,14 @@ Custom post-mapping logic (e.g., setting `DisplayName` on `LookupDto<Guid>`) use
 ## Consequences
 
 **Easier:**
+
 - Mapping errors are caught at compile time -- missing properties fail the build
 - No reflection overhead at runtime; source generator emits direct property assignments
 - AOT-compatible from day one
 - Single file makes it easy to audit all mappings in one place
 
 **Harder:**
+
 - ABP documentation and community examples overwhelmingly use AutoMapper; translating
   those examples to Mapperly requires understanding the `MapperBase` abstraction
 - Partial class + source generator pattern is less familiar to developers coming from

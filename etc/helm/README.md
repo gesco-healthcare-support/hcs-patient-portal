@@ -7,25 +7,31 @@ This guide explains how to deploy your microservice template into your local Kub
 * [Docker for Desktop](https://www.docker.com/products/docker-desktop/) with Kubernetes enabled
 * [Helm](https://helm.sh/docs/intro/install/) for running helm charts
 * Install NGINX ingress using helm:
+
 ```powershell
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 helm upgrade --install --version=4.0.19 ingress-nginx ingress-nginx/ingress-nginx --set controller.config.enable-underscores-in-headers="true"
 ```
+
 ## Configuring HTTPS for Local K8s
 
 You can run the solution on staging environment in your local Kubernetes cluster with HTTPS. There are various ways to create a self-signed certificate.
 
 ### Installing mkcert
+
 This guide will be using `mkcert` for creating self-signed certificates. Follow the [installation guide](https://github.com/FiloSottile/mkcert#installation) to install mkcert.
 
 ### Creating mkcert Root CA
+
 Use the command to create root (local) certificate authority for your certificates:
+
 ```powershell
 mkcert -install
 ```
 
 > **Note:** All the certificates created by mkcert certificate creation will be trusted by the local machine
+>
 ### Run mkcert
 
 Use the `create-tls-secrets.ps1` PowerShell script to create self-signed certificates for your domains and the tls secret for Kubernetes.
@@ -46,7 +52,7 @@ Run `install.ps1` to install or upgrade the helm charts to the Kubernetes cluste
 
 Ensure that the following entries are added to the `C:\Windows\System32\drivers\etc\hosts` file:
 
-```
+```text
 127.0.0.1 caseevaluation-local-web
 127.0.0.1 caseevaluation-local-webgateway
 127.0.0.1 caseevaluation-local-authserver
@@ -61,4 +67,3 @@ Now, you can browse the URL: `https://caseevaluation-local-web`
 ## Uninstall Charts
 
 Run `uninstall.ps1` to uninstall the helm charts from the Kubernetes cluster.
-

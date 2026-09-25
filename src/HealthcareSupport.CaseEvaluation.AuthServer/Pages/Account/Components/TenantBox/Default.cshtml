@@ -1,0 +1,18 @@
+@*
+    ADR-006 (2026-05-05) -- subdomain tenant routing.
+
+    Override of Volo.Abp.Account.Pro.Public.Web's tenant-switcher view component.
+    Tenancy is resolved EXCLUSIVELY from the URL subdomain
+    (CurrentUserTenantResolveContributor + DomainTenantResolveContributor in
+    CaseEvaluationAuthServerModule.ConfigureMultiTenancy). Showing a tenant
+    switcher would invite users to attempt cross-tenant navigation, which
+    the resolver chain refuses to honor. Hiding the UI surface keeps the
+    affordance honest.
+
+    File path mirrors the original embedded view path so this override
+    takes precedence at runtime. Empty body = no rendered output.
+
+    Cross-reference:
+    - docs/decisions/006-subdomain-tenant-routing.md
+    - https://community.abp.io/posts/hide-the-tenant-switch-of-the-login-page-4foaup7p
+*@

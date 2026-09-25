@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.AppointmentPrimaryInsurances;
+
+public class EfCoreAppointmentPrimaryInsuranceManagerTests : AppointmentPrimaryInsuranceManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

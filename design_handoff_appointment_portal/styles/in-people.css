@@ -1,0 +1,24 @@
+/* ============================================================
+   Group 4 — People hub: Patients · Applicant Attorneys · Defense
+   Attorneys · Claim Examiners. Reuses cf-rail (sub-nav), ia-* tables,
+   ad-* ledger, ra-* modal/grid. 
+   ============================================================ */
+.pp-portal { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+.pp-portal .d { width: 6px; height: 6px; border-radius: 50%; }
+.pp-portal.linked { background: var(--green-50); color: var(--green-700); } .pp-portal.linked .d { background: var(--green-600); }
+.pp-portal.invited { background: var(--st-pending-bg); color: var(--st-pending-fg); } .pp-portal.invited .d { background: var(--st-pending-dot); }
+.pp-portal.none { background: var(--n-100); color: var(--n-500); } .pp-portal.none .d { background: var(--n-300); }
+
+/* patient detail header */
+.pd-head { background: linear-gradient(135deg, #07304f 0%, #0a4a7e 62%, #075ca1 100%); color: #fff; border-radius: var(--r-lg); padding: 22px 24px; display: flex; align-items: center; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
+.pd-head .ava { width: 64px; height: 64px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 23px; font-weight: 800; color: #fff; border: 3px solid rgba(255,255,255,.35); }
+.pd-head .meta { flex: 1; min-width: 220px; }
+.pd-head h2 { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -.02em; }
+.pd-head .sub { color: #bcd6ed; font-size: 13px; margin-top: 5px; display: flex; gap: 14px; flex-wrap: wrap; }
+.pd-head .acts { display: flex; gap: 9px; flex-wrap: wrap; }
+.pd-back { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: var(--blue-700); font-size: 13px; font-weight: 600; cursor: pointer; padding: 0 0 12px; font-family: var(--font); }
+.pd-back:hover { text-decoration: underline; }
+.pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+.pd-grid .ad-card { margin-bottom: 0; }
+.pd-full { grid-column: 1 / -1; }
+@media (max-width: 900px) { .pd-grid { grid-template-columns: 1fr; } }

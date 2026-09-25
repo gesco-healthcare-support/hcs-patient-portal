@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Send Back Feature — Redesign</title>
+  <link rel="icon" href="assets/fav-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/after.css" />
+  <link rel="stylesheet" href="styles/ext-home.css" />
+  <link rel="stylesheet" href="styles/ra-form.css" />
+  <link rel="stylesheet" href="styles/ad-view.css" />
+  <link rel="stylesheet" href="styles/in-shell.css" />
+  <link rel="stylesheet" href="styles/in-appts.css" />
+  <link rel="stylesheet" href="styles/in-work.css" />
+  <link rel="stylesheet" href="styles/sb-feature.css" />
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="data.js"></script>
+  <script src="components/icons.js"></script>
+  <script type="text/babel" src="components/after-common.jsx"></script>
+  <script type="text/babel" src="components/in-shell.jsx"></script>
+  <script type="text/babel" src="components/sb-after.jsx"></script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState } = React;
+    const STEPS = [
+      ['staff', '1 · Staff: Request info'],
+      ['external', '2 · External: Fix & resubmit'],
+      ['review', '3 · Staff: Review resubmission'],
+    ];
+
+    function App() {
+      const [step, setStep] = useState('staff');
+      const [toast, setToast] = useState(null);
+      function showToast(m) { setToast(m); clearTimeout(window.__sbT); window.__sbT = setTimeout(() => setToast(null), 2600); }
+      const F = window.SbFeature;
+      return (
+        <div className="proto">
+          <div className="chrome">
+            <div className="chrome__brand"><span className="dot" />Send Back / Request Info · New Feature</div>
+            <div className="chrome__group">
+              <span className="chrome__label">Flow</span>
+              <div className="seg">{STEPS.map(([k, lbl]) => <button key={k} data-active={step === k} onClick={() => setStep(k)}>{lbl}</button>)}</div>
+            </div>
+            <div className="chrome__spacer" />
+            <div className="chrome__hint">round-trip: staff → external → staff</div>
+          </div>
+          <div className="stage">
+            <div className="viewport" key={step}>
+              <div className="fade-in" data-screen-label={'Send back · ' + step}>
+                {step === 'external' ? (
+                  <F.ExternalFix onToast={showToast} onResubmit={() => setStep('review')} />
+                ) : (
+                  <window.InternalShell roleKey="supervisor" active="appointments" setActive={() => {}} onToast={showToast} crumb="PQ-24817">
+                    {step === 'staff' ? <F.StaffSendBack onToast={showToast} onSent={() => setStep('external')} /> : <F.StaffResubmitted onToast={showToast} />}
+                  </window.InternalShell>
+                )}
+              </div>
+            </div>
+          </div>
+          {toast && <div className="af-toast"><span className="i" dangerouslySetInnerHTML={window.Ico('check', 17)} />{toast}</div>}
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

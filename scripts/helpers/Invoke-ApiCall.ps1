@@ -68,7 +68,7 @@ function Invoke-ApiCall {
                 $reader = New-Object System.IO.StreamReader($stream)
                 $errorBody = $reader.ReadToEnd()
                 $reader.Close()
-            } catch {}
+            } catch { Write-Verbose "could not read the error response body; leaving it empty: $_" }
         }
 
         if ($_.ErrorDetails.Message) {

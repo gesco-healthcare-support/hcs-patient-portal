@@ -11,7 +11,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Samples;
  * Normally, you don't test ABP framework code
  * Only test your custom repository methods.
  */
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class SampleRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IRepository<IdentityUser, Guid> _appUserRepository;

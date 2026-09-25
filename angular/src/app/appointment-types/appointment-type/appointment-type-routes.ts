@@ -5,10 +5,11 @@ export const APPOINTMENT_TYPE_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/appointment-type.component').then(
-        (c) => c.AppointmentTypeComponent,
+      return import('../../configuration/internal-configuration.component').then(
+        (c) => c.InternalConfigurationComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'types', requiredPolicy: 'CaseEvaluation.AppointmentTypes' },
   },
 ];

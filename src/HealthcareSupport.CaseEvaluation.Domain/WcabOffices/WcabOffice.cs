@@ -11,8 +11,12 @@ using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.WcabOffices;
 
-public class WcabOffice : FullAuditedAggregateRoot<Guid>
+public class WcabOffice : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    // Office-owned list (db-per-office): each office has its own copy, seeded
+    // with base defaults, and may add, edit, or disable entries.
+    public virtual Guid? TenantId { get; protected set; }
+
     [NotNull]
     public virtual string Name { get; set; } = null!;
 

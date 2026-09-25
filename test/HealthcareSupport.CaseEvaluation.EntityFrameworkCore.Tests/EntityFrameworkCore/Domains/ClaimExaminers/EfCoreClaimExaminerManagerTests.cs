@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.ClaimExaminers;
+
+public class EfCoreClaimExaminerManagerTests : ClaimExaminerManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

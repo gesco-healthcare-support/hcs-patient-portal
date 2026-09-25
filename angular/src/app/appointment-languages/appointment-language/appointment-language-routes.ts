@@ -5,10 +5,11 @@ export const APPOINTMENT_LANGUAGE_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/appointment-language.component').then(
-        (c) => c.AppointmentLanguageComponent,
+      return import('../../configuration/internal-configuration.component').then(
+        (c) => c.InternalConfigurationComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'languages', requiredPolicy: 'CaseEvaluation.AppointmentLanguages' },
   },
 ];
