@@ -29,7 +29,7 @@ each key. The "Deployed location" column names the variable in that file.
 | SQL connection strings | `appsettings.Local.json` | Composed from `MSSQL_SA_PASSWORD` in `docker-compose.prod.yml` | gitignored |
 | MinIO root credentials | `.env` at repo root | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | gitignored |
 | SMTP relay credentials | `docker/appsettings.secrets.json` (`Settings:Abp.Mailing.Smtp.*`) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS` -> `Settings__Abp.Mailing.Smtp.*` | gitignored |
-| Case Tracker tokens | `.env` at repo root | `CASE_TRACKER_INTAKE_TOKEN` (issued to us), `CASE_TRACKER_INTEGRATION_TOKEN` (issued by us) | gitignored |
+| Case Tracker tokens | `.env` at repo root | `CASE_TRACKER_INTAKE_TOKEN` (issued to us), `CASE_TRACKER_INTEGRATION_TOKEN` (issued by us), `CASE_TRACKER_FEED_TOKEN` (issued by us, separate, #927) | gitignored |
 | TLS wildcard cert + key | `scripts/hosting/gen-local-certs.sh` (mkcert) | `TLS_CERT_PATH`, `TLS_KEY_PATH`, pointing at files under `secrets/` | `secrets/` gitignored |
 
 **Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).

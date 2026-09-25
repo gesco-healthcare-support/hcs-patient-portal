@@ -72,7 +72,6 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeLogs;
 /// file's own substitute returned, or over calls this file's own service instance made to it.
 /// Every seeded identifier carries a per-test token.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentChangeLogsAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

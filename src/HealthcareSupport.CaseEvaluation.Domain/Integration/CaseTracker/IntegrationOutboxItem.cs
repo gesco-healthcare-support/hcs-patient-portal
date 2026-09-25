@@ -18,8 +18,9 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 ///
 /// <para>Two policy differences from the email ledger:</para>
 /// <list type="bullet">
-///   <item>The attempt cap is 3, not 5 -- see <see cref="IntegrationOutboxConsts.MaxAttempts"/>
-///   for why the integration fails fast.</item>
+///   <item>Retries run for 24 hours from the first failure on growing waits, with an early-warning
+///   email on the second failure (#917) -- see <see cref="IntegrationOutboxConsts.MaxAttempts"/> and
+///   <see cref="MarkFailed"/>.</item>
 ///   <item><see cref="MarkFatal"/> exists: responses that a retry can never fix (401 bad token,
 ///   400/415 malformed request) dead-letter immediately instead of burning the cap. The email
 ///   sender has no equivalent because SMTP failures are effectively all transient.</item>
@@ -81,6 +82,23 @@ public class IntegrationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
 
     /// <summary>When a human dealt with this dead letter via the admin screen; null otherwise.</summary>
     public virtual DateTime? ResolvedAt { get; protected set; }
+
+    /// <summary>
+    /// When this row FIRST failed; null while it has never failed (#917). The 24-hour retry window
+    /// is measured from here, which is why it is a column: nothing else records when failing started,
+    /// and "how long has this been failing" must survive restarts.
+    /// </summary>
+    public virtual DateTime? FirstFailedAt { get; protected set; }
+
+    /// <summary>
+    /// When staff got the early-warning email about this row -- sent once it has failed
+    /// <see cref="IntegrationOutboxConsts.EarlyWarningAfterAttempts"/> times and is still retrying
+    /// (#917); null until then. The throttle for that email, as <see cref="AlertedAt"/> is for the
+    /// dead-letter one. Written only by the repository's set-based update
+    /// (<c>StampEarlyWarnedAsync</c>), never by a tracked save: these rows are still being retried when
+    /// they are stamped, and a tracked save would race the drain's own save of the same row.
+    /// </summary>
+    public virtual DateTime? EarlyWarnedAt { get; protected set; }
 
     protected IntegrationOutboxItem()
     {
@@ -150,20 +168,24 @@ public class IntegrationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
     }
 
     /// <summary>
-    /// Records a RETRYABLE failed attempt. Below <see cref="MaxAttempts"/> the row returns to
-    /// Pending with <paramref name="retryBackoff"/> applied; at the cap it becomes a terminal
-    /// dead letter. Never resurrects a Sent row.
+    /// Records a RETRYABLE failed attempt (#917). The row keeps retrying, on waits that grow
+    /// (<see cref="WaitAfterAttempt"/>), until <see cref="IntegrationOutboxConsts.RetryWindowHours"/>
+    /// have passed since its FIRST failure, then dead-letters. <see cref="MaxAttempts"/> still ends it
+    /// early if reached, which is how rows created before #917 keep their old limit of 3. Never
+    /// resurrects a Sent row.
     /// </summary>
-    public virtual void MarkFailed(DateTime nowUtc, string? error, TimeSpan retryBackoff)
+    public virtual void MarkFailed(DateTime nowUtc, string? error)
     {
         if (Status == IntegrationOutboxStatus.Sent)
         {
             return;
         }
+        FirstFailedAt ??= nowUtc;
         AttemptCount++;
         LastError = Truncate(error, IntegrationOutboxConsts.LastErrorMaxLength);
         LockedUntil = null;
-        if (AttemptCount >= MaxAttempts)
+        var windowExpired = nowUtc - FirstFailedAt.Value >= TimeSpan.FromHours(IntegrationOutboxConsts.RetryWindowHours);
+        if (windowExpired || AttemptCount >= MaxAttempts)
         {
             Status = IntegrationOutboxStatus.Failed;
             NextAttemptAt = null;
@@ -171,8 +193,22 @@ public class IntegrationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
         else
         {
             Status = IntegrationOutboxStatus.Pending;
-            NextAttemptAt = nowUtc.Add(retryBackoff);
+            NextAttemptAt = nowUtc.Add(WaitAfterAttempt(AttemptCount));
         }
+    }
+
+    /// <summary>
+    /// The wait before the next attempt, after <paramref name="attemptCount"/> failures: 5, 10 and 20
+    /// minutes, then every 30 (agreed schedule, #917). Growing waits give a short blip a quick retry
+    /// without hammering a service that is down for longer.
+    /// </summary>
+    public static TimeSpan WaitAfterAttempt(int attemptCount)
+    {
+        var index = attemptCount - 1;
+        var minutes = index >= 0 && index < IntegrationOutboxConsts.RetryWaitMinutes.Count
+            ? IntegrationOutboxConsts.RetryWaitMinutes[index]
+            : IntegrationOutboxConsts.SteadyRetryWaitMinutes;
+        return TimeSpan.FromMinutes(minutes);
     }
 
     /// <summary>
@@ -187,6 +223,7 @@ public class IntegrationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
         {
             return;
         }
+        FirstFailedAt ??= nowUtc;
         AttemptCount++;
         LastError = Truncate(error, IntegrationOutboxConsts.LastErrorMaxLength);
         LockedUntil = null;

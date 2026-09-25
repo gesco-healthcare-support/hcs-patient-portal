@@ -20,9 +20,10 @@ on:
   # merged in seven minutes, each green against a `main` that did not contain
   # the other ten, and nothing tested the combined result.
   #
-  # `sonarcloud.yml` does trigger on push and does run both suites, but it is
-  # `continue-on-error: true` and neither of its contexts is required, so a
-  # failure there gates nothing and notifies nobody. The only run anyone acted
+  # `sonarcloud.yml` did trigger on push and did run both suites, but it was
+  # `continue-on-error: true` and neither of its contexts was required, so a
+  # failure there gated nothing and notified nobody. (#1032 folded it into this
+  # file as the `sonarcloud` job, which runs no suites of its own.) The only run anyone acted
   # on was the cascade PR's, whose head branch IS `main` -- the trunk was
   # validated incidentally, by a pull request that exists to promote it, and
   # closing that PR would have removed the coverage silently.
@@ -183,6 +184,8 @@ jobs:
     needs: changes
     # always(): the classifier's OWN failure must not skip this job. If it
     # cannot classify, run -- the same deny-by-default rule as `unclassified`.
+    # KEEP IDENTICAL to backend-test-shard's `if:`, which copies it so the shards
+    # need not wait for this job (they build for themselves).
     if: >-
       ${{ always() && (needs.changes.result != 'success'
       || needs.changes.outputs.backend == 'true'
@@ -261,11 +264,18 @@ jobs:
       # lines in the log, and a message naming the right folder -- a generic
       # failure sends people to the wrong migration set.
       #
-      # `--no-build` is NOT used, though the Release build above would allow it.
-      # The command form below is the one whose exit codes were verified (0 on a
-      # clean tree, 1 on a pending change, per context); adding --no-build is an
-      # unproven variant, and the cost of being wrong here is a gate that cannot
-      # fail. The extra compile is the price of that certainty.
+      # `--no-build --configuration Release` (2026-09-24) reads the Release build two
+      # steps above instead of compiling the project again in Debug. The long
+      # `--configuration` is required: in dotnet-ef, `-c` is --context. Until then
+      # this comment called --no-build an unproven variant, so it was proven before
+      # being adopted, on this exact command form (dotnet-ef 10.0.7), per context:
+      #   - clean tree: exit 0, "No changes have been made to the model";
+      #   - a throwaway property on an entity mapped in BOTH contexts, rebuilt:
+      #     exit 1, "Changes have been made to the model", for host AND tenant, and
+      #     the regeneration probe below reported snapshot drift;
+      #   - the same property WITHOUT rebuilding: exit 0. That control shows the
+      #     check reads the build output rather than compiling, which is why it must
+      #     stay AFTER the Release build in this job.
       # A NOTE ON EXIT 1, which is why these steps are not a bare `if`.
       #
       # `has-pending-model-changes` exits 1 for a pending model change AND for
@@ -291,7 +301,7 @@ jobs:
           set +e
           set -uo pipefail
           P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
-          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationDbContext -p "$P" 2>&1)
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationDbContext -p "$P" --no-build --configuration Release 2>&1)
           rc=$?
           printf '%s\n' "$out"
           if [ "$rc" -eq 0 ]; then
@@ -332,7 +342,7 @@ jobs:
           set +e
           set -uo pipefail
           P=src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore
-          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationTenantDbContext -p "$P" 2>&1)
+          out=$(dotnet ef migrations has-pending-model-changes -c CaseEvaluationTenantDbContext -p "$P" --no-build --configuration Release 2>&1)
           rc=$?
           printf '%s\n' "$out"
           if [ "$rc" -eq 0 ]; then
@@ -487,7 +497,7 @@ jobs:
               return 2
             fi
             cp "$snap_path" "$WORK/$snap.orig"
-            out=$(dotnet ef migrations add "$PROBE" -c "$ctx" -o "$dir" -p "$P" 2>&1)
+            out=$(dotnet ef migrations add "$PROBE" -c "$ctx" -o "$dir" -p "$P" --no-build --configuration Release 2>&1)
             add_rc=$?
             if [ "$add_rc" -ne 0 ]; then
               printf '%s\n' "$out"
@@ -616,9 +626,10 @@ jobs:
       # produced, rather than trusting the exit code of the command meant to
       # produce it.
       # #787: the command moved into scripts/python-coverage.sh so this job and
-      # sonarcloud.yml cannot drift in flags, exclusions or working directory --
+      # the SonarCloud analysis cannot drift in flags, exclusions or working directory --
       # the failure mode `.coverage-exclusions` already suffered once. The
-      # artefact-not-exit-code assertion moved with it.
+      # artefact-not-exit-code assertion moved with it. (Since #1032 the SonarCloud
+      # job reuses this job's `python-coverage` artifact instead of re-running it.)
       - name: Test with coverage
         run: bash scripts/python-coverage.sh coverage.xml
 
@@ -643,18 +654,45 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
-  backend-test:
-    name: "Backend: Test"
+  # #1032: the backend tests run as 4 parallel shards plus an aggregate job. The EF Core
+  # integration assembly took 21-23 min run one test at a time (about 1.34 s each, every test
+  # building its own ABP application), which made Backend: Test the longest check on every PR.
+  #
+  # scripts/shard-tests.py assigns whole test CLASSES to shards (greedy on test count, the same
+  # answer for the same classes), and each shard then VERIFIES from its .trx results that it ran
+  # exactly the classes it was given -- a class no shard's filter matches would otherwise never
+  # run and report nothing. Shard 1 also runs every other *.Tests project whole (seconds), so a
+  # new test project is picked up without editing this file.
+  #
+  # Each shard collects `.coverage` (the lossless binary format); the aggregate merges them once
+  # into Cobertura for Coverage: Floors and into the XML SonarCloud reads.
+  backend-test-shard:
+    name: "Backend: Test (shard ${{ matrix.shard }}/4)"
     runs-on: ubuntu-latest
-    needs: [changes, backend-build]
-    # Gated on its build, whose condition already encodes the path logic.
-    # always() so a failed classifier does not skip it; the build must have
-    # SUCCEEDED, so a skipped or failed build still skips the test.
-    if: ${{ always() && needs.backend-build.result == 'success' }}
-    # 45, raised from 25 on 2026-09-23 (#1029). The EF Core integration suite alone ran
-    # 21-23 min that day and jobs were being cancelled at 25 with every test passing.
-    # Still bounded, so a hung test is cut off. Making the suite faster is #1032.
-    timeout-minutes: 45
+    # NOT gated on backend-build (2026-09-24). Each shard restores and builds for itself below,
+    # so waiting for that job only delayed the suite by the length of the build (3 m 18 s on run
+    # 36029959278). What the build gates is unchanged: the aggregate `backend-test` below still
+    # needs backend-build to have SUCCEEDED, so after a build or migration-check failure it is
+    # skipped exactly as before, whatever the shards did. The `if:` is backend-build's own
+    # path condition, copied --
+    # KEEP THE TWO IDENTICAL, or the shards and the build disagree about when the backend runs.
+    needs: changes
+    if: >-
+      ${{ always() && (needs.changes.result != 'success'
+      || needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.shared == 'true'
+      || needs.changes.outputs.unclassified == 'true') }}
+    # A shard runs about a quarter of the suite (5-6 min) plus setup. #1029's 45 covered the
+    # whole suite in one job; 30 leaves room for the suite to grow and still cuts off a hang.
+    timeout-minutes: 30
+    strategy:
+      # One failing shard must not cancel the others: their results still say which tests pass.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      SHARDS: "4"
+      EF_TESTS: test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
@@ -681,47 +719,122 @@ jobs:
             fi
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
-      # PINNED (2026-09-03). This install was added UNPINNED in item 2.10, one
-      # item before 2.2 pinned all 69 action references -- the same supply-chain
-      # class, introduced by the same hand, inside the coverage gate itself.
-      #
-      # 18.11.0 is not "latest today": it is the version CI actually installed on
-      # the run that produced this gate's verified figures, read from that run's
-      # own log -- "Tool 'dotnet-coverage' (version '18.11.0') was successfully
-      # installed". So the pin locks in the toolchain that measured 73.61% over
-      # 887 files, rather than whatever the registry happens to serve next.
+      - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
+      # PINNED to the version that produced the coverage gate's verified figures (see the
+      # 2026-09-03 note this replaced: 18.11.0 measured 73.61% over 887 files).
       - name: Install dotnet-coverage
         run: dotnet tool install --global dotnet-coverage --version 18.11.0
-      # Item 2.10. This mirrors the WRAPPING pattern at sonarcloud.yml:148, not
-      # its format. That line emits `-f xml` (the Visual Studio format) because
-      # SonarCloud reads it via sonar.cs.vscoveragexml.reportsPaths; the floors
-      # gate parses Cobertura. Two workflows, two artefacts, two formats -- both
-      # gitignored. The inner command is single-quoted so its own --logger
-      # quotes survive being passed through as one argument.
-      - name: Test
+      - name: Choose this shard's test classes
+        run: |
+          set -euo pipefail
+          dotnet test "$EF_TESTS" --no-build -c Release --list-tests > ef-tests.txt
+          # --sources: classes in a shared-database collection (MultiOffice, RealAuthorization)
+          # are read from their [Collection] attributes and kept together in one shard.
+          python3 scripts/shard-tests.py partition --listing ef-tests.txt \
+            --sources "$(dirname "$EF_TESTS")" \
+            --shards "$SHARDS" --index "${{ matrix.shard }}" \
+            --classes-out shard-classes.txt --runsettings-out shard.runsettings
+      # The filter travels in shard.runsettings, not on the command line: the command runs
+      # inside dotnet-coverage's single command string, and dozens of `|` terms are fragile
+      # through that second layer of quoting.
+      #
+      # -s dotnet-coverage.settings.xml (both collect steps): instrument ONLY our own
+      # HealthcareSupport.CaseEvaluation.* assemblies, so a dependency's SourceLinked source is
+      # never graded as ours. The reason and the known limit are in that file.
+      - name: Test (EF Core, this shard)
         run: >
           dotnet-coverage collect
-          'dotnet test HealthcareSupport.CaseEvaluation.slnx
-          --no-restore -c Release
-          --logger "trx;LogFileName=results.trx"
-          --results-directory ./test-results'
-          -f cobertura -o coverage.cobertura.xml
+          -s dotnet-coverage.settings.xml
+          'dotnet test ${{ env.EF_TESTS }} --no-build -c Release
+          --settings shard.runsettings
+          --logger trx
+          --results-directory ./test-results/ef'
+          -f coverage -o coverage-ef-${{ matrix.shard }}.coverage
+      - name: Test (every other test project, whole)
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          mapfile -t projects < <(python3 scripts/shard-tests.py other-projects \
+            --slnx HealthcareSupport.CaseEvaluation.slnx --sharded "$EF_TESTS")
+          [ "${#projects[@]}" -gt 0 ] || { echo "::error::no other test projects found"; exit 1; }
+          i=0
+          for project in "${projects[@]}"; do
+            i=$((i + 1))
+            echo "::group::$project"
+            dotnet-coverage collect \
+              -s dotnet-coverage.settings.xml \
+              "dotnet test $project --no-build -c Release --logger trx --results-directory ./test-results/other" \
+              -f coverage -o "coverage-other-$i.coverage"
+            echo "::endgroup::"
+          done
+      - name: Verify this shard ran exactly its classes
+        run: python3 scripts/shard-tests.py verify --classes shard-classes.txt --trx-dir ./test-results/ef
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         if: always()
         with:
-          name: backend-test-results
-          path: ./test-results
+          name: backend-test-results-${{ matrix.shard }}
+          path: |
+            ./test-results
+            shard-classes.txt
           retention-days: 14
-      # if: always() is load-bearing, not defensive. The gate must be able to
-      # tell "the test job failed" apart from "the report is absent". Uploading
-      # only on success collapses those into one indistinguishable state, which
-      # is the exact hole item 2.10 exists to close.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: backend-shard-coverage-${{ matrix.shard }}
+          path: coverage-*.coverage
+          if-no-files-found: error
+          retention-days: 14
+
+  # Keeps the name `Backend: Test`, a required check on main, and the contract Coverage: Floors
+  # reads: artifact `backend-coverage` holding `coverage.cobertura.xml`, plus this job's result.
+  backend-test:
+    name: "Backend: Test"
+    runs-on: ubuntu-latest
+    needs: [backend-build, backend-test-shard]
+    if: ${{ always() && needs.backend-build.result == 'success' }}
+    timeout-minutes: 10
+    steps:
+      - name: Require every shard to have passed
+        run: |
+          result='${{ needs.backend-test-shard.result }}'
+          if [ "$result" != "success" ]; then
+            echo "::error::The backend test shards reported '$result'. Every shard must pass."
+            exit 1
+          fi
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Install dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage --version 18.11.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: backend-shard-coverage-*
+          path: shards
+      # Every shard must have delivered its EF Core coverage, or the merged figure would be a
+      # silent under-count rather than an error.
+      - name: Merge the shards' coverage
+        run: |
+          set -euo pipefail
+          for k in 1 2 3 4; do
+            [ -s "shards/backend-shard-coverage-$k/coverage-ef-$k.coverage" ] || {
+              echo "::error::shard $k delivered no EF Core coverage file"; exit 1; }
+          done
+          mapfile -t files < <(find shards -name '*.coverage' | sort)
+          printf 'merging %s\n' "${files[@]}"
+          dotnet-coverage merge "${files[@]}" -f cobertura -o coverage.cobertura.xml
+          dotnet-coverage merge "${files[@]}" -f xml -o coverage.xml
+          test -s coverage.cobertura.xml
+          test -s coverage.xml
       - name: Upload backend coverage
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        if: always()
         with:
           name: backend-coverage
           path: coverage.cobertura.xml
+          retention-days: 14
+      - name: Upload backend coverage for SonarCloud
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: backend-coverage-xml
+          path: coverage.xml
           retention-days: 14
 
   frontend-build:
@@ -967,7 +1080,7 @@ jobs:
       contents: read
     env:
       # Absolute per-stack line coverage floors, measured through the shared
-      # .coverage-exclusions list that sonarcloud.yml also consumes. One list,
+      # .coverage-exclusions list that the sonarcloud job also consumes. One list,
       # two readers: two lists drift, and a drift means two gates disagree with
       # nobody able to say which is right.
       #
@@ -999,7 +1112,7 @@ jobs:
       #
       # ~273 backend lines could go uncovered before the absolute floor fires.
       # That is real, and it is acceptable for one reason: THE ABSOLUTE FLOORS
-      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 90% on the lines
+      # ARE NOT THE SENSITIVE CONTROL. FLOOR_CHANGED below is 80% on the lines
       # each submission touches, and it catches new uncovered code per pull
       # request, long before it could accumulate into a 273-line drift. The
       # absolute floors are a backstop against slow erosion.
@@ -1057,6 +1170,26 @@ jobs:
       # Both report 80.19% (7319/9127), which is post-cascade content and NOT the epic's tree --
       # the 9-line difference is #983. Read a run whose base was the branch you care about.
       #
+      # 90 FROM 2026-09-24 (was 80), ADRIAN'S END STATE FOR THE TEST PUSH. READ THIS BEFORE
+      # "CORRECTING" IT.
+      #
+      # Adrian set the end state of the phase-8 test-writing push: once the in-flight test pull
+      # requests take the frontend to about 92-94%, this floor is 90 (and FLOOR_BACKEND is 85), and
+      # test writing for the phase ends. THIS CHANGE MERGES LAST. The epic measured 85.50% frontend
+      # when it was written, so until those pull requests merge 90 sits ABOVE the measurement and
+      # fails; after they merge it is a backstop a few points below it. 90 is his figure, not the
+      # truncate-down arithmetic.
+      #
+      # THE 80-FLOOR ARITHMETIC BELOW IS HISTORY, not a description of 90. These were all computed for
+      # a floor of 80 against 80.14% and 80.19%:
+      #   - the "80 IS THE CONVENTION FIGURE" paragraph;
+      #   - the margin table (12 lines lost, 15 new lines at 0%);
+      #   - the "0.138 available";
+      #   - "1/12 OF THIS FLOOR'S MARGIN" and the "twelve-line budget".
+      # Re-measure the margin in lines, in both directions, from the first Floors run after the test
+      # pull requests merge, and replace them then. The measurement method and the #965 one-line
+      # bound still hold.
+      #
       # 80 IS THE CONVENTION FIGURE FROM :976-990 (truncate the measurement DOWN to a whole
       # number), and it is the TIGHT choice rather than the headroom one. FLOOR_PYTHON below
       # departs from that convention deliberately -- 90 against 92.05% -- on the PR review lane's
@@ -1078,7 +1211,7 @@ jobs:
       # THE 15 IS THE NUMBER TO WATCH, not the 12. One new component of ~40 lines merged without
       # a spec takes the epic under this floor while breaking nothing -- exactly the failure mode
       # #971 named, here with about a sixth of the slack that argument was about. FLOOR_CHANGED
-      # at 90% already gates new code per submission, so if this floor starts producing false
+      # at 80% already gates new code per submission, so if this floor starts producing false
       # reds it is the ABSOLUTE one to reconsider, never the changed-lines one.
       #
       # THE ROUNDING ARGUMENT AT :989 STILL HOLDS, and is not what makes this tight. One line is
@@ -1120,15 +1253,18 @@ jobs:
       # angular-only pull request leaves the backend NOT APPLICABLE -- see the `applicable()`
       # helper in this job's "Evaluate floors" step -- and `Coverage: Floors` returns FULLY GREEN,
       # which makes any red on such a submission real signal. Add one docs/ or .github/ file and
-      # the classifier's `shared=true` arm makes the backend applicable, failing the job on
-      # FLOOR_BACKEND's deliberate 75 and forfeiting that signal.
+      # the classifier's `shared=true` arm makes the backend applicable. While FLOOR_BACKEND was a
+      # target set above the measurement (75, until 2026-09-24) that failed the job and forfeited
+      # the signal. At 85, once the in-flight test pull requests merge (see FLOOR_BACKEND), the
+      # backend sits below the measurement and passes, so the signal survives unless backend
+      # coverage has genuinely fallen.
       #
       # REFERRED TO BY NAME RATHER THAN BY LINE, deliberately. A first draft of this paragraph
       # cited `:150-152` and `:1274-1280`. The first pointed at the SHARED arm rather than the
       # angular one, and the second was already stale when it was written, because the 80 lines
       # of comment above it had pushed `applicable()` down by exactly that much. A line number in
       # a comment is invalidated by the comment itself.
-      FLOOR_FRONTEND: "80"
+      FLOOR_FRONTEND: "90"
       # BACKEND -- MEASURED, by the mechanism this job was built around. It was
       # deliberately unset until 2026-09-03 so the gate's own first run would
       # fail and print the figure, which is exactly what happened:
@@ -1195,59 +1331,32 @@ jobs:
       # production moves -- which is the property a contamination detector needs. If a
       # future run reports 971 again, `**/test/**` has stopped matching.
       #
-      # 65 UNTIL 2026-09-18, AND 75 IS NOT A MEASUREMENT. READ THIS BEFORE "CORRECTING" IT.
+      # 85 FROM 2026-09-24, ADRIAN'S END STATE FOR THE TEST PUSH. READ THIS BEFORE "CORRECTING" IT.
       #
-      # Every other floor in this file is a measured figure truncated down, and the block at :985
-      # says so as the convention. THIS ONE INVERTS THAT DELIBERATELY. Backend production coverage
-      # measured 67.73% (18077/26691 lines over 645 files) at 52662e89, the content merged as
-      # #977 -- and 65.94% (17601/26691) at c035a2a0 before it. The floor is 75. It is SEVEN POINTS
-      # ABOVE the measurement on purpose.
+      # HISTORY, kept so `git log` does not read as a mistake. #971 set 65, the honest truncate-down
+      # of 67.73% (18077/26691 lines over 645 files at 52662e89). On 2026-09-18 Adrian raised it to
+      # 75, SEVEN points above the measurement, as a TARGET to force the coverage work ("we are going
+      # to get the coverage up anyways"). It failed every pull request carrying this file until the
+      # backend reached 75, and those merges were admin-overridden with the failed checks confirmed
+      # each time. This block's git history has the full procedure and its 2026-09-18 correction.
       #
-      # IT IS A TARGET, NOT A BACKSTOP. Adrian set it to force the remaining coverage work, not to
-      # catch erosion. His words: "we are going to get the coverage up anyways".
+      # THAT TARGET WAS MET. Against the epic, backend measured 81.34% (21734/26720 lines over 646
+      # files) on #1053's run 36035624090, and 83.42% (22290/26720) on #1056's sharded run
+      # 36043940417. On 2026-09-24 Adrian first pinned the floor at 80 ("Pin at 80, finish
+      # in-flight"). Later that day he set the END STATE of the phase-8 test-writing push instead:
+      # once the in-flight test pull requests take the backend to about 89-91%, this floor is 85 and
+      # test writing for the phase ends.
       #
-      # SO IT IS EXPECTED TO FAIL, AND THAT IS NOT A DEFECT. The floors job marks backend
-      # APPLICABLE even when no backend code changed, so this fails EVERY pull request whose merge
-      # result carries this file -- tranche PRs into feat/production-hardening, and the epic->main
-      # cascade -- until backend reaches 75. Merges in that window are admin-overridden. The gap
-      # when this was set: 26691 x 0.75 = 20018 needed against 18077 held, so 1,941 covered
-      # production lines, roughly four tranches at the measured +476 per tranche.
+      # SO THIS CHANGE MERGES LAST. At 83.42% it sits ABOVE the measurement and fails until those
+      # pull requests merge; after they merge it is a whole number a few points BELOW the
+      # measurement. 85 is his figure, not the truncate-down arithmetic, so do not raise it to
+      # "match" a newer measurement without asking, and do not lower it to make a red go away.
       #
-      # IT REPLACES #971's 65, which was the honest truncate-down figure from the same 67.73%
-      # measurement. Without that sentence `git log` shows a floor raised from 65 to 75 while
-      # coverage sat at 67.73%, and reads as a mistake someone should undo.
-      #
-      # AND IT MAKES THE PARAGRAPH AT :999 UNTRUE OF THIS FLOOR. That paragraph says "THE ABSOLUTE
-      # FLOORS ARE NOT THE SENSITIVE CONTROL... The absolute floors are a backstop against slow
-      # erosion", with FLOOR_CHANGED as the sensitive one. That still describes FLOOR_FRONTEND and
-      # FLOOR_PYTHON. It no longer describes this floor, which is now a target. The contradiction
-      # is recorded here rather than left for a reader to resolve -- because the cheap resolution
-      # is to revert the value, the value being the thing that looks anomalous.
-      #
-      # THE KNOWN COST, so it is not discovered later: a check that is routinely overridden stops
-      # being read. Whoever overrides must confirm WHICH checks failed, every time -- not merely
-      # that a check failed.
-      #
-      # CORRECTED 2026-09-18, and the correction is recorded rather than quietly applied because
-      # this paragraph is the written justification for the override procedure covering the next
-      # several tranches. It previously said Backend: Test and Coverage: Floors "run in the SAME
-      # job, so a genuine test failure surfaces in the same place as the expected floor failure".
-      #
-      # THAT WAS FALSE. They are separate top-level jobs -- `backend-test:` and `coverage-floors:`
-      # in this file -- reporting the checks "Backend: Test" and "Coverage: Floors" independently.
-      # #980's own merge proves it empirically rather than by argument: on a single commit,
-      # Backend: Test was success while Coverage: Floors was failure. One job cannot report two
-      # conclusions.
-      #
-      # THE DISCIPLINE SURVIVES THE CORRECTION AND GETS CHEAPER. Because these are separate checks,
-      # which one failed is visible in the checks list; no log needs opening to tell an expected
-      # floor failure from a real test failure. The confirmation is still required every time --
-      # only the claim that it is expensive was wrong.
-      #
-      # Fixed the same day rather than deferred for one reason: a procedure justified by a
-      # mechanism any reader can disprove in thirty seconds is a procedure that gets abandoned,
-      # and the discipline goes with it.
-      FLOOR_BACKEND: "75"
+      # ONCE THAT HAS HAPPENED, this floor is a BACKSTOP again. The paragraph above that begins "THE
+      # ABSOLUTE FLOORS ARE NOT THE SENSITIVE CONTROL" describes it once more: FLOOR_CHANGED is the
+      # per-PR control, and this one catches slow erosion, so a red means backend coverage fell
+      # below 85.
+      FLOOR_BACKEND: "85"
       # PYTHON -- MEASURED, by the same mechanism as the other two: the gate
       # refuses to run without a floor and prints the figure to copy.
       #
@@ -1328,7 +1437,8 @@ jobs:
       # read "Frontend measures 74.78% on main; the proposed 75 would sit 0.22 points ABOVE the
       # measurement and fail every pull request to main", which was true when written and went
       # false the moment the epic cascaded to `main` on 2026-09-19. Frontend now measures 80.19%
-      # there, and FLOOR_FRONTEND above is 80 -- the convention figure, not the 75 #979 proposed.
+      # there, and FLOOR_FRONTEND above became 80 -- the convention figure, not the 75 #979 proposed
+      # (and 90 from 2026-09-24; see its own block).
       # Kept as a correction rather than deleted, per this file's convention: an entry that argues
       # FROM a measurement outlives the measurement, and this one was found only because the
       # change that invalidated it went looking for entries citing the old number.
@@ -1337,7 +1447,12 @@ jobs:
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one
       # is a fixed policy number rather than a measurement, so it is set here
       # rather than discovered by a first run.
-      FLOOR_CHANGED: "90"
+      #
+      # 80 SINCE 2026-09-23 (was 90). Adrian ruled that SonarCloud's new_coverage >= 80% is the
+      # requirement for new code in fix and feature PRs, and this floor now matches it. It is
+      # POOLED across stacks, so backend, frontend and Python changed lines all moved together.
+      # The same day #1024 made it measure backend lines at all.
+      FLOOR_CHANGED: "80"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
@@ -1512,12 +1627,11 @@ jobs:
 
           args=()
           if applicable "$CHANGED_BACKEND"; then
-            # --cobertura-prefix is left at its empty default pending the first
-            # real CI run. The path shape dotnet-coverage writes into Cobertura
-            # has not been observed here, and the shared exclusions only match
-            # if it is repo-relative. The measured line and file counts printed
-            # below are what confirm it: a wrong prefix shows up as an
-            # implausible file count, not as an error.
+            # --cobertura-prefix stays at its empty default. dotnet-coverage
+            # writes ABSOLUTE checkout paths, and a prefix can only prepend, so
+            # coverage-gate.py removes the checkout root itself when it reads the
+            # report (#1024). Before that, no backend path matched the diff and
+            # the changed-lines floor passed every backend PR unmeasured.
             args+=(--cobertura "$BACKEND_REPORT" --floor-backend "$FLOOR_BACKEND")
           fi
           if applicable "$CHANGED_FRONTEND"; then
@@ -1556,7 +1670,7 @@ jobs:
           fi
 
           # The changed-lines floor. Added only once at least one stack is
-          # applicable, because 90% of the changed lines is a question about
+          # applicable, because the changed-lines percentage is a question about
           # coverage reports, and with none of them present there is nothing to
           # ask it of.
           #
@@ -1631,3 +1745,188 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$gate_rc"
+
+  # #1032: SonarCloud analysis, moved here from the deleted sonarcloud.yml so it reuses the coverage
+  # the test jobs above already produced. That workflow ran every suite a second time -- the backend
+  # alone for about 21 min -- only to write coverage in the formats SonarCloud reads. Now the
+  # backend aggregate merges its shards straight into that XML, and the Angular lcov and Python
+  # Cobertura are the same artifacts Coverage: Floors reads.
+  sonarcloud:
+    name: "SonarCloud: Analysis"
+    runs-on: ubuntu-latest
+    needs: [changes, backend-test, frontend-test, python-test]
+    # Analyse unless a test job failed or was cancelled (sonarcloud.yml could not analyse a failed
+    # run either: its test step failed first). A SKIPPED stack is fine: the PR changes no code
+    # there, and SonarCloud's quality gate is about new code.
+    if: >-
+      ${{ always()
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled') }}
+    # Carried over from sonarcloud.yml. This check is not required on main; SonarCloud's verdict
+    # is the separate "SonarCloud Code Analysis" check its app posts.
+    continue-on-error: true
+    # Build plus scanner, no tests: 60 in sonarcloud.yml covered the test runs too.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install the SonarScanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
+      - name: Generate NuGet.Config
+        run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - name: Create placeholder secrets files
+        run: |
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer                      src/HealthcareSupport.CaseEvaluation.HttpApi.Host                      src/HealthcareSupport.CaseEvaluation.DbMigrator                      test/HealthcareSupport.CaseEvaluation.TestBase                      test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            if [ -n "${{ secrets.ABP_LICENSE_CODE }}" ]; then
+              echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
+          done
+      - name: Build the shared coverage-exclusion list
+        run: |
+          set -euo pipefail
+          list=$(grep -v '^[[:space:]]*#' .coverage-exclusions \
+                 | grep -v '^[[:space:]]*$' | paste -sd, -)
+          # Absent input is a hard failure. An empty list here would silently
+          # analyse with NO coverage exclusions and move every figure, which is
+          # the same shape as a gate that passes by not running.
+          if [ -z "$list" ]; then
+            m="No patterns read from .coverage-exclusions. Refusing to analyse"
+            m="$m with an empty exclusion list, which would silently change"
+            m="$m every coverage figure this project reports."
+            echo "::error::$m"
+            exit 1
+          fi
+          echo "COVERAGE_EXCLUSIONS=$list" >> "$GITHUB_ENV"
+          echo "Coverage exclusions: $list"
+
+      # #787, SonarCloud's half. Without a Python report Sonar grades EVERY new
+      # Python line as uncovered, so any pull request touching Python fails the
+      # new_coverage condition at 0% -- observed on PR #854, whose only new
+      # Python was a twenty-line import block.
+      #
+      # NOT `coverage.xml`: the .NET step below writes that name at the
+      # repository root for sonar.cs.vscoveragexml.reportsPaths. Two reports
+      # under one name means one silently overwrites the other.
+      #
+      # Same script ci.yml's python-test job runs, so the two consumers cannot
+      # diverge in flags. The gate is then asked to parse the very file being
+      # handed to Sonar: if it cannot, the two consumers are looking at
+      # different things and that should be loud here rather than discovered as
+      # a disagreement in figures months later.
+      #
+      # NOT hash-pinned, and that is item 2.14's decision rather than an oversight
+      # (#700). Scorecard's PinnedDependenciesID wants --require-hashes against a
+      # requirements file carrying a hash for every transitive dependency. Declined
+      # for the same reason docker/packet-renderer/Dockerfile records: PyPI does not
+      # permit a published version to be re-uploaded with different content, so the
+      # residual risk a hash closes is a registry compromise, against which the cost
+      # is a lock file regenerated in full on every bump. The reason is repeated here
+      # because this is where a reader lands, not that Dockerfile.
+      # Each report is fetched only when its test job succeeded; a skipped stack has none.
+      - name: Download backend coverage (VS XML)
+        if: needs.backend-test.result == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: backend-coverage-xml
+          path: sonar-coverage/backend
+      - name: Download frontend coverage (lcov)
+        if: needs.frontend-test.result == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: frontend-coverage
+          path: angular/coverage
+      - name: Download python coverage (Cobertura)
+        if: needs.python-test.result == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: python-coverage
+          path: sonar-coverage/python
+      - name: SonarScanner begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet sonarscanner begin
+          /k:"gesco-healthcare-support_hcs-patient-portal"
+          /o:"gesco-healthcare-support"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.cs.vscoveragexml.reportsPaths="sonar-coverage/backend/coverage.xml"
+          /d:sonar.javascript.lcov.reportPaths="angular/coverage/**/lcov.info"
+          /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
+          /d:sonar.python.coverage.reportPaths="sonar-coverage/python/coverage.xml"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts,design_handoff_*/**"
+          /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS"
+          /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml,abpDiAppServiceParams,abpDiManagerParams,abpDiRepoParams,abpPermissionStrings,abpAppServiceI18nKeys,abpHostModuleConfigKeys,abpDavailComplexity,bootstrapModalDialogRole,emailDoctype,emailTitle,emailLang,emailTableHeader,emailMouseKeyboard,emailDeprecatedAttrs,emailLayoutTable
+          /d:sonar.issue.ignore.multicriteria.abpModelState.ruleKey=csharpsquid:S6967
+          /d:sonar.issue.ignore.multicriteria.abpModelState.resourceKey=**/*.cs
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabel.ruleKey=Web:S6853
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabel.resourceKey=**/*.cshtml
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabelHtml.ruleKey=Web:S6853
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabelHtml.resourceKey=**/*.html
+          /d:sonar.issue.ignore.multicriteria.abpDiAppServiceParams.ruleKey=csharpsquid:S107
+          /d:sonar.issue.ignore.multicriteria.abpDiAppServiceParams.resourceKey=**/*AppService.cs
+          /d:sonar.issue.ignore.multicriteria.abpDiManagerParams.ruleKey=csharpsquid:S107
+          /d:sonar.issue.ignore.multicriteria.abpDiManagerParams.resourceKey=**/*Manager.cs
+          /d:sonar.issue.ignore.multicriteria.abpDiRepoParams.ruleKey=csharpsquid:S107
+          /d:sonar.issue.ignore.multicriteria.abpDiRepoParams.resourceKey=**/I*Repository.cs
+          /d:sonar.issue.ignore.multicriteria.abpPermissionStrings.ruleKey=csharpsquid:S1192
+          /d:sonar.issue.ignore.multicriteria.abpPermissionStrings.resourceKey=**/CaseEvaluationPermission*.cs
+          /d:sonar.issue.ignore.multicriteria.abpAppServiceI18nKeys.ruleKey=csharpsquid:S1192
+          /d:sonar.issue.ignore.multicriteria.abpAppServiceI18nKeys.resourceKey=**/*AppService.cs
+          /d:sonar.issue.ignore.multicriteria.abpHostModuleConfigKeys.ruleKey=csharpsquid:S1192
+          /d:sonar.issue.ignore.multicriteria.abpHostModuleConfigKeys.resourceKey=**/CaseEvaluationHttpApi*Module.cs
+          /d:sonar.issue.ignore.multicriteria.abpDavailComplexity.ruleKey=csharpsquid:S3776
+          /d:sonar.issue.ignore.multicriteria.abpDavailComplexity.resourceKey=**/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs
+          /d:sonar.issue.ignore.multicriteria.bootstrapModalDialogRole.ruleKey=Web:S6819
+          /d:sonar.issue.ignore.multicriteria.bootstrapModalDialogRole.resourceKey=**/*.component.html
+          /d:sonar.issue.ignore.multicriteria.emailDoctype.ruleKey=Web:DoctypePresenceCheck
+          /d:sonar.issue.ignore.multicriteria.emailDoctype.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailTitle.ruleKey=Web:PageWithoutTitleCheck
+          /d:sonar.issue.ignore.multicriteria.emailTitle.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailLang.ruleKey=Web:S5254
+          /d:sonar.issue.ignore.multicriteria.emailLang.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailTableHeader.ruleKey=Web:S5256
+          /d:sonar.issue.ignore.multicriteria.emailTableHeader.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailMouseKeyboard.ruleKey=Web:MouseEventWithoutKeyboardEquivalentCheck
+          /d:sonar.issue.ignore.multicriteria.emailMouseKeyboard.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailDeprecatedAttrs.ruleKey=Web:S1827
+          /d:sonar.issue.ignore.multicriteria.emailDeprecatedAttrs.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.issue.ignore.multicriteria.emailLayoutTable.ruleKey=Web:S5257
+          /d:sonar.issue.ignore.multicriteria.emailLayoutTable.resourceKey=**/NotificationTemplates/EmailBodies/*.html
+          /d:sonar.qualitygate.wait=false
+
+      # --locked-mode (#687): scan the graph we actually declare.
+      #
+      # packages.lock.json is committed so dependency-review can see transitive
+      # NuGet packages, and Directory.Build.props says CI "can opt in via the
+      # dotnet restore flag for locked mode". It never did. With the flag absent a
+      # pull request could add a dependency, leave the lock file stale, and
+      # Dependency Review -- a REQUIRED check -- would scan a graph without the new
+      # packages in it and pass. That happened on #686: an added ProjectReference
+      # pulled OpenIddict in transitively, the lock file had zero OpenIddict.Server
+      # entries, and build, tests and git status were all clean.
+      #
+      # Now it is NU1004 instead: "The package references have changed ... restore
+      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
+      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # that a dependency change must be followed by
+      # `dotnet restore --force-evaluate` and the lock files committed.
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
+      - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
+      - name: SonarScanner end
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

@@ -84,8 +84,8 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
 def load_exclusions(path: Path) -> list[re.Pattern[str]]:
     """Read the shared exclusion list, ignoring comments and blank lines."""
     if not path.is_file():
-        die(f"exclusion list not found: {path}. It is shared with sonarcloud.yml "
-            "and both consumers must read the same file.")
+        die(f"exclusion list not found: {path}. It is shared with the SonarCloud job in "
+            "ci.yml and both consumers must read the same file.")
     patterns = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -211,6 +211,27 @@ def in_repo(path: str, tracked: set[str],
     return False
 
 
+def strip_workspace_root(path: str, prefixes: tuple[str, ...]) -> str:
+    """Return a report path relative to the checkout, when it is under it.
+
+    The same ANCHORED rule `in_repo` applies (#864), used here to key the
+    Cobertura per-file map (#1024). dotnet-coverage writes
+    `<workspace>/src/App/Foo.cs`, and the changed-lines diff says
+    `src/App/Foo.cs`. With absolute keys no backend file ever matched the diff:
+    every changed `.cs` file was reported as having no coverage record, the
+    floor found nothing coverable, and it passed on every backend PR.
+
+    Only the checkout root is removed, and only at a separator boundary. A
+    vendor tree (`_/src/...`), a vendored copy (`vendor/src/...`) or any other
+    absolute tree comes back unchanged, so the tracked guard still rejects it
+    rather than it being renamed into one of our files.
+    """
+    for prefix in prefixes:
+        if path.startswith(prefix + "/"):
+            return path[len(prefix) + 1:]
+    return path
+
+
 def assert_tracked(per_file: dict[str, dict[int, int]],
                    patterns: list[re.Pattern[str]],
                    tracked: set[str],
@@ -311,21 +332,30 @@ def parse_lcov(path: Path, prefix: str) -> dict[str, dict[int, int]]:
     return per_file
 
 
-def parse_cobertura(path: Path, prefix: str) -> dict[str, dict[int, int]]:
+def parse_cobertura(path: Path, prefix: str,
+                    prefixes: tuple[str, ...] | None = None) -> dict[str, dict[int, int]]:
     """Return {file: {line_number: hits}} from a Cobertura report.
 
     Keying by line number also de-duplicates: one source file can appear under
     several `<class>` elements (partial classes, generic instantiations), and
     counting each `<line>` element independently would inflate the denominator
     with lines that are not distinct.
+
+    Keys are repo-relative (#1024): a filename under the checkout root has that
+    root removed by `strip_workspace_root`, AFTER `normalise` has turned any
+    Windows separators into the `/` git reports the root with. `prefixes`
+    defaults to `workspace_prefixes()`, resolved once per report rather than
+    once per file. coverage.py's filenames are already relative and pass
+    through unchanged.
     """
+    roots = workspace_prefixes() if prefixes is None else prefixes
     per_file: dict[str, dict[int, int]] = {}
     root = ET.parse(path).getroot()
     for cls in root.iter("class"):
         fn = cls.get("filename")
         if not fn:
             continue
-        lines = per_file.setdefault(normalise(fn, prefix), {})
+        lines = per_file.setdefault(strip_workspace_root(normalise(fn, prefix), roots), {})
         for ln in cls.iter("line"):
             number = ln.get("number")
             if number is None:
@@ -720,8 +750,10 @@ def measure_all(args: argparse.Namespace,
     are gathered here and judged by the caller.
 
     The returned coverage map is POOLED across stacks for the changed-lines
-    floor. Keys are repo-relative paths from normalise(), which is what makes
-    them comparable with the diff's paths in the first place.
+    floor. Keys are repo-relative: normalise() swaps separators and adds the
+    lcov prefix, and parse_cobertura also removes the checkout root that
+    dotnet-coverage writes (#1024). That is what makes them comparable with the
+    diff's paths in the first place.
     """
     measured: list[tuple] = []
     coverage_by_file: dict[str, dict[int, int]] = {}
@@ -773,7 +805,7 @@ def enforce_changed_lines(args: argparse.Namespace,
 
     Both stacks are pooled into one verdict rather than judged separately,
     because the requirement is about the submission, not about a stack: "WHEN the
-    lines a pull request changes are covered at less than 90%". A PR touching
+    lines a pull request changes are covered at less than 80%". A PR touching
     both sides gets one number, which is also what SonarCloud's new-code metric
     reports.
     """
@@ -821,7 +853,7 @@ def main() -> int:
     #
     # Nothing reaches it today: ci.yml appends --python-cobertura outside every
     # `applicable()` branch and keeps an inverted empty-args detector of its own,
-    # sonarcloud.yml passes a report explicitly, and the one test that drives
+    # and the one test that drives
     # main() builds --cobertura into argv before any branch. This is defence in
     # depth behind an invariant the workflow already asserts -- so that deleting
     # that one workflow line fails loudly here instead of silently passing.

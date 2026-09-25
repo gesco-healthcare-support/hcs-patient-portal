@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +9,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Settings;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -43,6 +44,7 @@ public class CaseTrackerAttendanceServiceTests
         public IAppointmentRepository Repository { get; init; } = null!;
         public ICurrentTenant CurrentTenant { get; init; } = null!;
         public IDisposable TenantScope { get; init; } = null!;
+        public CapturingLogger Logger { get; init; } = null!;
     }
 
     private static Appointment AppointmentWith(AppointmentStatusType status)
@@ -110,6 +112,8 @@ public class CaseTrackerAttendanceServiceTests
         var currentTenant = Substitute.For<ICurrentTenant>();
         currentTenant.Change(Arg.Any<Guid?>(), Arg.Any<string?>()).Returns(scope);
 
+        var logger = new CapturingLogger();
+
         return new Harness
         {
             Service = new CaseTrackerAttendanceService(
@@ -117,11 +121,12 @@ public class CaseTrackerAttendanceServiceTests
                 manager,
                 settingProvider,
                 currentTenant,
-                NullLogger<CaseTrackerAttendanceService>.Instance),
+                logger),
             Manager = manager,
             Repository = repository,
             CurrentTenant = currentTenant,
             TenantScope = scope,
+            Logger = logger,
         };
     }
 
@@ -263,5 +268,93 @@ public class CaseTrackerAttendanceServiceTests
         disabled.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
         unknown.Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
         disabled.ShouldBe(unknown);
+    }
+
+    // ---- what production actually records (#1043) ----
+
+    /// <summary>
+    /// The lowest level a Release build emits. <c>CaseEvaluationHost</c> selects
+    /// <c>MinimumLevel.Information()</c> under its <c>#else</c>, so anything below this is written
+    /// nowhere on the server. It cannot be referenced from here -- that type lives in HttpApi,
+    /// which Domain.Tests does not see -- so the value is restated, and that restatement is
+    /// exactly why these tests exist: both refusal arms shipped at <c>LogDebug</c> and therefore
+    /// left no trace at all in production.
+    /// </summary>
+    private const LogLevel ProductionMinimumLevel = LogLevel.Information;
+
+    /// <summary>
+    /// The bodyless, ambiguous 404 is deliberate so a token holder cannot enumerate offices. That
+    /// is owed to the CALLER. These tests pin that we do not owe it to ourselves.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedReportForADisabledOffice_IsRecordedWhereProductionCanSeeIt()
+    {
+        var h = Build(enabled: false);
+
+        await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+
+        h.Logger.Entries.ShouldContain(
+            e => e.Level >= ProductionMinimumLevel && e.Message.Contains("integration disabled"),
+            "An authenticated partner reporting against an office we have switched off is a live " +
+            "disagreement between the two systems, and nothing else in the portal records it.");
+    }
+
+    [Fact]
+    public async Task ARefusedReportForAnUnknownAppointment_IsRecordedWhereProductionCanSeeIt()
+    {
+        var h = Build(appointmentExists: false);
+
+        await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+
+        h.Logger.Entries.ShouldContain(
+            e => e.Level >= ProductionMinimumLevel && e.Message.Contains("not found"),
+            "This is the arm that strands an appointment: the report is discarded, the status " +
+            "never moves, and no dead letter is written because the outbox only covers pushes.");
+    }
+
+    /// <summary>
+    /// The asymmetry is deliberate and is pinned so it cannot be flattened later. A retry of a
+    /// report already applied is ordinary, expected traffic; raising it to match the two refusal
+    /// arms would bury them in exactly the noise that makes a log useless.
+    /// </summary>
+    [Fact]
+    public async Task AnAlreadyAppliedRetry_StaysBelowWhatProductionEmits()
+    {
+        var h = Build(currentStatus: AppointmentStatusType.NoShow);
+
+        var result = await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
+
+        result.Result.ShouldBe(CaseTrackerAttendanceResult.Applied);
+        h.Logger.Entries.ShouldNotContain(e => e.Level >= ProductionMinimumLevel);
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message);
+
+    /// <summary>
+    /// Records what the service logged. Same idea as the CapturingLoggerProvider in
+    /// <c>MultiOfficeImpersonationRoleTests</c>, but implementing <c>ILogger&lt;T&gt;</c> directly
+    /// because this service takes its typed logger through the constructor rather than resolving
+    /// one from the container.
+    ///
+    /// <para><see cref="IsEnabled"/> always returns true on purpose, so a test observes the level
+    /// the CALL SITE chose rather than whatever minimum a configuration happens to set. The
+    /// production minimum is then asserted explicitly, which is the thing actually at issue.</para>
+    /// </summary>
+    private sealed class CapturingLogger : ILogger<CaseTrackerAttendanceService>
+    {
+        public List<LogEntry> Entries { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
     }
 }

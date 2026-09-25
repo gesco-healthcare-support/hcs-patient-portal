@@ -43,16 +43,22 @@ public sealed class CaseTrackerPushResult
 
     /// <summary>
     /// Maps an HTTP status to an outcome:
-    /// 2xx succeeds; 404 / 408 / 429 / 5xx are transient; every other 4xx (401 bad token,
+    /// 2xx succeeds; 403 / 404 / 408 / 429 / 5xx are transient; every other 4xx (401 bad token,
     /// 400 and 415 malformed request) is permanent. Anything unexpected is treated as permanent
     /// so an unknown response cannot drive a retry storm.
+    ///
+    /// <para>403 is retryable since #917 (agreed with the Case Tracker side 2026-09-16). Once a proxy
+    /// sits in front of their API, it can answer 403 while their backend restarts (8-15 seconds per
+    /// deploy), and a permanent 403 would dead-letter real appointments on every deploy. It is treated
+    /// exactly like a server error -- same 24-hour window, no special cap -- because the only reason it
+    /// was permanent was to get a human told quickly, and the early-warning email now does that.</para>
     /// </summary>
     public static CaseTrackerPushResult FromStatusCode(int statusCode)
     {
         var outcome = statusCode switch
         {
             >= 200 and <= 299 => CaseTrackerPushOutcome.Success,
-            404 or 408 or 429 => CaseTrackerPushOutcome.Retryable,
+            403 or 404 or 408 or 429 => CaseTrackerPushOutcome.Retryable,
             >= 500 and <= 599 => CaseTrackerPushOutcome.Retryable,
             _ => CaseTrackerPushOutcome.Fatal,
         };

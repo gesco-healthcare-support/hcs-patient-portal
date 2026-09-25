@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
@@ -15,20 +17,42 @@ public static class IntegrationOutboxConsts
     public const int LastErrorMaxLength = 500;
 
     /// <summary>
-    /// FAIL FAST, unlike the email outbox's 5. Three attempts spaced by
-    /// <see cref="RetryBackoffSeconds"/> dead-letter a row roughly 10 minutes after the
-    /// first failure. Rationale: an appointment that has not reached the Case Tracker is a
-    /// case nobody is working, and case timelines carry legal weight -- notifying staff
-    /// early beats retrying quietly for hours. Transient blips still self-heal inside the
-    /// window.
+    /// A BACKSTOP on attempts for rows created since #917, not the rule. The rule is
+    /// <see cref="RetryWindowHours"/>: keep retrying for 24 hours from the first failure. The wait
+    /// schedule (<see cref="RetryWaitMinutes"/>, then <see cref="SteadyRetryWaitMinutes"/>) allows about
+    /// 50 attempts in that window, so this cap is only reached if something retries faster than the
+    /// schedule permits.
+    ///
+    /// <para>Rows created before #917 keep the 3 stored on them (agreed rule 7): they dead-letter at 3 as
+    /// they always did, and the bulk retry recovers anything that dead-lettered under the old rule.</para>
+    ///
+    /// <para>Why the old fail-fast rule changed (#917, agreed with the Case Tracker side 2026-09-15): three
+    /// attempts dead-lettered every queued change during any outage longer than a few minutes, and
+    /// recovery was one row at a time. The legal-timeline reason for failing fast is kept by the
+    /// early-warning email on the second failure (<see cref="EarlyWarningAfterAttempts"/>): staff are told
+    /// in about ten minutes, while the row keeps trying. The old comment here said three attempts took
+    /// "roughly 10 minutes"; in practice they took 20-30, because the next attempt waited for a sweep.</para>
     /// </summary>
-    public const int MaxAttempts = 3;
+    public const int MaxAttempts = 100;
+
+    /// <summary>How long a failing row keeps being retried, from its FIRST failure, before it dead-letters.</summary>
+    public const int RetryWindowHours = 24;
 
     /// <summary>
-    /// Flat backoff before a failed row is retried by the next drain. Flat (not
-    /// exponential) so the proven <c>MarkFailed</c> mechanics are reused verbatim.
+    /// The waits after the first, second and third failures, in minutes. After that every wait is
+    /// <see cref="SteadyRetryWaitMinutes"/>.
     /// </summary>
-    public const int RetryBackoffSeconds = 300;
+    public static readonly IReadOnlyList<int> RetryWaitMinutes = new[] { 5, 10, 20 };
+
+    /// <summary>The wait between attempts once the growing waits are used up.</summary>
+    public const int SteadyRetryWaitMinutes = 30;
+
+    /// <summary>
+    /// A row that has failed this many times and is STILL retrying triggers the early-warning email,
+    /// once. That is the moment the old fail-fast rule would have given up, so staff hear about a
+    /// problem exactly as early as they used to.
+    /// </summary>
+    public const int EarlyWarningAfterAttempts = 2;
 
     /// <summary>
     /// Visibility timeout for a claimed row; must comfortably exceed one HTTP attempt so a
@@ -38,6 +62,13 @@ public static class IntegrationOutboxConsts
 
     /// <summary>Max rows a single drain claims per office per pass.</summary>
     public const int DrainBatchSize = 50;
+
+    /// <summary>
+    /// How long an intake or document enqueue waits for the per-appointment ordering lock (#931)
+    /// before failing loudly. The lock is held only for one enqueue's transaction, so a wait anywhere
+    /// near this long means something is stuck, not busy.
+    /// </summary>
+    public const int AppointmentLockTimeoutMilliseconds = 30_000;
 
     /// <summary>
     /// Rolling window the volume guard measures sends over, per office.

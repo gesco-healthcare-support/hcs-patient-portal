@@ -18,8 +18,9 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 /// instead of depending on what the route convention happens to derive from the service name.</para>
 ///
 /// <para>Authorization lives on the app service, which gates the list on
-/// <c>ViewIntegrationDeadLetters</c> and the retry on <c>PushToCaseTracker</c> -- reading the failure
-/// list is a narrower capability than re-sending PHI.</para>
+/// <c>ViewIntegrationDeadLetters</c> and the retry on <c>CaseTrackerIntegration</c> -- reading the
+/// failure list is a narrower capability than re-sending PHI. Both are Host-only, and the service also
+/// refuses any caller inside an office.</para>
 /// </summary>
 [Area("app")]
 [ControllerName("CaseTrackerDeadLetter")]
@@ -51,5 +52,13 @@ public class CaseTrackerDeadLetterController : AbpController
     public virtual Task<CaseTrackerDeadLetterRetryResultDto> RetryDeadLetterAsync(Guid officeId, Guid id)
     {
         return _deadLetterAppService.RetryAsync(officeId, id);
+    }
+
+    /// <summary>Retries every dead letter in one office (#917), reporting counts.</summary>
+    [HttpPost]
+    [Route("offices/{officeId}/dead-letters/retry-all")]
+    public virtual Task<CaseTrackerDeadLetterRetryAllResultDto> RetryAllDeadLettersAsync(Guid officeId)
+    {
+        return _deadLetterAppService.RetryAllAsync(officeId);
     }
 }

@@ -95,6 +95,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     // Case Tracker integration Part 1 (2026-07-27): outbound message ledger. Must be configured
     // here as well as in the host context, or office databases get no table at all.
     public DbSet<IntegrationOutboxItem> IntegrationOutboxItems { get; set; } = null!;
+    public DbSet<CaseTrackerFeedState> CaseTrackerFeedStates { get; set; } = null!;
 
     public CaseEvaluationTenantDbContext(DbContextOptions<CaseEvaluationTenantDbContext> options) : base(options)
     {

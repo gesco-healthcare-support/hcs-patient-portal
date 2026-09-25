@@ -157,6 +157,42 @@ class TestParseCobertura(_TempDirCase):
             list(gate.parse_cobertura(report, "prefixed")), ["prefixed/src/App/Thing.cs"]
         )
 
+    # #1024. Injected roots, so these describe the CI shape rather than this machine's.
+    ROOTS = ("/ci/work/repo", "ci/work/repo")
+
+    def test_a_workspace_absolute_filename_is_keyed_repo_relative(self):
+        """Both spellings of the checkout root are removed, as `in_repo` accepts both."""
+        for filename in ("/ci/work/repo/src/App/X.cs", "ci/work/repo/src/App/X.cs"):
+            report = self.write(
+                "cov.xml",
+                f'<coverage><class filename="{filename}"><lines>'
+                '<line number="1" hits="1"/></lines></class></coverage>',
+            )
+            self.assertEqual(
+                gate.parse_cobertura(report, "", self.ROOTS), {"src/App/X.cs": {1: 1}}, filename
+            )
+
+    def test_a_windows_workspace_filename_is_keyed_repo_relative(self):
+        """The strip runs AFTER normalise, so a backslashed report still matches git's root."""
+        filename = "W:" + BACKSLASH + "work" + BACKSLASH + "src" + BACKSLASH + "X.cs"
+        report = self.write(
+            "cov.xml",
+            f'<coverage><class filename="{filename}"><lines>'
+            '<line number="1" hits="1"/></lines></class></coverage>',
+        )
+        self.assertEqual(gate.parse_cobertura(report, "", ("W:/work",)), {"src/X.cs": {1: 1}})
+
+    def test_a_relative_filename_is_left_as_it_is(self):
+        """coverage.py's filenames are already relative; the strip must not touch them."""
+        report = self.write(
+            "cov.xml",
+            '<coverage><class filename="scripts/coverage-gate.py"><lines>'
+            '<line number="1" hits="1"/></lines></class></coverage>',
+        )
+        self.assertEqual(
+            gate.parse_cobertura(report, "", self.ROOTS), {"scripts/coverage-gate.py": {1: 1}}
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

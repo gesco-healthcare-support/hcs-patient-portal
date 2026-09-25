@@ -42,7 +42,6 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Timing;
 /// document. This test fails instead: a NEW <c>DateTime</c> property must be classified here
 /// before it can ship, and a renamed or removed one fails as a stale entry.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class CalendarDateNormalizationTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     /// <summary>

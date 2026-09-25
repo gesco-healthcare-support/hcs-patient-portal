@@ -22,6 +22,19 @@
 #   datastore failure, where both guests die together. This is the interim routine committed to
 #   on 2026-08-17, not disaster recovery. True off-site remains open.
 #
+# FAILURES REACH A PERSON (#945, 2026-09-24)
+#   OnFailure= on both units starts hcs-portal-backup-alert@.service, which emails BACKUP_ALERT_RECIPIENTS through
+#   backup-alert.sh. This script also touches two markers only after it fully succeeds -- last-success every run,
+#   last-restore-proof after a proven restore -- and backup-freshness-check.sh emails when either goes stale, which
+#   catches the run that never happens at all. Do not move the touches earlier: a marker written before a step
+#   that can fail would report a success that did not happen.
+#
+# AFTER CUTOVER (#945, recorded 2026-09-24)
+#   This script retires when the portal moves to Azure. It cannot run there -- the destination is a private
+#   address the hosted portal cannot reach -- and it is not needed: the Azure design keeps the databases on Azure
+#   SQL with point-in-time restore, keeps documents in blob storage with versioning and soft delete, and keeps
+#   exports in a separate backups storage account. Until the cutover, this script and its alerts stay in force.
+#
 # SCALING LIMIT
 #   MinIO is archived whole each run (8 MiB today). That is fine now and will not be once the
 #   Case Tracker fills its bucket. When the archive gets big, switch to an incremental transport
@@ -182,8 +195,11 @@ if [[ "${1:-}" = "--verify-restore" ]]; then
   rows="$(sqlc -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM [${scratch}].sys.tables;" | tr -d '\r ')"
   sqlc -Q "DROP DATABASE [${scratch}];" >/dev/null
   log "     RESTORE PROVED: ${rows} tables read back, scratch database dropped"
+  touch "$STAGING/last-restore-proof"
 else
   log "6/6 restore proof skipped (pass --verify-restore to run it)"
 fi
 
 log "DONE ${STAMP}: ${shipped} dump(s) + MinIO archive off-box at ${REMOTE_HOST}:${REMOTE_DIR}"
+# Last, on purpose: the freshness check reads this as "every step above succeeded".
+touch "$STAGING/last-success"

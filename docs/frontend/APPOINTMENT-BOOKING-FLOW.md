@@ -40,7 +40,7 @@ HTTP calls live in a section.
     ConfirmAddressDialogComponent,
   ],
   providers: [
-    ListService, AppointmentViewService,
+    ListService,
     { provide: NgbDateAdapter, useClass: DateAdapter },
     { provide: NgbTimeAdapter, useClass: TimeAdapter },
   ],

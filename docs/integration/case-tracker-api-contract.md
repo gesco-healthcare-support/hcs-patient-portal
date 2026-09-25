@@ -9,6 +9,10 @@ LIVE TESTING IS HELD until they deploy. The portal OUTBOUND side is now BUILT an
 everything except the reconcile GET (§F) and failure visibility (§I2) - see section J for the current
 built/remaining split. It ships DISABLED behind the `CaseTrackerPushEnabled` setting.
 
+STATUS NOTE 2026-09-24: the status lines above, in section J and in Coordination predate the September
+thread and have NOT been re-checked since. The Case Tracker side reports its endpoints deployed
+(2026-09-24). What changed in September is in the REVISION 2026-09-24 block below.
+
 Decisions folded in (2026-07-23, all FINAL):
 
 - Intake waits for the packet set to settle, then pushes ONCE with packets + accepted docs (§H).
@@ -35,6 +39,8 @@ REVISION 2026-07-28 (supersedes where it conflicts with the text below):
   Field edits (patient / attorney / injury) are PUSHED, reversing the earlier
   "field edits are pull-only" decision. Consequence: Case Tracker does NOT need a periodic sweep
   for freshness; the reconcile GET is a BACKSTOP for a dead-lettered push, not the delivery path.
+  (Still true of reconcile. From each office's cutover the delivery path is the changes feed, which
+  the Case Tracker polls -- see section L.)
 - **Uploaded documents publish only when staff ACCEPT them.** Upload no longer triggers a push, so
   Case Tracker never receives `Pending` or `Uploaded` rows -- only staff-vetted documents.
 - **Reject-after-Accept is sent as `{ id, deleted: true }`**, not as a status change.
@@ -43,8 +49,9 @@ REVISION 2026-07-28 (supersedes where it conflicts with the text below):
 - **Retention narrowed**: only the IT-Admin DELETE path retains its blob. A re-upload deletes the
   superseded blob and publishes the new `objectKey` (there is always a replacement, so nothing we
   published can be left pointing at nothing).
-- Delivery: FAIL-FAST retry (few attempts, then dead-letter) + email alert + an admin dead-letter
+- Delivery: ~~FAIL-FAST retry (few attempts, then dead-letter)~~ + email alert + an admin dead-letter
   screen with retry, plus a manual "Push to Case Tracker" action (§I, §I2).
+  **SUPERSEDED 2026-09-24 -- the retry is now a 24-hour window; see section I.**
 
 REVISION 2026-07-28 (Part 6 -- claim and party data):
 
@@ -93,6 +100,30 @@ REVISION 2026-08-06 (RESCHEDULE BECOMES TWO CASES -- the biggest semantic change
   table. They now arrive on every reschedule and carry the billing signal for the old date.
 - **One object can appear under two document ids** (§C): the replacement's document rows are copies
   sharing the original's `objectKey`.
+
+REVISION 2026-09-24 (the September thread, the retry change #917 and the changes feed #927 -- READ THIS
+FIRST if you built against an earlier version):
+
+- **Delivery becomes a feed the Case Tracker pulls, office by office, at cutover** (#927, new section L). Once
+  the portal is internet-facing it cannot reach the Case Tracker on the office network, so the Case
+  Tracker polls `GET .../offices/{tenantId}/feed` once a minute instead of receiving pushes. The push
+  (sections A-H) stays the delivery path for every office until that office is cut over, and again if it is
+  returned to push. Decision 4 is REVERSED accordingly (Coordination).
+- **Retry is no longer fail-fast** (#917, section I). A failing push retries for 24 hours from its first
+  failure, on waits of 5, 10 and 20 minutes and then every 30, with a drain every 5 minutes. Staff get an
+  early-warning email after the second failure, a batched email when a push finally dead-letters, and a
+  per-office bulk retry (section I2). A `403` from you is now retried like a `5xx`.
+- **Your proxy answers `5xx`, not `4xx`, while your backend boots** (8-15 seconds per deploy), as your
+  side offered (section I).
+- **Refusals the portal returns** (new section I3): an allowlist or edge refusal must be `403`, never `401`,
+  preferably not `429`, and must answer rather than drop. The feed uses `403` and `409` only. Reconcile
+  and attendance still answer a bad token with `401` and their shared limit with `429`; moving them to
+  `403` is issue #1068, not agreed yet.
+- **Pausing an office** (new section I4): under 96 hours without notice; longer needs telling your side first.
+- **The volume guard binds the push only** (section H). Under the feed your consumer sets the pace; whether the
+  portal should also cap the feed is issue #1069, not decided.
+- **Reconcile on case-open** is being switched on as the backstop on your side (section F). It shares the
+  300/hour allowance with attendance; the feed has its own.
 
 Grounding: every field value maps to real portal source (branch `main` @ `100a617c`), cited inline;
 MinIO facts verified live. The JSON key NAMES/envelope were locked here first and the portal emitter
@@ -597,9 +628,11 @@ documents-only variant would cost the same to build while giving you less.
 - URL (**CHANGED 2026-07-28 -- note the office segment; hostname PINNED 2026-07-29**):
   `GET https://admin.api.<portal-base-domain>/api/integration/offices/{tenantId}/appointments/{appointmentId}` ->
 
-  The `admin.api.` prefix is required and is not decorative. `api.<base>` reaches the portal's Angular
+  The `admin.api.` prefix is required and is not decorative. ~~`api.<base>` reaches the portal's Angular
   container, not the API, because the reverse proxy's `*.api.<base>` block cannot match an empty
-  wildcard label while the catch-all `*.<base>` block can. `admin` is the portal's reserved slug for
+  wildcard label while the catch-all `*.<base>` block can.~~ **CHANGED 2026-09-24 (#921): a bare
+  `api.<base>` now answers `404` with a JSON body whose code is `missing_office_label`, rather than `200`
+  with the app's HTML. It still does not reach the API.** `admin` is the portal's reserved slug for
   its shared host context, which is the right context here precisely because this request identifies
   the office by the path segment rather than by hostname. Adrian confirms the exact base domain at
   deploy.
@@ -623,6 +656,10 @@ documents-only variant would cost the same to build while giving you less.
   pushed; its remaining value is recovering a push that dead-lettered. An hourly sweep is harmless if
   you want one (each call is ~8-10 indexed reads on one office database, and the 300/hour limit leaves
   room for it), but it is no longer load-bearing.
+- ADDED 2026-09-24: your side is switching reconcile on case-open ON as the backstop, whichever
+  transport delivers (agreed 2026-09-15). By your figures it is staff-triggered and throttled to one
+  fetch per appointment per five minutes. It shares the 300/hour allowance below with attendance
+  (section K); the changes feed (section L) has an allowance of its own and does not draw on it.
 
 Answers to the receiver's reconcile questions (2026-07-28):
 
@@ -656,6 +693,8 @@ Answers to the receiver's reconcile questions (2026-07-28):
   covers an office whose integration is switched off, and the two are deliberately indistinguishable so
   the endpoint cannot be used to discover which appointments or offices exist. Treat `404` as terminal
   and stop sweeping that id, exactly as previously agreed.
+  NOTE 2026-09-24: the `401` is unchanged, although your client latches on it; see section I3 and
+  issue #1068 for the proposal to move it to `403`.
 - The token is compared in constant time and is never logged. If the portal has no token configured the
   endpoint rejects EVERY request rather than allowing them through, so a misconfigured deploy fails
   closed rather than serving PHI.
@@ -685,6 +724,8 @@ through the document-update channel (section C), never by inference from a faile
   token would allow all of that to be enumerated. Treat the token as a secret of the same weight as
   your `X-Intake-Token`. If a planned sweep needs more than 300/hour, tell us the shape of it; the
   limit is one constant.
+  NOTE 2026-09-24: the `429` is unchanged, although your backoff is process-wide and pauses attendance
+  too; see section I3 and issue #1068.
 - STATUS: BUILT (Part 4). Portal config key `CaseTracker:IntegrationToken`, supplied per environment as
   a secret and never committed; Adrian issues the value out of band.
 - Distinct from Case Tracker's own `GET /api/intake/health` (§I), which we call to check
@@ -736,6 +777,12 @@ VOLUME CAP (added 2026-07-31): the portal sends at most 100 messages per office 
 Beyond that, delivery is HELD -- rows stay queued and resume automatically as the window slides. There
 is no trip state and nothing to reset.
 
+SCOPE, ADDED 2026-09-24: the cap is enforced by the portal's PUSH drain, so it binds the push only. For
+an office on the changes feed (section L) the portal does not throttle what it serves: your consumer sets
+the pace, up to 200 rows a page within the feed's 240 requests an hour. The reasons below for not
+flooding your staff queue now apply to how fast your consumer takes rows. Whether the portal should also
+cap the feed is open as issue #1069; nothing is agreed.
+
 What this means for Case Tracker: a large burst arrives spread over hours rather than all at once, and
 a gap in delivery is not necessarily a fault. Normal traffic is nowhere near the cap -- an office runs
 about a dozen appointment slots a day, so organic approvals are single digits per hour. The cap exists
@@ -768,14 +815,53 @@ reaches the Case Tracker seconds-to-minutes later than it used to.
   `web.ignoring()`. Portal sends the RAW token, stored as a secret. Token shared out of band at deploy.
 - `Content-Type: application/json` REQUIRED (else 415).
 - Response: 2xx no body on accept; no case id returned (portal keys on `appointmentId`).
-- Outbox status handling (portal): 2xx -> done; 401 -> FATAL, no retry (dead-letter + alert);
+- ~~Outbox status handling (portal): 2xx -> done; 401 -> FATAL, no retry (dead-letter + alert);
   400/415 -> fatal (build bug); 404 on doc-update -> RETRYABLE (intake not processed yet); 5xx /
-  timeout / connection -> retryable with backoff.
-- Retry policy (DECIDED 2026-07-23) - FAIL FAST: a small number of attempts (default 3, short backoff,
+  timeout / connection -> retryable with backoff.~~ **SUPERSEDED 2026-09-24 -- see the status matrix
+  below.**
+- ~~Retry policy (DECIDED 2026-07-23) - FAIL FAST: a small number of attempts (default 3, short backoff,
   dead-lettered within roughly 20 minutes), then terminal + alert a human. Rationale: appointment and
   case timelines are legally significant, so a case must never sit silently in a retry queue for hours -
   it is better to notify staff early so they can inspect the problem or use the manual push. Attempt
-  count and backoff are config-tunable. Deliberately NOT a long (24h) window.
+  count and backoff are config-tunable. Deliberately NOT a long (24h) window.~~ **SUPERSEDED
+  2026-09-24 -- see the retry policy below.**
+- Outbox status handling (portal), REVISED 2026-09-24 (#917):
+
+  | Response from you                                       | Portal does                                         |
+  | ------------------------------------------------------- | --------------------------------------------------- |
+  | `2xx`                                                   | Done.                                               |
+  | `403`, `404`, `408`, `429`, any `5xx`                   | Retries within the 24-hour window below.            |
+  | No response at all (refused, DNS, TLS failure, timeout) | Retries within the 24-hour window below.            |
+  | `401`, `400`, `415`, and any status not listed here     | Dead-letters at once and alerts staff (section I2). |
+
+  `404` retries because a document update can arrive before you have processed its intake. `403`
+  retries since #917 because a proxy in front of your API can answer `403` while your backend restarts.
+  `401`, `400` and `415` cannot be fixed by retrying: a wrong token or a malformed request. An unexpected
+  status is treated as permanent so it cannot drive a retry storm.
+- Retry policy, REVISED 2026-09-24 (#917, agreed 2026-09-15/16): a push that fails retries for 24 hours
+  from its FIRST failure, then dead-letters. The waits after the first, second and third failures are 5,
+  10 and 20 minutes, then every 30 minutes. A drain runs every 5 minutes, so a retry goes out within about
+  5 minutes of its wait ending. A cap of 100 attempts exists only as a backstop; the schedule allows about
+  50 in the window.
+  - The legal-timeline reason for failing fast is kept by an early-warning email (section I2): after the
+    SECOND failed attempt the next 15-minute alert run emails staff, so they hear of a problem at most
+    about 25 minutes after the first failure (a 5-minute wait, up to 5 minutes for the next drain, up to 15
+    for the alert run) while the push keeps trying.
+  - Why it changed: three attempts dead-lettered every queued change during any outage longer than a few
+    minutes, and recovery was one row at a time.
+  - What the old rule actually did: pushes queued before #917 keep their limit of 3 attempts. Those took
+    20-30 minutes to dead-letter, because each retry waited for the 15-minute reconciliation sweep. Neither
+    the "roughly 20 minutes" once stated here nor the "roughly 10 minutes" a code comment once gave
+    described that.
+- Planned versus unplanned, ADDED 2026-09-24: an office whose `CaseTrackerPushEnabled` switch is off is
+  a PLANNED pause. The drain does not attempt its rows, so no attempts are spent and the rows wait. The
+  24-hour window covers UNPLANNED outages on your side. The window does not pause while the switch is off:
+  a push that had already failed before a pause longer than 24 hours gets one attempt when the office is
+  switched back on, and dead-letters if that attempt fails. Pausing is bounded by section I4.
+- Your proxy while your backend boots, ADDED 2026-09-24: your side has offered to configure its proxy to
+  answer `5xx`, not `4xx`, while your API is down. By your figures a deploy restarts the API for 8-15
+  seconds. The portal retries a `403` as well, so a proxy that answers `403` during a restart delays a
+  push rather than dead-lettering it.
 - Health check (no side effects): `GET {base}/api/intake/health` -> no token `200 {tokenProvided:false}`,
   valid `200 {tokenValid:true}`, invalid `401`.
 
@@ -784,8 +870,10 @@ reaches the Case Tracker seconds-to-minutes later than it used to.
 ## I2. Failure visibility (DECIDED 2026-07-23)
 
 A permanently failed push means a case silently never reaches Case Tracker - the worst failure mode of
-this integration, because nothing in either UI would show it. Combined with the fail-fast retry policy
-(§I), a failure surfaces to a human within minutes. STATUS: BUILT (Part 5). Phase 1 includes ALL of:
+this integration, because nothing in either UI would show it. ~~Combined with the fail-fast retry policy
+(§I), a failure surfaces to a human within minutes.~~ **REVISED 2026-09-24 (#917): with the 24-hour
+retry window (section I), the early-warning email below is what tells a human within minutes.** STATUS: BUILT
+(Part 5). Phase 1 includes ALL of:
 
 - Email alert to internal staff when an outbox row reaches terminal `Failed` (reuses the portal's
   existing email infrastructure; note `OutboxDrainJob` today only logs counts, so this is new).
@@ -807,10 +895,81 @@ this integration, because nothing in either UI would show it. Combined with the 
   recovery, pre-enablement appointments, and any case that dead-lettered.
 - Alerts and screens must never include PHI in the notification body - reference the appointment by
   `appointmentId` / confirmation number only.
+- **ADDED 2026-09-24 (#917): an early-warning email.** A push that has failed twice and is STILL
+  retrying is listed in an email to internal staff by the next 15-minute alert run, once per push, so
+  staff hear of a problem early while the push keeps trying.
+- **ADDED 2026-09-24 (#917): a bulk retry.** The dead-letter screen retries an office's dead letters
+  oldest first, up to 100 per action, so recovering from an outage is no longer one row at a time.
+- **ADDED 2026-09-24 (#927): under the feed this list goes quiet.** For an office on the changes feed the
+  portal no longer sends, so nothing dead-letters and the screen shows nothing about rows waiting for you.
+  The feed's own alerts (section L) cover that instead.
+- **ADDED 2026-09-24 (#944): a missing-intake report.** Every other net here needs an outbox row, and the
+  completeness sweep only looks back 7 days. So the portal also lists, with no date limit, approved
+  appointments that have no intake row: on demand on the host's Case Tracker failures page, and in a
+  weekly email to the technical list when any is likely lost. It only reports. It never queues anything,
+  so it cannot resend history your staff already entered by hand.
+
+---
+
+## I3. Refusals the portal returns (inbound calls) (ADDED 2026-09-24)
+
+Why the status code matters, by your side's account (2026-09-16): reconcile and attendance share one
+HTTP client on your side. It treats a `403` and every transport failure (refused, reset, TCP timeout, TLS
+failure) as transient: logged, retried, nothing latched. A `401` latches it and stops BOTH features until
+your service restarts. Its rate-limit backoff is process-wide, so a `429` from either call pauses both for
+up to five minutes.
+
+The rule for any allowlist or edge refusal in front of the portal (agreed 2026-09-16):
+
+- `403`, never `401`, and preferably not `429`.
+- ANSWER, do not drop. A refused connection surfaces on your side in under two seconds; a silently
+  dropped one costs up to two minutes of retries. So the restriction must be enforced somewhere that
+  answers, not by a network rule that discards the packet.
+- Never `200` with an HTML error page: your JSON deserialisation then fails with no detail.
+
+The office address allowlist itself is not built yet.
+
+What each inbound endpoint returns today:
+
+| Endpoint            | Bad or missing token | Over its allowance                                           | Office or item not available |
+| ------------------- | -------------------- | ------------------------------------------------------------ | ---------------------------- |
+| Changes feed (L)    | `403` `forbidden`    | `403` `allowance_exceeded` (240 an hour per office)          | `403` `feed_not_enabled`     |
+| Reconcile GET (F)   | `401`                | `429`, `Retry-After: 3600` (300 an hour per address, shared) | `404`                        |
+| Attendance POST (K) | `401`                | `429`, `Retry-After: 3600` (the same shared 300)             | `404`                        |
+
+A feed request WITHOUT a valid token is also capped at 60 an hour per address, and refused with `403`
+`forbidden`.
+
+Reconcile and attendance keep `401` and `429` for now. Moving them to `403` is issue #1068, and it is NOT
+agreed: on a wrong token your client would then retry quietly instead of stopping. Until it changes, a
+`401` from either means a token mismatch that needs an operator.
+
+---
+
+## I4. Pausing an office (ADDED 2026-09-24, agreed 2026-09-15)
+
+An office is paused by switching its `CaseTrackerPushEnabled` off. While it is off:
+
+- nothing is pushed and no retry attempts are spent (section I);
+- the changes feed answers `403` `feed_not_enabled` (section L);
+- reconcile and attendance answer `404` (sections F and K).
+
+Your side measured what that does (2026-09-15). Reconcile shrugs off a `404`: a non-200 never reaches
+your persist path. Attendance retries a `404` until 96 hours after the outcome was recorded, then fails
+it permanently with no alert and no recovery except manual database work. Attendance is the only route
+by which a `NoShow` or `NotSeen` reaches the portal.
+
+**The rule: the portal may pause an office for UNDER 96 hours without telling you. A longer pause needs
+telling your side first.** We have also asked for an alert on your 96-hour give-up, because an outcome
+lost there is otherwise invisible to both sides.
 
 ---
 
 ## J. Built vs. not-built
+
+NOTE 2026-09-24: this section predates the September thread and has NOT been re-checked. See the
+REVISION 2026-09-24 block at the top for what changed; the retry change (#917) and the changes feed
+(#927) are built.
 
 Case Tracker side: intake + document-update + health BUILT + verified locally; NOT deployed to
 `192.168.101.35` yet. Live testing held until their deploy. Network path portal -> `.35` is open
@@ -928,6 +1087,9 @@ setter. Anything else is a 400.
 
 No response body on success.
 
+NOTE 2026-09-24: the `401` is unchanged, although your client latches on it; see section I3 and
+issue #1068.
+
 ### Idempotency
 
 Keyed on the appointment's CURRENT status, not on a request id. A retry carrying the same outcome
@@ -1027,6 +1189,9 @@ client IP. Attendance reports are one call per appointment per day, so they are 
 reconcile repair sweep -- but the budget is SHARED, so a sweep and a burst of reports draw on the
 same 300. Tell us if you ever see a `429` and the cap can be raised.
 
+ADDED 2026-09-24: the changes feed (section L) has its own allowance, 240 requests an hour per office,
+and does not draw on this one. See section I3 for what a `429` here does to your client.
+
 ### What comes back the other way
 
 Nothing. The portal does NOT push these statuses to you (section A, NEVER-sent) -- you authored
@@ -1035,7 +1200,167 @@ further update about it reaches you at all.
 
 ---
 
+## L. Changes feed (PULL -- you call us) (ADDED 2026-09-24, #927)
+
+**Why.** Once the portal is internet-facing it cannot reach the Case Tracker on the office network, so
+delivery turns round: instead of the portal pushing each change, the Case Tracker pulls each office's
+changes from the portal. Agreed 2026-09-16 (#927).
+
+**Status.** BUILT (#927). Not live for any office until that office is cut over (below; the runbook
+is #968). Until then, and again after a Return to push, the push in sections A-H is the delivery path.
+Going live also waits on #915 merging.
+
+### Endpoint
+
+`GET https://admin.api.<portal-base-domain>/api/integration/offices/{tenantId}/feed`
+
+- `admin.api.` and `{tenantId}` work exactly as in section F: the same host, and the same
+  `tenant.tenantId` you receive in every push.
+- Query `cursor` (optional): the cursor you last received, exactly as received.
+- Query `skipped` (optional, may repeat): the cursor of a row you have abandoned (see Skips below).
+
+### Auth
+
+- Header `X-Feed-Token`. It has its OWN secret, not the `X-Integration-Token` that reconcile and
+  attendance use, so either can be rotated alone and the feed's credential cannot close appointments.
+- Portal config `CaseTracker:FeedToken` (environment variable `CASE_TRACKER_FEED_TOKEN`), supplied per
+  environment and issued out of band. Compared in constant time and never logged. If the portal has no
+  token configured it refuses every request.
+- The token is checked before any office or database is touched.
+
+### Polling
+
+- A timed poll: one request per office per minute (agreed 2026-09-16), not a held connection.
+- While a response says `hasMore: true`, you may ask for the next page straight away with the new
+  cursor. Every request counts against the allowance.
+- Allowance: 240 requests an hour per office, counted only for requests carrying the valid token, in a
+  fixed one-hour window. One a minute uses 60, which leaves room for catch-up pages. Once it is spent,
+  the office's requests are refused until the window ends, which can be up to an hour.
+
+### Response (`200`)
+
+The Gesco envelope. An example with synthetic ids and the bodies abridged:
+
+```json
+{
+  "data": {
+    "rows": [
+      {
+        "cursor": "00000000000007D1",
+        "messageType": "intake",
+        "appointmentId": "22222222-2222-2222-2222-222222222222",
+        "body": "{\"data\":{\"appointmentId\":\"22222222-2222-2222-2222-222222222222\", ...},\"meta\":{...},\"errors\":[]}"
+      },
+      {
+        "cursor": "00000000000007D5",
+        "messageType": "documentUpdate",
+        "appointmentId": "22222222-2222-2222-2222-222222222222",
+        "body": "[{\"id\":\"33333333-3333-3333-3333-333333333333\", ...}]"
+      }
+    ],
+    "nextCursor": "00000000000007D5",
+    "hasMore": false
+  },
+  "meta": { "requestId": "44444444-4444-4444-4444-444444444444", "timestamp": "2026-09-24T18:30:00Z" },
+  "errors": []
+}
+```
+
+- `rows`: at most 200, in commit order. May be empty.
+- `messageType`: `intake` or `documentUpdate`.
+- `body`: a JSON STRING holding exactly the bytes the push would have sent. For `intake` that is the
+  section A envelope (`POST /api/intake/appointments`); for `documentUpdate` it is the section E bare
+  array for `appointmentId` (`POST /api/intake/appointments/{appointmentId}/documents`). Parse it and hand
+  it to the same code that handles those POSTs today.
+- `nextCursor`: send it on your next request. On an empty page it is the cursor you sent (or your
+  acknowledged position if you sent none), so an empty page never moves you.
+- `hasMore`: `true` when more rows were ready than fit on the page.
+
+### The cursor is your acknowledgement
+
+- 16 upper-case hex digits, opaque. Send it back exactly as received; never construct or edit one.
+- The cursor you send tells the portal "everything up to here is committed on my side", and the portal
+  records it as delivered. Send a cursor only after you have persisted every row up to it.
+- No cursor means "from where I last acknowledged". A new feed starts at the office's floor (see
+  Cutover), so a consumer that has lost its state can omit the cursor and resume without pulling history.
+
+### Ordering, duplicates and in-flight writes
+
+- Process rows in the order served. They come in the order their transactions committed, and the portal
+  queues an appointment's intake before its document updates (#931).
+- The same appointment can appear many times, and each `intake` row is a full snapshot. Apply them in
+  order and keep the `updatedAt` guard (section G); a repeat is harmless.
+- A row written by a transaction that is still open is WITHHELD until it commits, never skipped. An
+  empty page, or a short one, while the portal is busy is normal: poll again.
+
+### Skips (a row you cannot process)
+
+- If you abandon a row, report it: add `skipped=<that row's cursor>` to the request whose cursor moves
+  past it. The parameter can repeat.
+- A skip must be the cursor of a row you received, above the office's floor and at or below the cursor
+  sent with it. Otherwise the whole request is refused with `409` `skip_invalid` and nothing moves.
+- The portal logs every reported skip and emails its technical list. A skip repeated on a retried
+  request (because the response was lost) is accepted and not emailed again.
+
+### Status codes
+
+Every response, success or refusal, is the Gesco envelope. A refusal has `data: null` and one entry in
+`errors`, whose `code` says why. The feed never answers `401` or `429`. A `409` is not transient:
+repeating the same request gets the same `409`, and each one needs a person to look.
+
+CHANGED 2026-09-24: the four cursor and skip refusals were `400`. Your client acts on the status alone: it halts
+the office where an operator sees it on a `409`, and retries anything else it does not know every minute, silently.
+None of the four can be fixed by retrying, so they are `409`. The codes in `errors[0].code` are unchanged.
+
+| Status | `errors[0].code`     | Meaning                                                                                                   |
+| ------ | -------------------- | --------------------------------------------------------------------------------------------------------- |
+| `200`  | -                    | A page, possibly empty.                                                                                   |
+| `409`  | `cursor_invalid`     | The cursor is not 16 hex digits.                                                                          |
+| `409`  | `cursor_below_floor` | The cursor is from before this office's feed began. No cursor resumes from your last acknowledgement.     |
+| `409`  | `cursor_ahead`       | The cursor is beyond anything this feed has issued. The portal emails its list once per incident.         |
+| `409`  | `skip_invalid`       | A `skipped` value does not name a row this request acknowledges. Nothing moved.                           |
+| `403`  | `forbidden`          | Missing or wrong `X-Feed-Token`; or more than 60 requests this hour from your address without it.         |
+| `403`  | `allowance_exceeded` | This office's 240 requests for the current hour are spent.                                                |
+| `403`  | `feed_not_enabled`   | The office is not on the feed, is paused (section I4), or does not exist. Deliberately indistinguishable. |
+
+### Alerts on the portal side
+
+Emailed to a technical list (`CaseTracker:FeedAlertRecipients`), checked every 5 minutes, with one email
+when a problem starts and one when it clears. Offices whose push switch is off are not checked.
+
+- SILENT: no request from an office on the feed for 15 minutes.
+- STALLED: a row waiting 30 minutes while the office's position does not move. A long-running
+  transaction on the portal also shows as a stall, and the email names that as a possible cause.
+- Also emailed: a cursor beyond anything issued (once per incident), and each reported skip.
+
+Alerts carry office ids, appointment ids, cursors and counts only, never a payload.
+
+### Cutover and rollback (per office; the runbook is #968)
+
+- **Start feed** (the portal's Case Tracker offices screen) sets the office's floor just below the oldest
+  change still owed to you, so anything still retrying at that moment is carried by the feed. It stops the
+  push for that office in the same step. The office's `CaseTrackerPushEnabled` stays ON, because
+  reconcile and attendance read it too. Start feed is refused for an office whose switch is off.
+- Your consumer then polls that office with no cursor and starts at the floor.
+- **Order, ADDED 2026-09-24.** Start the feed for an office BEFORE your polling turns on for it, and stop your
+  polling for an office BEFORE Return to push. In between, every poll is answered `403` `feed_not_enabled`, which
+  your client currently retries without surfacing anything (section I3).
+- **Return to push** (the rollback) puts the office back on the push, which re-sends everything still
+  waiting, INCLUDING changes the feed already delivered to you. Your upsert and `updatedAt` guard
+  (section G) absorb them.
+
+### Volume
+
+The portal does not cap what the feed serves; the section H cap binds the push only. Your consumer sets
+the pace, up to 200 rows a page within 240 requests an hour. Issue #1069 asks whether the portal should
+also cap the feed; nothing is agreed.
+
+---
+
 ## Coordination
+
+NOTE 2026-09-24: the two "provides" lists below predate the September thread and have NOT been
+re-checked. The feed adds one item on the portal side: the `X-Feed-Token` value, out of band (section L).
 
 Portal provides (pending): MinIO endpoint reachable from `192.168.101.35` over TLS; the
 `case-tracker-documents` bucket; a scoped MinIO key (read-only on `case-evaluation-documents`,
@@ -1062,6 +1387,10 @@ Agreed decisions (2026-07-23), all FINAL:
    REVISED AGAIN 2026-08-06: a finalized reschedule now produces TWO messages -- the original
    closing to `RescheduledNoBill` / `RescheduledLate`, and an intake for the replacement under a new
    `appointmentId`. Both halves re-push on later edits like any other appointment.
+   **REVERSED 2026-09-24 (#927): "no periodic pull is needed" no longer holds.** Once the portal is
+   internet-facing, delivery becomes a changes feed the Case Tracker polls, office by office from each
+   office's cutover (section L). Until an office is cut over, and after a Return to push, the re-push
+   described here is still how changes reach you, and it is still what the feed serves.
 5. Reconcile GET returns the full appointment payload + documents (same shape as the push), now as a
    BACKSTOP for a dead-lettered push and for refreshing on case-open.
 6. Ordering: `updatedAt` per appointment + per document; Case Tracker skips stale writes.
@@ -1073,10 +1402,29 @@ Agreed decisions (2026-07-23), all FINAL:
    `supersededByAppointmentId` + `supersededReason` on the appointment it replaced. Kept apart
    because a re-evaluated appointment HAPPENED and is followed up, while a rescheduled one did NOT
    happen and is replaced - the same distinction `evaluationKind` was introduced to protect.
-8. TLS required before real PHI flows. Delivery fails fast (few attempts, then dead-letter) and raises
-   an email alert + an admin dead-letter screen with retry, plus a manual push action.
+8. TLS required before real PHI flows. ~~Delivery fails fast (few attempts, then dead-letter) and raises
+   an email alert + an admin dead-letter screen with retry, plus a manual push action.~~
+   **REVISED 2026-09-24 (#917):** a failing push retries for 24 hours with an early-warning email, then
+   dead-letters with a batched email; the dead-letter screen has per-row and per-office retry, plus the
+   manual push action. See sections I and I2.
 9. Reconcile GET is authenticated by a portal-issued static `X-Integration-Token`.
 10. Go-live: only appointments approved after enablement push automatically; the manual push action
     covers anything earlier. `Location.FacilityId` must be populated first (blank on both production
     clinics today; the app already enforces it for new/edited locations).
 11. Live testing held until Case Tracker deploys the endpoints to `.35`.
+
+Agreed in the September thread (2026-09-15/16), ADDED 2026-09-24:
+
+12. Retry: 24 hours from the first failure, waits of 5, 10 and 20 then 30 minutes, a drain every 5
+    minutes, an early-warning and a dead-letter email, and a per-office bulk retry (#917; sections I, I2).
+    A planned pause spends no attempts; the 24 hours covers an unplanned outage.
+13. Refusals: an allowlist or edge refusal is `403`, never `401`, preferably not `429`, and answers
+    rather than drops (section I3). Moving reconcile and attendance to `403` is #1068, not agreed.
+14. Your proxy answers `5xx`, not `4xx`, while your backend boots (8-15 seconds); the portal retries a
+    `403` anyway (section I).
+15. Pausing an office: under 96 hours without notice; longer needs telling your side first (section I4).
+16. Delivery at cutover is a changes feed you poll once a minute per office: 200-row pages, its own
+    `X-Feed-Token`, its own 240 requests an hour, the cursor as the acknowledgement, reported skips, and a
+    per-office cutover with a Return to push rollback (#927; section L).
+17. Reconcile on case-open is switched on as the backstop, whichever transport delivers. It shares the
+    300 requests an hour with attendance; the feed has its own allowance (section F).

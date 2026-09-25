@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentInjuryDetailsAppServiceTests : AppointmentInjuryDetailsAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

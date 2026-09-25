@@ -7,7 +7,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.States;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class StateRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IStateRepository _stateRepository;

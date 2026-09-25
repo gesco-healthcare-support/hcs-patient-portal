@@ -23,7 +23,6 @@ import { debounceTime } from 'rxjs/operators';
 
 import { AppointmentAddComponent } from '../appointment-add.component';
 import { MyAttorneyProfileService } from '../../proxy/my-attorney-profiles/my-attorney-profile.service';
-import { AppointmentViewService } from '../appointment/services/appointment.service';
 import { AppointmentAddScheduleComponent } from '../sections/appointment-add-schedule.component';
 import { AppointmentAddPatientDemographicsComponent } from '../sections/appointment-add-patient-demographics.component';
 import { AppointmentAddEmployerDetailsComponent } from '../sections/appointment-add-employer-details.component';
@@ -114,7 +113,6 @@ const STEPS: WizardStep[] = [
   ],
   providers: [
     ListService,
-    AppointmentViewService,
     { provide: NgbDateAdapter, useClass: DateAdapter },
     { provide: NgbTimeAdapter, useClass: TimeAdapter },
   ],

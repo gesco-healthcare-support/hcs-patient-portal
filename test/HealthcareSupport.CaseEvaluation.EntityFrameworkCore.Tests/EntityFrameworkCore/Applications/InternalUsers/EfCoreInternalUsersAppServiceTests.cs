@@ -87,7 +87,6 @@ namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 ///     creating them would slow every later Fact in a shared rig for one boundary.</item>
 /// </list>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreInternalUsersAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

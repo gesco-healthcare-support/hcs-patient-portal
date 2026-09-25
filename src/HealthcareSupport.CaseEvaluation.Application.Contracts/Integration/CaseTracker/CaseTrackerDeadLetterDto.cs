@@ -43,9 +43,41 @@ public class CaseTrackerDeadLetterDto
 /// <summary>Outcome of a retry, so the screen can report what happened without a refetch.</summary>
 public class CaseTrackerDeadLetterRetryResultDto
 {
-    /// <summary>The outbox row the retry created or collapsed onto.</summary>
+    /// <summary>
+    /// The outbox row the retry created or collapsed onto. When <see cref="AlreadyDelivered"/> is true
+    /// this is the NEWER row that already delivered the current content, not a newly queued one.
+    /// </summary>
     public Guid QueuedOutboxItemId { get; set; }
 
     /// <summary>The dead letter that was marked resolved.</summary>
     public Guid ResolvedOutboxItemId { get; set; }
+
+    /// <summary>
+    /// True when nothing new was queued because a newer row had already delivered the appointment's
+    /// current content (#961): the Case Tracker holds the current state, so the dead letter was
+    /// resolved without sending again.
+    /// </summary>
+    public bool AlreadyDelivered { get; set; }
+}
+
+/// <summary>
+/// Outcome of retrying every dead letter in one office (#917). Counts only: the screen reloads the list
+/// afterwards, and every row that was not dealt with is still on it.
+/// </summary>
+public class CaseTrackerDeadLetterRetryAllResultDto
+{
+    /// <summary>Dead letters resolved by queueing a fresh push.</summary>
+    public int Requeued { get; set; }
+
+    /// <summary>Dead letters resolved because a newer push had already delivered the current content.</summary>
+    public int AlreadyDelivered { get; set; }
+
+    /// <summary>Dead letters that could not be retried. Each is still listed, unchanged.</summary>
+    public int NotRetried { get; set; }
+
+    /// <summary>
+    /// Dead letters left for another press because this one reached its per-call limit. Each is still
+    /// listed, unchanged.
+    /// </summary>
+    public int Remaining { get; set; }
 }

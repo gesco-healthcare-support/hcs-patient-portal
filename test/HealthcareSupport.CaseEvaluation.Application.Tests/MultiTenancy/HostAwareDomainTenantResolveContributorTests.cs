@@ -224,6 +224,35 @@ public class HostAwareDomainTenantResolveContributorTests
         context.Handled.ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task ResolveAsync_resolves_no_office_from_a_template_without_a_placeholder()
+    {
+        // A misconfigured App:TenantDomainFormat with no {0} must resolve NOTHING rather than
+        // treat the whole host as an office name. The host is a real office subdomain, so a
+        // resolver that ignored the missing placeholder would have something to resolve.
+        var resolver = new HostAwareDomainTenantResolveContributor("auth.portal.example.test");
+        var context = BuildResolveContext("falkinstein.auth.portal.example.test");
+
+        await resolver.ResolveAsync(context);
+
+        context.TenantIdOrName.ShouldBeNull();
+        context.Handled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_resolves_no_office_when_the_placeholder_matches_nothing()
+    {
+        // The host is exactly the template around an EMPTY slot, e.g. ".auth.portal.example.test".
+        // An empty office name must never be handed to the tenant store.
+        var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
+        var context = BuildResolveContext(".auth.portal.example.test");
+
+        await resolver.ResolveAsync(context);
+
+        context.TenantIdOrName.ShouldBeNull();
+        context.Handled.ShouldBeFalse();
+    }
+
     // ---- APP-OWN-03: what happens when the token and the hostname disagree ----
 
     [Fact]

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { RestService } from '@abp/ng.core';
 import { of, throwError } from 'rxjs';
-import { IntegrationFailuresComponent } from './integration-failures.component';
+import { describeRetryAll, IntegrationFailuresComponent } from './integration-failures.component';
 
 /**
  * The dead-letter queue for the Case Tracker push: what failed to sync, and the retry.
@@ -24,8 +24,16 @@ describe('IntegrationFailuresComponent', () => {
     loading: Signal<boolean>;
     error: Signal<string | null>;
     retrying: Signal<string | null>;
+    officeFilter: Signal<string>;
+    confirmingRetryAll: Signal<boolean>;
+    retryingAll: Signal<boolean>;
+    notice: Signal<string | null>;
+    offices: () => Array<{ id: string; name: string }>;
+    visibleRows: () => unknown[];
     load(): Promise<void>;
     retry(row: unknown): Promise<void>;
+    selectOffice(officeId: string): void;
+    retryAll(): Promise<void>;
   }
 
   let request: jasmine.Spy;
@@ -165,6 +173,116 @@ describe('IntegrationFailuresComponent', () => {
       const cmp = probe();
       await cmp.retry(failure);
       expect(cmp.retrying()).toBeNull();
+    });
+  });
+
+  // #917: office filter + "Retry all for this office".
+  describe('office filter', () => {
+    const otherOffice = {
+      ...failure,
+      id: 'dl-9',
+      officeId: 'office-2',
+      officeName: 'Another Office',
+    };
+
+    it('offers each office that has failures, once, by name', async () => {
+      request.and.returnValue(of([failure, { ...failure, id: 'dl-2' }, otherOffice]));
+      const cmp = probe();
+      await cmp.load();
+      expect(cmp.offices()).toEqual([
+        { id: 'office-2', name: 'Another Office' },
+        { id: 'office-1', name: 'Example Downtown Clinic' },
+      ]);
+    });
+
+    it('narrows the table to the selected office', async () => {
+      request.and.returnValue(of([failure, otherOffice]));
+      const cmp = probe();
+      await cmp.load();
+      cmp.selectOffice('office-2');
+      expect(cmp.visibleRows()).toEqual([otherOffice]);
+    });
+
+    it('falls back to all offices when the selected office has nothing left', async () => {
+      request.and.returnValue(of([failure, otherOffice]));
+      const cmp = probe();
+      await cmp.load();
+      cmp.selectOffice('office-2');
+      request.and.returnValue(of(undefined));
+      await cmp.retry(otherOffice);
+      expect(cmp.officeFilter()).toBe('');
+      expect(cmp.visibleRows()).toEqual([failure]);
+    });
+  });
+
+  describe('retryAll', () => {
+    const result = { requeued: 2, alreadyDelivered: 1, notRetried: 0, remaining: 0 };
+
+    it('posts to the per-office retry-all path, reports the counts, and reloads', async () => {
+      const cmp = probe();
+      await cmp.load();
+      cmp.selectOffice('office-1');
+      cmp.confirmingRetryAll.set(true);
+      request.calls.reset();
+      request.and.returnValues(of(result), of([]));
+
+      await cmp.retryAll();
+
+      const calls = request.calls.allArgs() as Array<[{ method: string; url: string }]>;
+      expect(calls[0][0].method).toBe('POST');
+      expect(calls[0][0].url).toBe('/api/app/case-tracker/offices/office-1/dead-letters/retry-all');
+      expect(calls[1][0].method).toBe('GET');
+      expect(cmp.notice()).toBe('2 queued to send again. 1 already delivered.');
+      expect(cmp.confirmingRetryAll()).toBeFalse();
+      expect(cmp.retryingAll()).toBeFalse();
+    });
+
+    it('does nothing without a selected office', async () => {
+      const cmp = probe();
+      request.calls.reset();
+      await cmp.retryAll();
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('explains a failed retry-all and still reloads the list', async () => {
+      const cmp = probe();
+      await cmp.load();
+      cmp.selectOffice('office-1');
+      request.calls.reset();
+      request.and.returnValues(
+        throwError(() => new Error('boom')),
+        of([failure]),
+      );
+
+      await cmp.retryAll();
+
+      expect(cmp.notice()).toBe(
+        'Retry all did not finish. The list below shows what is still outstanding.',
+      );
+      expect(cmp.error()).toBeNull(); // a notice, so the reloaded table still shows
+      expect(request.calls.count()).toBe(2);
+      expect(cmp.retryingAll()).toBeFalse();
+    });
+  });
+
+  describe('describeRetryAll', () => {
+    it('names only the parts that happened', () => {
+      expect(
+        describeRetryAll({ requeued: 3, alreadyDelivered: 0, notRetried: 0, remaining: 0 }),
+      ).toBe('3 queued to send again.');
+    });
+
+    it('says what is still listed and what is left for another press', () => {
+      expect(
+        describeRetryAll({ requeued: 1, alreadyDelivered: 0, notRetried: 2, remaining: 5 }),
+      ).toBe(
+        '1 queued to send again. 2 could not be retried and are still listed. ' +
+          '5 not yet retried; select Retry all again.',
+      );
+    });
+
+    it('treats a missing response as nothing done', () => {
+      expect(describeRetryAll(null)).toBe('0 queued to send again.');
     });
   });
 });

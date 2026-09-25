@@ -90,7 +90,6 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 /// rollback between tests -- so every Fact seeds its own appointment, slot and appointment type
 /// under a unique token and asserts only on ids it created. Nothing counts rows.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentChangeRequestsAppServiceTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {

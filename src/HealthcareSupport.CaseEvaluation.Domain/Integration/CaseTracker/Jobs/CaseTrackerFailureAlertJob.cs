@@ -28,6 +28,14 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs;
 ///
 /// <para>Emits an event per staff member rather than sending directly, because the email dispatcher
 /// lives in the Application layer. Mirrors <c>InternalStaffQueueDigestJob</c>.</para>
+///
+/// <para>EARLY WARNING (#917, 2026-09-23). A retryable failure now keeps retrying for 24 hours before it
+/// dead-letters, so the dead-letter email alone would tell staff about an outage a day late. A second pass
+/// therefore emails about pushes that have failed at least
+/// <see cref="IntegrationOutboxConsts.EarlyWarningAfterAttempts"/> times and are still retrying -- once per
+/// push, throttled by the <c>EarlyWarnedAt</c> stamp exactly as <c>AlertedAt</c> throttles the dead-letter
+/// email. The stamp is written with a set-based update, not a tracked save, because the drain may be
+/// recording an attempt on the same row at the same moment.</para>
 /// </summary>
 public class CaseTrackerFailureAlertJob : ITransientDependency
 {
@@ -89,13 +97,16 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
     {
         var offices = 0;
         var alerted = 0;
+        var warned = 0;
 
         await _tenantWorkRunner.ForEachOfficeAsync(async officeId =>
         {
             offices++;
             try
             {
-                alerted += await AlertOfficeAsync(officeId);
+                var (deadLetters, retrying) = await AlertOfficeAsync(officeId);
+                alerted += deadLetters;
+                warned += retrying;
             }
             catch (Exception ex)
             {
@@ -109,17 +120,18 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         });
 
         _logger.LogInformation(
-            "CaseTrackerFailureAlertJob: swept {OfficeCount} offices, alerted on {Alerted} dead letter(s).",
-            offices, alerted);
+            "CaseTrackerFailureAlertJob: swept {OfficeCount} offices, alerted on {Alerted} dead letter(s), warned on {Warned} retrying push(es).",
+            offices, alerted, warned);
     }
 
-    /// <summary>Returns how many rows were alerted on for this office.</summary>
-    private async Task<int> AlertOfficeAsync(Guid officeId)
+    /// <summary>Returns how many dead letters were alerted on, and how many retrying rows warned on.</summary>
+    private async Task<(int DeadLetters, int Retrying)> AlertOfficeAsync(Guid officeId)
     {
-        var unalerted = await FindUnalertedFailuresAsync();
-        if (unalerted.Count == 0)
+        var deadLetters = await FindUnalertedFailuresAsync();
+        var retrying = await _outboxRepository.GetUnwarnedRetryingAsync(IntegrationOutboxConsts.EarlyWarningAfterAttempts);
+        if (deadLetters.Count == 0 && retrying.Count == 0)
         {
-            return 0;
+            return (0, 0);
         }
 
         var staff = await ResolveInternalStaffAsync();
@@ -127,45 +139,65 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         {
             // Do NOT stamp the rows: nobody was told, so a later run (once staff exist) still should.
             _logger.LogWarning(
-                "CaseTrackerFailureAlertJob: office {OfficeId} has {Count} un-alerted dead letter(s) but no internal staff to notify.",
-                officeId, unalerted.Count);
-            return 0;
+                "CaseTrackerFailureAlertJob: office {OfficeId} has {DeadLetters} un-alerted dead letter(s) and {Retrying} un-warned retrying push(es) but no internal staff to notify.",
+                officeId, deadLetters.Count, retrying.Count);
+            return (0, 0);
         }
-
-        var summaries = await BuildSummariesAsync(unalerted);
-        var now = _clock.Now;
 
         // From the tenant STORE, not ICurrentTenant.Name. ForEachOfficeAsync enters each office via
         // ICurrentTenant.Change(id), which sets the id but leaves Name null -- reading Name here would
         // have put a blank office into the alert email. Same bug found live on the admin screen.
         var tenant = await _tenantStore.FindAsync(officeId);
-        var officeName = tenant?.Name ?? string.Empty;
+        var office = new OfficeAlert(officeId, tenant?.Name ?? string.Empty, staff, _clock.Now);
 
-        foreach (var user in staff)
+        // Each stamp only AFTER its events are published, so a crash mid-publish re-alerts rather than
+        // silently swallowing the batch.
+        if (deadLetters.Count > 0)
+        {
+            await PublishToStaffAsync(office, CaseTrackerPushAlertKind.DeadLettered, deadLetters);
+            foreach (var row in deadLetters)
+            {
+                row.MarkAlerted(office.Now);
+                await _outboxManager.SaveAsync(row);
+            }
+        }
+
+        if (retrying.Count > 0)
+        {
+            await PublishToStaffAsync(office, CaseTrackerPushAlertKind.StillRetrying, retrying);
+            await _outboxRepository.StampEarlyWarnedAsync(retrying.Select(r => r.Id).ToList(), office.Now);
+        }
+
+        return (deadLetters.Count, retrying.Count);
+    }
+
+    /// <summary>One event per staff member, each carrying the same batch.</summary>
+    private async Task PublishToStaffAsync(
+        OfficeAlert office,
+        CaseTrackerPushAlertKind kind,
+        List<IntegrationOutboxItem> rows)
+    {
+        var summaries = await BuildSummariesAsync(rows);
+
+        foreach (var user in office.Staff)
         {
             await _localEventBus.PublishAsync(new CaseTrackerPushFailedEto
             {
-                TenantId = officeId,
-                OfficeName = officeName,
+                Kind = kind,
+                TenantId = office.OfficeId,
+                OfficeName = office.OfficeName,
                 StaffUserId = user.Id,
                 StaffEmail = user.Email,
                 StaffFirstName = string.IsNullOrWhiteSpace(user.Name) ? user.UserName : user.Name,
-                FailureCount = unalerted.Count,
+                FailureCount = rows.Count,
                 Failures = summaries,
-                OccurredAt = now,
+                OccurredAt = office.Now,
             });
         }
-
-        // Stamp only AFTER the events are published, so a crash mid-publish re-alerts rather than
-        // silently swallowing the batch.
-        foreach (var row in unalerted)
-        {
-            row.MarkAlerted(now);
-            await _outboxManager.SaveAsync(row);
-        }
-
-        return unalerted.Count;
     }
+
+    /// <summary>What every alert for one office in one run shares.</summary>
+    private sealed record OfficeAlert(Guid OfficeId, string OfficeName, List<IdentityUser> Staff, DateTime Now);
 
     private async Task<List<IntegrationOutboxItem>> FindUnalertedFailuresAsync()
     {

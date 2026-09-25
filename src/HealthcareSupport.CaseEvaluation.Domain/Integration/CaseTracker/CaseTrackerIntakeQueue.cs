@@ -49,11 +49,21 @@ public class CaseTrackerIntakeQueue : ICaseTrackerIntakeQueue, ITransientDepende
         Guid? tenantId,
         CancellationToken cancellationToken = default)
     {
+        // BEFORE the build reads the document list, and held until this transaction commits (#931).
+        // The build reads first and writes the row second; a document accepted in that gap would
+        // otherwise be suppressed by the document gate (no intake row yet) AND missing from this
+        // payload. The document queue takes the same lock before its check, so the two serialize.
+        // Taken on every intake, not only the first: it costs one call, and it keeps "which intake
+        // is the first" out of a place that cannot know it race-free.
+        await _outboxManager.AcquireAppointmentLockAsync(appointmentId, cancellationToken);
+
         var envelope = await _payloadBuilder.BuildAsync(appointmentId, cancellationToken);
         var payloadJson = IntakePayloadSerializer.Serialize(envelope);
 
         // Version the key by the payload's CONTENT: a replayed event for the SAME state collapses
-        // onto the existing row, while any genuine change enqueues a fresh push.
+        // onto the existing row, while any genuine change enqueues a fresh push. "Existing row" means
+        // the NEWEST intake row, and only while it is Pending or Sent (#915): a value changed back to
+        // an earlier one, or a retry after a dead letter, is sent again. See EnqueueAsync.
         //
         // 2026-08-13: this used to version by the appointment's own UpdatedAt, which silently lost
         // every correction made to something OTHER than the appointment row. A patient, attorney,

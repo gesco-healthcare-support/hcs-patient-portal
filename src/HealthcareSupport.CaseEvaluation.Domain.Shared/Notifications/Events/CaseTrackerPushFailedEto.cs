@@ -5,7 +5,10 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 
 /// <summary>
 /// Part 5 (2026-07-28) -- raised once per internal staff member when Case Tracker pushes have
-/// dead-lettered in their office and nobody has been told yet.
+/// dead-lettered in their office and nobody has been told yet. Since #917 (2026-09-23) it is also
+/// raised, with <see cref="Kind"/> = <see cref="CaseTrackerPushAlertKind.StillRetrying"/>, for pushes
+/// that have failed repeatedly but are still inside the 24-hour retry window -- an early warning, so
+/// staff do not first hear of an outage a day after it began.
 ///
 /// <para>Carries a BATCH rather than a single failure on purpose. The likeliest cause of a dead letter
 /// is systemic -- a wrong token, or their service being down -- which fails every queued row at once.
@@ -16,6 +19,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 /// </summary>
 public class CaseTrackerPushFailedEto
 {
+    /// <summary>
+    /// Which email this is. Defaults to <see cref="CaseTrackerPushAlertKind.DeadLettered"/>, the only
+    /// kind before #917, so an event built without it still means what it always meant.
+    /// </summary>
+    public CaseTrackerPushAlertKind Kind { get; set; } = CaseTrackerPushAlertKind.DeadLettered;
+
     public Guid? TenantId { get; set; }
 
     public string OfficeName { get; set; } = string.Empty;
@@ -26,7 +35,7 @@ public class CaseTrackerPushFailedEto
 
     public string? StaffFirstName { get; set; }
 
-    /// <summary>Total dead letters in this batch, which may exceed <see cref="Failures"/>' length.</summary>
+    /// <summary>Total rows in this batch, which may exceed <see cref="Failures"/>' length.</summary>
     public int FailureCount { get; set; }
 
     /// <summary>The listed failures. Capped, so this can be shorter than <see cref="FailureCount"/>.</summary>
@@ -35,7 +44,21 @@ public class CaseTrackerPushFailedEto
     public DateTime OccurredAt { get; set; }
 }
 
-/// <summary>One dead-lettered push, identified without any patient field.</summary>
+/// <summary>
+/// The two alerts staff can receive about Case Tracker delivery (#917). Separate emails because they
+/// ask for different things: a dead letter needs a person to retry it, a still-retrying push needs
+/// nobody yet but tells staff that cases are not arriving.
+/// </summary>
+public enum CaseTrackerPushAlertKind
+{
+    /// <summary>Failed for good; will not retry unless a person retries it.</summary>
+    DeadLettered = 0,
+
+    /// <summary>Failed at least twice; the portal is still retrying it within the 24-hour window.</summary>
+    StillRetrying = 1,
+}
+
+/// <summary>One failed push, identified without any patient field.</summary>
 public class CaseTrackerPushFailureSummary
 {
     public Guid AppointmentId { get; set; }

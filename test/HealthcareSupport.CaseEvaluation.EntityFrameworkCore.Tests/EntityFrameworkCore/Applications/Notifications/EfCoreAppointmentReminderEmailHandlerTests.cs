@@ -36,7 +36,6 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// against <c>CaseEvaluationSeedIds.AppointmentTypes.Ame</c>, and no <c>CaseEvaluationSeedIds</c> GUID
 /// is a live row in this rig, because every production catalog seeder early-returns on host scope.</para>
 /// </summary>
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentReminderEmailHandlerTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {
