@@ -23,7 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// </summary>
 public class DocumentAcceptedHandlerTests
 {
-    private static readonly Guid TenantId = new("b8844bba-414c-e238-4a71-3a22841f21af");
+    private static readonly Guid TenantId = new("0ff1ce00-0000-4000-8000-000000000001");
     private static readonly Guid AppointmentId = new("ada5e3c5-0034-ebde-253c-3a2293631dee");
     private static readonly Guid DocumentId = new("f97796c9-365b-4ad3-a164-08f72981cae3");
 
@@ -57,7 +57,7 @@ public class DocumentAcceptedHandlerTests
         FileName = "records.pdf",
         ContentType = "application/pdf",
         Status = nameof(AppointmentDocuments.DocumentStatus.Accepted),
-        ObjectKey = "tenants/b8844bba-414c-e238-4a71-3a22841f21af/records",
+        ObjectKey = "tenants/0ff1ce00-0000-4000-8000-000000000001/records",
         CreatedAtUtc = "2026-07-28T10:00:00.0000000Z",
         UpdatedAt = "2026-07-28T11:30:00.0000000Z",
     };
