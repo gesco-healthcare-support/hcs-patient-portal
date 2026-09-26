@@ -169,6 +169,58 @@ describe('InternalShellLayoutComponent office-to-office switch', () => {
 
     expect(c.roleLabel()).toBe('Administrator');
   });
+
+  // The menus used to close through a full-screen click-away layer, which was mouse-only; a
+  // document click listener replaces it. The template is never rendered here (see the note
+  // above), so each test plants the wrapper the listener looks for and clicks for real, which is
+  // what reaches the listener.
+  describe('menus close on a click outside them', () => {
+    const planted: HTMLElement[] = [];
+
+    function controlInside(wrapperClass: string): HTMLButtonElement {
+      const wrapper = document.createElement('div');
+      wrapper.className = wrapperClass;
+      const control = document.createElement('button');
+      wrapper.appendChild(control);
+      document.body.appendChild(wrapper);
+      planted.push(wrapper);
+      return control;
+    }
+
+    afterEach(() => planted.splice(0).forEach((el) => el.remove()));
+
+    it('closes the account menu when the click lands outside it', () => {
+      const c = createComponent();
+      controlInside('in-acctwrap');
+      c.acctOpen.set(true);
+
+      document.body.click();
+
+      expect(c.acctOpen()).toBeFalse();
+    });
+
+    it('keeps the account menu open on a click inside its wrapper, where the toggle sits', () => {
+      const c = createComponent();
+      const toggle = controlInside('in-acctwrap');
+      c.acctOpen.set(true);
+
+      toggle.click();
+
+      expect(c.acctOpen()).toBeTrue();
+    });
+
+    it('closes the office switcher on a click in the account wrapper, outside it', () => {
+      const c = createComponent();
+      const acctControl = controlInside('in-acctwrap');
+      controlInside('in-tenantwrap');
+      c.switcherOpen.set(true);
+
+      acctControl.click();
+
+      expect(c.switcherOpen()).toBeFalse();
+      expect(c.acctOpen()).toBeFalse();
+    });
+  });
 });
 
 /**

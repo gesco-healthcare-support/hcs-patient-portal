@@ -60,10 +60,14 @@ so a missing config silently falls back to per-process ephemeral keys -- which b
 
 ### Tenant resolution (ADR-006 + ADR-007)
 
-Resolver chain is `CurrentUser` then `HostAwareDomainTenantResolveContributor("{0}.localhost")` only.
+Resolver chain is `CurrentUser` then `HostAwareDomainTenantResolveContributor` (template from
+`App:TenantDomainFormat`, default `"{0}.localhost"`) only.
 `?__tenant=`, header, cookie, and route resolvers are DELIBERATELY removed (HIPAA cross-tenant risk).
 `HostAwareDomainTenantResolveContributor` (not the stock `DomainTenantResolveContributor`) handles
-the reserved `admin` subdomain so it maps to Host context rather than a 404.
+the reserved `admin` subdomain so it maps to Host context rather than a 404. Since 2026-09-25 a Host
+that names no office is REFUSED (404) instead of running in Host context; only `admin` and the
+internal names in `InternalHosts` (`localhost`, `authserver`) reach Host context. Adding an internal
+caller with a new Host name means adding it there, or it gets a 404.
 
 ### Background jobs disabled here
 
