@@ -26,9 +26,42 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
+      # WAS '20', AND THAT WAS ALREADY WRONG rather than merely old. semantic-release
+      # 25.x declares `engines.node: ^22.14.0 || >= 24.10.0`, and 25.x has been what
+      # `npx` resolved here since at least 2026-01-30 (25.0.3 was the latest published
+      # on or before this workflow's last run, 2026-05-01). npm treats `engines` as a
+      # warning rather than an error, so those green runs never proved the pair worked;
+      # they proved nothing errored at install time. Raising this to 22 makes the
+      # runtime match what the tool actually requires, for the first time.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
-          node-version: '20'
-      - run: npx semantic-release
+          node-version: '22'
+
+      # WAS `npx semantic-release`, which resolves the package from the registry AT RUN
+      # TIME and runs its lifecycle scripts -- the same finding lint-meta.yml records for
+      # `npx --yes`, and the same remedy: an exact version installed with
+      # `--ignore-scripts`, under RUNNER_TEMP so no node_modules lands in the checkout,
+      # then the binary invoked directly.
+      #
+      # NO PLUGINS ARE INSTALLED ALONGSIDE, and that is deliberate rather than an
+      # omission. There is no semantic-release configuration anywhere in this repository
+      # -- no .releaserc*, no release.config.*, no `release` key -- so it runs its four
+      # DEFAULT plugins (commit-analyzer, release-notes-generator, npm, github), which
+      # ship inside the semantic-release package itself. Pinning the package pins them.
+      # If a configuration file is ever added declaring an external plugin, that plugin
+      # must be added to this install line or it will be resolved at run time again.
+      #
+      # NOT hash-pinned (#700). lint-meta.yml accepts the same residual risk, but its
+      # argument -- "build-time tooling that touches no shipped artefact" -- does NOT
+      # transfer here: this job holds contents/issues/pull-requests write and creates the
+      # release. The honest position is that an exact version plus --ignore-scripts is
+      # the remedy available short of vendoring, not that the risk is equivalent.
+      - name: Install semantic-release without running lifecycle scripts
+        run: >
+          npm install --no-save --no-audit --no-fund --ignore-scripts
+          --prefix "$RUNNER_TEMP/semrel" semantic-release@25.0.9
+
+      - name: Create the release
+        run: '"$RUNNER_TEMP/semrel/node_modules/.bin/semantic-release"'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

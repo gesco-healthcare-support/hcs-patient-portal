@@ -211,4 +211,31 @@ describe('SubmitQueryModalComponent', () => {
       await settle();
     });
   });
+
+  // The backdrop used to close the modal through its own (click) binding, which was mouse-only; a
+  // document click listener does it now. Rendered and clicked for real.
+  describe('closing on a click on the backdrop', () => {
+    function rendered() {
+      const fixture = TestBed.createComponent(SubmitQueryModalComponent);
+      fixture.componentRef.setInput('visible', true);
+      fixture.detectChanges();
+      return { cmp: fixture.componentInstance, root: fixture.nativeElement as HTMLElement };
+    }
+
+    it('closes the modal when the click lands on the backdrop', () => {
+      const { cmp, root } = rendered();
+
+      (root.querySelector('.ext-modal-scrim') as HTMLElement).click();
+
+      expect(cmp.visible).toBeFalse();
+    });
+
+    it('leaves it open when the click lands inside the dialog', () => {
+      const { cmp, root } = rendered();
+
+      (root.querySelector('#sq-title') as HTMLElement).click();
+
+      expect(cmp.visible).toBeTrue();
+    });
+  });
 });

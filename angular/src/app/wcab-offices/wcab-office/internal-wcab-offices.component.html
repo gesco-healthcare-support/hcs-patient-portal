@@ -68,8 +68,8 @@
 </div>
 
 @if (form(); as f) {
-  <div class="ra-scrim" (click)="closeModal()">
-    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+  <div #formScrim class="ra-scrim">
+    <div class="ra-modal ra-modal--md">
       <div class="ra-modal__head">
         <h3>{{ f.id ? 'Edit WCAB office' : 'New WCAB office' }}</h3>
         <button class="ext-iconbtn x" type="button" (click)="closeModal()">
@@ -120,8 +120,8 @@
 }
 
 @if (confirmDelete(); as row) {
-  <div class="ra-scrim" (click)="cancelDelete()">
-    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+  <div #deleteScrim class="ra-scrim">
+    <div class="ra-modal ra-modal--md">
       <div class="ra-modal__head">
         <h3>Delete WCAB office?</h3>
         <button class="ext-iconbtn x" type="button" (click)="cancelDelete()">

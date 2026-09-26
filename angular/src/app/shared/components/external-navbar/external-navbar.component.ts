@@ -11,6 +11,7 @@ import { IconComponent } from '../../ui/icon/icon.component';
 import type { IconName } from '../../ui/icon/icon.registry';
 import { BrandingService } from '../../branding/branding.service';
 import { avatarColor } from '../../ui/avatar.util';
+import { clickLandedInside } from '../../ui/click-inside.util';
 
 /** One row in the notifications dropdown. The feed (BACKEND-CHANGES §G25) is not
  *  built yet, so callers pass [] and the dropdown shows an empty state. */
@@ -130,5 +131,18 @@ export class ExternalNavbarComponent {
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     this.close();
+  }
+
+  /**
+   * Closes the open menu when a click lands outside every menu wrapper. This replaced the
+   * full-screen click-away layers, which were mouse-only; a keyboard user closes a menu with
+   * Escape (onEscape above). A click on a toggle lands inside its wrapper, so the click that
+   * opens a menu never closes it.
+   */
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (this.openMenu !== null && !clickLandedInside(event, '.ext-menuwrap')) {
+      this.close();
+    }
   }
 }
