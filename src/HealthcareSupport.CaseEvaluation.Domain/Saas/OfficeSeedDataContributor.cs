@@ -11,13 +11,14 @@ using Volo.Saas.Tenants;
 namespace HealthcareSupport.CaseEvaluation.Saas;
 
 /// <summary>
-/// Dev seeder: registers every office in <see cref="OfficeSeedData"/> as a Volo.Saas
+/// Registers every office in <see cref="OfficeSeedData"/> (one synthetic TEST office) as a Volo.Saas
 /// tenant with its own connection string (database CaseEvaluation_{slug}, derived from the
 /// host Default via the B3 secret seam) and seeds each office's host-side branding display
 /// name. The migrator loop (CaseEvaluationDbMigrationService) then creates + migrates +
 /// seeds each office database. Replaces the single-office FalkinsteinTenantDataSeedContributor.
 ///
-/// Runs only in Development. Idempotent: tenants/branding already present are left alone.
+/// Runs in EVERY environment, production included: a fresh deployment gets one synthetic office to
+/// exercise end to end. Idempotent: tenants/branding already present are left alone.
 /// Tenant Name resolves the subdomain; the slug drives the database name; the branding
 /// DisplayName is the brand shown to users (logos are uploaded in-app per office).
 /// </summary>
@@ -51,12 +52,6 @@ public class OfficeSeedDataContributor : IDataSeedContributor, ITransientDepende
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (!IsDevelopment())
-        {
-            _logger.LogInformation("OfficeSeedDataContributor: skipping (not Development environment).");
-            return;
-        }
-
         // SaaS tenant + branding rows live in host scope; the per-office databases are
         // provisioned + seeded by the migrator loop once a tenant holds a connection string.
         if (context?.TenantId != null)
@@ -94,12 +89,5 @@ public class OfficeSeedDataContributor : IDataSeedContributor, ITransientDepende
                 }
             }
         }
-    }
-
-    private static bool IsDevelopment()
-    {
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-        return string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
     }
 }

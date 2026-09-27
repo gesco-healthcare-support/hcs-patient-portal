@@ -4,6 +4,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using System;
+using Volo.Abp.Data;
 using Volo.Abp.Localization;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -63,6 +64,14 @@ public class CaseEvaluationDomainModule : AbpModule
         Configure<AbpMultiTenancyOptions>(options =>
         {
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
+        });
+
+        // CaseEvaluationIdentityDataSeedContributor replaces ABP's IdentityDataSeedContributor in DI,
+        // so the framework's own contributor entry already resolves to it. Its own entry, added
+        // automatically because it is also an IDataSeedContributor, would run it a second time.
+        Configure<AbpDataSeedOptions>(options =>
+        {
+            options.Contributors.RemoveAll(type => type == typeof(Identity.CaseEvaluationIdentityDataSeedContributor));
         });
 
         // 2026-08-27: pin the clock kind. ABP's default is Unspecified, which makes IClock.Now
