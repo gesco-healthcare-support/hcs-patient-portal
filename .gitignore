@@ -392,3 +392,10 @@ __pycache__/
 # so a developer can diff it and copy it across. It is a build artefact of a failing
 # run, never committed -- the .approved.txt beside it is the tracked one.
 **/authorization-surface.received.txt
+
+# Azure infrastructure parameters. The example file is committed; the real one is NOT.
+# This repository is PUBLIC and the real file carries a SQL admin password, an SSH
+# public key and a Key Vault certificate identifier.
+infra/azure/main.parameters.json
+infra/azure/*.parameters.json
+!infra/azure/main.parameters.example.json

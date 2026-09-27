@@ -1,5 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, Injector, OnInit, inject } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  Injector,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
@@ -192,6 +200,21 @@ export class PatientProfileRedesignComponent extends PatientProfileComponent imp
   @HostListener('document:keydown.escape')
   protected onEscapeKey(): void {
     if (this.confirmVisible) {
+      this.cancelConfirm();
+    }
+  }
+
+  @ViewChild('scrim') private readonly scrim?: ElementRef<HTMLElement>;
+
+  /**
+   * Closes the modal when a click lands on its backdrop. This replaced the backdrop's own (click)
+   * binding, which was mouse-only; Escape is the keyboard path (onEscapeKey above). A click
+   * inside the dialog targets the dialog or its content, never the backdrop element, so it leaves
+   * the modal open.
+   */
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (event.target === this.scrim?.nativeElement) {
       this.cancelConfirm();
     }
   }

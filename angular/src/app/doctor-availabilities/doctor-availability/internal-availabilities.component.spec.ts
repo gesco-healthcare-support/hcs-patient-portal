@@ -145,6 +145,34 @@ describe('InternalAvailabilitiesComponent Escape handling (sweep #641)', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(cmp.confirmDay()).toBeNull();
   });
+
+  // The backdrop used to close the confirmation through its own (click) binding, which was
+  // mouse-only; a document click listener does it now. Rendered and clicked for real.
+  describe('and on a click on the backdrop', () => {
+    function rendered() {
+      const { fixture, cmp } = probe();
+      fixture.detectChanges();
+      cmp.confirmDay.set(aDay);
+      fixture.detectChanges();
+      return { cmp, root: fixture.nativeElement as HTMLElement };
+    }
+
+    it('closes the confirmation when the click lands on the backdrop', () => {
+      const { cmp, root } = rendered();
+
+      (root.querySelector('.ra-scrim') as HTMLElement).click();
+
+      expect(cmp.confirmDay()).toBeNull();
+    });
+
+    it('leaves it open when the click lands inside the dialog', () => {
+      const { cmp, root } = rendered();
+
+      (root.querySelector('.ra-modal h3') as HTMLElement).click();
+
+      expect(cmp.confirmDay()).not.toBeNull();
+    });
+  });
 });
 
 /**

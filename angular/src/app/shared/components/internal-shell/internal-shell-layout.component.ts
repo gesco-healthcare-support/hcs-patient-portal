@@ -36,6 +36,7 @@ import {
   storePendingOfficeSwitch,
 } from './pending-office-switch';
 import { OAuthService } from 'angular-oauth2-oidc';
+import { clickLandedInside } from '../../ui/click-inside.util';
 
 const ROLE_LABELS: Record<InternalRoleKey, string> = {
   itadmin: 'IT Admin',
@@ -487,6 +488,22 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected onEscape(): void {
     this.closeAcct();
     this.closeSwitcher();
+  }
+
+  /**
+   * Closes an open menu when a click lands outside it. This replaced the full-screen click-away
+   * layers, which were mouse-only; a keyboard user closes either menu with Escape (onEscape
+   * above). A click on the toggle itself lands inside its wrapper, so the click that opens a
+   * menu never closes it.
+   */
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (this.switcherOpen() && !clickLandedInside(event, '.in-tenantwrap')) {
+      this.closeSwitcher();
+    }
+    if (this.acctOpen() && !clickLandedInside(event, '.in-acctwrap')) {
+      this.closeAcct();
+    }
   }
 
   private refreshIdentity(): void {

@@ -1,8 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
   OnInit,
+  ViewChild,
   computed,
   inject,
   signal,
@@ -233,6 +235,21 @@ export class InternalAvailabilitiesComponent implements OnInit {
   @HostListener('document:keydown.escape')
   protected onEscapeKey(): void {
     if (this.confirmDay()) {
+      this.cancelDeleteDay();
+    }
+  }
+
+  @ViewChild('scrim') private readonly scrim?: ElementRef<HTMLElement>;
+
+  /**
+   * Closes the modal when a click lands on its backdrop. This replaced the backdrop's own (click)
+   * binding, which was mouse-only; Escape is the keyboard path (onEscapeKey above). A click
+   * inside the dialog targets the dialog or its content, never the backdrop element, so it leaves
+   * the modal open.
+   */
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (event.target === this.scrim?.nativeElement) {
       this.cancelDeleteDay();
     }
   }

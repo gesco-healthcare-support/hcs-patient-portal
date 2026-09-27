@@ -16,6 +16,17 @@ namespace HealthcareSupport.CaseEvaluation.RateLimiting;
 ///
 /// <para>In memory, so the allowance is per API instance: exact while there is one instance (today), and to be
 /// moved to a shared store if the API is ever scaled out.</para>
+///
+/// <para><b>SCALING THIS OUT SILENTLY BREAKS THE CONSUMER'S PACING. TELL THEM FIRST.</b> A second instance
+/// makes the effective cap N x <see cref="CaseTrackerFeedConsts.RequestsPerHourPerOffice"/>, and nothing in
+/// either system reports that. The Case Tracker paces its drains against this number, and it has committed to
+/// NOT relaxing that pacing merely because refusals stop arriving -- because a scale-out suppresses the
+/// refusal rather than earning its absence, and from their side the two are indistinguishable.</para>
+///
+/// <para>So the caveat above is not only "this becomes approximate". It is that the one change which would
+/// invalidate their reasoning produces no symptom on either side. Making the budget meaningful ACROSS
+/// instances needs a shared counter, which is materially larger than moving the window; per-instance
+/// correctness and cross-instance correctness are different problems and only the first is solved here.</para>
 /// </summary>
 public sealed class CaseTrackerFeedAllowance : ISingletonDependency, IDisposable
 {

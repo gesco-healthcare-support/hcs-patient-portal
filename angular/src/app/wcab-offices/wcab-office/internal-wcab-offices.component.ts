@@ -1,8 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
   OnInit,
+  ViewChild,
   inject,
   signal,
 } from '@angular/core';
@@ -111,6 +113,25 @@ export class InternalWcabOfficesComponent implements OnInit {
     if (this.confirmDelete() !== null) {
       this.cancelDelete();
     } else if (this.form() !== null) {
+      this.closeModal();
+    }
+  }
+
+  @ViewChild('formScrim') private readonly formScrim?: ElementRef<HTMLElement>;
+  @ViewChild('deleteScrim') private readonly deleteScrim?: ElementRef<HTMLElement>;
+
+  /**
+   * Closes a modal when a click lands on its backdrop. This replaced the backdrops' own (click)
+   * bindings, which were mouse-only; Escape is the keyboard path (onEscapeKey above). Each backdrop
+   * closes only its own modal: the delete prompt can sit over the edit form, and a click on the
+   * prompt's backdrop must not close the form beneath it. A click inside a dialog targets the
+   * dialog or its content, never a backdrop element, so it leaves both open.
+   */
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (event.target === this.deleteScrim?.nativeElement) {
+      this.cancelDelete();
+    } else if (event.target === this.formScrim?.nativeElement) {
       this.closeModal();
     }
   }

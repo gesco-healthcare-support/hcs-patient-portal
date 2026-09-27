@@ -74,6 +74,77 @@ const brandingStub = {
  * suffix ("...LLP"); a person keeps first + last initial. The "&" connector and
  * leading punctuation must never become an initial.
  */
+/**
+ * The menus used to close through a full-screen click-away layer, which was mouse-only; a document
+ * click listener replaces it. Rendered, so the real `.ext-menuwrap` wrappers are what the listener
+ * checks.
+ */
+describe('ExternalNavbarComponent closes a menu on an outside click', () => {
+  function render(): {
+    fixture: ComponentFixture<ExternalNavbarComponent>;
+    c: any;
+    host: HTMLElement;
+  } {
+    TestBed.configureTestingModule({
+      imports: [ExternalNavbarComponent],
+      providers: [{ provide: BrandingService, useValue: brandingStub }],
+    });
+    const fixture = TestBed.createComponent(ExternalNavbarComponent);
+    fixture.detectChanges();
+    return {
+      fixture,
+      c: fixture.componentInstance as any,
+      host: fixture.nativeElement as HTMLElement,
+    };
+  }
+
+  const NOTIF_TOGGLE = '.ext-menuwrap > .ext-iconbtn';
+  const ACCT_TOGGLE = '.ext-acct';
+
+  /** Opens a menu the way a user does. OnPush: calling toggle() directly would not repaint. */
+  function open(fixture: ComponentFixture<ExternalNavbarComponent>, toggle: string): void {
+    (fixture.nativeElement.querySelector(toggle) as HTMLElement).click();
+    fixture.detectChanges();
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('closes the open menu when the click lands outside every menu', () => {
+    const { fixture, c } = render();
+    open(fixture, NOTIF_TOGGLE);
+
+    document.body.click();
+
+    expect(c.openMenu).toBeNull();
+  });
+
+  it('keeps the menu open when the click lands inside it', () => {
+    const { fixture, c, host } = render();
+    open(fixture, ACCT_TOGGLE);
+
+    (host.querySelector('.ext-acct-head') as HTMLElement).click();
+
+    expect(c.openMenu).toBe('acct');
+  });
+
+  it('opens a menu from its toggle, whose click also reaches the document listener', () => {
+    const { fixture, c, host } = render();
+
+    open(fixture, ACCT_TOGGLE);
+
+    expect(c.openMenu).toBe('acct');
+    expect(host.querySelector('.ext-pop--acct')).not.toBeNull();
+  });
+
+  it('no longer renders a click-away layer', () => {
+    const { fixture, host } = render();
+    open(fixture, NOTIF_TOGGLE);
+
+    expect(host.querySelector('.ext-pop--notif')).withContext('menu must be open').not.toBeNull();
+    expect(host.querySelector('.ext-clickaway')).toBeNull();
+  });
+});
+
 describe('ExternalNavbarComponent initials (F-008)', () => {
   let fixture: ComponentFixture<ExternalNavbarComponent>;
   let component: ExternalNavbarComponent;
