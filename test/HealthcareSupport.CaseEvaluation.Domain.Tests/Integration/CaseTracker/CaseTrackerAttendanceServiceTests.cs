@@ -429,26 +429,36 @@ public class CaseTrackerAttendanceServiceTests
     /// <summary>
     /// Suppression that never lifts would hide the NEXT incident. A report that lands re-arms the appointment,
     /// exactly as a good feed request re-arms cursor-ahead.
+    ///
+    /// <para>Driven through the SERVICE on one harness -- refuse, succeed, refuse -- so the second refusal
+    /// alerts only if the service itself re-armed on success. Calling the policy's <c>Clear</c> directly would
+    /// prove the policy, not that the service calls it. One case per success arm: the state machine applying
+    /// the outcome (found <c>Approved</c>), and the idempotent retry of an outcome already carried (found
+    /// <c>NoShow</c>). Each case fails when its own arm's re-arm is removed.</para>
     /// </summary>
-    [Fact]
-    public async Task ASuccessfulReport_ReArmsTheAlertForThatAppointment()
+    [Theory]
+    [InlineData(AppointmentStatusType.Approved)]
+    [InlineData(AppointmentStatusType.NoShow)]
+    public async Task ASuccessfulReport_ReArmsTheAlertForThatAppointment(AppointmentStatusType statusWhenFound)
     {
-        var refused = Build(appointmentExists: false);
-        await refused.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow);
-        await refused.Alerts.Received(1).PublishAsync(
-            Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CaseTrackerFeedAlertKind>(),
+        var h = Build(appointmentExists: false);
+
+        (await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow))
+            .Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+
+        h.Repository.FindAsync(AppointmentId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Appointment?>(AppointmentWith(statusWhenFound)));
+        (await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow))
+            .Result.ShouldBe(CaseTrackerAttendanceResult.Applied);
+
+        h.Repository.FindAsync(AppointmentId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Appointment?>(null));
+        (await h.Service.ApplyAsync(TenantId, AppointmentId, AppointmentStatusType.NoShow))
+            .Result.ShouldBe(CaseTrackerAttendanceResult.NotFound);
+
+        await h.Alerts.Received(2).PublishAsync(
+            TenantId, Arg.Any<DateTime>(), CaseTrackerFeedAlertKind.InboundAttendanceRefused,
             Arg.Any<Action<CaseTrackerFeedAlertEto>>());
-
-        // Same policy instance, so this is the real re-arm rather than a fresh harness hiding it.
-        refused.AlertPolicy.ShouldAlert(
-            TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
-            .ShouldBeFalse();
-
-        refused.AlertPolicy.Clear(TenantId, AppointmentId);
-
-        refused.AlertPolicy.ShouldAlert(
-            TenantId, AppointmentId, CaseTrackerInboundRefusalReason.AppointmentNotFound, Now)
-            .ShouldBeTrue();
     }
 
     /// <summary>

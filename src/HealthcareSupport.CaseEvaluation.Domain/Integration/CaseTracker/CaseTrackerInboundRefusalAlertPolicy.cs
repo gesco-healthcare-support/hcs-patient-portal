@@ -40,7 +40,7 @@ public class CaseTrackerInboundRefusalAlertPolicy : ISingletonDependency
 
     /// <summary>
     /// True when this refusal should raise an email. The first call for a key returns true and records it;
-    /// later calls return false until <see cref="ClearAsync"/> or the window lapses.
+    /// later calls return false until <see cref="Clear"/> or the window lapses.
     /// </summary>
     public virtual bool ShouldAlert(
         Guid officeId,
@@ -53,15 +53,24 @@ public class CaseTrackerInboundRefusalAlertPolicy : ISingletonDependency
         var key = (officeId, appointmentId, reason);
         var added = true;
 
+        // Both factories set the flag, not just the one that clears it: under contention AddOrUpdate can run
+        // the update factory, lose its compare-and-swap to a concurrent Clear or Prune, and retry through the
+        // ADD factory. A flag set only on the update path would then report "suppressed" for a call that just
+        // inserted the entry, silencing the one alert this class exists to send.
         _alerted.AddOrUpdate(
             key,
-            _ => nowUtc,
+            _ =>
+            {
+                added = true;
+                return nowUtc;
+            },
             (_, existing) =>
             {
                 // Expired entries are treated as absent, so a long-running incident re-alerts once a day
                 // rather than falling permanently silent.
                 if (nowUtc - existing >= SuppressionWindow)
                 {
+                    added = true;
                     return nowUtc;
                 }
 
