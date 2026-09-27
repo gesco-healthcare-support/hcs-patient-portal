@@ -393,9 +393,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         await _readAccessGuard.EnsureCanReadAsync(appointment);
     }
 
-    // T3 minimum-bar lookup scope: Patient is not IMultiTenant per CLAUDE.md, so
-    // ABP's automatic tenant filter does NOT apply -- explicit TenantId filter is
-    // required. When the caller is an Applicant Attorney, narrow further to patients
+    // T3 minimum-bar lookup scope. NOTE (2026-09-27): this comment used to justify the
+    // explicit TenantId filter by claiming "Patient is not IMultiTenant per CLAUDE.md".
+    // That was wrong -- Patient has implemented IMultiTenant since FEAT-09 (2026-05-05) and
+    // ABP's automatic filter does apply. The explicit filter stays regardless, as defence in
+    // depth. Recorded rather than silently deleted because reasoning from a doc, rather than
+    // from the entity, is what produced the error.
+    // When the caller is an Applicant Attorney, narrow further to patients
     // on appointments where EITHER the attorney is the booker (CreatorId match) OR a
     // separate AppointmentApplicantAttorney link names the attorney (the patient
     // selected him during their own booking). Comprehensive role-scope helper +

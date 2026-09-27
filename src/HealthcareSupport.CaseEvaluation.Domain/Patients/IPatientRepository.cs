@@ -17,8 +17,10 @@ public interface IPatientRepository : IRepository<Patient, Guid>
     /// <summary>
     /// Returns the best-matching patient row (>=3 of FirstName / LastName / DateOfBirth /
     /// SSN / PhoneNumber / ZipCode equality matches) within the given tenant, or null if
-    /// no row meets the threshold. Patient is NOT IMultiTenant -- the manual <c>tenantId</c>
-    /// filter prevents cross-tenant PHI leak. Inputs are pre-normalised by the caller
+    /// no row meets the threshold. <c>Patient</c> IS <c>IMultiTenant</c> as of FEAT-09
+    /// (ADR-006 T4, 2026-05-05), so ABP's automatic filter already scopes this read; the
+    /// explicit <paramref name="tenantId"/> is retained as defence in depth and so a
+    /// host-scope caller can name the office deliberately. Inputs are pre-normalised by the caller
     /// (lowercased / digit-stripped). Tie-break: higher match count, then oldest by
     /// CreationTime (first booked is canonical).
     /// </summary>
@@ -42,10 +44,11 @@ public interface IPatientRepository : IRepository<Patient, Guid>
     /// <c>AppointmentBookingValidators.IsPatientDuplicate</c> 3-of-6
     /// threshold predicate to find the first true duplicate.
     ///
-    /// Patient is NOT IMultiTenant -- this method MUST scope by
-    /// <paramref name="tenantId"/> manually to prevent cross-tenant PHI
-    /// leak (mirrors the existing <see cref="FindBestMatchAsync"/>
-    /// approach).
+    /// <c>Patient</c> IS <c>IMultiTenant</c> as of FEAT-09 (ADR-006 T4,
+    /// 2026-05-05), so ABP's automatic filter scopes this query. The
+    /// explicit <paramref name="tenantId"/> scope is retained as defence in
+    /// depth and to let a host-scope caller name the office (mirrors
+    /// <see cref="FindBestMatchAsync"/>).
     ///
     /// Distinct from <see cref="FindBestMatchAsync"/>: that method's
     /// field set diverged from OLD's (uses FirstName + ZipCode instead
@@ -55,7 +58,8 @@ public interface IPatientRepository : IRepository<Patient, Guid>
     /// </summary>
     /// <param name="tenantId">
     /// Calling tenant; null is host scope (rare, mostly for admin
-    /// tooling). Required because <c>Patient</c> is not IMultiTenant.
+    /// tooling). Explicit rather than implied, so a host-scope read is a
+    /// deliberate act rather than an accident of ambient context.
     /// </param>
     /// <param name="lastName">Incoming intake's LastName.</param>
     /// <param name="dateOfBirth">Incoming intake's DateOfBirth.</param>
