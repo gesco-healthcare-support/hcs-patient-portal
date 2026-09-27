@@ -1,12 +1,6 @@
 @if (visible) {
-  <div class="ext-modal-scrim" (click)="setVisible(false)">
-    <div
-      class="ext-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="sq-title"
-      (click)="$event.stopPropagation()"
-    >
+  <div #scrim class="ext-modal-scrim">
+    <div class="ext-modal" role="dialog" aria-modal="true" aria-labelledby="sq-title">
       <div class="ext-modal__head">
         <span class="ic tint-blue"><app-icon name="help" [size]="22" /></span>
         <div>

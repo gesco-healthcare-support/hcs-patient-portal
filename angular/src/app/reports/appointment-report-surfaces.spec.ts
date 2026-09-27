@@ -440,6 +440,40 @@ describe('AppointmentReportComponent surfaces', () => {
       c.toggleCol('email');
       expect(c.cols).not.toBe(before);
     });
+
+    // The menu used to close through a full-screen click-away layer, which was mouse-only; a
+    // document click listener replaces it. The template is not rendered here, so the test plants
+    // the `.rp-cols` wrapper.
+    describe('closing on a click outside it', () => {
+      let wrapper: HTMLElement;
+
+      beforeEach(() => {
+        wrapper = document.createElement('div');
+        wrapper.className = 'rp-cols';
+        wrapper.appendChild(document.createElement('button'));
+        document.body.appendChild(wrapper);
+      });
+
+      afterEach(() => wrapper.remove());
+
+      it('closes when the click lands outside the picker', () => {
+        const c = create();
+        c.colsOpen = true;
+
+        document.body.click();
+
+        expect(c.colsOpen).toBeFalse();
+      });
+
+      it('stays open when the click lands inside the picker', () => {
+        const c = create();
+        c.colsOpen = true;
+
+        (wrapper.firstChild as HTMLElement).click();
+
+        expect(c.colsOpen).toBeTrue();
+      });
+    });
   });
 
   describe('paging', () => {

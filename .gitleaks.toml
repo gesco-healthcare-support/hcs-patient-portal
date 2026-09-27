@@ -82,4 +82,11 @@ regexes = [
   # remainder; the prefix + 32-char alphanumeric suffix is the
   # documented synthetic format (no real session ever issues these).
   '''med_[A-Za-z0-9_-]{30,}''',
+  # Microsoft's public built-in Azure role definition ids, identical in every tenant and
+  # published in the Azure RBAC documentation: Key Vault Secrets User and Key Vault
+  # Certificate User. infra/azure/main.bicep holds them in variables whose names contain
+  # 'Secrets' and 'Key', which is what generic-api-key keys on. Exact values, so no other
+  # string is covered. Decided 2026-09-25.
+  '''4633458b-17de-408a-b874-0445c86b69e6''',
+  '''db79e9a7-68ee-4b58-9aeb-b90e7c24fcba''',
 ]

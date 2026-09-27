@@ -219,8 +219,8 @@
 </div>
 
 @if (rejectingDoc) {
-  <div class="reject-modal-backdrop" (click)="closeRejectModal()">
-    <div class="reject-modal" (click)="$event.stopPropagation()">
+  <div #scrim class="reject-modal-backdrop">
+    <div class="reject-modal">
       <h5 class="mb-3">Reject "{{ rejectingDoc.documentName }}"</h5>
       <div class="mb-3">
         <label for="document-reject-reason" class="form-label small text-muted">

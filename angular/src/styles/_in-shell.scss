@@ -609,12 +609,6 @@
   background: var(--border);
   margin: 6px 4px;
 }
-.in-clickaway {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-}
-
 @keyframes inPop {
   from {
     opacity: 0;

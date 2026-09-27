@@ -25,8 +25,9 @@ The second line is exactly what CI reports, because CI does not set the variable
 **Why.** The demo seed contributors gate themselves on the environment name, read
 straight from the variable:
 
-- `OfficeSeedDataContributor.cs:54` runs only in Development, and takes an
-  `ITenantConnectionStringProvider` dependency (`:29`)
+- `OfficeSeedDataContributor` no longer gates on the environment (it registers the one
+  synthetic TEST office everywhere, C6 2026-09-25); the shared test base removes it from the
+  start-up seed instead, so it is not the cause here
 - `DemoExternalUsersDataSeedContributor.cs:232-236` reads
   `ASPNETCORE_ENVIRONMENT ?? DOTNET_ENVIRONMENT` directly
 - `DemoPatientDataSeedContributor` likewise

@@ -113,8 +113,12 @@ public class DoctorProfileDataSeedContributor : IDataSeedContributor, ITransient
         doctor.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
         doctor.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ime);
         doctor.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.PanelQme);
-        doctor.AddLocation(CaseEvaluationSeedIds.Locations.DemoClinicNorth);
-        doctor.AddLocation(CaseEvaluationSeedIds.Locations.DemoClinicSouth);
+        // Only the synthetic TEST office has a seeded clinic (LocationDataSeedContributor); a real
+        // practice adds its locations on the Locations page, and the link is a foreign key.
+        if (office != null)
+        {
+            doctor.AddLocation(CaseEvaluationSeedIds.Locations.TestClinic);
+        }
 
         await _doctorRepository.InsertAsync(doctor, autoSave: false);
     }
