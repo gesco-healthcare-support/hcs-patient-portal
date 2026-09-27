@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Users;
 using Xunit;
@@ -23,6 +24,14 @@ namespace HealthcareSupport.CaseEvaluation.MultiTenancy;
 ///       production-shaped, multi-label template.
 /// Real usage: the contributor reads the Host header from an IHttpContextAccessor
 /// resolved off the ITenantResolveContext service provider, exactly as ABP drives it.
+///
+/// <para>B1 (2026-09-25): a Host that names no office is now REFUSED instead of running in
+/// host context. Before B1 the contributor abstained on any host that did not fit the
+/// template, and abstaining IS host context -- nothing follows it in the chain. Only two
+/// things still reach host context on purpose: the reserved <c>admin</c> label and the
+/// internal names in <see cref="HostAwareDomainTenantResolveContributor.InternalHosts"/>.
+/// Five facts below used to assert that abstention; they now assert the refusal, and their
+/// names say so.</para>
 /// </summary>
 public class HostAwareDomainTenantResolveContributorTests
 {
@@ -116,13 +125,77 @@ public class HostAwareDomainTenantResolveContributorTests
     }
 
     [Fact]
-    public async Task ResolveAsync_ignores_a_host_that_does_not_match_the_template()
+    public async Task ResolveAsync_refuses_the_other_services_host()
     {
         // The AuthServer's resolver (format "{0}.auth...") must not resolve a ".api." host.
-        // nginx routes each service its own subdomain, so a mismatch means host context,
-        // never a wrong-tenant resolution.
+        // nginx routes each service its own subdomain, so a mismatch is a misroute. Before
+        // B1 it ran in host context; now it is refused, and still never a wrong-tenant
+        // resolution.
         var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
         var context = BuildResolveContext("falkinstein.api.portal.example.test");
+
+        await ShouldRefuseAsync(resolver, context, "falkinstein.api.portal.example.test");
+    }
+
+    // ---- B1: hosts that name no office are refused ----
+
+    [Theory]
+    [InlineData("auth.portal.example.test")]                                  // the bare service host
+    [InlineData("evil.example.test")]                                         // a foreign host
+    [InlineData("203.0.113.7:8080")]                                          // an IP, with a port
+    [InlineData("falkinstein.auth.portal.example.test.evil.example.test")]    // the suffix mid-host
+    public async Task ResolveAsync_refuses_a_host_that_names_no_office(string host)
+    {
+        var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
+        var context = BuildResolveContext(host);
+
+        await ShouldRefuseAsync(resolver, context, host);
+    }
+
+    [Theory]
+    [InlineData(ProdAuthFormat, "localhost:8080")]        // the compose health checks
+    [InlineData(ProdAuthFormat, "authserver:8080")]       // the API's metadata fetch (MetaAddress)
+    [InlineData(ProdAuthFormat, "LOCALHOST:8080")]
+    [InlineData(ProdAuthFormat, "AuthServer")]
+    [InlineData(HostAwareDomainTenantResolveContributor.DefaultDomainFormat, "localhost:44327")]
+    [InlineData(HostAwareDomainTenantResolveContributor.DefaultDomainFormat, "authserver:8080")]
+    [InlineData(HostAwareDomainTenantResolveContributor.DefaultDomainFormat, "LOCALHOST:8080")]
+    [InlineData(HostAwareDomainTenantResolveContributor.DefaultDomainFormat, "AuthServer")]
+    public async Task ResolveAsync_keeps_host_context_for_an_internal_host(string format, string host)
+    {
+        // Host context exactly as before B1: nothing set, nothing handled. In the real
+        // chain nothing follows this contributor, so "left unhandled" IS host context.
+        var resolver = new HostAwareDomainTenantResolveContributor(format);
+        var context = BuildResolveContext(host);
+
+        await resolver.ResolveAsync(context);
+
+        context.TenantIdOrName.ShouldBeNull();
+        context.Handled.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("localhost.example.test")]
+    [InlineData("authserver.example.test")]
+    [InlineData("notlocalhost")]
+    [InlineData("evil-authserver")]
+    [InlineData("api")]          // D3 (2026-09-25): no caller sends Host `api`, so it is not listed
+    [InlineData("api:8080")]
+    public async Task ResolveAsync_refuses_a_host_that_only_resembles_an_internal_name(string host)
+    {
+        // Seeded with what the allow list must reject. A StartsWith / EndsWith / Contains
+        // comparison would admit each of these, so each fails that implementation by name.
+        var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
+        var context = BuildResolveContext(host);
+
+        await ShouldRefuseAsync(resolver, context, host);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_treats_admin_in_any_case_as_host_context()
+    {
+        var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
+        var context = BuildResolveContext("ADMIN.auth.portal.example.test");
 
         await resolver.ResolveAsync(context);
 
@@ -132,7 +205,7 @@ public class HostAwareDomainTenantResolveContributorTests
 
     // ---- the three properties nothing asserted before phase 3 task 2 (2026-09-04) ----
     //
-    // Every host string the 8 tests above feed is one of:
+    // As of 2026-09-04, every host string the 8 tests then above fed was one of:
     //   admin.auth.portal.example.test        falkinstein.api.portal.example.test
     //   falkinstein.auth.portal.example.test  falkinstein.localhost
     //   falkinstien.auth.portal.example.test  (deliberate typo, unknown-slug case)
@@ -165,92 +238,61 @@ public class HostAwareDomainTenantResolveContributorTests
     }
 
     [Fact]
-    public async Task ResolveAsync_rejects_a_slug_that_contains_a_dot()
+    public async Task ResolveAsync_refuses_a_slug_that_contains_a_dot()
     {
         // Guards `slug.Contains('.') ? null : slug`. Without it a nested host would
         // yield the multi-label slug "falkinstein.extra" as a tenant NAME, so the
         // resolved office would depend on how many labels an attacker prepends.
+        // Before B1 the dotted host then ran in host context; nginx's `*.auth` wildcard
+        // forwards it, so that was reachable from the network. Now it is refused.
         var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
         var context = BuildResolveContext("falkinstein.extra.auth.portal.example.test");
 
-        await resolver.ResolveAsync(context);
-
-        context.TenantIdOrName.ShouldBeNull();
-        context.Handled.ShouldBeFalse();
+        await ShouldRefuseAsync(resolver, context, "falkinstein.extra.auth.portal.example.test");
     }
 
     [Fact]
-    public async Task ResolveAsync_selects_no_tenant_when_the_host_header_has_no_value()
+    public async Task ResolveAsync_refuses_a_request_whose_host_header_has_no_value()
     {
-        // WHAT THIS GUARDS, MEASURED RATHER THAN CLAIMED. An empty Host field value
-        // is legal under RFC 9112 s3.2 and Kestrel accepts it, so this is reachable
-        // from the network. The property worth pinning is the OUTCOME: an empty host
-        // must not select a tenant.
+        // An empty Host field value is legal under RFC 9112 s3.2 and Kestrel accepts it,
+        // so this is reachable from the network. The property pinned is the OUTCOME: an
+        // empty host must not select a tenant, and since B1 (decision D4) it must not
+        // reach host context either -- nothing internal sends one; curl and HttpClient
+        // always send a Host.
         //
-        // It is NOT a guard on `!httpContext.Request.Host.HasValue` (`:69-72`), and
-        // an earlier version of this comment said it was. Two independent mechanisms
-        // produce the same outcome, so NO SINGLE-LINE DELETION FAILS THIS TEST --
-        // proven 2026-09-04 by four experiments:
-        //
-        //   remove the HasValue abstention alone     -> 12/12 still pass
-        //     (ExtractSlug returns null for "", so the outcome is unchanged)
-        //   make ExtractSlug yield a slug for "" alone -> 12/12 still pass
-        //     (the abstention returns first, so the change is unreachable)
-        //   remove BOTH                              -> THIS TEST FAILS, alone
-        //
-        // Also worth knowing: deleting the abstention does not even COMPILE on its
-        // own. Nullable flow analysis then flags `Host.Value` (CS8604) and
-        // TreatWarningsAsErrors turns that into a build failure, so the realistic
-        // regression has to silence it with `!` deliberately.
-        //
-        // BUT THAT THIRD DEFENCE IS A SETTING, NOT A PROPERTY OF THE LANGUAGE, and
-        // it is not permanent. It rests on Directory.Build.props:17 <Nullable>enable
-        // and :21 <TreatWarningsAsErrors>true. That second one has been FALSE
-        // before -- the file's own note at :9 records it being "flipped to true in
-        // Phase B-6 PR-0 after B-2.1 closed out the 480 nullability warnings". Relax
-        // it again and CS8604 drops back to a warning, the compiler stops refusing
-        // the deletion, and nothing reports that the defence went. So this is two
-        // defences plus a setting, not three permanent ones.
-        //
-        // So this is defence in depth, and the test is an outcome pin rather than a
-        // line guard. Recorded precisely because "guards the abstention" would read
-        // as more protection than exists.
+        // Still an outcome pin, not a line guard, as it was before B1 (history: an
+        // earlier version showed on 2026-09-04 that no single-line deletion failed it).
+        // An empty host fails ExtractSlug and is not an internal name, so it reaches the
+        // refusal whether or not the Host value is read as null or as "".
         var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
         var context = BuildResolveContext(string.Empty);
 
-        await resolver.ResolveAsync(context);
-
-        context.TenantIdOrName.ShouldBeNull();
-        context.Handled.ShouldBeFalse();
+        await ShouldRefuseAsync(resolver, context, string.Empty);
     }
 
     [Fact]
-    public async Task ResolveAsync_resolves_no_office_from_a_template_without_a_placeholder()
+    public async Task ResolveAsync_refuses_every_public_host_when_the_template_has_no_placeholder()
     {
         // A misconfigured App:TenantDomainFormat with no {0} must resolve NOTHING rather than
         // treat the whole host as an office name. The host is a real office subdomain, so a
         // resolver that ignored the missing placeholder would have something to resolve.
+        // Since B1 that failure is loud: every public host is refused.
         var resolver = new HostAwareDomainTenantResolveContributor("auth.portal.example.test");
         var context = BuildResolveContext("falkinstein.auth.portal.example.test");
 
-        await resolver.ResolveAsync(context);
-
-        context.TenantIdOrName.ShouldBeNull();
-        context.Handled.ShouldBeFalse();
+        await ShouldRefuseAsync(resolver, context, "falkinstein.auth.portal.example.test");
     }
 
     [Fact]
-    public async Task ResolveAsync_resolves_no_office_when_the_placeholder_matches_nothing()
+    public async Task ResolveAsync_refuses_a_host_whose_office_label_is_empty()
     {
         // The host is exactly the template around an EMPTY slot, e.g. ".auth.portal.example.test".
-        // An empty office name must never be handed to the tenant store.
+        // An empty office name must never be handed to the tenant store, and since B1 the
+        // request does not fall back to host context either.
         var resolver = new HostAwareDomainTenantResolveContributor(ProdAuthFormat);
         var context = BuildResolveContext(".auth.portal.example.test");
 
-        await resolver.ResolveAsync(context);
-
-        context.TenantIdOrName.ShouldBeNull();
-        context.Handled.ShouldBeFalse();
+        await ShouldRefuseAsync(resolver, context, ".auth.portal.example.test");
     }
 
     // ---- APP-OWN-03: what happens when the token and the hostname disagree ----
@@ -285,6 +327,29 @@ public class HostAwareDomainTenantResolveContributorTests
     }
 
     // ---- helpers ----
+
+    /// <summary>
+    /// Asserts the B1 refusal: the contributor throws the host-not-served error, the message
+    /// does not echo the Host, and the context is left untouched -- no office named, nothing
+    /// marked handled -- so nothing could read the refusal as a resolution.
+    /// </summary>
+    private static async Task ShouldRefuseAsync(
+        HostAwareDomainTenantResolveContributor resolver,
+        FakeTenantResolveContext context,
+        string host)
+    {
+        var refusal = await Should.ThrowAsync<BusinessException>(() => resolver.ResolveAsync(context));
+
+        refusal.Code.ShouldBe(HostAwareDomainTenantResolveContributor.HostNotServedErrorCode);
+        refusal.Message.ShouldBe(HostAwareDomainTenantResolveContributor.HostNotServedMessage);
+        if (host.Length > 0)
+        {
+            refusal.Message.ShouldNotContain(host.Split(':')[0], Case.Insensitive);
+        }
+
+        context.TenantIdOrName.ShouldBeNull();
+        context.Handled.ShouldBeFalse();
+    }
 
     private static IConfiguration BuildConfiguration(params (string Key, string Value)[] values)
     {

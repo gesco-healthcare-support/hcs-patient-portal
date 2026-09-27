@@ -31,6 +31,7 @@ import { SortHeaderComponent } from '../shared/sort/sort-header.component';
 import { sortingClause, type SortModel } from '../shared/sort/sort-state';
 import type { AppointmentPillStatus } from '../shared/ui/status-pill/status-pill.component';
 import { CalendarDatePipe } from '../shared/pipes/pacific-date.pipe';
+import { clickLandedInside } from '../shared/ui/click-inside.util';
 import {
   appointmentStatusToPill,
   appointmentStatusToSegment,
@@ -111,6 +112,19 @@ export class AppointmentReportComponent implements OnInit {
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
     if (this.colsOpen) {
+      this.colsOpen = false;
+    }
+  }
+
+  /**
+   * Closes the column menu when a click lands outside it. This replaced the full-screen
+   * click-away layer, which was mouse-only; a keyboard user closes it with Escape (onEscapeKey
+   * above). The Columns button sits inside the same wrapper, so the click that opens the menu
+   * never closes it.
+   */
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (this.colsOpen && !clickLandedInside(event, '.rp-cols')) {
       this.colsOpen = false;
     }
   }

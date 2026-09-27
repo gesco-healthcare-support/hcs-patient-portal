@@ -262,8 +262,8 @@
 }
 
 @if (confirmDay(); as day) {
-  <div class="ra-scrim" (click)="cancelDeleteDay()">
-    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+  <div #scrim class="ra-scrim">
+    <div class="ra-modal ra-modal--md">
       <div class="ra-modal__head">
         <h3>Delete all slots on {{ day.dow }} {{ day.dayNum }}?</h3>
         <button class="ext-iconbtn x" type="button" (click)="cancelDeleteDay()">

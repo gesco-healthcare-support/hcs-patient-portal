@@ -519,8 +519,8 @@
   </div>
 
   @if (confirmVisible) {
-    <div class="ra-scrim" (click)="cancelConfirm()">
-      <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+    <div #scrim class="ra-scrim">
+      <div class="ra-modal ra-modal--md">
         <div class="ra-modal__head">
           <span
             class="ic tint-blue"
