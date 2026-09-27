@@ -64,9 +64,16 @@ public class DoctorAvailabilityManager : DomainService
     /// same day.
     ///
     /// <para>WHY HERE. Placing this in the manager rather than the AppService means it covers
-    /// BOTH write paths with one rule: the single create, which previously had no clash check
+    /// both CREATE paths with one rule: the single create, which previously had no clash check
     /// anywhere, and the bulk generate, whose preview flags overlaps but is not atomic with the
     /// insert that follows it.</para>
+    ///
+    /// <para>KNOWN GAP (recorded 2026-09-27): <see cref="UpdateAsync"/> does NOT call this, so
+    /// editing an existing slot's times can produce an overlap that creating the same slot
+    /// would have refused. This summary previously said "BOTH write paths", which read as
+    /// though update were covered. It is not. Logged to the backlog rather than fixed here,
+    /// because adding the check to update needs a decision about excluding the row being
+    /// edited from its own clash test.</para>
     ///
     /// <para>THE PREDICATE IS COPIED DELIBERATELY, not re-derived. It is the same half-open
     /// interval test the generation preview applies -- <c>existing.FromTime &lt; new.ToTime
