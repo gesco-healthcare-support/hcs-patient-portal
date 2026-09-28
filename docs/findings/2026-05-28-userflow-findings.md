@@ -136,7 +136,7 @@ Three options, ordered by preference:
 
 ### Related
 
-- [[BUG-008]] — original finding, `status: open` per `docs/runbooks/findings/bugs/BUG-008-put-me-concurrency.md`.
+- [[BUG-008]] — original finding, `status: open` per `docs/findings/bugs/BUG-008-put-me-concurrency.md`.
 
 ### Functional impact
 

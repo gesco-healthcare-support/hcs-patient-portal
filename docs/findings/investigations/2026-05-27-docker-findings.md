@@ -6,7 +6,7 @@
   the optional C1 stop).
 - **Scope:** investigation ONLY. No Dockerfiles / compose / `.dockerignore` /
   scripts / source were modified. Brief named: see
-  `docs/runbooks/investigations/2026-05-27-docker-image-size-and-hot-reload.md`
+  `docs/findings/investigations/2026-05-27-docker-image-size-and-hot-reload.md`
   (in the `replicate-old-app` worktree).
 - **State changes I made (all benign / reversible):** pulled 4 base images
   (`sdk:10.0`, `aspnet:10.0`, `node:20-alpine`, `nginx:alpine`) for measurement
@@ -525,7 +525,7 @@ Community (reputable):
 
 Internal:
 
-- `docs/runbooks/findings/bugs/OBS-22-docker-watch-misses-bind-mount-edits.md`
+- `docs/findings/bugs/OBS-22-docker-watch-misses-bind-mount-edits.md`
 - `docker-compose.yml`; `src/.../{AuthServer,HttpApi.Host}/Dockerfile{,.dev,.local}`;
   `src/.../DbMigrator/Dockerfile`; `angular/Dockerfile{,.dev}`,
   `angular/dev-entrypoint.sh`; `.dockerignore`

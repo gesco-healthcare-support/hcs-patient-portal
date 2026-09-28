@@ -146,7 +146,7 @@ prod/local compose profile exists.
 ### 3.3 Hot-reload was deliberately removed (HIGH)
 
 OBS-22 (resolved 2026-05-22, see
-`docs/runbooks/findings/bugs/OBS-22-docker-watch-misses-bind-mount-edits.md`):
+`docs/findings/bugs/OBS-22-docker-watch-misses-bind-mount-edits.md`):
 `dotnet watch` and `ng build --watch` were **removed** because inotify events
 don't propagate reliably through Docker Desktop's Windows bind mount (atomic-
 rename-on-save drops inodes; polling fallback misses them; refs Docker Desktop
@@ -269,7 +269,7 @@ with the container's own build. Recovered on auto-restart once memory freed.
   host-dev mode (note the stale `docker-compose.dev.yml` reference).
 - `docs\runbooks\DOCKER-DEV.md`, `docs\runbooks\LOCAL-DEV.md` -- documented
   workflows (drift-checked above).
-- `docs\runbooks\findings\bugs\OBS-22-docker-watch-misses-bind-mount-edits.md`
+- `docs\findings\bugs\OBS-22-docker-watch-misses-bind-mount-edits.md`
   -- watcher-removal history + candidate fixes.
 - `docs\status-reports\ENGINEERING-ROADMAP.md` (OBS-22 row), `etc\helm\` -- deploy
   path using prod Dockerfiles.
@@ -503,7 +503,7 @@ vs both). Investigate; do not fix.
 ## 10. Deliverable
 
 Write findings to
-`docs/runbooks/investigations/2026-05-27-docker-findings.md` (in the worktree
+`docs/findings/investigations/2026-05-27-docker-findings.md` (in the worktree
 you run from). Structure:
 
 1. **Answers first** (5-8 sentences): why images are huge; why reload is
