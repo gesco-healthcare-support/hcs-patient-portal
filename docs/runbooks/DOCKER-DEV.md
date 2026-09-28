@@ -6,7 +6,7 @@
 
 Docker Compose is the alternative to local .NET + Angular development. It packages the full stack (SQL Server, Redis, MinIO, MinIO bucket initializer, DbMigrator, AuthServer, HttpApi.Host, packet-renderer, Angular) into nine containers on a shared network.
 
-**Source of truth:** [`docker-compose.yml`](../../docker-compose.yml) at the repo root.
+**Source of truth:** [`docker-compose.yml`](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/docker-compose.yml) at the repo root.
 
 ---
 
@@ -287,6 +287,6 @@ Full route tree with guards and components: [Routing & Navigation](../frontend/R
 ## Related Documents
 
 - [Local Dev Troubleshooting](LOCAL-DEV.md) -- non-Docker dev path
-- [docker-compose.yml](../../docker-compose.yml) -- service definitions
+- [docker-compose.yml](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/docker-compose.yml) -- service definitions
 - [Secrets Management](../security/SECRETS-MANAGEMENT.md) -- how secrets get injected
 - [devops/TESTING-STRATEGY.md](../devops/TESTING-STRATEGY.md) -- broader DevOps context

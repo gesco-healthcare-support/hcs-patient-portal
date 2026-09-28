@@ -168,4 +168,4 @@ and signs every user out.
 - [SEC-01 Secrets in Source Control](THREAT-MODEL.md)
 - [Threat Model: AuthServer component](THREAT-MODEL.md#component-3-authserver-port-44368)
 - [HIPAA Compliance](HIPAA-COMPLIANCE.md)
-- [CI Workflow](../../.github/workflows/ci.yml)
+- [CI Workflow](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/.github/workflows/ci.yml)

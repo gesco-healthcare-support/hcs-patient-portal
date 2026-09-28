@@ -48,6 +48,12 @@ flowchart TB
 ## Architecture
 
 - [System Overview](architecture/OVERVIEW.md) -- topology, projects, ports
+- [Tenancy and Isolation](architecture/TENANCY-AND-ISOLATION.md) -- **why** the boundary is built
+  this way: why a caller cannot choose their own office, why the schema is declared twice, and why
+  testing the control needs a decoy
+- [Offices and Hosting](architecture/OFFICES-AND-HOSTING.md) -- **how** an office name becomes a
+  slug, a database and a routed hostname; reserved slugs, the nginx routing table, and the two-file
+  coupling a test guards
 - [ABP Framework Conventions](architecture/ABP-FRAMEWORK.md) -- module system, base classes, Mapperly
 - [Multi-Tenancy Strategy](architecture/MULTI-TENANCY.md) -- dual DbContext, host vs tenant entity classification
 
