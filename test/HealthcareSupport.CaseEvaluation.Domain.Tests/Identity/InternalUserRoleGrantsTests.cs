@@ -116,6 +116,17 @@ public class InternalUserRoleGrantsTests
         ItAdmin.ShouldContain("CaseEvaluation.CaseTrackerIntegration");
     }
 
+    // ---- Technical consoles (2026-09-28): the job dashboard and the health UI, IT Admin only.
+    // They can trigger, requeue and delete jobs for every office, a technical power rather than an
+    // operator one, so neither host operator role may hold it. ----
+    [Fact]
+    public void BackgroundJobsDashboard_grantedToItAdminOnly()
+    {
+        ItAdmin.ShouldContain("CaseEvaluation.BackgroundJobsDashboard");
+        SupervisorHost.ShouldNotContain("CaseEvaluation.BackgroundJobsDashboard");
+        IntakeOperatorHost.ShouldNotContain("CaseEvaluation.BackgroundJobsDashboard");
+    }
+
     [Theory]
     [InlineData("Saas.Tenants")]
     [InlineData("Saas.Tenants.Impersonation")]
