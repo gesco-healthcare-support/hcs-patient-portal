@@ -31,6 +31,27 @@ EXCLUDE_PARTS = {"bin", "obj", "node_modules", "dist", ".angular"}
 
 LINK_RE = re.compile(r"\[(?P<text>[^\]]+)\]\((?P<target>[^)]+)\)")
 
+# Code is stripped before link matching. Without this, any "](" sequence inside a code
+# span or fence is read as a Markdown link. It is not hypothetical: the slug regex
+# ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$ documented in architecture/OFFICES-AND-HOSTING.md
+# contains "](?:" and was reported as an unresolved link on 2026-09-28.
+#
+# This matters more than a single false positive. The job that runs this script pipes it
+# through "|| true", so it can never fail CI, and a checker that cries wolf is exactly why
+# a gate ends up disabled. Fix the false positives, then let it fail for real.
+FENCE_RE = re.compile(r"^(?P<fence>```+|~~~+).*?^(?P=fence)[ \t]*$", re.DOTALL | re.MULTILINE)
+INLINE_CODE_RE = re.compile(r"`+[^`\n]*`+")
+
+
+def strip_code(text: str) -> str:
+    """Blank out fenced blocks and inline code spans, preserving line count.
+
+    Fenced blocks collapse to their newlines so any line-based reporting added later
+    still points at the right place; inline spans are removed outright.
+    """
+    without_fences = FENCE_RE.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+    return INLINE_CODE_RE.sub("", without_fences)
+
 
 def is_excluded(path: Path) -> bool:
     return any(part in EXCLUDE_PARTS for part in path.parts)
@@ -107,7 +128,7 @@ def main() -> int:
         except (OSError, UnicodeDecodeError) as exc:
             print(f"WARN unreadable: {path} -- {exc}")
             continue
-        for m in LINK_RE.finditer(text):
+        for m in LINK_RE.finditer(strip_code(text)):
             target = m.group("target")
             checked += 1
             ok, detail = validate_link(path, target)

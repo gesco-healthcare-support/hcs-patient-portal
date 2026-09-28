@@ -95,7 +95,7 @@ the filter applies and scopes correctly without any disable call.
 
 The previous risk -- any caller with the `Patients` permission could read every tenant's
 patients -- is closed. See [docs/architecture/MULTI-TENANCY.md](../architecture/MULTI-TENANCY.md)
-for the broader tenant isolation design and the [Patient feature CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md)
+for the broader tenant isolation design and the [Patient feature CLAUDE.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md)
 for entity-level details.
 
 ---
@@ -123,5 +123,5 @@ No email sending, no SMS, no third-party data sharing integrations are configure
 - [Threat Model](THREAT-MODEL.md) -- STRIDE analysis of the same components
 - [Authorization](AUTHORIZATION.md) -- permission gates controlling PHI access
 - [HIPAA Compliance](HIPAA-COMPLIANCE.md) -- technical safeguard inventory
-- [Patient Domain CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) -- Patient entity details, SSN rules, fuzzy match
+- [Patient Domain CLAUDE.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) -- Patient entity details, SSN rules, fuzzy match
 - [Multi-Tenancy Architecture](../architecture/MULTI-TENANCY.md) -- tenant isolation design
