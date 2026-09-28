@@ -1,6 +1,6 @@
 # Appointment Booking Flow
 
-> Purpose: Documents the AppointmentAddComponent booking form: architecture, section split, form fields, cascading logic, and save flow. Audience: frontend developer. Last verified: 2026-06-01 vs main.
+> Purpose: Documents the AppointmentAddComponent booking form: architecture, section split, form fields, cascading logic, and save flow. Audience: frontend developer.
 
 [Home](../INDEX.md) > [Frontend](./) > Appointment Booking Flow
 

@@ -2,7 +2,7 @@
 
 # Application Services
 
-> Purpose: Reference for the Application Service layer -- base class, DTO mapping, and per-service inventory. Audience: backend developer. Last verified: 2026-06-01 vs main.
+> Purpose: Reference for the Application Service layer -- base class, DTO mapping, and per-service inventory. Audience: backend developer.
 
 The Application Service layer orchestrates use cases by coordinating domain services, repositories, and infrastructure concerns. All custom application services inherit from a shared base class and follow ABP Framework conventions.
 

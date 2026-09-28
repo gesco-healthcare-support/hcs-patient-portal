@@ -2,7 +2,7 @@
 
 # Threat Model
 
-> Purpose: STRIDE-based threat model for the four main portal components. Audience: security reviewer, engineering lead. Last verified: 2026-06-01 vs main.
+> Purpose: STRIDE-based threat model for the four main portal components. Audience: security reviewer, engineering lead.
 
 > For known security vulnerabilities and remediation status, see the security issues backlog.
 

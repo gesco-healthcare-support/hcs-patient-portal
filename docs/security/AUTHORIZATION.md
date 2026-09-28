@@ -2,7 +2,7 @@
 
 # Authorization & Permission Matrix
 
-> Purpose: Document the permission surface, role mapping, and multi-tenancy enforcement rules. Audience: backend developers, security reviewers. Last verified: 2026-06-01 vs main.
+> Purpose: Document the permission surface, role mapping, and multi-tenancy enforcement rules. Audience: backend developers, security reviewers.
 
 > For known security vulnerabilities and remediation status, see [Security Issues](THREAT-MODEL.md).
 

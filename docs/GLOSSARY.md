@@ -2,7 +2,7 @@
 
 # HCS Case Evaluation Portal Glossary
 
-> Purpose: Define all business, technical, and ABP terms used across the portal. Audience: all contributors. Last verified: 2026-06-01 vs main.
+> Purpose: Define all business, technical, and ABP terms used across the portal. Audience: all contributors.
 
 A comprehensive glossary of terms used throughout the HCS Case Evaluation Portal, a healthcare workers' compensation IME scheduling application built with .NET 10, Angular 20, and ABP Framework.
 

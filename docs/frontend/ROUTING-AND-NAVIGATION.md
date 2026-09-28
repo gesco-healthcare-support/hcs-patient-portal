@@ -1,6 +1,6 @@
 # Routing & Navigation
 
-> Purpose: Documents the Angular route tree, guards, lazy-loading strategy, and ABP menu registration for the patient portal SPA. Audience: frontend developers. Last verified: 2026-06-01 vs main.
+> Purpose: Documents the Angular route tree, guards, lazy-loading strategy, and ABP menu registration for the patient portal SPA. Audience: frontend developers.
 
 [Home](../INDEX.md) > [Frontend](./) > Routing & Navigation
 

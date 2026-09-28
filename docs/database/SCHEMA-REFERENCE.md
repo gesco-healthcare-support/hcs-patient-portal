@@ -1,6 +1,6 @@
 # Schema Reference
 
-> Purpose: Database-level reference for table naming, SQL type conventions, ABP system tables, and the dual-DbContext strategy. Audience: backend developers. Last verified: 2026-06-01 vs main.
+> Purpose: Database-level reference for table naming, SQL type conventions, ABP system tables, and the dual-DbContext strategy. Audience: backend developers.
 
 [Home](../INDEX.md) > [Database](./) > Schema Reference
 

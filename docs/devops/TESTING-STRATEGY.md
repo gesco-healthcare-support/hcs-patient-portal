@@ -1,6 +1,6 @@
 # Testing Strategy
 
-> Purpose: Describes the test projects, framework stack, data seeding approach, and test pyramid for the Patient Portal backend. Audience: developers. Last verified: 2026-06-01 vs main.
+> Purpose: Describes the test projects, framework stack, data seeding approach, and test pyramid for the Patient Portal backend. Audience: developers.
 
 [Home](../INDEX.md) > [DevOps](./) > Testing Strategy
 

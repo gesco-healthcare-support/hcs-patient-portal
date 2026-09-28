@@ -1,6 +1,6 @@
 # User Roles and Actors
 
-> Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA. Last verified: 2026-06-01 vs main.
+> Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA.
 
 [Home](../INDEX.md) > [Business Domain](./) > User Roles & Actors
 

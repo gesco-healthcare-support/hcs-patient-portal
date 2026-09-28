@@ -1,6 +1,6 @@
 # Common Development Tasks
 
-> Purpose: Step-by-step recipes for the most frequent development tasks. Audience: engineers adding features or running migrations. Last verified: 2026-06-01 vs main.
+> Purpose: Step-by-step recipes for the most frequent development tasks. Audience: engineers adding features or running migrations.
 
 [Home](../INDEX.md) > [Onboarding](./) > Common Tasks
 

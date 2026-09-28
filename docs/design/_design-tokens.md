@@ -19,7 +19,7 @@ strict-parity: true
 
 # Design tokens -- OLD-anchored visual contract
 
-> Purpose: Single source of truth for the runtime CSS-variable contract every Phase 1 feature consumes. Audience: frontend engineer. Last verified: 2026-06-01 vs main.
+> Purpose: Single source of truth for the runtime CSS-variable contract every Phase 1 feature consumes. Audience: frontend engineer.
 
 Single source of truth for the **runtime CSS-variable contract** every Phase 1
 feature consumes. Captures OLD's literal color, typography, spacing,

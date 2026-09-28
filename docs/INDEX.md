@@ -1,6 +1,6 @@
 # HCS Patient Portal -- Documentation Index
 
-> Purpose: map of the documentation tree. Audience: anyone onboarding to or navigating the repo. Last verified: 2026-06-01 vs main.
+> Purpose: map of the documentation tree. Audience: anyone onboarding to or navigating the repo.
 
 Workers' compensation Independent Medical Examination (IME) scheduling platform on .NET 10,
 Angular 20, and ABP Commercial. Per-layer and per-feature guidance lives in `CLAUDE.md` files

@@ -2,7 +2,7 @@
 
 # PHI Data Flows
 
-> Purpose: Map where PHI lives, how it moves through the system, and every persistence/logging point. Audience: security auditor, backend developer. Last verified: 2026-06-01 vs main.
+> Purpose: Map where PHI lives, how it moves through the system, and every persistence/logging point. Audience: security auditor, backend developer.
 
 This document maps where Protected Health Information (PHI) lives, how it moves through the system, and every place it may be persisted or logged. Required for HIPAA technical safeguard analysis.
 

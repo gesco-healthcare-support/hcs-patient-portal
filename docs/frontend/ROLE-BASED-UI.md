@@ -1,6 +1,6 @@
 # Role-Based UI
 
-> Purpose: Describes how the app selects layout and content based on user role. Audience: frontend developer. Last verified: 2026-06-01 vs main.
+> Purpose: Describes how the app selects layout and content based on user role. Audience: frontend developer.
 
 [Home](../INDEX.md) > [Frontend](./) > Role-Based UI
 

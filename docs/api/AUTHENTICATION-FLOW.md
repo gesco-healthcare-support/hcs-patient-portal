@@ -1,6 +1,6 @@
 # Authentication Flow
 
-> Purpose: Documents the OpenIddict OAuth2/OIDC authentication flow, registered clients, token validation, and external user registration. Audience: backend and frontend engineers. Last verified: 2026-06-01 vs main.
+> Purpose: Documents the OpenIddict OAuth2/OIDC authentication flow, registered clients, token validation, and external user registration. Audience: backend and frontend engineers.
 
 [Home](../INDEX.md) > [API](./) > Authentication Flow
 

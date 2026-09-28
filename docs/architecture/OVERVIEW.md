@@ -2,7 +2,7 @@
 
 # System Overview
 
-> Purpose: High-level architecture reference for the HCS Case Evaluation Portal. Audience: developers. Last verified: 2026-06-01 vs main.
+> Purpose: High-level architecture reference for the HCS Case Evaluation Portal. Audience: developers.
 
 The HCS Case Evaluation Portal is a workers' compensation Independent Medical Examination (IME) scheduling application. It follows a DDD layered monolith architecture with multi-tenancy support, where each doctor operates within an isolated tenant.
 
