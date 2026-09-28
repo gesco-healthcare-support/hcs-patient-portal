@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using Volo.Abp.Authorization;
+using HealthcareSupport.CaseEvaluation;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -48,14 +49,24 @@ public class AppointmentChildOwnershipGuard : ITransientDependency
     /// instead would let a caller nominate an appointment they are a party to and still write to a
     /// row belonging to someone else's.</para>
     ///
-    /// <para>Both refusals raise the same <see cref="AbpAuthorizationException"/> with the same
-    /// message, deliberately. Distinguishing "you are not a party" from "that is not this row's
-    /// appointment" would confirm to a caller that a row id exists under a different parent.</para>
+    /// <para><b>ORDER IS WHAT HIDES THE DIFFERENCE, not the message.</b> The party check runs
+    /// FIRST, against the row's stored parent. A caller who is not a party is therefore refused
+    /// identically whatever appointment id they supply, and never learns whether their guess matched
+    /// the row's real parent. Only a caller who can already read that appointment can reach the
+    /// second check, so the second refusal tells them nothing they did not already have.</para>
+    ///
+    /// <para>An earlier version ran the same-parent check first and claimed the two refusals were
+    /// indistinguishable because they shared an exception. They did not: this class threw
+    /// <c>AbpAuthorizationException</c> while the real read gate throws
+    /// <c>BusinessException(AppointmentAccessDenied)</c>, so a non-party got one error when their
+    /// supplied id was wrong and the other when it happened to be right -- exactly the distinction
+    /// the comment set out to deny. The tests agreed with the comment only because they stubbed the
+    /// read gate to throw the wrong type. Both are fixed: the order, and the exception.</para>
     /// </summary>
     public virtual async Task EnsureCanWriteChildAsync(Guid existingAppointmentId, Guid suppliedAppointmentId)
     {
-        EnsureSameParent(existingAppointmentId, suppliedAppointmentId);
         await EnsureIsPartyAsync(existingAppointmentId);
+        EnsureSameParent(existingAppointmentId, suppliedAppointmentId);
     }
 
     /// <summary>
@@ -63,13 +74,16 @@ public class AppointmentChildOwnershipGuard : ITransientDependency
     /// <see cref="EnsureCanWriteChildAsync"/> for the GRANDCHILD case: an appointment body part
     /// hangs off an injury detail rather than an appointment, so its parent check and its party
     /// check are against different ids and cannot be one call.
+    ///
+    /// <para>Raises the SAME exception the read gate raises, so a caller cannot separate the two
+    /// refusals by type either. Callers must run <see cref="EnsureIsPartyAsync"/> BEFORE this, or a
+    /// non-party can distinguish a correct parent guess from a wrong one by which refusal arrives.</para>
     /// </summary>
     public virtual void EnsureSameParent(Guid existingParentId, Guid suppliedParentId)
     {
         if (suppliedParentId != existingParentId)
         {
-            throw new AbpAuthorizationException(
-                "You are not authorised to modify this record.");
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
         }
     }
 

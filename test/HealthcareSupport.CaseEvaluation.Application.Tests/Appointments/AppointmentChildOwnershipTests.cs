@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.WcabOffices;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Repositories;
 using Xunit;
@@ -136,12 +137,21 @@ public sealed class AppointmentChildOwnershipTests
     // ---- the guard's own rule ----
 
     /// <summary>
-    /// Re-parenting is refused on its own, without reaching the party check. This is the half that
-    /// closes "move a child row onto a different appointment"; the party check closes "edit a row on
-    /// an appointment you are not part of". Both are needed: either alone leaves the other open.
+    /// PARTY IS CHECKED FIRST, and this test exists to keep it that way.
+    ///
+    /// <para>An earlier version pinned the opposite order and claimed the two refusals were
+    /// indistinguishable because they shared an exception type. They did not: this class threw
+    /// <c>AbpAuthorizationException</c> while the real gate throws
+    /// <c>BusinessException(AppointmentAccessDenied)</c>. So a non-party received one error when the
+    /// appointment id they supplied was wrong and the other when it happened to be right, which told
+    /// them whether their guess matched the row's real parent. The test agreed with the comment only
+    /// because it stubbed the gate to throw the wrong type.</para>
+    ///
+    /// <para>Order is what closes it: a non-party is now refused at the party check whatever they
+    /// supply, and never reaches the parent comparison.</para>
     /// </summary>
     [Fact]
-    public async Task TheGuard_RefusesAMismatchedParent_WithoutConsultingPartyAccess()
+    public async Task TheGuard_ChecksPartyFirst_SoANonPartyCannotProbeTheParent()
     {
         var readGuard = Substitute.For<AppointmentReadAccessGuard>(
             Substitute.For<IAppointmentRepository>(),
@@ -150,12 +160,21 @@ public sealed class AppointmentChildOwnershipTests
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
+        // The real gate's refusal, not this class's.
+        readGuard
+            .EnsureCanReadAsync(Arg.Any<Guid>())
+            .Throws(new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied));
+
         var guard = new AppointmentChildOwnershipGuard(readGuard);
 
-        await Should.ThrowAsync<AbpAuthorizationException>(async () =>
+        // A mismatched parent and a matching one must refuse identically for a non-party.
+        var mismatched = await Should.ThrowAsync<BusinessException>(async () =>
             await guard.EnsureCanWriteChildAsync(OwnAppointment, SomeoneElsesAppointment));
+        var matched = await Should.ThrowAsync<BusinessException>(async () =>
+            await guard.EnsureCanWriteChildAsync(OwnAppointment, OwnAppointment));
 
-        await readGuard.DidNotReceiveWithAnyArgs().EnsureCanReadAsync(default(Guid));
+        mismatched.Code.ShouldBe(matched.Code);
+        await readGuard.Received(2).EnsureCanReadAsync(OwnAppointment);
     }
 
     /// <summary>

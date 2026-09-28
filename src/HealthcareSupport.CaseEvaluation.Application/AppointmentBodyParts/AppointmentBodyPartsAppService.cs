@@ -84,11 +84,14 @@ public class AppointmentBodyPartsAppService : CaseEvaluationAppService, IAppoint
         // an appointment. So the two checks are against different ids and cannot be one call --
         // the row may not change injury detail, and the caller must be a party to the appointment
         // that injury detail belongs to. Both ids come from stored rows, never from the request.
+        //
+        // PARTY FIRST, then same-parent, for the reason given on the guard: a caller who is not a
+        // party must be refused identically whatever injury-detail id they supply, or which refusal
+        // arrives tells them whether their guess matched the row's real parent.
         var entity = await _repository.GetAsync(id);
-        _childOwnershipGuard.EnsureSameParent(entity.AppointmentInjuryDetailId, input.AppointmentInjuryDetailId);
-
         var parentInjuryDetail = await _injuryDetailRepository.GetAsync(entity.AppointmentInjuryDetailId);
         await _childOwnershipGuard.EnsureIsPartyAsync(parentInjuryDetail.AppointmentId);
+        _childOwnershipGuard.EnsureSameParent(entity.AppointmentInjuryDetailId, input.AppointmentInjuryDetailId);
 
         entity.AppointmentInjuryDetailId = input.AppointmentInjuryDetailId;
         entity.BodyPartDescription = input.BodyPartDescription;
