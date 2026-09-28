@@ -11,8 +11,7 @@
 # WHAT IS EXCLUDED, AND WHY
 # -------------------------
 #   runbooks/DEMO-LOGINS.md   seeded credentials. A public repo already exposes the file;
-#                             a search-indexed page is a further step, and there is an open
-#                             advisory about accounts seeded with that framework default.
+#                             a search-indexed page is a further step.
 #   production-hardening/**   the open security programme: findings not yet remediated.
 #   runbooks/findings/**      83 diagnosed defects with reproductions.
 #   plans/**                  gitignored working artefacts; absent from a CI checkout anyway.
