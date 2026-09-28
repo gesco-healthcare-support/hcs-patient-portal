@@ -128,7 +128,7 @@ public async Task Refresh_token_should_be_invalidated_after_rotation()
 ## Related
 
 - [[BUG-014]] / [[BUG-029]] -- email URL tenant handling (unrelated but in same security-adjacent area).
-- Suite Phase 9.3 (HARDENING-TEST-SUITE.md line 786) -- this finding is explicitly anticipated by the test design.
+- Suite Phase 9.3 (HARDENING-TEST-SUITE.md, HRD-P9.3) -- this finding is explicitly anticipated by the test design.
 
 ## Corrected root cause (2026-05-22)
 
