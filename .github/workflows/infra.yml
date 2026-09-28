@@ -195,7 +195,7 @@ jobs:
           rc=$?
           set -e
           if [ "$rc" -ne 0 ] && [ ! -s "$RUNNER_TEMP/whatif.json" ]; then
-            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --whatif-json "$RUNNER_TEMP/whatif.json"
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --as-whatif-json > "$RUNNER_TEMP/whatif.json"
           fi
           ok=true
           python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
@@ -320,7 +320,7 @@ jobs:
             --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" \
             --result-format ResourceIdOnly --no-pretty-print --output json > "$RUNNER_TEMP/whatif.json" \
             2> "$RUNNER_TEMP/whatif.err" \
-            || python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --whatif-json "$RUNNER_TEMP/whatif.json"
+            || python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --as-whatif-json > "$RUNNER_TEMP/whatif.json"
           python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
             --title "resource group, deploy of ${GITHUB_SHA::12}" > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"

@@ -452,14 +452,20 @@ class ErrorDigest(TempTree):
         self.assertEqual(len(digest), 1)
         self.assertNotIn("portal.real.example", digest[0])
 
-    def test_digest_command_prints_codes_and_writes_a_what_if_result_holding_only_codes(self):
+    def test_digest_command_prints_only_codes_for_the_log(self):
         err = self.write("w.err", "ERROR: " + json.dumps({"error": QUOTING_ERROR}))
-        out = self.root / "whatif.json"
-        result, stdout = quiet(infra.main, ["digest", "--stderr", str(err), "--whatif-json", str(out)])
+        result, stdout, stderr = streams(infra.main, ["digest", "--stderr", str(err)])
         self.assertEqual(result, 0)
         self.assertIn("az error: InvalidTemplateDeployment", stdout)
-        self.assertNotIn("portal.real.example", stdout + out.read_text())
-        written = json.loads(out.read_text())
+        self.assertNotIn("portal.real.example", stdout + stderr)
+
+    def test_digest_command_prints_a_what_if_result_holding_only_codes(self):
+        err = self.write("w.err", "ERROR: " + json.dumps({"error": QUOTING_ERROR}))
+        result, stdout, stderr = streams(infra.main, ["digest", "--stderr", str(err), "--as-whatif-json"])
+        self.assertEqual(result, 0)
+        self.assertIn("az error: InvalidTemplateDeployment", stderr)
+        self.assertNotIn("portal.real.example", stdout + stderr)
+        written = json.loads(stdout)
         self.assertEqual(written["status"], "Failed")
         text, ok = infra.summarize(written, "t")
         self.assertFalse(ok)
@@ -468,9 +474,10 @@ class ErrorDigest(TempTree):
     def test_digest_command_refuses_a_path_outside_the_allowed_roots(self):
         self.addCleanup(setattr, infra, "allowed_roots", infra.allowed_roots)
         infra.allowed_roots = lambda: [self.root.resolve()]
-        result, stdout = quiet(infra.main, ["digest", "--stderr", str(self.root.parent / "x.err")])
+        result, stdout, stderr = streams(infra.main, ["digest", "--stderr", str(self.root.parent / "x.err")])
         self.assertEqual(result, 1)
-        self.assertIn("::error::", stdout)
+        self.assertEqual(stdout, "")
+        self.assertIn("::error::", stderr)
 
 
 class AzStderrGuard(unittest.TestCase):

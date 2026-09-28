@@ -431,19 +431,24 @@ def cmd_summarize(args: argparse.Namespace) -> int:
 
 
 def cmd_digest(args: argparse.Namespace) -> int:
-    """Print a failed az call's error codes and targets; optionally write a failed what-if result holding only them."""
+    """Report a failed az call's error codes and targets, never its messages.
+
+    Plain mode prints them for the job log. `--as-whatif-json` instead prints a failed what-if result holding only
+    them, which the workflow redirects to a file so `summarize` can report the codes; the lines then go to stderr.
+    Like `summarize`, this never opens a path it was given for writing.
+    """
     try:
         text = confined(args.stderr).read_text(encoding="utf-8", errors="replace")
-        out = confined(args.whatif_json) if args.whatif_json else None
     except ParameterError as exc:
-        print(f"::error::{exc}")
+        print(f"::error::{exc}", file=sys.stderr)
         return 1
     entries = stderr_digest(text)
+    log = sys.stderr if args.as_whatif_json else sys.stdout
     for entry in entries:
-        print(f"az error: {entry}")
-    if out:
+        print(f"az error: {entry}", file=log)
+    if args.as_whatif_json:
         error = {"code": entries[0], "details": [{"code": entry} for entry in entries[1:]]}
-        out.write_text(json.dumps({"status": "Failed", "error": error}), encoding="utf-8")
+        sys.stdout.write(json.dumps({"status": "Failed", "error": error}))
     return 0
 
 
@@ -465,7 +470,8 @@ def build_parser() -> argparse.ArgumentParser:
     summary.add_argument("--title", required=True)
     digest = commands.add_parser("digest", help="error codes and targets from az stderr")
     digest.add_argument("--stderr", required=True)
-    digest.add_argument("--whatif-json", help="also write a failed what-if result holding only the codes")
+    digest.add_argument("--as-whatif-json", action="store_true",
+                        help="print a failed what-if result holding only the codes, for the workflow to redirect")
     return parser
 
 
