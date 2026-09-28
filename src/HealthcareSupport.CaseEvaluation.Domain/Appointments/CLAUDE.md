@@ -8,12 +8,12 @@ Used by admin staff (CRUD), bookers (full booking flow), and accessor-scoped att
 
 | File | Purpose |
 |---|---|
-| `Appointment.cs` | Aggregate root: 5 required FKs, `AppointmentStatusType`, `IMultiTenant`, reschedule-chain link |
+| `Appointment.cs` | Aggregate root: required FKs to Patient, AppointmentType, Location and DoctorAvailability (`IdentityUserId` is optional -- a booking can have no login), `AppointmentStatusType`, `IMultiTenant`, reschedule-chain link |
 | `AppointmentManager.cs` | DomainService -- Create/Update + Stateless state machine (`ApplyTransitionAsync`) |
 | `AppointmentWithNavigationProperties.cs` | POCO projection wrapper for eager-loaded queries |
-| `IAppointmentRepository.cs` | Custom repo interface: 4 methods, includes accessor-scoped filtering |
+| `IAppointmentRepository.cs` | Custom repo interface: navigation-property reads, accessor-scoped filtering, status counts, and the per-slot active-count queries the capacity gate uses |
 | `AppointmentConsts.cs` (Domain.Shared) | Max lengths: PanelNumber=50, RequestConfirmationNumber=50, InternalUserComments=250 |
-| `AppointmentStatusType.cs` (Domain.Shared) | 13-value lifecycle enum (Pending=1 ... CancellationRequested=13) |
+| `AppointmentStatusType.cs` (Domain.Shared) | Lifecycle enum (Pending=1 ... CancellationRequested=13, InfoRequested=14, NotSeen=15) |
 
 ## Entity shape
 
@@ -35,9 +35,11 @@ transition diagram and rule.
 
 ## Business rules
 
-1. **Confirmation number auto-generated; client value ignored.** `CreateAsync` calls
-   `GenerateNextRequestConfirmationNumberAsync`: finds max `A#####` row, returns
-   `"A" + next:D5`. Overflow at 99999 throws `UserFriendlyException`. Unique index
+1. **Confirmation number auto-generated; client value ignored.** Allocated by
+   `Application/Appointments/RequestConfirmationNumberGenerator.cs` (extracted 2026-08-05; booking
+   and reschedule finalize both use it): finds the max `A#####` row with the soft-delete filter OFF,
+   so a deleted appointment's number is never reused, and returns `"A" + next:D5`. Overflow at
+   99999 throws `UserFriendlyException`. Unique index
    `IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber` + a 5-attempt
    `ConfirmationNumberRetryPolicy` closes the race on concurrent bookings.
 

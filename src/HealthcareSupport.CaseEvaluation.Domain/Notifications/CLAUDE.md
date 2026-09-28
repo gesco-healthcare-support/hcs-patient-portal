@@ -65,7 +65,8 @@ for all kinds; future handlers may fork behavior per kind.
 Job classes are `ITransientDependency` and live under Domain/Notifications/Jobs/ and
 Domain/Appointments/Notifications/Jobs/. `RecurringJob.AddOrUpdate` calls live exclusively in
 `CaseEvaluationHttpApiHostModule.cs` -- do NOT add Hangfire registration inside Domain.
-All recurring jobs run Pacific Time (timezone injected via `TryGetPacificTimeZone()`).
+All recurring jobs run Pacific Time (`RecurringJobOptions.TimeZone = PacificTime.Zone` in
+`CaseEvaluationHttpApiHostModule.cs`).
 
 ### SlotCascadeHandler is a log-only stub
 

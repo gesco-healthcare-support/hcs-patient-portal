@@ -51,9 +51,9 @@ payloads (e.g., `GET api/app/patients/{id}`). The full SSN is returned exclusive
 `Patients.RevealSsn` permission plus the internal-or-owner check (`SsnRevealAccess`).
 Each call is captured in ABP's HTTP audit log.
 
-**`Books/CreateUpdateBookDto.cs` is scaffolding residue -- do not copy it.** It uses the
-banned combined create+update pattern (`CreateUpdateBookDto`). All new features must use
-separate `{Entity}CreateDto` and `{Entity}UpdateDto` classes.
+**Do not use a combined create+update DTO.** All features use separate `{Entity}CreateDto`
+and `{Entity}UpdateDto` classes. (The ABP scaffold's combined `CreateUpdateBookDto` was the
+one counter-example; it was removed with the rest of the Books sample.)
 
 ## Key Files
 

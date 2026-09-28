@@ -20,7 +20,7 @@ Shared constants, enums, localization resources, and multi-tenancy configuration
 ## Conventions
 
 1. **No business logic, no entity types, no services.** This project only contains constants, enums, and localization resources. Anything with behavior belongs in `Domain/` or higher.
-2. **New enums go in `Enums/`.** One enum per file. Name enum types with the `Enum` suffix only when it disambiguates from an entity (e.g. `AppointmentStatusEnum` exists because there is also an `AppointmentStatus` entity).
+2. **New enums go in `Enums/`.** One enum per file. When an enum would collide with an entity name, suffix it instead (e.g. the lifecycle enum is `AppointmentStatusType` because there is also an `AppointmentStatus` lookup entity).
 3. **Constants (max lengths, formats) go in feature folders.** Example: `Appointments/AppointmentConsts.cs` holds things like `ClaimNumberMaxLength`.
 4. **Localization is additive.** Add new keys to `Localization/CaseEvaluation/en.json`; do not remove keys referenced elsewhere. `L("Key")` calls throughout the app depend on these strings.
 5. **This project must not reference anything else in the solution.** It is the root of the dependency graph.
@@ -35,7 +35,6 @@ The following enums live outside `Enums/` by convention because they were author
 - `AppointmentDocuments/DocumentStatus.cs`, `PacketGenerationStatus.cs`, `PacketKind.cs`
 - `AppointmentChangeRequests/ChangeRequestType.cs`
 - `Appointments/Notifications/NotificationKind.cs`, `RecipientRole.cs`
-- `Books/BookType.cs`
 
 ### IMPORTANT: Reading bool extension properties -- use ExtraPropertyConverters
 
@@ -55,13 +54,13 @@ extension properties.
 
 Reference the const. Inline string literals will silently diverge if a name ever changes.
 
-### en.json known duplicate-key bug
+### en.json has duplicate keys -- check before adding one
 
-`Localization/CaseEvaluation/en.json` contains two blocks with keys `Enum:BookingStatus.8/9/10`.
-The first (earlier) block has the correct labels: `8=Available, 9=Reserved, 10=Booked`.
-The second (later) block has 9 and 10 swapped: `9=Booked, 10=Reserved`. JSON parsers use
-the last occurrence, so the live labels for 9 and 10 are wrong. Do not add a third copy;
-fix the second block when touching that file.
+The old `Enum:BookingStatus.8/9/10` duplicate is gone: there is one block now, and it matches
+the enum (`8=Available, 9=Booked, 10=Reserved`). But `Localization/CaseEvaluation/en.json`
+still contains OTHER duplicate keys, some with differing values (for example `BookingStatusId`
+appears twice). JSON parsers keep the last occurrence, so the earlier value is silently dead.
+Before adding a key, search the file for it; when touching a duplicated key, keep one copy.
 
 ### AbpUiOverride / AccountOverride localization
 
@@ -73,7 +72,7 @@ ABP Razor pages look up strings directly in ABP's base resources (`AbpUi`, `AbpA
 |------|---------|
 | `MultiTenancy/MultiTenancyConsts.cs` | Tenancy configuration (enable flag, connection string name) |
 | `Enums/*` | Most domain enums shared by all layers |
-| `Localization/CaseEvaluation/en.json` | Only maintained locale; has known BookingStatus duplicate-key bug |
+| `Localization/CaseEvaluation/en.json` | Only maintained locale; contains duplicate keys (see Gotchas) |
 | `Localization/AbpUiOverride/en.json` | Overrides ABP UI base strings (Register->Sign up, Login->Sign in) |
 | `Localization/AccountOverride/en.json` | Overrides ABP Account base strings |
 | `Notifications/Events/` | ETOs for notification fan-out (namespace Notifications.Events) |

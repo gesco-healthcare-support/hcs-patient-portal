@@ -16,14 +16,15 @@ No standalone Angular UI -- join rows are created during the Appointments bookin
 | `IAppointmentApplicantAttorneyRepository.cs` | Custom repo: `GetWithNav` / `GetListWithNav` / `GetList` / `GetCount` |
 
 Constructor accepts all 3 FKs + Id. No additional settable fields; this is a pure link record
-(`AppointmentId`, `ApplicantAttorneyId`, `IdentityUserId` all required).
+(`AppointmentId` and `ApplicantAttorneyId` required; `IdentityUserId` is optional, `Guid?`,
+because an attorney need not have a login).
 
 ## Conventions
 
-- **Mapper location.** Riok.Mapperly partials for this feature are the
-  `AppointmentApplicantAttorneyMappers` partial class in `CaseEvaluationApplicationMappers.cs`.
-  The mapper class name ends in "Mappers" (plural) -- code-gen artifact, do not rename
-  without checking all call sites.
+- **Mapper location.** Riok.Mapperly partials for this feature live in
+  `CaseEvaluationApplicationMappers.cs`: `AppointmentApplicantAttorneyToAppointmentApplicantAttorneyDtoMappers`
+  and the WithNavigationProperties mapper. The first ends in "Mappers" (plural) -- code-gen
+  artifact, do not rename without checking all call sites.
 - **Lookup endpoints reuse parent mappers.** The three AppService lookups
   (`GetAppointmentLookupAsync`, `GetApplicantAttorneyLookupAsync`, `GetIdentityUserLookupAsync`)
   use the `LookupDto<Guid>` mappers from their respective parent features. No

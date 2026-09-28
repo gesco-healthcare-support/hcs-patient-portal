@@ -5,15 +5,10 @@ has a corresponding AppService here.
 
 ## What Lives Here
 
-- Feature folders (Appointments, Doctors, Patients, DoctorAvailabilities, ApplicantAttorneys,
-  DefenseAttorneys, AppointmentAccessors, AppointmentApplicantAttorneys,
-  AppointmentDefenseAttorneys, AppointmentBodyParts, AppointmentChangeRequests,
-  AppointmentClaimExaminers, AppointmentDocuments, AppointmentEmployerDetails,
-  AppointmentInjuryDetails, AppointmentLanguages, AppointmentPrimaryInsurances,
-  AppointmentStatuses, AppointmentTypeFieldConfigs, AppointmentTypes, Books, CustomFields,
-  Dashboards, DoctorPreferredLocations, Documents, Emailing, ExternalAccount, ExternalSignups,
-  InternalUsers, Locations, Notifications, NotificationTemplates, PackageDetails, States,
-  SystemParameters, UserProfile, Users, WcabOffices)
+- One folder per feature. List them with
+  `ls -d src/HealthcareSupport.CaseEvaluation.Application/*/` rather than trusting a copied
+  list here; a hand-maintained list went stale (it named a removed `Books` folder and missed
+  a dozen newer ones).
 - **Cross-cutting files** at the project root:
   - `CaseEvaluationApplicationMappers.cs` -- primary Mapperly mapper file; split across
     partial files (`*.AppointmentChangeRequests.cs`, `*.CustomFields.cs`,
@@ -39,8 +34,16 @@ Fix in a dedicated chore ticket; do not silently add more `ApplicationService` s
 
 See root CLAUDE.md for the `[RemoteService(IsEnabled = false)]` rule.
 
-Known deviation: `ExternalSignupAppService` is missing this attribute. It may register
-duplicate routes. Do not extend this pattern.
+Not every service carries it. Some are served on purpose by ABP's conventional controllers
+(for example `DoctorTenantAppService` at `/api/app/doctor-tenant`); others lack it but also
+have a hand-written controller (for example `ExternalSignupAppService`). List the services
+without it before assuming a service is or is not on the HTTP surface:
+
+```bash
+git grep -L "RemoteService(IsEnabled = false)" -- 'src/HealthcareSupport.CaseEvaluation.Application/*AppService.cs'
+```
+
+New services follow the rule unless being auto-exposed is the intent.
 
 ### Mapperly mappers
 
@@ -71,9 +74,10 @@ lives in `Patients/PatientsAppService.cs`. Do not bypass masking on any other pa
 - `CaseEvaluationApplicationMappers.cs` is one logical unit spread across multiple `partial`
   files. Searching only the root file misses mappers for CustomFields, NotificationTemplates,
   PackageDetails, DoctorPreferredLocations, and AppointmentChangeRequests.
-- `Books/BookAppService.cs` also extends `ApplicationService` directly (scaffold leftover).
 - `ExternalSignups/` is not a standard entity CRUD feature -- it operates on ABP's
-  `IdentityUser` and `Tenant` entities and calls `PatientManager` to create Patient records.
+  `IdentityUser` and `Tenant` entities. On registration it claims or creates the Patient
+  record, or creates or adopts the Applicant Attorney, Defense Attorney or Claim Examiner
+  master record, and it owns the external-user invitation lifecycle.
   Its `ExternalSignupController` sits at `api/public/external-signup` (not `api/app/`).
 
 ## Related

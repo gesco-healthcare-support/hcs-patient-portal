@@ -43,8 +43,8 @@ page; state is derived (Active = `AcceptedAt` null AND `ExpiresAt` > now; else A
 2. **Send**: AppService builds the invite URL with the raw token and queues the `InviteExternalUser`
    email through the standard notification pipeline.
 3. **Validate** (`InvitationManager.ValidateAsync`): the AuthServer register page hashes the
-   `?token=` value and looks it up; throws `BusinessException` for `InviteNotFound`,
-   `InviteExpired`, or `InviteAlreadyAccepted`.
+   `?token=` value and looks it up; throws `BusinessException` with `InviteInvalid` (no
+   matching row), `InviteExpired`, or `InviteAlreadyAccepted`.
 4. **Accept** (`InvitationManager.AcceptAsync`): during external signup, after the `IdentityUser`
    is created, the AppService atomically sets `AcceptedAt` + `AcceptedByUserId`.
 
