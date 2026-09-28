@@ -24,19 +24,11 @@ rows start as Pending.
 
 `PacketKind` -- `Patient=1 / Doctor=2 / AttorneyClaimExaminer=3`. All three are generated
 for every appointment type (gate removed 2026-05-29). Doctor kind is generated and stored
-but never emailed -- mirrors an asymmetry in the OLD (legacy) application, whose
-AppointmentDocumentDomain class holds the DoctorPacket email-send logic. That code is not in
-this repository.
+but never emailed -- mirrors OLD asymmetry (search `AppointmentDocumentDomain.cs` for
+`DoctorPacket` email-send logic).
 
 `PacketGenerationStatus` -- `Generating=1 / Generated=2 / Failed=3`. UI shows spinner /
 Download button / error + Regenerate button respectively.
-
-Supporting types in this folder:
-`IPacketAttachmentProvider` is the email side's hook for fetching packet bytes when an
-appointment-approved email is sent; `PacketAttachmentProvider` implements it and
-`PacketAttachment` is the payload. `JointDeclarationCutoff` is the pure predicate for when an AME
-appointment's missing Joint Declaration Form becomes overdue. `MissingRequiredDocument` (declared
-in `RequiredDocumentEvaluator.cs`) is a required document still outstanding, with its state.
 
 ## Conventions
 

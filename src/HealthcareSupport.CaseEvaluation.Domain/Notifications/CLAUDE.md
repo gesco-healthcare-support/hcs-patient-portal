@@ -10,10 +10,12 @@ deferred until Twilio creds land (Phase 18 open item).
 | Path | Purpose |
 |---|---|
 | `TemplateVariableSubstitutor.cs` | Pure `##Var##` placeholder substitution; no IO |
-| `AppNotification.cs` | In-app notification for ONE internal staff user, raised when an inbound event (new request, change request, query, document upload, info-request resubmit) reaches their office |
-| `AppNotificationManager.cs` | Raises in-app notifications for an office's internal staff, one row per Staff Supervisor and Intake Staff user |
-| `ReminderCadence.cs` | Pure value object: turns a "T-minus / elapsed-day" setting string into a firing predicate for the date-driven reminder jobs |
-| `Jobs/` | The recurring notification jobs: `AppointmentReminderJob`, `ApprovalReconciliationJob`, `InternalStaffQueueDigestJob`, `JointDeclarationOverdueJob`, `PacketReconciliation`, `PendingDailyDigestJob`. Schedules and what each does: `docs/devops/BACKGROUND-JOBS.md` -- not repeated here, so they cannot drift apart |
+| `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to intake-staff inbox |
+| `Jobs/InternalStaffQueueDigestJob.cs` | 09:15 PT -- per-staff queue counts (Staff Supervisor + Intake Staff only) |
+| `Jobs/DueDateApproachingJob.cs` | 08:15 PT -- T-14/T-7/T-3 day due-date reminder |
+| `Jobs/DueDateDocumentIncompleteJob.cs` | 08:45 PT -- T-7 + docs outstanding reminder |
+| `Jobs/PackageDocumentReminderJob.cs` | 08:30 PT -- packet document upload reminder |
+| `Jobs/JointDeclarationAutoCancelJob.cs` | 06:00 PT -- auto-cancel JDF-expired appointments |
 | `../Appointments/Notifications/AppointmentRecipientResolver.cs` | Builds per-appointment recipient list |
 | `../Appointments/Notifications/RecipientRoleResolver.cs` | Classifies an email vs. an expected role (registered or not) |
 | `../Appointments/Handlers/SlotCascadeHandler.cs` | Log-only stub; subscribes to AppointmentStatusChangedEto |
@@ -63,8 +65,7 @@ for all kinds; future handlers may fork behavior per kind.
 Job classes are `ITransientDependency` and live under Domain/Notifications/Jobs/ and
 Domain/Appointments/Notifications/Jobs/. `RecurringJob.AddOrUpdate` calls live exclusively in
 `CaseEvaluationHttpApiHostModule.cs` -- do NOT add Hangfire registration inside Domain.
-All recurring jobs run Pacific Time (`RecurringJobOptions.TimeZone = PacificTime.Zone` in
-`CaseEvaluationHttpApiHostModule.cs`).
+All recurring jobs run Pacific Time (timezone injected via `TryGetPacificTimeZone()`).
 
 ### SlotCascadeHandler is a log-only stub
 

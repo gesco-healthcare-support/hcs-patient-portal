@@ -7,7 +7,7 @@ has a corresponding AppService here.
 
 - One folder per feature. List them with
   `ls -d src/HealthcareSupport.CaseEvaluation.Application/*/` rather than trusting a copied
-  list here; a hand-maintained list went stale (it named a removed `Books` folder and missed
+  list here; a hand-maintained list went stale (it named a Books folder that no longer exists, and missed
   a dozen newer ones).
 - **Cross-cutting files** at the project root:
   - `CaseEvaluationApplicationMappers.cs` -- primary Mapperly mapper file; split across

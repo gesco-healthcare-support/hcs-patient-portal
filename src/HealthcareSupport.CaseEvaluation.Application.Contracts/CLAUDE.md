@@ -52,8 +52,8 @@ payloads (e.g., `GET api/app/patients/{id}`). The full SSN is returned exclusive
 Each call is captured in ABP's HTTP audit log.
 
 **Do not use a combined create+update DTO.** All features use separate `{Entity}CreateDto`
-and `{Entity}UpdateDto` classes. (The ABP scaffold's combined `CreateUpdateBookDto` was the
-one counter-example; it was removed with the rest of the Books sample.)
+and `{Entity}UpdateDto` classes. (The ABP scaffold's combined CreateUpdateBookDto was the
+one counter-example; it no longer exists -- it was removed with the rest of the Books sample.)
 
 ## Key Files
 

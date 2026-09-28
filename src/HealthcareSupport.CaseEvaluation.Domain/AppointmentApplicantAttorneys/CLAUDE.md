@@ -13,7 +13,7 @@ No standalone Angular UI -- join rows are created during the Appointments bookin
 | `AppointmentApplicantAttorney.cs` | Aggregate root: `FullAuditedAggregateRoot<Guid>`, `IMultiTenant`; pure link record (see below) |
 | `AppointmentApplicantAttorneyManager.cs` | Domain service: `CreateAsync` / `UpdateAsync`; add invariants here, not in AppService |
 | `AppointmentApplicantAttorneyWithNavigationProperties.cs` | Read model bundling Appointment + ApplicantAttorney + IdentityUser (NOT an EF-mapped type) |
-| `IAppointmentApplicantAttorneyRepository.cs` | Custom repo: `GetWithNav` / `GetListWithNav` / `GetList` / `GetCount` |
+| `IAppointmentApplicantAttorneyRepository.cs` | Custom repo: `GetWithNavigationPropertiesAsync` / `GetListWithNavigationPropertiesAsync` / `GetListAsync` / `GetCountAsync` |
 
 Constructor accepts all 3 FKs + Id. No additional settable fields; this is a pure link record
 (`AppointmentId` and `ApplicantAttorneyId` required; `IdentityUserId` is optional, `Guid?`,
