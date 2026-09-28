@@ -13,9 +13,9 @@ The app is two cooperating ASP.NET Core processes plus an Angular SPA:
 
 | Surface | Process | Default host |
 | --- | --- | --- |
-| AuthServer (OpenIddict) | `HealthcareSupport.CaseEvaluation.AuthServer` | `falkinstein.localhost:44368` |
+| AuthServer (OpenIddict) | `HealthcareSupport.CaseEvaluation.AuthServer` | `office-a.localhost:44368` |
 | API | `HealthcareSupport.CaseEvaluation.HttpApi.Host` | `localhost:44327` |
-| SPA | static Angular bundle | `falkinstein.localhost:4200` |
+| SPA | static Angular bundle | `office-a.localhost:4200` |
 
 The SPA holds Bearer tokens issued by the AuthServer and presents them
 to the API. The AuthServer also keeps a cookie session at its own
@@ -29,7 +29,7 @@ flows can identify the user without re-prompting.
 | Name | Type | Write site | Read site | Lifetime | Cleared on logout? |
 | --- | --- | --- | --- | --- | --- |
 | `.AspNetCore.Identity.Application` | HttpOnly, Secure (prod), SameSite=Lax | `SignInManager.PasswordSignInAsync` on AuthServer | AuthServer Identity middleware on every request | 14 days sliding | YES -- `LogoutModel.OnGetAsync` calls `SignOutAsync(IdentityConstants.ApplicationScheme)` |
-| `.AspNetCore.Identity.External` | HttpOnly | external login providers | external sign-in handler | session | YES (signed out in same Logout) |
+| `.AspNetCore.Identity.External` | HttpOnly | external login providers (none configured since 2026-05-19, so not written in practice) | external sign-in handler | session | YES (signed out in same Logout) |
 | `.AspNetCore.Identity.TwoFactorUserId` | HttpOnly | 2FA challenge handler | 2FA verify handler | 5 minutes | YES (signed out in same Logout) |
 | `.AspNetCore.Identity.TwoFactorRememberMe` | HttpOnly | 2FA verify when "remember me" checked | 2FA bypass logic | 30 days | YES (signed out in same Logout) |
 | `__tenant` | NOT HttpOnly | ABP `DomainTenantResolveContributor` on tenant-subdomain hit | ABP tenant pipeline on every request | 14 days | YES -- `Response.Cookies.Delete("__tenant")` in `LogoutModel.OnGetAsync` |
@@ -40,7 +40,7 @@ flows can identify the user without re-prompting.
 
 | Key | Write site | Read site | Lifetime | Cleared on logout? |
 | --- | --- | --- | --- | --- |
-| `access_token` | `angular-oauth2-oidc.OAuthService.tryLogin` | every `HttpClient` request via the Bearer interceptor | Until refresh-token rotation (1 hour TTL) | YES -- `OAuthService.logOut` plus belt-and-suspenders defensive removal in `performFullLogout` |
+| `access_token` | `angular-oauth2-oidc.OAuthService.tryLogin` | every `HttpClient` request via the Bearer interceptor | Until refresh-token rotation (15-minute lifetime, set by `SetAccessTokenLifetime` in `CaseEvaluationAuthServerModule`) | YES -- `OAuthService.logOut` plus belt-and-suspenders defensive removal in `performFullLogout` |
 | `refresh_token` | same | `OAuthService.refreshToken` (silent renewal) | 14 days, rotated on each refresh | YES (same) |
 | `id_token` | same | `OAuthService.getIdentityClaims` -> `currentUser.id`, profile menu | matches access_token | YES (same) |
 | `id_token_claims_obj` | same | profile rendering helpers | matches | YES (same) |

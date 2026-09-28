@@ -53,7 +53,7 @@ ABP Framework creates its own tables (not prefixed with `App`):
 | PermissionManagement | `AbpPermissionGrants`, `AbpPermissionGroups` | Permission storage |
 | SettingManagement | `AbpSettings` | Application settings |
 | AuditLogging | `AbpAuditLogs`, `AbpAuditLogActions`, `AbpEntityChanges`, `AbpEntityPropertyChanges` | Audit trail |
-| BackgroundJobs | `AbpBackgroundJobs` | Job queue |
+| BackgroundJobs | `AbpBackgroundJobs` | ABP's job table. Jobs actually run on Hangfire (`AbpBackgroundJobsHangfireModule`), whose own tables live in SQL Server via `UseSqlServerStorage` |
 | FeatureManagement | `AbpFeatureGroups`, `AbpFeatureValues` | Feature flags |
 
 ## Dual Database Strategy
@@ -62,8 +62,8 @@ The project uses two DbContexts that produce separate migration sets:
 
 | Context | Migrations Path | Contains |
 |---------|----------------|----------|
-| `CaseEvaluationDbContext` | `Migrations/` | All entities (host + tenant via `IsHostDatabase()` guards) |
-| `CaseEvaluationTenantDbContext` | `TenantMigrations/` | Tenant-scoped entities only |
+| `CaseEvaluationDbContext` | `Migrations/` | All entities, including the two host-only ones (`OfficeBranding`, `IntakeOfficeAssignment`) behind `IsHostDatabase()` |
+| `CaseEvaluationTenantDbContext` | `TenantMigrations/` | Every entity except the two host-only ones; each office's database holds its own rows |
 
 See [EF Core Design](EF-CORE-DESIGN.md) for full details on the dual DbContext strategy.
 
