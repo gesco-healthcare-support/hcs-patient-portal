@@ -188,7 +188,9 @@ together. In order:
 1. **Resolve the patient** (`ResolvePatientForSubmitAsync`). It uses the supplied patient id, or
    `PatientsAppService.GetOrCreatePatientForAppointmentBookingAsync`
    (see [PatientsAppService](#getorcreatepatientforappointmentbookingasync)).
-2. **Apply the booker's edits** to that patient's profile (`ApplyPatientUpdateForSubmitAsync`).
+2. **Apply the booker's edits** to that patient's profile (`ApplyPatientUpdateForSubmitAsync`), but only when the
+   booker may edit that patient: internal staff, or the patient's own login (`PatientBookingEditAccess`). For any
+   other booker the edits are skipped and the booking still goes ahead.
 3. **Resolve the booking mode** (`ResolveSubmitLifecycleAsync`): a plain booking, a resubmit, a re-evaluation or a
    rebook. Every mode but plain needs a source confirmation number, and an unmapped mode throws.
 4. **Create the appointment** (`CreateAppointmentInternalAsync`), then flush without committing.
@@ -270,7 +272,7 @@ which is how host and IT Admin paths see patients. Inside an office, the filter 
 | `GetPatientForAppointmentBookingAsync` | One patient for the booking form. |
 | `GetPatientByEmailForAppointmentBookingAsync` | Find a patient by email for the booking form, or null. |
 | `GetOrCreatePatientForAppointmentBookingAsync` | Find or create the booking's patient record; see below. |
-| `UpdatePatientForAppointmentBookingAsync` | Partial update during booking: fields the input omits keep their current values. |
+| `UpdatePatientForAppointmentBookingAsync` | Partial update during booking: fields the input omits keep their current values. Only internal staff holding `Patients.Edit`, or the patient's own login, may edit (`PatientBookingEditAccess`); anyone else gets 403, and an external caller gets the same 403 for an id that does not exist. |
 | `GetMyProfileAsync` | The patient record linked to the current user. |
 | `UpdateMyProfileAsync` | Self-service update of the current user's patient record. |
 | `CreateAsync` | Create a patient through `PatientManager`. |

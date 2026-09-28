@@ -66,7 +66,10 @@ remove either layer.
 
 4. **Booking update preserves frozen fields.** `UpdatePatientForAppointmentBookingAsync`
    keeps `IdentityUserId`, `TenantId`, `GenderId`, `DateOfBirth`, and `PhoneNumberTypeId`
-   from the existing row. Admin `UpdateAsync` does not use these fallbacks.
+   from the existing row. Admin `UpdateAsync` does not use these fallbacks. Who may call it
+   (#598): internal staff holding `Patients.Edit`, or the patient's own login -- never a party to
+   the patient's appointments, because booking makes anyone a party
+   (`Application/Patients/PatientBookingEditAccess.cs`).
 
 5. **Profile test suite is incomplete.** `GetMyProfileAsync` / `UpdateMyProfileAsync` tests
    are skipped pending `WithCurrentUser` test infrastructure. Profile endpoints rely on

@@ -79,8 +79,6 @@ public sealed class AuthorizationSurfaceInvariantTests
             = "dev-only demo helper; EnsureDevelopmentOnly is the only guard",
 
         // Tenant resolution on the sign-in / sign-up screens, before a session exists.
-        ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetTenantOptionsAsync(String)"]
-            = "office picker shown before sign-in",
         ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.ResolveTenantByNameAsync(String)"]
             = "office resolution before sign-in",
         ["HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String)"]

@@ -59,6 +59,17 @@ public abstract class CaseEvaluationRealAuthorizationTestBase
     /// <summary>The permission <see cref="PushRoleName"/> holds.</summary>
     public const string PushRoleGrant = "CaseEvaluation.Appointments.PushToCaseTracker";
 
+    /// <summary>
+    /// An office role that code classifies as INTERNAL (the name is in
+    /// <c>BookingFlowRoles.InternalUserRoles</c>) but that holds only <see cref="MinimalRoleGrant"/>.
+    ///
+    /// <para>Production never has an office-scoped "IT Admin" -- that role is host-scoped -- which is
+    /// exactly why it is usable here: it isolates the one question #598 adds, "does an internal caller
+    /// still need <c>Patients.Edit</c>?", from every real role, all of which hold it. The production
+    /// internal roles themselves come from the real seeder below.</para>
+    /// </summary>
+    public const string InternalRoleWithoutPatientEditName = "IT Admin";
+
     /// <summary>Matches RolePermissionValueProvider.ProviderName.</summary>
     private const string RoleProviderName = "R";
 
@@ -106,6 +117,7 @@ public abstract class CaseEvaluationRealAuthorizationTestBase
             var tenantRepository = GetRequiredService<IRepository<Tenant, Guid>>();
             var seeder = GetRequiredService<MultiOfficeSeeder>();
             var externalRoleSeeder = GetRequiredService<ExternalUserRoleDataSeedContributor>();
+            var internalRoleSeeder = GetRequiredService<InternalUserRoleDataSeedContributor>();
             var roleManager = GetRequiredService<IdentityRoleManager>();
             var permissionManager = GetRequiredService<IPermissionManager>();
 
@@ -129,8 +141,17 @@ public abstract class CaseEvaluationRealAuthorizationTestBase
                 // difference under test is the one production actually ships.
                 await externalRoleSeeder.SeedAsync(new DataSeedContext(officeId));
 
+                // The per-office internal roles (Intake Staff, Staff Supervisor) WITH their real
+                // grants, for the same reason: a test that an internal role is admitted must use the
+                // grant set production ships, or it proves nothing about production.
+                await internalRoleSeeder.SeedAsync(new DataSeedContext(officeId));
+
                 using (currentTenant.Change(officeId))
                 {
+                    await EnsureRoleAsync(roleManager, InternalRoleWithoutPatientEditName, officeId);
+                    await permissionManager.SetAsync(
+                        MinimalRoleGrant, RoleProviderName, InternalRoleWithoutPatientEditName, isGranted: true);
+
                     await EnsureRoleAsync(roleManager, MinimalRoleName, officeId);
                     await permissionManager.SetAsync(
                         MinimalRoleGrant, RoleProviderName, MinimalRoleName, isGranted: true);
