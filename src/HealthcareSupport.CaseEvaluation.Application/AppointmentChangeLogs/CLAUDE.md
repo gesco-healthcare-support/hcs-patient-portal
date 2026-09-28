@@ -11,7 +11,7 @@ feature reads ABP audit (`EntityChange`) and diffs in-memory at update time. See
 | `AppointmentChangeLogsAppService.cs` | Aggregates ABP `EntityChange` for an appointment + its child entities; redacts via the policy; exposes per-appointment + global filtered/paged list. `[RemoteService(false)]`, `[Authorize(AppointmentChangeLogs.Default)]`. |
 | `AppointmentChangeLogBuilder.cs` | Pure: explodes raw entity changes to per-field redacted DTO rows. Unit-tested. |
 | `AppointmentAuditedEntities.cs` | The 5 audited intake entity FQNs + friendly labels + the global-scan list. |
-| `RawEntityChange.cs` | Framework-agnostic projection of ABP `EntityChange`, so the builder stays DB-free + testable. |
+| `RawEntityChange.cs` | Framework-agnostic projection of ABP `EntityChange`, so the builder stays DB-free + testable. Declares TWO records: `RawEntityChange` and `RawPropertyChange` (one property's name, original and new value). Both are `sealed record` because ABP's own audit entities have protected setters and cannot be constructed freely in tests. |
 
 Shared engines under `Appointments/Auditing/`: `AuditFieldPolicy` (PHI allowlist),
 `AuditFieldDiff` (redacted row builder), `AppointmentIntakeDiff` (update-time diff).
