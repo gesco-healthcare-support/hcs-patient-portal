@@ -73,7 +73,7 @@ NullInjectorError: R3InjectorError(Standalone[AppComponent])
 
 - For iterative development, rerun the build manually after changes. Angular esbuild (used by `ng build`) does not have this bug.
 
-**Prevention:** This is enforced in the root [CLAUDE.md](../../CLAUDE.md) Critical Constraints section and in [ADR-005](../decisions/005-no-ng-serve-vite-workaround.md).
+**Prevention:** This is enforced in the root [CLAUDE.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/CLAUDE.md) Critical Constraints section and in [ADR-005](../decisions/005-no-ng-serve-vite-workaround.md).
 
 ---
 
