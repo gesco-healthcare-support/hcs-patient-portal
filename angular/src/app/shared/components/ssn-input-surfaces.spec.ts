@@ -131,6 +131,26 @@ describe('SsnInputComponent surfaces', () => {
       expect(c.canReveal()).toBeFalse();
     });
 
+    it('allows the owner when the two ids differ only in letter case', () => {
+      /**
+       * Both ids are GUID text from two different producers, and nothing guarantees they
+       * share a letter case. The server compares Guid values, so the client must not refuse
+       * the owner over casing. (Synthetic GUIDs.)
+       */
+      const c = create();
+      c.patientIdentityUserId = '7C9E6679-7425-40DE-944B-E07FC1F90AE7';
+      user = { id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', roles: ['Patient'] };
+      expect(c.canReveal()).toBeTrue();
+    });
+
+    it('still refuses a different owner whatever the casing', () => {
+      // The decoy for the test above: case-insensitive must not become "any id matches".
+      const c = create();
+      c.patientIdentityUserId = '7C9E6679-7425-40DE-944B-E07FC1F90AE7';
+      user = { id: '0f8fad5b-d9cb-469f-a165-70867728950e', roles: ['Patient'] };
+      expect(c.canReveal()).toBeFalse();
+    });
+
     it('refuses when the record has no owner to compare against', () => {
       const c = create();
       c.patientIdentityUserId = null;
@@ -396,6 +416,18 @@ describe('SsnInputComponent surfaces', () => {
       // The positive half of the pair. Identical fixture, one field changed.
       const c = create();
       onFileFor(c, 'u-1');
+
+      c.toggleOnFile();
+
+      expect(getFullSsn).toHaveBeenCalledWith('p-1');
+      expect(c.onFileRevealed()).toBeTrue();
+    });
+
+    it('and DOES disclose it to the owner when the ids differ only in letter case', () => {
+      // The action path reuses canReveal(), so it must inherit the case-insensitive owner match.
+      const c = create();
+      onFileFor(c, '7C9E6679-7425-40DE-944B-E07FC1F90AE7');
+      user = { id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', roles: ['Patient'] };
 
       c.toggleOnFile();
 
