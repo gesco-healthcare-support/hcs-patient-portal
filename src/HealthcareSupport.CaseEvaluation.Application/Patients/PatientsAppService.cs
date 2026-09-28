@@ -50,6 +50,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // production-correctness compromise.
     private readonly IDataFilter<IMultiTenant> _dataFilter;
 
+    // #598: one message for every external refusal of the booking edit, whether the record belongs to
+    // someone else or does not exist, so the two cannot be told apart.
+    private const string NotAuthorizedToEditPatientMessage = "Not authorized to edit this patient.";
+
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
@@ -306,6 +310,11 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     ///   internal, or the patient's own login.</description></item>
     /// </list>
     /// A refusal is a 403 (<see cref="AbpAuthorizationException"/>), matching the SSN reveal.
+    ///
+    /// <para>An EXTERNAL caller gets that same refusal when the id does not exist. Were a missing id a
+    /// 404 while another person's record is a 403, the difference alone would tell a caller which ids
+    /// are real. Staff keep the not-found: they may see every patient in the office, so there is
+    /// nothing for them to learn from it.</para>
     /// </summary>
     [Authorize]
     public virtual async Task<PatientDto> UpdatePatientForAppointmentBookingAsync(Guid id, PatientUpdateDto input)
@@ -318,19 +327,16 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         {
             patientWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(id);
         }
-        if (patientWithNav == null)
-        {
-            throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), id);
-        }
-        var currentPatient = patientWithNav.Patient;
-        if (currentPatient == null)
+        var currentPatient = patientWithNav?.Patient;
+        if (currentPatient == null && BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
         {
             throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), id);
         }
 
-        if (!PatientBookingEditAccess.CanEdit(CurrentUser.Roles, CurrentUser.Id, currentPatient.IdentityUserId))
+        if (currentPatient == null
+            || !PatientBookingEditAccess.CanEdit(CurrentUser.Roles, CurrentUser.Id, currentPatient.IdentityUserId))
         {
-            throw new AbpAuthorizationException("Not authorized to edit this patient.");
+            throw new AbpAuthorizationException(NotAuthorizedToEditPatientMessage);
         }
 
         var patient = await _patientManager.UpdateAsync(

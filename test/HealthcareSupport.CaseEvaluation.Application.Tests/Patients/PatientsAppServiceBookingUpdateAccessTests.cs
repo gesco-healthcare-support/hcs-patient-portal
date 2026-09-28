@@ -73,6 +73,44 @@ public abstract class PatientsAppServiceBookingUpdateAccessTests<TStartupModule>
     }
 
     /// <summary>
+    /// An external caller aiming at an id that does not exist is refused exactly as they would be for
+    /// someone else's record. A not-found here would let a caller probe which ids exist: missing ids
+    /// would answer 404 and real ones 403.
+    /// </summary>
+    [Fact]
+    public async Task A_stranger_is_refused_for_an_id_that_does_not_exist()
+    {
+        var edit = await EditOfAsync(TenantsTestData.TenantARef, PatientsTestData.Patient1Id);
+
+        await Should.ThrowAsync<AbpAuthorizationException>(() => As(
+            TenantsTestData.TenantARef, Guid.NewGuid(), null, ApplicantAttorney,
+            () => _patients.UpdatePatientForAppointmentBookingAsync(Guid.NewGuid(), edit)));
+    }
+
+    /// <summary>
+    /// The pair the review asked for, compared directly: from outside, a missing id and a real record
+    /// the caller may not edit must be indistinguishable -- same exception type, same message. The
+    /// real record is present (Patient1 exists in office A), so the comparison is not against two
+    /// missing rows.
+    /// </summary>
+    [Fact]
+    public async Task The_refusal_for_a_missing_id_is_identical_to_the_refusal_for_someone_elses_record()
+    {
+        var edit = await EditOfAsync(TenantsTestData.TenantARef, PatientsTestData.Patient1Id);
+        var stranger = Guid.NewGuid();
+
+        var forRealRecord = await CaptureAsync(() => As(
+            TenantsTestData.TenantARef, stranger, null, ApplicantAttorney,
+            () => _patients.UpdatePatientForAppointmentBookingAsync(PatientsTestData.Patient1Id, edit)));
+        var forMissingId = await CaptureAsync(() => As(
+            TenantsTestData.TenantARef, stranger, null, ApplicantAttorney,
+            () => _patients.UpdatePatientForAppointmentBookingAsync(Guid.NewGuid(), edit)));
+
+        forMissingId.GetType().ShouldBe(forRealRecord.GetType());
+        forMissingId.Message.ShouldBe(forRealRecord.Message);
+    }
+
+    /// <summary>
     /// Booking creates record-only patients with no login, so unclaimed rows are the common case. An
     /// unclaimed record has no owner, and an external caller must not be treated as one.
     /// </summary>
@@ -166,6 +204,21 @@ public abstract class PatientsAppServiceBookingUpdateAccessTests<TStartupModule>
         {
             return await WithUnitOfWorkAsync(call);
         }
+    }
+
+    /// <summary>Runs a call that is expected to throw and returns what it threw.</summary>
+    private static async Task<Exception> CaptureAsync(Func<Task> call)
+    {
+        try
+        {
+            await call();
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
+
+        throw new ShouldAssertException("the call was expected to throw, and returned normally");
     }
 
     private Task<string?> CityAsStaffAsync(Guid tenantId, Guid patientId) =>
