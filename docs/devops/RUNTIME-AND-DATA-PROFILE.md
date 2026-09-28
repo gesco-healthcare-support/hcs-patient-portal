@@ -5,6 +5,10 @@
 >
 > **Describes what is, not what should be.** Companion to
 > `docs/architecture/SYSTEM-ARCHITECTURE-BASELINE.md`.
+>
+> **Dated snapshot.** Every figure below was measured on 2026-08-28 and is not re-derivable from the
+> code; re-measuring needs access to the running deployment. Treat it as a record of that day, not as
+> the current state.
 
 | Field                | Value                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
