@@ -958,6 +958,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var patient = await _patientRepository.GetAsync(result.PatientId);
 
+        // #598: a booker who may not edit this patient (anyone but staff or the patient's own login)
+        // still gets the booking; the stored record stays authoritative and the edits are dropped.
+        // Refusing the whole submission instead would fail every such booking, because the booking
+        // form sends a patient update whenever an existing patient is loaded, edited or not. Checked
+        // before the stamp so a skipped edit can never surface as a concurrency conflict.
+        if (!PatientBookingEditAccess.CanEdit(CurrentUser.Roles, CurrentUser.Id, patient.IdentityUserId))
+        {
+            return;
+        }
+
         // Check the stamp HERE, before anything is written, rather than letting EF discover it
         // during the flush.
         //
