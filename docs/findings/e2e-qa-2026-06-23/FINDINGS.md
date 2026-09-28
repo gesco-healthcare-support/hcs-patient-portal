@@ -1,5 +1,7 @@
 # Patient Portal -- E2E QA Findings (2026-06-23)
 
+> Historical QA record (2026-06-23), not maintained. Statuses below are as of that date; current status lives in GitHub Issues.
+
 Branch feat/frontend-rework. Driver: Playwright against <http://falkinstein.localhost:4250>.
 Severity scale: blocker > high > medium > low > cosmetic.
 Status: COMPLETE (interactive run; Adrian present throughout).
