@@ -152,6 +152,11 @@ jobs:
               .markdownlint.json | README.md | CONTRIBUTING.md | CHANGELOG.md)
                 shared=true
                 ;;
+              infra/azure/*)
+                # Deliberately runs nothing here: .github/workflows/infra.yml builds, lints, guards and
+                # previews these templates, and nothing under infra/azure/ is compiled or tested by this
+                # file. One named directory, not a widening of the default below.
+                ;;
               *)
                 # Deny by default. Unrecognised path -> run everything.
                 unclassified=true
