@@ -21,6 +21,11 @@ FK -- they reach the doctor via tenant scope.
   appointmentTypeId, locationId.
 - `DoctorWithNavigationProperties.cs` -- projection: `Doctor` +
   `List<AppointmentType>` + `List<Location>`.
+- `DoctorProfileDataSeedContributor.cs` -- seeds the single office-owner doctor into a freshly
+  provisioned office database. Because tenant === doctor (exactly one doctor per office, enforced
+  by `IX_AppEntity_Doctors_TenantId_Unique`), it runs per office in tenant scope and is a no-op in
+  the host database and on re-seed. The doctor's email is the office admin's, i.e. the owner, and
+  the row is linked to all of that office's seeded catalogs.
 
 Entity shape: `FirstName`/`LastName` max 50, `Email` max 49 (see Gotchas), `Gender`
 (Male=1/Female=2/Other=3). No `IdentityUserId` -- a Doctor is a non-user reference entity.
