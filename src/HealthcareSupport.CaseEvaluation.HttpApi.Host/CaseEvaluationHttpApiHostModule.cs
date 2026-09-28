@@ -86,6 +86,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Hosting.HostingConfigValidator.ValidateOrThrow(
             configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
 
+        // B12: the admin-password store, and the startup gate that refuses a host configuring
+        // neither or both. Registered in both this process and the other one that can create a
+        // database, so neither can seed a published default.
+        EntityFrameworkCore.AdminPasswords.AdminPasswordStoreRegistrar.Register(
+            context.Services, configuration, hostingEnvironment.IsDevelopment());
+
         if (!configuration.GetValue<bool>("App:DisablePII"))
         {
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
