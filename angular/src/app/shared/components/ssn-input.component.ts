@@ -171,6 +171,15 @@ export class SsnInputComponent implements ControlValueAccessor {
     return (this.currentMaskedSsn ?? '').replaceAll('*', SsnInputComponent.RedactionDot);
   }
 
+  /**
+   * Whether the signed-in user may reveal the stored SSN: an internal role, or the
+   * record's owner. Mirrors the server's SsnRevealAccess predicate, which stays the
+   * authority and compares Guid values.
+   *
+   * The owner ids are GUID text from two producers (config state and the patient DTO),
+   * and nothing guarantees they share a letter case, so they are compared
+   * case-insensitively -- the same normalisation the role check applies.
+   */
   canReveal(): boolean {
     const user = this.currentUser();
     if (!user) {
@@ -179,7 +188,11 @@ export class SsnInputComponent implements ControlValueAccessor {
     if (SsnInputComponent.isInternal(user.roles)) {
       return true;
     }
-    return !!user.id && !!this.patientIdentityUserId && user.id === this.patientIdentityUserId;
+    return (
+      !!user.id &&
+      !!this.patientIdentityUserId &&
+      user.id.toLowerCase() === this.patientIdentityUserId.toLowerCase()
+    );
   }
 
   // ----- entry handlers -----
