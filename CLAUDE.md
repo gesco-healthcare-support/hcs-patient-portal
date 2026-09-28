@@ -15,7 +15,15 @@ specific locations and time slots, and track each appointment through its lifecy
 
 **Multi-tenant, database per office.** Each doctor practice is one tenant with its own
 database; the host organisation owns the shared management database. Multi-tenancy is
-LIVE, not scaffolding.
+LIVE, not scaffolding. Separate databases are chosen for isolation and HIPAA, and also for
+blast radius: one consolidated database means a single corruption or failure takes down
+every office instead of one.
+
+**Where this portal's responsibility ends.** It owns the request and the decision:
+appointment requested, approved, rejected, rescheduled, cancelled. Once an appointment is
+APPROVED it is handed to the Case Tracker, which owns everything afterwards -- the day of
+the exam, the outcome, and billing. **This portal does not do billing and is not going to.**
+Do not add features that belong on the other side of that line without asking.
 
 **The repository is PUBLIC**, deliberately and permanently. Nothing committed here may
 contain PHI, secrets, credentials, internal IP addresses or real patient data. Security
@@ -71,6 +79,9 @@ both needs a migration in BOTH sets.
   `npx serve -s dist/CaseEvaluation/browser -p 4200`. Note `angular.json` still defines
   a working `serve` target, which fails with that cryptic error rather than refusing.
   Context: `docs/decisions/005-no-ng-serve-vite-workaround.md`.
+  **This ban is a workaround, not a principle** (product owner, 2026-09-28): it exists
+  because of a specific ABP-plus-Vite defect. If a later ABP or Angular release fixes it,
+  verify and lift the ban rather than preserving it out of habit. Test before changing it.
 - **Service start order: SQL, then AuthServer, then HttpApi.Host, then Angular.**
   Out-of-order cold starts break permission seeding and JWT validation.
 - **Never edit `angular/src/app/proxy/`.** It is generated; regenerate with
@@ -154,13 +165,15 @@ both needs a migration in BOTH sets.
 
 ## Deliberate oddities: do not "fix" these without asking
 
-- **Three appointment states are DEAD**: `CheckedIn` (9), `CheckedOut` (10), `Billed`
-  (11). The `AppointmentManager` transitions exist but nothing triggers them, so no
-  appointment can reach them. Their email templates, status pills and dashboard counters
-  are all present and never fire, and `DashboardAppService` hardcodes
-  `BilledThisMonth = 0`. Retained for data compatibility pending a product decision.
-  Tracked as PF-005. `NoShow` and `NotSeen` by contrast are LIVE but inbound-only from
-  the Case Tracker.
+- **Three appointment states are DEAD and are not supposed to exist here**: `CheckedIn`
+  (9), `CheckedOut` (10), `Billed` (11). The `AppointmentManager` transitions exist but
+  nothing triggers them. Their email templates, status pills and dashboard counters are
+  all present and never fire, and `DashboardAppService` hardcodes `BilledThisMonth = 0`.
+  They were planned for this portal and that responsibility moved to the Case Tracker
+  (product owner, 2026-09-28), so they are removal candidates rather than unfinished work.
+  Removing them is a data-compatibility exercise: the enum persists as integers and
+  renumbering would silently relabel stored rows. Tracked as PF-005. `NoShow` and
+  `NotSeen` by contrast are LIVE but inbound-only from the Case Tracker.
 - **`Email` is deliberately excluded from `AttorneySnapshot`.** Nine sibling fields are
   copied from the attorney master onto the appointment and `Email` is not, which reads
   like an oversight. It is load-bearing: `AppointmentAccessRules.IsAppointmentEmailRoleVisible`
