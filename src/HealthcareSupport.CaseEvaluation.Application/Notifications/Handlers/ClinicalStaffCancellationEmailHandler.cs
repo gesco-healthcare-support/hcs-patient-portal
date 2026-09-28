@@ -114,7 +114,9 @@ public class ClinicalStaffCancellationEmailHandler :
                 wcabAdj: ctx.WcabAdj,
                 documentName: null,
                 rejectionNotes: null,
-                clinicName: _currentTenant.Name,
+                // Filled by NotificationTemplateRenderer from the tenant store (#1014):
+                // ICurrentTenant.Name is null inside Change(TenantId).
+                clinicName: null,
                 portalUrl: await _accountUrlBuilder.BuildPortalRootUrlAsync(null));
 
             var withReason = new Dictionary<string, object?>(variables, StringComparer.Ordinal)

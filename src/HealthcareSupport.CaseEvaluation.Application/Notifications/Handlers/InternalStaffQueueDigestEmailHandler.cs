@@ -73,7 +73,7 @@ public class InternalStaffQueueDigestEmailHandler :
                 ["PendingAppointmentCount"] = eventData.PendingAppointmentCount,
                 ["ApprovedAppointmentCount"] = eventData.ApprovedAppointmentCount,
                 ["PortalUrl"] = portalUrl ?? string.Empty,
-                ["ClinicName"] = _currentTenant.Name ?? string.Empty,
+                // No ClinicName: NotificationTemplateRenderer fills it from the tenant store (#1014).
             };
 
             await _dispatcher.DispatchAsync(
