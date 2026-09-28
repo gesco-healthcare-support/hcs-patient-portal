@@ -94,6 +94,11 @@ interface CreateUserDraft {
 const EMAIL_RE = /^[^\s@.]+(?:\.[^\s@.]+)*@[^\s@.]+(?:\.[^\s@.]+)+$/;
 // Mirror of TenantNaming's DNS-safe slug rule (server is authoritative).
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+// Copy failure on the Invite panel, where the link is shown beside the button.
+const COPY_FAILED_ON_PANEL = 'Copy failed -- select the link manually.';
+// Copy failure after a resend: the fresh link is not shown anywhere on the page, so the
+// message must not point the user at one.
+const COPY_FAILED_AFTER_RESEND = 'The new invite link could not be copied.';
 
 /**
  * Users & Access hub (Prompt 16). One standalone component mounted at the four
@@ -369,10 +374,24 @@ export class InternalUsersHubComponent {
         error: () => undefined,
       });
   }
-  protected copy(text: string | null | undefined): void {
-    if (text && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+  /**
+   * Copies text to the clipboard and reports the SETTLED outcome: 'Copied to clipboard.'
+   * only once the write resolves, otherwise the given failure message. A page without the
+   * clipboard API throws inside the try and is reported the same way. With no text it does
+   * nothing and says nothing.
+   */
+  protected async copy(
+    text: string | null | undefined,
+    failureMessage: string = COPY_FAILED_ON_PANEL,
+  ): Promise<void> {
+    if (!text) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
       this.toaster.success('Copied to clipboard.');
+    } catch {
+      this.toaster.error(failureMessage);
     }
   }
 
@@ -404,8 +423,9 @@ export class InternalUsersHubComponent {
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({
         next: (r) => {
-          this.copy(r.inviteUrl);
-          this.toaster.success('Invite re-sent; fresh link copied.');
+          this.toaster.success('Invite re-sent.');
+          // The copy reports its own settled outcome, so this toast no longer claims it.
+          void this.copy(r.inviteUrl, COPY_FAILED_AFTER_RESEND);
           this.reload$.next();
         },
         error: () => undefined,

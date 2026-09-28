@@ -1,6 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 import { ConfigStateService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
@@ -20,12 +20,10 @@ import { MyAttorneyProfileService } from '../../proxy/my-attorney-profiles/my-at
  * the part this component owns: the concurrency stamp round-trip, which is what stops a second
  * save from colliding with the first.</p>
  *
- * <p>TWO PATHS ARE DELIBERATELY NOT TESTED. `save()` and `loadStates()` both subscribe with a
- * `next` handler and NO `error` handler, so a failure there is an unhandled RxJS error. Asserting
- * anything about it would reproduce the vacuous shape this session hit in tranche 5: the error is
- * asynchronous, so nothing throws synchronously for an assertion to catch, and the test passes
- * while proving nothing. Both are logged to the backlog instead. `loadProfile()` DOES have an
- * error handler, so its failure is exercised below.</p>
+ * <p>The failure paths of `save()` and `loadStates()` are tested under 'failure paths'. Both
+ * subscribes now settle their own error (#962). A spy on RxJS's unhandled-error hook proves nothing
+ * escapes, instead of a vacuous `not.toThrow()` that cannot see an asynchronous error.
+ * `loadProfile()`'s failure is exercised under 'loading the profile'.</p>
  *
  * <p>`signOut()` is not called either -- it delegates to the real full-logout helper, which
  * reaches the OAuth stack.</p>
@@ -327,5 +325,57 @@ describe('AttorneyProfileComponent', () => {
       c.backHome();
       expect(router.navigateByUrl).toHaveBeenCalledWith('/');
     });
+  });
+
+  describe('failure paths', () => {
+    /**
+     * ABP's RestService reports every failure and then rethrows it. A subscriber without an
+     * error branch sends that copy to RxJS's unhandled-error path (a setTimeout throw). The hook
+     * is global, so it is replaced only inside this block and the previous value is restored.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('can see an unhandled error at all (detector self-check)', fakeAsync(() => {
+      throwError(() => new Error('probe')).subscribe({ next: () => undefined });
+      tick();
+      expect(unhandled).toHaveBeenCalled();
+    }));
+
+    it('settles a failed save: button released, no success toast, typed values kept', fakeAsync(() => {
+      const c = create();
+      c.ngOnInit();
+      api['update'].and.returnValue(throwError(() => ({ status: 409 })));
+      c.form.get('firstName').setValue('Adah');
+
+      c.save();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.isBusy).toBeFalse();
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(c.form.getRawValue().firstName).toBe('Adah');
+    }));
+
+    it('settles a failed state lookup and leaves the dropdown empty', fakeAsync(() => {
+      const c = create();
+      rest.request.and.returnValue(throwError(() => ({ status: 500 })));
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.states).toEqual([]);
+    }));
   });
 });

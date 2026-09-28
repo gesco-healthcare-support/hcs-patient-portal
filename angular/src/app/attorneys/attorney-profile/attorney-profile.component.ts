@@ -126,6 +126,9 @@ export class AttorneyProfileComponent implements OnInit {
             id: s.id ?? '',
             name: s.displayName ?? '',
           }))),
+        // ABP's RestService has already reported the failure; this stops the rethrown copy
+        // becoming an unhandled RxJS error. The dropdown stays empty.
+        error: () => undefined,
       });
   }
 
@@ -160,6 +163,9 @@ export class AttorneyProfileComponent implements OnInit {
           this.concurrencyStamp = updated.concurrencyStamp;
           this.toaster.success('Profile changes saved.');
         },
+        // Already reported by ABP's RestService. finalize re-enables Save, no success toast
+        // shows, and the form keeps what the user typed.
+        error: () => undefined,
       });
   }
 
