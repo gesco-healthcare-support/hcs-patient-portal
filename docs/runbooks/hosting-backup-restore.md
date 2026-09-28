@@ -213,3 +213,15 @@ DROP DATABASE [CaseEvaluation_verify];
 
 (Confirm the logical names with `RESTORE FILELISTONLY FROM DISK = N'<file>.bak';` -- they may
 differ per database.)
+
+## Escalation
+
+- Before step 4 of a restore, tell the portal maintainer which database and which backup file:
+  the overwrite has no undo.
+- At once, with the services left stopped, if step 2 finds no readable backup or a restore fails
+  part-way. Send the file name, the command and its full output.
+- If the office is not serving the recovered data within 30 minutes of step 5, escalate with the
+  same detail and the output of
+  `docker compose -f docker-compose.prod.yml --env-file secrets/env.prod logs --tail=200 api`.
+- If a restore proof or the freshness check reports a failure, escalate within the working day:
+  it means the backups may not be restorable when they are needed.

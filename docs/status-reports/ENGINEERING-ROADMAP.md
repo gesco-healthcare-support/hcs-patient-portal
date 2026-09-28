@@ -1,6 +1,14 @@
 # Engineering Roadmap — Path to Alpha
 
-> Purpose: Developer-facing companion to the manager status report; tracks every roadmap item with code refs, bug IDs, and plan docs. Audience: Adrian (sole dev).
+> **Historical snapshot, not maintained.** This page records the engineering roadmap that
+> accompanied the [2026-05-18 manager status report](2026-05-18-status-for-manager.md). Its content
+> was last updated on 2026-06-01; later commits changed only its formatting and one freshness
+> marker. It is kept because other documents cite it. Do not read any status in it as current:
+> open work is tracked in
+> [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues).
+>
+> Purpose: the developer-facing companion to that status report, tracking each roadmap item with
+> code references, bug ids and plan docs. Audience: developers reading the project's history.
 
 Living technical companion to `docs/status-reports/2026-05-18-status-for-manager.md` (point-in-time snapshot as of 2026-05-18; does not reflect fixes that shipped after that date).
 

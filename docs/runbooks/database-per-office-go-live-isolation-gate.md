@@ -1,7 +1,18 @@
 # Runbook: database-per-office go-live isolation gate
 
-**Audience:** whoever signs off the database-per-office migration before production.
-**Companion:** [ADR-017](../decisions/017-database-per-office-isolation.md).
+> Purpose: prove that no office can read another office's data before database-per-office goes to
+> production.
+> Audience: whoever signs off the database-per-office migration before production.
+> Owner: the portal maintainer.
+> **Last tested: run at least once, and signed off; confirmed by the portal maintainer on
+> 2026-09-28; date of the run not recorded.**
+> Companion: [ADR-017](../decisions/017-database-per-office-isolation.md).
+
+## When you need this page
+
+- Before promoting database-per-office to any production environment for the first time.
+- Before promoting a change that touches tenant resolution, office provisioning, connection
+  strings, the host-operator switch-in, or any query that reads across offices.
 
 This is the final security/HIPAA gate. Do not go to production until every check below
 passes. The rule is **deny-by-default: any cross-office PHI read through any pathway is a
@@ -15,6 +26,9 @@ Run the backend suite; the multi-office isolation tests are the gate.
 cd test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests
 dotnet test --filter "FullyQualifiedName~MultiOffice"
 ```
+
+Expect `Passed!` with `Failed: 0`. Check the exit status (`echo $?` prints `0`) rather than
+reading the summary line.
 
 Required:
 
@@ -37,15 +51,18 @@ staging SQL Server.
 
 Preconditions:
 
-- Stack up: `docker compose down -v && PACKET_RENDERER_PORT=3011 docker compose up -d --build`
-  (db-per-tenant worktree ports: authserver 44438, api 44397 HTTP, angular 4270). Confirm
-  db-migrator exited 0 and api/authserver are Healthy.
+- Stack up from a clean state: `docker compose down -v && docker compose up -d --build`.
+  **`down -v` deletes the stack's databases.** Use it only on a disposable local or staging
+  stack, never on a server holding data you need. Confirm with `docker compose ps` that
+  `db-migrator` exited 0 and `api` and `authserver` report `(healthy)`. Ports come from your
+  `.env`; if another stack is running, stop it first rather than guessing new ports.
 - Two offices provisioned, each with its own database (e.g. the seeded office plus a
   second office created via the SaaS admin UI / office-creation flow). Capture each
   office's tenant id from `CaseEvaluation.dbo.SaasTenants` (re-query after any
   `down -v`, the ids regenerate). Query SQL Server inside the container so the SA password
   never prints:
-  `MSYS_NO_PATHCONV=1 docker exec -i db-per-tenant-sql-server-1 bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C' <<'SQL' ... SQL`
+  `MSYS_NO_PATHCONV=1 docker compose exec -T sql-server bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT Id, Name FROM CaseEvaluation.dbo.SaasTenants"'`.
+  Expect one row per office.
 
 Checks (each must pass):
 
@@ -59,9 +76,10 @@ Checks (each must pass):
    user -> denied; confirm no full SSN crosses the office boundary.
 4. **Catalogs.** An office-A catalog edit (appointment type / location / language) is not
    visible in office B.
-5. **Operators.** A host Supervisor switches into an office as admin; a host Intake
-   operator is limited and is denied switching into an UNASSIGNED office; unassigning an
-   office revokes access.
+5. **Operators.** A host IT Admin switches into an office holding that office's `admin` role,
+   and a host Staff Supervisor holding its Staff Supervisor role, each as their own per-office
+   user. A host Intake operator is limited, and is denied switching into an UNASSIGNED office;
+   unassigning an office revokes access.
 6. **Branding.** Each office shows its own name/logo; the host shows the default; the
    pre-auth branding fetch returns only the resolved subdomain's office.
 7. **Connection strings.** Grep application logs -> no connection string is ever logged.
@@ -72,3 +90,16 @@ Checks (each must pass):
 
 Record the date, the two office databases checked, and the result of each check above in
 the deployment ticket. Only then promote.
+
+## Abort
+
+Any failed check, automated or manual, means **do not promote**. Record which check failed and
+what you observed, and leave production on its current release. There is nothing to roll back at
+this point, because nothing has been promoted. Do not re-run until the cause is understood: a
+check that fails once and passes on retry is not a pass.
+
+## Escalation
+
+Immediately, with no time box to work around it. A failed isolation check goes to the portal
+maintainer the same day, with the check number, the two office ids, and the request or query that
+crossed the boundary. It is a potential exposure of patient data, not a defect to schedule.
