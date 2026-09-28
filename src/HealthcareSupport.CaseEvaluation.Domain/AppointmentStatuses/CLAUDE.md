@@ -7,6 +7,8 @@ from the enum by design. Its remaining non-obvious facts are documented once in 
 CLAUDE.md, under "Thin per-office lookups", which loads alongside this file -- kept there, not
 duplicated here, to avoid per-file drift.
 
+Types here: `AppointmentStatus` (the entity), `AppointmentStatusManager` (domain service), `IAppointmentStatusRepository` (repository) and `AppointmentStatusDataSeedContributor` (seeds each office's own list).
+
 ## Related
 
 - src/HealthcareSupport.CaseEvaluation.Domain/CLAUDE.md (Thin per-office lookups)

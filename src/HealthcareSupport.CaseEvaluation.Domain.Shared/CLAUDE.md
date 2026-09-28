@@ -19,7 +19,7 @@ Shared constants, enums, localization resources, and multi-tenancy configuration
 
 ## Conventions
 
-1. **No business logic, no entity types, no services.** This project only contains constants, enums, and localization resources. Anything with behavior belongs in `Domain/` or higher.
+1. **No business logic, no entity types, no services.** This project only contains constants, enums, and localization resources. Anything with behavior belongs in `src/HealthcareSupport.CaseEvaluation.Domain/` or higher.
 2. **New enums go in `Enums/`.** One enum per file. When an enum would collide with an entity name, suffix it instead (e.g. the lifecycle enum is `AppointmentStatusType` because there is also an `AppointmentStatus` lookup entity).
 3. **Constants (max lengths, formats) go in feature folders.** Example: `Appointments/AppointmentConsts.cs` holds things like `ClaimNumberMaxLength`.
 4. **Localization is additive.** Add new keys to `Localization/CaseEvaluation/en.json`; do not remove keys referenced elsewhere. `L("Key")` calls throughout the app depend on these strings.

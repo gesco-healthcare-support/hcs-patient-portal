@@ -1,6 +1,6 @@
 # Application Layer -- use cases, AppServices, Mapperly mappers
 
-Orchestrates domain logic and exposes DTOs to the HTTP API. Every feature under `Domain/`
+Orchestrates domain logic and exposes DTOs to the HTTP API. Every feature under `src/HealthcareSupport.CaseEvaluation.Domain/`
 has a corresponding AppService here.
 
 ## What Lives Here

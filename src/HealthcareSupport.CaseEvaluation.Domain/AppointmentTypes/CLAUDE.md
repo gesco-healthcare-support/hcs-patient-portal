@@ -5,6 +5,8 @@ Doctor; drives slot type-matching in the booking gate. Its non-obvious facts are
 the Domain layer CLAUDE.md, under "Thin per-office lookups", which loads alongside this file -- kept
 there, not duplicated here, to avoid per-file drift.
 
+Types here: `AppointmentType` (the entity), `AppointmentTypeManager` (domain service), `IAppointmentTypeRepository` (repository) and `AppointmentTypeDataSeedContributor` (seeds each office's own list).
+
 ## Related
 
 - src/HealthcareSupport.CaseEvaluation.Domain/CLAUDE.md (Thin per-office lookups)

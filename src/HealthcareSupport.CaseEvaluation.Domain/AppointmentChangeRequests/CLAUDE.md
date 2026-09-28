@@ -9,8 +9,8 @@
 | `AppointmentChangeRequestDocument.cs` | Supporting document attached to a change request |
 | `CancellationRequestValidators.cs` | Static guards: status + cancel-time window |
 | `RescheduleRequestValidators.cs` | Static guards: status + slot availability |
-| `IAppointmentChangeRequestRepository.cs` | Repository contract |
-| `ChangeRequestConsentManager.cs` | Two-sided consent: issues each side's single-use token (only its SHA-256 hash is stored), validates it, records the decision |
+| `IAppointmentChangeRequestRepository.cs` | Repository contract; the same file also declares `IAppointmentChangeRequestDocumentRepository` for supporting documents |
+| `ChangeRequestConsentManager.cs` | Two-sided consent: issues each side's single-use token (only its SHA-256 hash is stored), validates it, records the decision. Also declares `ChangeRequestConsentMatch`: a raw token resolved to its change request, the round that owns it (null for a cancellation) and the side |
 | `ChangeRequestConsentRound.cs` | One consent round per staff-proposed date: per-side token hash, expiry and decision. Rounds are rows so the record of who declined which date survives |
 | `IChangeRequestConsentRoundRepository.cs` | Repository contract for consent rounds |
 | `RescheduleSplitPolicy.cs` | Pure policy for approving a reschedule: the NEW appointment's status (inherits the source's) and the trigger that closes the OLD one |

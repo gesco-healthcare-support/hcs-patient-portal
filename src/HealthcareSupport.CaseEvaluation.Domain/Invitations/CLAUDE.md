@@ -12,6 +12,7 @@ email + role locked, and registration atomically marks the invite as accepted.
   the SHA256 hex of the token, never the raw token.
 - `InvitationManager.cs` -- `IssueAsync` (returns the raw token exactly once), `ValidateAsync`
   (non-mutating lookup by hash), `AcceptAsync` (atomic, concurrency-stamp guarded).
+- `IInvitationRepository.cs` -- repository contract for invitations.
 - `Domain.Shared/Invitations/InvitationConsts.cs` -- token byte length (32 = 256-bit entropy),
   hash storage length, default TTL (7 days).
 - The invite DTOs (`InvitationValidationDto`, `InviteExternalUserDto`, `InviteExternalUserResultDto`)

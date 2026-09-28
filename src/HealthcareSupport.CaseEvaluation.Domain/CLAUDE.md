@@ -8,7 +8,9 @@ AppServices orchestrate, managers enforce.
 | File / folder | Purpose |
 |---|---|
 | `Appointments/AppointmentManager.cs` | Aggregate root manager: create, update, state machine |
-| `Appointments/Appointment.cs` | Aggregate root: 5 required FKs, `AppointmentStatusType`, `IMultiTenant` |
+| `Appointments/Appointment.cs` | Aggregate root: required FKs to Patient, AppointmentType, Location and DoctorAvailability (`IdentityUserId` optional), `AppointmentStatusType`, `IMultiTenant` |
+| `CaseEvaluationDomainModule.cs` | The Domain layer's ABP module: module dependencies and domain-level configuration such as blob storing |
+| `CaseEvaluationConsts.cs` | Domain-level constants, for example the default admin email used by seeding |
 | `DoctorAvailabilities/DoctorAvailability.cs` | Slot aggregate: `AvailableDate`, `FromTime`/`ToTime`, `Capacity` (default 3), M2M `AppointmentTypes` |
 | `Patients/PatientManager.cs` | Patient domain service: `CreateAsync`, `UpdateAsync`, `FindOrCreateAsync` (fuzzy match) |
 | `AppointmentDocuments/AppointmentDocumentManager.cs` | Upload guard + `CreateQueuedAsync` factory |

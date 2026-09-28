@@ -5,6 +5,8 @@ Excel export via the download-token pattern. Its non-obvious facts are documente
 layer CLAUDE.md, under "Thin per-office lookups", which loads alongside this file -- kept there, not
 duplicated here, to avoid per-file drift.
 
+Types here: `WcabOffice` (the entity), `WcabOfficeManager` (domain service), `IWcabOfficeRepository` (repository) and `WcabOfficeDataSeedContributor` (seeds each office's own list), plus `WcabOfficeWithNavigationProperties` (read projection).
+
 ## Related
 
 - src/HealthcareSupport.CaseEvaluation.Domain/CLAUDE.md (Thin per-office lookups)

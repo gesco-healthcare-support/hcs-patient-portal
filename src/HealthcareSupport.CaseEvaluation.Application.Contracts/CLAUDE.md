@@ -4,7 +4,7 @@ DTOs, AppService interfaces, and permission constants. This is the contract surf
 
 ## What Lives Here
 
-- **One folder per feature** (mirrors `Domain/`): Appointments, Doctors, Patients, etc. Each folder contains the feature's DTOs and `I{Entity}AppService` interface.
+- **One folder per feature** (mirrors `src/HealthcareSupport.CaseEvaluation.Domain/`): Appointments, Doctors, Patients, etc. Each folder contains the feature's DTOs and `I{Entity}AppService` interface.
 - **`Permissions/`** -- `CaseEvaluationPermissions.cs` (constants) and `CaseEvaluationPermissionDefinitionProvider.cs` (ABP registration)
 - **`Notifications/`** -- `INotificationDispatcher` and `INotificationTemplateRenderer` (in-process interfaces; see Gotchas)
 - **`Shared/`** -- cross-cutting DTOs (lookup DTOs, shared filters) used across multiple features

@@ -45,7 +45,9 @@ Defined in the Domain layer CLAUDE.md. Do not bypass it.
 ### Fuzzy match before insert
 
 Normalisation and threshold rules (3 of 6 keys) are defined in the Domain layer CLAUDE.md.
-Entry point: `PatientManager.FindOrCreateAsync`.
+Entry point: `PatientManager.FindOrCreateAsync`. `PatientMatching` holds the normalisation
+helpers that canonicalise inputs before the repository query; `PatientMatchCandidate` is the
+minimal result row the match returns (no PHI -- the caller reloads the full Patient).
 
 ### Length validation is double-enforced
 

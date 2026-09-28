@@ -112,6 +112,35 @@ Five components: list page, abstract list directive, detail modal, full-page Add
 ngModel). Routes registered in `appointment-routes.ts`. Auto-generated proxy at
 `angular/src/app/proxy/appointments/`.
 
+## Other types in this folder
+
+Access and parties:
+
+- `AppointmentAccessRules` -- the pure view / edit access predicates behind the read-access
+  guard; `AccessPathway` names which of the seven pathways granted access, and `AccessorEntry`
+  is the lightweight accessor projection the rules consume.
+- `ExternalCoPartyRules` -- the pure transform behind the co-party-scoped external user lookup;
+  `AppointmentParties` is one appointment's four party-email columns and `CoParty` one named
+  party with its role.
+
+Lifecycle and booking:
+
+- `AppointmentTransitionTrigger` -- the actions fed into the status state machine.
+- `AppointmentLifecycleValidators` -- pure predicates for the resubmit and re-evaluation booking
+  flows; `AppointmentLifecycleFlow` is the discriminator passed to them.
+- `EvaluationKindPolicy` -- decides an appointment's evaluation kind from its booking flow.
+- `IAppointmentChildCascadeCopier` -- copies every child row of one appointment onto another when
+  a reschedule is finalized; `CopiedGroupCounts` reports rows copied per child group.
+
+Snapshots and projections:
+
+- `AppointmentPatientSnapshot` / `AppointmentPatientSnapshotResolver` -- the patient values as
+  booked, and which values a record-side reader should report.
+- `AttorneySnapshot` -- an attorney master's displayed fields copied onto the appointment at
+  booking time.
+- `ActiveSlotAppointment` -- a non-terminal appointment occupying a slot, projected for the staff
+  schedule.
+
 ## Related
 
 - docs/business-domain/APPOINTMENT-LIFECYCLE.md

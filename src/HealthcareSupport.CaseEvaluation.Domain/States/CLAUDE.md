@@ -6,6 +6,8 @@ behavior, missing length constraint, the mapping call path) are documented once 
 CLAUDE.md, under "Thin per-office lookups", which loads alongside this file -- kept there, not
 duplicated here, to avoid per-file drift.
 
+Types here: `State` (the entity), `StateManager` (domain service), `IStateRepository` (repository) and `StateDataSeedContributor` (seeds each office's own list).
+
 ## Related
 
 - src/HealthcareSupport.CaseEvaluation.Domain/CLAUDE.md (Thin per-office lookups)
