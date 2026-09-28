@@ -580,6 +580,32 @@ jobs:
           python-version: "3.12"
       - name: Verify documentation structure
         run: python .claude/scripts/verify_structure.py
+      - name: Check per-folder CLAUDE.md against the code beside it
+        run: python .claude/scripts/check-claude-md.py .
+        # BLOCKING from the day it lands, deliberately. This PR does not merge until a
+        # full run on main is clean.
+        #
+        # Shipping it non-blocking with a follow-up to tighten later was offered and
+        # refused, because this repository had just finished repairing exactly that: the
+        # link checker below ran as "|| true" for months behind a justification citing
+        # docs/verification/BASELINE.md, a file that does not exist. A non-blocking check
+        # is indistinguishable from no check and buys the same false confidence. Adding a
+        # second one to this very job would have repeated the mistake mid-correction.
+        #
+        # A per-file exclusion list was refused too, for the same reason in slower motion:
+        # an entry nobody is accountable for outlives the condition it records.
+        #
+        # WHY THIS EXISTS. These files are read FIRST and trusted MOST by AI agents, which
+        # makes their staleness more dangerous than ordinary documentation, not less. An
+        # agent reads code correctly; what it cannot do is notice a file is lying to it.
+        # AppointmentsAppService.cs:396 once justified a scoping decision with "Patient is
+        # not IMultiTenant per CLAUDE.md" -- reasoning from a stale document rather than
+        # from the class, which does implement IMultiTenant.
+        #
+        # SEEN TO FAIL before being trusted: against main cb941303 it reported 92 findings
+        # in 28 of 49 files, including all four independently known to be stale. For
+        # Domain/AppointmentChangeRequests it named exactly the classes a human audit had
+        # found missing, without being told the answer.
       - name: Check documentation links
         run: python .claude/scripts/check-links.py
         # BLOCKING as of 2026-09-28. It was "|| true" before, which meant a working link
