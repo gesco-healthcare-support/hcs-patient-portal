@@ -2,59 +2,46 @@ using System;
 using System.Data;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.SqlServer;
 using Microsoft.Data.SqlClient;
 using Shouldly;
-using Testcontainers.MsSql;
 using Volo.Abp;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.AdminPasswords;
 
 /// <summary>
-/// A real SQL Server for the admin-password lock. Application locks exist nowhere else -- the SQLite
-/// rig has no <c>sp_getapplock</c> -- so an in-memory double could only ever re-assert the design
-/// rather than test it. Started once per class from the image docker-compose.yml pins. Docker must
-/// be running.
+/// B12 task 4 -- the lock itself, against the engine it runs on. Application locks exist nowhere
+/// else: the SQLite rig has no <c>sp_getapplock</c>, so an in-memory double could only re-assert
+/// the design rather than test it. Docker must be running.
+///
+/// <para>Uses the SHARED SQL Server container rather than starting one. A second container would be
+/// created in parallel with the first and lose its race with the Docker daemon under any real
+/// memory pressure, failing the feed tests -- which have nothing to do with this change -- with a
+/// TaskCanceledException that looks nothing like its cause. See
+/// <see cref="SqlServerCollection"/>.</para>
+///
+/// <para>Sharing a database with the feed tests is safe and is not merely tolerated: an application
+/// lock is scoped to the database and keyed by resource NAME, every name here carries the
+/// <c>admin-password:</c> prefix the production lock uses, and the feed tests take no application
+/// locks at all. The collection also runs its classes sequentially.</para>
 /// </summary>
-public sealed class SqlAppLockFixture : IAsyncLifetime
-{
-    /// <summary>The image docker-compose.yml pins for sql-server.</summary>
-    public const string Image = "mcr.microsoft.com/mssql/server:2022-CU25-GDR2-ubuntu-22.04";
-
-    private readonly MsSqlContainer _container = new MsSqlBuilder(Image).Build();
-
-    public string ConnectionString { get; private set; } = null!;
-
-    public async Task InitializeAsync()
-    {
-        await _container.StartAsync();
-        ConnectionString = _container.GetConnectionString();
-    }
-
-    public Task DisposeAsync()
-    {
-        return _container.DisposeAsync().AsTask();
-    }
-}
-
-/// <summary>
-/// B12 task 4 -- the lock itself, against the engine it runs on.
-/// </summary>
-public sealed class SqlAppLockTests : IClassFixture<SqlAppLockFixture>
+[Collection(SqlServerCollection.Name)]
+public sealed class SqlAppLockTests
 {
     private const string AResource = "admin-password-host";
     private const string ADifferentResource = "admin-password-office-3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
-    private readonly SqlAppLockFixture _sql;
+    private readonly SqlServerFeedFixture _sql;
 
-    public SqlAppLockTests(SqlAppLockFixture sql)
+    public SqlAppLockTests(SqlServerFeedFixture sql)
     {
         _sql = sql;
     }
 
     private SqlAppLock Lock(int timeoutMilliseconds = SqlAppLock.DefaultLockTimeoutMilliseconds)
     {
-        return new SqlAppLock(_sql.ConnectionString, timeoutMilliseconds);
+        return new SqlAppLock(_sql.FeedDatabase, timeoutMilliseconds);
     }
 
     [Fact]
@@ -148,7 +135,7 @@ public sealed class SqlAppLockTests : IClassFixture<SqlAppLockFixture>
     {
         const string resource = "admin-password:unpooled-probe";
 
-        var unpooled = new SqlConnectionStringBuilder(_sql.ConnectionString) { Pooling = false }.ConnectionString;
+        var unpooled = new SqlConnectionStringBuilder(_sql.FeedDatabase) { Pooling = false }.ConnectionString;
 
         var holder = new SqlConnection(unpooled);
         await holder.OpenAsync();
