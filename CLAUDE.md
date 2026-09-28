@@ -109,10 +109,15 @@ both needs a migration in BOTH sets.
   surface. `TenantNaming.ProxyReservedSlugs` = `{api, auth, minio, health, www}` are the
   single-label hosts the reverse proxy answers itself with an exact `server_name`, which
   nginx ranks above every wildcard.
-- **COUPLING NOTHING ENFORCES**: adding an exact `server_name` block to
-  `docker/nginx-proxy/default.conf.template` requires adding that slug to
-  `ProxyReservedSlugs`. Miss it and an office by that name is accepted everywhere and then
-  has no reachable front door, with no error explaining why.
+- **A COUPLING BETWEEN TWO FILES THAT DO NOT REFERENCE EACH OTHER**: adding an exact
+  single-label `server_name` block to `docker/nginx-proxy/default.conf.template` requires
+  adding that slug to `ProxyReservedSlugs`. Miss it and an office by that name is created
+  successfully and then has no reachable front door, with no error explaining why: nginx
+  ranks an exact name above every wildcard, so the proxy consumes the office's own host.
+  **A test enforces this**, in both directions, so a stale entry fails as loudly as a
+  missing one: `TenantNamingTests.ProxyReservedSlugs_matches_the_exact_single_label_hosts_in_the_nginx_template`.
+  Run the Domain tests after touching either file. Neither file mentions the other, so the
+  test is the only thing that will tell you.
 - `HostAwareDomainTenantResolveContributor` resolves the office from the Host header
   against `App:TenantDomainFormat` (default `{0}.localhost`). A host naming no office is
   REFUSED, except `localhost` and `authserver`, which internal health checks use. It
@@ -121,8 +126,17 @@ both needs a migration in BOTH sets.
 - **The resolver chain is a security control.** `ConfigureMultiTenancy` calls
   `TenantResolvers.Clear()` and registers only those two, removing ABP's QueryString,
   Cookie, Header and Route contributors so a caller cannot select an office with a
-  `__tenant` value. One `internal static` method serves both the AuthServer and the API.
-  Its test needs a seeded decoy resolver or it passes with the `Clear()` deleted.
+  `__tenant` value. Under database-per-office that is not a permission bug a later check
+  might catch: it is a different connection string, and the permission check would pass.
+- **There are TWO `ConfigureMultiTenancy` methods**, one per host process
+  (`CaseEvaluationAuthServerModule.cs:548`, `CaseEvaluationHttpApiHostModule.cs:409`),
+  because the two modules share no project that could hold one. Deliberate near-duplicates
+  of a security control, so drift is asserted rather than trusted:
+  `TenantResolverChainTests.Both_processes_register_the_same_chain_in_the_same_order`.
+  Change one, change the other, and run that test.
+- **Testing `Clear()` needs a seeded decoy resolver.** It is a negative guarantee, and a
+  bare `ServiceCollection` cannot prove one: with no decoy, deleting the `Clear()` left all
+  seven tests in that file green (measured 2026-09-04).
 
 ---
 
