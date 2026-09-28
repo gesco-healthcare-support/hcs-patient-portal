@@ -10,12 +10,49 @@ deferred until Twilio creds land (Phase 18 open item).
 | Path | Purpose |
 |---|---|
 | `TemplateVariableSubstitutor.cs` | Pure `##Var##` placeholder substitution; no IO |
+| `AppNotification.cs` | In-app notification row for ONE internal staff user. Per-user fan-out, so read state is per-user. `IMultiTenant` |
+| `AppNotificationManager.cs` | Raises those rows for a whole office's Staff Supervisors + Intake Staff. Runs inside the office's tenant scope |
+| `ReminderCadence.cs` | Value object turning a comma-separated anchor list (`"14,7,3"`) into a firing predicate. No DI, no IO. Parsing is defensive because the list is admin-editable |
+| `Outbox/` | Store-and-forward email: `NotificationOutboxItem`, `NotificationOutboxManager`, `OutboxDrainJob`, `OutboxDrainService`, `OutboxEmailSender` |
 | `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to intake-staff inbox |
 | `Jobs/InternalStaffQueueDigestJob.cs` | 09:15 PT -- per-staff queue counts (Staff Supervisor + Intake Staff only) |
-| `Jobs/DueDateApproachingJob.cs` | 08:15 PT -- T-14/T-7/T-3 day due-date reminder |
-| `Jobs/DueDateDocumentIncompleteJob.cs` | 08:45 PT -- T-7 + docs outstanding reminder |
-| `Jobs/PackageDocumentReminderJob.cs` | 08:30 PT -- packet document upload reminder |
-| `Jobs/JointDeclarationAutoCancelJob.cs` | 06:00 PT -- auto-cancel JDF-expired appointments |
+| `Jobs/AppointmentReminderJob.cs` | 08:15 PT -- the CONSOLIDATED due-date reminder. Anchors come from `RemindersPolicy.DueDateApproachingAnchors`; due-date nudge and outstanding documents go out as ONE email |
+| `Jobs/JointDeclarationOverdueJob.cs` | 06:00 PT -- FLAGS joint-declaration-overdue appointments. It does NOT cancel |
+| `Jobs/ApprovalReconciliationJob.cs` | Approval reconciliation |
+| `Jobs/PacketReconciliation.cs` | Packet reconciliation |
+
+### Four job names in this table were wrong until 2026-09-28. Two renames and two retirements
+
+Corrected against the code rather than patched to satisfy a checker, because the old names are
+still findable in Hangfire and in comments, and knowing WHICH of the two happened changes what you
+do next.
+
+Historical names below are written WITHOUT backticks on purpose. In this file a backticked path
+means "this exists now", so a name that no longer resolves must not wear them - that is what lets
+the CLAUDE.md drift checker in CI treat every backticked path as a claim it can verify.
+
+| Name the docs used (removed) | What actually happened |
+| --- | --- |
+| Jobs/DueDateApproachingJob.cs | **Renamed** to `AppointmentReminderJob.cs`, which also absorbed the outstanding-documents email |
+| Jobs/JointDeclarationAutoCancelJob.cs | **Renamed** to `JointDeclarationOverdueJob.cs` on 2026-08-08, and it **stopped cancelling** |
+| Jobs/DueDateDocumentIncompleteJob.cs | **Retired.** Folded into `AppointmentReminderJob.cs` |
+| Jobs/PackageDocumentReminderJob.cs | **Retired** |
+
+**The trap, and it is deliberate.** Both renamed classes **kept their old `RecurringJobId`
+strings** -- `"appt-duedate-approaching"` and `"appt-jdf-auto-cancel"`. Hangfire keys
+registrations by that string, so changing it without deleting the old registration leaves **two
+jobs running against the same appointments** (`JointDeclarationOverdueJob.cs:41-48`). The two
+retired jobs' entries are purged by `RecurringJob.RemoveIfExists` in the host module; leave those
+calls in place.
+
+So `"appt-jdf-auto-cancel"` names a job that **no longer cancels anything**. It sets
+`Appointment.JointDeclarationOverdueAt` and raises `AppointmentJointDeclarationOverdueEto`; the
+status is unchanged. Two consequences stated at `JointDeclarationOverdueJob.cs:28-33`: nothing
+reaches the Case Tracker from this path any more, because no status changes; and these
+appointments accumulate as Approved-but-overdue, which is the point, since the flag makes visible
+a backlog that used to be silently absorbed.
+
+**Do not infer a job's behaviour from its `RecurringJobId`.**
 | `../Appointments/Notifications/AppointmentRecipientResolver.cs` | Builds per-appointment recipient list |
 | `../Appointments/Notifications/RecipientRoleResolver.cs` | Classifies an email vs. an expected role (registered or not) |
 | `../Appointments/Handlers/SlotCascadeHandler.cs` | Log-only stub; subscribes to AppointmentStatusChangedEto |
@@ -65,7 +102,15 @@ for all kinds; future handlers may fork behavior per kind.
 Job classes are `ITransientDependency` and live under Domain/Notifications/Jobs/ and
 Domain/Appointments/Notifications/Jobs/. `RecurringJob.AddOrUpdate` calls live exclusively in
 `CaseEvaluationHttpApiHostModule.cs` -- do NOT add Hangfire registration inside Domain.
-All recurring jobs run Pacific Time (timezone injected via `TryGetPacificTimeZone()`).
+All recurring jobs run Pacific Time, supplied at registration as
+`new RecurringJobOptions { TimeZone = PacificTime.Zone }`
+(`CaseEvaluationHttpApiHostModule.cs:1623`) and passed to every `AddOrUpdate` call.
+
+This line previously said the zone was injected via TryGetPacificTimeZone(), which has never
+existed in the code: the only occurrence anywhere in `src/` was this document. Found by Session A,
+2026-09-28. It matters beyond tidiness, because the zone is NOT ambient -- it is an explicit
+argument on each registration, so a new job that omits it silently runs on the container's UTC
+clock. That is the same hazard `System.DateTime.Today` is build-banned for.
 
 ### SlotCascadeHandler is a log-only stub
 

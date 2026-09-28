@@ -491,7 +491,8 @@ Stated explicitly so nothing here is mistaken for confirmed:
   started, no endpoint exercised, no query run.
 - **The apex-domain routing question** raised in the hosting input document -- flagged there as
   needing confirmation, not asserted.
-- **`docs/` accuracy.** `docs/runbooks/ENGINEERING-ROADMAP.md` self-reports "Last verified
+- **`docs/` accuracy.** `docs/status-reports/ENGINEERING-ROADMAP.md` (then under
+  `docs/runbooks/`) self-reports "Last verified
   2026-06-01" and still describes `feat/replicate-old-app` as the working branch; it is stale,
   but a full documentation audit was not attempted.
 

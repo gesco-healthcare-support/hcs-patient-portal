@@ -7,6 +7,10 @@ The SPA never renders auth pages; it redirects here for all identity flows.
 
 ## What lives here
 
+- `Program.cs` -- the entry point, and deliberately almost empty. `Main` delegates straight to
+  `CaseEvaluationHost.RunAsync<CaseEvaluationAuthServerModule>(...)`, so host construction and the
+  exit code live in the shared `Hosting` helper instead of being copied between the two host
+  projects. If you are hunting for startup behaviour, it is in `CaseEvaluationHost`, not here.
 - `CaseEvaluationAuthServerModule.cs` -- module wiring: OpenIddict, DataProtection, CORS, multi-tenancy, background-job disable.
 - `Pages/Account/Login.cshtml.cs` -- anti-enumeration login override (see Conventions).
 - `Pages/Account/ForgotPassword.cshtml.cs` -- calls `IExternalAccountAppService.SendPasswordResetCodeAsync` in-process.
