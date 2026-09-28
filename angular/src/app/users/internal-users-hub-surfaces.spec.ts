@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { PermissionService } from '@abp/ng.core';
@@ -475,6 +475,39 @@ describe('InternalUsersHubComponent surfaces', () => {
       expect(reloaded).toHaveBeenCalled();
     });
 
+    it('says the invite was re-sent and reports the copy on its own', fakeAsync(() => {
+      const c = create({ section: 'pending' });
+      if (!clipboardWrite) {
+        pending('no clipboard API in this browser');
+        return;
+      }
+
+      c.resend(invitation());
+      flushMicrotasks();
+
+      expect(toaster.success).toHaveBeenCalledWith('Invite re-sent.');
+      expect(toaster.success).toHaveBeenCalledWith('Copied to clipboard.');
+      expect(toaster.error).not.toHaveBeenCalled();
+    }));
+
+    it('reports a failed copy after a resend without claiming it or pointing at a link', fakeAsync(() => {
+      // The fresh link is shown nowhere on this page, so the failure text must not tell
+      // the user to select it.
+      const c = create({ section: 'pending' });
+      if (!clipboardWrite) {
+        pending('no clipboard API in this browser');
+        return;
+      }
+      clipboardWrite.and.returnValue(Promise.reject(new Error('denied')));
+
+      c.resend(invitation());
+      flushMicrotasks();
+
+      expect(toaster.success).toHaveBeenCalledWith('Invite re-sent.');
+      expect(toaster.success).not.toHaveBeenCalledWith('Copied to clipboard.');
+      expect(toaster.error).toHaveBeenCalledWith('The new invite link could not be copied.');
+    }));
+
     it('revokes and reloads', () => {
       const c = create({ section: 'pending' });
       const reloaded = spyOn(c.reload$, 'next');
@@ -865,23 +898,63 @@ describe('InternalUsersHubComponent surfaces', () => {
   });
 
   describe('copy to clipboard', () => {
-    it('does nothing without text', () => {
+    it('does nothing without text', async () => {
       const c = create({ section: 'pending' });
-      c.copy(null);
+      await c.copy(null);
       expect(toaster.success).not.toHaveBeenCalled();
+      expect(toaster.error).not.toHaveBeenCalled();
     });
 
-    it('writes the text and confirms when a clipboard exists', () => {
+    it('writes the text and confirms once the write resolves', async () => {
       const c = create({ section: 'pending' });
       if (!clipboardWrite) {
         pending('no clipboard API in this browser');
         return;
       }
 
-      c.copy('https://x.test/i');
+      await c.copy('https://x.test/i');
 
       expect(clipboardWrite).toHaveBeenCalledWith('https://x.test/i');
-      expect(toaster.success).toHaveBeenCalled();
+      expect(toaster.success).toHaveBeenCalledWith('Copied to clipboard.');
+      expect(toaster.error).not.toHaveBeenCalled();
+    });
+
+    it('does not confirm before the write settles', async () => {
+      const c = create({ section: 'pending' });
+      if (!clipboardWrite) {
+        pending('no clipboard API in this browser');
+        return;
+      }
+      clipboardWrite.and.returnValue(new Promise<void>(() => undefined));
+
+      void c.copy('https://x.test/i');
+      await Promise.resolve();
+
+      expect(toaster.success).not.toHaveBeenCalled();
+    });
+
+    it('reports a failure, not success, when the write is refused', async () => {
+      const c = create({ section: 'pending' });
+      if (!clipboardWrite) {
+        pending('no clipboard API in this browser');
+        return;
+      }
+      clipboardWrite.and.returnValue(Promise.reject(new Error('denied')));
+
+      await c.copy('https://x.test/i');
+
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(toaster.error).toHaveBeenCalledWith('Copy failed -- select the link manually.');
+    });
+
+    it('reports a failure when the page has no clipboard API', async () => {
+      const c = create({ section: 'pending' });
+      spyOnProperty(navigator, 'clipboard', 'get').and.returnValue(undefined as never);
+
+      await c.copy('https://x.test/i');
+
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(toaster.error).toHaveBeenCalledWith('Copy failed -- select the link manually.');
     });
   });
 

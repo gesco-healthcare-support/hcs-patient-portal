@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using System;
@@ -26,15 +27,18 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
     protected IAppointmentInjuryDetailRepository _repository;
     protected AppointmentInjuryDetailManager _manager;
     protected IRepository<HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice, Guid> _wcabOfficeRepository;
+    protected AppointmentChildOwnershipGuard _childOwnershipGuard;
 
     public AppointmentInjuryDetailsAppService(
         IAppointmentInjuryDetailRepository repository,
         AppointmentInjuryDetailManager manager,
-        IRepository<HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice, Guid> wcabOfficeRepository)
+        IRepository<HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice, Guid> wcabOfficeRepository,
+        AppointmentChildOwnershipGuard childOwnershipGuard)
     {
         _repository = repository;
         _manager = manager;
         _wcabOfficeRepository = wcabOfficeRepository;
+        _childOwnershipGuard = childOwnershipGuard;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
@@ -116,6 +120,13 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+
+        // The caller must be a party to the row's OWN parent, and may not move the row to a
+        // different one. The parent is read from the stored row, never from the request: checking
+        // the supplied id would let a caller nominate an appointment they are a party to and still
+        // write to somebody else's row. Every external role holds this service's Edit permission.
+        var existing = await _repository.GetAsync(id);
+        await _childOwnershipGuard.EnsureCanWriteChildAsync(existing.AppointmentId, input.AppointmentId);
 
         var entity = await _manager.UpdateAsync(
             id,

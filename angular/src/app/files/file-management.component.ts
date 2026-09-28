@@ -168,7 +168,9 @@ export class FileManagementComponent {
       .subscribe({
         next: () => {
           this.toaster.success('Folder created.');
-          this.closeModal();
+          // finalize runs after next, so isBusy is still true here and closeModal's
+          // in-flight guard would refuse. The write has succeeded, so reset directly.
+          this.resetModal();
           this.load();
         },
         error: () => undefined,
@@ -258,7 +260,7 @@ export class FileManagementComponent {
       .subscribe({
         next: () => {
           this.toaster.success('Renamed.');
-          this.closeModal();
+          this.resetModal();
           this.load();
         },
         error: () => undefined,
@@ -282,7 +284,7 @@ export class FileManagementComponent {
       .subscribe({
         next: () => {
           this.toaster.success('"' + t.name + '" deleted.');
-          this.closeModal();
+          this.resetModal();
           this.load();
         },
         error: () => undefined,
@@ -313,9 +315,18 @@ export class FileManagementComponent {
 
   protected closeModal(): void {
     if (!this.isBusy()) {
-      this.modal.set(null);
-      this.target.set(null);
-      this.folderName.set('');
+      this.resetModal();
     }
+  }
+
+  /**
+   * Clears the open dialog, its target and the name field unconditionally. Callers own the
+   * in-flight decision: closeModal() refuses while a write is running, and the success
+   * handlers call this directly because their write has already finished.
+   */
+  private resetModal(): void {
+    this.modal.set(null);
+    this.target.set(null);
+    this.folderName.set('');
   }
 }
