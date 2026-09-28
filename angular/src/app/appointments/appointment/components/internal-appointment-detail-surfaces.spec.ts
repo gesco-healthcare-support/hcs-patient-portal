@@ -1,8 +1,8 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { FormBuilder } from '@angular/forms';
-import { of } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 import {
   ConfigStateService,
   EnvironmentService,
@@ -531,23 +531,9 @@ describe('InternalAppointmentDetailComponent surfaces', () => {
       expect(c.confNo).toBe('C0002');
     });
 
-    /**
-     * A FAILING history reload is deliberately NOT tested here, and the reason is a defect
-     * rather than a limitation.
-     *
-     * `loadHistory` (internal-appointment-detail.component.ts:154) subscribes with a `next`
-     * handler and NO `error` handler, so a failing getHistory produces an unhandled RxJS
-     * error. In the browser that surfaces as "An error was thrown in afterAll / [object
-     * Object] thrown" AFTER every test has passed -- no failing test attached -- and it
-     * took the whole run down when these seven specs ran together.
-     *
-     * The test that was here asserted `not.toThrow()`, which PASSED: the error is
-     * asynchronous and unhandled, so nothing is thrown synchronously for the assertion to
-     * catch. It proved nothing while reading as though it proved the component copes.
-     *
-     * Same shape as the base class's `loadStateNames`, already on the backlog; this one is
-     * logged alongside it.
-     */
+    // A FAILING history or detail reload is tested under 'failure paths' at the end of this
+    // file: both subscribes now settle their own error (#962), proven with a spy on RxJS's
+    // unhandled-error hook rather than a `not.toThrow()` that cannot see an asynchronous error.
     it('treats a null history payload as no rounds', () => {
       const c = create();
       c.appointment = appt();
@@ -631,5 +617,75 @@ describe('InternalAppointmentDetailComponent surfaces', () => {
 
       expect(infoRequests.getHistory).not.toHaveBeenCalled();
     });
+  });
+  describe('failure paths', () => {
+    /**
+     * ABP's RestService reports every failure and then rethrows it; a subscriber without an
+     * error branch sends that copy to RxJS's unhandled-error path. The hook is global, so it is
+     * replaced only inside this block and the previous value is restored. The BASE ngOnInit is
+     * spied out: its own lookup is still unguarded and would fire the detector for a reason
+     * outside the three sites under test.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+      spyOn(AppointmentViewComponent.prototype, 'ngOnInit');
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('can see an unhandled error at all (detector self-check)', fakeAsync(() => {
+      throwError(() => new Error('probe')).subscribe({ next: () => undefined });
+      tick();
+      expect(unhandled).toHaveBeenCalled();
+    }));
+
+    it('keeps the last-loaded history when a history reload fails', fakeAsync(() => {
+      const c = create();
+      c.appointment = appt();
+      const loaded = [{ id: 'round-1' }];
+      c.infoHistory = loaded;
+      infoRequests.getHistory.and.returnValue(throwError(() => ({ status: 500 })));
+
+      c.onChangeRequestSucceeded({ changeRequestType: ChangeRequestType.Cancel });
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.infoHistory).toBe(loaded);
+    }));
+
+    it('keeps the current appointment when a detail reload fails', fakeAsync(() => {
+      const c = create();
+      const current = appt();
+      c.appointment = current;
+      appointments['getWithNavigationProperties'].and.returnValue(
+        throwError(() => ({ status: 500 })),
+      );
+
+      c.onChangeRequestSucceeded({ changeRequestType: ChangeRequestType.Cancel });
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.appointment).toBe(current);
+    }));
+
+    it('falls back to no language name when the language lookup fails', fakeAsync(() => {
+      const c = create();
+      c.getAppointmentLanguageLookup = jasmine
+        .createSpy('getAppointmentLanguageLookup')
+        .and.returnValue(throwError(() => ({ status: 500 })));
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.languageName('lang-1')).toBe('');
+    }));
   });
 });

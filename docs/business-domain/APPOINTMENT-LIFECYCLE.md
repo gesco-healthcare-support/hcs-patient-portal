@@ -20,6 +20,21 @@ members for months.
 **Three of the fifteen statuses are unreachable.** That is not a documentation caveat, it is
 the single most important fact on this page, so it comes before the tables.
 
+## Where this portal's responsibility ends
+
+**The Appointment Portal owns the request and the decision. The Case Tracker owns what happens
+afterwards.** Confirmed by the product owner on 2026-09-28.
+
+Concretely, this portal handles exactly five things: an appointment is **requested**, then
+**approved** or **rejected**, and thereafter **rescheduled** or **cancelled**. Once an
+appointment is approved it is handed to the Case Tracker, and the rest of the process -- the
+day of the exam, the outcome, and billing -- is the Case Tracker's responsibility.
+
+**This portal does not do billing, and is not going to.** Billing is handled elsewhere today and
+will move either to the Case Tracker or to a new application, but not here. Do not build it in.
+
+That boundary is the reason for the next section.
+
 ## The three dead statuses
 
 `CheckedIn` (9), `CheckedOut` (10) and `Billed` (11) **cannot be reached.** Their transitions
@@ -27,8 +42,18 @@ are configured in `BuildMachine`, but nothing anywhere triggers `CheckIn`, `Chec
 `Bill`: no application-service method, no endpoint, no UI control, no background job. Verified
 2026-09-16 and re-verified 2026-09-27.
 
-They are the legacy app's front-desk, day-of-exam flow, carried across and never wired up.
-Retained for data compatibility and pending a product decision. Tracked as PF-005 in
+They are the legacy app's front-desk, day-of-exam flow. They were planned for this portal, and
+then that responsibility moved to the Case Tracker, which is where it now lives. So they are not
+unfinished work and not a gap: **they are three states this application is not supposed to have.**
+
+**This is a settled product decision, not an open question.** An earlier version of this page
+said they were retained "pending a product decision"; the product owner settled it on 2026-09-28.
+They are removal candidates. Removing them is a schema and data-compatibility exercise rather
+than a behaviour change, since no row can be in one of these states, and it should be planned
+rather than done casually: the enum values are persisted as integers, and
+`AppointmentStatusType` warns that renumbering would silently relabel stored rows.
+
+Until they are removed, treat any code that references them as dead. Tracked as PF-005 in
 `docs/parity/_parity-flags.md`.
 
 Consequences a maintainer will otherwise trip over:
@@ -174,8 +199,14 @@ office's notice window, which is configurable per office via `SystemParameter`
 | --- | --- |
 | `CancelledNoBill`, `RescheduledNoBill` | No charge for the affected appointment |
 | `CancelledLate`, `RescheduledLate` | May incur a late fee |
-| `NoShow`, `NotSeen` | May incur a fee depending on office rules; neither produces a replacement appointment |
-| `Billed` | Unreachable. The portal does not bill |
+| `NoShow`, `NotSeen` | Billed the same as each other. Neither produces a replacement appointment |
+| `Billed` | Unreachable, and deliberately so. See the responsibility boundary above |
+
+**These names record a billing consequence; they do not perform one.** The portal stores which
+side of the notice window an outcome fell, and something else acts on it. `NoShow` and `NotSeen`
+are billed identically, so the distinction between them is not a billing distinction: it exists
+for **reporting and for the conversation with the client**, because "the patient never arrived"
+and "the patient arrived and was not evaluated" are different facts about the same non-outcome.
 
 Neither attendance outcome produces a replacement appointment automatically: a client who still
 wants one submits a new request, or staff use ReBook.

@@ -82,6 +82,6 @@ Risk: a code change that switches a Hangfire job to reference one of these stub 
 ## Related
 
 - `template-review-2026-05-21.md` in the same `docs/runbooks/findings/` directory -- full rubric table with all 64 rows.
-- Suite Phase 10 rubric (HARDENING-TEST-SUITE.md line 841-857) -- the 5-item rubric source.
+- Suite Phase 10 rubric (HARDENING-TEST-SUITE.md, Phase 10) -- the 5-item rubric source.
 - CLAUDE.md PRIMARY MISSION at `W:\patient-portal\replicate-old-app\` -- the parity goal driving these stubs.
 - Each of the 23 codes maps to a feature area; a parity audit doc under `docs/parity/` (currently 18 audit docs exist) should be written for each before the stub is replaced.

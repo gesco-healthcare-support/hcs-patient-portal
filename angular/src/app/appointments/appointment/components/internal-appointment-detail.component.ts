@@ -120,6 +120,9 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
           }
         });
       },
+      // ABP's RestService has already reported the failure; this stops the rethrown copy
+      // becoming an unhandled RxJS error. languageName() falls back to ''.
+      error: () => undefined,
     });
     this.loadHistory();
   }
@@ -153,6 +156,8 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
     }
     this.infoRequestApi.getHistory(id).subscribe({
       next: (rounds) => (this.infoHistory = rounds ?? []),
+      // Already reported by ABP's RestService; keep the last-loaded history on screen.
+      error: () => undefined,
     });
   }
 
@@ -348,6 +353,8 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
       next: (data) => {
         this.appointment = data;
       },
+      // Already reported by ABP's RestService; keep the current appointment on screen.
+      error: () => undefined,
     });
   }
 

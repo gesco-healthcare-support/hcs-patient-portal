@@ -157,4 +157,4 @@ Step 5: Add integration test that approves 5 appointments in rapid succession an
 
 - [[OBS-12]] -- reschedule/cancel UI gap. Different flow, same theme (downstream side effects of state transitions).
 - [[BUG-024]] / [[BUG-032]] -- pattern of "validation passes but persistence holes". This is a sibling at the persistence layer.
-- Phase 6.2 of the hardening suite (HARDENING-TEST-SUITE.md line 604) explicitly suspected this; this finding confirms.
+- Phase 6.2 of the hardening suite (HARDENING-TEST-SUITE.md, HRD-P6.2) explicitly suspected this; this finding confirms.

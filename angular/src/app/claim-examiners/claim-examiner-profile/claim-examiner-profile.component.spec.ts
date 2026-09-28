@@ -1,6 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 import { ConfigStateService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
@@ -18,11 +18,10 @@ import { ClaimExaminerProfileComponent } from './claim-examiner-profile.componen
  * RestService directly. Same contract, different collaborator, so the fixture is keyed on method
  * and URL instead of on a typed service.</p>
  *
- * <p>Same two deliberate omissions as the attorney spec, for the same reason: `save()` and
- * `loadStates()` subscribe with no `error` handler, so their failures are unhandled asynchronous
- * errors that no assertion can honestly catch -- a `not.toThrow()` there would pass while proving
- * nothing. Both are on the backlog. `loadProfile()` has an error handler and IS exercised.
- * `signOut()` is not called; it reaches the real OAuth stack.</p>
+ * <p>As in the attorney spec, the failure paths of `save()` and `loadStates()` are tested under
+ * 'failure paths': both subscribes now settle their own error (#962), and a spy on RxJS's
+ * unhandled-error hook proves nothing escapes. `loadProfile()` has an error handler and IS
+ * exercised. `signOut()` is not called; it reaches the real OAuth stack.</p>
  *
  * <p>All names, addresses and identifiers below are synthetic.</p>
  */
@@ -307,5 +306,64 @@ describe('ClaimExaminerProfileComponent', () => {
     it('labels the account as a Claim Examiner', () => {
       expect(create().roleLabel).toBe('Claim Examiner');
     });
+  });
+
+  describe('failure paths', () => {
+    /**
+     * ABP's RestService reports every failure and then rethrows it; a subscriber without an
+     * error branch sends that copy to RxJS's unhandled-error path. The hook is global, so it is
+     * replaced only inside this block and the previous value is restored.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('can see an unhandled error at all (detector self-check)', fakeAsync(() => {
+      throwError(() => new Error('probe')).subscribe({ next: () => undefined });
+      tick();
+      expect(unhandled).toHaveBeenCalled();
+    }));
+
+    it('settles a failed save: button released, no success toast, typed values kept', fakeAsync(() => {
+      const c = create();
+      c.ngOnInit();
+      rest.request.and.callFake((req: { url?: string; method?: string }) => {
+        if (isLookup(req)) {
+          return of(lookupResponse);
+        }
+        return req.method === 'PUT' ? throwError(() => ({ status: 409 })) : of(profileResponse);
+      });
+      c.form.get('firstName').setValue('Gracie');
+
+      c.save();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.isBusy).toBeFalse();
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(c.form.getRawValue().firstName).toBe('Gracie');
+    }));
+
+    it('settles a failed state lookup and leaves the dropdown empty', fakeAsync(() => {
+      const c = create();
+      rest.request.and.callFake((req: { url?: string }) =>
+        isLookup(req) ? throwError(() => ({ status: 500 })) : of(profileResponse),
+      );
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.states).toEqual([]);
+    }));
   });
 });

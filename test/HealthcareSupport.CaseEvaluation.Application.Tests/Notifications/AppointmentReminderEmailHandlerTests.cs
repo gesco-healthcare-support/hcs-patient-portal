@@ -102,6 +102,8 @@ public class AppointmentReminderEmailHandlerTests
             Appointments.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(_ => Appointment);
             // The handler runs a synchronous .Any() over this queryable, so an in-memory list stands in.
             Documents.GetQueryableAsync().Returns(_ => StoredDocuments.AsQueryable());
+            // DECOY, load-bearing (#1014): production's ambient name is null, so the handler must
+            // never pass this through as ClinicName.
             CurrentTenant.Name.Returns("TEST-clinic");
         }
 
@@ -396,12 +398,16 @@ public class AppointmentReminderEmailHandlerTests
         SingleSend(rig.BookerCc).Variables["BookerFullName"].ShouldBe(expected);
     }
 
+    /// <summary>
+    /// The rig's ambient office name ("TEST-clinic") is a DECOY: in production ABP leaves it null
+    /// inside <c>Change(TenantId)</c>, so the handler must not read it. The renderer fills
+    /// <c>ClinicName</c> from the tenant store instead (#1014).
+    /// </summary>
     [Fact]
-    public async Task HandleEventAsync_TagsTheSendWithDaysUntilDueAndBlanksMissingUrlAndClinic()
+    public async Task HandleEventAsync_TagsTheSendWithDaysUntilDue_BlanksMissingUrl_AndLeavesClinicNameToTheRenderer()
     {
         var rig = new Rig();
         rig.Context.PortalBaseUrl = null;
-        rig.CurrentTenant.Name.Returns((string?)null);
         var evt = ReminderEvent();
 
         await rig.Build().HandleEventAsync(evt);
@@ -409,7 +415,8 @@ public class AppointmentReminderEmailHandlerTests
         var sent = SingleSend(rig.BookerCc);
         sent.ContextTag.ShouldBe($"AppointmentReminder/T-7/{evt.AppointmentId}");
         sent.Variables["PortalUrl"].ShouldBe(string.Empty);
-        sent.Variables["ClinicName"].ShouldBe(string.Empty);
+        sent.Variables.ShouldNotContainKey(
+            "ClinicName", "the renderer resolves the office name; the ambient name is null in production");
         sent.Variables["AppointmentRequestConfirmationNumber"].ShouldBe("TEST-A0006");
     }
 }

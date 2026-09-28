@@ -1,5 +1,5 @@
-import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { config, of, throwError } from 'rxjs';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { IntakeAssignmentsComponent } from './intake-assignments.component';
@@ -17,11 +17,10 @@ import { IntakeAssignmentsService } from '../proxy/host-operators/intake-assignm
  * groups them client-side. A row dropped or merged into the wrong staff member shows the wrong
  * person as having access to a practice, which is exactly the claim these rows exist to make.</p>
  *
- * <p>The constructor issues two lookups (`getAssignableOperators`, `getOfficeOptions`) that
- * subscribe with NO error handler. Their failure paths are therefore not exercised -- an
- * assertion there could only pass vacuously, because the error is asynchronous and nothing
- * throws synchronously to catch. Logged to the backlog. `getList` IS guarded and its failure
- * is tested.</p>
+ * <p>The constructor issues two lookups (`getAssignableOperators`, `getOfficeOptions`). Both now
+ * settle their own error (#962); 'failure paths' below proves it with a spy on RxJS's
+ * unhandled-error hook, via the `operatorsError` / `officesError` options of `create()`, because
+ * the lookups run during construction. `getList` IS guarded and its failure is tested.</p>
  *
  * <p>All staff names, emails and practice names below are synthetic.</p>
  */
@@ -45,16 +44,31 @@ describe('IntakeAssignmentsComponent', () => {
     };
   }
 
-  function create(options: { operators?: unknown[]; offices?: unknown[] } = {}): Probe {
+  function create(
+    options: {
+      operators?: unknown[];
+      offices?: unknown[];
+      operatorsError?: boolean;
+      officesError?: boolean;
+    } = {},
+  ): Probe {
     assignments = assignments ?? [];
 
     service = {
       getAssignableOperators: jasmine
         .createSpy('getAssignableOperators')
-        .and.returnValue(of({ items: options.operators ?? [] })),
+        .and.returnValue(
+          options.operatorsError
+            ? throwError(() => ({ status: 500 }))
+            : of({ items: options.operators ?? [] }),
+        ),
       getOfficeOptions: jasmine
         .createSpy('getOfficeOptions')
-        .and.returnValue(of({ items: options.offices ?? [] })),
+        .and.returnValue(
+          options.officesError
+            ? throwError(() => ({ status: 500 }))
+            : of({ items: options.offices ?? [] }),
+        ),
       getList: jasmine.createSpy('getList').and.callFake(() => of({ items: assignments })),
       assign: jasmine.createSpy('assign').and.returnValue(of({})),
       unassign: jasmine.createSpy('unassign').and.returnValue(of(undefined)),
@@ -383,5 +397,50 @@ describe('IntakeAssignmentsComponent', () => {
 
       expect(c.busy()).toBeFalse();
     });
+  });
+  describe('failure paths', () => {
+    /**
+     * ABP's RestService reports every failure and then rethrows it; a subscriber without an
+     * error branch sends that copy to RxJS's unhandled-error path. The hook is global, so it is
+     * replaced only inside this block and the previous value is restored.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('can see an unhandled error at all (detector self-check)', fakeAsync(() => {
+      throwError(() => new Error('probe')).subscribe({ next: () => undefined });
+      tick();
+      expect(unhandled).toHaveBeenCalled();
+    }));
+
+    it('settles a failed staff lookup: empty list, and the page still loads', fakeAsync(() => {
+      const c = create({ operatorsError: true, offices: [{ id: 'o-1', name: 'Encino' }] });
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.operators()).toEqual([]);
+      expect(c.offices().length).toBe(1);
+      expect(service['getList']).toHaveBeenCalled();
+    }));
+
+    it('settles a failed practice lookup: empty list, and the page still loads', fakeAsync(() => {
+      const c = create({ officesError: true, operators: [{ id: 'u-1', name: 'Ada' }] });
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.offices()).toEqual([]);
+      expect(c.operators().length).toBe(1);
+      expect(service['getList']).toHaveBeenCalled();
+    }));
   });
 });

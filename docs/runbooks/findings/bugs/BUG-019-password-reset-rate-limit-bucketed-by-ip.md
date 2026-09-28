@@ -148,7 +148,7 @@ Note: 6 different emails -> still 6th returns 429, because partition is IP-based
 - [[BUG-029]] -- registration URL tenant subdomain missing. Together, BUG-029 + this finding mean that an invited user whose first email-confirmation link is broken (BUG-029) cannot trivially get a working second email if other users from the same IP have recently triggered any reset / resend / signup flow.
 - [[OBS-25]] -- invite acceptance doesn't auto-confirm. Compounded by the same IP-bucket issue for the post-accept verification email.
 - [[BUG-018]] -- earlier finding on SMTP misleading error. Different surface, not directly related.
-- Suite Phase 9.2.f (HARDENING-TEST-SUITE.md line 778) -- explicitly probes the 5/hour throttle. This finding confirms the throttle fires but reveals the partition key choice is not what the suite assumed.
+- Suite Phase 9.2.f (HARDENING-TEST-SUITE.md, step P9.2.f of HRD-P9.2) -- explicitly probes the 5/hour throttle. This finding confirms the throttle fires but reveals the partition key choice is not what the suite assumed.
 - Code comment in the limiter source (line 322) says the partition is intentional and references "<https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit>".
 
 ## Fix verified (2026-05-22)

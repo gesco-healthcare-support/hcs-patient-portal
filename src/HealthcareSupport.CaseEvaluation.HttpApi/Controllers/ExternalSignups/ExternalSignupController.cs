@@ -25,7 +25,9 @@ public class ExternalSignupController : AbpController
         _externalSignupAppService = externalSignupAppService;
     }
 
-    [AllowAnonymous]
+    // Signed-in only; the app service method enforces the invite permission. See its summary for why
+    // this is no longer anonymous.
+    [Authorize]
     [HttpGet]
     [Route("tenant-options")]
     public virtual Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(string? filter = null)
