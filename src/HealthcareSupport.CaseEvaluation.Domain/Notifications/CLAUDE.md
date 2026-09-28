@@ -102,7 +102,15 @@ for all kinds; future handlers may fork behavior per kind.
 Job classes are `ITransientDependency` and live under Domain/Notifications/Jobs/ and
 Domain/Appointments/Notifications/Jobs/. `RecurringJob.AddOrUpdate` calls live exclusively in
 `CaseEvaluationHttpApiHostModule.cs` -- do NOT add Hangfire registration inside Domain.
-All recurring jobs run Pacific Time (timezone injected via `TryGetPacificTimeZone()`).
+All recurring jobs run Pacific Time, supplied at registration as
+`new RecurringJobOptions { TimeZone = PacificTime.Zone }`
+(`CaseEvaluationHttpApiHostModule.cs:1623`) and passed to every `AddOrUpdate` call.
+
+This line previously said the zone was injected via TryGetPacificTimeZone(), which has never
+existed in the code: the only occurrence anywhere in `src/` was this document. Found by Session A,
+2026-09-28. It matters beyond tidiness, because the zone is NOT ambient -- it is an explicit
+argument on each registration, so a new job that omits it silently runs on the container's UTC
+clock. That is the same hazard `System.DateTime.Today` is build-banned for.
 
 ### SlotCascadeHandler is a log-only stub
 
