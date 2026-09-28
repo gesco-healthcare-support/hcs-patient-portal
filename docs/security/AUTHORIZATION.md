@@ -146,8 +146,21 @@ Count them before trusting this table:
 git grep -nE '_dataFilter\.Disable|DataFilter\.Disable' -- 'src/HealthcareSupport.CaseEvaluation.Application/*.cs'
 ```
 
-**`CurrentTenant.Change` is common, not exceptional.** There are **35 call sites across 9 files**
-in the Application layer alone, and more elsewhere. `DoctorTenantAppService` has exactly **one**,
+That command prints 16 lines, not 14. Two of them are comments (`PatientsAppService.cs:43` and
+`ExternalSignupAppService.cs:82`), and the other two non-table lines are the `ISoftDelete` sites.
+
+**`CurrentTenant.Change` is common, not exceptional.** There are **65 call sites across 34 files**
+in the Application layer alone, and more elsewhere. 28 of them, in 6 files, call the base-class
+`CurrentTenant.Change(`; the other 37 call the same method through an injected field,
+`_currentTenant.Change(`, and 28 of those are in `Notifications/`. Count code lines only, because
+the plain grep also matches comments and XML docs (8 of its 73 lines):
+
+```bash
+git grep -nE '[Cc]urrentTenant\.Change\(' -- 'src/HealthcareSupport.CaseEvaluation.Application/*.cs' \
+  | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*)'
+```
+
+`DoctorTenantAppService` has exactly **one**,
 and it is `CurrentTenant.Change(null)` -- opening host context, the opposite of the
 `Change(tenantId)` this section described. Any background job that touches every office uses the
 pattern by design, through `TenantWorkRunner`.
@@ -252,9 +265,10 @@ signed in and nothing about whether they should see the record they asked for. T
 no permission at all pass that invariant. So the harness is a good tripwire for a forgotten
 attribute and is not a check that access is correctly scoped.
 
-Some of those 20 are legitimate -- a caller reading their own profile or their own notifications
-needs no permission. Some are not. Two of them are the subject of an open draft security advisory.
-Before assuming one is fine, check whether the method takes an id it does not verify ownership of.
+Many methods need no permission by design -- a caller reading their own profile or their own
+notifications, for example. Holding a permission is not access to a particular record either:
+per-record access is decided in code, by guards such as `AppointmentReadAccessGuard` (see the
+data-level sections above), and the snapshot does not show those guards.
 
 Also worth knowing: a method-level `[RemoteService(IsEnabled = false)]` removes a method from the
 HTTP surface entirely, so an entry in that snapshot is not by itself evidence of a reachable
