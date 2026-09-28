@@ -295,9 +295,23 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
+    /// <summary>
+    /// Booking-flow patient edit. Stays a bare <c>[Authorize]</c> so external bookers can still
+    /// reach their OWN record through it; who may edit WHICH record is decided in code, because it
+    /// depends on the record (#598).
+    /// <list type="bullet">
+    ///   <item><description>Internal staff must hold <c>Patients.Edit</c>, checked before the lookup
+    ///   -- the same bar as the regular <c>UpdateAsync</c>.</description></item>
+    ///   <item><description>Everyone must pass <see cref="PatientBookingEditAccess.CanEdit"/>:
+    ///   internal, or the patient's own login.</description></item>
+    /// </list>
+    /// A refusal is a 403 (<see cref="AbpAuthorizationException"/>), matching the SSN reveal.
+    /// </summary>
     [Authorize]
     public virtual async Task<PatientDto> UpdatePatientForAppointmentBookingAsync(Guid id, PatientUpdateDto input)
     {
+        await EnsureInternalCallerMayEditPatientsAsync();
+
         var isHost = CurrentTenant.Id == null;
         PatientWithNavigationProperties? patientWithNav;
         using (isHost ? _dataFilter.Disable() : null)
@@ -312,6 +326,11 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         if (currentPatient == null)
         {
             throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), id);
+        }
+
+        if (!PatientBookingEditAccess.CanEdit(CurrentUser.Roles, CurrentUser.Id, currentPatient.IdentityUserId))
+        {
+            throw new AbpAuthorizationException("Not authorized to edit this patient.");
         }
 
         var patient = await _patientManager.UpdateAsync(
@@ -341,6 +360,24 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         );
 
         return MapToMaskedDto(patient);
+    }
+
+    /// <summary>
+    /// #598: an internal caller edits any patient in the office, so hold them to the permission the
+    /// regular edit uses. External callers are not asked for it -- the owner rule that follows admits
+    /// only their own record. Runs before the lookup so a refused caller learns nothing about the id.
+    /// </summary>
+    private async Task EnsureInternalCallerMayEditPatientsAsync()
+    {
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            return;
+        }
+
+        if (!await AuthorizationService.IsGrantedAsync(CaseEvaluationPermissions.Patients.Edit))
+        {
+            throw new AbpAuthorizationException("Not authorized to edit patients.");
+        }
     }
 
     [Authorize]

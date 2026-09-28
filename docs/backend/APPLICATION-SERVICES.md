@@ -221,7 +221,7 @@ After validation passes, the method:
 | `GetAsync(Guid)` | `Patients.Default` | Single patient entity. |
 | `CreateAsync(PatientCreateDto)` | `Patients.Create` | Admin patient creation via `PatientManager`. |
 | `UpdateAsync(Guid, PatientUpdateDto)` | `Patients.Edit` | Admin patient update via `PatientManager`. |
-| `UpdatePatientForAppointmentBookingAsync(Guid, PatientUpdateDto)` | `[Authorize]` | Partial update during booking flow -- preserves fields not provided in the input by falling back to current values. |
+| `UpdatePatientForAppointmentBookingAsync(Guid, PatientUpdateDto)` | `[Authorize]` + in-code rule | Partial update during booking flow -- preserves fields not provided in the input by falling back to current values. Only internal staff holding `Patients.Edit`, or the patient's own login, may edit (`PatientBookingEditAccess`); anyone else gets 403. `SubmitAsync` skips the patient edit for such a booker and still creates the appointment. |
 | `DeleteAsync(Guid)` | `Patients.Delete` | Deletes patient. |
 | `GetFullSsnAsync(Guid)` | `Patients.RevealSsn` | Returns the full unmasked SSN in `SsnRevealDto`. Gated by `Patients.RevealSsn` permission AND `SsnRevealAccess.CanReveal` (internal callers OR record owner only). ABP HTTP audit log records each call. This is the ONLY endpoint that returns the full SSN. |
 | `GetStateLookupAsync(LookupRequestDto)` | `[Authorize]` | State dropdown lookup. |
