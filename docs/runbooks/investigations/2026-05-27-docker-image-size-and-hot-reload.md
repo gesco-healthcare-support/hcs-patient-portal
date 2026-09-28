@@ -271,7 +271,7 @@ with the container's own build. Recovered on auto-restart once memory freed.
   workflows (drift-checked above).
 - `docs\runbooks\findings\bugs\OBS-22-docker-watch-misses-bind-mount-edits.md`
   -- watcher-removal history + candidate fixes.
-- `docs\runbooks\ENGINEERING-ROADMAP.md` (OBS-22 row), `etc\helm\` -- deploy
+- `docs\status-reports\ENGINEERING-ROADMAP.md` (OBS-22 row), `etc\helm\` -- deploy
   path using prod Dockerfiles.
 
 > A stale memory note once described a `docker-compose.dev.yml` + `dotnet
