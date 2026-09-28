@@ -108,9 +108,18 @@ flowchart TB
 
 ## Operations
 
+- [Backup and Restore](runbooks/hosting-backup-restore.md) -- **the one to find first in a
+  disaster.** Was not linked from this index until 2026-09-28
+- [Background Jobs](devops/BACKGROUND-JOBS.md) -- every recurring job, its schedule in PACIFIC
+  time, the two switches that stop mail and integration, and both outboxes
 - [Local Dev](runbooks/LOCAL-DEV.md) -- common local failures + fixes
 - [Docker Dev](runbooks/DOCKER-DEV.md) -- compose setup, operations, troubleshooting
-- [Demo Logins](runbooks/DEMO-LOGINS.md) -- seeded demo accounts
+- [Hosting Local Verification](runbooks/hosting-local-verification.md) -- verifying a hosting
+  change before it reaches the server
+- [Database-per-Office Go-Live Isolation Gate](runbooks/database-per-office-go-live-isolation-gate.md)
+  -- the isolation checks required before an office goes live
+- [Demo Logins](runbooks/DEMO-LOGINS.md) -- seeded demo accounts. DEV ONLY; see the warning in
+  the file itself before using any credential in it anywhere
 - [Hardening Test Suite](runbooks/HARDENING-TEST-SUITE.md) -- security/regression checklist
 - [Main-Worktree Userflow Testing](runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md) -- manual userflow protocol
 - [Engineering Roadmap](runbooks/ENGINEERING-ROADMAP.md) -- bug/observation backlog status
