@@ -1,6 +1,6 @@
 # Engineering Roadmap — Path to Alpha
 
-> Purpose: Developer-facing companion to the manager status report; tracks every roadmap item with code refs, bug IDs, and plan docs. Audience: Adrian (sole dev). Last verified: 2026-06-01 vs main.
+> Purpose: Developer-facing companion to the manager status report; tracks every roadmap item with code refs, bug IDs, and plan docs. Audience: Adrian (sole dev).
 
 Living technical companion to `docs/status-reports/2026-05-18-status-for-manager.md` (point-in-time snapshot as of 2026-05-18; does not reflect fixes that shipped after that date).
 

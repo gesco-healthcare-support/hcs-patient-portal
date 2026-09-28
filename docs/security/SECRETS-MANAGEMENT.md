@@ -2,7 +2,7 @@
 
 # Secrets Management
 
-> Purpose: Inventory of secrets, injection points, and operator setup requirements. Audience: developers and operators. Last verified: 2026-09-03 vs main.
+> Purpose: Inventory of secrets, injection points, and operator setup requirements. Audience: developers and operators.
 
 > For known security vulnerabilities and remediation status, see [Security Issues](THREAT-MODEL.md).
 

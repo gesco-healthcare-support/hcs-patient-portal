@@ -1,6 +1,6 @@
 # Enums & Constants
 
-> Purpose: Consolidate all domain enums and max-length constants for the CaseEvaluation solution. Audience: backend developer. Last verified: 2026-06-01 vs main.
+> Purpose: Consolidate all domain enums and max-length constants for the CaseEvaluation solution. Audience: backend developer.
 
 [Home](../INDEX.md) > [Backend](./) > Enums & Constants
 

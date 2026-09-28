@@ -21,11 +21,22 @@ requires edits in both files. Host-only entities (e.g. `Location`, `WcabOffice`,
 are wrapped in `if (builder.IsHostDatabase())` in the host context and have NO block in the
 tenant context. See docs/decisions/003-dual-dbcontext-host-tenant.md.
 
-### Patient is NOT IMultiTenant -- PHI leak risk (IMPORTANT)
+### Patient IS IMultiTenant, and the explicit filters stay anyway (IMPORTANT)
 
-`Patient` does not implement `IMultiTenant`, so ABP's automatic tenant filter does NOT apply.
-Every `Patient` query in a custom repository MUST add `.Where(p => p.TenantId == currentTenantId)`
-manually. Omitting this filter exposes PHI across tenants. See docs/security/DATA-FLOWS.md.
+`Patient` implements `IMultiTenant` as of FEAT-09 (ADR-006 T4, 2026-05-05), so ABP's automatic
+tenant filter DOES apply. Before that change it carried a manual `TenantId` column with no
+auto-filter, which let any caller holding the Patients permission read every tenant's patients.
+
+**This section previously said the opposite, and that error outlived the fix by four months.**
+It was cited by production code (`AppointmentsAppService`) as the reason for a scoping decision.
+If you are reading a claim about tenancy anywhere in this repository, check the entity.
+
+`EfCorePatientRepository` still applies an explicit `TenantId` filter on its custom queries.
+**Keep it.** It is defence in depth, not redundancy, and two of those methods take the tenant as
+a parameter so a host-scope caller can name the office deliberately. Do not remove an explicit
+filter on the grounds that the framework now covers it.
+
+See docs/security/DATA-FLOWS.md.
 
 ### Repo registration
 

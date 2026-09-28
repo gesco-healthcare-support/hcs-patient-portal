@@ -1,6 +1,6 @@
 # Demo Logins
 
-> Purpose: Copy-paste credential cheat sheet for manual testing and demos. Audience: Developer. Last verified: 2026-06-01 vs main.
+> Purpose: Copy-paste credential cheat sheet for manual testing and demos. Audience: Developer.
 
 Copy-paste cheat sheet for manual testing and demos. All users below were created by `scripts/Master-Seed.ps1` in the current local Docker environment.
 

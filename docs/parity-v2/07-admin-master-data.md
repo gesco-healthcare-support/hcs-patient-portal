@@ -365,8 +365,10 @@ These are NOT gaps (outcome-equivalent on the modern stack):
 3. **Location CRUD with ParkingFee + AppointmentTypeId + State.** OLD
    `Location` (ParkingFee decimal, AppointmentTypeId int, State int) ->
    NEW `Location` (ParkingFee decimal, AppointmentTypeId Guid?, StateId Guid?).
-   Field set preserved; NEW is host-scoped (not multi-tenant) which is correct
-   for shared reference data.
+   Field set preserved. NEW `Location` IS multi-tenant: it implements `IMultiTenant`
+   and, under database-per-office, each office owns its own locations. (This line
+   previously said host-scoped shared reference data; corrected 2026-09-28 after the
+   code was confirmed as the intent.)
 4. **WcabOffice CRUD.** OLD fields (Name, Abbreviation, Address, City, StateId,
    ZipCode, StatusId) -> NEW (Name, Abbreviation, Address, City, ZipCode,
    StateId, IsActive). 1:1 on user-facing fields.

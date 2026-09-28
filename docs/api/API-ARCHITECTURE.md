@@ -1,6 +1,6 @@
 # API Architecture
 
-> Purpose: Documents the HttpApi controller pattern, Swagger/CORS/health-check configuration, and request pipeline for the HCS Patient Portal API. Audience: backend developers. Last verified: 2026-06-01 vs main.
+> Purpose: Documents the HttpApi controller pattern, Swagger/CORS/health-check configuration, and request pipeline for the HCS Patient Portal API. Audience: backend developers.
 
 [Home](../INDEX.md) > [API](./) > API Architecture
 

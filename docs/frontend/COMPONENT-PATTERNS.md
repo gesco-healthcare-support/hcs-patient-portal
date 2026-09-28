@@ -1,6 +1,6 @@
 # Component Patterns
 
-> Purpose: Describes the two Angular component patterns (ABP Suite abstract/concrete and custom hand-written) used across the patient portal frontend. Audience: frontend developers. Last verified: 2026-06-01 vs main.
+> Purpose: Describes the two Angular component patterns (ABP Suite abstract/concrete and custom hand-written) used across the patient portal frontend. Audience: frontend developers.
 
 [Home](../INDEX.md) > [Frontend](./) > Component Patterns
 

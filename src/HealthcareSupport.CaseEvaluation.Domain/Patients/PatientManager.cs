@@ -155,8 +155,9 @@ public class PatientManager : DomainService
     /// Runs the 3-of-6 fuzzy match against the calling tenant's existing rows; returns
     /// the existing match if found, otherwise delegates to <see cref="CreateAsync"/>.
     ///
-    /// Patient is NOT IMultiTenant -- the repository applies a manual <c>TenantId</c>
-    /// filter to avoid cross-tenant PHI leak (FEAT-09 context).
+    /// <c>Patient</c> IS <c>IMultiTenant</c> as of FEAT-09 (ADR-006 T4, 2026-05-05), so
+    /// ABP's automatic filter scopes the match. The repository ALSO applies an explicit
+    /// <c>TenantId</c> filter, kept as defence in depth rather than as the only control.
     ///
     /// Match keys (any 3 of 6 must equal): FirstName (lowercased), LastName (lowercased),
     /// DateOfBirth (date-only), SocialSecurityNumber (digits-only), PhoneNumber

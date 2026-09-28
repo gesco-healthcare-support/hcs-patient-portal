@@ -2,7 +2,7 @@
 
 # Docker Development Runbook
 
-> Purpose: Step-by-step guide to running the full Patient Portal stack via Docker Compose. Audience: developers. Last verified: 2026-06-01 vs main.
+> Purpose: Step-by-step guide to running the full Patient Portal stack via Docker Compose. Audience: developers.
 
 Docker Compose is the alternative to local .NET + Angular development. It packages the full stack (SQL Server, Redis, MinIO, MinIO bucket initializer, DbMigrator, AuthServer, HttpApi.Host, packet-renderer, Angular) into nine containers on a shared network.
 

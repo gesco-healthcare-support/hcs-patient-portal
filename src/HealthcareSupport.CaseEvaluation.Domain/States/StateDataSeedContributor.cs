@@ -8,8 +8,10 @@ using Volo.Abp.Domain.Repositories;
 namespace HealthcareSupport.CaseEvaluation.States;
 
 /// <summary>
-/// Seeds the 50 US states. Host-scoped (no IMultiTenant); idempotent via per-row
-/// upsert-by-ID so future state additions do not require wiping existing rows.
+/// Seeds the 50 US states into EACH office's own database under database-per-office;
+/// host scope is skipped (see SeedAsync). <c>State</c> IS <c>IMultiTenant</c> -- this
+/// summary previously said host-scoped, contradicting the method below it. Idempotent
+/// via per-row upsert-by-ID so future state additions do not require wiping existing rows.
 /// California GUID matches <see cref="CaseEvaluationSeedIds.States.California"/>
 /// because it is referenced by WcabOffice (Southern CA offices) and Location (demo clinics).
 /// </summary>

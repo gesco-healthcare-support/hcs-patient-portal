@@ -10,7 +10,9 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 /// <summary>
 /// Seeds the canonical interpreter languages observed in OLD's PROD `AppointmentLanguages`
 /// table -- the set of languages Southern California IME intake actually encounters.
-/// Host-scoped (no IMultiTenant); idempotent via per-row upsert-by-ID.
+/// Seeded per office under database-per-office; <c>AppointmentLanguage</c> IS
+/// <c>IMultiTenant</c> (this line previously said host-scoped). Idempotent via per-row
+/// upsert-by-ID.
 /// </summary>
 public class AppointmentLanguageDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
