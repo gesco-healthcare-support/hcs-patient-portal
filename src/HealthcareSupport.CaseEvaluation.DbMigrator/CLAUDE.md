@@ -36,11 +36,8 @@ before any Redis connection is attempted.
 - The migrator exits with a non-zero code on failure -- Docker's `service_completed_successfully`
   condition propagates the failure and blocks dependent services. Fix the migration, do not
   suppress the exit code.
-- BookStoreDataSeederContributor.cs (deliberately not backticked -- it is gone) WAS ABP scaffold
-  residue in Domain that seeded nothing meaningful. It has since been **deleted**:
-  `find src -name "BookStore*"` returns nothing as of 2026-09-28. The note survives only because
-  the name still appears in older documents and commit messages. There is nothing left to clean
-  up.
+- `BookStoreDataSeederContributor.cs` in Domain is ABP scaffold residue; it seeds nothing
+  meaningful and is safe to delete when the scaffold is cleaned up.
 - Logs are written to `Logs/logs.txt` relative to the working directory. In Docker that is
   inside the ephemeral container; mount a volume if you need log persistence.
 
