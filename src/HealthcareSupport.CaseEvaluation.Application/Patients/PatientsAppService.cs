@@ -95,19 +95,19 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
-    // Gated like every other patient read. The two methods below were the only readers of
-    // patient data that a merely-authenticated caller could reach, and both are byte-for-byte
-    // clones of a sibling that IS gated: this one of GetWithNavigationPropertiesAsync, and the
-    // by-email one of a filtered GetList. So the pair was a permission bypass of its own twin.
+    // Bare [Authorize], and it has to stay that way: the booking wizard fetches a selected
+    // patient's profile from this route while serving an external booker who does not hold
+    // CaseEvaluation.Patients, so a named permission here returns 403 and "book for an existing
+    // patient" stops working for attorneys and claim examiners.
     //
-    // The advisory reasoned that gating these would break external booking. Measured, it does
-    // not: neither has a caller anywhere -- not in angular/src/app outside the generated proxy,
-    // not in src/. They are reachable only by calling the HTTP route directly, which is the
-    // exposure rather than a use. The two booking methods that ARE load-bearing
-    // (GetOrCreate..., at AppointmentsAppService.cs:851, and UpdatePatient..., at :992) keep
-    // the bare [Authorize] and remain open questions; a permission on those would be demanded
-    // of the external booker and would break booking as the advisory describes.
-    [Authorize(CaseEvaluationPermissions.Patients.Default)]
+    // THE CALL IS BY RAW URL, NOT THROUGH THE GENERATED PROXY, so searching for the proxy method
+    // name finds nothing and the route looks unused. It is reached through RestService at
+    // appointment-add.component.ts:3002, from onPatientSelected, behind the demographics
+    // typeahead that renders only for isExternalUserNonPatient. Search this route's callers with
+    // the URL instead:
+    //
+    //     git grep -n "for-appointment-booking" -- angular/src/app ':!*.spec.ts'
+    [Authorize]
     public virtual async Task<PatientWithNavigationPropertiesDto> GetPatientForAppointmentBookingAsync(Guid id)
     {
         var isHost = CurrentTenant.Id == null;
@@ -119,6 +119,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
+    // Gated, unlike the three siblings, because this one is not reached at all. Its only UI call
+    // site is loadPatientByEmail (appointment-add.component.ts:2892) and nothing invokes
+    // loadPatientByEmail -- verified by URL as well as by proxy name. So the permission costs no
+    // caller, and the method otherwise returns the same patient record as the gated GetList.
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
     public virtual async Task<PatientWithNavigationPropertiesDto?> GetPatientByEmailForAppointmentBookingAsync(string email)
     {

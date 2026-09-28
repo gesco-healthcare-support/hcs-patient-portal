@@ -7,19 +7,28 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Authorization;
 
 /// <summary>
-/// GHSA-99wf-55x9-f8ww -- the patient-read half.
+/// The four "...ForAppointmentBooking" methods on PatientsAppService exist so the external booking
+/// flow can touch patient data without holding CaseEvaluation.Patients. Three of them are reached
+/// while serving a booker who does not hold it; one is reached by nothing at all. This class pins
+/// that split in both directions.
 ///
-/// <para>PatientsAppService carries four "...ForAppointmentBooking" methods that exist so the
-/// external booking flow can touch patient data without holding CaseEvaluation.Patients. Two of
-/// them are byte-for-byte clones of a sibling that IS gated -- GetPatientForAppointmentBookingAsync
-/// of GetWithNavigationPropertiesAsync, and the by-email one of a filtered GetList -- so the pair
-/// was a permission bypass of its own twin, reachable by any authenticated caller including an
-/// external booker or a patient reading somebody else's record.</para>
+/// <para><b>The split is decided by the CALLER SET, and the caller set is not what a search for the
+/// generated proxy method names says it is.</b> Three of these routes are called by RAW URL through
+/// RestService, so the proxy name appears nowhere and the route looks unused:</para>
 ///
-/// <para>They were gated. The advisory's stated reason for leaving them open -- that gating would
-/// break booking -- was measured and does not hold for these two: neither has a caller anywhere,
-/// in src/ or in angular/src/app outside the generated proxy. The two that ARE load-bearing keep
-/// the bare [Authorize], and this class pins that split so neither half moves by accident.</para>
+/// <list type="bullet">
+///   <item>GetPatientForAppointmentBookingAsync -- GET, appointment-add.component.ts:3002, from
+///   onPatientSelected, behind a typeahead rendered only for isExternalUserNonPatient;</item>
+///   <item>UpdatePatientForAppointmentBookingAsync -- PUT,
+///   appointment-view.component.ts:1121;</item>
+///   <item>GetOrCreatePatientForAppointmentBookingAsync -- server side,
+///   AppointmentsAppService.cs:851.</item>
+/// </list>
+///
+/// <para>Only GetPatientByEmailForAppointmentBookingAsync has no caller: its one UI call site is
+/// loadPatientByEmail (appointment-add.component.ts:2892), and nothing invokes loadPatientByEmail.
+/// Search by URL, not by proxy name:
+/// <c>git grep -n "for-appointment-booking" -- angular/src/app ':!*.spec.ts'</c></para>
 /// </summary>
 public sealed class PatientBookingReadAuthorizationTests
 {
@@ -33,43 +42,43 @@ public sealed class PatientBookingReadAuthorizationTests
     }
 
     /// <summary>
-    /// The clone must demand exactly what its twin demands. Asserted against the twin rather than
-    /// against a literal, because the point is not "this string appears" -- it is that two methods
-    /// returning the same DTO from the same repository call cannot diverge. If the twin is ever
-    /// re-gated to something stricter, this fails until the clone follows.
+    /// The one with no caller is gated, so it cannot be read on a session alone. It returns the
+    /// same patient record as GetListAsync, which has always required this permission.
     /// </summary>
-    [Theory]
-    [InlineData("GetPatientForAppointmentBookingAsync", "GetWithNavigationPropertiesAsync")]
-    public void ABookingRead_DemandsWhatItsGatedTwinDemands(string clone, string twin)
+    [Fact]
+    public void TheBookingReadWithNoCaller_RequiresThePatientsPermission()
     {
-        AuthorizationSurface.MethodAuthorization(Method(clone))
-            .ShouldBe(AuthorizationSurface.MethodAuthorization(Method(twin)));
-    }
-
-    [Theory]
-    [InlineData("GetPatientForAppointmentBookingAsync")]
-    [InlineData("GetPatientByEmailForAppointmentBookingAsync")]
-    public void ABookingRead_IsNotReachableOnASessionAlone(string name)
-    {
-        AuthorizationSurface.MethodAuthorization(Method(name)).ShouldBe(PatientsPermission);
+        AuthorizationSurface.MethodAuthorization(Method("GetPatientByEmailForAppointmentBookingAsync"))
+            .ShouldBe(PatientsPermission);
     }
 
     /// <summary>
-    /// The deliberate remainder, pinned so that gating it is a decision rather than a tidy-up.
+    /// Asserted against the sibling rather than a literal: both return the same shape from the same
+    /// repository, so if GetListAsync is ever re-gated to something stricter this fails until the
+    /// by-email read follows.
+    /// </summary>
+    [Fact]
+    public void TheGatedBookingRead_DemandsWhatTheEquivalentListDemands()
+    {
+        AuthorizationSurface.MethodAuthorization(Method("GetPatientByEmailForAppointmentBookingAsync"))
+            .ShouldBe(AuthorizationSurface.MethodAuthorization(Method("GetListAsync")));
+    }
+
+    /// <summary>
+    /// The three the booking flow actually calls stay reachable on a session alone.
     ///
-    /// <para>Both have a real caller inside the booking flow -- AppointmentsAppService reaches
-    /// GetOrCreate... and UpdatePatient... while serving an external booker who does not hold the
-    /// permission. A named permission here would be demanded of that booker and would break
-    /// booking, which is what the advisory describes and what does NOT apply to the two above.</para>
-    ///
-    /// <para>So this test failing is not a regression to revert: it means someone gated one of
-    /// them, and the question to answer first is what the external caller is then supposed to
-    /// receive. That question is still open on the advisory.</para>
+    /// <para><b>This test failing is not a regression to revert on sight.</b> It means someone has
+    /// added a permission to a method an external booker reaches, which returns 403 to attorneys
+    /// and claim examiners mid-booking -- a break that no backend test would otherwise catch,
+    /// because the calls are raw-URL and so invisible to a proxy-name search. If narrowing one of
+    /// these is the intent, the question to answer first is what an external caller should receive
+    /// instead, and the answer belongs with the change.</para>
     /// </summary>
     [Theory]
+    [InlineData("GetPatientForAppointmentBookingAsync")]
     [InlineData("GetOrCreatePatientForAppointmentBookingAsync")]
     [InlineData("UpdatePatientForAppointmentBookingAsync")]
-    public void AWriteTheBookingFlowActuallyCalls_IsStillAuthenticatedOnly(string name)
+    public void AMethodTheBookingFlowCalls_StaysReachableOnASession(string name)
     {
         AuthorizationSurface.MethodAuthorization(Method(name))
             .ShouldBe(AuthorizationSurface.AuthenticatedOnly);

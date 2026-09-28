@@ -320,7 +320,7 @@ HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetListAsync(GetPat
 HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetMyProfileAsync() -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetOrCreatePatientForAppointmentBookingAsync(CreatePatientForAppointmentBookingInput) -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetPatientByEmailForAppointmentBookingAsync(String) -> class=- method=CaseEvaluation.Patients
-HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetPatientForAppointmentBookingAsync(Guid) -> class=- method=CaseEvaluation.Patients
+HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetPatientForAppointmentBookingAsync(Guid) -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetStateLookupAsync(LookupRequestDto) -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetTenantLookupAsync(LookupRequestDto) -> class=- method=CaseEvaluation.Patients
 HealthcareSupport.CaseEvaluation.Patients.PatientsAppService.GetWithNavigationPropertiesAsync(Guid) -> class=- method=CaseEvaluation.Patients
