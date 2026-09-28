@@ -748,6 +748,29 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                                 AutoReplenishment = true,
                             });
                     }
+                    if (IsExternalSignupAnonymousLookupPath(httpContext))
+                    {
+                        // Every OTHER anonymous call under the external-signup prefix: office
+                        // resolution by name, invite-token validation, and anything added later.
+                        // resolve-tenant turns a guessed name into an office id and validate-invite
+                        // probes tokens, so both are enumeration surfaces. Before this branch they
+                        // matched nothing and fell through to the unlimited partition.
+                        //
+                        // Its OWN bucket, not register's: the sign-up page calls these on every
+                        // load, and sharing would spend the 15/hour registration budget a clinic
+                        // behind one NAT'd address needs.
+                        var key = ResolveExternalSignupPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"signup-lookup:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = ExternalSignupLookupRequestsPerHour,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
                     if (IsFeedPath(httpContext))
                     {
                         // #927 -- BEFORE the integration branch, so the feed never shares the 300/hour
@@ -881,6 +904,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>2026-05-13: full path matched by the register rate limiter.</summary>
     public const string ExternalSignupRegisterPath = "/api/public/external-signup/register";
+
+    /// <summary>Prefix of every external-signup route, anonymous or not.</summary>
+    public const string ExternalSignupPathPrefix = "/api/public/external-signup";
+
+    /// <summary>
+    /// Anonymous external-signup lookups per client address per hour. Four times the register
+    /// budget: the sign-up page makes one or two lookups per load, so a clinic registering its
+    /// full 15 patients an hour from one address stays well inside it.
+    /// </summary>
+    public const int ExternalSignupLookupRequestsPerHour = 60;
 
     /// <summary>
     /// 2026-07-29: path prefix matched by the machine-to-machine integration limiter
@@ -1024,6 +1057,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// (<see cref="ExternalSignupRegisterPath"/>). Only POST is matched
     /// (a future GET on the same path -- e.g. for client-side checks --
     /// would not be brute-forceable in the same way).
+    /// <para>That reasoning holds for the register path only. Sibling GETs under the same prefix
+    /// DO enumerate, and they used to fall through to no limit at all; they are covered by
+    /// <see cref="IsExternalSignupAnonymousLookupPath"/>.</para>
     /// </summary>
     internal static bool IsExternalSignupRegisterPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
@@ -1034,6 +1070,26 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         return httpContext.Request.Path.Equals(
             ExternalSignupRegisterPath,
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True for an ANONYMOUS request anywhere under <see cref="ExternalSignupPathPrefix"/>, except the
+    /// register POST (its own bucket) and the Development-only <c>dev/</c> helpers, which refuse to
+    /// run outside Development and would otherwise throttle local test tooling.
+    /// <para>Prefix-scoped, like the integration matcher, so an anonymous route added here later
+    /// arrives already throttled instead of having to remember to ask. Signed-in callers are left
+    /// alone: the booking form's external-user lookup runs as the user types, and it is attributable
+    /// and bound to a token. The limiter runs after authentication, so the user is known here.</para>
+    /// </summary>
+    internal static bool IsExternalSignupAnonymousLookupPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (httpContext.User.Identity?.IsAuthenticated == true || IsExternalSignupRegisterPath(httpContext))
+        {
+            return false;
+        }
+        var path = httpContext.Request.Path;
+        return path.StartsWithSegments(ExternalSignupPathPrefix, StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWithSegments(ExternalSignupPathPrefix + "/dev", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

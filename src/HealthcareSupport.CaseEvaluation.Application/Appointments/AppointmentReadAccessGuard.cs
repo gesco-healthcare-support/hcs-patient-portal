@@ -59,7 +59,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
     /// Load the appointment and gate. Throws <see cref="EntityNotFoundException"/>
     /// (via repo.GetAsync) if the appointmentId does not resolve.
     /// </summary>
-    public async Task EnsureCanReadAsync(Guid appointmentId)
+    public virtual async Task EnsureCanReadAsync(Guid appointmentId)
     {
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
         await EnsureCanReadAsync(appointment);

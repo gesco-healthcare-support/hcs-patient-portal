@@ -377,7 +377,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
     }
 
-    [AllowAnonymous]
+    /// <summary>
+    /// The office picker in the staff Users hub's Invite External section: every office, at host scope.
+    /// Inside an office it returns nothing, because the office is implicit there and the picker hides.
+    /// <para>Requires the invite permission because inviting is its only use. It used to be anonymous
+    /// on the belief that the sign-up page needed it before sign-in. That page never called it: it
+    /// resolves its office by name through <see cref="ResolveTenantByNameAsync"/>. The only caller is
+    /// <c>UsersSectionGateway.getInviteTenantOptions</c>, behind sign-in, so the anonymous grant served
+    /// no one and exposed the whole office roster on the reserved admin host.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(string? filter = null)
     {
         if (CurrentTenant.Id.HasValue)

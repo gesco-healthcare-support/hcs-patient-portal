@@ -48,6 +48,12 @@ flowchart TB
 ## Architecture
 
 - [System Overview](architecture/OVERVIEW.md) -- topology, projects, ports
+- [Tenancy and Isolation](architecture/TENANCY-AND-ISOLATION.md) -- **why** the boundary is built
+  this way: why a caller cannot choose their own office, why the schema is declared twice, and why
+  testing the control needs a decoy
+- [Offices and Hosting](architecture/OFFICES-AND-HOSTING.md) -- **how** an office name becomes a
+  slug, a database and a routed hostname; reserved slugs, the nginx routing table, and the two-file
+  coupling a test guards
 - [ABP Framework Conventions](architecture/ABP-FRAMEWORK.md) -- module system, base classes, Mapperly
 - [Multi-Tenancy Strategy](architecture/MULTI-TENANCY.md) -- dual DbContext, host vs tenant entity classification
 
@@ -122,7 +128,6 @@ flowchart TB
   the file itself before using any credential in it anywhere
 - [Hardening Test Suite](runbooks/HARDENING-TEST-SUITE.md) -- security/regression checklist
 - [Main-Worktree Userflow Testing](runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md) -- manual userflow protocol
-- [Engineering Roadmap](runbooks/ENGINEERING-ROADMAP.md) -- bug/observation backlog status
 - [Case Tracker Feed Cutover](runbooks/case-tracker-feed-cutover.md) -- per-office switch from push to feed, and rollback
 - **Open work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues).** `runbooks/findings/bugs/` keeps the
   reproduction and diagnosis for each finding and links its issue; it no longer records status.
@@ -167,4 +172,6 @@ requirements to score against.
 - Research notes live in `research/` -- dated investigations, including
   [proxy regen](research/proxy-regen-stringvalues-fix.md) (upstream tooling) and the two
   production-readiness exercises linked above
+- [Engineering Roadmap](status-reports/ENGINEERING-ROADMAP.md) -- historical snapshot from
+  2026-05-18, kept for the documents that cite it; not current status
 - Active plans live in `plans/` (e.g. docker lean images, SSN-at-rest encryption deferred)

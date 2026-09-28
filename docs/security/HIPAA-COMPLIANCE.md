@@ -129,4 +129,4 @@ Ordered by criticality for cloud production deployment:
 - [Authorization Matrix](AUTHORIZATION.md)
 - [Secrets Management](SECRETS-MANAGEMENT.md)
 - [Security Issues](THREAT-MODEL.md)
-- [Project HIPAA Rules](../../.claude/rules/hipaa-data.md)
+- [Project HIPAA Rules](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/.claude/rules/hipaa-data.md)

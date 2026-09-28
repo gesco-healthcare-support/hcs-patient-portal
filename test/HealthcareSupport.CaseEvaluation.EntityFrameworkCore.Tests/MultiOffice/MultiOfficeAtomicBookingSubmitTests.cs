@@ -18,6 +18,7 @@ using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Security;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
@@ -55,6 +56,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTestBase
 {
     private readonly IAppointmentsAppService _appointments;
+    private readonly IPatientsAppService _patients;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetails;
@@ -78,6 +80,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     public MultiOfficeAtomicBookingSubmitTests()
     {
         _appointments = GetRequiredService<IAppointmentsAppService>();
+        _patients = GetRequiredService<IPatientsAppService>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();
         _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
         _employerDetails = GetRequiredService<IRepository<AppointmentEmployerDetail, Guid>>();
@@ -394,6 +397,96 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             after.GenderId.ShouldBe(Gender.Other, "self-service overwrites gender");
             after.DateOfBirth.Date.ShouldBe(new DateTime(1999, 12, 31), "...and date of birth");
             after.PhoneNumberTypeId.ShouldBe(PhoneNumberType.Work, "...and phone-number type");
+        });
+    }
+
+    /// <summary>
+    /// #598 -- an EXTERNAL booker who is not the patient books against an existing, claimed record and
+    /// sends edits. The booking must go through (the form always sends a patient update when a
+    /// patient is loaded, so refusing would fail every such booking) and the stored record must stay
+    /// exactly as it was. Before #598 the edits were applied.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_PatientUpdateFromAnExternalBookerForSomeoneElsesRecord_BooksButLeavesThePatientUnchanged()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(40);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var externalBooker = Guid.NewGuid();
+        Patient? seeded = null;
+        AppointmentSubmitResultDto? result = null;
+
+        // Claimed by the office's booker user -- a real login that is NOT the external caller.
+        await InOfficeAsync(office, async () =>
+            seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
+
+        await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 400);
+            input.Patient = null;
+            input.PatientId = seeded!.Id;
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            input.PatientUpdate = BuildPatientUpdate(seeded, firstName: "Overwritten", city: "Overwritten City");
+
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        result!.PatientId.ShouldBe(seeded!.Id);
+        await InOfficeAsync(office, async () =>
+        {
+            (await _appointmentRepository.FindAsync(result.AppointmentId)).ShouldNotBeNull(
+                "the booking itself must still be created");
+
+            var after = await _patientRepository.GetAsync(seeded.Id);
+            after.FirstName.ShouldBe("Original", "an external booker's edit to someone else's record must be dropped");
+            after.City.ShouldBe("Old City");
+            after.GenderId.ShouldBe(Gender.Female);
+        });
+    }
+
+    /// <summary>
+    /// #598 -- the two-step path. Booking against an existing patient's id makes the booker that
+    /// appointment's creator, which is a party relationship. It must NOT turn into the right to edit
+    /// the patient afterwards through the booking edit endpoint.
+    /// </summary>
+    [Fact]
+    public async Task Booking_for_an_existing_patient_does_not_grant_the_booker_the_right_to_edit_them()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(41);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var externalBooker = Guid.NewGuid();
+        Patient? seeded = null;
+
+        await InOfficeAsync(office, async () =>
+            seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
+
+        // Step 1: book with the claimed patient's id and no edits. This succeeds.
+        await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(10).AddMinutes(15), dayOffset: 410);
+            input.Patient = null;
+            input.PatientId = seeded!.Id;
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            await _appointments.SubmitAsync(input);
+        });
+
+        // Step 2: the same booker tries to edit that patient directly.
+        await Should.ThrowAsync<AbpAuthorizationException>(() =>
+            InOfficeAsAsync(office, externalBooker, "Applicant Attorney", () =>
+                _patients.UpdatePatientForAppointmentBookingAsync(
+                    seeded!.Id, BuildPatientUpdate(seeded, firstName: "Overwritten", city: "Overwritten City"))));
+
+        await InOfficeAsync(office, async () =>
+        {
+            var after = await _patientRepository.GetAsync(seeded!.Id);
+            after.FirstName.ShouldBe("Original");
+            after.City.ShouldBe("Old City");
         });
     }
 
@@ -811,6 +904,21 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         {
             using (_currentTenant.Change(office.OfficeId))
             using (WithCurrentUser.Run(_principalAccessor, office.BookerUserId, "admin"))
+            {
+                await body();
+            }
+        }, requiresNew: true);
+
+    /// <summary>
+    /// <see cref="InOfficeAsync"/> as a chosen caller rather than the office's admin booker. #598's
+    /// tests need an EXTERNAL booker who is not the patient; the admin identity would be admitted as
+    /// staff and prove nothing about the external path.
+    /// </summary>
+    private Task InOfficeAsAsync(SeededOffice office, Guid userId, string role, Func<Task> body) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(office.OfficeId))
+            using (WithCurrentUser.Run(_principalAccessor, userId, role))
             {
                 await body();
             }
