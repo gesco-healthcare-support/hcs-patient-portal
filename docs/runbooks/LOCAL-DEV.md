@@ -3,10 +3,30 @@
 # Local Development Troubleshooting
 
 > Purpose: Troubleshooting playbook for common local dev failures. Audience: developer.
+> Owner: the portal maintainer.
+> **Last tested: Problem 6 was measured on 2026-09-13 and Problem 7 when it was written; the
+> others are not recorded as re-tested.**
 
 > This is a **"when things go wrong" reference**, not a setup guide. For first-time setup, see [Getting Started](../onboarding/GETTING-STARTED.md).
 
-Playbook for the five most common failures during local (non-Docker) development. For Docker-based dev, see [DOCKER-DEV.md](DOCKER-DEV.md).
+Playbook for the eight most common failures during local (non-Docker) development. For Docker-based dev, see [DOCKER-DEV.md](DOCKER-DEV.md).
+
+## When you need this page
+
+Match what you see to a problem below. Each reads Symptom, Cause (the diagnosis), Fix, then
+Verify. **Diagnose before you change anything**: several symptoms (403 everywhere, an empty
+database) have more than one cause, and the fix differs.
+
+| You see | Go to |
+| --- | --- |
+| `Could not load ... SNI.dll` | Problem 1 |
+| `No provider for CORE_OPTIONS` in the browser console | Problem 2 |
+| Connection errors, an empty database, or 403 on everything | Problem 3, then Problem 5 |
+| An ABP licence error, or theme assets returning 404 | Problem 4 |
+| An empty permission tree for admin | Problem 5 |
+| `dotnet test` failing en masse with "No base connection string" | Problem 6 |
+| `Failed to load configuration from file ... appsettings.Local.json` | Problem 7 |
+| `dotnet run` cannot see the Docker stack's data | Problem 8 |
 
 ---
 
@@ -38,11 +58,13 @@ System.IO.FileLoadException: Could not load file or assembly
 - Alternatively, use `subst` to create a drive alias:
 
   ```cmd
-  subst P: "C:\Users\RajeevG\Long\Nested\Documents\Projects\Patient Portal\hcs-case-evaluation-portal"
+  subst P: "C:\path\to\your\long\clone\hcs-case-evaluation-portal"
   cd /d P:\
   ```
 
 - `subst` assignments are per-session; add the command to a login script if needed.
+
+**Verify:** the service starts with no `FileLoadException`.
 
 **Prevention:** Always keep the repo at a short path on Windows. Not an issue on macOS / Linux.
 
@@ -72,6 +94,8 @@ NullInjectorError: R3InjectorError(Standalone[AppComponent])
   ```
 
 - For iterative development, rerun the build manually after changes. Angular esbuild (used by `ng build`) does not have this bug.
+
+**Verify:** reload the page; the console shows no `NullInjectorError`.
 
 **Prevention:** This is enforced in the root [CLAUDE.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/CLAUDE.md) Critical Constraints section and in [ADR-005](../decisions/005-no-ng-serve-vite-workaround.md).
 
@@ -116,6 +140,9 @@ This creates the database if missing, applies all migrations, and seeds initial 
 
 LocalDB connection string pattern: `Server=(LocalDB)\\MSSQLLocalDB;Database=CaseEvaluation;Trusted_Connection=True`
 
+**Verify:** `sqlcmd -S <instance> -Q "SELECT 1"` returns `1`, and an authenticated API call no
+longer answers 403.
+
 ---
 
 ## Problem 4: ABP license errors at build or runtime
@@ -143,6 +170,8 @@ Contents:
 
 Also verify `NuGet.Config` (generated from `NuGet.Config.template`) contains a valid `ABP_NUGET_API_KEY` for restoring commercial packages.
 
+**Verify:** the build succeeds and the theme assets load (no 404 in the browser's network tab).
+
 ---
 
 ## Problem 5: Permission seeding fails / admin sees empty permission tree
@@ -160,6 +189,8 @@ Also verify `NuGet.Config` (generated from `NuGet.Config.template`) contains a v
 2. Run the migrator: `dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator`.
 3. Restart services in order (SQL -> AuthServer -> HttpApi.Host -> Angular).
 4. If still empty, check `CaseEvaluationPermissionDefinitionProvider.cs` (`src/.../Application.Contracts/Permissions/`) for missing registrations -- a new permission added to `CaseEvaluationPermissions.cs` will not appear unless it is also registered here.
+
+**Verify:** the Roles page lists the CaseEvaluation permissions under `admin`.
 
 ---
 
@@ -210,6 +241,8 @@ connection string is wrong.
 
 See `.claude/rules/dotnet-env.md`, which is scoped to exclude `dotnet test` for this reason.
 
+**Verify:** the run reports `Failed: 0`.
+
 ---
 
 ## Problem 7: an EMPTY `appsettings.Local.json` stops a host from starting
@@ -243,6 +276,8 @@ cp src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.Local.json.exampl
 
 `.example` files exist for all three projects.
 
+**Verify:** the host starts past configuration loading.
+
 ---
 
 ## Problem 8: host-side runs go to LocalDB, not the Docker stack
@@ -254,7 +289,7 @@ connect on Windows and does not resolve at all on Linux or macOS.
 
 ```json
 "ConnectionStrings": {
-  "Default": "Server=(LocalDb)\MSSQLLocalDB;Database=CaseEvaluation;Trusted_Connection=True;TrustServerCertificate=true"
+  "Default": "Server=(LocalDb)\\MSSQLLocalDB;Database=CaseEvaluation;Trusted_Connection=True;TrustServerCertificate=true"
 }
 ```
 
@@ -272,6 +307,21 @@ dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 
 Port **1434**, not 1433 -- see `docker-compose.yml`. Unlike the test harness above, the host
 projects DO read environment variables, so this override works.
+
+**Verify:** the process logs a connection to `localhost,1434` and sees the stack's data.
+
+---
+
+## Abort
+
+If no problem above matches, or a fix does not clear its symptom, stop changing things. Put back
+any configuration file you edited (`git checkout -- <file>` for tracked files; delete an
+`appsettings.Local.json` you created), so the next person does not debug your experiment as well.
+
+## Escalation
+
+If you are still blocked after 30 minutes on one problem, hand to the portal maintainer with the
+exact error text, the command that produced it, and which Fix you already tried.
 
 ---
 
