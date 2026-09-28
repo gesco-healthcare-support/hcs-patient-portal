@@ -128,7 +128,6 @@ flowchart TB
   the file itself before using any credential in it anywhere
 - [Hardening Test Suite](runbooks/HARDENING-TEST-SUITE.md) -- security/regression checklist
 - [Main-Worktree Userflow Testing](runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md) -- manual userflow protocol
-- [Engineering Roadmap](runbooks/ENGINEERING-ROADMAP.md) -- bug/observation backlog status
 - [Case Tracker Feed Cutover](runbooks/case-tracker-feed-cutover.md) -- per-office switch from push to feed, and rollback
 - **Open work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues).** `runbooks/findings/bugs/` keeps the
   reproduction and diagnosis for each finding and links its issue; it no longer records status.
@@ -173,4 +172,6 @@ requirements to score against.
 - Research notes live in `research/` -- dated investigations, including
   [proxy regen](research/proxy-regen-stringvalues-fix.md) (upstream tooling) and the two
   production-readiness exercises linked above
+- [Engineering Roadmap](status-reports/ENGINEERING-ROADMAP.md) -- historical snapshot from
+  2026-05-18, kept for the documents that cite it; not current status
 - Active plans live in `plans/` (e.g. docker lean images, SSN-at-rest encryption deferred)

@@ -17,7 +17,7 @@ component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/Appoint
 
 ## Symptom
 
-Phase 8 scope-visibility check for `claimE1@gesco.com` (role: Claim Examiner). The Phase 5 run ended with 5 appointments in the tenant, all of which have top-level `AppAppointments.ClaimExaminerEmail = 'claimE1@gesco.com'`. The suite's expected scope rule (HARDENING-TEST-SUITE.md line 668):
+Phase 8 scope-visibility check for `claimE1@gesco.com` (role: Claim Examiner). The Phase 5 run ended with 5 appointments in the tenant, all of which have top-level `AppAppointments.ClaimExaminerEmail = 'claimE1@gesco.com'`. The suite's expected scope rule (HARDENING-TEST-SUITE.md, row HRD-P8.4):
 
 > `ClaimExaminerEmail = me OR injury.ClaimExaminerEmail = me`
 
@@ -92,4 +92,4 @@ Step 4: Add an integration test that asserts both shapes are visible to the CE.
 
 - [[BUG-031]] -- clinic-staff 403 on injury endpoint (the underlying cause of the missing injury row).
 - [[BUG-030]] -- internal-staff auto-approve (same scenario; if A00005 had been Pending, the issue would still surface once approved).
-- Suite Phase 8.4 expected rule (HARDENING-TEST-SUITE.md line 668) -- doc may need adjustment depending on the design intent.
+- Suite Phase 8.4 expected rule (HARDENING-TEST-SUITE.md, row HRD-P8.4) -- doc may need adjustment depending on the design intent.
