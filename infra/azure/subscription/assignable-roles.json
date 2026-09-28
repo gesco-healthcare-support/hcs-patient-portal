@@ -5,7 +5,7 @@
     "",
     "Every role a resource-group template assigns MUST be here, or its deployment fails with AuthorizationFailed.",
     "Every entry here MUST either be assigned by a resource-group template or carry 'reserved' naming the plan item",
-    "that will assign it. scripts/check-infra-roles.py enforces both directions.",
+    "that will assign it. `scripts/infra-ci.py check` enforces both directions.",
     "",
     "Adding a role widens what CI can grant. It needs a bootstrap re-run by a subscription Owner, which is the point:",
     "CI cannot widen its own rights.",

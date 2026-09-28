@@ -24,6 +24,10 @@
 //
 // They live in their own resource group. In the workload group, the infra identity's Contributor would let it
 // rewrite its own federated credential, or the what-if identity's.
+//
+// FEDERATED CREDENTIALS BELONG IN THE IDENTITY GROUP ONLY, where only this bootstrap manages them. A deny policy,
+// assigned below at the workload group, keeps it that way even though Contributor there includes
+// Microsoft.ManagedIdentity writes. Contributor cannot remove a policy assignment.
 
 targetScope = 'subscription'
 
@@ -40,12 +44,12 @@ param envName string = 'pilot'
 @description('Prefix of every GitHub OIDC subject. The default is the IMMUTABLE form (owner and repository ids), which the repository must be opted into BEFORE this runs; the legacy form is repo:gesco-healthcare-support/hcs-patient-portal. Record the subject GitHub actually presents on the first run.')
 param githubSubjectPrefix string = 'repo:gesco-healthcare-support@274625791/hcs-patient-portal@1205316583'
 
-@description('Where the what-if identity\'s rights apply. subscription when the subscription is dedicated to the portal (approved 2026-09-28), which also lets CI preview the subscription-level template. resourceGroup otherwise.')
+@description('Where the what-if identity\'s Reader and what-if rights apply. resourceGroup by default, because that is everything CI previews: infra.yml runs only `az deployment group what-if` against main.bicep (targetScope resourceGroup), and its parameter read-back and write probe are group-scoped too. subscription grants the same rights across the whole subscription; choose it only together with a job that previews a subscription-scope template, and only on a subscription dedicated to the portal.')
 @allowed([
   'subscription'
   'resourceGroup'
 ])
-param whatIfScope string = 'subscription'
+param whatIfScope string = 'resourceGroup'
 
 @description('Phase 2 only: names, in the workload resource group, of the registry and the VM the app deploy identity acts on. Leave both empty in phase 1.')
 param appDeployTargets object = {
@@ -134,6 +138,32 @@ resource lockWriterRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   }
 }
 
+// ---------------------------------------------------------------- no federated credentials in the workload group
+//
+// Microsoft's documented control for federated identity credentials ("Important considerations and restrictions for
+// federated identity credentials", section "Azure policy"). The DEFINITION lives at subscription scope; it is
+// ASSIGNED at the workload group only, by modules/workload-policy.bicep, because the CI identities' own credentials
+// are created in the identity group and a subscription-wide assignment would refuse this very deployment.
+
+resource denyFederatedCredentialsPolicy 'Microsoft.Authorization/policyDefinitions@2023-04-01' = {
+  name: guid(subscription().id, 'portal-deny-federated-credentials', envName)
+  properties: {
+    displayName: 'Portal: deny federated identity credentials (${envName})'
+    description: 'Refuses the creation or update of any federated identity credential where assigned.'
+    policyType: 'Custom'
+    mode: 'All'
+    policyRule: {
+      if: {
+        field: 'type'
+        equals: 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials'
+      }
+      then: {
+        effect: 'deny'
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------- the preview identity, at subscription scope
 
 resource whatIfReaderOnSubscription 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (whatIfScope == 'subscription') {
@@ -198,6 +228,15 @@ module appAccess 'modules/app-access.bicep' = if (!empty(appDeployTargets.regist
     appPrincipalId: identities.outputs.appPrincipalId
     registryName: appDeployTargets.registryName
     vmName: appDeployTargets.vmName
+  }
+}
+
+module workloadPolicy 'modules/workload-policy.bicep' = {
+  name: 'portal-bootstrap-workload-policy'
+  scope: workloadGroup
+  params: {
+    envName: envName
+    policyDefinitionId: denyFederatedCredentialsPolicy.id
   }
 }
 

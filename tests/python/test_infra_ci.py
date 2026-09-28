@@ -387,13 +387,15 @@ class Summarize(TempTree):
         self.assertIn("`AuthorizationFailed`", text)
         self.assertNotIn(self.SUB, text)
 
-    def test_summary_goes_to_stdout_and_the_full_error_to_stderr_only(self):
+    def test_summary_goes_to_stdout_and_only_the_error_code_to_stderr(self):
+        # The job log is public too, so stderr carries the same digest as the comment: never the message.
         whatif = self.write("w.json", json.dumps({"status": "Failed", "error": {"code": "X", "message": "detail"}}))
         result, stdout, stderr = streams(infra.main, ["summarize", "--whatif", str(whatif), "--title", "t"])
         self.assertEqual(result, 1)
         self.assertTrue(stdout.startswith(infra.SUMMARY_MARKER))
         self.assertNotIn("detail", stdout)
-        self.assertIn("detail", stderr)
+        self.assertNotIn("detail", stderr)
+        self.assertIn("what-if error: X", stderr)
 
     def test_successful_summary_exits_zero_and_writes_nothing_to_stderr(self):
         whatif = self.write("w.json", json.dumps({"status": "Succeeded", "changes": []}))
@@ -401,6 +403,127 @@ class Summarize(TempTree):
         self.assertEqual(result, 0)
         self.assertIn("| change | count |", stdout)
         self.assertEqual(stderr, "")
+
+
+# An ARM error shaped like the ones validation returns: the message quotes the rejected parameter value.
+QUOTING_ERROR = {
+    "code": "InvalidTemplateDeployment",
+    "message": "The value 'portal.real.example' of parameter baseDomain is not valid.",
+    "details": [
+        {"code": "InvalidParameter", "target": "baseDomain", "message": "rejected portal.real.example"},
+        {"code": "Conflict", "message": "group 11111111-2222-3333-4444-555555555555",
+         "details": [{"code": "DeepInner", "target": "sqlEntraAdminObjectId", "message": "id 1111"}]},
+    ],
+}
+
+
+class ErrorDigest(TempTree):
+    def test_walks_details_depth_first_and_never_reads_the_message(self):
+        digest = infra.error_digest(QUOTING_ERROR)
+        self.assertEqual(digest, ["InvalidTemplateDeployment", "InvalidParameter (target baseDomain)", "Conflict",
+                                  "DeepInner (target sqlEntraAdminObjectId)"])
+        self.assertNotIn("portal.real.example", " ".join(digest))
+        self.assertNotIn("1111", " ".join(digest))
+
+    def test_accepts_the_wrapped_form_and_ignores_anything_that_is_not_an_error(self):
+        self.assertEqual(infra.error_digest({"error": {"code": "A"}}), ["A"])
+        self.assertEqual(infra.error_digest(None), [])
+        self.assertEqual(infra.error_digest("text"), [])
+        self.assertEqual(infra.error_digest({"message": "only a message"}), [])
+
+    def test_stderr_with_a_json_error_body(self):
+        text = "ERROR: " + json.dumps({"error": QUOTING_ERROR})
+        digest = infra.stderr_digest(text)
+        self.assertEqual(digest[0], "InvalidTemplateDeployment")
+        self.assertNotIn("portal.real.example", " ".join(digest))
+
+    def test_stderr_in_the_cli_text_form(self):
+        text = ("ERROR: (InvalidTemplateDeployment) The value 'portal.real.example' is not valid.\n"
+                "Code: InvalidTemplateDeployment\nMessage: The value 'portal.real.example' is not valid.\n"
+                "Target: baseDomain\n")
+        self.assertEqual(infra.stderr_digest(text), ["InvalidTemplateDeployment", "baseDomain"])
+
+    def test_stderr_with_only_the_error_header(self):
+        self.assertEqual(infra.stderr_digest("ERROR: (AuthorizationFailed) The client 'x' has no access."),
+                         ["AuthorizationFailed"])
+
+    def test_unrecognised_stderr_is_reported_without_repeating_it(self):
+        digest = infra.stderr_digest("something broke: portal.real.example {not json")
+        self.assertEqual(len(digest), 1)
+        self.assertNotIn("portal.real.example", digest[0])
+
+    def test_digest_command_prints_codes_and_writes_a_what_if_result_holding_only_codes(self):
+        err = self.write("w.err", "ERROR: " + json.dumps({"error": QUOTING_ERROR}))
+        out = self.root / "whatif.json"
+        result, stdout = quiet(infra.main, ["digest", "--stderr", str(err), "--whatif-json", str(out)])
+        self.assertEqual(result, 0)
+        self.assertIn("az error: InvalidTemplateDeployment", stdout)
+        self.assertNotIn("portal.real.example", stdout + out.read_text())
+        written = json.loads(out.read_text())
+        self.assertEqual(written["status"], "Failed")
+        text, ok = infra.summarize(written, "t")
+        self.assertFalse(ok)
+        self.assertIn("`InvalidParameter (target baseDomain)`", text)
+
+    def test_digest_command_refuses_a_path_outside_the_allowed_roots(self):
+        self.addCleanup(setattr, infra, "allowed_roots", infra.allowed_roots)
+        infra.allowed_roots = lambda: [self.root.resolve()]
+        result, stdout = quiet(infra.main, ["digest", "--stderr", str(self.root.parent / "x.err")])
+        self.assertEqual(result, 1)
+        self.assertIn("::error::", stdout)
+
+
+class AzStderrGuard(unittest.TestCase):
+    def test_flags_an_az_call_whose_stderr_is_not_redirected(self):
+        errors = infra.unredirected_az('az deployment group what-if -g "$RG" \\\n  --output json > out.json\n')
+        self.assertEqual(len(errors), 1)
+        self.assertIn("az stderr reaches the public log", errors[0])
+
+    def test_passes_when_stderr_goes_to_a_file_even_across_continuation_lines(self):
+        code = 'az deployment group create -g "$RG" \\\n  --output none \\\n  2> "$RUNNER_TEMP/deploy.err"\n'
+        self.assertEqual(infra.unredirected_az(code), [])
+        self.assertEqual(infra.unredirected_az('az tag update --tags a=1 > /dev/null 2> p.err\n'), [])
+
+    def test_flags_printing_an_error_file_or_a_captured_error(self):
+        self.assertEqual(len(infra.unredirected_az('cat "$RUNNER_TEMP/last.err"\n')), 1)
+        self.assertEqual(len(infra.unredirected_az('echo "$out"\n')), 1)
+        self.assertEqual(infra.unredirected_az('grep -q X "$RUNNER_TEMP/last.err"\n'), [])
+
+
+class FederatedCredentialPolicyGuard(TempTree):
+    GOOD_BOOTSTRAP = """resource p 'Microsoft.Authorization/policyDefinitions@2023-04-01' = {
+  properties: { policyRule: { if: { field: 'type', equals: '%s' }, then: { effect: 'deny' } } }
+}
+module workloadPolicy 'modules/workload-policy.bicep' = {
+  name: 'x'
+  scope: workloadGroup
+}
+""" % infra.FIC_TYPE
+    MODULE = "resource a 'Microsoft.Authorization/policyAssignments@2024-04-01' = {}\n"
+
+    def tree(self, bootstrap, module=MODULE):
+        self.write("infra/azure/subscription/bootstrap.bicep", bootstrap)
+        if module is not None:
+            self.write("infra/azure/subscription/modules/workload-policy.bicep", module)
+
+    def test_a_workload_scoped_deny_passes(self):
+        self.tree(self.GOOD_BOOTSTRAP)
+        self.assertEqual(infra.check_fic_policy(self.root), [])
+
+    def test_a_missing_bootstrap_is_reported(self):
+        self.assertEqual(len(infra.check_fic_policy(self.root)), 1)
+
+    def test_an_audit_effect_is_not_enough(self):
+        self.tree(self.GOOD_BOOTSTRAP.replace("effect: 'deny'", "effect: 'audit'"))
+        self.assertTrue(any("deny policy" in e for e in infra.check_fic_policy(self.root)))
+
+    def test_an_assignment_at_any_other_scope_fails(self):
+        self.tree(self.GOOD_BOOTSTRAP.replace("scope: workloadGroup", "scope: identityGroup"))
+        self.assertTrue(any("WORKLOAD group" in e for e in infra.check_fic_policy(self.root)))
+
+    def test_a_missing_assignment_module_fails(self):
+        self.tree(self.GOOD_BOOTSTRAP, module=None)
+        self.assertTrue(any("workload-policy.bicep" in e for e in infra.check_fic_policy(self.root)))
 
 
 if __name__ == "__main__":

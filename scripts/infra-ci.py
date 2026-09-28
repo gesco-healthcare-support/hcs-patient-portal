@@ -14,6 +14,12 @@ Three subcommands, stdlib only:
              environment's secrets and variables).
   summarize  Turns `az ... what-if --result-format ResourceIdOnly` JSON into a summary that is safe to
              post publicly: change counts and resource names, never property values.
+  digest     Reduces a failed `az` call's stderr to error codes and targets, for the job log.
+
+ERRORS ARE DIGESTED, NEVER PRINTED. An ARM validation error's `message` can quote the parameter value it
+rejected, and a preview's non-secure parameters are the last real deploy's (base domain, SQL login, Entra
+group id). GitHub masks only secrets, not these. So every failure path prints `code` and `target` only,
+walked through `details`, and the workflow sends az's own stderr to a file that is never printed.
 
 WHY SO CAREFUL ABOUT OUTPUT: the repository is public, and so are its workflow logs, artifacts and PR
 comments. A default what-if prints every changed property, office allow-list addresses included.
@@ -40,6 +46,8 @@ PINNED = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 JOB_KEY = re.compile(r"^ {2}([A-Za-z0-9_-]+):\s*$")
 
 SUMMARY_MARKER = "<!-- infra-what-if -->"
+FIC_TYPE = "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials"
+AZ_COMMAND = re.compile(r"\baz (deployment group|tag update)\b")
 CHANGE_ORDER = ["Create", "Modify", "Delete", "Deploy", "Ignore", "NoChange", "Unsupported"]
 SECURE_TYPES = {"securestring", "secureobject"}
 ZERO_GUID = "00000000-0000-0000-0000-000000000000"
@@ -140,6 +148,33 @@ def unpinned_actions(workflow: str) -> list[str]:
     return errors
 
 
+def unredirected_az(code: str) -> list[str]:
+    """Every az call that can fail with a value-quoting message sends stderr to a file; no error file is printed."""
+    lines = re.sub(r"\\\n\s*", " ", code).splitlines()
+    errors = [f"infra.yml: az stderr reaches the public log: {line.strip()[:90]}"
+              for line in lines if AZ_COMMAND.search(line) and "2>" not in line]
+    errors += [f"infra.yml prints a raw az error: {line.strip()[:90]}"
+               for line in lines if re.search(r"\b(cat|echo)\b.*(\.err\b|\$out\b)", line)]
+    return errors
+
+
+def check_fic_policy(root: Path) -> list[str]:
+    """The bootstrap denies federated credentials in the workload group; they belong in the identity group only."""
+    subscription = root / "infra" / "azure" / "subscription"
+    if not (subscription / "bootstrap.bicep").is_file():
+        return ["infra/azure/subscription/bootstrap.bicep is missing."]
+    bootstrap = (subscription / "bootstrap.bicep").read_text(encoding="utf-8")
+    module = subscription / "modules" / "workload-policy.bicep"
+    errors = []
+    if FIC_TYPE not in bootstrap or "effect: 'deny'" not in bootstrap:
+        errors.append(f"bootstrap.bicep must define a deny policy on {FIC_TYPE}.")
+    if not re.search(r"module \w+ 'modules/workload-policy\.bicep' = \{[^}]*scope: workloadGroup", bootstrap):
+        errors.append("bootstrap.bicep must assign the deny policy at the WORKLOAD group (scope: workloadGroup).")
+    if not module.is_file() or "Microsoft.Authorization/policyAssignments@" not in module.read_text(encoding="utf-8"):
+        errors.append("subscription/modules/workload-policy.bicep must hold the policy assignment.")
+    return errors
+
+
 def job_errors(jobs: dict[str, str]) -> list[str]:
     """Which job may hold which identity."""
     errors = []
@@ -164,6 +199,7 @@ def check_workflow(workflow: str) -> list[str]:
         errors.append("infra.yml must never use pull_request_target: it runs fork code with base-repo rights.")
     errors += unpinned_actions(workflow)
     errors += job_errors(job_blocks(workflow))
+    errors += unredirected_az(code)
     if not re.search(r"^permissions:\n {2}contents: read$", workflow, re.MULTILINE):
         errors.append("infra.yml must default to 'permissions: contents: read' at the top level.")
     return errors
@@ -173,6 +209,7 @@ def cmd_check(root: Path) -> int:
     assignable = json.loads((root / ASSIGNABLE_ROLES).read_text(encoding="utf-8"))["roles"]
     errors = check_roles(assigned_roles(resource_group_templates(root)), assignable)
     errors += check_workflow((root / WORKFLOW).read_text(encoding="utf-8"))
+    errors += check_fic_policy(root)
     for error in errors:
         print(f"::error::{error}")
     if not errors:
@@ -322,6 +359,31 @@ def resource_label(resource_id: str) -> str:
     return resource_id[resource_id.index(marker) + len(marker):]
 
 
+def error_digest(error) -> list[str]:
+    """`code` and `target` of an ARM error and every nested detail, depth first. `message` is never read."""
+    if not isinstance(error, dict):
+        return []
+    inner = error["error"] if isinstance(error.get("error"), dict) else error
+    here = []
+    if inner.get("code"):
+        here.append(str(inner["code"]) + (f" (target {inner['target']})" if inner.get("target") else ""))
+    return here + [entry for detail in inner.get("details") or [] for entry in error_digest(detail)]
+
+
+def stderr_digest(text: str) -> list[str]:
+    """Codes and targets from az stderr: its JSON error body if it printed one, else its Code:/Target: lines."""
+    start = text.find("{")
+    if start != -1:
+        try:
+            parsed, _ = json.JSONDecoder().raw_decode(text[start:])
+        except ValueError:
+            parsed = None
+        if error_digest(parsed):
+            return error_digest(parsed)
+    codes = re.findall(r"(?m)^\s*(?:Code|Target):\s*(\S+)", text) or re.findall(r"(?m)^ERROR: \((\w+)\)", text)
+    return codes or ["unrecognised az error; the stderr file stays on the runner and is not printed"]
+
+
 def summarize(result: dict, title: str) -> tuple[str, bool]:
     """Markdown safe to publish, and whether the what-if succeeded."""
     changes = result.get("changes") or []
@@ -329,9 +391,9 @@ def summarize(result: dict, title: str) -> tuple[str, bool]:
     ok = str(result.get("status", "")).lower() == "succeeded"
     lines = [SUMMARY_MARKER, f"### Infra what-if: {title}", ""]
     if not ok:
-        code = (result.get("error") or {}).get("code", "unknown")
-        lines += [f"**What-if did not succeed** (status `{result.get('status')}`, error `{code}`).",
-                  "The full error is in the job log; it is not repeated here.", ""]
+        codes = ", ".join(f"`{c}`" for c in error_digest(result.get("error"))) or "`unknown`"
+        lines += [f"**What-if did not succeed** (status `{result.get('status')}`, error {codes}).",
+                  "Only error codes and targets are shown, here and in the job log: messages can quote values.", ""]
     lines += ["| change | count |", "| --- | --- |"]
     for kind in sorted(counts, key=lambda k: CHANGE_ORDER.index(k) if k in CHANGE_ORDER else len(CHANGE_ORDER)):
         lines.append(f"| {kind} | {counts[kind]} |")
@@ -351,8 +413,9 @@ def summarize(result: dict, title: str) -> tuple[str, bool]:
 def cmd_summarize(args: argparse.Namespace) -> int:
     """The publishable summary goes to STDOUT, which the workflow redirects to a file; diagnostics go to STDERR.
 
-    Printing rather than writing means this command never opens a path it was given for writing. It also keeps
-    the two audiences apart: stdout becomes the PR comment, stderr stays in the (masked) job log only.
+    Printing rather than writing means this command never opens a path it was given for writing. stdout
+    becomes the PR comment. stderr goes to the job log, which is PUBLIC as well, so on failure it carries the
+    same digest as the comment: error codes and targets, never a message.
     """
     try:
         result = json.loads(confined(args.whatif).read_text(encoding="utf-8"))
@@ -362,8 +425,26 @@ def cmd_summarize(args: argparse.Namespace) -> int:
     text, ok = summarize(result, args.title)
     sys.stdout.write(text)
     if not ok:
-        print(json.dumps(result.get("error"), indent=2), file=sys.stderr)
+        for entry in error_digest(result.get("error")):
+            print(f"what-if error: {entry}", file=sys.stderr)
     return 0 if ok else 1
+
+
+def cmd_digest(args: argparse.Namespace) -> int:
+    """Print a failed az call's error codes and targets; optionally write a failed what-if result holding only them."""
+    try:
+        text = confined(args.stderr).read_text(encoding="utf-8", errors="replace")
+        out = confined(args.whatif_json) if args.whatif_json else None
+    except ParameterError as exc:
+        print(f"::error::{exc}")
+        return 1
+    entries = stderr_digest(text)
+    for entry in entries:
+        print(f"az error: {entry}")
+    if out:
+        error = {"code": entries[0], "details": [{"code": entry} for entry in entries[1:]]}
+        out.write_text(json.dumps({"status": "Failed", "error": error}), encoding="utf-8")
+    return 0
 
 
 # ---------------------------------------------------------------- entry point
@@ -382,6 +463,9 @@ def build_parser() -> argparse.ArgumentParser:
     summary = commands.add_parser("summarize", help="publishable what-if summary")
     summary.add_argument("--whatif", required=True)
     summary.add_argument("--title", required=True)
+    digest = commands.add_parser("digest", help="error codes and targets from az stderr")
+    digest.add_argument("--stderr", required=True)
+    digest.add_argument("--whatif-json", help="also write a failed what-if result holding only the codes")
     return parser
 
 
@@ -391,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_check(REPO_ROOT)
     if args.command == "params":
         return cmd_params(args)
+    if args.command == "digest":
+        return cmd_digest(args)
     return cmd_summarize(args)
 
 

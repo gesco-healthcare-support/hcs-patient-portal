@@ -21,7 +21,7 @@
       "value": "repo:gesco-healthcare-support@274625791/hcs-patient-portal@1205316583"
     },
     "whatIfScope": {
-      "value": "subscription"
+      "value": "resourceGroup"
     },
     "appDeployTargets": {
       "value": {

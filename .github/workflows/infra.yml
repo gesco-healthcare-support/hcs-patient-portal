@@ -14,6 +14,12 @@
 # parameter and every output. So what-if runs with `--result-format ResourceIdOnly`, the summary carries names and
 # counts only, and create runs with `--output none`. Do not "improve" any of those for readability.
 #
+# ERRORS TOO. An ARM validation error's message can quote the parameter value it rejected, and GitHub masks only
+# secrets, not the base domain, SQL login or Entra group id a preview reads back from the last deploy. So every
+# `az deployment` and `az tag` call sends its stderr to a file on the runner that is NEVER printed, and a failure
+# reports only error codes and targets through `scripts/infra-ci.py digest`. `infra-ci.py check` fails the build
+# if an az call's stderr is not redirected, or if an error file or captured error is echoed.
+#
 # NEVER pull_request_target. It runs with the base repository's rights on code from a fork.
 #
 # Identities, rights and the one-off setup: infra/azure/README.md, "CI".
@@ -170,7 +176,7 @@ jobs:
               : > "$RUNNER_TEMP/last.json"
               echo "No earlier deploy; previewing with the example parameters."
             else
-              cat "$RUNNER_TEMP/last.err"
+              python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/last.err"
               exit 1
             fi
           fi
@@ -185,11 +191,11 @@ jobs:
           az deployment group what-if -g "$AZURE_RESOURCE_GROUP" --name portal-main-preview \
             --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" \
             --validation-level ProviderNoRbac --result-format ResourceIdOnly --no-pretty-print \
-            --output json > "$RUNNER_TEMP/whatif.json"
+            --output json > "$RUNNER_TEMP/whatif.json" 2> "$RUNNER_TEMP/whatif.err"
           rc=$?
           set -e
           if [ "$rc" -ne 0 ] && [ ! -s "$RUNNER_TEMP/whatif.json" ]; then
-            echo '{"status": "Failed", "error": {"code": "CliError"}}' > "$RUNNER_TEMP/whatif.json"
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --whatif-json "$RUNNER_TEMP/whatif.json"
           fi
           ok=true
           python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
@@ -205,14 +211,14 @@ jobs:
         env:
           SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
-          if out=$(az tag update --resource-id "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP" \
-                     --operation Merge --tags whatif-write-probe=1 2>&1); then
+          if az tag update --resource-id "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP" \
+               --operation Merge --tags whatif-write-probe=1 > /dev/null 2> "$RUNNER_TEMP/probe.err"; then
             echo "::error::The preview identity WROTE to the resource group. Its rights are wrong; fix the bootstrap."
             exit 1
           fi
-          if ! grep -q "AuthorizationFailed" <<< "$out"; then
+          if ! grep -q "AuthorizationFailed" "$RUNNER_TEMP/probe.err"; then
             echo "::error::Write probe inconclusive: expected AuthorizationFailed."
-            echo "$out"
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/probe.err"
             exit 1
           fi
           echo "Write refused with AuthorizationFailed, as required."
@@ -312,7 +318,9 @@ jobs:
         run: |
           az deployment group what-if -g "$AZURE_RESOURCE_GROUP" --name portal-main-preview \
             --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" \
-            --result-format ResourceIdOnly --no-pretty-print --output json > "$RUNNER_TEMP/whatif.json"
+            --result-format ResourceIdOnly --no-pretty-print --output json > "$RUNNER_TEMP/whatif.json" \
+            2> "$RUNNER_TEMP/whatif.err" \
+            || python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --whatif-json "$RUNNER_TEMP/whatif.json"
           python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
             --title "resource group, deploy of ${GITHUB_SHA::12}" > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
@@ -321,10 +329,15 @@ jobs:
       # --output none: the default output prints every non-secure parameter and every output, publicly.
       - name: Deploy
         run: |
-          az deployment group create -g "$AZURE_RESOURCE_GROUP" --name portal-main \
-            --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" --output none
+          if ! az deployment group create -g "$AZURE_RESOURCE_GROUP" --name portal-main \
+               --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" --output none \
+               2> "$RUNNER_TEMP/deploy.err"; then
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/deploy.err"
+            exit 1
+          fi
           state=$(az deployment group show -g "$AZURE_RESOURCE_GROUP" -n portal-main \
-                    --query properties.provisioningState -o tsv)
+                    --query properties.provisioningState -o tsv 2> "$RUNNER_TEMP/state.err") \
+            || { python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/state.err"; exit 1; }
           echo "provisioningState: $state"
           [ "$state" = "Succeeded" ]
 

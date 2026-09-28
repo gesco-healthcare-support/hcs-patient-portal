@@ -130,7 +130,7 @@ managed identities, each with ONE federated credential:
 
 | identity | OIDC subject (suffix) | rights |
 | --- | --- | --- |
-| `id-gh-whatif-<env>` | `:pull_request` | Reader + `Portal Infra What-If` (what-if and validate) on the subscription |
+| `id-gh-whatif-<env>` | `:pull_request` | Reader + `Portal Infra What-If` (what-if and validate) on the workload group (`whatIfScope`; widen it only together with a job that previews at subscription scope) |
 | `id-gh-infra-<env>` | `:environment:azure-production-infra` | on the workload group: Contributor; RBAC administrator constrained by ABAC to `subscription/assignable-roles.json`, service principals only, never a CI identity; `Portal Lock Writer` (write, no delete) |
 | `id-gh-app-<env>` | `:environment:azure-production-app` | AcrPush on the registry, Virtual Machine Contributor on the VM (bootstrap phase 2) |
 
@@ -143,6 +143,18 @@ bootstrap runs again.
 executes as the VM. So inside the workload group the infra identity can reach whatever the VM identity can. The
 condition stops escalation beyond the group and to roles outside the set. The control on the identity itself is the
 environment: `production` only, and a required reviewer.
+
+**Federated credentials live in the identity group only.** Every federated credential in this design belongs to one of
+the three CI identities, and only the bootstrap manages them. Contributor on the workload group includes
+`Microsoft.ManagedIdentity` writes, so the bootstrap also defines a deny policy on
+`Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials` and assigns it at the workload group
+(`subscription/modules/workload-policy.bicep`).
+
+- It is assigned at the workload group only. The CI identities' own credentials are created in the identity group,
+  and a subscription-wide assignment would refuse the bootstrap itself. The workload templates create no federated
+  credentials.
+- Contributor cannot remove it: `Microsoft.Authorization/*/Write` and `*/Delete` are in Contributor's NotActions.
+- `scripts/infra-ci.py check` fails if the deny, or its workload-group scope, goes.
 
 ### One-off setup (subscription Owner)
 
@@ -186,7 +198,13 @@ The repository is public, and so are its workflow logs, artifacts and PR comment
 
 - what-if runs with `--result-format ResourceIdOnly`, and the summary shows change counts and resource names only;
 - create runs with `--output none`;
-- the office allow-list addresses are secrets, not variables.
+- the office allow-list addresses are secrets, not variables;
+- **errors are digested, never printed.** An ARM validation error's message can quote the parameter value it
+  rejected, and GitHub masks only secrets, not the base domain, SQL login or Entra group id that a preview reads back
+  from the last deploy. So every `az deployment` and `az tag` call sends its stderr to a file on the runner that is
+  never printed. A failure reports only error codes and targets, walked through `details`, through
+  `scripts/infra-ci.py digest`. That covers the job log and the PR comment alike. `infra-ci.py check` fails if an az
+  call's stderr is not redirected, or if an error file or a captured error is echoed.
 
 Run `what-if` locally when you need the property diff.
 
@@ -212,6 +230,9 @@ what production runs. The flip side: a PR cannot preview a parameter change. A p
 - The OIDC subject GitHub actually presents with immutable subjects on (MEDIUM: GitHub documents only the `ref`
   example). On a mismatch, Entra's `AADSTS70021` error names the subject presented. Record it here.
 - That the write-probe step is refused with `AuthorizationFailed`. It runs on every PR, so this stays proven.
+- That the deny policy holds: an attempt by the infra deploy identity to create a federated identity credential in the
+  workload group (on the gateway identity, for example) is rejected with `RequestDisallowedByPolicy`. Try it once,
+  after bootstrap phase 1, and record the error code here.
 
 ## After the template, before the application
 
