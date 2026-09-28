@@ -182,7 +182,7 @@ class Parameters(unittest.TestCase):
         self.assertEqual(infra.placeholder({"type": "secureObject"}), {})
         self.assertEqual(infra.placeholder({"type": "string", "minLength": 36}), infra.ZERO_GUID)
         self.assertEqual(infra.placeholder({"type": "string"}), "placeholder.invalid")
-        self.assertEqual(infra.placeholder({"type": "bool"}), False)
+        self.assertIs(infra.placeholder({"type": "bool"}), False)
         self.assertEqual(infra.placeholder({"type": "int", "minValue": 2}), 2)
         self.assertEqual(infra.placeholder({"type": "array"}), [])
 
@@ -237,8 +237,9 @@ class Parameters(unittest.TestCase):
         self.assertNotIn("elasticPoolCapacity", values)
 
     def test_deploy_missing_required_value_names_the_variable(self):
+        environ = self.env(BASE_DOMAIN="")
         with self.assertRaisesRegex(infra.ParameterError, "set BASE_DOMAIN"):
-            infra.deploy_parameters(self.DECLARATIONS, self.env(BASE_DOMAIN=""))
+            infra.deploy_parameters(self.DECLARATIONS, environ)
 
     def test_deploy_required_parameter_without_a_mapping_says_so(self):
         declarations = {"somethingNew": {"type": "string"}}
@@ -246,8 +247,9 @@ class Parameters(unittest.TestCase):
             infra.deploy_parameters(declarations, {})
 
     def test_gateway_without_a_certificate_is_refused(self):
+        environ = self.env(DEPLOY_GATEWAY="true")
         with self.assertRaisesRegex(infra.ParameterError, "TLS_CERTIFICATE_SECRET_ID is empty"):
-            infra.deploy_parameters(self.DECLARATIONS, self.env(DEPLOY_GATEWAY="true"))
+            infra.deploy_parameters(self.DECLARATIONS, environ)
 
     def test_variable_for_an_undeclared_parameter_is_ignored_with_a_notice(self):
         values, output = quiet(infra.deploy_parameters, self.DECLARATIONS, self.env(ALLOWED_CLIENT_CIDRS='["x"]'))
@@ -289,6 +291,51 @@ class CmdParams(TempTree):
         self.assertEqual(result, 1)
         self.assertIn("::error::required parameter", output)
         self.assertFalse(self.out.exists())
+
+
+class Confined(TempTree):
+    """The helper may only touch the checkout and the temp directories."""
+
+    def test_paths_inside_an_allowed_root_resolve(self):
+        inside = self.write("x.json", "{}")
+        self.assertEqual(infra.confined(str(inside)), inside.resolve())
+        self.assertEqual(infra.confined(str(REPO_ROOT / "scripts" / "infra-ci.py")),
+                         (REPO_ROOT / "scripts" / "infra-ci.py").resolve())
+
+    def test_runner_temp_is_an_allowed_root(self):
+        self.addCleanup(infra.os.environ.pop, "RUNNER_TEMP", None)
+        infra.os.environ["RUNNER_TEMP"] = str(self.root)
+        self.assertIn(self.root.resolve(), infra.allowed_roots())
+
+    def test_a_path_outside_every_root_is_refused(self):
+        self.addCleanup(setattr, infra, "allowed_roots", infra.allowed_roots)
+        infra.allowed_roots = lambda: [self.root.resolve()]
+        outside = self.root.parent / "elsewhere.json"
+        with self.assertRaisesRegex(infra.ParameterError, "outside the repository"):
+            infra.confined(str(outside))
+
+    def test_a_different_drive_is_not_inside(self):
+        self.addCleanup(setattr, infra.os.path, "commonpath", infra.os.path.commonpath)
+
+        def different_drive(paths):
+            raise ValueError("Paths don't have the same drive")
+
+        infra.os.path.commonpath = different_drive
+        with self.assertRaises(infra.ParameterError):
+            infra.confined(str(self.root / "x.json"))
+
+    def test_commands_refuse_an_outside_path_with_an_annotation(self):
+        self.addCleanup(setattr, infra, "allowed_roots", infra.allowed_roots)
+        whatif = self.write("w.json", json.dumps({"status": "Succeeded", "changes": []}))
+        infra.allowed_roots = lambda: [whatif.parent.resolve()]
+        outside = str(self.root.parent / "s.md")
+        result, output = quiet(infra.main, ["summarize", "--whatif", str(whatif), "--title", "t", "--out", outside])
+        self.assertEqual(result, 1)
+        self.assertIn("::error::", output)
+        template = self.write("m.json", json.dumps({"parameters": {}}))
+        result, output = quiet(infra.main, ["params", "--mode", "deploy", "--template", str(template), "--out", outside])
+        self.assertEqual(result, 1)
+        self.assertIn("outside the repository", output)
 
 
 class Summarize(TempTree):

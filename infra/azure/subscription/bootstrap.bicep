@@ -103,7 +103,6 @@ resource whatIfRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Resources/deployments/whatIf/action'
           'Microsoft.Resources/deployments/validate/action'
         ]
-        notActions: []
       }
     ]
     assignableScopes: [
@@ -127,27 +126,11 @@ resource lockWriterRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Authorization/locks/read'
           'Microsoft.Authorization/locks/write'
         ]
-        notActions: []
       }
     ]
     assignableScopes: [
       subscription().id
     ]
-  }
-}
-
-// ---------------------------------------------------------------- identities
-
-module identities 'modules/identities.bicep' = {
-  name: 'portal-bootstrap-identities'
-  scope: identityGroup
-  params: {
-    location: location
-    envName: envName
-    pullRequestSubject: '${githubSubjectPrefix}:pull_request'
-    infraSubject: '${githubSubjectPrefix}:environment:${infraEnvironment}'
-    appSubject: '${githubSubjectPrefix}:environment:${appEnvironment}'
-    tags: tags
   }
 }
 
@@ -170,6 +153,21 @@ resource whatIfActionsOnSubscription 'Microsoft.Authorization/roleAssignments@20
     principalId: identities.outputs.whatIfPrincipalId
     principalType: 'ServicePrincipal'
     description: 'CI pull-request preview. what-if and validate only.'
+  }
+}
+
+// ---------------------------------------------------------------- identities
+
+module identities 'modules/identities.bicep' = {
+  name: 'portal-bootstrap-identities'
+  scope: identityGroup
+  params: {
+    location: location
+    envName: envName
+    pullRequestSubject: '${githubSubjectPrefix}:pull_request'
+    infraSubject: '${githubSubjectPrefix}:environment:${infraEnvironment}'
+    appSubject: '${githubSubjectPrefix}:environment:${appEnvironment}'
+    tags: tags
   }
 }
 

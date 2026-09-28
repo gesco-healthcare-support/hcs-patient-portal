@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -36,7 +37,7 @@ WORKFLOW = ".github/workflows/infra.yml"
 GUID_LITERAL = re.compile(r"'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'")
 USES_LINE = re.compile(r"^\s*(?:-\s*)?uses:\s*(\S+)")
 PINNED = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
-JOB_KEY = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
+JOB_KEY = re.compile(r"^ {2}([A-Za-z0-9_-]+):\s*$")
 
 SUMMARY_MARKER = "<!-- infra-what-if -->"
 CHANGE_ORDER = ["Create", "Modify", "Delete", "Deploy", "Ignore", "NoChange", "Unsupported"]
@@ -163,7 +164,7 @@ def check_workflow(workflow: str) -> list[str]:
         errors.append("infra.yml must never use pull_request_target: it runs fork code with base-repo rights.")
     errors += unpinned_actions(workflow)
     errors += job_errors(job_blocks(workflow))
-    if not re.search(r"^permissions:\n  contents: read$", workflow, re.MULTILINE):
+    if not re.search(r"^permissions:\n {2}contents: read$", workflow, re.MULTILINE):
         errors.append("infra.yml must default to 'permissions: contents: read' at the top level.")
     return errors
 
@@ -257,25 +258,55 @@ def parameters_file(values: dict) -> dict:
     }
 
 
+def allowed_roots() -> list[Path]:
+    """Where this helper may read or write: the repository, the system temp directory, the runner's temp."""
+    roots = [REPO_ROOT, Path(tempfile.gettempdir()).resolve()]
+    if os.environ.get("RUNNER_TEMP"):
+        roots.append(Path(os.environ["RUNNER_TEMP"]).resolve())
+    return roots
+
+
+def confined(raw: str) -> Path:
+    """Resolve a CLI-supplied path, and refuse it unless it lies inside an allowed root.
+
+    Every path here comes from infra.yml, so this is not a defence against a hostile caller. It makes the
+    helper's reach explicit: it can never read from, or write over, anything outside the checkout and the temp
+    directories, whatever a future edit to the workflow passes it.
+    """
+    resolved = Path(raw).resolve()
+    for root in allowed_roots():
+        try:
+            if os.path.commonpath([root, resolved]) == str(root):
+                return resolved
+        except ValueError:
+            # Different drives on Windows, so not inside this root.
+            continue
+    raise ParameterError(f"{raw} is outside the repository and the temp directories; refusing to use it.")
+
+
 def read_json(path: str | None):
     """A JSON file, or None when the path is absent or empty (no earlier deploy yet)."""
-    if not path or not Path(path).is_file() or not Path(path).read_text(encoding="utf-8").strip():
+    if not path:
         return None
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    source = confined(path)
+    if not source.is_file() or not source.read_text(encoding="utf-8").strip():
+        return None
+    return json.loads(source.read_text(encoding="utf-8"))
 
 
 def cmd_params(args: argparse.Namespace) -> int:
-    declarations = json.loads(Path(args.template).read_text(encoding="utf-8"))["parameters"]
     try:
+        declarations = json.loads(confined(args.template).read_text(encoding="utf-8"))["parameters"]
+        out = confined(args.out)
         if args.mode == "pr":
-            example = json.loads(Path(args.example).read_text(encoding="utf-8"))["parameters"]
+            example = json.loads(confined(args.example).read_text(encoding="utf-8"))["parameters"]
             values = pr_parameters(declarations, read_json(args.last), example)
         else:
             values = deploy_parameters(declarations, dict(os.environ))
     except ParameterError as exc:
         print(f"::error::{exc}")
         return 1
-    Path(args.out).write_text(json.dumps(parameters_file(values), indent=2), encoding="utf-8")
+    out.write_text(json.dumps(parameters_file(values), indent=2), encoding="utf-8")
     print(f"wrote {len(values)} parameters ({args.mode}); values not printed.")
     return 0
 
@@ -318,9 +349,14 @@ def summarize(result: dict, title: str) -> tuple[str, bool]:
 
 
 def cmd_summarize(args: argparse.Namespace) -> int:
-    result = json.loads(Path(args.whatif).read_text(encoding="utf-8"))
+    try:
+        result = json.loads(confined(args.whatif).read_text(encoding="utf-8"))
+        out = confined(args.out)
+    except ParameterError as exc:
+        print(f"::error::{exc}")
+        return 1
     text, ok = summarize(result, args.title)
-    Path(args.out).write_text(text, encoding="utf-8")
+    out.write_text(text, encoding="utf-8")
     if not ok:
         print(json.dumps(result.get("error"), indent=2))
     return 0 if ok else 1

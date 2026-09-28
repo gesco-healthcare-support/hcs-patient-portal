@@ -59,7 +59,7 @@ jobs:
       - name: Install Bicep
         run: |
           mkdir -p "$RUNNER_TEMP/bicep-bin"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
             "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
           echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep-bin/bicep" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/bicep-bin/bicep"
@@ -131,7 +131,7 @@ jobs:
         if: steps.config.outputs.configured == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/bicep-bin"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
             "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
           echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep-bin/bicep" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/bicep-bin/bicep"
@@ -263,7 +263,7 @@ jobs:
       - name: Install Bicep
         run: |
           mkdir -p "$RUNNER_TEMP/bicep-bin"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
             "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
           echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep-bin/bicep" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/bicep-bin/bicep"
