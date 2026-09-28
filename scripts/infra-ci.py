@@ -349,16 +349,20 @@ def summarize(result: dict, title: str) -> tuple[str, bool]:
 
 
 def cmd_summarize(args: argparse.Namespace) -> int:
+    """The publishable summary goes to STDOUT, which the workflow redirects to a file; diagnostics go to STDERR.
+
+    Printing rather than writing means this command never opens a path it was given for writing. It also keeps
+    the two audiences apart: stdout becomes the PR comment, stderr stays in the (masked) job log only.
+    """
     try:
         result = json.loads(confined(args.whatif).read_text(encoding="utf-8"))
-        out = confined(args.out)
     except ParameterError as exc:
-        print(f"::error::{exc}")
+        print(f"::error::{exc}", file=sys.stderr)
         return 1
     text, ok = summarize(result, args.title)
-    out.write_text(text, encoding="utf-8")
+    sys.stdout.write(text)
     if not ok:
-        print(json.dumps(result.get("error"), indent=2))
+        print(json.dumps(result.get("error"), indent=2), file=sys.stderr)
     return 0 if ok else 1
 
 
@@ -378,7 +382,6 @@ def build_parser() -> argparse.ArgumentParser:
     summary = commands.add_parser("summarize", help="publishable what-if summary")
     summary.add_argument("--whatif", required=True)
     summary.add_argument("--title", required=True)
-    summary.add_argument("--out", required=True)
     return parser
 
 

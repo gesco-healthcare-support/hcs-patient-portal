@@ -194,7 +194,7 @@ jobs:
           ok=true
           python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
             --title "resource group, pull request #${{ github.event.pull_request.number }}" \
-            --out "$RUNNER_TEMP/summary.md" || ok=false
+            > "$RUNNER_TEMP/summary.md" || ok=false
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
 
@@ -314,7 +314,7 @@ jobs:
             --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" \
             --result-format ResourceIdOnly --no-pretty-print --output json > "$RUNNER_TEMP/whatif.json"
           python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
-            --title "resource group, deploy of ${GITHUB_SHA::12}" --out "$RUNNER_TEMP/summary.md"
+            --title "resource group, deploy of ${GITHUB_SHA::12}" > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
 
       # Fixed name `portal-main`: the pull-request preview reads its parameters back from this deployment.

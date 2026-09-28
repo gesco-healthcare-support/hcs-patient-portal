@@ -12,7 +12,7 @@ import json
 import pathlib
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
 from gate_loader import REPO_ROOT, load
@@ -53,6 +53,14 @@ def quiet(function, *args):
     with redirect_stdout(buffer):
         result = function(*args)
     return result, buffer.getvalue()
+
+
+def streams(function, *args):
+    """Run a function with stdout and stderr captured separately; return (result, stdout, stderr)."""
+    out, err = StringIO(), StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        result = function(*args)
+    return result, out.getvalue(), err.getvalue()
 
 
 class TempTree(unittest.TestCase):
@@ -329,9 +337,10 @@ class Confined(TempTree):
         whatif = self.write("w.json", json.dumps({"status": "Succeeded", "changes": []}))
         infra.allowed_roots = lambda: [whatif.parent.resolve()]
         outside = str(self.root.parent / "s.md")
-        result, output = quiet(infra.main, ["summarize", "--whatif", str(whatif), "--title", "t", "--out", outside])
+        result, stdout, stderr = streams(infra.main, ["summarize", "--whatif", outside, "--title", "t"])
         self.assertEqual(result, 1)
-        self.assertIn("::error::", output)
+        self.assertEqual(stdout, "")
+        self.assertIn("::error::", stderr)
         template = self.write("m.json", json.dumps({"parameters": {}}))
         result, output = quiet(infra.main, ["params", "--mode", "deploy", "--template", str(template), "--out", outside])
         self.assertEqual(result, 1)
@@ -378,13 +387,20 @@ class Summarize(TempTree):
         self.assertIn("`AuthorizationFailed`", text)
         self.assertNotIn(self.SUB, text)
 
-    def test_cmd_summarize_writes_the_file_and_prints_the_full_error_to_the_log_only(self):
+    def test_summary_goes_to_stdout_and_the_full_error_to_stderr_only(self):
         whatif = self.write("w.json", json.dumps({"status": "Failed", "error": {"code": "X", "message": "detail"}}))
-        out = self.root / "s.md"
-        result, output = quiet(infra.main, ["summarize", "--whatif", str(whatif), "--title", "t", "--out", str(out)])
+        result, stdout, stderr = streams(infra.main, ["summarize", "--whatif", str(whatif), "--title", "t"])
         self.assertEqual(result, 1)
-        self.assertIn("detail", output)
-        self.assertNotIn("detail", out.read_text())
+        self.assertTrue(stdout.startswith(infra.SUMMARY_MARKER))
+        self.assertNotIn("detail", stdout)
+        self.assertIn("detail", stderr)
+
+    def test_successful_summary_exits_zero_and_writes_nothing_to_stderr(self):
+        whatif = self.write("w.json", json.dumps({"status": "Succeeded", "changes": []}))
+        result, stdout, stderr = streams(infra.main, ["summarize", "--whatif", str(whatif), "--title", "t"])
+        self.assertEqual(result, 0)
+        self.assertIn("| change | count |", stdout)
+        self.assertEqual(stderr, "")
 
 
 if __name__ == "__main__":
