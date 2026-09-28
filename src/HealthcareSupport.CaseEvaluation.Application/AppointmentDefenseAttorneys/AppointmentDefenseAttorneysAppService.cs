@@ -27,14 +27,16 @@ public class AppointmentDefenseAttorneysAppService : CaseEvaluationAppService, I
     protected IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> _appointmentRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.DefenseAttorneys.DefenseAttorney, Guid> _defenseAttorneyRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
+    protected AppointmentChildOwnershipGuard _childOwnershipGuard;
 
-    public AppointmentDefenseAttorneysAppService(IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository, IRepository<HealthcareSupport.CaseEvaluation.DefenseAttorneys.DefenseAttorney, Guid> defenseAttorneyRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository)
+    public AppointmentDefenseAttorneysAppService(IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository, IRepository<HealthcareSupport.CaseEvaluation.DefenseAttorneys.DefenseAttorney, Guid> defenseAttorneyRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, AppointmentChildOwnershipGuard childOwnershipGuard)
     {
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
         _appointmentRepository = appointmentRepository;
         _defenseAttorneyRepository = defenseAttorneyRepository;
         _identityUserRepository = identityUserRepository;
+        _childOwnershipGuard = childOwnershipGuard;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default)]
@@ -145,6 +147,13 @@ public class AppointmentDefenseAttorneysAppService : CaseEvaluationAppService, I
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
+        // The caller must be a party to the row's OWN parent, and may not move the row to a
+        // different one. The parent is read from the stored row, never from the request: checking
+        // the supplied id would let a caller nominate an appointment they are a party to and still
+        // write to somebody else's row. Every external role holds this service's Edit permission.
+        var existingChild = await _appointmentDefenseAttorneyRepository.GetAsync(id);
+        await _childOwnershipGuard.EnsureCanWriteChildAsync(existingChild.AppointmentId, input.AppointmentId);
+
 
         var appointmentDefenseAttorney = await _appointmentDefenseAttorneyManager.UpdateAsync(id, input.AppointmentId, input.DefenseAttorneyId, input.IdentityUserId, input.ConcurrencyStamp);
         return ObjectMapper.Map<AppointmentDefenseAttorney, AppointmentDefenseAttorneyDto>(appointmentDefenseAttorney);
