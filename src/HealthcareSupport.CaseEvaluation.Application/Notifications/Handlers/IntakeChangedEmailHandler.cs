@@ -93,7 +93,9 @@ public class IntakeChangedEmailHandler :
                 wcabAdj: ctx.WcabAdj,
                 documentName: null,
                 rejectionNotes: null,
-                clinicName: _currentTenant.Name,
+                // Filled by NotificationTemplateRenderer from the tenant store (#1014):
+                // ICurrentTenant.Name is null inside Change(TenantId).
+                clinicName: null,
                 portalUrl: ctx.PortalBaseUrl);
 
             var diffVariables = new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)

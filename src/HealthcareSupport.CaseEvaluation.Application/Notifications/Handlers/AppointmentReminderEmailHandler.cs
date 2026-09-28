@@ -119,7 +119,7 @@ public class AppointmentReminderEmailHandler :
                     : string.Empty,
                 ["OutstandingDocuments"] = outstandingDocs,
                 ["PortalUrl"] = ctx.PortalBaseUrl ?? string.Empty,
-                ["ClinicName"] = _currentTenant.Name ?? string.Empty,
+                // No ClinicName: NotificationTemplateRenderer fills it from the tenant store (#1014).
             };
 
             // Phase 4 (C3/D3): when the booker is a promoted attorney-creator,
