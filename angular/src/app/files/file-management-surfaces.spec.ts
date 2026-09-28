@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import {
@@ -311,18 +311,9 @@ describe('FileManagementComponent surfaces', () => {
       expect(directories['create']).toHaveBeenCalledWith({ parentId: 'd-1', name: '2026' });
     });
 
-    it('reports and reloads on success, but does NOT close the dialog', () => {
-      /**
-       * PINNED AS FOUND, NOT AS INTENDED -- this is a defect, logged to the backlog.
-       *
-       * The success handler calls closeModal(), but it runs while isBusy is still true:
-       * `finalize` fires on COMPLETE, which is after `next`. So closeModal's own
-       * in-flight guard refuses, and the dialog stays open behind the success toast.
-       * The same shape affects rename and delete below.
-       *
-       * Not fixed here: this PR carries exactly one approved product change and it is
-       * not this one.
-       */
+    it('reports, reloads and closes the dialog on success', () => {
+      // The success path resets the dialog directly: `finalize` runs after `next`, so
+      // closeModal's in-flight guard would still see isBusy and refuse (#963).
       const c = create();
       c.openNewFolder();
       c.folderName.set('2026');
@@ -333,9 +324,29 @@ describe('FileManagementComponent surfaces', () => {
       expect(toaster.success).toHaveBeenCalledWith('Folder created.');
       expect(directories['getContent']).toHaveBeenCalled();
       expect(c.isBusy()).toBeFalse();
-      expect(c.modal())
-        .withContext('closeModal is blocked by its own guard on the success path')
-        .toBe('newfolder');
+      expect(c.modal()).toBeNull();
+      expect(c.target()).toBeNull();
+      expect(c.folderName()).toBe('');
+    });
+
+    it('keeps the dialog through the flight and closes it on success', () => {
+      // Escape is still refused while the create is in flight; the dialog closes only
+      // once the write succeeds.
+      const c = create();
+      const flight = new Subject<void>();
+      directories['create'].and.returnValue(flight);
+      c.openNewFolder();
+      c.folderName.set('2026');
+
+      c.createFolder();
+      c.onEscapeKey();
+
+      expect(c.modal()).withContext('Escape during the flight').toBe('newfolder');
+
+      flight.next();
+      flight.complete();
+
+      expect(c.modal()).toBeNull();
     });
 
     it('does nothing while another operation is running', () => {
@@ -347,7 +358,7 @@ describe('FileManagementComponent surfaces', () => {
       expect(directories['create']).not.toHaveBeenCalled();
     });
 
-    it('releases the button when the create fails', () => {
+    it('releases the button when the create fails, and keeps the dialog for a retry', () => {
       const c = create();
       directories['create'].and.returnValue(throwError(() => ({ status: 409 })));
       c.openNewFolder();
@@ -356,6 +367,9 @@ describe('FileManagementComponent surfaces', () => {
       c.createFolder();
 
       expect(c.isBusy()).toBeFalse();
+      // A failed write must not close the dialog or discard the typed name.
+      expect(c.modal()).toBe('newfolder');
+      expect(c.folderName()).toBe('2026');
     });
   });
 
@@ -512,7 +526,7 @@ describe('FileManagementComponent surfaces', () => {
       });
     });
 
-    it('reports and reloads on success, with the same dialog defect as create', () => {
+    it('reports, reloads and closes the dialog on success', () => {
       const c = create();
       c.openRename(row());
       directories['getContent'].calls.reset();
@@ -521,10 +535,13 @@ describe('FileManagementComponent surfaces', () => {
 
       expect(toaster.success).toHaveBeenCalledWith('Renamed.');
       expect(directories['getContent']).toHaveBeenCalled();
-      expect(c.modal()).withContext('see the create-folder note').toBe('rename');
+      expect(c.isBusy()).toBeFalse();
+      expect(c.modal()).toBeNull();
+      expect(c.target()).toBeNull();
+      expect(c.folderName()).toBe('');
     });
 
-    it('releases the button when the rename fails', () => {
+    it('releases the button when the rename fails, and keeps the dialog for a retry', () => {
       const c = create();
       files['rename'].and.returnValue(throwError(() => ({ status: 409 })));
       c.openRename(row());
@@ -532,6 +549,8 @@ describe('FileManagementComponent surfaces', () => {
       c.doRename();
 
       expect(c.isBusy()).toBeFalse();
+      expect(c.modal()).toBe('rename');
+      expect(c.folderName()).toBe('notes.txt');
     });
   });
 
@@ -562,10 +581,12 @@ describe('FileManagementComponent surfaces', () => {
 
       expect(files['delete']).toHaveBeenCalledWith('f-9');
       expect(toaster.success.calls.mostRecent().args[0]).toContain('old.txt');
-      expect(c.modal()).withContext('see the create-folder note').toBe('delete');
+      expect(c.isBusy()).toBeFalse();
+      expect(c.modal()).withContext('closes the dialog on success').toBeNull();
+      expect(c.target()).toBeNull();
     });
 
-    it('releases the button when the delete fails', () => {
+    it('releases the button when the delete fails, and keeps the dialog for a retry', () => {
       const c = create();
       files['delete'].and.returnValue(throwError(() => ({ status: 409 })));
       c.openDelete(row());
@@ -573,6 +594,7 @@ describe('FileManagementComponent surfaces', () => {
       c.doDelete();
 
       expect(c.isBusy()).toBeFalse();
+      expect(c.modal()).toBe('delete');
     });
   });
 
