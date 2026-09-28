@@ -95,7 +95,19 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
-    [Authorize]
+    // Gated like every other patient read. The two methods below were the only readers of
+    // patient data that a merely-authenticated caller could reach, and both are byte-for-byte
+    // clones of a sibling that IS gated: this one of GetWithNavigationPropertiesAsync, and the
+    // by-email one of a filtered GetList. So the pair was a permission bypass of its own twin.
+    //
+    // The advisory reasoned that gating these would break external booking. Measured, it does
+    // not: neither has a caller anywhere -- not in angular/src/app outside the generated proxy,
+    // not in src/. They are reachable only by calling the HTTP route directly, which is the
+    // exposure rather than a use. The two booking methods that ARE load-bearing
+    // (GetOrCreate..., at AppointmentsAppService.cs:851, and UpdatePatient..., at :992) keep
+    // the bare [Authorize] and remain open questions; a permission on those would be demanded
+    // of the external booker and would break booking as the advisory describes.
+    [Authorize(CaseEvaluationPermissions.Patients.Default)]
     public virtual async Task<PatientWithNavigationPropertiesDto> GetPatientForAppointmentBookingAsync(Guid id)
     {
         var isHost = CurrentTenant.Id == null;
@@ -107,7 +119,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
-    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Patients.Default)]
     public virtual async Task<PatientWithNavigationPropertiesDto?> GetPatientByEmailForAppointmentBookingAsync(string email)
     {
         if (string.IsNullOrWhiteSpace(email))
