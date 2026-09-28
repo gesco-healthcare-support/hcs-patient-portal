@@ -50,6 +50,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // production-correctness compromise.
     private readonly IDataFilter<IMultiTenant> _dataFilter;
 
+    // #598: one message for every external refusal of the booking edit, whether the record belongs to
+    // someone else or does not exist, so the two cannot be told apart.
+    private const string NotAuthorizedToEditPatientMessage = "Not authorized to edit this patient.";
+
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
@@ -311,23 +315,44 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
+    /// <summary>
+    /// Booking-flow patient edit. Stays a bare <c>[Authorize]</c> so external bookers can still
+    /// reach their OWN record through it; who may edit WHICH record is decided in code, because it
+    /// depends on the record (#598).
+    /// <list type="bullet">
+    ///   <item><description>Internal staff must hold <c>Patients.Edit</c>, checked before the lookup
+    ///   -- the same bar as the regular <c>UpdateAsync</c>.</description></item>
+    ///   <item><description>Everyone must pass <see cref="PatientBookingEditAccess.CanEdit"/>:
+    ///   internal, or the patient's own login.</description></item>
+    /// </list>
+    /// A refusal is a 403 (<see cref="AbpAuthorizationException"/>), matching the SSN reveal.
+    ///
+    /// <para>An EXTERNAL caller gets that same refusal when the id does not exist. Were a missing id a
+    /// 404 while another person's record is a 403, the difference alone would tell a caller which ids
+    /// are real. Staff keep the not-found: they may see every patient in the office, so there is
+    /// nothing for them to learn from it.</para>
+    /// </summary>
     [Authorize]
     public virtual async Task<PatientDto> UpdatePatientForAppointmentBookingAsync(Guid id, PatientUpdateDto input)
     {
+        await EnsureInternalCallerMayEditPatientsAsync();
+
         var isHost = CurrentTenant.Id == null;
         PatientWithNavigationProperties? patientWithNav;
         using (isHost ? _dataFilter.Disable() : null)
         {
             patientWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(id);
         }
-        if (patientWithNav == null)
+        var currentPatient = patientWithNav?.Patient;
+        if (currentPatient == null && BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
         {
             throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), id);
         }
-        var currentPatient = patientWithNav.Patient;
-        if (currentPatient == null)
+
+        if (currentPatient == null
+            || !PatientBookingEditAccess.CanEdit(CurrentUser.Roles, CurrentUser.Id, currentPatient.IdentityUserId))
         {
-            throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), id);
+            throw new AbpAuthorizationException(NotAuthorizedToEditPatientMessage);
         }
 
         var patient = await _patientManager.UpdateAsync(
@@ -357,6 +382,24 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         );
 
         return MapToMaskedDto(patient);
+    }
+
+    /// <summary>
+    /// #598: an internal caller edits any patient in the office, so hold them to the permission the
+    /// regular edit uses. External callers are not asked for it -- the owner rule that follows admits
+    /// only their own record. Runs before the lookup so a refused caller learns nothing about the id.
+    /// </summary>
+    private async Task EnsureInternalCallerMayEditPatientsAsync()
+    {
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            return;
+        }
+
+        if (!await AuthorizationService.IsGrantedAsync(CaseEvaluationPermissions.Patients.Edit))
+        {
+            throw new AbpAuthorizationException("Not authorized to edit patients.");
+        }
     }
 
     [Authorize]

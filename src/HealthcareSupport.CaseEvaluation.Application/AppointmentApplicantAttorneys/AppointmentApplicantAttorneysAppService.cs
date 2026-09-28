@@ -27,14 +27,16 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
     protected IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> _appointmentRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney, Guid> _applicantAttorneyRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
+    protected AppointmentChildOwnershipGuard _childOwnershipGuard;
 
-    public AppointmentApplicantAttorneysAppService(IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository, IRepository<HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney, Guid> applicantAttorneyRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository)
+    public AppointmentApplicantAttorneysAppService(IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository, IRepository<HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney, Guid> applicantAttorneyRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, AppointmentChildOwnershipGuard childOwnershipGuard)
     {
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _appointmentApplicantAttorneyManager = appointmentApplicantAttorneyManager;
         _appointmentRepository = appointmentRepository;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
+        _childOwnershipGuard = childOwnershipGuard;
     }
 
     public virtual async Task<PagedResultDto<AppointmentApplicantAttorneyWithNavigationPropertiesDto>> GetListAsync(GetAppointmentApplicantAttorneysInput input)
@@ -139,6 +141,13 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
+        // The caller must be a party to the row's OWN parent, and may not move the row to a
+        // different one. The parent is read from the stored row, never from the request: checking
+        // the supplied id would let a caller nominate an appointment they are a party to and still
+        // write to somebody else's row. Every external role holds this service's Edit permission.
+        var existingChild = await _appointmentApplicantAttorneyRepository.GetAsync(id);
+        await _childOwnershipGuard.EnsureCanWriteChildAsync(existingChild.AppointmentId, input.AppointmentId);
+
 
         var appointmentApplicantAttorney = await _appointmentApplicantAttorneyManager.UpdateAsync(id, input.AppointmentId, input.ApplicantAttorneyId, input.IdentityUserId, input.ConcurrencyStamp);
         return ObjectMapper.Map<AppointmentApplicantAttorney, AppointmentApplicantAttorneyDto>(appointmentApplicantAttorney);

@@ -264,4 +264,4 @@ Use in Angular: `{{ '::Menu:YourFeature' | abpLocalization }}`
 - [Development Setup](../runbooks/DOCKER-DEV.md) -- detailed environment configuration
 - [DDD Layers](../architecture/OVERVIEW.md) -- understanding the layer structure
 - [ABP Framework](../architecture/ABP-FRAMEWORK.md) -- ABP-specific patterns and conventions
-- [Appointments AppService](../../src/HealthcareSupport.CaseEvaluation.Application/Appointments/) -- Appointments traced end-to-end (reference implementation)
+- [Appointments AppService](https://github.com/gesco-healthcare-support/hcs-patient-portal/tree/main/src/HealthcareSupport.CaseEvaluation.Application/Appointments/) -- Appointments traced end-to-end (reference implementation)
