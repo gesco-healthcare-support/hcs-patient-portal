@@ -1,0 +1,175 @@
+# MkDocs configuration for the HCS Case Evaluation Portal documentation site.
+#
+# WHY THE NAV IS WRITTEN OUT BY HAND
+# ----------------------------------
+# It would be shorter to let a plugin discover pages. It is deliberately not done, because
+# this repository is PUBLIC and publishing turns a file in a repo into an indexed web page.
+# Every entry below is therefore a decision that a page SHOULD be published. Anything absent
+# from the nav is either excluded outright (see exclude_docs) or intentionally unlisted
+# (see not_in_nav).
+#
+# WHAT IS EXCLUDED, AND WHY
+# -------------------------
+#   runbooks/DEMO-LOGINS.md   seeded credentials. A public repo already exposes the file;
+#                             a search-indexed page is a further step, and there is an open
+#                             advisory about accounts seeded with that framework default.
+#   production-hardening/**   the open security programme: findings not yet remediated.
+#   runbooks/findings/**      83 diagnosed defects with reproductions.
+#   plans/**                  gitignored working artefacts; absent from a CI checkout anyway.
+#   parity-research/**,       point-in-time research notes. Kept in the repo because code
+#   feedback-research/**,     cites identifiers inside them, but they are not documentation
+#   research/**               and publishing them would present them as such.
+#   superpowers/**            tooling scaffolding, not product documentation.
+#
+# Dates on each page come from git (see the git-revision-date-localized plugin), NOT from a
+# hand-written marker. 39 hand-written "Last verified" markers were removed on 2026-09-28
+# because they asserted a verification nobody had performed.
+
+site_name: HCS Case Evaluation Portal
+site_description: Workers' compensation IME appointment scheduling. Engineering documentation.
+repo_url: https://github.com/gesco-healthcare-support/hcs-patient-portal
+repo_name: hcs-patient-portal
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      type: date
+      fallback_to_build_date: true
+      enable_creation_date: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+exclude_docs: |
+  runbooks/DEMO-LOGINS.md
+  production-hardening/*
+  runbooks/findings/*
+  runbooks/investigations/*
+  plans/*
+  parity-research/*
+  feedback-research/*
+  research/*
+  superpowers/*
+
+# Built and reachable by direct link, but deliberately NOT surfaced in the navigation.
+#
+# The ADRs are the considered case. The standing instruction in this organisation is that
+# decision records caused harm: people and tools leaned on old decisions that were never
+# updated, and produced misleading recommendations from them. That failure is not
+# hypothetical here -- production code in this repository was found justifying a scoping
+# decision with the words "per CLAUDE.md" while the document it cited had been wrong for
+# four months. Seventeen ADRs nevertheless remain, because code cites ADR-004, ADR-006 and
+# ADR-007 twenty times and deleting them would dangle those references.
+#
+# So they are kept, and a reader who follows a citation reaches them, but the site does not
+# invite browsing them as current guidance. decisions/README.md IS in the nav and should
+# carry that caveat.
+#
+# The design and demo-readiness material is point-in-time and unlisted for the same reason:
+# present for reference, not presented as the current state.
+not_in_nav: |
+  decisions/0*.md
+  design/*
+  demo-readiness/*
+  parity/*
+  parity-v2/*
+  status-reports/*
+  repo-map/*
+  testing/*
+  security/THREAT-MODEL.md
+  appointment-required-fields.md
+
+nav:
+  - Home: INDEX.md
+  - Start here:
+      - Getting started: onboarding/GETTING-STARTED.md
+      - Common tasks: onboarding/COMMON-TASKS.md
+      - Glossary: GLOSSARY.md
+  - Architecture:
+      - Overview: architecture/OVERVIEW.md
+      - Tenancy and isolation: architecture/TENANCY-AND-ISOLATION.md
+      - Offices and hosting: architecture/OFFICES-AND-HOSTING.md
+      - Multi-tenancy: architecture/MULTI-TENANCY.md
+      - ABP framework: architecture/ABP-FRAMEWORK.md
+      - System architecture baseline: architecture/SYSTEM-ARCHITECTURE-BASELINE.md
+  - Business domain:
+      - Domain overview: business-domain/DOMAIN-OVERVIEW.md
+      - Appointment lifecycle: business-domain/APPOINTMENT-LIFECYCLE.md
+      - Doctor availability: business-domain/DOCTOR-AVAILABILITY.md
+      - User roles and actors: business-domain/USER-ROLES-AND-ACTORS.md
+  - Backend:
+      - Application services: backend/APPLICATION-SERVICES.md
+      - Permissions: backend/PERMISSIONS.md
+      - Enums and constants: backend/ENUMS-AND-CONSTANTS.md
+  - API:
+      - API architecture: api/API-ARCHITECTURE.md
+      - Authentication flow: api/AUTHENTICATION-FLOW.md
+      - Middleware and pipeline: api/MIDDLEWARE-AND-PIPELINE.md
+  - Frontend:
+      - Angular architecture: frontend/ANGULAR-ARCHITECTURE.md
+      - Routing and navigation: frontend/ROUTING-AND-NAVIGATION.md
+      - Component patterns: frontend/COMPONENT-PATTERNS.md
+      - Role-based UI: frontend/ROLE-BASED-UI.md
+      - Appointment booking flow: frontend/APPOINTMENT-BOOKING-FLOW.md
+  - Database:
+      - EF Core design: database/EF-CORE-DESIGN.md
+      - Schema reference: database/SCHEMA-REFERENCE.md
+      - Migration guide: database/MIGRATION-GUIDE.md
+      - Data seeding: database/DATA-SEEDING.md
+  - Security:
+      - Authorization: security/AUTHORIZATION.md
+      - Session and tokens: security/SESSION-AND-TOKENS.md
+      - Data flows: security/DATA-FLOWS.md
+      - HIPAA compliance: security/HIPAA-COMPLIANCE.md
+      - Secrets management: security/SECRETS-MANAGEMENT.md
+  - Operations:
+      - Background jobs: devops/BACKGROUND-JOBS.md
+      - Backup and restore: runbooks/hosting-backup-restore.md
+      - Local dev: runbooks/LOCAL-DEV.md
+      - Docker dev: runbooks/DOCKER-DEV.md
+      - Hosting local verification: runbooks/hosting-local-verification.md
+      - Case Tracker feed cutover: runbooks/case-tracker-feed-cutover.md
+      - Go-live isolation gate: runbooks/database-per-office-go-live-isolation-gate.md
+      - Testing strategy: devops/TESTING-STRATEGY.md
+      - CI tests and checks: devops/CI-TESTS-AND-CHECKS.md
+      - Runtime and data profile: devops/RUNTIME-AND-DATA-PROFILE.md
+  - Integration:
+      - Case Tracker intake handoff: integration/case-tracker-intake-handoff.md
+  - Decisions: decisions/README.md
