@@ -1,10 +1,13 @@
 ﻿using System;
 using HealthChecks.UI.Client;
+using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace HealthcareSupport.CaseEvaluation.HealthChecks;
 
@@ -60,13 +63,23 @@ public static class HealthChecksBuilderExtensions
         return services;
     }
 
+    /// <summary>
+    /// Maps the health UI and its API. Outside Development both need a signed-in host user holding
+    /// <see cref="CaseEvaluationPermissions.BackgroundJobsDashboard.Default"/>; this host authenticates
+    /// by bearer token only, so a browser gets 401 there. The <c>/health-status</c> probe mapped above
+    /// stays open for the proxy and monitoring.
+    /// </summary>
     private static IServiceCollection MapHealthChecksUiEndpoints(this IServiceCollection services, Action<global::HealthChecks.UI.Configuration.Options>? setupOption = null)
     {
         services.Configure<AbpEndpointRouterOptions>(routerOptions =>
         {
             routerOptions.EndpointConfigureActions.Add(endpointContext =>
             {
-                endpointContext.Endpoints.MapHealthChecksUI(setupOption);
+                var healthUi = endpointContext.Endpoints.MapHealthChecksUI(setupOption);
+                if (!endpointContext.ScopeServiceProvider.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
+                {
+                    healthUi.RequireAuthorization(CaseEvaluationPermissions.BackgroundJobsDashboard.Default);
+                }
             });
         });
 
