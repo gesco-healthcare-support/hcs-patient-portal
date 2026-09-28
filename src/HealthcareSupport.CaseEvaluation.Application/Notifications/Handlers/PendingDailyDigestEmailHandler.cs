@@ -105,7 +105,7 @@ public class PendingDailyDigestEmailHandler :
             {
                 ["DailyNotificationContent"] = BuildDigestHtml(eventData.Rows, decisionDueDays, eventData.OccurredAt),
                 ["PortalUrl"] = portalUrl ?? string.Empty,
-                ["ClinicName"] = _currentTenant.Name ?? string.Empty,
+                // No ClinicName: NotificationTemplateRenderer fills it from the tenant store (#1014).
             };
 
             await _dispatcher.DispatchAsync(

@@ -273,8 +273,16 @@ export class IntakeAssignmentsComponent {
   });
 
   constructor() {
-    this.service.getAssignableOperators().subscribe((res) => this.operators.set(res.items ?? []));
-    this.service.getOfficeOptions().subscribe((res) => this.offices.set(res.items ?? []));
+    // Both lookups: ABP's RestService has already reported a failure, so each error branch
+    // only stops the rethrown copy becoming an unhandled RxJS error. The list stays empty.
+    this.service.getAssignableOperators().subscribe({
+      next: (res) => this.operators.set(res.items ?? []),
+      error: () => undefined,
+    });
+    this.service.getOfficeOptions().subscribe({
+      next: (res) => this.offices.set(res.items ?? []),
+      error: () => undefined,
+    });
     this.loadAssignments();
   }
 

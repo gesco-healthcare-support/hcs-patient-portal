@@ -106,7 +106,9 @@ public class ChangeRequestRejectedEmailHandler :
                 wcabAdj: ctx.WcabAdj,
                 documentName: null,
                 rejectionNotes: eventData.RejectionNotes,
-                clinicName: _currentTenant.Name,
+                // Filled by NotificationTemplateRenderer from the tenant store (#1014):
+                // ICurrentTenant.Name is null inside Change(TenantId).
+                clinicName: null,
                 portalUrl: ctx.PortalBaseUrl);
 
             await _dispatcher.DispatchAsync(

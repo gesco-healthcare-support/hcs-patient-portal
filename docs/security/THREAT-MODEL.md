@@ -58,11 +58,11 @@ Each arrow crosses a trust boundary. Data flowing across these lines must be aut
 | STRIDE | Threat | Existing Mitigation | Gap |
 |---|---|---|---|
 | Spoofing | Forged JWT with elevated claims | JWT signature validated against AuthServer public keys via `.well-known/jwks` | Key rotation process undocumented |
-| Tampering | SQL injection via query parameters | EF Core parameterizes queries; no raw SQL in repositories | Dynamic LINQ in filter endpoints should be reviewed |
+| Tampering | SQL injection via query parameters | EF Core parameterises queries. Raw SQL DOES exist -- 5 `SqlQueryRaw` calls in `EfCoreCaseTrackerFeedStore` and one `ExecuteSqlRawAsync` (`sp_getapplock`) in `EfCoreIntegrationOutboxRepository` -- and every one passes values as `SqlParameter`, never string concatenation | Dynamic LINQ in filter endpoints should be reviewed. The raw SQL is parameterised today; a future edit that interpolates a value would not be caught by any check |
 | Repudiation | Action attribution loss after admin edits record | ABP audit logging (`IAbpSession.UserId` captured) | Audit log retention and tamper-evidence not configured |
 | Information Disclosure | PHI leakage via error messages, logs, or over-broad responses | Development exception page disabled in production builds | SEC-02 (PII logging enabled by default) is an active high-severity gap |
-| Denial of Service | Unauthenticated endpoint flooded | Endpoints require auth by default (ABP convention) | No rate limiting configured |
-| Elevation of Privilege | Missing authorization attribute on AppService method | Every AppService method has explicit or inherited `[Authorize]` | Manual verification required -- no automated check |
+| Denial of Service | Unauthenticated endpoint flooded | ASP.NET rate limiting IS configured, with fixed-window partitions over password reset, signup, document upload, the integration surface and the consent endpoints (permit limits 5, 10, 15 and an hourly integration cap). There is **no** authorization fallback policy: the only `AddDefaultPolicy` in the host configures CORS | Limits are per-instance, not distributed, so they weaken if the API is scaled out |
+| Elevation of Privilege | Missing authorization attribute on AppService method | An automated check exists: `AuthorizationSurfaceInvariantTests` over the generated `authorization-surface.approved.txt` (358 entries) asserts every method declares some authorization, that anonymous methods are on a justified allow-list, and that the surface exceeds 200 entries so it cannot pass vacuously | **The check does not distinguish authentication from authorisation.** A bare `[Authorize]` satisfies it. 181 methods sit behind a bare class-level `[Authorize]` and **20 carry no permission at all**. |
 
 ---
 
@@ -92,9 +92,23 @@ Each arrow crosses a trust boundary. Data flowing across these lines must be aut
 | Repudiation | DBA actions not attributed | SQL Server audit available but unconfigured | Gap: enable SQL Server audit in production |
 | Information Disclosure | Backup or snapshot with unencrypted PHI | No encryption at rest configured | Gap: TDE (Transparent Data Encryption) not enabled |
 | Denial of Service | Runaway query locks tables | ABP uses EF Core with default isolation | No query timeout enforcement at DB layer |
-| Elevation of Privilege | App user granted excessive SQL permissions | Single app user (sa/admin in dev) | Gap: least-privilege DB user for production |
+| Elevation of Privilege | App user granted excessive SQL permissions | **None. The deployed stack connects as `sa`.** All three application services in `docker-compose.prod.yml` use `User Id=sa` (lines 204, 254, 321). The parenthetical "in dev" in the previous version of this row was wrong | Gap: a least-privilege database user. Note this is not merely hygiene here: under database-per-office the application creates databases, so the account needs elevated rights, and separating "may create an office database" from "may read every office's data" is the actual design work |
 
-**Multi-tenancy integrity:** ABP's `IMultiTenant` data filter automatically scopes queries by `TenantId`. The `Patient` entity implements `IMultiTenant` (added in FEAT-09, 2026-05-05), so ABP's automatic filter scopes all Patient queries by `CurrentTenant.Id`. Host/IT-Admin paths that need cross-tenant reads must explicitly disable the filter via `IDataFilter<IMultiTenant>.Disable()` -- matching the pattern used in `DoctorsAppService`.
+**Multi-tenancy integrity:** the primary boundary is **physical, not a filter.** Each office has
+its own database, so a query on an office connection cannot reach another office's rows at all.
+ABP's `IMultiTenant` filter is defence in depth on top of that, and 45 of 53 entity classes carry
+it.
+
+Host and IT-Admin paths that must read across offices disable the filter explicitly. That is not a
+single sanctioned exception: there are **12 call sites across 3 services** (`PatientsAppService`
+10, `DoctorsAppService` 1, `InternalUsersAppService` 1), because in host context
+`CurrentTenant.Id` is null and the filter generates `WHERE TenantId IS NULL`, which excludes every
+office's rows rather than including them.
+
+The control that actually prevents a caller choosing an office is the resolver chain:
+`TenantResolvers.Clear()` removes ABP's QueryString, Cookie, Header and Route contributors, so a
+`__tenant` value in a request is inert. See
+[architecture/TENANCY-AND-ISOLATION.md](../architecture/TENANCY-AND-ISOLATION.md).
 
 ---
 

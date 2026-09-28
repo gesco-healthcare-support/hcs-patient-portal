@@ -106,7 +106,9 @@ public class JdfOverdueInternalEmailHandler :
                 wcabAdj: ctx.WcabAdj,
                 documentName: "Joint Declaration Form",
                 rejectionNotes: null,
-                clinicName: _currentTenant.Name,
+                // Filled by NotificationTemplateRenderer from the tenant store (#1014):
+                // ICurrentTenant.Name is null inside Change(TenantId).
+                clinicName: null,
                 portalUrl: ctx.PortalBaseUrl);
 
             await _dispatcher.DispatchAsync(
