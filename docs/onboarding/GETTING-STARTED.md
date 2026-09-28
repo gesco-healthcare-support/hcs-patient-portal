@@ -1,6 +1,6 @@
 # Getting Started
 
-> Purpose: Walk a new developer from fresh clone to a running application. Audience: engineers joining the project. Last verified: 2026-06-01 vs main.
+> Purpose: Walk a new developer from fresh clone to a running application. Audience: engineers joining the project.
 
 [Home](../INDEX.md) > [Onboarding](./) > Getting Started
 

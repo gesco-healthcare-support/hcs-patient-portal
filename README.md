@@ -21,8 +21,13 @@ platform, maintained by Gesco.
 > passing without one.
 
 Healthcare support staff use this portal to book patients with IME doctors at
-specific locations and time slots, then track each appointment through a
-15-state lifecycle from initial request through billing. The system is a
+specific locations and time slots, then track each appointment through its
+lifecycle from request to a completed or cancelled outcome. The status enum
+declares 15 states, but three of them (`CheckedIn`, `CheckedOut`, `Billed`) are
+unreachable: the transitions exist and nothing triggers them, so the portal does
+not currently do check-in or billing. See
+[docs/business-domain/APPOINTMENT-LIFECYCLE.md](docs/business-domain/APPOINTMENT-LIFECYCLE.md).
+The system is a
 multi-tenant platform where each doctor practice operates as an isolated
 tenant, while shared reference data (locations, appointment types, languages,
 states, WCAB offices) is managed centrally by the host organisation.
@@ -64,11 +69,26 @@ remaining gate is staff go-live.
 | Stage                   | Deployed to an internal LAN environment; staff go-live not yet done                                                                        |
 | Deployed environments   | One internal VM running `docker-compose.prod.yml` from `development`. Corporate network only, never publicly reachable                     |
 | Production data         | **No real patient data.** Every record on that server is synthetic and created for testing                                                 |
-| Tracked issues          | 124 open -- see [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues), the single source for what is open |
-| Automated test coverage | ~1,749 backend test methods (242 files) + 68 Angular specs                                                                                 |
+| Tracked issues          | See [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues); no count is kept here                          |
+| Automated test coverage | Counted from the tree, not stated here -- see below                                                                                        |
 | HIPAA readiness         | Safeguards in place, gaps documented -- see [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md)                         |
 | Maintainer              | Gesco                                                                                                                                      |
-| Repository visibility   | Proprietary -- see [LICENSE](LICENSE)                                                                                                      |
+| Repository visibility   | **PUBLIC** -- see the warning below                                                                                                        |
+
+**This repository is public.** Anyone can read it. The *licence* is proprietary
+(see [LICENSE](LICENSE)), but that restricts reuse, not visibility: nothing here
+is private. Never commit PHI, secrets, credentials or internal addresses, and
+report vulnerabilities per [SECURITY.md](SECURITY.md) rather than opening an
+issue.
+
+No test or issue counts are written in this file. Two different backend test
+figures once appeared in it and both were stale, which is why they are gone.
+Count them instead:
+
+```bash
+git ls-files -- 'test/*.cs' | xargs grep -ohE '^\s*\[(Fact|Theory)' | wc -l
+git ls-files -- 'angular/src/*.spec.ts' | wc -l
+```
 
 For the current runtime and data profile read
 [docs/devops/RUNTIME-AND-DATA-PROFILE.md](docs/devops/RUNTIME-AND-DATA-PROFILE.md).
@@ -92,8 +112,8 @@ For the latest narrative status read
 | Logging                | Serilog                                             | 9.x                               |                                                     |
 | Test framework         | xUnit + [Shouldly](https://docs.shouldly.org/)      | --                                |                                                     |
 | Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
-| Package manager (Node) | Yarn                                                | 1.x                               | `yarn.lock` committed                               |
-| CI / CD                | GitHub Actions                                      | 17 workflows                      | See [CI / CD](#ci--cd)                              |
+| Package manager (Node) | Yarn                                                | 4.16.0                            | Berry, not Yarn 1; `yarn.lock` committed            |
+| CI / CD                | GitHub Actions                                      | see `.github/workflows/`          | See [CI / CD](#ci--cd)                              |
 | Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
 
 ---
@@ -160,14 +180,21 @@ Evaluator (AME) chosen by both parties. The IME report drives claim
 decisions at the Workers' Compensation Appeals Board (WCAB). This portal
 tracks those appointments end-to-end.
 
-- **5 user roles**: Patient, Applicant Attorney, Defense Attorney, Claim
-  Examiner, Admin. See
+- **Seven named roles plus the ABP superuser.** Internal, seeded as ABP roles:
+  **IT Admin** (host), **Staff Supervisor** and **Intake Staff** (tenant), plus
+  the `admin` superuser, which sees every nav item. External, from
+  `ExternalRoleConsts`: **Patient**, **Applicant Attorney**, **Defense
+  Attorney**, **Claim Examiner** -- these never reach the internal shell. The
+  distinction between Staff Supervisor and Intake Staff is load-bearing, so do
+  not collapse them into "Admin". See
   [docs/business-domain/USER-ROLES-AND-ACTORS.md](docs/business-domain/USER-ROLES-AND-ACTORS.md).
-- **15-state appointment lifecycle**: Pending -> Approved -> CheckedIn ->
-  CheckedOut -> Billed, with alternate branches for reschedule, cancellation,
-  and no-show. See
-  [docs/business-domain/APPOINTMENT-LIFECYCLE.md](docs/business-domain/APPOINTMENT-LIFECYCLE.md).
-- **29 domain features**, each with a `CLAUDE.md` in its Domain folder.
+- **Appointment lifecycle**: a single `Stateless` state machine built in
+  `AppointmentManager.BuildMachine` is the only place transitions are declared.
+  `Pending` goes to `Approved`, `Rejected` or `InfoRequested`; `Approved` goes to
+  `CancellationRequested`, `RescheduleRequested`, `NoShow` or `NotSeen`.
+  `NoShow` and `NotSeen` are inbound-only from the Case Tracker. Three states are
+  dead, as noted above.
+- Most Domain feature folders carry a `CLAUDE.md`, though not all of them do.
 
 Plain-language introduction:
 [docs/business-domain/DOMAIN-OVERVIEW.md](docs/business-domain/DOMAIN-OVERVIEW.md).
@@ -192,7 +219,7 @@ hcs-case-evaluation-portal/
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
 ├── test/                                      4 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
-├── docs/                                      400+ markdown docs
+├── docs/                                      documentation; start at docs/INDEX.md
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
@@ -344,16 +371,21 @@ never a merge commit.
 
 ### Branch Protection
 
-**The same 17 checks are required on all four branches**, each with "up to date
-with base" enforced. There is no per-branch gradient: a change that cannot merge
-to `main` cannot merge anywhere. Only the approval count varies.
+All four branches enforce "up to date with base" and a near-identical required
+check set. `main` is a strict superset: it requires one check the downstream
+branches do not, `Tools: Packet Golden Output`. So a change that can merge to
+`main` can merge anywhere, and the reverse is not guaranteed.
 
-| Branch        | Required checks | Approvals |
-| ------------- | --------------- | --------- |
-| `main`        | all 17          | 1         |
-| `development` | all 17          | 1         |
-| `staging`     | all 17          | 1         |
-| `production`  | all 17          | **2**     |
+Read these counts from the API rather than trusting the table, because branch
+protection is edited outside the repository and nothing here can notice:
+`gh api repos/OWNER/REPO/branches/main/protection/required_status_checks`.
+
+| Branch        | Required checks                 | Approvals |
+| ------------- | ------------------------------- | --------- |
+| `main`        | all, incl. Packet Golden Output | 1         |
+| `development` | all minus Packet Golden Output  | 1         |
+| `staging`     | all minus Packet Golden Output  | 1         |
+| `production`  | all minus Packet Golden Output  | **2**     |
 
 The checks are listed individually, with what each covers, in
 [CONTRIBUTING.md](CONTRIBUTING.md#branch-protection) -- deliberately in one place
@@ -401,9 +433,10 @@ cd angular && yarn test
 cd angular && yarn lint
 ```
 
-Current coverage: ~1,100 backend test methods across 230 files, plus 46 Angular
-specs, spanning appointments, multi-tenancy, notifications, patients, and the
-supporting domains -- see
+Coverage spans appointments, multi-tenancy, notifications, patients and the
+supporting domains. No test count is written here: two different figures used to
+appear in this file and both were stale. Count them from the tree instead, with
+the commands in the [Project Status](#project-status) table -- see
 [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md) for test
 patterns and the `CaseEvaluationTestBase<TModule>` chain.
 
@@ -414,8 +447,9 @@ require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
 
 ## CI / CD
 
-Seventeen GitHub Actions workflows cover PR validation, quality and security
-scanning, and branch promotion.
+The workflows in `.github/workflows/` cover PR validation, quality and security
+scanning, and branch promotion. `ls .github/workflows/` is the authoritative
+list; one is easy to miss from the diagram below, `cascade-guard.yml`.
 
 ```mermaid
 flowchart LR
@@ -441,9 +475,12 @@ flowchart LR
     end
 ```
 
-- **PR validation** (`ci.yml`) -- eight jobs: backend build/format/test,
-  frontend build/format/lint/test, and docs structure. Jobs run in parallel
-  with a shared concurrency group that cancels superseded runs.
+- **PR validation** (`ci.yml`) -- backend build/format/test (including a sharded
+  test job), frontend build/format/lint/test, docs structure, a Python test job,
+  the packet golden-output check, coverage floors, and the SonarCloud job. Jobs
+  run in parallel with a shared concurrency group that cancels superseded runs.
+  The job list in the file is authoritative; it has grown well past the eight
+  this section used to claim.
 - **Security** (`security.yml`) -- weekly Monday 06:00 UTC cron + manual
   dispatch. .NET vulnerability audit, npm audit, TruffleHog secret scan,
   CodeQL for C# and JavaScript/TypeScript.

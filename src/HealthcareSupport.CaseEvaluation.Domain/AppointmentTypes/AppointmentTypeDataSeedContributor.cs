@@ -10,7 +10,9 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
 
 /// <summary>
 /// Seeds the 3 appointment types offered in California workers'-comp evaluations: AME, IME,
-/// PQME (AF1, 2026-06-03). Host-scoped (no IMultiTenant); idempotent via per-row upsert-by-ID.
+/// PQME (AF1, 2026-06-03). Seeded per office under database-per-office;
+/// <c>AppointmentType</c> IS <c>IMultiTenant</c> (this line previously said host-scoped).
+/// Idempotent via per-row upsert-by-ID.
 /// GUIDs match <see cref="CaseEvaluationSeedIds.AppointmentTypes"/> so other seeders (Locations)
 /// and tests can reference them by name. The UI shows the full label; code keys off the seed
 /// GUID, not the display name.

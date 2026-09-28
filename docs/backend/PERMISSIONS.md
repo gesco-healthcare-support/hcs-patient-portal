@@ -1,6 +1,6 @@
 # Permissions
 
-> Purpose: Reference for all permission constants, group structure, and role assignments. Audience: Backend and frontend developers. Last verified: 2026-06-01 vs main.
+> Purpose: Reference for all permission constants, group structure, and role assignments. Audience: Backend and frontend developers.
 
 [Home](../INDEX.md) > [Backend](./) > Permissions
 

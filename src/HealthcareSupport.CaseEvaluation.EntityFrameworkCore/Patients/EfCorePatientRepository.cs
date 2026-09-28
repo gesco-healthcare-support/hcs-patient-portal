@@ -30,10 +30,12 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
     public virtual async Task<PatientWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        // Patient is NOT IMultiTenant, so the ABP filter does not scope this by-id read.
-        // Apply the explicit tenant guard (defense in depth) so a tenant-scoped caller
-        // cannot fetch another office's patient by id; host scope (no current tenant)
-        // still sees all for cross-office aggregation.
+        // Patient IS IMultiTenant as of FEAT-09 (ADR-006 T4, 2026-05-05), so ABP's automatic
+        // filter already scopes this by-id read. The explicit tenant guard below is kept as
+        // defence in depth, NOT as the only control: a tenant-scoped caller cannot fetch
+        // another office's patient by id, and host scope (no current tenant) still sees all
+        // for cross-office aggregation. Do not remove it on the grounds that the framework
+        // filter makes it redundant -- it is the belt to that braces.
         // The SaaS Tenant row lives in the host DB only; under db-per-office an office DB
         // has no SaasTenants table, so the Tenant nav is left null here (BUG-01). The
         // office's identity is the office context itself; this property is unused per-office.
@@ -104,8 +106,10 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         string? zip,
         CancellationToken cancellationToken = default)
     {
-        // Patient is NOT IMultiTenant; manual TenantId filter is mandatory to avoid
-        // cross-tenant PHI leak (see EntityFrameworkCore/CLAUDE.md "Multi-tenancy").
+        // Patient IS IMultiTenant as of FEAT-09 (ADR-006 T4, 2026-05-05), so ABP's filter
+        // scopes this. The explicit TenantId filter below is retained as defence in depth,
+        // and because this method takes the tenant as a parameter so a host-scope caller can
+        // name the office (see EntityFrameworkCore/CLAUDE.md "Multi-tenancy").
         // OLD reference: AppointmentDomain.IsPatientRegistered (3-of-6 LINQ match).
         var dob = dateOfBirthDate.Date;
         var fn = firstName;
@@ -155,7 +159,8 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         //      OR DateOfBirth = @dob
         //      OR Email = @email
         //      OR ClaimNumber IN @claimNumbers
-        // Plus the manual TenantId filter (Patient is NOT IMultiTenant).
+        // Plus the explicit TenantId filter, which is defence in depth on top of ABP's
+        // automatic filter (Patient IS IMultiTenant since FEAT-09, 2026-05-05).
         //
         // Note we deliberately do NOT push the 3-of-6 threshold check
         // into SQL: the OR-prefilter set is small in practice (each

@@ -2,7 +2,7 @@
 
 # Local Development Troubleshooting
 
-> Purpose: Troubleshooting playbook for common local dev failures. Audience: developer. Last verified: 2026-06-01 vs main.
+> Purpose: Troubleshooting playbook for common local dev failures. Audience: developer.
 
 > This is a **"when things go wrong" reference**, not a setup guide. For first-time setup, see [Getting Started](../onboarding/GETTING-STARTED.md).
 

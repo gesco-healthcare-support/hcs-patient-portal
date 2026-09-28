@@ -927,8 +927,9 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when
     /// another (non-deleted) Location already carries the same Name (case-insensitive; the
-    /// update path excludes the row being edited). Location is host-scoped (not IMultiTenant),
-    /// so the uniqueness check is global. Mapped to HTTP 400 in
+    /// update path excludes the row being edited). <c>Location</c> IS <c>IMultiTenant</c>, so
+    /// the uniqueness check is per office, not global -- two offices may each have a location
+    /// of the same name. (This line previously said host-scoped and global.) Mapped to HTTP 400 in
     /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 would read as a permission
     /// failure). Carries <c>WithData("name", name)</c>. Localization key
     /// <c>CaseEvaluation:Location.DuplicateName</c>.

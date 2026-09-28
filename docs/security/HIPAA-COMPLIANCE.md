@@ -2,7 +2,7 @@
 
 # HIPAA Technical Safeguards Inventory
 
-> Purpose: Technical inventory of HIPAA Security Rule safeguards and gaps in the Patient Portal. Audience: developer, security reviewer. Last verified: 2026-06-01 vs main.
+> Purpose: Technical inventory of HIPAA Security Rule safeguards and gaps in the Patient Portal. Audience: developer, security reviewer.
 
 > For known security vulnerabilities and remediation status, see [Security Issues](THREAT-MODEL.md).
 

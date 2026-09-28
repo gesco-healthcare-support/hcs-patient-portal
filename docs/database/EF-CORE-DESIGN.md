@@ -1,6 +1,6 @@
 # EF Core Design
 
-> Purpose: Documents the dual-DbContext EF Core strategy, DbSet inventory, and entity configuration patterns for the HCS Case Evaluation Portal. Audience: backend developers adding or modifying entities. Last verified: 2026-06-01 vs main.
+> Purpose: Documents the dual-DbContext EF Core strategy, DbSet inventory, and entity configuration patterns for the HCS Case Evaluation Portal. Audience: backend developers adding or modifying entities.
 
 [Home](../INDEX.md) > [Database](./) > EF Core Design
 

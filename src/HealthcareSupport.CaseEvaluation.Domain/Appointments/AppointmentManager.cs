@@ -149,10 +149,15 @@ public class AppointmentManager : DomainService
     /// Looks up the source by confirmation number, validates it is in
     /// status <see cref="AppointmentStatusType.Rejected"/>, and returns
     /// the source for the caller to thread through the standard create
-    /// pipeline. The new appointment must reuse the source's confirmation
-    /// number (per OLD <c>AppointmentDomain.cs:262-266</c>); the caller
-    /// is responsible for that copy because the conf# is part of the
-    /// <see cref="Appointment"/> ctor signature.
+    /// pipeline.
+    ///
+    /// <para>The new appointment gets a FRESH confirmation number, not the source's.
+    /// This reversed OLD parity on 2026-08-22: carrying the source number forward could
+    /// not work, because the unique index on (TenantId, RequestConfirmationNumber)
+    /// filtered on <c>IsDeleted = 0</c> is still satisfied by the rejected source row, so
+    /// every re-submit died on that constraint. No test caught it because they all assert
+    /// refusals. See <c>AppointmentLifecycleValidators.ResolveConfirmationNumber</c>, which
+    /// is the single place that decides this for all three flows.</para>
     /// </summary>
     /// <exception cref="EntityNotFoundException">When no source row matches.</exception>
     /// <exception cref="BusinessException">
@@ -552,12 +557,25 @@ public class AppointmentManager : DomainService
     }
 
     /// <summary>
-    /// Builds the appointment status state machine. Per OLD spec
-    /// (Phase 0.2, 2026-05-01) Pending transitions only to Approved or Rejected;
-    /// there is no SendBack / AwaitingMoreInfo / SaveAndResubmit path. Cancel /
-    /// Reschedule / day-of-exam triggers are reachable in the graph but
-    /// unreachable through the API surface until Wave 3
-    /// (appointment-change-requests).
+    /// Builds the appointment status state machine. **This is the only place transitions are
+    /// declared**; nothing else defines one, so read the Configure calls below as the
+    /// authoritative lifecycle.
+    ///
+    /// <para>Current shape: <c>Pending</c> goes to Approved, Rejected, InfoRequested, or
+    /// directly to a Rescheduled outcome. <c>InfoRequested</c> returns to Pending and is
+    /// transient, not terminal. <c>Approved</c> goes to CancellationRequested,
+    /// RescheduleRequested, NoShow or NotSeen, and is the ONLY source for both attendance
+    /// outcomes. Nothing transitions out of Rejected: re-submitting creates a new
+    /// appointment.</para>
+    ///
+    /// <para>CheckedIn / CheckedOut / Billed are configured but DEAD -- nothing triggers
+    /// them. See the note on those Configure blocks below and PF-005.</para>
+    ///
+    /// <para>This summary previously described the Phase 0.2 (2026-05-01) shape, in which
+    /// Pending reached only Approved or Rejected and change requests were unreachable. Send
+    /// Back landed 2026-06-14 and Phase 4d on 2026-08-05, so it had been wrong for four
+    /// months while sitting immediately above the code contradicting it. Corrected
+    /// 2026-09-27; if you change a Configure call, change this paragraph with it.</para>
     /// </summary>
     private static StateMachine<AppointmentStatusType, AppointmentTransitionTrigger> BuildMachine(Appointment appointment)
     {
