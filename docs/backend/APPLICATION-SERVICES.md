@@ -50,7 +50,7 @@ CaseEvaluationAppService : ApplicationService
 
 Not every service derives from it:
 
-- `NotificationTemplatesAppService` extends `ApplicationService` directly;
+- `NotificationTemplatesAppService` and `SystemParametersAppService` extend `ApplicationService` directly;
 - `DoctorTenantAppService` extends ABP SaaS's `TenantAppService`;
 - `UserExtendedAppService` extends ABP Identity's `IdentityUserAppService`.
 
@@ -351,7 +351,7 @@ with a slot in any other status, `Booked` included, is reported as `DoctorAvaila
 | Method | Purpose |
 |---|---|
 | `RegisterAsync` | Self-registration for Patient, Applicant Attorney, Defense Attorney or Claim Examiner; see below. |
-| `GetTenantOptionsAsync` | The offices a registrant can choose from; returns nothing when an office is already resolved. |
+| `GetTenantOptionsAsync` | The office picker for staff inviting an external user: every office at host scope, nothing inside an office. |
 | `ResolveTenantByNameAsync` | Resolve an office name to its id, for invite links that carry the name. |
 | `GetExternalUserLookupAsync` | Search external users; see the rules below. |
 | `GetMyProfileAsync` | The current external user's basic profile and role. |
