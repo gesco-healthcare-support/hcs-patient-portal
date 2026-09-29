@@ -397,5 +397,5 @@ __pycache__/
 # This repository is PUBLIC and the real file carries a SQL admin password, an SSH
 # public key and a Key Vault certificate identifier.
 infra/azure/main.parameters.json
-infra/azure/*.parameters.json
+infra/azure/**/*.parameters.json
 !infra/azure/main.parameters.example.json
