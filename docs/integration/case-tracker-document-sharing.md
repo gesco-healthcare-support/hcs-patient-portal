@@ -4,7 +4,8 @@ Audience: the Case Tracker developer and his coding agent. Goal: enough detail t
 Case Tracker intake + document endpoints without reading the portal's source or database.
 
 Status: agreed architecture (2026-07-23). Verified against the portal source (branch `main`
-@ `100a617c`) and the live deployed servers. No secrets are included; credentials and the final
+@ `100a617c`, 2026-07-22 -- `main` has moved on a long way since; re-verify a detail against current
+code before relying on it) and the live deployed servers. No secrets are included; credentials and the final
 MinIO endpoint are shared out of band.
 
 Companion doc (full appointment field table, types, nullability, source citations):
@@ -289,7 +290,7 @@ Status semantics for Case Tracker:
 ## 7. Provenance (how this was verified)
 
 - Storage model, statuses, packet kinds, events: read from the portal source on branch `main`
-  @ `100a617c`.
+  @ `100a617c` (2026-07-22; re-verify against current `main`).
 - Bucket, real object-key layout, credential/policy path: inspected live on the portal server
   (`appoint-portal`, 192.168.101.37) - bucket `case-evaluation-documents`, keys under
   `tenants/{tenantId}/...`, built-in MinIO policies present, only the root user exists.

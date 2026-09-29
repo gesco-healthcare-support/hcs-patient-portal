@@ -119,7 +119,12 @@ See [Data Seeding](DATA-SEEDING.md) for details on what gets seeded.
 
 ## Migration History
 
-The project has evolved through the following host migrations (chronological order). As of 2026-06-01 there are **46** host migrations; the latest is `20260528030331_Phase20_DoctorAvailabilityCapacityAndTypeSet`.
+The table below is the early history of the host migrations, as recorded on 2026-06-01; it is not kept up to date. Count and list the current ones from the code:
+
+```bash
+git ls-files 'src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/Migrations/*.cs' | grep -vE 'Designer|ModelSnapshot'
+git ls-files 'src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/TenantMigrations/*.cs' | grep -vE 'Designer|ModelSnapshot'
+```
 
 | Timestamp | Migration Name | Description |
 |-----------|---------------|-------------|
