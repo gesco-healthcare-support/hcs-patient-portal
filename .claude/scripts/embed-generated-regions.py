@@ -135,44 +135,152 @@ def unescape_cell(value):
     return value.replace("\\|", "|")
 
 
+# A converter returns a LIST OF SECTIONS, each (caption, header, rows).
+#
+# One flat table with a Kind column would also be lossless, and it was rejected: it is
+# barely more readable than the raw snapshot, and readability is the entire reason
+# rendering was chosen over verbatim embedding. Sections keep each line kind in its own
+# table under its own honest header.
+
+
 def render_authorization_surface(rows):
-    header = ["Member", "Class-level", "Method-level"]
     table = []
     for row in rows:
         member, _, rest = row.partition(" -> ")
         class_part, _, method_part = rest.partition(" method=")
         table.append([member, class_part.replace("class=", "", 1), method_part])
-    return header, table
+    return [("", ["Member", "Class-level", "Method-level"], table)]
 
 
-def parse_authorization_surface(table):
-    return ["%s -> class=%s method=%s" % (a, b, c) for a, b, c in table]
+def parse_authorization_surface(sections):
+    return ["%s -> class=%s method=%s" % (a, b, c) for a, b, c in sections[0][2]]
+
+
+def render_appointment_transitions(rows):
+    """Three line kinds in the snapshot, three tables out, snapshot order preserved.
+
+    The numeric ids stay verbatim in the cells. They are what the database persists, and
+    the source document already warns that renumbering would silently relabel stored rows,
+    so dropping them for tidiness would remove the very detail that matters.
+    """
+    transitions, states, triggers = [], [], []
+    for row in rows:
+        kind, _, rest = row.partition(" ")
+        if kind == "transition":
+            source, _, tail = rest.partition(" --")
+            trigger, _, target = tail.partition("--> ")
+            transitions.append([source, trigger, target])
+        elif kind == "state":
+            member, _, count = rest.partition(": ")
+            states.append([member, count.replace(" outgoing", "", 1)])
+        elif kind == "trigger":
+            member, _, count = rest.partition(": ")
+            triggers.append([member, count.replace(" transition(s)", "", 1)])
+        else:
+            # REFUSE rather than skip. AppointmentTransitionSurface emits SIX line kinds:
+            # transition, dynamic, ignore, superstate, state and trigger. This handles
+            # three. The approved file contains none of the other three today, so the page
+            # is complete -- but the first PermitDynamic, Ignore or SubstateOf in
+            # BuildMachine would change the snapshot and then VANISH from the page, while
+            # --check still passed.
+            #
+            # That is precisely the "a wrong transform does not look wrong" failure this
+            # whole mechanism exists to prevent, and the round-trip test could not see it,
+            # because a silently dropped row never reaches the table to be compared.
+            #
+            # Raising, rather than inventing a section for output nobody has seen: a
+            # guessed layout would be tested only against the guess. Whoever adds the first
+            # such transition gets a named failure and decides how it should read.
+            raise ValueError(
+                "appointment-transitions: unhandled line kind %r in %r. "
+                "The snapshot has grown a line this converter does not render; add a "
+                "section for it rather than letting it disappear from the page."
+                % (kind, row)
+            )
+    return [
+        ("Transitions the machine permits", ["From", "Trigger", "To"], transitions),
+        ("Outgoing transitions per status", ["Status", "Outgoing"], states),
+        ("Transitions per trigger", ["Trigger", "Used by"], triggers),
+    ]
+
+
+def parse_appointment_transitions(sections):
+    out = []
+    for source, trigger, target in sections[0][2]:
+        out.append("transition %s --%s--> %s" % (source, trigger, target))
+    for member, count in sections[1][2]:
+        out.append("state %s: %s outgoing" % (member, count))
+    for member, count in sections[2][2]:
+        out.append("trigger %s: %s transition(s)" % (member, count))
+    return out
 
 
 CONVERTERS = {
     "authorization-surface": (render_authorization_surface, parse_authorization_surface),
+    "appointment-transitions": (
+        render_appointment_transitions,
+        parse_appointment_transitions,
+    ),
 }
 
 
-def to_markdown(header, table):
-    lines = ["| " + " | ".join(header) + " |",
-             "| " + " | ".join("---" for _ in header) + " |"]
-    for row in table:
-        lines.append("| " + " | ".join(escape_cell(c) for c in row) + " |")
+def to_markdown(sections):
+    lines = []
+    for caption, header, table in sections:
+        if lines:
+            lines.append("")
+        if caption:
+            lines.append("**" + caption + "**")
+            lines.append("")
+        lines.append("| " + " | ".join(header) + " |")
+        lines.append("| " + " | ".join("---" for _ in header) + " |")
+        for row in table:
+            lines.append("| " + " | ".join(escape_cell(c) for c in row) + " |")
     return lines
 
 
+def split_cells(stripped):
+    cells = re.split(r"(?<!\\)\|", stripped.strip("|"))
+    return [unescape_cell(c.strip()) for c in cells]
+
+
+def is_separator(cells):
+    return all(c and set(c) <= {"-", ":"} for c in cells)
+
+
 def from_markdown(lines):
-    """Reverse to_markdown: the header, then the cells, ignoring the separator row."""
-    body = [l for l in lines if l.strip().startswith("|")]
-    if len(body) < 2:
-        return [], []
-    header = [c.strip() for c in body[0].strip().strip("|").split("|")]
+    """Reverse to_markdown into sections, so the round trip compares like with like.
+
+    A new section starts at a caption, or at a header row following a separator - which is
+    how a captionless section (the authorization surface) is still recognised.
+    """
+    sections = []
+    caption = ""
+    header = None
     table = []
-    for line in body[2:]:
-        cells = re.split(r"(?<!\\)\|", line.strip().strip("|"))
-        table.append([unescape_cell(c.strip()) for c in cells])
-    return header, table
+
+    def close():
+        if header is not None:
+            sections.append((caption, header, table))
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("**") and stripped.endswith("**") and len(stripped) > 4:
+            close()
+            caption = stripped.strip("*")
+            header, table = None, []
+            continue
+        if not stripped.startswith("|"):
+            continue
+        cells = split_cells(stripped)
+        if header is None:
+            header = cells
+            continue
+        if is_separator(cells):
+            continue
+        table.append(cells)
+    close()
+    return sections
 
 
 def is_ignored(path, root):
@@ -254,9 +362,8 @@ def rewrite(text, newline, snapshots, problems, rel):
             )
         else:
             render, _parse = CONVERTERS[name]
-            header, table = render(snapshot_rows(snapshots[name]))
             out.append(line)
-            out.extend(to_markdown(header, table))
+            out.extend(to_markdown(render(snapshot_rows(snapshots[name]))))
             out.append(lines[close])
             index = close + 1
             continue
