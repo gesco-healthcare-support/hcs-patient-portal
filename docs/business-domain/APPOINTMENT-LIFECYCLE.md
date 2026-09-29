@@ -95,7 +95,10 @@ Values are persisted as integers, so **renumbering would silently relabel stored
 
 ## The transitions, exactly as configured
 
-Every transition in the system. Anything not in this table is not permitted and will throw.
+Every transition made through the state machine; the machine refuses anything not in this table with an
+invalid-transition error. One path sets the status directly instead of going through the machine: approving a
+cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) writes `CancelledNoBill` or
+`CancelledLate` onto the appointment, the same two outcomes this table lists from `CancellationRequested`.
 
 | From | Trigger | To |
 | --- | --- | --- |
