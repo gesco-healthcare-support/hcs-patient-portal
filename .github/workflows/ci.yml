@@ -585,6 +585,22 @@ jobs:
           python-version: "3.12"
       - name: Verify documentation structure
         run: python .claude/scripts/verify_structure.py
+      - name: Check GENERATED regions match their snapshots
+        run: python .claude/scripts/embed-generated-regions.py . --check
+        # --check REPORTS and writes nothing, so CI never mutates the tree it judges.
+        # A drifted document fails here naming the file; the fix is to run the same
+        # script without --check and commit the result.
+        #
+        # Ships as a NO-OP: no document carries markers yet. The first markers land in
+        # a separate reviewable PR, which is also how we find out whether the rendered
+        # output is tolerable BEFORE committing the corpus to it.
+        #
+        # WHY RENDERED, NOT VERBATIM (Adrian, 2026-09-29): a table is readable and a raw
+        # snapshot dump is not. The cost is a transform, and a wrong transform does not
+        # look wrong -- it produces a plausible table. Answered by test rather than by
+        # avoiding it: every converter has a lossless round-trip test AND a spelled-out
+        # header assertion, because a round trip proves the DATA survived and says
+        # nothing about whether the column labels are honest.
       - name: Check documentation links
         run: python .claude/scripts/check-links.py
         # BLOCKING as of 2026-09-28. It was "|| true" before, which meant a working link
