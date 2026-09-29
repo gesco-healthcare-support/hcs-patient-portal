@@ -55,10 +55,10 @@ public interface IInternalUsersAppService : IApplicationService
     Task SendPasswordResetEmailAsync(Guid userId);
 
     /// <summary>
-    /// Returns the active tenants for the form's tenant-picker
-    /// dropdown. Runs in host context regardless of the caller's
-    /// tenant cookie (IT Admin is host-scoped). Optional case-
-    /// insensitive substring filter on tenant <c>Name</c>.
+    /// Returns the active offices for the internal-users form's office picker and the internal
+    /// shell's office switcher. Requires <c>CaseEvaluation.InternalUsers</c>. Reads in host
+    /// context whichever office the caller is signed in to. Optional case-insensitive substring
+    /// filter on the office <c>Name</c>.
     /// </summary>
     Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(string? filter = null);
 
