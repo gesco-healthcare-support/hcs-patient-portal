@@ -19,3 +19,10 @@ services:
   db-migrator:
     environment:
       DOTNET_ENVIRONMENT: Development
+      # B12: blank so the migrator has NO admin-password store and seeds the documented
+      # local credentials, which is the whole point of this override -- CHECKPOINT 1 needs an
+      # office it can log into. Explicit configuration otherwise wins over the environment,
+      # so leaving the base file's directory default in place would generate a password here
+      # instead. Only the ABP admin account is affected; the demo users carry their own
+      # seeded password either way. Blank is allowed because this runs as Development.
+      AdminPasswords__Directory: ""
