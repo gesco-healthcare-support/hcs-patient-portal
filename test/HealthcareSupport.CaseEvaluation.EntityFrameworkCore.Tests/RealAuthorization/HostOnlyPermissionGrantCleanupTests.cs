@@ -15,8 +15,9 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization;
 
 /// <summary>
-/// <see cref="HostOnlyIntegrationGrantCleanupContributor"/> deletes one office's grant rows of the
-/// now Host-only failures-list permission, and nothing else.
+/// <see cref="HostOnlyPermissionGrantCleanupContributor"/> deletes one office's grant rows of each
+/// now Host-only permission it lists, and nothing else. Every behaviour below runs once per listed
+/// permission.
 ///
 /// <para>A DELETE IS PROVEN ONLY AGAINST ROWS IT MUST NOT DELETE. Each test seeds decoys beside the
 /// targets, and every decoy is re-read afterwards:</para>
@@ -35,32 +36,42 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization
 /// ignored the office.</para>
 /// </summary>
 [Collection(RealAuthorizationCollection.Name)]
-public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizationTestBase
+public class HostOnlyPermissionGrantCleanupTests : CaseEvaluationRealAuthorizationTestBase
 {
-    private const string Target = "CaseEvaluation.Appointments.ViewIntegrationDeadLetters";
     private const string PushPermission = "CaseEvaluation.Appointments.PushToCaseTracker";
     private const string UnrelatedPermission = "CaseEvaluation.DoctorAvailabilities";
+
+    /// <summary>The permissions the contributor must clear, each written as its constant.</summary>
+    public static readonly TheoryData<string> Targets = new()
+    {
+        CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters,
+        CaseEvaluationPermissions.IntakeAssignments.Manage,
+    };
 
     private readonly ICurrentTenant _currentTenant;
     private readonly IPermissionGrantRepository _grants;
 
-    public HostOnlyIntegrationGrantCleanupTests()
+    public HostOnlyPermissionGrantCleanupTests()
     {
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _grants = GetRequiredService<IPermissionGrantRepository>();
     }
 
     [Fact]
-    public void PermissionName_IsTheFailuresListPermission()
+    public void PermissionNames_AreTheHostOnlyPermissionsThatOfficesWereGranted()
     {
-        HostOnlyIntegrationGrantCleanupContributor.PermissionName
-            .ShouldBe(CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters);
+        HostOnlyPermissionGrantCleanupContributor.PermissionNames.ShouldBe(new[]
+        {
+            CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters,
+            CaseEvaluationPermissions.IntakeAssignments.Manage,
+        });
     }
 
-    [Fact]
-    public async Task Cleanup_RemovesOnlyThatOfficesRowsOfTheTarget_AndLeavesEveryDecoy()
+    [Theory]
+    [MemberData(nameof(Targets))]
+    public async Task Cleanup_RemovesOnlyThatOfficesRowsOfTheTarget_AndLeavesEveryDecoy(string target)
     {
-        var seeded = await SeedAsync();
+        var seeded = await SeedAsync(target);
 
         await RunCleanupAsync(seeded.OfficeId);
 
@@ -69,10 +80,11 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
         (await ReadAsync(null, seeded.All)).ShouldBe(seeded.HostDecoys, ignoreOrder: true);
     }
 
-    [Fact]
-    public async Task Cleanup_IsANoOp_WhenItRunsAgain()
+    [Theory]
+    [MemberData(nameof(Targets))]
+    public async Task Cleanup_IsANoOp_WhenItRunsAgain(string target)
     {
-        var seeded = await SeedAsync();
+        var seeded = await SeedAsync(target);
         await RunCleanupAsync(seeded.OfficeId);
         var afterFirst = await ReadEverywhereAsync(seeded);
 
@@ -81,10 +93,11 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
         (await ReadEverywhereAsync(seeded)).ShouldBe(afterFirst, ignoreOrder: true);
     }
 
-    [Fact]
-    public async Task Cleanup_IsANoOp_OnTheHostPass()
+    [Theory]
+    [MemberData(nameof(Targets))]
+    public async Task Cleanup_IsANoOp_OnTheHostPass(string target)
     {
-        var seeded = await SeedAsync();
+        var seeded = await SeedAsync(target);
 
         await RunCleanupAsync(null);
 
@@ -96,7 +109,7 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
 
     private Task RunCleanupAsync(Guid? officeId) =>
         WithUnitOfWorkAsync(
-            () => GetRequiredService<HostOnlyIntegrationGrantCleanupContributor>()
+            () => GetRequiredService<HostOnlyPermissionGrantCleanupContributor>()
                 .SeedAsync(new DataSeedContext(officeId)),
             requiresNew: true);
 
@@ -126,10 +139,10 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
     }
 
     /// <summary>
-    /// Two fresh offices sharing the cleanup database, plus rows in each and at the host. Fresh per
-    /// test, so no test depends on another having run first.
+    /// Two fresh offices sharing the cleanup database, plus rows of <paramref name="target"/> and the
+    /// decoys in each and at the host. Fresh per test, so no test depends on another having run first.
     /// </summary>
-    private async Task<Seeded> SeedAsync()
+    private async Task<Seeded> SeedAsync(string target)
     {
         await GetFixtureAsync();
         var tenantManager = GetRequiredService<ITenantManager>();
@@ -145,7 +158,7 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
             {
                 officeId = await CreateOfficeAsync(tenantManager, tenantRepository, $"F2-cleanup-{label}-a");
                 otherOfficeId = await CreateOfficeAsync(tenantManager, tenantRepository, $"F2-cleanup-{label}-b");
-                hostRow = await InsertAsync(Target, "R", $"TEST-cleanup-host-{label}", null);
+                hostRow = await InsertAsync(target, "R", $"TEST-cleanup-host-{label}", null);
             }
 
             GrantRow targetByRole;
@@ -154,8 +167,8 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
             GrantRow unrelated;
             using (_currentTenant.Change(officeId))
             {
-                targetByRole = await InsertAsync(Target, "R", $"TEST-cleanup-role-{label}", officeId);
-                targetByUser = await InsertAsync(Target, "U", Guid.NewGuid().ToString(), officeId);
+                targetByRole = await InsertAsync(target, "R", $"TEST-cleanup-role-{label}", officeId);
+                targetByUser = await InsertAsync(target, "U", Guid.NewGuid().ToString(), officeId);
                 push = await InsertAsync(PushPermission, "R", $"TEST-cleanup-role-{label}", officeId);
                 unrelated = await InsertAsync(UnrelatedPermission, "R", $"TEST-cleanup-role-{label}", officeId);
             }
@@ -163,7 +176,7 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
             GrantRow otherOfficeTarget;
             using (_currentTenant.Change(otherOfficeId))
             {
-                otherOfficeTarget = await InsertAsync(Target, "R", $"TEST-cleanup-role-{label}", otherOfficeId);
+                otherOfficeTarget = await InsertAsync(target, "R", $"TEST-cleanup-role-{label}", otherOfficeId);
             }
 
             return new Seeded(
@@ -185,7 +198,7 @@ public class HostOnlyIntegrationGrantCleanupTests : CaseEvaluationRealAuthorizat
         return office.Id;
     }
 
-    /// <summary>Written straight to the table: the permission manager now refuses the office-side ones.</summary>
+    /// <summary>Written straight to the table: the permission manager refuses the office-side ones.</summary>
     private async Task<GrantRow> InsertAsync(string name, string provider, string key, Guid? tenantId)
     {
         var grant = new PermissionGrant(Guid.NewGuid(), name, provider, key, tenantId);
