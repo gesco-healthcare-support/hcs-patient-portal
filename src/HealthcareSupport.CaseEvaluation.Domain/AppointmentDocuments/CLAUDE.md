@@ -15,6 +15,10 @@ Two aggregate roots, two managers. Blobs for both live in containers declared in
 | `Handlers/PacketGenerationOnApprovedHandler.cs` | Subscribes to `AppointmentStatusChangedEto`; enqueues job on UoW commit |
 | `Templates/` | Token map, context + resolver shared by the HTML renderer (the templates themselves live in the packet-renderer sidecar, not here) |
 | `Pdf/WeasyPrintPacketRenderer.cs` | HTTP call to the packet-renderer sidecar (HTML -> fillable PDF); transport failures propagate for Hangfire retry |
+| `IPacketAttachmentProvider.cs` | Email-side surface for the packet generator: the email session fetches attachment bytes here and reports back via `NotifySendCompletedAsync`. Also declares `PacketAttachment` (bytes, file name, content type) |
+| `PacketAttachmentProvider.cs` | Default implementation. Reads the (appointment, kind) row, streams the blob, and builds the OLD-style filename `{ConfirmationNumber}_{KindName}_{ddMMyyyy_hhmmss}.pdf` |
+| `JointDeclarationCutoff.cs` | Pure cutoff predicate for the JDF overdue job (Phase 14, 2026-05-04): an AME appointment with no uploaded JDF is overdue when its due date is within `SystemParameter.JointDeclarationUploadCutoffDays` of today. No DI, no IO, so it is unit-testable away from the job |
+| `RequiredDocumentEvaluator.cs` | Works out which required documents are still outstanding. Declares `MissingRequiredDocument` -- one outstanding master `Document` the active package template expects, with its current state. `DocumentId` is internal; the UI shows `Name` |
 
 ## Enums (all in `Domain.Shared/AppointmentDocuments/`)
 
@@ -24,8 +28,10 @@ rows start as Pending.
 
 `PacketKind` -- `Patient=1 / Doctor=2 / AttorneyClaimExaminer=3`. All three are generated
 for every appointment type (gate removed 2026-05-29). Doctor kind is generated and stored
-but never emailed -- mirrors OLD asymmetry (search `AppointmentDocumentDomain.cs` for
-`DoctorPacket` email-send logic).
+but never emailed -- mirrors OLD asymmetry. The legacy file that carried the `DoctorPacket`
+email-send logic was AppointmentDocumentDomain.cs, which belongs to OLD and does NOT exist in
+this repository; it is written without backticks for that reason, since a backticked path here
+is a claim CI verifies.
 
 `PacketGenerationStatus` -- `Generating=1 / Generated=2 / Failed=3`. UI shows spinner /
 Download button / error + Regenerate button respectively.
