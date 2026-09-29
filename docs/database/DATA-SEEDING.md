@@ -75,7 +75,15 @@ The service tracks migrated connection strings in a `HashSet<string>` to avoid m
 
 ## Seed Contributors
 
-ABP's `IDataSeeder` discovers and runs all registered `IDataSeedContributor` implementations. The following contributors exist in this project:
+ABP's `IDataSeeder` discovers and runs all registered `IDataSeedContributor` implementations. This
+project has many more than the few described below (catalogues, roles, users, templates, office
+setup). List them from the code rather than trusting a copied list:
+
+```bash
+git grep -lE 'class \w+ *: *[^{]*IDataSeedContributor' -- 'src/*.cs'
+```
+
+Selected contributors:
 
 ### 1. OpenIddictDataSeedContributor
 
@@ -117,28 +125,13 @@ Creates application-specific roles using `IdentityRoleManager`. Runs within the 
 
 Each role is created idempotently -- if a role with the same name already exists, it is skipped.
 
-### 3. CaseEvaluationDataSeederContributor (BookStore template remnant)
-
-**File:** `src/HealthcareSupport.CaseEvaluation.Domain/BookStoreDataSeederContributor.cs`
-
-Seeds sample book data from the ABP BookStore template. Only inserts if the Books table is empty.
-
-**Books seeded:**
-
-| Name | Type | Publish Date | Price |
-|------|------|-------------|-------|
-| 1984 | Dystopia | 1949-06-08 | 19.84 |
-| The Hitchhiker's Guide to the Galaxy | ScienceFiction | 1995-09-27 | 42.00 |
-
-> **Note:** This is a template remnant and should be considered for removal in production.
-
-### 4. SaasDataSeedContributor
+### 3. SaasDataSeedContributor
 
 **File:** `src/HealthcareSupport.CaseEvaluation.Domain/Saas/SaasDataSeedContributor.cs`
 
 Seeds standard SaaS editions using ABP's `IEditionDataSeeder.CreateStandardEditionsAsync()`. Runs within the tenant context from the `DataSeedContext`.
 
-### 5. ChangeIdentityPasswordPolicySettingDefinitionProvider
+### 4. ChangeIdentityPasswordPolicySettingDefinitionProvider
 
 **File:** `src/HealthcareSupport.CaseEvaluation.Domain/Identity/ChangeIdentityPasswordPolicySettingDefinitionProvider.cs`
 
@@ -151,7 +144,7 @@ Not a seed contributor per se, but a `SettingDefinitionProvider` that relaxes th
 | RequireUppercase | `true` | `false` |
 | RequireDigit | `true` | `false` |
 
-### 6. ABP's IdentityDataSeedContributor (framework-provided)
+### 5. ABP's IdentityDataSeedContributor (framework-provided)
 
 Creates the default admin user. Credentials are passed via the `DataSeedContext` properties set by the migration service:
 

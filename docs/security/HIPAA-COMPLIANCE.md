@@ -8,7 +8,6 @@
 
 This is a **technical inventory**, not a legal compliance document. It catalogues the safeguards the application currently provides under each HIPAA Security Rule technical safeguard category, and the gaps that remain. Consult HIPAA compliance counsel for legal obligations.
 
-**Last verified:** 2026-06-01
 **Method:** code-inspect + architecture review
 
 ---
@@ -100,7 +99,6 @@ This document covers only the Security Rule *technical* safeguards. Administrati
 
 ## HIPAA-Relevant Features Already in the Codebase
 
-- **PHI scanner PreToolUse hook** (`.claude/hooks/phi-scanner.sh`) prevents Claude from committing real PHI to the repo.
 - **Synthetic-only test data rule** (`.claude/rules/hipaa-data.md`, `.claude/rules/test-data.md`) -- all test fixtures use synthetic data.
 - **ABP permission system** -- per-entity CRUD permissions gate every endpoint.
 - **Multi-tenant data isolation** -- `IMultiTenant` filter prevents cross-tenant reads. `Patient` implements `IMultiTenant` as of FEAT-09 (2026-05-05); no entity exception remains. Host/IT-Admin paths that must read across tenants use `IDataFilter<IMultiTenant>.Disable()` explicitly, matching the `DoctorsAppService` pattern.
