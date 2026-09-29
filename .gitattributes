@@ -35,6 +35,7 @@ docker-compose*.yaml text eol=lf
 **/appointment-transitions.approved.txt text eol=lf
 **/tenancy-surface.approved.txt text eol=lf
 **/role-permission-surface.approved.txt text eol=lf
+**/repository-counts.approved.txt text eol=lf
 
 # Yarn Berry release binary: generated + large; mark binary + vendored so it is
 # not diffed, not counted as code, and not EOL-normalized across hosts.
