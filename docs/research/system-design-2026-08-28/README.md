@@ -54,10 +54,7 @@ one change that would invalidate the result.
 
 Three corrections were applied on 2026-08-31, before the bundle was considered sendable:
 
-1. **Section 4.0 added** to `03-deployment-and-constraints.md` -- the Hangfire dashboard
-   authorises every caller and is mounted in the production path. It is load-bearing for the edge
-   design, because it means not every application route is either public-by-design or
-   authenticated.
+1. **Section 4.0 added** to `03-deployment-and-constraints.md`. One item from this section is tracked privately by the maintainers.
 2. **The rate-limiting claim corrected.** An earlier draft said login and registration are both
    unthrottled. Registration is throttled on the API path; sign-in is not, and the gap is
    structural rather than an oversight -- sign-in is served by the AuthServer, a separate process
