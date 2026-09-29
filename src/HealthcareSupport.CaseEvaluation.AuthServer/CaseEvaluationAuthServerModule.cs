@@ -13,6 +13,7 @@ using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
 using Volo.Abp.TextTemplateManagement;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using HealthcareSupport.CaseEvaluation.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
@@ -197,6 +198,23 @@ public class CaseEvaluationAuthServerModule : AbpModule
         // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
         Hosting.HostingConfigValidator.ValidateOrThrow(
             configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: true);
+
+        // B12 decision D2: outside Development a published default password never signs anyone in,
+        // even where it is genuinely the account's password. This is the backstop to the migrator's
+        // rotation pass -- rotation runs once at deploy time and only reaches the databases the
+        // migrator runs against, while this runs on every sign-in, so an office restored from an old
+        // backup is covered too.
+        //
+        // Registered as ONE scoped instance behind both service types. ASP.NET Core Identity
+        // resolves SignInManager<IdentityUser> and ABP's own code resolves AbpSignInManager; if only
+        // one were replaced, the login page and the grant pipeline could take different paths and
+        // only one of them would be guarded.
+        context.Services.AddScoped<AuthServer.AdminPasswords.KnownDefaultPasswordSignInManager>();
+        context.Services.Replace(ServiceDescriptor.Scoped<Volo.Abp.Identity.AspNetCore.AbpSignInManager>(
+            sp => sp.GetRequiredService<AuthServer.AdminPasswords.KnownDefaultPasswordSignInManager>()));
+        context.Services.Replace(
+            ServiceDescriptor.Scoped<Microsoft.AspNetCore.Identity.SignInManager<Volo.Abp.Identity.IdentityUser>>(
+                sp => sp.GetRequiredService<AuthServer.AdminPasswords.KnownDefaultPasswordSignInManager>()));
 
         if (hostingEnvironment.IsProduction())
         {

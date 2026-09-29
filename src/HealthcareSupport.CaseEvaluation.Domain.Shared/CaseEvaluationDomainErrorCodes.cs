@@ -1189,4 +1189,15 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string PasswordResetThrottled =
         "CaseEvaluation:Account.PasswordResetThrottled";
+
+    /// <summary>
+    /// B12 -- an operator creating an office typed an admin password that is one this product
+    /// publishes, so it is refused rather than accepted.
+    ///
+    /// <para>Coded rather than silently replaced with a generated one: the operator is about to hand
+    /// that password to the office, so a silent substitution would leave them handing over a
+    /// password the account does not have. They need to be told to choose another.</para>
+    /// </summary>
+    public const string AdminPasswordIsAKnownDefault =
+        "CaseEvaluation:AdminPassword.IsAKnownDefault";
 }

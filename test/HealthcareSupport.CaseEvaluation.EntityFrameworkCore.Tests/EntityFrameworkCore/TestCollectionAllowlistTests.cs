@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.SqlServer;
 using Shouldly;
 using Xunit;
 
@@ -16,8 +17,10 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 /// <para>Each EF Core test builds its own ABP application and its own in-memory SQLite database,
 /// so xUnit's default of one collection per class is safe, and it is what lets a run use every
 /// core. A <c>[Collection]</c> attribute puts every class that names it into one serial group.
-/// Only two groups need that, because their NAMED shared-cache databases outlive a single test:
-/// <see cref="MultiOfficeCollection"/> and <see cref="RealAuthorizationCollection"/>.</para>
+/// Three groups need that. Two because their NAMED shared-cache databases outlive a single test
+/// (<see cref="MultiOfficeCollection"/>, <see cref="RealAuthorizationCollection"/>), and one
+/// because its fixture is a Docker container rather than a database
+/// (<see cref="SqlServerCollection"/>).</para>
 ///
 /// <para>The old shared name is also blocked at compile time:
 /// <see cref="CaseEvaluationTestConsts"/>'s <c>CollectionDefinitionName</c> is
@@ -34,6 +37,15 @@ public class TestCollectionAllowlistTests
     {
         MultiOfficeCollection.Name,
         RealAuthorizationCollection.Name,
+
+        // A real SQL Server container, not a database. A class fixture is created per CLASS, so
+        // two classes each declaring one start two containers -- and xUnit runs the classes in
+        // parallel, so both exist at once. A SQL Server container wants roughly 2 GB; the second
+        // one loses its race with the Docker daemon under any real memory pressure and fails its
+        // whole class with a TaskCanceledException that looks nothing like its cause. A collection
+        // fixture is created once for the group, so there is one container and its classes run
+        // sequentially. Serial is the point here rather than a cost.
+        SqlServerCollection.Name,
     };
 
     [Fact]

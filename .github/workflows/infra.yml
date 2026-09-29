@@ -1,0 +1,346 @@
+# Azure infrastructure: build and lint the Bicep, preview every infra pull request, deploy from `production`.
+#
+# THREE JOBS, THREE LEVELS OF TRUST.
+#
+#   bicep    No Azure access at all. Builds and lints every template and runs the static guards.
+#   what-if  Pull requests from THIS repository only. Signs in as the preview identity, whose OIDC subject is
+#            `...:pull_request` and whose rights are Reader plus what-if/validate. It proves on every run that it
+#            cannot write (the probe step). It names NO environment: naming one would change its subject.
+#   deploy   `production` only, behind the `azure-production-infra` environment (branch policy `production`,
+#            required reviewer). Signs in as the infra identity.
+#
+# THE REPOSITORY IS PUBLIC, AND SO ARE THESE LOGS AND ANY PR COMMENT. A default what-if prints every changed
+# property, office allow-list addresses included; a default `az deployment group create` prints every non-secure
+# parameter and every output. So what-if runs with `--result-format ResourceIdOnly`, the summary carries names and
+# counts only, and create runs with `--output none`. Do not "improve" any of those for readability.
+#
+# ERRORS TOO. An ARM validation error's message can quote the parameter value it rejected, and GitHub masks only
+# secrets, not the base domain, SQL login or Entra group id a preview reads back from the last deploy. So every
+# `az deployment` and `az tag` call sends its stderr to a file on the runner that is NEVER printed, and a failure
+# reports only error codes and targets through `scripts/infra-ci.py digest`. `infra-ci.py check` fails the build
+# if an az call's stderr is not redirected, or if an error file or captured error is echoed.
+#
+# NEVER pull_request_target. It runs with the base repository's rights on code from a fork.
+#
+# Identities, rights and the one-off setup: infra/azure/README.md, "CI".
+# Static guards on this file: scripts/infra-ci.py check.
+
+name: Infra
+
+on:
+  pull_request:
+    paths:
+      - "infra/azure/**"
+      - ".github/workflows/infra.yml"
+      - "scripts/infra-ci.py"
+  push:
+    branches:
+      - production
+    paths:
+      - "infra/azure/**"
+  # For a parameter-only change, such as DEPLOY_GATEWAY=true for phase 2 of the first deploy. Parameters live in
+  # the environment, not in the repository, so no push carries them. The deploy job and the environment's branch
+  # policy both refuse any ref other than `production`.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Standalone Bicep, pinned and verified. The hash is GitHub's published digest for this asset, checked against
+  # a local download on 2026-09-28. The Windows binary of the same release matches the hash in the A1 handoff.
+  BICEP_VERSION: "0.47.16"
+  BICEP_SHA256: "64c345a58e0c3e48b1bc98a4e62d6b3adb1d238281297de3400aeafb2697aa5a"
+  # --validation-level, which the preview depends on, arrived in Azure CLI 2.76.
+  AZURE_CLI_MINIMUM: "2.76.0"
+
+jobs:
+  bicep:
+    name: "Infra: Bicep"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Install Bicep
+        run: |
+          mkdir -p "$RUNNER_TEMP/bicep-bin"
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
+            "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
+          echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep-bin/bicep" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/bicep-bin/bicep"
+          echo "$RUNNER_TEMP/bicep-bin" >> "$GITHUB_PATH"
+
+      # Zero diagnostics, not just exit 0: a warning today is a deploy failure after the next API change.
+      - name: Build and lint every template
+        run: |
+          failed=0
+          for f in infra/azure/main.bicep infra/azure/modules/*.bicep \
+                   infra/azure/subscription/*.bicep infra/azure/subscription/modules/*.bicep; do
+            build=$(bicep build "$f" --stdout 2>&1 >/dev/null) || failed=1
+            lint=$(bicep lint "$f" 2>&1) || failed=1
+            if [ -n "$build$lint" ]; then
+              echo "::error file=$f::bicep reported diagnostics"
+              printf '%s\n%s\n' "$build" "$lint"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Static guards
+        run: python3 scripts/infra-ci.py check
+
+  what-if:
+    name: "Infra: What-If"
+    needs: bicep
+    # Fork pull requests cannot mint an OIDC token anyway; this makes them SKIP rather than fail. Dependabot runs
+    # get a read-only token and no secrets, so they skip too.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    concurrency:
+      group: infra-whatif-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      PREVIEW_REQUIRED: ${{ vars.INFRA_PREVIEW_REQUIRED }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      # Before the bootstrap has run there is nothing to preview against. Say so plainly rather than fail every
+      # infra PR. Once the bootstrap is done, INFRA_PREVIEW_REQUIRED=true turns a missing setting into a failure,
+      # so a deleted secret cannot quietly switch the preview off.
+      - name: Check configuration
+        id: config
+        env:
+          CLIENT_ID: ${{ secrets.AZURE_WHATIF_CLIENT_ID }}
+        run: |
+          if [ -n "$CLIENT_ID" ] && [ -n "$AZURE_RESOURCE_GROUP" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          elif [ "$PREVIEW_REQUIRED" = "true" ]; then
+            echo "::error::INFRA_PREVIEW_REQUIRED is true but AZURE_WHATIF_CLIENT_ID or AZURE_RESOURCE_GROUP is unset."
+            exit 1
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Azure preview not configured yet (no bootstrap). Nothing was previewed."
+            echo "### Infra what-if: NOT RUN - Azure preview not configured yet" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install Bicep
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/bicep-bin"
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
+            "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
+          echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep-bin/bicep" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/bicep-bin/bicep"
+          echo "$RUNNER_TEMP/bicep-bin" >> "$GITHUB_PATH"
+
+      - name: Check Azure CLI
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          version=$(az version --query '"azure-cli"' -o tsv)
+          lowest=$(printf '%s\n%s\n' "$AZURE_CLI_MINIMUM" "$version" | sort -V | head -1)
+          if [ "$lowest" != "$AZURE_CLI_MINIMUM" ]; then
+            echo "::error::Azure CLI $version is older than $AZURE_CLI_MINIMUM, which --validation-level needs."
+            exit 1
+          fi
+          # Use the pinned, verified Bicep above, never one the CLI downloads for itself.
+          az config set bicep.use_binary_from_path=true bicep.check_version=false --only-show-errors
+
+      - name: Sign in as the preview identity
+        if: steps.config.outputs.configured == 'true'
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906  # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_WHATIF_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Parameters come from the LAST REAL DEPLOY, read back from Azure, so office addresses and Entra ids never
+      # live in the repository or in this job's configuration. Secure parameters get placeholders; what-if does
+      # not evaluate them. Before the first deploy there is no `portal-main` and the example file stands in.
+      - name: Build parameters
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          bicep build infra/azure/main.bicep --outfile "$RUNNER_TEMP/main.json"
+          if ! az deployment group show -g "$AZURE_RESOURCE_GROUP" -n portal-main \
+               --query properties.parameters -o json > "$RUNNER_TEMP/last.json" 2> "$RUNNER_TEMP/last.err"; then
+            if grep -q "DeploymentNotFound" "$RUNNER_TEMP/last.err"; then
+              : > "$RUNNER_TEMP/last.json"
+              echo "No earlier deploy; previewing with the example parameters."
+            else
+              python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/last.err"
+              exit 1
+            fi
+          fi
+          python3 scripts/infra-ci.py params --mode pr --template "$RUNNER_TEMP/main.json" \
+            --last "$RUNNER_TEMP/last.json" --out "$RUNNER_TEMP/params.json"
+
+      - name: What-if
+        id: whatif
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          set +e
+          az deployment group what-if -g "$AZURE_RESOURCE_GROUP" --name portal-main-preview \
+            --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" \
+            --validation-level ProviderNoRbac --result-format ResourceIdOnly --no-pretty-print \
+            --output json > "$RUNNER_TEMP/whatif.json" 2> "$RUNNER_TEMP/whatif.err"
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ ! -s "$RUNNER_TEMP/whatif.json" ]; then
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --as-whatif-json > "$RUNNER_TEMP/whatif.json"
+          fi
+          ok=true
+          python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
+            --title "resource group, pull request #${{ github.event.pull_request.number }}" \
+            > "$RUNNER_TEMP/summary.md" || ok=false
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      # A standing proof, on every PR, that the preview identity cannot write. It must be REFUSED with
+      # AuthorizationFailed; success, or any other failure, fails the job.
+      - name: Write probe (must be refused)
+        if: steps.config.outputs.configured == 'true'
+        env:
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if az tag update --resource-id "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP" \
+               --operation Merge --tags whatif-write-probe=1 > /dev/null 2> "$RUNNER_TEMP/probe.err"; then
+            echo "::error::The preview identity WROTE to the resource group. Its rights are wrong; fix the bootstrap."
+            exit 1
+          fi
+          if ! grep -q "AuthorizationFailed" "$RUNNER_TEMP/probe.err"; then
+            echo "::error::Write probe inconclusive: expected AuthorizationFailed."
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/probe.err"
+            exit 1
+          fi
+          echo "Write refused with AuthorizationFailed, as required."
+
+      # One comment per PR, updated in place on later pushes. It holds only what `summarize` printed.
+      - name: Post summary to the pull request
+        if: steps.config.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | startswith("<!-- infra-what-if -->")) | .id' \
+            | head -1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@"$RUNNER_TEMP/summary.md" > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/summary.md" > /dev/null
+          fi
+
+      - name: Fail if the preview failed
+        if: steps.config.outputs.configured == 'true' && steps.whatif.outputs.ok != 'true'
+        run: |
+          echo "::error::what-if did not succeed; the error is in the What-if step's log."
+          exit 1
+
+  deploy:
+    name: "Infra: Deploy"
+    needs: bicep
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    # Application Gateway and the managed cache each take tens of minutes on a first create.
+    timeout-minutes: 120
+    environment: azure-production-infra
+    permissions:
+      contents: read
+      id-token: write
+    # Shared with the app deploy (A6): an infra deploy and an app deploy must never overlap, and a running deploy
+    # is never cancelled halfway.
+    concurrency:
+      group: azure-production
+      cancel-in-progress: false
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Install Bicep
+        run: |
+          mkdir -p "$RUNNER_TEMP/bicep-bin"
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/bicep-bin/bicep" \
+            "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
+          echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep-bin/bicep" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/bicep-bin/bicep"
+          echo "$RUNNER_TEMP/bicep-bin" >> "$GITHUB_PATH"
+
+      - name: Check Azure CLI
+        run: |
+          version=$(az version --query '"azure-cli"' -o tsv)
+          lowest=$(printf '%s\n%s\n' "$AZURE_CLI_MINIMUM" "$version" | sort -V | head -1)
+          if [ "$lowest" != "$AZURE_CLI_MINIMUM" ]; then
+            echo "::error::Azure CLI $version is older than $AZURE_CLI_MINIMUM."
+            exit 1
+          fi
+          az config set bicep.use_binary_from_path=true bicep.check_version=false --only-show-errors
+
+      - name: Sign in as the infra identity
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906  # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Every value comes from this environment's secrets and variables; scripts/infra-ci.py ENV_MAP is the
+      # mapping. A missing required value fails here, naming the variable and never printing a value.
+      - name: Build parameters
+        env:
+          ENV_NAME: ${{ vars.ENV_NAME }}
+          BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
+          SQL_ENTRA_ADMIN_OBJECT_ID: ${{ vars.SQL_ENTRA_ADMIN_OBJECT_ID }}
+          SQL_ENTRA_ADMIN_NAME: ${{ vars.SQL_ENTRA_ADMIN_NAME }}
+          DEPLOY_GATEWAY: ${{ vars.DEPLOY_GATEWAY }}
+          WAF_MODE: ${{ vars.WAF_MODE }}
+          CREATE_DNS_ZONE: ${{ vars.CREATE_DNS_ZONE }}
+          SQL_ADMIN_LOGIN: ${{ secrets.SQL_ADMIN_LOGIN }}
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          ADMIN_SSH_PUBLIC_KEY: ${{ secrets.ADMIN_SSH_PUBLIC_KEY }}
+          TLS_CERTIFICATE_SECRET_ID: ${{ secrets.TLS_CERTIFICATE_SECRET_ID }}
+          ALLOWED_CLIENT_CIDRS: ${{ secrets.ALLOWED_CLIENT_CIDRS }}
+          ADMIN_ALLOWED_IP_RANGES: ${{ secrets.ADMIN_ALLOWED_IP_RANGES }}
+        run: |
+          bicep build infra/azure/main.bicep --outfile "$RUNNER_TEMP/main.json"
+          python3 scripts/infra-ci.py params --mode deploy --template "$RUNNER_TEMP/main.json" \
+            --out "$RUNNER_TEMP/params.json"
+
+      - name: What-if
+        run: |
+          az deployment group what-if -g "$AZURE_RESOURCE_GROUP" --name portal-main-preview \
+            --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" \
+            --result-format ResourceIdOnly --no-pretty-print --output json > "$RUNNER_TEMP/whatif.json" \
+            2> "$RUNNER_TEMP/whatif.err" \
+            || python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/whatif.err" --as-whatif-json > "$RUNNER_TEMP/whatif.json"
+          python3 scripts/infra-ci.py summarize --whatif "$RUNNER_TEMP/whatif.json" \
+            --title "resource group, deploy of ${GITHUB_SHA::12}" > "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # Fixed name `portal-main`: the pull-request preview reads its parameters back from this deployment.
+      # --output none: the default output prints every non-secure parameter and every output, publicly.
+      - name: Deploy
+        run: |
+          if ! az deployment group create -g "$AZURE_RESOURCE_GROUP" --name portal-main \
+               --template-file "$RUNNER_TEMP/main.json" --parameters @"$RUNNER_TEMP/params.json" --output none \
+               2> "$RUNNER_TEMP/deploy.err"; then
+            python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/deploy.err"
+            exit 1
+          fi
+          state=$(az deployment group show -g "$AZURE_RESOURCE_GROUP" -n portal-main \
+                    --query properties.provisioningState -o tsv 2> "$RUNNER_TEMP/state.err") \
+            || { python3 scripts/infra-ci.py digest --stderr "$RUNNER_TEMP/state.err"; exit 1; }
+          echo "provisioningState: $state"
+          [ "$state" = "Succeeded" ]
+
+      - name: Remove the parameters file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/params.json"

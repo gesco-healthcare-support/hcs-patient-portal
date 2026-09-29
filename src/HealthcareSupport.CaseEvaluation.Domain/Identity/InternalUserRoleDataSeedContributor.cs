@@ -356,6 +356,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
         yield return $"{Group}.CaseTrackerIntegration";
 
+        // 2026-09-28 -- the technical consoles (job dashboard, health UI), host side. IT Admin only:
+        // they can trigger, requeue and delete jobs for every office, a technical power.
+        yield return $"{Group}.BackgroundJobsDashboard";
+
         // 2026-06-26 -- the internal-users hub LISTS staff via UserExtendedAppService
         // (extends Volo IdentityUserAppService), whose endpoints are gated by the
         // framework AbpIdentity.Users policy, NOT CaseEvaluation.InternalUsers. Without
