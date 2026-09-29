@@ -81,8 +81,6 @@ public sealed class AuthorizationSurfaceInvariantTests
         // Tenant resolution on the sign-in / sign-up screens, before a session exists.
         ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.ResolveTenantByNameAsync(String)"]
             = "office resolution before sign-in",
-        ["HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String)"]
-            = "office picker shown before sign-in",
 
         // Self-registration and invite acceptance, both pre-account by definition.
         ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.RegisterAsync(ExternalUserSignUpDto)"]

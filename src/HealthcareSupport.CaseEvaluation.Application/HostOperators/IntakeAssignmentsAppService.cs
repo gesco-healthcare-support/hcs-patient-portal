@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
@@ -57,6 +58,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Default)]
     public virtual async Task<ListResultDto<IntakeOfficeAssignmentDto>> GetListAsync()
     {
+        EnsureHostCaller();
+
         using (CurrentTenant.Change(null))
         {
             var assignments = await _assignmentRepository.GetListAsync();
@@ -93,6 +96,7 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     public virtual async Task<PagedResultDto<IntakeOfficeAssignmentDto>> GetPagedListAsync(
         GetIntakeAssignmentsInput input)
     {
+        EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
         using (CurrentTenant.Change(null))
@@ -169,6 +173,7 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]
     public virtual async Task AssignAsync(AssignIntakeOfficeDto input)
     {
+        EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
         using (CurrentTenant.Change(null))
@@ -210,6 +215,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]
     public virtual async Task UnassignAsync(Guid operatorUserId, Guid officeId)
     {
+        EnsureHostCaller();
+
         using (CurrentTenant.Change(null))
         {
             var row = await _assignmentRepository.FirstOrDefaultAsync(
@@ -227,6 +234,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetAssignableOperatorsAsync()
     {
+        EnsureHostCaller();
+
         using (CurrentTenant.Change(null))
         {
             var operators = await _userManager.GetUsersInRoleAsync(
@@ -243,6 +252,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetOfficeOptionsAsync()
     {
+        EnsureHostCaller();
+
         using (CurrentTenant.Change(null))
         {
             var query = await _tenantRepository.GetQueryableAsync();
@@ -421,5 +432,21 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         if (hasFirst) return first!.Trim();
         if (hasLast) return last!.Trim();
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Refuses a caller who is inside an office, before any assignment, operator, office or shadow
+    /// user is read or written. The assignment screen manages which host operator may enter which
+    /// office and lists every office, so it belongs to the host alone. The Host-only permissions on
+    /// each method already stop an office caller at the authorization interceptor; this check keeps
+    /// the refusal in place even if a permission's side is ever widened again.
+    /// </summary>
+    private void EnsureHostCaller()
+    {
+        if (CurrentTenant.IsAvailable)
+        {
+            throw new AbpAuthorizationException(
+                "Intake assignments are managed from the host, not from inside an office.");
+        }
     }
 }

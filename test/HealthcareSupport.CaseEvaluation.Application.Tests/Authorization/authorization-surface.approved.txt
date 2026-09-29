@@ -275,7 +275,7 @@ HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettings
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.StartFeedAsync(Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.CreateAsync(CreateInternalUserDto) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers.Create
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetInternalUsersAsync(GetInternalUsersInput) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers
-HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String) -> class=CaseEvaluation.InternalUsers method=(anonymous)
+HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String) -> class=CaseEvaluation.InternalUsers method=-
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.SendPasswordResetEmailAsync(Guid) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers.Edit
 HealthcareSupport.CaseEvaluation.Locations.LocationsAppService.CreateAsync(LocationCreateDto) -> class=CaseEvaluation.Locations method=CaseEvaluation.Locations.Create
 HealthcareSupport.CaseEvaluation.Locations.LocationsAppService.DeleteAllAsync(GetLocationsInput) -> class=CaseEvaluation.Locations method=CaseEvaluation.Locations.Delete
