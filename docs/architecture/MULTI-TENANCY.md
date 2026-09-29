@@ -61,8 +61,11 @@ are only eight.
 
 ### The two genuinely host-only entities
 
-These have no `TenantId`, live only in the host database, and are the only entity configurations
-wrapped in `builder.IsHostDatabase()` in `CaseEvaluationDbContext`:
+These have no `TenantId` and live only in the host database. Their configurations sit inside the
+`builder.IsHostDatabase()` block in `CaseEvaluationDbContext`, and `CaseEvaluationTenantDbContext`
+never declares them. That block is not a list of host-only entities, though: it also holds the
+Doctor, Doctor join and Patient configurations, which the office context declares as well (see
+"CaseEvaluationDbContext (Host)" below).
 
 | Entity | Purpose |
 |---|---|
@@ -71,14 +74,17 @@ wrapped in `builder.IsHostDatabase()` in `CaseEvaluationDbContext`:
 
 Both are about offices rather than in an office, which is why they sit outside them.
 
-### The six join entities
+### The five join entities
 
 These are M2M join rows declared as plain `Entity` with a composite key. They carry no `TenantId`
 of their own because both sides of the join are already tenant-scoped, so a row is only reachable
 through rows already confined to one office:
 
-`AppointmentAccessorAppointment`, `AppointmentDocumentTypeAppointmentType`,
-`DoctorAppointmentType`, `DoctorLocation`, `DocumentPackage`, `LocationAppointmentType`.
+`AppointmentDocumentTypeAppointmentType`, `DoctorAppointmentType`, `DoctorLocation`,
+`DocumentPackage`, `LocationAppointmentType`.
+
+`AppointmentAccessorAppointment` is declared the same way, but neither DbContext maps it, so no
+database has a table for it. It is an unused class, not a sixth join.
 
 ### Everything else
 
