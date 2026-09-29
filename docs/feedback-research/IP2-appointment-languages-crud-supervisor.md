@@ -48,9 +48,12 @@ documented here as a minor follow-on, not required for the role change.
 - The list page has NO filter form and NO bulk-delete/checkbox column -- the thinnest of the
   four lookup list UIs (Locations is the richest, with filters + bulk delete).
 - `AppointmentLanguages` has no `DataSeedContributor`; the picker defaults to English via a
-  null FK and the list is empty until an admin creates entries (Domain CLAUDE.md "Thin
-  host-scoped lookups"). This makes the CRUD-by-Supervisor grant practically useful: someone
-  below IT Admin should be able to seed the demo tenant's languages.
+  null FK and the list is empty until an admin creates entries (Domain CLAUDE.md, then titled
+  "Thin host-scoped lookups", now "Thin per-office lookups"). This makes the CRUD-by-Supervisor
+  grant practically useful: someone below IT Admin should be able to seed the demo tenant's
+  languages.
+  **Corrected 2026-09-28:** this premise no longer holds. `AppointmentLanguageDataSeedContributor`
+  now seeds each office's list (English among it), and the entity is per-office (`IMultiTenant`).
 
 ## Relevant code locations
 
