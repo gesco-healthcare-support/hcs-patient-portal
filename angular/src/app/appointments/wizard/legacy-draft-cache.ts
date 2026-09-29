@@ -14,9 +14,6 @@
 export const LEGACY_WIZARD_DRAFT_KEY = 'ra-wizard-draft';
 
 export function removeLegacyWizardDraftCache(): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
   try {
     window.localStorage.removeItem(LEGACY_WIZARD_DRAFT_KEY);
   } catch {
