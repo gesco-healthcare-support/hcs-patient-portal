@@ -34,6 +34,11 @@ site_description: Workers' compensation IME appointment scheduling. Engineering 
 repo_url: https://github.com/gesco-healthcare-support/hcs-patient-portal
 repo_name: hcs-patient-portal
 edit_uri: edit/main/docs/
+# Where the site is served. Set by scripts/hosting/build-docs-site.sh to https://<BASE_DOMAIN>/docs/
+# for the copy the portal serves; unset (null) for any other build. It must be set wherever the site is
+# served: without it the sitemap is empty, so instant navigation does nothing, and 404.html links its
+# assets from the domain root instead of from /docs/.
+site_url: !ENV [DOCS_SITE_URL, null]
 
 docs_dir: docs
 
@@ -63,6 +68,13 @@ theme:
 
 plugins:
   - search
+  # Downloads the theme's fonts and the diagram library (mermaid) at BUILD time and serves them from
+  # the site itself, so a reader's browser loads nothing from another host. That is what lets the
+  # portal serve /docs/ under a same-origin Content-Security-Policy. The build needs internet access.
+  # The cache is set by environment so the server build, which mounts the repository read-only, keeps
+  # it inside the builder container; the default (.cache/ at the repository root) is gitignored.
+  - privacy:
+      cache_dir: !ENV [DOCS_PRIVACY_CACHE_DIR, .cache/plugin/privacy]
   - git-revision-date-localized:
       type: date
       fallback_to_build_date: true
