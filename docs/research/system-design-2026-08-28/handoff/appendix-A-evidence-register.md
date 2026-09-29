@@ -5344,7 +5344,7 @@ Verification verdict for this area: **material-errors** (31 claims checked)
 
 ### A13.1  [yes]
 
-**Claim.** Hangfire's Dashboard is restricted to local requests by default; the shipped DashboardOptions default Authorization is a LocalRequestsOnlyAuthorizationFilter. Therefore an authorization filter whose body is 'return true' is an active downgrade of a safe default, not an unset default.
+**Claim.** Hangfire's Dashboard is restricted to local requests by default; the shipped DashboardOptions default Authorization is a LocalRequestsOnlyAuthorizationFilter.
 
 **Limit or threshold asserted.** private static readonly IDashboardAuthorizationFilter[] DefaultAuthorization = new[] { new LocalRequestsOnlyAuthorizationFilter() };
 
@@ -5378,7 +5378,7 @@ Verification verdict for this area: **material-errors** (31 claims checked)
 
 ### A13.4  [partially]
 
-**Claim.** ASP.NET Core path matching is case-insensitive: PathString.StartsWithSegments defaults to StringComparison.OrdinalIgnoreCase, and endpoint route text matching is case-insensitive on the decoded path. Combined with the nginx behaviour above, an nginx prefix deny rule on /hangfire does not block GET /Hangfire, which ASP.NET Core still routes to the dashboard.
+**Claim.** ASP.NET Core path matching is case-insensitive: PathString.StartsWithSegments defaults to StringComparison.OrdinalIgnoreCase, and endpoint route text matching is case-insensitive on the decoded path.
 
 **Limit or threshold asserted.** Source: "return StartsWithSegments(other, StringComparison.OrdinalIgnoreCase);" Routing docs: "Text matching is case-insensitive and based on the decoded representation of the URL's path."
 
@@ -5668,7 +5668,7 @@ Verification verdict for this area: **material-errors** (31 claims checked)
 
 ### A13.29  [yes]
 
-**Claim.** HIPAA Security Rule 45 CFR 164.312(a)(1) requires technical policies and procedures allowing access to systems maintaining ePHI only to persons or software programs granted access rights, and 164.308(a)(4) requires policies authorizing such access. An unauthenticated administrative surface exposing appointment identifiers and recipient addresses is inconsistent with these once real ePHI is present.
+**Claim.** HIPAA Security Rule 45 CFR 164.312(a)(1) requires technical policies and procedures allowing access to systems maintaining ePHI only to persons or software programs granted access rights, and 164.308(a)(4) requires policies authorizing such access.
 
 **Limit or threshold asserted.** 164.312(a)(1): "Implement technical policies and procedures for electronic information systems that maintain electronic protected health information to allow access only to those persons or software programs that have been granted access rights as specified in Sec. 164.308(a)(4)." 164.312(b) Audit controls: "Implement hardware, software, and/or procedural mechanisms that record and examine activity in information systems that contain or use electronic protected health information."
 
@@ -5677,7 +5677,7 @@ Verification verdict for this area: **material-errors** (31 claims checked)
 - Second source: <https://www.law.cornell.edu/cfr/text/45/164.308>
 - Accessed: 2026-08-31
 - Confidence: verified
-- Verifier note: Regulatory text verified verbatim (source note: 68 FR 8376, Feb 20 2003, as amended 78 FR 5694, Jan 25 2013). The claim's applicability sentence ('inconsistent with these once real ePHI is present') is legal interpretation, not regulatory text - label it as such.
+- Verifier note: Regulatory text verified verbatim (source note: 68 FR 8376, Feb 20 2003, as amended 78 FR 5694, Jan 25 2013).
 
 ### A13.30  [could-not-check]
 
@@ -6480,7 +6480,7 @@ Confidence: **determinate-with-caveats**
 - URL: <https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/sql-server-backup-to-url-s3-compatible-object-storage?view=sql-server-ver16>
 - Accessed: 2026-08-31
 
-**Q2.19** Sizing inputs for the audit tables (MY CALCULATION from ABP's declared column limits, not a sourced measurement): a single EntityPropertyChange row can reach ~3.4 KB (NewValue 512 + OriginalValue 512 + PropertyName 128 + PropertyTypeFullName 512 chars, nvarchar at 2 bytes/char), and a single AuditLogAction row can reach ~4 KB of serialised method parameters. Those parameters are the same PHI-bearing arguments the brief flags as exposed by the unauthenticated Hangfire dashboard  -  meaning the audit database is unambiguously a PHI store and must keep full HIPAA controls after separation.
+**Q2.19** Sizing inputs for the audit tables (MY CALCULATION from ABP's declared column limits, not a sourced measurement): a single EntityPropertyChange row can reach ~3.4 KB (NewValue 512 + OriginalValue 512 + PropertyName 128 + PropertyTypeFullName 512 chars, nvarchar at 2 bytes/char), and a single AuditLogAction row can reach ~4 KB of serialised method parameters. Those parameters are PHI-bearing arguments, meaning the audit database is unambiguously a PHI store and must keep full HIPAA controls after separation.
 
 > EntityPropertyChangeConsts: MaxNewValueLength = 512, MaxOriginalValueLength = 512, MaxPropertyNameLength = 128, MaxPropertyTypeFullNameLength = 512. AuditLogActionConsts: MaxParametersLength = 2000. AuditLogConsts: MaxBrowserInfoLength = 512, MaxUrlLength = 256.
 

@@ -31,7 +31,7 @@ calendar figure.
 
 | | Hours (revised) | As written | At 40 h/month |
 | --- | --- | --- | --- |
-| Item 0 -- Hangfire dashboard (new) | **2** | -- | -- |
+| Item 0 -- tracked privately (new) | **2** | -- | -- |
 | Tier 0 -- irreducible core | **52** | 58 | 1.3 months |
 | Tier 1 -- rest of launch-blocking | **81** | 83 | 2 months |
 | **Total launch-blocking** | **~135** | 141 | ~3.4 months |
@@ -74,14 +74,9 @@ items are cheap *this month* and expensive later. That argues for option 1 or 2 
 If only one block of work happens before launch, this is it. Ordered so that each week ends somewhere
 sensible.
 
-### Item 0: lock the Hangfire dashboard (2 h) -- ADDED 2026-08-28, DO THIS FIRST
+### Item 0 (2 h) -- ADDED 2026-08-28
 
-Found during repository verification. The original analysis had no repository access and could not
-see it.
-
-| # | Item | Effort | Depends on | Launch-blocking |
-| --- | --- | --- | --- | --- |
-| 0 | **The Hangfire dashboard authorises everyone.** `AnonymousHangfireDashboardAuthorizationFilter.Authorize()` returns `true`, and the mount at `CaseEvaluationHttpApiHostModule.cs:1325` is gated only on `!AbpStudioAnalyzeHelper.IsInAnalyzeMode` -- an ABP Studio guard, **not an environment gate**. Public hosting therefore exposes an unauthenticated admin console on a PHI system: every queued, completed and failed job with its arguments and exception detail, plus trigger, requeue and delete. **Split the dashboard mount from `ConfigureHangfireRecurringJobs()` first** -- the recurring jobs must still register in production -- then gate the dashboard on `IsDevelopment()`, or omit it outside development entirely. Verify with a `curl` for the status code at `/hangfire` on an office host; 200 is the current failing state | 2 h | -- | **YES** |
+One item from this section is tracked privately by the maintainers.
 
 ### Week 1: stop the pipeline lying (11.5 h, was 14 h)
 

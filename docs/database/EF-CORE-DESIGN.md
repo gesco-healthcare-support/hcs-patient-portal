@@ -31,12 +31,12 @@ classDiagram
     }
     class CaseEvaluationDbContext {
         MultiTenancySides.Both
-        +35 DbSet properties
+        +DbSet properties
         #OnModelCreating(ModelBuilder)
     }
     class CaseEvaluationTenantDbContext {
         MultiTenancySides.Tenant
-        +31 DbSet properties
+        +DbSet properties
         #OnModelCreating(ModelBuilder)
     }
 
@@ -88,7 +88,10 @@ builder.Entity<Book>(b =>
 
 Sets `MultiTenancySides.Both` -- this context manages the host database, which contains both host-only and shared data.
 
-### DbSet Properties (35)
+### DbSet Properties
+
+The context file is the complete list (`grep -c 'public DbSet<'` on `CaseEvaluationDbContext.cs` gives 47 on
+2026-09-28); the table below predates several newer entities.
 
 | DbSet | Entity Type |
 |-------|-------------|
@@ -128,21 +131,22 @@ Sets `MultiTenancySides.Both` -- this context manages the host database, which c
 | `AppointmentTypes` | `AppointmentType` |
 | `States` | `State` |
 
-### Host-Only Entities (guarded by `builder.IsHostDatabase()`)
+### Where each entity lives
 
-These entities are configured inside `if (builder.IsHostDatabase())` blocks and will only exist in the host database:
+**Only two entities are host-only:** `OfficeBranding` and `IntakeOfficeAssignment`. They are
+configured inside `if (builder.IsHostDatabase())` and never exist in an office database.
 
-- **Location** -- FK to State (SetNull), FK to AppointmentType (SetNull)
-- **WcabOffice** -- FK to State (SetNull)
-- **Doctor** -- FK to Tenant (SetNull); filtered unique index on TenantId enforces one-doctor-per-tenant
-- **DoctorAppointmentType** -- composite key (DoctorId, AppointmentTypeId), Cascade deletes; no explicit DbSet
-- **DoctorLocation** -- composite key (DoctorId, LocationId), Cascade deletes; no explicit DbSet
-- **AppointmentStatus** -- standalone lookup
-- **AppointmentType** -- standalone lookup
-- **AppointmentLanguage** -- standalone lookup
-- **Patient** -- implements `IMultiTenant`; entity config is host-only; FK to State (SetNull), FK to AppointmentLanguage (SetNull), FK to IdentityUser (NoAction), FK to Tenant (SetNull)
-- **State** -- standalone lookup
-- **NotificationTemplateType** -- lookup (Email / SMS); no tenant data
+**`Doctor`, `Patient` and the Doctor join tables** (`DoctorAppointmentType`, `DoctorLocation`) are
+configured behind `IsHostDatabase()` in this context and UNCONDITIONALLY in
+`CaseEvaluationTenantDbContext`, so every office database has them and holds the office's rows.
+`Doctor` and `Patient` get an FK to the SaaS `Tenant` table only here, because that table exists
+only in the host database.
+
+**Everything else**, including `Location`, `WcabOffice`, `State`, `AppointmentType`,
+`AppointmentStatus`, `AppointmentLanguage` and `NotificationTemplateType`, is configured once in
+`CaseEvaluationSharedModelConfiguration` and exists in both contexts. Each is `IMultiTenant`, so
+under database-per-office each office's database holds its own copy; there is no shared host
+catalogue.
 
 ### Shared Entities (configured outside `IsHostDatabase()` guards)
 
@@ -184,7 +188,10 @@ These entities exist in both host and tenant databases:
 
 Sets `MultiTenancySides.Tenant` -- this context manages individual tenant databases.
 
-### DbSet Properties (31)
+### DbSet Properties
+
+The context file is the complete list (`grep -c 'public DbSet<'` on `CaseEvaluationTenantDbContext.cs` gives
+45 on 2026-09-28); the table below predates several newer entities.
 
 | DbSet | Entity Type |
 |-------|-------------|
@@ -220,7 +227,8 @@ Sets `MultiTenancySides.Tenant` -- this context manages individual tenant databa
 | `AppointmentTypes` | `AppointmentType` |
 | `States` | `State` |
 
-**Not in tenant context:** `Patient`, `Location`, `WcabOffice` (host-only; no tenant rows for these entities).
+**Not in the office context:** only the two host-only entities, `OfficeBranding` and `IntakeOfficeAssignment`.
+`Patient`, `Location` and `WcabOffice` are all configured here and hold each office's rows.
 
 The tenant context re-configures all its entities with full fluent API mappings (not relying on the host context configuration). It also configures the junction tables `DoctorAppointmentType`, `DoctorLocation`, and `DoctorAvailabilityAppointmentType` even though they are not explicit DbSets.
 
@@ -268,18 +276,23 @@ flowchart TD
     E --> H[Host DB + Tenant DB]
     F --> G
 
-    subgraph "Host-Only Entities (IsHostDatabase guard)"
-        H1[Location]
-        H2[WcabOffice]
-        H3[Patient]
-        H4[State]
-        H5[AppointmentType]
-        H6[AppointmentStatus]
-        H7[AppointmentLanguage]
-        H8[Doctor]
-        H9[DoctorAppointmentType]
-        H10[DoctorLocation]
-        H11[NotificationTemplateType]
+    subgraph "Host-Only Entities (IsHostDatabase guard, never in an office DB)"
+        H1[OfficeBranding]
+        H2[IntakeOfficeAssignment]
+    end
+
+    subgraph "Per-office, also configured in the host context"
+        P1[Location]
+        P2[WcabOffice]
+        P3[Patient]
+        P4[State]
+        P5[AppointmentType]
+        P6[AppointmentStatus]
+        P7[AppointmentLanguage]
+        P8[Doctor]
+        P9[DoctorAppointmentType]
+        P10[DoctorLocation]
+        P11[NotificationTemplateType]
     end
 
     subgraph "Both Host + Tenant Entities"
@@ -316,7 +329,7 @@ flowchart TD
     H --> B1 & B2 & B3 & B4 & B5 & B6 & B7 & B8 & B9 & B10 & B11 & B12 & B13 & B14 & B15 & B16 & B17 & B18 & B19 & B20 & B21 & B22 & B23 & B24 & B25 & B26 & B27
 ```
 
-> **Note:** `Patient` implements `IMultiTenant` (added FEAT-09, 2026-05-05), so ABP's automatic tenant filter applies. Its `OnModelCreating` block is still inside the `IsHostDatabase()` guard because `Patient` rows only exist in the host database. Host or IT-Admin callers that need cross-tenant access must explicitly disable the multi-tenant filter via `IDataFilter<IMultiTenant>.Disable()`.
+> **Note:** `Patient` implements `IMultiTenant` (added FEAT-09, 2026-05-05), so ABP's automatic tenant filter applies. Its host-context configuration sits inside the `IsHostDatabase()` guard, but `CaseEvaluationTenantDbContext` configures it unconditionally: each office's `Patient` rows live in that office's database. Host or IT-Admin callers that need cross-tenant access must explicitly disable the multi-tenant filter via `IDataFilter<IMultiTenant>.Disable()`.
 
 ---
 

@@ -72,7 +72,8 @@ it, and both are being corrected:
 
 - `secrets.md`, circulated to the incoming maintainer, was stale against the
   server.
-- `docs/integration/case-tracker-open-items.md:83` (item I7) still says
+- case-tracker-open-items.md, item I7 (that file moved out of the repository to the maintainers'
+  archive on 2026-09-28), still says
   "Still EMPTY in production, failing closed".
 
 The token _is_ set in `secrets/env.prod`, the running `api` container has it,
@@ -158,7 +159,8 @@ record already scheduled for deletion.
 
 ## Related
 
-- `docs/integration/case-tracker-open-items.md` -- item I7. **Corrected in #706**
+- case-tracker-open-items.md (moved out of the repository to the maintainers' archive on
+  2026-09-28) -- item I7. **Corrected in #706**
   (2026-09-08) and now carries the same measurements as this file; it is no
   longer the stale source the 2026-09-04 section warns about.
 - `docs/integration/case-tracker-api-contract.md` -- contract section F, and
