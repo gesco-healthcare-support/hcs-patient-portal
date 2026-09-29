@@ -64,8 +64,11 @@ Custom repo methods use explicit LINQ joins, not navigation properties, to popul
 
 ## Gotchas
 
-- `CaseEvaluationDbContextModelCreatingExtensions.cs` does NOT exist. All entity config is
-  inline in `OnModelCreating` in each DbContext file -- do not create or reference that class.
+- CaseEvaluationDbContextModelCreatingExtensions.cs does NOT exist. (Written without backticks on
+  purpose: in this file a backticked path means "this exists now", which is what lets the CI drift
+  checker verify every one of them. A name being documented as absent must not wear them.) It is
+  the ABP template's usual home for entity configuration, so people look for it. All entity config
+  is inline in `OnModelCreating` in each DbContext file -- do not create or reference that class.
 - Filtered indexes (`HasFilter(...)`) are SQL Server syntax; they silently become no-ops on
   SQLite-backed test runners. Verify constraint behavior against SQL Server for uniqueness rules.
 - Doctor has a filtered unique index on `TenantId` (`[TenantId] IS NOT NULL AND [IsDeleted] = 0`)

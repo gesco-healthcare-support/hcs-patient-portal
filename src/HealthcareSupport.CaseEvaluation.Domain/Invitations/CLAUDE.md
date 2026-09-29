@@ -12,6 +12,9 @@ email + role locked, and registration atomically marks the invite as accepted.
   the SHA256 hex of the token, never the raw token.
 - `InvitationManager.cs` -- `IssueAsync` (returns the raw token exactly once), `ValidateAsync`
   (non-mutating lookup by hash), `AcceptAsync` (atomic, concurrency-stamp guarded).
+- `IInvitationRepository.cs` -- repository for `Invitation`. Adds ONLY the lookup-by-hash helper
+  the manager needs at validate / accept time; ordinary CRUD is inherited from
+  `IRepository<TEntity, TKey>`, so there is no custom query surface to keep in step.
 - `Domain.Shared/Invitations/InvitationConsts.cs` -- token byte length (32 = 256-bit entropy),
   hash storage length, default TTL (7 days).
 - The invite DTOs (`InvitationValidationDto`, `InviteExternalUserDto`, `InviteExternalUserResultDto`)
@@ -43,8 +46,11 @@ page; state is derived (Active = `AcceptedAt` null AND `ExpiresAt` > now; else A
 2. **Send**: AppService builds the invite URL with the raw token and queues the `InviteExternalUser`
    email through the standard notification pipeline.
 3. **Validate** (`InvitationManager.ValidateAsync`): the AuthServer register page hashes the
-   `?token=` value and looks it up; throws `BusinessException` for `InviteNotFound`,
-   `InviteExpired`, or `InviteAlreadyAccepted`.
+   `?token=` value and looks it up; throws `BusinessException` with `InviteInvalid` when no row
+   matches (`InvitationManager.cs:175` and `:182`, documented at `:166`), or `InviteExpired`
+   (`:118`), or `InviteAlreadyAccepted` (`:114`).
+   This line previously named InviteNotFound, which has never existed in the code: the only
+   occurrence anywhere in `src/` was this document. Found by Session A, 2026-09-28.
 4. **Accept** (`InvitationManager.AcceptAsync`): during external signup, after the `IdentityUser`
    is created, the AppService atomically sets `AcceptedAt` + `AcceptedByUserId`.
 
