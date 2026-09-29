@@ -6,7 +6,13 @@ Thin manually-written ASP.NET Core controllers that expose AppService methods ov
 
 - `Controllers/` -- one controller per feature, each extending `AbpController` and implementing the feature's `I{Entity}AppService` interface
 - `Controllers/CaseEvaluationController.cs` -- localization base class; exists but no controller in this repo currently extends it -- all extend `AbpController` directly
-- ABP module definition files at project root
+- `CaseEvaluationHttpApiModule.cs` -- the ABP module for this layer. It is almost entirely a
+  `[DependsOn(...)]` list: it pulls in the ABP HTTP API modules whose endpoints this application
+  serves (permission management, setting management, identity, account admin and public, text
+  templates, audit logging, language management, file management, SaaS host, GDPR, OpenIddict),
+  and configures the localization resource. Adding a feature module here is what puts its
+  endpoints on the HTTP surface, so it is worth reading before concluding an ABP endpoint does
+  not exist.
 
 ## Conventions
 
