@@ -50,7 +50,7 @@ public class HangfireDashboardAuthorizationTests
         return true;
     }
 
-    private static HttpContext Request(bool signedIn, bool officeRequest, bool holdsPermission)
+    private static DefaultHttpContext Request(bool signedIn, bool officeRequest, bool holdsPermission)
     {
         var currentTenant = Substitute.For<ICurrentTenant>();
         currentTenant.IsAvailable.Returns(officeRequest);
