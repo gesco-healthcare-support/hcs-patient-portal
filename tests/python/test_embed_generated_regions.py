@@ -40,103 +40,213 @@ AUTH_ROWS = [
     "Ns.Svc.GetAsync(Guid) -> class=CaseEvaluation.Thing method=-",
 ]
 
+# All three line kinds, because a converter that handles only the first kind would still
+# pass a round trip built from transitions alone.
+TRANSITION_ROWS = [
+    "transition Pending(1) --Approve(1)--> Approved(2)",
+    "transition Approved(2) --CheckIn(12)--> CheckedIn(9)",
+    "state Pending(1): 5 outgoing",
+    "state Rejected(3): 0 outgoing",
+    "trigger Approve(1): 1 transition(s)",
+    "trigger ConfirmReschedule(9): 2 transition(s)",
+]
+
+SAMPLES = {
+    "authorization-surface": AUTH_ROWS,
+    "appointment-transitions": TRANSITION_ROWS,
+}
+
 
 class ConverterRoundTripTests(unittest.TestCase):
     """Every converter must be lossless. This is the whole safety argument for rendering."""
 
+    def round_trip(self, name, rows):
+        render, parse = embed.CONVERTERS[name]
+        sections = render(rows)
+        parsed = embed.from_markdown(embed.to_markdown(sections))
+        return sections, parsed, parse(parsed)
+
     def test_authorization_surface_round_trips_exactly(self):
-        render, parse = embed.CONVERTERS["authorization-surface"]
-        header, table = render(AUTH_ROWS)
-        lines = embed.to_markdown(header, table)
-        parsed_header, parsed_table = embed.from_markdown(lines)
-        self.assertEqual(parse(parsed_table), AUTH_ROWS)
-        self.assertEqual(parsed_header, header)
+        _s, _p, out = self.round_trip("authorization-surface", AUTH_ROWS)
+        self.assertEqual(out, AUTH_ROWS)
+
+    def test_appointment_transitions_round_trips_exactly(self):
+        """All three line kinds, in snapshot order."""
+        _s, _p, out = self.round_trip("appointment-transitions", TRANSITION_ROWS)
+        self.assertEqual(out, TRANSITION_ROWS)
 
     def test_every_registered_converter_round_trips(self):
-        """Guards the converters added later, not just today's one."""
-        samples = {"authorization-surface": AUTH_ROWS}
-        for name, (render, parse) in embed.CONVERTERS.items():
+        """Guards converters added later, and fails if one arrives without a sample."""
+        for name in embed.CONVERTERS:
             with self.subTest(converter=name):
-                rows = samples.get(name)
+                rows = SAMPLES.get(name)
                 self.assertIsNotNone(rows, "add a sample for the %s converter" % name)
-                header, table = render(rows)
-                _h, parsed = embed.from_markdown(embed.to_markdown(header, table))
-                self.assertEqual(parse(parsed), rows)
+                _s, _p, out = self.round_trip(name, rows)
+                self.assertEqual(out, rows)
 
     def test_row_count_and_order_are_preserved(self):
-        render, parse = embed.CONVERTERS["authorization-surface"]
-        header, table = render(AUTH_ROWS)
-        _h, parsed = embed.from_markdown(embed.to_markdown(header, table))
-        self.assertEqual(len(parsed), len(AUTH_ROWS))
-        self.assertEqual(parse(parsed)[0], AUTH_ROWS[0])
+        _s, _p, out = self.round_trip("authorization-surface", AUTH_ROWS)
+        self.assertEqual(len(out), len(AUTH_ROWS))
+        self.assertEqual(out[0], AUTH_ROWS[0])
 
     def test_a_pipe_inside_a_cell_does_not_invent_a_column(self):
         rows = ["Ns.Svc.M(a|b) -> class=(authenticated) method=-"]
-        render, parse = embed.CONVERTERS["authorization-surface"]
-        header, table = render(rows)
-        _h, parsed = embed.from_markdown(embed.to_markdown(header, table))
-        self.assertEqual(parse(parsed), rows)
+        _s, _p, out = self.round_trip("authorization-surface", rows)
+        self.assertEqual(out, rows)
+
+    def test_the_transition_converter_keeps_the_numeric_ids(self):
+        """The ids are what the database persists; dropping them for tidiness loses the
+        one detail the source document warns about."""
+        sections = embed.CONVERTERS["appointment-transitions"][0](TRANSITION_ROWS)
+        cells = [c for _cap, _h, table in sections for row in table for c in row]
+        self.assertIn("Pending(1)", cells)
+        self.assertIn("Approve(1)", cells)
+
+
+class RealSnapshotRoundTripTests(unittest.TestCase):
+    """Round-trips the REAL committed snapshots, not only the fixtures above.
+
+    This is the test the send-back on PR #1145 asked for, and the gap was genuine: the
+    fixtures are written by the same person as the converter, so they encode the same
+    assumptions. Only the committed file can disagree with them.
+    """
+
+    def test_every_discovered_snapshot_with_a_converter_round_trips(self):
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        snapshots, duplicates = embed.discover_snapshots(root)
+        self.assertEqual(duplicates, {}, "duplicate snapshot stems: %s" % duplicates)
+        self.assertTrue(snapshots, "found no *.approved.txt at all; the walk is broken")
+
+        covered = [n for n in snapshots if n in embed.CONVERTERS]
+        self.assertTrue(covered, "no discovered snapshot has a converter")
+
+        for name in sorted(covered):
+            with self.subTest(snapshot=name):
+                rows = embed.snapshot_rows(snapshots[name])
+                self.assertTrue(rows, "%s is empty" % name)
+                render, parse = embed.CONVERTERS[name]
+                sections = render(rows)
+                parsed = embed.from_markdown(embed.to_markdown(sections))
+                self.assertEqual(
+                    parse(parsed), rows,
+                    "%s does not survive a round trip through its converter" % name,
+                )
+
+
+class UnhandledLineKindTests(unittest.TestCase):
+    """A converter must refuse a line kind it does not render, never skip it.
+
+    AppointmentTransitionSurface emits six kinds; the converter renders three. A skipped
+    line would disappear from the page while `--check` still passed, and the round trip
+    cannot catch it -- a dropped row never reaches the table to be compared. That blind
+    spot is why this is asserted separately.
+    """
+
+    def test_an_unknown_kind_raises_and_names_the_line(self):
+        render = embed.CONVERTERS["appointment-transitions"][0]
+        rows = TRANSITION_ROWS + ["dynamic Pending(1) --Approve(1)--> (computed)"]
+        with self.assertRaises(ValueError) as caught:
+            render(rows)
+        message = str(caught.exception)
+        self.assertIn("dynamic", message)
+        self.assertIn("unhandled line kind", message)
+
+    def test_each_kind_the_surface_can_emit_is_either_rendered_or_refused(self):
+        """Never silently ignored, whichever of the two it is."""
+        render = embed.CONVERTERS["appointment-transitions"][0]
+        for kind in ("dynamic", "ignore", "superstate"):
+            with self.subTest(kind=kind):
+                with self.assertRaises(ValueError):
+                    render(["%s Something(1) detail" % kind])
 
 
 class RoundTripDiscriminationTests(unittest.TestCase):
     """Proves the round trip would CATCH a wrong converter, not merely pass a right one.
 
     A test that only ever sees correct input cannot tell you it discriminates. The honest
-    way to show that here is a purpose-built LOSSY converter used as a fixture -- rather
-    than breaking the shipped one, which Adrian's 2026-09-28 testing rule drops.
+    way to show that is a purpose-built LOSSY converter as a fixture, rather than breaking
+    the shipped one -- which Adrian's 2026-09-28 testing rule drops.
 
-    These three fixtures are the three ways a renderer goes wrong in practice: it drops a
-    column, it merges rows, or it reorders them. Each must be rejected.
+    The three fixtures are the three ways a renderer goes wrong in practice: it drops a
+    column, it merges rows, or it reorders them.
     """
 
-    def _round_trips(self, render, parse, rows):
-        header, table = render(rows)
-        _h, parsed = embed.from_markdown(embed.to_markdown(header, table))
+    def survives(self, render, parse, rows):
         try:
+            parsed = embed.from_markdown(embed.to_markdown(render(rows)))
             return parse(parsed) == rows
-        except (ValueError, IndexError):
+        except (ValueError, IndexError, KeyError):
             return False
 
     def test_a_converter_that_drops_a_column_is_rejected(self):
         def lossy(rows):
-            return ["Member", "Class-level"], [
-                [r.partition(" -> ")[0], "(dropped)"] for r in rows
-            ]
+            return [("", ["Member", "Class-level"],
+                     [[r.partition(" -> ")[0], "(dropped)"] for r in rows])]
 
-        def parse(table):
-            return ["%s -> class=%s method=-" % (a, b) for a, b in table]
+        def parse(sections):
+            return ["%s -> class=%s method=-" % (a, b) for a, b in sections[0][2]]
 
-        self.assertFalse(self._round_trips(lossy, parse, AUTH_ROWS))
+        self.assertFalse(self.survives(lossy, parse, AUTH_ROWS))
 
     def test_a_converter_that_merges_rows_is_rejected(self):
-        def lossy(rows):
-            _h, table = embed.CONVERTERS["authorization-surface"][0](rows)
-            return ["Member", "Class-level", "Method-level"], table[:1]
+        real_render, parse = embed.CONVERTERS["authorization-surface"]
 
-        _r, parse = embed.CONVERTERS["authorization-surface"]
-        self.assertFalse(self._round_trips(lossy, parse, AUTH_ROWS))
+        def lossy(rows):
+            caption, header, table = real_render(rows)[0]
+            return [(caption, header, table[:1])]
+
+        self.assertFalse(self.survives(lossy, parse, AUTH_ROWS))
 
     def test_a_converter_that_reorders_rows_is_rejected(self):
+        real_render, parse = embed.CONVERTERS["authorization-surface"]
+
         def lossy(rows):
-            header, table = embed.CONVERTERS["authorization-surface"][0](rows)
-            return header, list(reversed(table))
+            caption, header, table = real_render(rows)[0]
+            return [(caption, header, list(reversed(table)))]
 
-        _r, parse = embed.CONVERTERS["authorization-surface"]
-        self.assertFalse(self._round_trips(lossy, parse, AUTH_ROWS))
+        self.assertFalse(self.survives(lossy, parse, AUTH_ROWS))
 
-    def test_the_same_harness_ACCEPTS_the_real_converter(self):
-        """Without this, the three above would pass even if the harness rejected everything."""
-        render, parse = embed.CONVERTERS["authorization-surface"]
-        self.assertTrue(self._round_trips(render, parse, AUTH_ROWS))
+    def test_a_converter_that_drops_a_whole_SECTION_is_rejected(self):
+        """The failure mode sections introduce: two tables survive, the third vanishes."""
+        real_render, parse = embed.CONVERTERS["appointment-transitions"]
+
+        def lossy(rows):
+            return real_render(rows)[:2]
+
+        self.assertFalse(self.survives(lossy, parse, TRANSITION_ROWS))
+
+    def test_the_same_harness_ACCEPTS_the_real_converters(self):
+        """Without this, every test above would pass even if the harness rejected all input."""
+        for name, rows in SAMPLES.items():
+            with self.subTest(converter=name):
+                render, parse = embed.CONVERTERS[name]
+                self.assertTrue(self.survives(render, parse, rows))
 
 
 class ConverterHeaderTests(unittest.TestCase):
-    """The round trip proves the DATA survived; it says nothing about the labels."""
+    """The round trip proves the DATA survived; it says nothing about the labels.
 
-    def test_authorization_surface_header_is_exactly_this(self):
-        render, _parse = embed.CONVERTERS["authorization-surface"]
-        header, _table = render(AUTH_ROWS)
-        self.assertEqual(header, ["Member", "Class-level", "Method-level"])
+    A converter can round-trip perfectly and still label a column wrongly, and a reader
+    trusts the header. So these are spelled out, never computed.
+    """
+
+    def test_authorization_surface_headers(self):
+        sections = embed.CONVERTERS["authorization-surface"][0](AUTH_ROWS)
+        self.assertEqual(
+            [(c, h) for c, h, _t in sections],
+            [("", ["Member", "Class-level", "Method-level"])],
+        )
+
+    def test_appointment_transitions_headers(self):
+        sections = embed.CONVERTERS["appointment-transitions"][0](TRANSITION_ROWS)
+        self.assertEqual(
+            [(c, h) for c, h, _t in sections],
+            [
+                ("Transitions the machine permits", ["From", "Trigger", "To"]),
+                ("Outgoing transitions per status", ["Status", "Outgoing"]),
+                ("Transitions per trigger", ["Trigger", "Used by"]),
+            ],
+        )
 
 
 class TempRepo(unittest.TestCase):

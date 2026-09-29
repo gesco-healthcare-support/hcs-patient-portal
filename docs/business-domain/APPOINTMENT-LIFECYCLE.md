@@ -100,25 +100,69 @@ invalid-transition error. One path sets the status directly instead of going thr
 cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) writes `CancelledNoBill` or
 `CancelledLate` onto the appointment, the same two outcomes this table lists from `CancellationRequested`.
 
+<!-- GENERATED: appointment-transitions BEGIN - do not edit by hand -->
+**Transitions the machine permits**
+
 | From | Trigger | To |
 | --- | --- | --- |
-| Pending | Approve | Approved |
-| Pending | Reject | Rejected |
-| Pending | SendBack | InfoRequested |
-| Pending | ConfirmReschedule | RescheduledNoBill |
-| Pending | ConfirmRescheduleLate | RescheduledLate |
-| InfoRequested | SaveAndResubmit | Pending |
-| Approved | RequestCancellation | CancellationRequested |
-| Approved | RequestReschedule | RescheduleRequested |
-| Approved | MarkNoShow | NoShow |
-| Approved | MarkNotSeen | NotSeen |
-| Approved | CheckIn | CheckedIn (**dead**) |
-| CancellationRequested | ConfirmCancellation | CancelledNoBill |
-| CancellationRequested | ConfirmCancellationLate | CancelledLate |
-| RescheduleRequested | ConfirmReschedule | RescheduledNoBill |
-| RescheduleRequested | ConfirmRescheduleLate | RescheduledLate |
-| CheckedIn | CheckOut | CheckedOut (**dead**) |
-| CheckedOut | Bill | Billed (**dead**) |
+| Pending(1) | Approve(1) | Approved(2) |
+| Pending(1) | Reject(2) | Rejected(3) |
+| Pending(1) | SendBack(3) | InfoRequested(14) |
+| Pending(1) | ConfirmReschedule(9) | RescheduledNoBill(7) |
+| Pending(1) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| Approved(2) | RequestCancellation(5) | CancellationRequested(13) |
+| Approved(2) | RequestReschedule(6) | RescheduleRequested(12) |
+| Approved(2) | MarkNoShow(11) | NoShow(4) |
+| Approved(2) | CheckIn(12) | CheckedIn(9) |
+| Approved(2) | MarkNotSeen(15) | NotSeen(15) |
+| CheckedIn(9) | CheckOut(13) | CheckedOut(10) |
+| CheckedOut(10) | Bill(14) | Billed(11) |
+| RescheduleRequested(12) | ConfirmReschedule(9) | RescheduledNoBill(7) |
+| RescheduleRequested(12) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| CancellationRequested(13) | ConfirmCancellation(7) | CancelledNoBill(5) |
+| CancellationRequested(13) | ConfirmCancellationLate(8) | CancelledLate(6) |
+| InfoRequested(14) | SaveAndResubmit(4) | Pending(1) |
+
+**Outgoing transitions per status**
+
+| Status | Outgoing |
+| --- | --- |
+| Pending(1) | 5 |
+| Approved(2) | 5 |
+| Rejected(3) | 0 |
+| NoShow(4) | 0 |
+| CancelledNoBill(5) | 0 |
+| CancelledLate(6) | 0 |
+| RescheduledNoBill(7) | 0 |
+| RescheduledLate(8) | 0 |
+| CheckedIn(9) | 1 |
+| CheckedOut(10) | 1 |
+| Billed(11) | 0 |
+| RescheduleRequested(12) | 2 |
+| CancellationRequested(13) | 2 |
+| InfoRequested(14) | 1 |
+| NotSeen(15) | 0 |
+
+**Transitions per trigger**
+
+| Trigger | Used by |
+| --- | --- |
+| Approve(1) | 1 |
+| Reject(2) | 1 |
+| SendBack(3) | 1 |
+| SaveAndResubmit(4) | 1 |
+| RequestCancellation(5) | 1 |
+| RequestReschedule(6) | 1 |
+| ConfirmCancellation(7) | 1 |
+| ConfirmCancellationLate(8) | 1 |
+| ConfirmReschedule(9) | 2 |
+| ConfirmRescheduleLate(10) | 2 |
+| MarkNoShow(11) | 1 |
+| CheckIn(12) | 1 |
+| CheckOut(13) | 1 |
+| Bill(14) | 1 |
+| MarkNotSeen(15) | 1 |
+<!-- GENERATED: appointment-transitions END -->
 
 ```mermaid
 stateDiagram-v2
@@ -153,8 +197,16 @@ stateDiagram-v2
 ```
 
 The dead `Approved -> CheckedIn -> CheckedOut -> Billed` chain is deliberately omitted from the
-diagram so it cannot be mistaken for a path an appointment travels. It is in the table above,
-marked, and in the code.
+diagram so it cannot be mistaken for a path an appointment travels. It **is** in the generated
+table above, and in the code.
+
+It is **not marked** as dead there, and that is a property of the generator rather than an
+oversight: the snapshot records the machine's own configuration and deliberately renders no
+"dead", "terminal" or "happy path" verdict, because a verdict is a derivation and a wrong
+derivation does not look wrong. Which transitions are unreachable is explained in prose under
+"The three dead statuses" above, where a human maintains it and can be argued with.
+
+The table therefore tells you what the machine permits. It does not tell you what anyone uses.
 
 ## Things the table does not tell you
 
