@@ -86,9 +86,11 @@ public class CaseTrackerPushFailedEmailHandler :
                 variables: variables,
                 contextTag: $"{templateCode}/{eventData.TenantId}/{eventData.StaffUserId}");
 
+            // The staff user's id, not their address: the id is in the context tag above, so the
+            // line still correlates with the email that went out without writing PII to the log.
             _logger.LogInformation(
-                "CaseTrackerPushFailedEmailHandler: alerted {Email} about {Count} push(es) ({Kind}) in office {TenantId}.",
-                eventData.StaffEmail, eventData.FailureCount, eventData.Kind, eventData.TenantId);
+                "CaseTrackerPushFailedEmailHandler: alerted staff user {StaffUserId} about {Count} push(es) ({Kind}) in office {TenantId}.",
+                eventData.StaffUserId, eventData.FailureCount, eventData.Kind, eventData.TenantId);
         }
     }
 

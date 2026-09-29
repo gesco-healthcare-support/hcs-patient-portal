@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
@@ -61,6 +62,37 @@ public class StaffEmailHostRoutingTests
             Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
             Arg.Is<IReadOnlyDictionary<string, object?>>(v => PortalUrlOf(v) == HostUrl),
             Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// The dispatch log line names the staff user by id, never by address. The id is the one the
+    /// dispatch's context tag carries, so the line still correlates with the email that went out.
+    /// </summary>
+    [Fact]
+    public async Task InternalStaffQueueDigest_LogsTheStaffUserId_NotTheAddress()
+    {
+        var staffUserId = Guid.NewGuid();
+        var logger = new RecordingLogger<InternalStaffQueueDigestEmailHandler>();
+        var handler = new InternalStaffQueueDigestEmailHandler(
+            Substitute.For<INotificationDispatcher>(),
+            Substitute.For<ICurrentTenant>(),
+            logger,
+            HostVsTenantUrlBuilder());
+
+        await handler.HandleEventAsync(new InternalStaffQueueDigestEto
+        {
+            TenantId = Guid.NewGuid(),
+            StaffUserId = staffUserId,
+            StaffEmail = "TEST-staff@test.local",
+            StaffFirstName = "TEST-Staffer",
+            PendingAppointmentCount = 3,
+            ApprovedAppointmentCount = 1,
+        });
+
+        var line = logger.Entries.ShouldHaveSingleItem().Message;
+        line.ShouldNotContain("TEST-staff@test.local");
+        line.ShouldNotContain("@");
+        line.ShouldContain(staffUserId.ToString());
     }
 
     [Fact]
