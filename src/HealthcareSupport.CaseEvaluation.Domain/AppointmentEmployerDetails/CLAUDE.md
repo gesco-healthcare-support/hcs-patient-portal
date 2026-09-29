@@ -13,7 +13,7 @@ see Business Rules.
 | Domain | `AppointmentEmployerDetail.cs` -- `FullAuditedAggregateRoot<Guid>`, `IMultiTenant`; FKs: `AppointmentId` (required), `StateId?` |
 | Domain | `AppointmentEmployerDetailManager.cs` -- `CreateAsync`/`UpdateAsync` with `Check.Length` on every string field |
 | Domain | `IAppointmentEmployerDetailRepository.cs` -- `GetWithNavigationPropertiesAsync`, `GetListWithNavigationPropertiesAsync` |
-| Application | `AppointmentEmployerDetailsAppService.cs` -- 8 methods; mixed auth (see Gotchas) |
+| Application | `AppointmentEmployerDetailsAppService.cs` -- CRUD plus lookups; see Gotchas for access |
 | HttpApi | `AppointmentEmployerDetailController.cs` -- `api/app/appointment-employer-details` |
 
 `AppointmentEmployerDetailWithNavigationProperties` bundles the entity + `Appointment` + `State`
@@ -48,13 +48,14 @@ see Gotchas.
 ## Gotchas
 
 1. **Submit-lock not enforced here.** Intent: data locks at submit (same as all booking-form
-   fields). Code: `UpdateAsync` accepts any `[Authorize]` caller. The gate must be enforced
-   upstream (booking-flow controller / submit-state check) -- it does not exist yet.
+   fields). `UpdateAsync` checks that the caller is a party to the row's own parent appointment
+   (`AppointmentChildOwnershipGuard`, #1105), but nothing checks submit state -- that gate does
+   not exist yet.
 2. **No Email field.** Employer notification requires an Email column that does not exist.
    Employers cannot be emailed from this entity's current schema.
-3. **Mixed auth on Create/Update.** Both use bare `[Authorize]` instead of the typed
-   `.Create`/`.Edit` permissions. Only `DeleteAsync` uses its specific permission.
-   Swap the attribute when a Create/Edit gate is wanted.
+3. **Typed permissions.** `CreateAsync`, `UpdateAsync` and `DeleteAsync` use the typed
+   `.Create` / `.Edit` / `.Delete` permissions. Every external role holds this service's Edit
+   permission, so a permission alone is not access to a row; see gotcha 1.
 4. **Mapper class name typo.** `AppointmentEmployerDetailToAppointmentEmployerDetailDtoMappers`
    has a trailing `s` -- unique among feature mappers. Cosmetic only.
 

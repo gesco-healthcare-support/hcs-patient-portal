@@ -4,8 +4,8 @@ Per-tenant, per-appointment-type list of document categories. Restores (and
 extends) the legacy `AppointmentDocumentType` lookup dropped at MVP. Internal
 staff (IT Admin / Staff Supervisor) curate one list per office; the list drives
 the document-upload picker on the appointment-documents form. Modeled on the
-host-scoped `AppointmentStatuses` lookup-CRUD scaffold, but `IMultiTenant`
-because each office owns its own list.
+`AppointmentStatuses` lookup-CRUD scaffold; like it, `IMultiTenant`, because
+each office owns its own list.
 
 ## What lives here
 
@@ -53,11 +53,16 @@ scoped to the same `AppointmentTypeId` (null is its own "applies to all types"
 scope). A retired (`IsActive = false`) row does not block re-using its name --
 intentional "retire then recreate" behavior.
 
-### AppointmentTypeId is a loose reference (no FK)
+### Appointment types are a join, with no FK to AppointmentType
 
-`AppointmentType` is host-scoped and absent from tenant databases, so a FK
-cannot span the two. `AppointmentTypeId` is a plain nullable `Guid` column;
-null means the category applies to every appointment type.
+One category row can apply to several appointment types, through the join entity
+`AppointmentDocumentTypeAppointmentType`, keyed by (`AppointmentDocumentTypeId`,
+`AppointmentTypeId`). `AppliesToAll = true` offers the category for every type.
+The join has an index on `AppointmentTypeId` but no FK to `AppointmentType`
+(`CaseEvaluationSharedModelConfiguration.cs`, the `AppointmentDocumentTypeAppointmentType`
+block). Both entities are per-office and live in the same office database; the no-FK
+choice dates from when `AppointmentType` was wrongly believed to be host-scoped, so a
+code comment beside it still says so.
 
 ### Dual-DbContext config
 
