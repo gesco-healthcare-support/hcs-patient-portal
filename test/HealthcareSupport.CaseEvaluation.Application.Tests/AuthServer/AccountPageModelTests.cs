@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
+using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.Pages.Account;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -96,26 +97,13 @@ public class AccountPageModelTests
         model.IsThrottled.ShouldBeFalse();
     }
 
-    /// <summary>A logger with Information enabled that records each entry's level and message.</summary>
-    private sealed class RecordingLogger<T> : ILogger<T>
-    {
-        public List<(LogLevel Level, string Message)> Entries { get; } = new();
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entries.Add((logLevel, formatter(state, exception)));
-    }
-
     [Fact]
     public async Task Forgot_password_says_wait_when_the_reset_is_throttled_and_logs_the_throttle()
     {
         var account = Substitute.For<IExternalAccountAppService>();
         account.SendPasswordResetCodeAsync(Arg.Any<SendPasswordResetCodeInput>())
             .ThrowsAsync(new BusinessException(CaseEvaluationDomainErrorCodes.PasswordResetThrottled));
-        var logger = new RecordingLogger<ForgotPasswordModel>();
+        var logger = new RecordingLogger<ForgotPasswordModel>(LogLevel.Information);
         var model = WithContext(new ForgotPasswordModel(account, logger) { Email = Email });
 
         (await model.OnPostAsync()).ShouldBeOfType<PageResult>();
@@ -123,6 +111,71 @@ public class AccountPageModelTests
         model.IsThrottled.ShouldBeTrue();
         model.RequestSubmitted.ShouldBeFalse();
         logger.Entries.ShouldContain(e => e.Level == LogLevel.Information && e.Message.Contains("reset throttled"));
+    }
+
+    // The submitted address is the only identifier these pages hold, and it is PII, so their log
+    // lines name no one. What each line is for -- that throttling fired, or that a dispatch failed
+    // behind the generic success -- survives without it.
+
+    [Fact]
+    public async Task Forgot_password_logs_no_address_when_the_reset_is_throttled()
+    {
+        var account = Substitute.For<IExternalAccountAppService>();
+        account.SendPasswordResetCodeAsync(Arg.Any<SendPasswordResetCodeInput>())
+            .ThrowsAsync(new BusinessException(CaseEvaluationDomainErrorCodes.PasswordResetThrottled));
+        var logger = new RecordingLogger<ForgotPasswordModel>(LogLevel.Information);
+
+        await WithContext(new ForgotPasswordModel(account, logger) { Email = Email }).OnPostAsync();
+
+        ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "reset throttled");
+    }
+
+    [Fact]
+    public async Task Forgot_password_logs_no_address_when_the_service_throws()
+    {
+        var account = Substitute.For<IExternalAccountAppService>();
+        account.SendPasswordResetCodeAsync(Arg.Any<SendPasswordResetCodeInput>())
+            .ThrowsAsync(new InvalidOperationException("TEST-dispatch-failure"));
+        var logger = new RecordingLogger<ForgotPasswordModel>(LogLevel.Information);
+
+        await WithContext(new ForgotPasswordModel(account, logger) { Email = Email }).OnPostAsync();
+
+        ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "surfacing generic success");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Resend_verification_logs_no_address_when_the_service_throws(bool viaAutosendGet)
+    {
+        var account = Substitute.For<IExternalAccountAppService>();
+        account.ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>())
+            .ThrowsAsync(new InvalidOperationException("TEST-dispatch-failure"));
+        var logger = new RecordingLogger<ResendVerificationModel>(LogLevel.Information);
+        var model = WithContext(new ResendVerificationModel(account, logger) { Email = Email, Autosend = "1" });
+
+        if (viaAutosendGet)
+        {
+            await model.OnGetAsync();
+        }
+        else
+        {
+            await model.OnPostAsync();
+        }
+
+        ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "surfacing generic success");
+    }
+
+    /// <summary>
+    /// Exactly one line was logged, it still says what happened, and it carries neither the
+    /// submitted address nor any other.
+    /// </summary>
+    private static void ShouldLogNoAddress(IEnumerable<string> messages, string whatHappened)
+    {
+        var line = messages.ShouldHaveSingleItem();
+        line.ShouldContain(whatHappened);
+        line.ShouldNotContain(Email);
+        line.ShouldNotContain("@");
     }
 
     [Fact]

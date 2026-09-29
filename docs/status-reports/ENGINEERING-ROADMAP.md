@@ -18,7 +18,7 @@ The status report is for leadership and describes the work in non-technical term
 |---|---|
 | Leadership-facing summary + dates | `docs/status-reports/2026-05-18-status-for-manager.md` |
 | OLD-app parity audit (1076 lines, categorized) | `docs/parity/_remaining-from-old-audit-2026-05-15.md` |
-| Individual bug entries (50+ files, YAML frontmatter) | `docs/runbooks/findings/bugs/` |
+| Individual bug entries (50+ files, YAML frontmatter) | `docs/findings/bugs/` |
 | Plan docs (5 top-level + 8 in SlotGenerationRework/) | `docs/plans/` |
 | Manual test scenarios (R1/R2/R3) | `docs/runbooks/HARDENING-TEST-SUITE.md` |
 | Repo-wide documentation map | `docs/INDEX.md` |
@@ -264,7 +264,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 
 **Effort:** 1-2 days  
 **Plan:** the rewritten `docs/runbooks/HARDENING-TEST-SUITE.md` is the script to follow. (Its driving plan doc shipped + was removed 2026-05-20; the runbook itself is now the source of truth.)  
-**Output:** any bugs surfaced get filed under `docs/runbooks/findings/bugs/`.
+**Output:** any bugs surfaced get filed under `docs/findings/bugs/`.
 
 ---
 

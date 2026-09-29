@@ -13,12 +13,17 @@
 #   runbooks/DEMO-LOGINS.md   seeded credentials. A public repo already exposes the file;
 #                             a search-indexed page is a further step.
 #   production-hardening/**   the open security programme: findings not yet remediated.
-#   runbooks/findings/**      83 diagnosed defects with reproductions.
+#   findings/**               83 diagnosed defects with reproductions, two investigations
+#                             and two dated QA rounds.
 #   plans/**                  gitignored working artefacts; absent from a CI checkout anyway.
 #   parity-research/**,       point-in-time research notes. Kept in the repo because code
 #   feedback-research/**,     cites identifiers inside them, but they are not documentation
 #   research/**               and publishing them would present them as such.
 #   superpowers/**            tooling scaffolding, not product documentation.
+#   security/THREAT-MODEL.md,
+#   security/SESSION-KEY-ENCRYPTION.md
+#                             working security notes. Kept in the repo for engineers, not
+#                             published.
 #
 # Dates on each page come from git (see the git-revision-date-localized plugin), NOT from a
 # hand-written marker. 39 hand-written "Last verified" markers were removed on 2026-09-28
@@ -79,13 +84,14 @@ markdown_extensions:
 exclude_docs: |
   runbooks/DEMO-LOGINS.md
   production-hardening/*
-  runbooks/findings/*
-  runbooks/investigations/*
+  findings/*
   plans/*
   parity-research/*
   feedback-research/*
   research/*
   superpowers/*
+  security/THREAT-MODEL.md
+  security/SESSION-KEY-ENCRYPTION.md
 
 # Built and reachable by direct link, but deliberately NOT surfaced in the navigation.
 #
@@ -112,7 +118,6 @@ not_in_nav: |
   status-reports/*
   repo-map/*
   testing/*
-  security/THREAT-MODEL.md
   appointment-required-fields.md
 
 nav:

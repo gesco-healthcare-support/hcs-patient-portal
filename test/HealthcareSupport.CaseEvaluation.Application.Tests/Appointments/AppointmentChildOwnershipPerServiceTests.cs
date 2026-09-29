@@ -40,7 +40,8 @@ public sealed class AppointmentChildOwnershipPerServiceTests
     private static readonly Guid ClaimedParent = new("0ff1ce00-0000-4000-8000-00000000a002");
     private static readonly Guid OtherId = new("0ff1ce00-0000-4000-8000-00000000b001");
 
-    private static AppointmentChildOwnershipGuard RefusingGuard()
+    /// <summary>A guard whose checks all refuse. Shared with the create-side tests.</summary>
+    internal static AppointmentChildOwnershipGuard RefusingGuard()
     {
         var readGuard = Substitute.For<AppointmentReadAccessGuard>(
             Substitute.For<IAppointmentRepository>(),

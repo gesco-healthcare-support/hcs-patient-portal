@@ -217,13 +217,13 @@ hcs-case-evaluation-portal/
 │   ├── HealthcareSupport.CaseEvaluation.HttpApi.Host  (:44327)
 │   ├── HealthcareSupport.CaseEvaluation.AuthServer    (:44368)
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
-├── test/                                      4 test projects (xUnit)
+├── test/                                      5 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
 ├── docs/                                      documentation; start at docs/INDEX.md
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
-├── docker-compose.yml                         6-service local stack
+├── docker-compose.yml                         9-service local stack
 ├── HealthcareSupport.CaseEvaluation.slnx      Solution file (.slnx format)
 ├── CONTRIBUTING.md                            Contribution workflow
 ├── SECURITY.md                                Security policy, HIPAA scope
@@ -642,7 +642,7 @@ Work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/h
 `type/*` and `source/*`. That is the single answer to "what is open".
 
 The supporting files are still there and still worth reading, but they no longer record
-status: `docs/runbooks/findings/bugs/` holds the reproduction steps and diagnosis for each
+status: `docs/findings/bugs/` holds the reproduction steps and diagnosis for each
 finding and links its issue, and `docs/production-hardening/` carries the phased security
 and quality programme. Status lives in the issue only, so the two cannot disagree.
 

@@ -109,6 +109,11 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+        // The caller must be a party to the appointment the new row hangs off. The external booking roles
+        // hold this service's Create permission, so the permission alone ties the caller to no appointment.
+        // Booking does not call this (it upserts attorneys through AppointmentsAppService), so the only
+        // caller is this endpoint. Checked FIRST, so a non-party is refused the same way whatever they send.
+        await _childOwnershipGuard.EnsureIsPartyAsync(input.AppointmentId);
 
         if (input.ApplicantAttorneyId == Guid.Empty)
         {

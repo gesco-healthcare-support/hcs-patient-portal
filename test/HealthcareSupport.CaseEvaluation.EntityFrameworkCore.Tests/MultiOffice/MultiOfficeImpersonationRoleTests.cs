@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Identity;
+using HealthcareSupport.CaseEvaluation.Logging;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Volo.Abp.Data;
@@ -237,7 +238,10 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
         // misses on BOTH username and email rather than on one of them.
         var operatorId = await EnsureHostOperatorAsync("never.provisioned.revoke@hcs.test");
 
-        var captured = new CapturingLoggerProvider();
+        // Attached here rather than registered in the test module, because ABP's
+        // DomainService.Logger comes from the container and the module is shared by every
+        // multi-office test -- this keeps the capture scoped to the one test that needs it.
+        var captured = new RecordingLoggerProvider();
         GetRequiredService<ILoggerFactory>().AddProvider(captured);
 
         // Must not throw: the benign case (assigned and unassigned before first sign-in)
@@ -257,46 +261,6 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
         // id is where to look for it.
         warning!.Message.ShouldContain(operatorId.ToString());
         warning.Message.ShouldContain(officeA.OfficeId.ToString());
-    }
-
-    /// <summary>
-    /// Records what the domain service logged. Added via <c>ILoggerFactory.AddProvider</c> at
-    /// test time rather than registered in the test module, because ABP's
-    /// <c>DomainService.Logger</c> comes from the container and the module is shared by every
-    /// multi-office test -- this keeps the capture scoped to the one test that needs it.
-    /// </summary>
-    private sealed record LogEntry(LogLevel Level, string Message);
-
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        public List<LogEntry> Entries { get; } = new();
-
-        public ILogger CreateLogger(string categoryName) => new Capturing(this);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class Capturing : ILogger
-        {
-            private readonly CapturingLoggerProvider _owner;
-
-            public Capturing(CapturingLoggerProvider owner) => _owner = owner;
-
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel,
-                EventId eventId,
-                TState state,
-                Exception? exception,
-                Func<TState, Exception?, string> formatter)
-            {
-                _owner.Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
-            }
-        }
     }
 
     private Task SeedTenantRolesAsync(Guid officeId) =>

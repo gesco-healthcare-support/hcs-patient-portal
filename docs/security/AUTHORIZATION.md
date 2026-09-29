@@ -74,8 +74,8 @@ Seven named roles plus the ABP superuser.
 |---|---|---|---|
 | `admin` | ABP | Host + Tenant | The framework superuser. Sees every nav item |
 | `IT Admin` | `InternalUserRoleDataSeedContributor` | Host | Internal |
-| `Staff Supervisor` | `InternalUserRoleDataSeedContributor` | Tenant | Internal |
-| `Intake Staff` | `InternalUserRoleDataSeedContributor` | Tenant | Internal |
+| `Staff Supervisor` | `InternalUserRoleDataSeedContributor` | Host + Tenant | Internal |
+| `Intake Staff` | `InternalUserRoleDataSeedContributor` | Host + Tenant | Internal |
 | `Patient` | `ExternalUserRoleDataSeedContributor` | Tenant | External |
 | `Applicant Attorney` | `ExternalUserRoleDataSeedContributor` | Tenant | External |
 | `Defense Attorney` | `ExternalUserRoleDataSeedContributor` | Tenant | External |

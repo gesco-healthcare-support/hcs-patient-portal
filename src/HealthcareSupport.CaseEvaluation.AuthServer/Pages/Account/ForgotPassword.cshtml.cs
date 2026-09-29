@@ -108,12 +108,15 @@ public class ForgotPasswordModel : AbpPageModel
             // Logged WITH the exception even though the code is the whole story: a throttle rejection
             // that turns out to be something else wearing the same error code is exactly the case that
             // needs a stack trace, and a bare message would hide it.
+            //
+            // No identifier, on purpose: the submitted address is the only one this page has, and
+            // it is PII. The reasoning, including why a digest of it is no better, is at
+            // ExternalAccountAppService.ResendEmailVerificationAsync's rate-limit branch.
             if (_logger.IsEnabled(LogLevel.Information))
             {
                 _logger.LogInformation(
                     ex,
-                    "ForgotPasswordModel.OnPostAsync: reset throttled for email-key {EmailKey}.",
-                    Email);
+                    "ForgotPasswordModel.OnPostAsync: reset throttled.");
             }
 
             IsThrottled = true;
@@ -128,8 +131,7 @@ public class ForgotPasswordModel : AbpPageModel
             // failures with more context.
             _logger.LogWarning(
                 ex,
-                "ForgotPasswordModel.OnPostAsync: SendPasswordResetCodeAsync threw for email-key {EmailKey}; surfacing generic success.",
-                Email);
+                "ForgotPasswordModel.OnPostAsync: SendPasswordResetCodeAsync threw; surfacing generic success.");
         }
 
         RequestSubmitted = true;

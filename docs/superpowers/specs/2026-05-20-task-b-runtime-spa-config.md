@@ -192,7 +192,7 @@ Ordering rationale: dynamic-env merge writes bare-localhost URLs into
 - **Service-worker interception.** No service worker currently
   configured (no `provideServiceWorker` in `app.config.ts`). If one
   lands later, that PR must exclude `dynamic-env.json` from precache.
-  Flagged in `docs/runbooks/findings/bugs/BUG-015-dynamic-env-unused.md`
+  Flagged in `docs/findings/bugs/BUG-015-dynamic-env-unused.md`
   recommended-fix step 1.
 - **Phase 1B multi-tenant.** Subdomain rewrite happens AFTER the merge.
   Multi-tenant access (e.g. `pelton.localhost:NG_PORT`) gets
