@@ -29,7 +29,7 @@
 # hand-written marker. 39 hand-written "Last verified" markers were removed on 2026-09-28
 # because they asserted a verification nobody had performed.
 
-site_name: HCS Case Evaluation Portal
+site_name: Appointment Portal
 site_description: Workers' compensation IME appointment scheduling. Engineering documentation.
 repo_url: https://github.com/gesco-healthcare-support/hcs-patient-portal
 repo_name: hcs-patient-portal

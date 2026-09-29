@@ -1,4 +1,4 @@
-# HCS Patient Portal -- Documentation Index
+# Appointment Portal -- Documentation Index
 
 > Purpose: map of the documentation tree. Audience: anyone onboarding to or navigating the repo.
 
