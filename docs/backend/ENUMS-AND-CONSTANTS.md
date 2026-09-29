@@ -14,7 +14,7 @@ Most enums live in `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/`. 
 
 | Enum | Values | Used By |
 |------|--------|---------|
-| `AppointmentStatusType` | Pending(1), Approved(2), Rejected(3), NoShow(4), CancelledNoBill(5), CancelledLate(6), RescheduledNoBill(7), RescheduledLate(8), CheckedIn(9), CheckedOut(10), Billed(11), RescheduleRequested(12), CancellationRequested(13) | `Appointment.AppointmentStatus` |
+| `AppointmentStatusType` | Pending(1), Approved(2), Rejected(3), NoShow(4), CancelledNoBill(5), CancelledLate(6), RescheduledNoBill(7), RescheduledLate(8), CheckedIn(9), CheckedOut(10), Billed(11), RescheduleRequested(12), CancellationRequested(13), InfoRequested(14), NotSeen(15) | `Appointment.AppointmentStatus` |
 | `BookingStatus` | Available(8), Booked(9), Reserved(10) | `DoctorAvailability.BookingStatusId` |
 | `Gender` | Male(1), Female(2), Other(3) | `Doctor.Gender`, `Patient.GenderId` |
 | `PhoneNumberType` | Work(28), Home(29) | `Patient.PhoneNumberTypeId` |

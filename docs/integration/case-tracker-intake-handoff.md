@@ -49,7 +49,7 @@ Current portal reality:
 
 - No outbound HTTP client, no integration event bus to an external system, no webhook. (Verified: a
   repo-wide search for outbound integration/HTTP-post/webhook found only the internal email
-  `NotificationOutbox`.)
+  `NotificationOutboxItem`.)
 - There IS a reusable transactional-outbox pattern for email you can mirror for a reliable push
   (outbox row + background drain job + idempotency): `src/HealthcareSupport.CaseEvaluation.Domain/
   Notifications/Outbox/` (`NotificationOutboxItem.cs`, `OutboxDrainJob.cs`, `NotificationOutboxManager.cs`).
