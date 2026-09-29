@@ -9,7 +9,9 @@ from the internal appointment detail page.
 Key files:
 
 - `patient/components/patient-profile.component.ts` -- self-service profile page
-- `patient/components/patient-profile-redesign.component.ts` -- redesigned profile page
+- `patient/components/patient-profile-redesign.component.ts` -- the page actually routed at
+  `/user-management/patients/my-profile`; it EXTENDS `PatientProfileComponent` and reuses its
+  form, load and save logic with its own template
 
 ## Conventions
 

@@ -1,7 +1,19 @@
 # Case Tracker feed cutover, per office (#968)
 
-Moving one office from the outbound push to the changes feed the Case Tracker pulls, and back again
-if it goes wrong.
+> Purpose: move one office from the outbound push to the changes feed the Case Tracker pulls, and
+> back again if it goes wrong.
+> Audience: whoever operates the portal and coordinates the switch with the Case Tracker side.
+> Owner: the portal maintainer.
+> **Last tested: run at least once; confirmed by the portal maintainer on 2026-09-28; date of the
+> run not recorded.**
+
+## When you need this page
+
+- You are moving an office from the push to the feed. That is a planned change: start at "Before
+  the first office, once", or at "Per office, every time" if another office is already on the feed.
+- A feed alert email has arrived (SILENCE, STALL or `cursor_ahead`). Start at "Diagnose an alert".
+- The Case Tracker reports an office as HALTED. Start at "When an office halts".
+- You need an office back on the push. Go to "Rollback: return an office to push".
 
 > **Verified against the merged endpoint.** The feed landed on `main` in #1065. Every portal
 > behaviour below was read from source rather than from a description of it, and re-checked after
@@ -19,10 +31,9 @@ Cutover is therefore per office, one switch, with a rollback.
 
 ## Before the first office, once
 
-- [ ] **The Case Tracker is deployed with its feed commits.** Their running jar predated them as of
-      2026-09-25, and the feed ships disabled on their side regardless. Do not size a first
-      end-to-end test as "both sides are ready" until their deploy has happened. Confirm with them
-      rather than assuming.
+- [ ] **The Case Tracker's deployed build includes its feed commits.** The feed ships disabled on
+      their side regardless. Re-confirm after any Case Tracker deploy: ask them rather than
+      assuming.
 - [ ] **The feed token is issued out of band and set on BOTH sides.** Portal config key is
       `CaseTracker:FeedToken`. It is a secret: user secrets locally, the env file in production,
       never committed, never logged.
@@ -58,6 +69,8 @@ Read it from the host database:
 ```sql
 SELECT Id, Name FROM SaasTenants ORDER BY Name;
 ```
+
+Expect one row per office: its GUID and its name. Take the GUID of the office you are switching.
 
 **Case does not matter.** `SaasTenants` renders uppercase and the Case Tracker stores lowercase; a
 `uniqueidentifier` is 16 binary bytes and the casing is display convention. `Guid.TryParse` behind
@@ -106,6 +119,9 @@ is also invisible. Press Start feed first, then enable their polling.
 `LastRequestAt` moving while `LastAdvancedAt` does not means requests are arriving and the
 acknowledged position is frozen. That is the stall condition; see below.
 
+**Abort.** If these checks have not passed within 30 minutes of pressing Start feed, stop, return
+the office to the push (see "Rollback" below), and escalate.
+
 ## What watches it for you
 
 `CaseTrackerFeedHealthJob`, cron `*/5 * * * *`:
@@ -125,6 +141,17 @@ produces, and it is caught in both systems.
 These alerts are the only delivery visibility the portal has under the feed. The integration
 failures screen lists rows with status `Failed`, and under the feed nothing fails, so that screen
 shows nothing about rows sitting unclaimed.
+
+## Diagnose an alert
+
+Before changing anything, read the office's row on the offices screen (`FeedActive`,
+`LastRequestAt`, `LastAdvancedAt`, `OutstandingCount`) and match the alert:
+
+| Alert | What it means | Look at | Then |
+| --- | --- | --- | --- |
+| SILENCE | No request from the office for 15 minutes | Is their polling on for this office? Is their token blank? A blank token never polls, which is safe but silent | Ask them to enable polling, or to set the token |
+| STALL | Requests arrive (`LastRequestAt` moves) but the position does not (`LastAdvancedAt` frozen) while a row waits | Their operator screen: the office is probably HALTED | "When an office halts" |
+| `cursor_ahead` | They presented a cursor beyond anything issued, the case a regenerated `rowversion` produces | Their operator screen | Their Reset position ("When an office halts") |
 
 ## When an office halts
 
@@ -149,6 +176,12 @@ delivered. That is accepted: the receiver's upsert absorbs the duplicates.
 
 Turn their polling for that office off as well, or they will poll an office that now answers
 `feed_not_enabled`. That is quiet on their side rather than loud, so it will not alert anyone.
+
+## Escalation
+
+If an office is not RUNNING and advancing within 30 minutes of a fix (Resume, Reset position, or a
+corrected token), stop, return it to the push, and hand to the portal maintainer. Say which alert
+fired, what the offices screen showed, and what you pressed.
 
 ## Limits worth knowing before you set anything low
 

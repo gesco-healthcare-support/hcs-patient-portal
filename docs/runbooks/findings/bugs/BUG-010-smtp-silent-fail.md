@@ -24,7 +24,7 @@ component: docker/appsettings.secrets.json (SMTP config) + MailKit pickup folder
 > - BUG-018 is still open and concerns rate-limit log strings, not synthetic recipients.
 > - OBS-14 confirms two pipelines (AuthServer + API host) both share the same MailKit `IEmailSender`, so neither helps `.test` recipients.
 >
-> Stale documentation pointer: `docs/runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md:266` still says "Their mail goes to MailKit's pickup folder" -- that line is wrong; the source has never implemented it.
+> Stale documentation pointer: `docs/runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md` (Part 4, "When to use which") said "Their mail goes to MailKit's pickup folder" -- that line was wrong; the source has never implemented it. Corrected on 2026-09-28.
 >
 > **Action: FIX (paired with BUG-018, same catch block).** Update this doc's suspected-fix section: the pickup-folder approach was never built. Choose one of:
 >
@@ -38,7 +38,7 @@ component: docker/appsettings.secrets.json (SMTP config) + MailKit pickup folder
 > - `src/HealthcareSupport.CaseEvaluation.Domain/CaseEvaluationDomainModule.cs:73-134`
 > - `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Jobs/SendAppointmentEmailJob.cs:90-107`
 > - `docker/appsettings.secrets.json`
-> - `docs/runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md:266` (stale claim -- correct alongside the fix)
+> - `docs/runbooks/MAIN-WORKTREE-USERFLOW-TESTING.md`, Part 4 "When to use which" (the stale claim; corrected on 2026-09-28)
 
 ## Severity
 

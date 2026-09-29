@@ -32,7 +32,7 @@ Compare with the other four bookings in this hardening run (patient1, appatty1, 
 
 So internal-staff bookings (clinic staff, staff supervisor) skip the Pending state entirely. But the auto-approve path that sets `AppointmentStatus = 2` does NOT also stamp `AppointmentApproveDate`, leaving the row in an inconsistent state.
 
-Suite Phase 3 Pass criteria (HARDENING-TEST-SUITE.md line 525) only checks "row exists; all four email columns non-null". A00005 passes those. The deviation is from the implied behavior at Phase 5 — `HRD-P5.5 supervisor approves internal-staff-booked` — which assumes the row is initially Pending so it can be moved to Approved. Since the row is ALREADY Approved on create, Phase 5.5's approve POST will hit the InvalidTransition guard (R2.10 pattern).
+Suite Phase 3 Pass criteria (HARDENING-TEST-SUITE.md, the `HRD-P3.<n>` template) only checks "row exists; all four email columns non-null". A00005 passes those. The deviation is from the implied behavior at Phase 5 -- `HRD-P5.5 supervisor approves internal-staff-booked` -- which assumes the row is initially Pending so it can be moved to Approved. Since the row is ALREADY Approved on create, Phase 5.5's approve POST will hit the InvalidTransition guard (R2.10 pattern).
 
 ## Hypothesis
 
