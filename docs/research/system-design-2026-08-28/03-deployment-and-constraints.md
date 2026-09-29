@@ -226,36 +226,9 @@ These are not preferences. A hosting proposal that violates one of them does not
 Ordered by how much they matter once the app faces the open internet. Each is evidenced, not
 speculative.
 
-### 4.0 An unauthenticated administrative interface is mounted in the production path
+### 4.0 Tracked privately
 
-> Added 2026-08-31, after the rest of this document was written. Numbered 4.0 to preserve the
-> existing numbering; it belongs first on severity.
-
-The Hangfire job dashboard is served at `/hangfire` with an authorisation filter whose entire
-body returns `true`:
-
-```csharp
-public class AnonymousHangfireDashboardAuthorizationFilter : IDashboardAuthorizationFilter
-{
-    public bool Authorize(DashboardContext context) => true;
-}
-```
-
-It is mounted inside `if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)`, which is an ABP Studio
-guard, **not an environment gate**. The dashboard is therefore present in production, and it
-is registered with `IgnoreAntiforgeryToken = true`.
-
-What it exposes to anyone who reaches the URL: every queued, completed and failed job with the
-arguments it was called with and full exception detail, plus buttons to trigger, requeue and
-delete jobs. Job arguments carry appointment identifiers and recipient addresses. This is an
-unauthenticated administrative console on a system holding ePHI.
-
-A fix is planned and is small. It is stated here because it is load-bearing for the design
-questions this brief asks: it means the edge cannot assume every application route is either
-public-by-design or authenticated, and any answer about admin-surface exposure, network
-segmentation or WAF path rules has to account for administrative routes reachable without
-credentials. Assume the code fix lands; design as though administrative surfaces still need
-their own containment.
+One item from this section is tracked privately by the maintainers.
 
 ### 4.1 Edge security: nothing is configured
 

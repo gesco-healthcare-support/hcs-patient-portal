@@ -1,0 +1,28 @@
+# Documentation site toolchain: the INPUT to the lock in docs-requirements.txt.
+#
+# The four top-level tools are pinned to exact versions RESOLVED from a real install on
+# 2026-09-28, not from memory: an earlier attempt pinned mkdocs-material==9.6.24, which does
+# not exist and which pip rejected. Pin from what actually installed.
+#
+# docs-requirements.txt is GENERATED from this file. It locks every package these four pull in
+# (Jinja2, Markdown, PyYAML, Pygments and the rest), each with its hashes. The workflow installs
+# it with --require-hashes, so nothing resolves fresh on a run and a changed upstream file fails
+# the install. It also installs with --only-binary ":all:", so pip refuses source distributions
+# and cannot execute setup code at install time. The colon-space in that flag must stay quoted
+# in YAML, or the parser reads it as a mapping key.
+#
+# Edit THIS file, never the .txt. To regenerate the lock, run from the repository root, in Git
+# Bash, with Docker running. It resolves on Linux with Python 3.12, the same as the runner, so
+# environment markers match CI:
+#
+#   MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo \
+#     -e CUSTOM_COMPILE_COMMAND="see .github/docs-requirements.in" python:3.12-slim sh -c \
+#     'pip install --quiet pip-tools==7.6.1 && pip-compile --quiet --generate-hashes --strip-extras \
+#      --allow-unsafe --output-file .github/docs-requirements.txt .github/docs-requirements.in'
+#
+# Then commit both files together. Add --upgrade to move every locked dependency to its newest
+# version allowed by the pins below.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-git-revision-date-localized-plugin==1.6.0
+pymdown-extensions==12.1
