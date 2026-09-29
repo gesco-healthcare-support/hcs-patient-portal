@@ -1,5 +1,7 @@
 # Patient Portal -- End-to-End Manual QA Plan
 
+> Historical QA record (2026-06-23), not maintained. Statuses below are as of that date; current status lives in GitHub Issues.
+
 - Date: 2026-06-23
 - Branch: feat/frontend-rework
 - Driver: Playwright MCP against <http://falkinstein.localhost:4250> (api 44377, auth 44418, sql 1439)
@@ -172,8 +174,8 @@ requests both exercised. Opposing-side consent exercised on #2,#3,#11,#12.
 
 ## 11. Outputs
 
-- docs/testing/e2e-qa-2026-06-23/FINDINGS.md (running report, blockers first).
-- docs/testing/e2e-qa-2026-06-23/screenshots/ (evidence; named <step>-<role>-<desc>.png).
+- docs/findings/e2e-qa-2026-06-23/FINDINGS.md (running report, blockers first).
+- docs/findings/e2e-qa-2026-06-23/screenshots/ (evidence; named <step>-<role>-<desc>.png).
 - Coverage section at the end: tested vs skipped (+ why) and top issues.
 
 ## 12. Out of scope (logged, not driven)

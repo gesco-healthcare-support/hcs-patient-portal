@@ -1,5 +1,7 @@
 # Test Plan -- MAIN post-merge seed + verify (2026-06-24)
 
+> Historical QA record (2026-06-24), not maintained. Statuses below are as of that date; current status lives in GitHub Issues.
+
 Senior-QA pass on `main` after merge #322 (frontend-rework epic). Goal: (1) seed 15-20 COMPLETE
 appointments mirroring real Gesco usage, (2) verify the merged rework UI + the fixes that landed.
 Synthetic data only (HIPAA). UI-only navigation. Decisions via the AskUserQuestion modal. Commit

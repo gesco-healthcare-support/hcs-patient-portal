@@ -1,5 +1,7 @@
 # F-M05 (MED, UX) -- Re-evaluation submit is a silent dead-end unless a prior appointment is loaded
 
+> Historical QA record (2026-06-24), not maintained. Fixed 2026-06-25 (see the "F-M05" comment in `AppointmentsAppService.cs`). Current status of any follow-up lives in GitHub Issues.
+
 Status: OPEN. Confirmed on `main` @ 74e91563 (post frontend-rework merge #322), 2026-06-24.
 No code changed for this. Written so it can be routed to the multi-tenant (db-per-tenant) session
 and sequenced without conflicts.
