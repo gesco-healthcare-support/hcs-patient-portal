@@ -28,6 +28,7 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - ".github/docs-requirements.in"
       - ".github/docs-requirements.txt"
       - ".github/workflows/docs-site.yml"
   push:
@@ -35,6 +36,7 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - ".github/docs-requirements.in"
       - ".github/docs-requirements.txt"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
@@ -64,9 +66,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Wheels only: no package may run a build script at install time.
-      - name: Install MkDocs (pinned)
-        run: python -m pip install --only-binary ":all:" -r .github/docs-requirements.txt
+      # Wheels only: no package may run a build script at install time. Hash-locked: every package,
+      # including what the four tools pull in, is installed at the locked version and must match a
+      # locked hash, so nothing resolves fresh on a run. See .github/docs-requirements.in.
+      - name: Install MkDocs (locked)
+        run: python -m pip install --require-hashes --only-binary ":all:" -r .github/docs-requirements.txt
 
       - name: Build (strict)
         run: mkdocs build --strict --site-dir site
