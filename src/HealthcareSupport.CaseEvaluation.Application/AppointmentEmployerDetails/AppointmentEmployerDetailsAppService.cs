@@ -95,6 +95,13 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+        // The caller must be a party to the appointment the new row hangs off. The external booking roles
+        // hold this service's Create permission, so the permission alone ties the caller to no appointment.
+        // Booking still passes: AppointmentsAppService.SubmitAsync flushes the new appointment, stamping its
+        // CreatorId, before AppointmentChildGroupWriter writes any child group, so the booker passes as its
+        // creator (AccessPathway.Creator; see AppointmentChildOwnershipGuard.EnsureIsPartyAsync for why that is permanent).
+        // Checked FIRST, before any other lookup, so a non-party is refused the same way whatever they send.
+        await _childOwnershipGuard.EnsureIsPartyAsync(input.AppointmentId);
 
         var appointmentEmployerDetail = await _appointmentEmployerDetailManager.CreateAsync(
             input.AppointmentId,
