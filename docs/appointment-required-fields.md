@@ -1,5 +1,8 @@
 # Appointment Form + Claim Information Modal - Required Fields
 
+> Purpose: which booking fields are required, and where that is enforced. Audience: developers changing
+> the booking form or its server-side validation.
+
 Legend: C = required client-side, S = required server-side
 
 ## Schedule
@@ -9,6 +12,8 @@ Legend: C = required client-side, S = required server-side
 - Time Slot - C, S
 - Appointment Date - C, S
 - Appointment Time - C
+- Panel Number - C, S for a Panel QME only; refused for every other type
+  (`AppointmentManager.EnsurePanelNumberMatchesType`)
 - Booking User (identityUserId) - C, S
 - Patient (patientId) - C, S
 
@@ -16,7 +21,7 @@ Legend: C = required client-side, S = required server-side
 
 - First Name - C, S
 - Last Name - C, S
-- Email - C, S
+- Email - optional; when given, its format is validated
 - Date of Birth - C
 
 ## Employer Details
@@ -56,6 +61,7 @@ Legend: C = required client-side, S = required server-side
 
 - Date of Injury - C, S
 - Claim Number - C, S
+- WCAB ADJ - C, S
 - Body Part(s), at least one - C, S
 
 ## Claim Information Modal - Primary Insurance (when enabled - default on)
@@ -71,3 +77,12 @@ Legend: C = required client-side, S = required server-side
 - City - C
 - State - C
 - Zip - C
+
+## Approval gates (server-side, checked when staff approve)
+
+Booking can be submitted without these; approval refuses until they are met, in this order
+(`AppointmentManager.FindUnmetApprovalGateAsync`):
+
+1. At least one injury (Claim Information) row.
+2. At least one active Claim Examiner.
+3. For a Panel QME only: a document flagged as the panel strike list.

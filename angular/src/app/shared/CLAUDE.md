@@ -85,7 +85,7 @@ ControlValueAccessor. Key rules:
 - Copy and cut are blocked via `(copy)` and `(cut)` event handlers.
 - The "on-file" reveal button is shown only when `patientId` + `currentMaskedSsn`
   are supplied AND the current user is internal OR is the record owner
-  (`user.id === patientIdentityUserId`). This mirrors the server-side
+  (`user.id` equals `patientIdentityUserId`, compared case-insensitively). This mirrors the server-side
   `SsnRevealAccess` predicate; the server re-checks and returns 403 if the
   client-side check is bypassed.
 - Raw digit string (`string | null`) is the form value; the pipe `ssnMask` is

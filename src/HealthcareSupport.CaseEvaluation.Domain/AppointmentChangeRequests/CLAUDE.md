@@ -9,7 +9,13 @@
 | `AppointmentChangeRequestDocument.cs` | Supporting document attached to a change request |
 | `CancellationRequestValidators.cs` | Static guards: status + cancel-time window |
 | `RescheduleRequestValidators.cs` | Static guards: status + slot availability |
-| `IAppointmentChangeRequestRepository.cs` | Repository contract |
+| `IAppointmentChangeRequestRepository.cs` | Repository contract; the same file also declares `IAppointmentChangeRequestDocumentRepository` for supporting documents |
+| `ChangeRequestConsentManager.cs` | Two-sided consent: issues each side's single-use token (only its SHA-256 hash is stored), validates it, records the decision. Also declares `ChangeRequestConsentMatch`: a raw token resolved to its change request, the round that owns it (null for a cancellation) and the side |
+| `ChangeRequestConsentRound.cs` | One consent round per staff-proposed date: per-side token hash, expiry and decision. Rounds are rows so the record of who declined which date survives |
+| `IChangeRequestConsentRoundRepository.cs` | Repository contract for consent rounds |
+| `RescheduleSplitPolicy.cs` | Pure policy for approving a reschedule: the NEW appointment's status (inherits the source's) and the trigger that closes the OLD one |
+| `RescheduleInPlacePolicy.cs` | Superseded by `RescheduleSplitPolicy` (the July in-place design); no production caller, only its own unit tests |
+| `Jobs/ChangeRequestConsentExpirySweepJob.cs` | Hourly sweep (phase 4c) that expires consent tokens nobody clicked; before it, expiry was only evaluated when a party followed the link |
 
 ## Request status lifecycle
 
@@ -21,10 +27,18 @@ On **cancel submit**: parent appointment STAYS `Approved` while the request is P
 The supervisor's approve sets a `CancellationOutcome` (`CancelledNoBill` or `CancelledLate`)
 onto the parent via the state machine.
 
-On **reschedule submit**: the user-picked slot transitions `Available -> Reserved`
-immediately (interim hold). The parent appointment transitions `Approved -> RescheduleRequested`
-via `AppointmentManager.RequestRescheduleAsync` (state machine -- do NOT set
-`AppointmentStatus` directly). On supervisor reject, the held slot is released.
+On **reschedule submit**: a slot is OPTIONAL (phase 4b, 2026-08-04) -- an external requester
+may send only a reason. A proposed slot transitions `Available -> Reserved` immediately
+(interim hold); with no proposal nothing is held. The parent appointment transitions
+`Approved -> RescheduleRequested` via `AppointmentManager.RequestRescheduleAsync` (state
+machine -- do NOT set `AppointmentStatus` directly); a staff-filed request on a Pending
+appointment skips that step and stays Pending. On supervisor reject, a held slot is released.
+
+**Consent (phase 4c).** Staff commit to a date, which opens a `ChangeRequestConsentRound`
+that both sides must accept through their emailed tokens. **Approval** uses the split model
+(`RescheduleSplitPolicy`): a NEW appointment is created in the new slot with a new
+confirmation number, inheriting the source's status, and the old appointment is closed
+through `AppointmentManager.CloseForRescheduleAsync`.
 
 ## Conventions
 
@@ -49,20 +63,22 @@ and rethrow as a validation error; surface it to the operator to seed the row.
 max-time). Those run upstream via `BookingPolicyValidator` in the Application layer,
 matching OLD parity. The domain only guards slot availability and source-appointment status.
 
-### Two AppServices, single feature folder
+### Three AppServices, single feature folder
 
-The Application.Contracts layer splits this into two interfaces:
+- `IAppointmentChangeRequestsAppService` -- submit (cancel, reschedule).
+- `IAppointmentChangeRequestsApprovalAppService` -- supervisor decisions, date confirmation
+  and consent resends.
+- `PublicChangeRequestConsentAppService` -- the emailed consent link, `[AllowAnonymous]`;
+  the token is the credential.
 
-- `IAppointmentChangeRequestsAppService` -- external-user submit (cancel, reschedule).
-- `IAppointmentChangeRequestsApprovalAppService` -- supervisor approve / reject.
-
-Both must carry `[RemoteService(IsEnabled = false)]` and have paired manual controllers.
+All three carry `[RemoteService(IsEnabled = false)]` and have paired manual controllers.
 
 ### Entity ctor enforces type-specific required fields
 
 `AppointmentChangeRequest(...)` calls `Check.NotNullOrWhiteSpace` on `CancellationReason`
-when type is Cancel, and on `ReScheduleReason` + non-null `NewDoctorAvailabilityId` when
-type is Reschedule. Pass the wrong combination and the ctor throws before the row is inserted.
+when type is Cancel, and on `ReScheduleReason` when type is Reschedule.
+`NewDoctorAvailabilityId` is optional (`Guid?`) since phase 4b. Pass the wrong combination
+and the ctor throws before the row is inserted.
 
 ## Gotchas
 
