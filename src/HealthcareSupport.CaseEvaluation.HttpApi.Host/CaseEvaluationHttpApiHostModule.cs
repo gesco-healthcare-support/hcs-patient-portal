@@ -29,6 +29,7 @@ using HealthcareSupport.CaseEvaluation.HealthChecks;
 using Hangfire;
 using Hangfire.SqlServer;
 using HealthcareSupport.CaseEvaluation.BackgroundJobs;
+using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Hangfire;
@@ -85,6 +86,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
         Hosting.HostingConfigValidator.ValidateOrThrow(
             configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+
+        // B12: the admin-password store, and the startup gate that refuses a host configuring
+        // neither or both. Registered in both this process and the other one that can create a
+        // database, so neither can seed a published default.
+        EntityFrameworkCore.AdminPasswords.AdminPasswordStoreRegistrar.Register(
+            context.Services, configuration, hostingEnvironment.IsDevelopment());
 
         if (!configuration.GetValue<bool>("App:DisablePII"))
         {
@@ -1419,9 +1426,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// Wires Hangfire with SQL Server storage to back ABP's background-jobs runtime.
     /// Wave 0 lays the runtime; Wave 1 capabilities (scheduler-notifications) add the
     /// recurring-job classes. Schema is auto-created on first connection via
-    /// <c>PrepareSchemaIfNecessary = true</c> (Hangfire default). Dashboard is mounted
-    /// at <c>/hangfire</c> in <c>OnApplicationInitialization</c> below; auth-filter
-    /// hardening is deferred to the post-MVP "Wave 0 hardening" tail.
+    /// <c>PrepareSchemaIfNecessary = true</c> (Hangfire default). The dashboard is mounted
+    /// at <c>/hangfire</c> in <c>OnApplicationInitialization</c> below; see
+    /// <c>CreateHangfireDashboardOptions</c> for who may open it.
     /// </summary>
     private static void ConfigureHangfire(ServiceConfigurationContext context, IConfiguration configuration)
     {
@@ -1589,16 +1596,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
         });
 
-        // Hangfire dashboard at /hangfire. Wave 0 ships dev-anonymous access (per the
-        // approved plan -- auth filter is policy hardening, deferred to post-MVP tail).
+        // Hangfire dashboard at /hangfire; CreateHangfireDashboardOptions decides who may open it.
         // Hangfire server starts automatically via AbpBackgroundJobsHangFireModule.
         if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
         {
-            app.UseHangfireDashboard("/hangfire", new DashboardOptions
-            {
-                Authorization = new[] { new AnonymousHangfireDashboardAuthorizationFilter() },
-                IgnoreAntiforgeryToken = true,
-            });
+            app.UseHangfireDashboard("/hangfire", CreateHangfireDashboardOptions(env.IsDevelopment()));
 
             // W2-10: register the 3 CCR-driven recurring jobs. Cron timezone is
             // explicit America/Los_Angeles per the deep-dive (08:00 PT for CCR
@@ -1611,6 +1613,38 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+    }
+
+    /// <summary>
+    /// The job dashboard's options for this environment. In Development the dashboard is open, for
+    /// local work. Everywhere else it needs a signed-in HOST user holding
+    /// <see cref="CaseEvaluationPermissions.BackgroundJobsDashboard.Default"/>: ABP's filter refuses a
+    /// request that resolves to an office, then requires an authenticated user and the permission.
+    /// This host authenticates by bearer token only, so outside Development a browser gets 401 until
+    /// the dashboard has a sign-in of its own.
+    /// <para><c>Authorization</c> is set to empty on purpose: Hangfire evaluates it as well as
+    /// <c>AsyncAuthorization</c>, and its default is a local-requests-only filter.</para>
+    /// </summary>
+    internal static DashboardOptions CreateHangfireDashboardOptions(bool isDevelopment)
+    {
+        if (isDevelopment)
+        {
+            return new DashboardOptions
+            {
+                Authorization = [new DevelopmentHangfireDashboardAuthorizationFilter()],
+                IgnoreAntiforgeryToken = true,
+            };
+        }
+
+        return new DashboardOptions
+        {
+            Authorization = [],
+            AsyncAuthorization =
+            [
+                new AbpHangfireAuthorizationFilter(
+                    requiredPermissionName: CaseEvaluationPermissions.BackgroundJobsDashboard.Default),
+            ],
+        };
     }
 
     /// <summary>

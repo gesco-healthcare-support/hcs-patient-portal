@@ -16,7 +16,10 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.SqlServer;
 /// not be skipped by a cursor that moves past it before it commits. That is the failure the rowversion design
 /// exists to remove, and it is silent when it happens.</para>
 /// </summary>
-public class CaseTrackerFeedSqlServerTests : IClassFixture<SqlServerFeedFixture>
+// Joins the shared collection rather than declaring IClassFixture, so the container is created
+// once for every class that needs real SQL Server. See SqlServerCollection.
+[Collection(SqlServerCollection.Name)]
+public class CaseTrackerFeedSqlServerTests
 {
     private readonly SqlServerFeedFixture _fixture;
 

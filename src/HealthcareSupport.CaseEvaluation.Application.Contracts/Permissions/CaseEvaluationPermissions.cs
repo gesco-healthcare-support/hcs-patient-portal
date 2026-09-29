@@ -463,4 +463,16 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".CaseTrackerIntegration";
     }
+
+    /// <summary>
+    /// 2026-09-28 -- open the technical consoles: the background job dashboard (<c>/hangfire</c>) and
+    /// the health UI (<c>/health-ui</c> and its <c>/health-api</c>). Both show and manage state for
+    /// every office, so the permission is registered MultiTenancySides.Host and ABP never grants it
+    /// inside an office. Granted to IT Admin; the host admin role receives it from ABP's permission
+    /// seeding. Development keeps both consoles open for local work.
+    /// </summary>
+    public static class BackgroundJobsDashboard
+    {
+        public const string Default = GroupName + ".BackgroundJobsDashboard";
+    }
 }
