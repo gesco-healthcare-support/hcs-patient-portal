@@ -393,6 +393,7 @@ __pycache__/
 # run, never committed -- the .approved.txt beside it is the tracked one.
 **/authorization-surface.received.txt
 **/appointment-transitions.received.txt
+**/tenancy-surface.received.txt
 
 # Azure infrastructure parameters. The example file is committed; the real one is NOT.
 # This repository is PUBLIC and the real file carries a SQL admin password, an SSH
