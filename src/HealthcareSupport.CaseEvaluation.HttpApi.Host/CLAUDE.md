@@ -14,7 +14,7 @@ mapping, JWT issuer validation, CORS, data-protection).
 | `Program.cs` | Host bootstrap; loads `appsettings.Local.json` + `appsettings.secrets.json` |
 | `appsettings.json` | Baseline config (LocalDB, Redis disabled, AuthServer 44368) |
 | `appsettings.secrets.json` | ABP license + SMTP creds (sensitive; treat as secret even if not gitignored) |
-| `BackgroundJobs/AnonymousHangfireDashboardAuthorizationFilter.cs` | Allow-all filter for `/hangfire`; hardening deferred post-MVP |
+| `BackgroundJobs/DevelopmentHangfireDashboardAuthorizationFilter.cs` | Opens `/hangfire` in Development only |
 | `RateLimiting/PasswordResetEmailPeekMiddleware.cs` | Peeks JSON body `email` field for password-reset rate partitioning |
 | `HealthChecks/` | Health-check registrations wired via `AddCaseEvaluationHealthChecks()` |
 
@@ -116,10 +116,10 @@ an empty directory, making every `L("Key")` call return the literal key.
   `appsettings.secrets.json`, so successful sends do not retry; only genuine
   transport failures do.
 
-- `/hangfire` dashboard uses `AnonymousHangfireDashboardAuthorizationFilter`
-  (allow-all). It is intentionally unauthenticated in Wave 0 dev mode;
-  production hardening is a deferred task. Do not add real job triggers
-  that have destructive side effects while the dashboard is open.
+- `/hangfire`, `/health-ui` and `/health-api` are open in Development only. Elsewhere they
+  require the host permission `CaseEvaluation.BackgroundJobsDashboard` (IT Admin). This host
+  has no browser sign-in for them yet, so they answer 401 outside Development;
+  `/health-status` stays open for the proxy and monitoring.
 
 - Data-protection keys are persisted to Redis when `Redis:Configuration`
   is set. Without this, AuthServer and HttpApi.Host (separate Docker

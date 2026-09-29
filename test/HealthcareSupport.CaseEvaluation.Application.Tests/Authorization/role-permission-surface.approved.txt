@@ -1,0 +1,164 @@
+role host: Applicant Attorney, Claim Examiner, Defense Attorney, IT Admin, Intake Staff, Patient, Staff Supervisor, admin
+role office: Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+AbpIdentity.Roles side=Both host=IT Admin, admin office=admin
+AbpIdentity.Roles.ManagePermissions side=Both host=IT Admin, admin office=admin
+AbpIdentity.Users side=Both host=IT Admin, Staff Supervisor, admin office=admin
+AbpIdentity.Users.Update side=Both host=IT Admin, Staff Supervisor, admin office=admin
+AuditLogging.AuditLogs side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.ApplicantAttorneys side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.ApplicantAttorneys.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.ApplicantAttorneys.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.ApplicantAttorneys.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentApplicantAttorneys side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentApplicantAttorneys.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentApplicantAttorneys.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentApplicantAttorneys.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentBodyParts side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentBodyParts.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentBodyParts.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentBodyParts.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentChangeLogs side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentChangeRequests side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentChangeRequests.Approve side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentChangeRequests.Reject side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentClaimExaminers side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentClaimExaminers.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentClaimExaminers.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentClaimExaminers.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDefenseAttorneys side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDefenseAttorneys.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDefenseAttorneys.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentDefenseAttorneys.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDocumentTypes side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentDocumentTypes.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentDocumentTypes.Delete side=Both host=IT Admin, admin office=admin
+CaseEvaluation.AppointmentDocumentTypes.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentDocuments side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDocuments.Approve side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentDocuments.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDocuments.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentDocuments.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentEmployerDetails side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentEmployerDetails.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentEmployerDetails.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentEmployerDetails.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentInjuryDetails side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentInjuryDetails.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentInjuryDetails.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentInjuryDetails.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentLanguages side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentLanguages.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentLanguages.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentLanguages.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentPackets side=Both host=admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentPackets.Regenerate side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentPrimaryInsurances side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentPrimaryInsurances.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentPrimaryInsurances.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentPrimaryInsurances.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentStatuses side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentStatuses.Create side=Both host=IT Admin, admin office=admin
+CaseEvaluation.AppointmentStatuses.Delete side=Both host=IT Admin, admin office=admin
+CaseEvaluation.AppointmentStatuses.Edit side=Both host=IT Admin, admin office=admin
+CaseEvaluation.AppointmentTypes side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.AppointmentTypes.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentTypes.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.AppointmentTypes.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Appointments side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.Appointments.Approve side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Appointments.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.Appointments.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Appointments.Edit side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Appointments.PushToCaseTracker side=Both host=IT Admin, admin office=admin
+CaseEvaluation.Appointments.Reject side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Appointments.RequestCancellation side=Both host=admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, admin
+CaseEvaluation.Appointments.RequestReschedule side=Both host=admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, admin
+CaseEvaluation.Appointments.ViewIntegrationDeadLetters side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.BackgroundJobsDashboard side=Host host=IT Admin, admin office=-
+CaseEvaluation.Branding side=Both host=IT Admin, Staff Supervisor, admin office=admin
+CaseEvaluation.Branding.Edit side=Both host=IT Admin, Staff Supervisor, admin office=admin
+CaseEvaluation.CaseTrackerIntegration side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.ClaimExaminers side=Both host=admin office=admin
+CaseEvaluation.ClaimExaminers.Create side=Both host=admin office=admin
+CaseEvaluation.ClaimExaminers.Delete side=Both host=admin office=admin
+CaseEvaluation.ClaimExaminers.Edit side=Both host=admin office=admin
+CaseEvaluation.CustomFields side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.CustomFields.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.CustomFields.Delete side=Both host=IT Admin, admin office=admin
+CaseEvaluation.CustomFields.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Dashboard.Host side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.Dashboard.Tenant side=Tenant host=- office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.DefenseAttorneys side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.DefenseAttorneys.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.DefenseAttorneys.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.DefenseAttorneys.Edit side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.DoctorAvailabilities side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.DoctorAvailabilities.Create side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.DoctorAvailabilities.Delete side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.DoctorAvailabilities.Edit side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.DoctorPreferredLocations side=Both host=admin office=admin
+CaseEvaluation.DoctorPreferredLocations.Toggle side=Both host=admin office=admin
+CaseEvaluation.Doctors side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Doctors.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Doctors.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Doctors.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Documents side=Both host=IT Admin, admin office=admin
+CaseEvaluation.Documents.Create side=Both host=IT Admin, admin office=admin
+CaseEvaluation.Documents.Delete side=Both host=IT Admin, admin office=admin
+CaseEvaluation.Documents.Edit side=Both host=IT Admin, admin office=admin
+CaseEvaluation.IntakeAssignments side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.IntakeAssignments.Manage side=Both host=IT Admin, Staff Supervisor, admin office=admin
+CaseEvaluation.IntakeImpersonation side=Host host=Intake Staff, admin office=-
+CaseEvaluation.InternalUsers side=Both host=IT Admin, Staff Supervisor, admin office=Staff Supervisor, admin
+CaseEvaluation.InternalUsers.Create side=Both host=IT Admin, Staff Supervisor, admin office=Staff Supervisor, admin
+CaseEvaluation.InternalUsers.Edit side=Both host=IT Admin, Staff Supervisor, admin office=Staff Supervisor, admin
+CaseEvaluation.Locations side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Locations.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Locations.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Locations.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.NotificationTemplates side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.NotificationTemplates.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.PackageDetails side=Both host=IT Admin, admin office=admin
+CaseEvaluation.PackageDetails.Create side=Both host=IT Admin, admin office=admin
+CaseEvaluation.PackageDetails.Delete side=Both host=IT Admin, admin office=admin
+CaseEvaluation.PackageDetails.Edit side=Both host=IT Admin, admin office=admin
+CaseEvaluation.PackageDetails.ManageDocuments side=Both host=IT Admin, admin office=admin
+CaseEvaluation.Patients side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Patients.Create side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Patients.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.Patients.Edit side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Patients.RevealSsn side=Both host=IT Admin, admin office=Intake Staff, Patient, Staff Supervisor, admin
+CaseEvaluation.Reports side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.Reports.Export side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.States side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.States.Create side=Both host=IT Admin, admin office=admin
+CaseEvaluation.States.Delete side=Both host=IT Admin, admin office=admin
+CaseEvaluation.States.Edit side=Both host=IT Admin, admin office=admin
+CaseEvaluation.SystemParameters side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.SystemParameters.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.UserManagement side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.UserManagement.InviteExternalUser side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.UserSignatures side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.UserSignatures.ManageOwn side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.WcabOffices side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.WcabOffices.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.WcabOffices.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
+CaseEvaluation.WcabOffices.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
+FileManagement.DirectoryDescriptor side=Both host=IT Admin, admin office=admin
+FileManagement.DirectoryDescriptor.Create side=Both host=IT Admin, admin office=admin
+FileManagement.DirectoryDescriptor.Delete side=Both host=IT Admin, admin office=admin
+FileManagement.DirectoryDescriptor.Update side=Both host=IT Admin, admin office=admin
+FileManagement.FileDescriptor side=Both host=IT Admin, admin office=admin
+FileManagement.FileDescriptor.Create side=Both host=IT Admin, admin office=admin
+FileManagement.FileDescriptor.Delete side=Both host=IT Admin, admin office=admin
+FileManagement.FileDescriptor.Update side=Both host=IT Admin, admin office=admin
+LanguageManagement.LanguageTexts side=Both host=IT Admin, admin office=admin
+LanguageManagement.LanguageTexts.Edit side=Both host=IT Admin, admin office=admin
+LanguageManagement.Languages side=Both host=IT Admin, admin office=admin
+LanguageManagement.Languages.ChangeDefault side=Both host=IT Admin, admin office=admin
+LanguageManagement.Languages.Create side=Host host=IT Admin, admin office=-
+LanguageManagement.Languages.Delete side=Host host=IT Admin, admin office=-
+LanguageManagement.Languages.Edit side=Host host=IT Admin, admin office=-
+Saas.Tenants side=Host host=IT Admin, Staff Supervisor, admin office=-
+Saas.Tenants.Create side=Host host=IT Admin, admin office=-
+Saas.Tenants.Impersonation side=Host host=IT Admin, Staff Supervisor, admin office=-

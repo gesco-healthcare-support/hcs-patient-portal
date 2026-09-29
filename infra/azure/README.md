@@ -39,6 +39,8 @@ platform move. This is a deliberate choice, not a default.
 | `modules/edge.bicep` | Public IP, Application Gateway WAF v2 with its WAF policies, public DNS zone and records |
 | `main.parameters.example.json` | Copy to `main.parameters.json` (gitignored) and fill in |
 | `COSTS.md` | Monthly cost of every resource, from the Azure Retail Prices API |
+| `subscription/bootstrap.bicep` | Human-run, subscription scope: resource groups, the three CI identities, their rights. See "CI" |
+| `subscription/assignable-roles.json` | The only roles the infra deploy identity may assign. Read by the bootstrap and by `scripts/infra-ci.py check` |
 
 ---
 
@@ -73,8 +75,8 @@ policy must be copied to the minio policy if it should cover that host.
 
 ## Prerequisites, in order
 
-1. **A resource group**, and Owner on it - `Owner` rather than `Contributor` because the
-   template creates role assignments.
+1. **The bootstrap has run** (see "CI" below). It creates the resource group and the identity that deploys into it.
+   Nobody deploys this template with personal Owner rights once CI exists; a local `what-if` is still fine.
 2. **A bootstrap Key Vault** holding the SQL admin password and, ideally, the deploy SSH
    key. This is a *different* vault from the one the template creates, which does not
    exist at parameter time.
@@ -111,6 +113,126 @@ az deployment group what-if \
   --template-file main.bicep \
   --parameters @main.parameters.json
 ```
+
+## CI
+
+`.github/workflows/infra.yml` has three jobs:
+
+- **Infra: Bicep** builds and lints every template (zero diagnostics), then runs `scripts/infra-ci.py check`.
+- **Infra: What-If** runs on pull requests from this repository and posts one comment per PR.
+- **Infra: Deploy** runs from `production` behind the `azure-production-infra` environment.
+
+### Three identities, not one
+
+A federated credential authenticates AS its identity, and role assignments attach to the identity. So one identity
+with three credentials would hand the pull-request preview the deploy's rights. There are three user-assigned
+managed identities, each with ONE federated credential:
+
+| identity | OIDC subject (suffix) | rights |
+| --- | --- | --- |
+| `id-gh-whatif-<env>` | `:pull_request` | Reader + `Portal Infra What-If` (what-if and validate) on the workload group (`whatIfScope`; widen it only together with a job that previews at subscription scope) |
+| `id-gh-infra-<env>` | `:environment:azure-production-infra` | on the workload group: Contributor; RBAC administrator constrained by ABAC to `subscription/assignable-roles.json`, service principals only, never a CI identity; `Portal Lock Writer` (write, no delete) |
+| `id-gh-app-<env>` | `:environment:azure-production-app` | AcrPush on the registry, Virtual Machine Contributor on the VM (bootstrap phase 2) |
+
+They live in `rg-portal-<env>-identity`, apart from the workload group, so the infra identity cannot rewrite any
+federated credential. **A CI identity's own rights are only ever changed by a subscription Owner running the
+bootstrap.** CI cannot widen its own rights: adding a role to `assignable-roles.json` does nothing until the
+bootstrap runs again.
+
+**What the ABAC condition does not do.** Contributor includes `virtualMachines/runCommands/write`, and a run command
+executes as the VM. So inside the workload group the infra identity can reach whatever the VM identity can. The
+condition stops escalation beyond the group and to roles outside the set. The control on the identity itself is the
+environment: `production` only, and a required reviewer.
+
+**Federated credentials live in the identity group only.** Every federated credential in this design belongs to one of
+the three CI identities, and only the bootstrap manages them. Contributor on the workload group includes
+`Microsoft.ManagedIdentity` writes, so the bootstrap also defines a deny policy on
+`Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials` and assigns it at the workload group
+(`subscription/modules/workload-policy.bicep`).
+
+- It is assigned at the workload group only. The CI identities' own credentials are created in the identity group,
+  and a subscription-wide assignment would refuse the bootstrap itself. The workload templates create no federated
+  credentials.
+- Contributor cannot remove it: `Microsoft.Authorization/*/Write` and `*/Delete` are in Contributor's NotActions.
+- `scripts/infra-ci.py check` fails if the deny, or its workload-group scope, goes.
+
+### One-off setup (subscription Owner)
+
+1. **Opt the repository into immutable OIDC subjects** (repository settings, Actions, OIDC; or
+   `gh api -X PUT repos/gesco-healthcare-support/hcs-patient-portal/actions/oidc/customization/sub` with
+   `use_immutable_subject: true`). Do it BEFORE step 2: the bootstrap's default subject prefix is the immutable
+   form, `repo:gesco-healthcare-support@274625791/hcs-patient-portal@1205316583`.
+2. **Bootstrap phase 1.** Copy `subscription/bootstrap.parameters.example.json` to `bootstrap.parameters.json`
+   (gitignored), then run:
+
+   ```bash
+   az deployment sub what-if -l westus2 -f subscription/bootstrap.bicep -p @subscription/bootstrap.parameters.json
+   az deployment sub create  -l westus2 -f subscription/bootstrap.bicep -p @subscription/bootstrap.parameters.json \
+     -n portal-bootstrap
+   ```
+
+3. **GitHub.** Create two environments, `azure-production-infra` and `azure-production-app`, each with:
+   - deployment branches "Selected branches and tags", with the single branch rule `production`;
+   - required reviewer `lev0398`, with "Prevent self-reviews" OFF;
+   - administrators may NOT bypass (`can_admins_bypass: false`).
+
+   Then set the secrets and variables:
+
+   | where | secrets | variables |
+   | --- | --- | --- |
+   | repository | `AZURE_WHATIF_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | `AZURE_RESOURCE_GROUP`, then `INFRA_PREVIEW_REQUIRED=true` |
+   | `azure-production-infra` | `AZURE_CLIENT_ID` (infra), `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `SQL_ADMIN_LOGIN`, `SQL_ADMIN_PASSWORD`, `ADMIN_SSH_PUBLIC_KEY`, `TLS_CERTIFICATE_SECRET_ID` | `AZURE_RESOURCE_GROUP`, `ENV_NAME`, `BASE_DOMAIN`, `SQL_ENTRA_ADMIN_OBJECT_ID`, `SQL_ENTRA_ADMIN_NAME`, `DEPLOY_GATEWAY`, `WAF_MODE`, `CREATE_DNS_ZONE` |
+   | `azure-production-app` | `AZURE_CLIENT_ID` (app), `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | added by A6 |
+
+   None of the client, tenant or subscription ids is a credential. They are secrets so that public logs mask them.
+4. **Bootstrap phase 2**, after the first infrastructure deploy's phase 1: the same command with `appDeployTargets`
+   filled in.
+
+**Self-review is allowed on both environments because there is one person on the team. REVERT that when a second
+person joins:** turn "Prevent self-reviews" on and add them as a reviewer. It is a consequence of team size, not a
+judgement that review has no value.
+
+### Public logs
+
+The repository is public, and so are its workflow logs, artifacts and PR comments. Therefore:
+
+- what-if runs with `--result-format ResourceIdOnly`, and the summary shows change counts and resource names only;
+- create runs with `--output none`;
+- the office allow-list addresses are secrets, not variables;
+- **errors are digested, never printed.** An ARM validation error's message can quote the parameter value it
+  rejected, and GitHub masks only secrets, not the base domain, SQL login or Entra group id that a preview reads back
+  from the last deploy. So every `az deployment` and `az tag` call sends its stderr to a file on the runner that is
+  never printed. A failure reports only error codes and targets, walked through `details`, through
+  `scripts/infra-ci.py digest`. That covers the job log and the PR comment alike. `infra-ci.py check` fails if an az
+  call's stderr is not redirected, or if an error file or a captured error is echoed.
+
+Run `what-if` locally when you need the property diff.
+
+### Where the parameters come from
+
+| parameter | pull-request what-if | deploy |
+| --- | --- | --- |
+| `sqlAdminPassword`, `adminSshPublicKey`, `tlsCertificateSecretId` | placeholder (what-if does not evaluate secure values) | environment secret |
+| `sqlAdminLogin` | last `portal-main` deploy, else the example | environment secret |
+| `baseDomain`, `envName`, `sqlEntraAdminObjectId`, `sqlEntraAdminName`, `createDnsZone` | last `portal-main` deploy, else the example | environment variable |
+| `deployGateway`, `wafMode` | last `portal-main` deploy, else the example | environment variable |
+| everything else | template default | template default |
+
+The preview reads the last real deploy's parameters back from Azure, so it compares a PR's template against exactly
+what production runs. The flip side: a PR cannot preview a parameter change. A parameter change (for example
+`DEPLOY_GATEWAY=true` for phase 2) is previewed by the deploy job's own what-if, started with `workflow_dispatch` on
+`production`. The mapping from parameter to variable is `ENV_MAP` in `scripts/infra-ci.py`.
+
+### Still to prove, on the first real run
+
+- Whether Reader plus `Portal Infra What-If` is enough for `what-if` (MEDIUM). First run it with plain Reader and
+  record the exact `AuthorizationFailed` text; then run it with the custom role.
+- The OIDC subject GitHub actually presents with immutable subjects on (MEDIUM: GitHub documents only the `ref`
+  example). On a mismatch, Entra's `AADSTS70021` error names the subject presented. Record it here.
+- That the write-probe step is refused with `AuthorizationFailed`. It runs on every PR, so this stays proven.
+- That the deny policy holds: an attempt by the infra deploy identity to create a federated identity credential in the
+  workload group (on the gateway identity, for example) is rejected with `RequestDisallowedByPolicy`. Try it once,
+  after bootstrap phase 1, and record the error code here.
 
 ## After the template, before the application
 

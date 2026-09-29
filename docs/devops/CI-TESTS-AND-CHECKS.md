@@ -9,9 +9,9 @@
 
 | Field      | Value                                                                                                                                                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Verified   | 2026-08-26, against `origin/main` `bc4f2029`                                                                                                                                                                           |
+| Verified   | Sections 1-4, 5.3, 7 and 11 re-checked 2026-09-28 against main `51723e39`. Measurements marked **snapshot 2026-08-26** (test counts, SonarCloud, CodeQL, Scorecard, Dependabot, reliability) were taken on `bc4f2029` and not re-measured |
 | Method     | Direct file reads of `.github/workflows/`, `.husky/`, test projects and config; `gh api` for branch protection and Dependabot; SonarCloud public API                                                                   |
-| Supersedes | Nothing. `docs/devops/TESTING-STRATEGY.md` self-reports "last verified 2026-06-01" and describes a test layout that no longer matches the code (it still documents `BookAppService_Tests` and the ABP "Books" sample). |
+| Supersedes | Nothing |
 
 ---
 
@@ -22,13 +22,14 @@
 | Local pre-commit   | gitleaks, lint-staged, `dotnet format` on staged `.cs` | Yes, locally; bypassable with `--no-verify` |
 | Local commit-msg   | commitlint (Conventional Commits)                      | Yes, locally                                |
 | Local pre-push     | gitleaks full scan, backend Debug build                | Yes, locally                                |
-| CI on pull request | 12 workflows                                           | **Only 2 checks are required**              |
-| CI post-merge      | 3 workflows                                            | No                                          |
+| CI on pull request | 9 workflows                                            | **18 required checks** (section 4)          |
+| CI after merge     | 6 workflows on push                                    | No                                          |
 | Scheduled          | 2 workflows (weekly)                                   | No                                          |
 
-**The single most consequential fact in this document: of everything below, only `Backend: Build`
-and `Frontend: Build` can prevent a merge to `main`.** Every test, lint, scan and analysis runs
-and reports, and none of them gates.
+**The most consequential fact in this document: `main` requires 18 checks,** including the backend and
+frontend tests, both format checks, the frontend lint, the coverage floors, markdown and YAML lint,
+CodeQL for both languages, TruffleHog, dependency review, commitlint, the PR title and the packet
+golden-output check. SonarCloud is the notable check that is **not** required.
 
 ---
 
@@ -63,41 +64,38 @@ Husky, installed from `angular/.husky/`, wired by `yarn prepare` (`cd .. && husk
 
 ## 3. Layer 2 -- CI workflows
 
-17 workflow files. Grouped by trigger.
+16 workflow files (`ls .github/workflows`), grouped by trigger. `doc-check.yml` and `sonarcloud.yml`
+no longer exist; SonarCloud now runs as a job inside `ci.yml`.
 
-### 3.1 On pull request (12)
+### 3.1 On pull request (9)
 
-| Workflow                | Job(s)                                                                                                                                    | `continue-on-error`                                 | Notes                                                        |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
-| `ci.yml`                | Changed paths, Backend Build, Backend Test, Backend Format, Frontend Build, Frontend Lint, Frontend Test, Frontend Format, Docs Structure | Format checks and the `-warnaserror` build: **yes** | The main pipeline. Path-filtered via `dorny/paths-filter@v4` |
-| `sonarcloud.yml`        | SonarCloud Analysis                                                                                                                       | **yes**                                             | Also sets `sonar.qualitygate.wait=false`                     |
-| `codeql-pr.yml`         | CodeQL csharp + javascript-typescript                                                                                                     | **yes**                                             | Uses `queries: security-extended` (broader than default)     |
-| `trufflehog-pr.yml`     | Secret scan of the PR commit range                                                                                                        | **yes**                                             | `--only-verified`                                            |
-| `dependency-review.yml` | Dependency Review                                                                                                                         | **yes**                                             | `fail-on-severity: critical` only                            |
-| `commitlint.yml`        | PR commit messages                                                                                                                        | **yes**                                             | Catches commits that bypassed the local hook                 |
-| `lint-meta.yml`         | yamllint, markdownlint                                                                                                                    | **yes** (both)                                      | Comment says "Phase C flips them to blocking"                |
-| `pr-title.yml`          | PR title format                                                                                                                           | --                                                  |                                                              |
-| `pr-size.yml`           | PR size label                                                                                                                             | --                                                  |                                                              |
-| `labeler.yml`           | Path-based labels                                                                                                                         | --                                                  | `pull_request_target`                                        |
-| `doc-check.yml`         | **Nothing**                                                                                                                               | --                                                  | See below                                                    |
-| `dependency-review.yml` | (listed above)                                                                                                                            |                                                     |                                                              |
+| Workflow                | Job(s)                                                                                                                                                                                             | `continue-on-error`                    |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `ci.yml`                | Meta: Changed paths, Backend: Build (includes four migration checks), Backend: Test (4 shards plus a merge job), Backend: Format Check, Frontend: Build, Frontend: Lint, Frontend: Test, Frontend: Format Check, Python: Test, Docs: Structure Check, Tools: Packet Golden Output, Coverage: Floors, SonarCloud: Analysis | SonarCloud job, and the three coverage-download steps inside Coverage: Floors |
+| `codeql-pr.yml`         | CodeQL: csharp, CodeQL: javascript-typescript (`queries: security-extended`)                                                                                                                       | job level                              |
+| `trufflehog-pr.yml`     | TruffleHog: PR commits (`--only-verified`)                                                                                                                                                         | job level                              |
+| `dependency-review.yml` | Dependency Review (`fail-on-severity: critical`)                                                                                                                                                   | --                                     |
+| `commitlint.yml`        | Commitlint: PR commits                                                                                                                                                                             | job level                              |
+| `lint-meta.yml`         | Lint: YAML workflows, Lint: Markdown                                                                                                                                                               | --                                     |
+| `pr-title.yml`          | PR Title: Conventional Commits (`pull_request_target`)                                                                                                                                             | job level                              |
+| `pr-size.yml`           | PR size label                                                                                                                                                                                      | --                                     |
+| `labeler.yml`           | Path-based labels (`pull_request_target`)                                                                                                                                                          | --                                     |
 
-**`doc-check.yml` is a no-op that reports success.** Its entire job body is commented out; the
-only live step is `run: echo "Doc check workflow ready. Uncomment steps when ANTHROPIC_API_KEY is
-configured."` It appears in the PR checks list as a green tick and verifies nothing.
+Five required checks (both CodeQL checks, TruffleHog, Commitlint and PR Title) sit in jobs that set
+`continue-on-error: true` at job level. GitHub documents that setting as keeping the **workflow run**
+from failing; whether a failed job still fails its own required check was not tested for this
+re-baseline. `ci.yml` also runs on push to `main`.
 
-### 3.2 Post-merge (3)
+### 3.2 After merge (6)
 
 | Workflow              | Trigger               | What it does                                                                                         |
 | --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------- |
 | `auto-pr-dev.yml`     | push to `main`        | Opens the `main -> development` cascade PR. Requires `AUTO_PR_TOKEN`                                 |
+| `cascade-guard.yml`   | push to `development` or `main` | Fails when a cascade into `development` arrived as a squash rather than a merge commit              |
 | `deploy-dev.yml`      | push to `development` | **Does not deploy.** Runs `dotnet build` + `dotnet test`, then opens the `development -> staging` PR |
 | `promote-staging.yml` | push to `staging`     | `dotnet build` + `dotnet test`. Notes that staging -> production PRs are always manual               |
 | `release.yml`         | push to `production`  | `npx semantic-release`                                                                               |
-
-`deploy-dev.yml` and `promote-staging.yml` are the only places `dotnet test` runs as a
-post-merge gate. Neither has run meaningfully since `staging` and `production` stopped moving on
-2026-05-01.
+| `scorecard.yml`       | push to `main` (and weekly) | OpenSSF Scorecard, uploads SARIF                                                               |
 
 ### 3.3 Scheduled (2)
 
@@ -110,13 +108,18 @@ post-merge gate. Neither has run meaningfully since `staging` and `production` s
 
 ## 4. The merge gate
 
-`gh api repos/.../branches/main/protection`:
+`gh api repos/<org>/hcs-patient-portal/branches/main/protection` on 2026-09-28:
 
 ```text
 strict (branch must be up to date): true
-REQUIRED CHECKS (2):
-   - Backend: Build
-   - Frontend: Build
+REQUIRED CHECKS (18):
+   - Meta: Changed paths          - Backend: Build            - Backend: Test
+   - Backend: Format Check        - Frontend: Build           - Frontend: Test
+   - Frontend: Lint               - Frontend: Format Check    - Coverage: Floors
+   - Lint: Markdown               - Lint: YAML workflows      - Tools: Packet Golden Output
+   - CodeQL: csharp               - CodeQL: javascript-typescript
+   - TruffleHog: PR commits       - Dependency Review
+   - Commitlint: PR commits       - PR Title: Conventional Commits
 required_approving_review_count: 1
 enforce_admins: false
 required_linear_history: false
@@ -124,15 +127,19 @@ allow_force_pushes: false
 required_conversation_resolution: false
 ```
 
-Consequences, stated plainly:
+A repository ruleset, `development-merge-only` (active), applies to `development`: pull requests only, merge
+commits only (no squash or rebase), no deletion and no force push.
 
-- **A failing test suite does not block a merge.** `Backend: Test` failed on the cascade PRs of
-  2026-08-23 and 2026-08-25 and both merged.
-- `enforce_admins: false` plus a single-maintainer repository means the one required review is
-  routinely satisfied by admin merge.
-- Lint, format, SonarCloud, CodeQL, TruffleHog and dependency review are advisory.
+Consequences:
 
-**Net: only a compile failure can stop a change reaching `main`.**
+- A failing backend or frontend test suite, a format or lint failure, or a coverage drop below the floors
+  blocks a merge to `main`.
+- A job that is skipped reports success. `Coverage: Floors` runs unconditionally for that reason and treats
+  missing coverage input as a failure.
+- `enforce_admins: false` plus a single-maintainer repository means the one required review is routinely
+  satisfied by admin merge.
+- SonarCloud (`SonarCloud: Analysis`, and the separate `SonarCloud Code Analysis` check its app posts) is
+  advisory.
 
 ### Cascade PRs report BEHIND permanently -- do not "fix" it
 
@@ -170,7 +177,8 @@ checkable rather than asserted: all 13 existing promotes have two parents.
 
 ### 5.1 Backend
 
-Five projects under `test/`.
+Five projects under `test/`. Counts are the **snapshot 2026-08-26**; current coverage and the commands to
+re-measure are in [coverage-status.md](../testing/coverage-status.md).
 
 | Project                         | Files   | `[Fact]`/`[Theory]` | Executed  | Result                                |
 | ------------------------------- | ------- | ------------------- | --------- | ------------------------------------- |
@@ -206,18 +214,19 @@ best-covered area in the suite.
 
 ### 5.3 Frontend
 
-- 66 `*.spec.ts` files, 206 `describe` blocks, **581 specs, all passing** on Chrome Headless.
+- 66 `*.spec.ts` files, 206 `describe` blocks, **581 specs, all passing** on Chrome Headless
+  (snapshot 2026-08-26).
 - Run via `yarn test --watch=false --browsers=ChromeHeadless --code-coverage`.
-- Coverage is collected and then **discarded**: `sonarcloud.yml:98` lists `angular/src/**/*.ts`
-  and `angular/src/**/*.html` under `sonar.coverage.exclusions`. There is no other coverage
-  publisher. **The frontend has no coverage figure anywhere.**
+- Coverage is uploaded (`Upload frontend coverage`, unconditionally) and checked by the required
+  `Coverage: Floors` job against a whole-number floor, through the shared `.coverage-exclusions` list
+  that the SonarCloud job also reads.
 - Spec concentration is in `appointments/` (9 in `appointment/components`, 7 in
   `appointments/shared`, 3 each in `availability-calendar` and `appointment-documents`) and
   `shared/`.
 
-**`ci.yml:248` still contains a guard that skips the test step entirely if no `*.spec.ts` file is
-found**, emitting a warning instead of failing. With 66 spec files the branch is dead, but it
-would silently green a pull request that deleted every spec.
+`Frontend: Test` still skips the test step, with a warning, when no `*.spec.ts` file exists. Because the
+coverage upload runs regardless and `Coverage: Floors` fails on missing coverage, a pull request that
+deleted every spec would still be blocked -- by the coverage gate rather than by the test job.
 
 ---
 
@@ -225,10 +234,10 @@ would silently green a pull request that deleted every spec.
 
 ### 6.1 SonarCloud
 
-Project `gesco-healthcare-support_hcs-patient-portal`. Runs per-PR and on push to `main`.
-`continue-on-error: true`, `sonar.qualitygate.wait=false`, not a required check.
+Project `gesco-healthcare-support_hcs-patient-portal`. Runs as the `SonarCloud: Analysis` job in `ci.yml`
+(per-PR and on push to `main`), job-level `continue-on-error: true`, not a required check.
 
-Current state: **quality gate ERROR**.
+The figures below are the **snapshot 2026-08-26**, when the quality gate was **ERROR**.
 
 | Metric            | Value                                                                                                                                                          |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -246,7 +255,7 @@ Gate conditions failing: `new_reliability_rating` (D), `new_security_rating` (E)
 "new code" period is `previous_version` dated **2026-04-15**, so "new code" is effectively the
 whole project.
 
-The scanner configuration carries 19 `sonar.issue.ignore.multicriteria` suppressions, mostly for
+The scanner configuration (then in `sonarcloud.yml`, now in the `ci.yml` job) carried 19 `sonar.issue.ignore.multicriteria` suppressions, mostly for
 ABP framework patterns (dependency-injection parameter counts, permission-string duplication,
 email-template HTML rules).
 
@@ -258,15 +267,12 @@ The 253 unlabelled inputs are concentrated: 47 in `internal-appointment-detail.c
 ### 6.2 CodeQL
 
 Two runs: per-PR (`codeql-pr.yml`, matrix `csharp` + `javascript-typescript`,
-`queries: security-extended`) and weekly inside `security.yml`. Both `continue-on-error`.
+`queries: security-extended`; both are required checks, with job-level `continue-on-error`) and weekly
+inside `security.yml`.
 
-23 open alerts, all C#, none JavaScript/TypeScript:
-
-| Severity | Rule                                            | Count | Location                                                                                                                                                 |
-| -------- | ----------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| high     | `cs/cleartext-storage-of-sensitive-information` | 3     | `CaseEvaluationAccountEmailer.cs` (2), `NotificationDispatcher.cs` (1)                                                                                   |
-| medium   | `cs/exposure-of-sensitive-information`          | 18    | seed contributors (13), `ExternalAccountAppService.cs` (2), `CaseEvaluationAccountEmailer.cs` (2), `AppointmentChangeRequestsAppService.Approval.cs` (1) |
-| medium   | `cs/log-forging`                                | 2     | `ExternalAccountAppService.cs`                                                                                                                           |
+**Snapshot 2026-08-26:** 23 open alerts (3 high, 20 medium), all in C#, none in JavaScript/TypeScript.
+Maintainers see the live list, with rules and locations, in the repository's **Security** tab under
+code scanning.
 
 ### 6.3 OpenSSF Scorecard
 
@@ -301,10 +307,8 @@ NoWarn                 CS1591; NU1510
 
 `TreatWarningsAsErrors=true` is the strongest single quality control in the repository. Note
 `EnforceCodeStyleInBuild=false`, so IDE style rules do not fail the build; `dotnet format`
-covers that separately and is `continue-on-error` in CI.
-
-The separate informational `-warnaserror` step in `ci.yml:100-106` is now redundant, since
-`Directory.Build.props` already sets it.
+covers that separately in `Backend: Format Check`, which is a required check. (The separate
+`-warnaserror` build step was removed on 2026-09-02 as redundant.)
 
 ### Frontend
 
@@ -323,14 +327,15 @@ It defines exactly three rules of its own:
 label-for-control, keyboard-event and ARIA rules live. Its absence is why 253 unlabelled inputs
 exist in the codebase without any lint failure.
 
-Formatting is Prettier (`yarn format:check`), `continue-on-error` in CI, enforced locally by
-`lint-staged`.
+Formatting is Prettier (`yarn format:check`) in `Frontend: Format Check`, a required check, and is
+enforced locally by `lint-staged`.
 
 ---
 
 ## 8. The dependency pipeline
 
-This is the most misleading area of the repository, and the mechanism is worth stating precisely.
+**Snapshot 2026-08-26.** This was the most misleading area of the repository, and the mechanism is worth
+stating precisely.
 
 **Dependabot is enabled and working.** `automated-security-fixes` returns
 `{"enabled":true,"paused":false}`, and Dependabot has opened at least 15 pull requests since
@@ -375,13 +380,14 @@ public deployment requires.
 | **Mutation testing**                      | No Stryker                                                                                                                            |
 | **API contract testing**                  | None beyond the generated ABP proxies                                                                                                 |
 | **Tests against real SQL Server**         | Every test uses SQLite in-memory (section 5.1)                                                                                        |
-| **Frontend coverage reporting**           | Collected then excluded (section 5.3)                                                                                                 |
 | **Automated deployment**                  | `deploy-dev.yml` validates and opens a PR; the server is updated by hand over SSH                                                     |
 | **Staging environment**                   | `staging` and `production` branches last moved 2026-05-01                                                                             |
 
 ---
 
 ## 10. Known reliability issues
+
+**Snapshot 2026-08-26.**
 
 1. **One flaky backend test.** `MultiOfficeAppointmentChildCascadeTests.Copies_custom_field_values`
    failed on 2026-08-23 and 2026-08-25 with
@@ -403,14 +409,14 @@ public deployment requires.
 
 | Topic                     | Location                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------ |
-| CI workflows              | `.github/workflows/` (17 files)                                                |
+| CI workflows              | `.github/workflows/` (16 files)                                                |
 | Local hooks               | `angular/.husky/{pre-commit,commit-msg,pre-push}`                              |
 | Commit message rules      | `angular/commitlint.config.js`, `angular/commitlint.config.mjs`                |
 | Backend compiler settings | `Directory.Build.props`                                                        |
 | Frontend lint             | `angular/.eslintrc.json`                                                       |
-| Sonar configuration       | `.github/workflows/sonarcloud.yml:85-136`                                      |
+| Sonar configuration       | `.github/workflows/ci.yml` (`sonarcloud` job) and `.coverage-exclusions`        |
 | Dependabot                | `.github/dependabot.yml`                                                       |
 | Secret scanning           | `.gitleaks.toml`, `trufflehog-pr.yml`, `security.yml`                          |
 | Test infrastructure       | `test/HealthcareSupport.CaseEvaluation.TestBase/`                              |
 | Tenant isolation tests    | `test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/MultiOffice/` |
-| Stale predecessor doc     | `docs/devops/TESTING-STRATEGY.md` (last verified 2026-06-01)                   |
+| Test layout and harnesses | `docs/devops/TESTING-STRATEGY.md`                                              |

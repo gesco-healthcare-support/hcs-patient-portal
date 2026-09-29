@@ -4,7 +4,7 @@
 > Audience: whoever runs a hardening pass: a QA engineer, or an agent driven by one.
 > Owner: the portal maintainer.
 > **Last tested: the last run on record is 2026-05-28 (run prefix `hrd-0528`), indexed in
-> `docs/runbooks/findings/2026-05-28-userflow-findings.md`.**
+> `docs/findings/2026-05-28-userflow-findings.md`.**
 > **Not re-verified.** On 2026-09-28 this page gained its header, "When to run this", "Abort and
 > clean up" and "Escalation", and the Phase 0 correction its findings record (PROPOSED-OBS-DOC-1).
 > The rest of the body was NOT re-verified step by step against the current code. Where a step
@@ -28,13 +28,13 @@ This doc is the **canonical** test plan for hardening passes. The earlier
 ad-hoc plan at `docs/plans/2026-05-14-core-process-hardening.md` was a
 one-off session log; this suite supersedes it.
 
-Findings filed during a run land in `docs/runbooks/findings/bugs/` with
+Findings filed during a run land in `docs/findings/bugs/` with
 stable IDs (`BUG-NNN`, `OBS-N`, `SEED-N`). The findings index lives at
-`docs/runbooks/findings/2026-05-13-userflow-findings.md` (rename the date
+`docs/findings/2026-05-13-userflow-findings.md` (rename the date
 when starting a fresh quarter).
 
 Template-review output for Phase 10 lands at
-`docs/runbooks/findings/template-review-<run-date>.md`.
+`docs/findings/template-review-<run-date>.md`.
 
 ---
 
@@ -68,7 +68,7 @@ Process:
    hard-coded confirmation numbers or "T+Nd" offsets.
 6. Execute Round 2 (major failure-mode probes).
 7. Execute Round 3 (replay sweep of open findings).
-8. For every Fail, file a finding under docs/runbooks/findings/bugs/
+8. For every Fail, file a finding under docs/findings/bugs/
    using the existing BUG-NNN / OBS-N / SEED-N naming. Include:
      - frontmatter (id, title, severity, status, found, flow, component)
      - Symptom (exact reproduction with HTTP status + body or DB row)
@@ -224,7 +224,7 @@ On fail -> file <BUG-NNN candidate>
 
 ```text
 HRD-R3.<finding-id>  <Title from the finding file>
-Repro           <copied verbatim from docs/runbooks/findings/bugs/<id>.md>
+Repro           <copied verbatim from docs/findings/bugs/<id>.md>
 Expected if fixed <what a passing run looks like now>
 Action on outcome
   - confirmed-open  -> update the finding's `last-replayed: <run-date>`
@@ -917,7 +917,7 @@ Steps
   4. Render the template with the sample token dictionary (use the
      same Scriban/Razor renderer the runtime uses if reachable from a
      test harness; otherwise compute substitution manually).
-  5. Append a row to docs/runbooks/findings/template-review-<run-date>.md:
+  5. Append a row to docs/findings/template-review-<run-date>.md:
        | Code | Subject<=60 | One CTA | Tokens resolved | No jargon | Non-redundant | Notes |
        | ---  | --- | --- | --- | --- | --- | --- |
        | UserRegistered | PASS | PASS | PASS | PASS | FAIL | "Subject + first line both contain 'Patient Portal'" |
@@ -1128,7 +1128,7 @@ If missing: file BUG-025-style finding (currently still open).
 ## Part 4.5: Round 3 - Replay sweep of open findings
 
 Run after Round 1 + Round 2. For every finding under
-`docs/runbooks/findings/bugs/` with frontmatter `status: open` or
+`docs/findings/bugs/` with frontmatter `status: open` or
 `open-low`, attempt to reproduce. Skip `resolved-not-a-bug`,
 `fixed`, `superseded`, `driver-limitation`, and `stub` entries -- those
 are not candidates for replay.
@@ -1139,7 +1139,7 @@ The agent MUST regenerate this list at run-time by globbing the bugs
 directory:
 
 ```text
-Glob: docs/runbooks/findings/bugs/*.md
+Glob: docs/findings/bugs/*.md
 For each file: read frontmatter, keep iff status in {open, open-low}.
 ```
 
@@ -1183,7 +1183,7 @@ flip its status to `fixed`.
 
 ```text
 HRD-R3.<finding-id>  <Title from finding>
-Source            docs/runbooks/findings/bugs/<finding-id>.md
+Source            docs/findings/bugs/<finding-id>.md
 Repro
   <copied verbatim from the finding's Symptom or Repro section>
 Expected if fixed
@@ -1434,7 +1434,7 @@ Cross-link with `[[BUG-NNN]]` syntax to existing tickets.
 | `OBS-N` | Observation worth tracking but not a defect (design question, behavior nuance, driver limit) |
 | `SEED-N` | Test-data / seed gap |
 
-Increment N from the highest existing in `docs/runbooks/findings/bugs/`.
+Increment N from the highest existing in `docs/findings/bugs/`.
 
 ### Per-scenario finding map
 
@@ -1520,7 +1520,7 @@ After a complete run, post a summary message containing:
    the same scenario.
 8. **Template review summary**: how many of the 59 templates passed all
    5 rubric items; how many failed >= 2; link to
-   `docs/runbooks/findings/template-review-<run-date>.md`.
+   `docs/findings/template-review-<run-date>.md`.
 
 Do not commit the test run; the run produces findings, not code.
 
@@ -1570,5 +1570,5 @@ this suite **in the same PR** to keep the test corpus aligned.
   Phase 10.
 - Adding a new auth feature (MFA, SSO, etc.)? Add a Phase 9 scenario.
 
-The findings index at `docs/runbooks/findings/2026-05-13-userflow-findings.md`
+The findings index at `docs/findings/2026-05-13-userflow-findings.md`
 should be rotated quarterly (`YYYY-MM-DD-userflow-findings.md`).
