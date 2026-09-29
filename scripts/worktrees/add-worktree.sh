@@ -111,7 +111,9 @@ ENV
 # dependency's postinstall from executing on a developer machine (shell:S6505)
 # without changing what CI and the Docker build do.
 cd "$TARGET"
-dotnet restore
+# --locked-mode: the tree was just checked out, so its lock files are the committed
+# ones CI already restores in locked mode; a stale one fails here with NU1004.
+dotnet restore --locked-mode
 (cd angular && YARN_ENABLE_SCRIPTS=false yarn install)
 
 cat <<NOTE
