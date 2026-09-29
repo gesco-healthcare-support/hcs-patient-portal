@@ -18,7 +18,7 @@ appointment booking, and surfaced in Angular grouped by location + date with con
 | Contracts | `Application.Contracts/DoctorAvailabilities/` | DTOs + `IDoctorAvailabilitiesAppService` (CRUD, bulk-generate preview, three delete modes) |
 | Application | `Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` | CRUD + preview + three delete modes; `[RemoteService(IsEnabled=false)]` |
 | EF Core | `EntityFrameworkCore/DoctorAvailabilities/EfCoreDoctorAvailabilityRepository.cs` | LEFT JOIN Location + AppointmentType; `filterText` arm is a no-op (`e => true`) |
-| HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 11 routes |
+| HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 15 HTTP routes, counted with `grep -cE "\[Http(Get\|Post\|Put\|Delete\|Patch)" <that file>` |
 | Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | Active facts + 2 Skip gap-encoders (see Gotchas #2/#3) |
 | Angular | `angular/src/app/doctor-availabilities/` | List + detail modal + bulk-generate + abstract/concrete view-services |
 
