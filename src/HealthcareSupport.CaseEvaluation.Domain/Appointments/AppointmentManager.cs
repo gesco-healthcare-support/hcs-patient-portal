@@ -576,8 +576,13 @@ public class AppointmentManager : DomainService
     /// Back landed 2026-06-14 and Phase 4d on 2026-08-05, so it had been wrong for four
     /// months while sitting immediately above the code contradicting it. Corrected
     /// 2026-09-27; if you change a Configure call, change this paragraph with it.</para>
+    ///
+    /// <para>Internal, not private, so <c>AppointmentTransitionSurface</c> in Domain.Tests can
+    /// snapshot the configuration into <c>appointment-transitions.approved.txt</c>. A changed
+    /// Configure call fails that test until the approved file is regenerated in the same pull
+    /// request.</para>
     /// </summary>
-    private static StateMachine<AppointmentStatusType, AppointmentTransitionTrigger> BuildMachine(Appointment appointment)
+    internal static StateMachine<AppointmentStatusType, AppointmentTransitionTrigger> BuildMachine(Appointment appointment)
     {
         var machine = new StateMachine<AppointmentStatusType, AppointmentTransitionTrigger>(
             () => appointment.AppointmentStatus,
