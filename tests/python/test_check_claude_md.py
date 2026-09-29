@@ -197,6 +197,101 @@ class NonEmptyAssertionTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
 
 
+class CountTests(TempRepo):
+    """A count with no command beside it is a claim that ages invisibly.
+
+    Adrian's rule: a number carries the command that produces it, or it is not a
+    number anyone can re-check. This rule was dropped from the first build because
+    an imprecise version cries wolf, and a gate that cries wolf gets skipped --
+    which is the same argument that kept the checker blocking rather than advisory.
+
+    So the bar here is precision, and most of these tests exist to prove it stays
+    QUIET rather than to prove it fires.
+    """
+
+    SRC = {"Widget.cs": "public class Widget { }\n"}
+
+    def doc(self, body):
+        return "# Feature\n\n`Widget` does it.\n\n" + body + "\n"
+
+    def test_a_count_attached_to_a_repo_noun_is_flagged(self):
+        findings = self.check("Feature", self.doc("There are 45 entities in this folder."), self.SRC)
+        self.assertIn("COUNT", kinds(findings))
+        self.assertIn("45 entities", details(findings))
+
+    def test_each_countable_noun_is_recognised(self):
+        for noun in ("files", "tests", "endpoints", "entities", "permissions",
+                     "jobs", "projects", "migrations", "services", "roles"):
+            with self.subTest(noun=noun):
+                findings = self.check(
+                    "Feature", self.doc("We ship 12 %s here." % noun), self.SRC
+                )
+                self.assertIn("COUNT", kinds(findings), noun)
+
+    def test_a_count_with_a_command_on_the_same_line_is_quiet(self):
+        body = "There are 45 entities (`grep -rc IMultiTenant src | wc -l`)."
+        findings = self.check("Feature", self.doc(body), self.SRC)
+        self.assertNotIn("COUNT", kinds(findings))
+
+    def test_a_count_with_a_command_on_a_nearby_line_is_quiet(self):
+        body = "There are 45 entities.\n\nMeasured with:\n\n```bash\ngrep -rc IMultiTenant src\n```"
+        findings = self.check("Feature", self.doc(body), self.SRC)
+        self.assertNotIn("COUNT", kinds(findings))
+
+    def test_the_per_line_opt_out_silences_one_line_only(self):
+        body = (
+            "There are 45 entities. <!-- count-ok: stated by Adrian, not derivable -->\n\n"
+            "There are 12 jobs."
+        )
+        findings = self.check("Feature", self.doc(body), self.SRC)
+        counts = [d for _r, k, d in findings if k == "COUNT"]
+        self.assertEqual(len(counts), 1, counts)
+        self.assertIn("12 jobs", counts[0])
+
+    def test_a_number_not_attached_to_a_countable_noun_is_quiet(self):
+        """Versions, ports, dates, line numbers and prose numbers are not counts."""
+        for body in ("Runs on port 8080.", "ABP 10.0.2 is the version.",
+                     "See `Widget.cs:45` for the guard.", "Added 2026-05-15.",
+                     "Max length is 63 characters.", "Cron is 08:15 PT daily."):
+            with self.subTest(body=body):
+                findings = self.check("Feature", self.doc(body), self.SRC)
+                self.assertNotIn("COUNT", kinds(findings), body)
+
+    def test_a_backticked_FILENAME_does_not_silence_a_count(self):
+        """The defect that made this rule useless on its first run.
+
+        All three real count claims in the repository sit in table rows next to a
+        backticked filename, and an early version read any inline span as "the
+        command backing this count". It was therefore silent on 3 of 3 genuine
+        cases -- worse than absent, because silence reads as a clean result.
+        """
+        body = "| `AppointmentEmployerDetailsAppService.cs` -- 8 methods; mixed auth |"
+        findings = self.check("Feature", self.doc(body), self.SRC)
+        self.assertIn("COUNT", kinds(findings))
+
+    def test_a_backticked_route_or_identifier_does_not_silence_a_count(self):
+        body = "| Manual controller `api/app/doctor-availabilities`, 11 routes |"
+        findings = self.check("Feature", self.doc(body), self.SRC)
+        self.assertIn("COUNT", kinds(findings))
+
+    def test_a_real_command_still_silences_it(self):
+        """The distinction is a command with arguments, not any backticked span."""
+        for command in ("`grep -rc IMultiTenant src | wc -l`",
+                        "`ls docs/decisions/*.md | wc -l`",
+                        "`git grep -c TODO`"):
+            with self.subTest(command=command):
+                findings = self.check(
+                    "Feature", self.doc("There are 45 entities (%s)." % command), self.SRC
+                )
+                self.assertNotIn("COUNT", kinds(findings), command)
+
+    def test_a_count_inside_a_fence_is_quiet(self):
+        """Sample output is not a claim the document is making."""
+        body = "```text\nScanned 49 files, 3 findings\n```"
+        findings = self.check("Feature", self.doc(body), self.SRC)
+        self.assertNotIn("COUNT", kinds(findings))
+
+
 class MainReportingTests(TempRepo):
     """The report itself is code, and a report that cannot be read is a gate nobody uses."""
 

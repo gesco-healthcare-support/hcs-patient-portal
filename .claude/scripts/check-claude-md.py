@@ -104,6 +104,63 @@ BULLET = re.compile(r"^\s*[-*]\s+`?([A-Za-z_]\w*)`?", re.MULTILINE)
 FENCE = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
 METHOD_BODY = re.compile(r"(public|private|protected|internal|function|async)\s+[^\n]*\{", re.MULTILINE)
 
+# Rule 5: a count with no command beside it.
+#
+# A count is self-auditing -- anyone can re-run it, so a wrong one gets caught. Prose
+# reasoning is not, which is why counts were the claims in this repository's documents
+# that went stale most reliably and least visibly.
+#
+# THE DIFFICULTY IS PRECISION, NOT DETECTION. An earlier version was dropped before
+# shipping because it fired on versions, ports, dates and line numbers. A gate that
+# cries wolf gets skipped, which is the same argument that kept this checker blocking
+# rather than advisory. So the noun list is CLOSED and deliberately short: a number
+# counts only when directly attached to something this repository can be asked to
+# enumerate.
+COUNTABLE_NOUNS = (
+    "files", "tests", "endpoints", "entities", "permissions", "jobs", "projects",
+    "migrations", "services", "controllers", "roles", "columns", "tables", "documents",
+    "rules", "handlers", "repositories", "contributors", "methods", "classes",
+    "interfaces", "components", "routes", "advisories", "findings", "seeders",
+)
+COUNT_CLAIM = re.compile(r"\b(\d+)\s+(" + "|".join(COUNTABLE_NOUNS) + r")\b", re.IGNORECASE)
+
+# Per-line opt-out. Visible in the diff, like the "Not documented here" heading, so
+# declining the rule is an edit a reviewer can see rather than silence.
+COUNT_OPT_OUT = re.compile(r"<!--\s*count-ok:", re.IGNORECASE)
+
+# A backticked span on the SAME line silences the count ONLY IF it is a COMMAND.
+#
+# THE DEFECT THIS ENCODES, caught by running the rule over the repository before
+# trusting it. An earlier version treated ANY inline span as the backing command, and
+# all three genuine count claims in this repository sit in table rows beside a backticked
+# FILENAME -- `AppointmentEmployerDetailsAppService.cs` next to "8 methods", and
+# `api/app/doctor-availabilities` next to "11 routes". So it was silent on 3 of 3 real
+# cases, which is worse than not existing: a rule that never fires still reports clean.
+#
+# A filename is not evidence for a count. A command is. The distinction used here is
+# deliberately dumb and therefore predictable: a command has ARGUMENTS (whitespace) and
+# begins with a known tool, or it pipes.
+COMMAND_TOOLS = (
+    "grep", "rg", "ls", "find", "wc", "git", "gh", "python", "python3", "dotnet",
+    "npm", "npx", "yarn", "curl", "awk", "sed", "cat", "sort", "uniq", "head", "tail",
+)
+INLINE_CODE = re.compile(r"`([^`\n]+)`")
+
+
+def looks_like_a_command(span):
+    """True for `grep -rc X src | wc -l`; false for `SomeType.cs` or `api/app/thing`."""
+    stripped = span.strip()
+    if "|" in stripped:
+        return True
+    if " " not in stripped:
+        return False  # a bare identifier, path or route is not evidence
+    first = stripped.split()[0].lstrip("$ ").lower()
+    return first in COMMAND_TOOLS
+
+# A fence within this many lines AFTER the claim also counts as its evidence, because
+# "There are 45 entities.\n\nMeasured with:\n\n```bash" is the shape people write.
+FENCE_LOOKAHEAD = 5
+
 
 def is_skipped(path):
     return any(part in SKIP_DIR_PARTS for part in path.replace("\\", "/").split("/"))
@@ -242,6 +299,52 @@ def opted_out(text):
     return set(BULLET.findall(text[match.end():]))
 
 
+def uncommanded_counts(rel, text):
+    """Counts asserted in prose with no command or generated block backing them.
+
+    Quiet by default. A claim is reported ONLY when all of these hold:
+      - a number is directly attached to a closed-list countable noun,
+      - the line carries no inline code span,
+      - no fence opens within FENCE_LOOKAHEAD lines after it,
+      - the line is not itself inside a fence (sample output is not a claim),
+      - the line carries no explicit opt-out marker.
+    """
+    findings = []
+    lines = text.split("\n")
+
+    # Which lines sit inside a fence, so sample output is never read as a claim.
+    inside = [False] * len(lines)
+    fenced = False
+    for number, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            inside[number] = True
+            continue
+        inside[number] = fenced
+
+    for number, line in enumerate(lines):
+        if inside[number] or COUNT_OPT_OUT.search(line):
+            continue
+        match = COUNT_CLAIM.search(line)
+        if not match:
+            continue
+        if any(looks_like_a_command(span) for span in INLINE_CODE.findall(line)):
+            continue
+        window = lines[number + 1 : number + 1 + FENCE_LOOKAHEAD]
+        if any(following.lstrip().startswith("```") for following in window):
+            continue
+        findings.append(
+            (
+                rel,
+                "COUNT",
+                'line %d asserts "%s %s" with no command beside it; add the command that '
+                "produces it, or opt out with <!-- count-ok: reason -->"
+                % (number + 1, match.group(1), match.group(2)),
+            )
+        )
+    return findings
+
+
 def check(path, root, index):
     folder = os.path.dirname(path)
     rel = os.path.relpath(path, root).replace("\\", "/")
@@ -279,6 +382,9 @@ def check(path, root, index):
                 (rel, "RESTATEMENT", "a %s fence copies a method body; carry WHY, not WHAT" % lang)
             )
             break
+
+    # Rule 5: a count with no command beside it.
+    findings.extend(uncommanded_counts(rel, text))
 
     return findings
 
