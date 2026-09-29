@@ -234,8 +234,9 @@ jobs:
       # entries, and build, tests and git status were all clean.
       #
       # Now it is NU1004 instead: "The package references have changed ... restore
-      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
-      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # can't be run in locked mode". RestoreLockedMode stays FALSE in Directory.Build.props
+      # only so that one host restore can rewrite the lock files; the Docker builds, the
+      # dev containers and new worktrees restore locked too (see that file). The cost is
       # that a dependency change must be followed by
       # `dotnet restore --force-evaluate` and the lock files committed.
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
@@ -2049,8 +2050,9 @@ jobs:
       # entries, and build, tests and git status were all clean.
       #
       # Now it is NU1004 instead: "The package references have changed ... restore
-      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
-      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # can't be run in locked mode". RestoreLockedMode stays FALSE in Directory.Build.props
+      # only so that one host restore can rewrite the lock files; the Docker builds, the
+      # dev containers and new worktrees restore locked too (see that file). The cost is
       # that a dependency change must be followed by
       # `dotnet restore --force-evaluate` and the lock files committed.
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode

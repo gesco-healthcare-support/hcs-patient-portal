@@ -35,9 +35,13 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 
 # Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
 # later RUN would not help -- the layer that created the file still holds it.
+# --locked-mode restores exactly the committed packages.lock.json files, as CI
+# does, so a lock file that has fallen behind a project file fails here with
+# NU1004 instead of building an unrecorded dependency graph. After changing a
+# package: `dotnet restore --force-evaluate`, then commit the lock files.
 RUN --mount=type=secret,id=abp_nuget_key \
     sh /usr/local/bin/write-nuget-config.sh \
- && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; exit $rc; }
 
 # Node + ABP CLI to restore client-side libraries (wwwroot/libs is gitignored).
 #
@@ -102,9 +106,13 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 
 # Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
 # later RUN would not help -- the layer that created the file still holds it.
+# --locked-mode restores exactly the committed packages.lock.json files, as CI
+# does, so a lock file that has fallen behind a project file fails here with
+# NU1004 instead of building an unrecorded dependency graph. After changing a
+# package: `dotnet restore --force-evaluate`, then commit the lock files.
 RUN --mount=type=secret,id=abp_nuget_key \
     sh /usr/local/bin/write-nuget-config.sh \
- && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; exit $rc; }
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \
     -c Debug --no-restore
 
