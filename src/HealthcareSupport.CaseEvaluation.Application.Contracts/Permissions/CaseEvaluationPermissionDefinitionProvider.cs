@@ -284,6 +284,13 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             L("Permission:CaseTrackerIntegration"),
             MultiTenancySides.Host);
 
+        // 2026-09-28 -- the technical consoles (job dashboard, health UI). HOST side: they show and
+        // manage state for every office.
+        administration.AddPermission(
+            CaseEvaluationPermissions.BackgroundJobsDashboard.Default,
+            L("Permission:BackgroundJobsDashboard"),
+            MultiTenancySides.Host);
+
         // Phase E (2026-06-25) -- per-office branding (name + logo). Both sides.
         var brandingPermission = administration.AddPermission(
             CaseEvaluationPermissions.Branding.Default,

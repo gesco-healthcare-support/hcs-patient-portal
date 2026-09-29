@@ -6,6 +6,31 @@ Domain entity, manager, repository interface, and projection wrapper for examina
 locations. Under database-per-office, each office owns its own locations; tenant-scoped
 DoctorAvailabilities and Appointments reference them.
 
+| File | Purpose |
+|---|---|
+| `Location.cs` | Aggregate root. `IMultiTenant`, so each office owns its own rows |
+| `LocationManager.cs` | Create / update over the repository |
+| `ILocationRepository.cs` | Custom repository: nav-prop list and get, joined to `State` and the offered appointment types |
+| `LocationWithNavigationProperties.cs` | Read projection: the `Location` plus its optional `State` and its `List<AppointmentType>` |
+| `LocationAppointmentType.cs` | M2M join (I3, 2026-06-08) -- which appointment types are offered at a clinic location. Composite PK on (LocationId, AppointmentTypeId) |
+| `LocationDataSeedContributor.cs` | Seeds the ONE synthetic clinic of the synthetic TEST office only |
+
+**`LocationAppointmentType` carries no `TenantId`, and that is deliberate** -- unlike
+`DoctorAvailabilityAppointmentType`, which does. It does not need one: both sides of the join are
+themselves `IMultiTenant`, so a row is only reachable through rows already scoped to the office,
+and the composite key is unique inside that office's database.
+
+An earlier version of that class comment justified the absence with "`Location` is not
+IMultiTenant". **That was wrong -- `Location` IS `IMultiTenant`**, and the comment has since been
+corrected in place (`LocationAppointmentType.cs:12-16`). Worth knowing because the same wrong claim
+propagated into several documents before 2026-09-28.
+
+**Seeding is narrower than people expect.** `LocationDataSeedContributor` gives a clinic ONLY to
+the synthetic TEST office, so that office is walkable end to end. **Every other office starts with
+no location at all** -- a real practice adds its own on the Locations page, and a seeded clinic
+there would be a fake address in a real office. Office-scoped and idempotent via a count guard. So
+an empty Locations page in a fresh real office is correct, not a seeding failure.
+
 ## Entity shape
 
 See `Location.cs`. Key fields: `Name` (required, unique per office), `ParkingFee` (required
