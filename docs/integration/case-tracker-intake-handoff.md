@@ -2,7 +2,8 @@
 
 Audience: the engineer/agent building the Case Tracker intake endpoint.
 Author: Appointment Portal side (code-grounded; verified against source + the live deployed server).
-Source of truth: repo `hcs-case-evaluation-portal`, branch `main` @ `100a617c`.
+Source of truth: repo `hcs-patient-portal`. Verified at `main` @ `100a617c` (2026-07-22); `main` has
+moved on a long way since, so re-verify a detail against current code before relying on it.
 Stack: Angular 20 + .NET 10 / C# (ABP Commercial 10.0.2), SQL Server (database-per-office), EF Core, OpenIddict, MinIO, Hangfire.
 Every field below is cited to a real file. Nothing here is invented. Where a fact could not be
 verified, it is labelled explicitly.
@@ -48,7 +49,7 @@ Current portal reality:
 
 - No outbound HTTP client, no integration event bus to an external system, no webhook. (Verified: a
   repo-wide search for outbound integration/HTTP-post/webhook found only the internal email
-  `NotificationOutbox`.)
+  `NotificationOutboxItem`.)
 - There IS a reusable transactional-outbox pattern for email you can mirror for a reliable push
   (outbox row + background drain job + idempotency): `src/HealthcareSupport.CaseEvaluation.Domain/
   Notifications/Outbox/` (`NotificationOutboxItem.cs`, `OutboxDrainJob.cs`, `NotificationOutboxManager.cs`).
@@ -298,7 +299,7 @@ PKCE token (a client must be registered). Budget for this if you pull.
 ## 10. Verification notes
 
 - Field names, types, nullability, formats, enums, lifecycle, events: verified by reading the
-  cited source files on branch `main` @ `100a617c`.
+  cited source files on branch `main` @ `100a617c` (2026-07-22; re-verify against current `main`).
 - MinIO deployed config, bucket, network exposure, and real object-key layout: verified live on the
   portal server (`appoint-portal`, LAN 192.168.101.37) by inspecting container env and MinIO's
   on-disk tree. No file contents were opened; GUIDs are genericized here.
