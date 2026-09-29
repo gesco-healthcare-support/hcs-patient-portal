@@ -32,6 +32,9 @@ docker-compose*.yaml text eol=lf
 # Windows and pass in CI -- for a reason that looks nothing like its cause. The
 # companion assertion is Approved_snapshot_is_stored_with_lf_endings.
 **/authorization-surface.approved.txt text eol=lf
+**/appointment-transitions.approved.txt text eol=lf
+**/tenancy-surface.approved.txt text eol=lf
+**/role-permission-surface.approved.txt text eol=lf
 **/repository-counts.approved.txt text eol=lf
 
 # Yarn Berry release binary: generated + large; mark binary + vendored so it is

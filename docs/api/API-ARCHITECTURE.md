@@ -161,6 +161,10 @@ sequenceDiagram
 
 ### Controller Layer Component Diagram
 
+A selection, not the full set. List every controller with
+`git ls-files 'src/*Controller.cs'`; the Case Tracker integration controllers live separately, in
+`src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Controllers/Integration/`.
+
 ```mermaid
 graph TD
     subgraph "HttpApi Controllers Layer"
