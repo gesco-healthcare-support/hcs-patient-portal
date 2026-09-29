@@ -84,5 +84,5 @@ is for the IT Admin UI only.
 ## Related
 
 - `docs/design/it-admin-notification-templates-design.md`
-- `docs/runbooks/findings/template-review-2026-05-21.md`
-- `docs/runbooks/findings/bugs/OBS-36-23-stub-templates-pending-parity.md`
+- `docs/findings/template-review-2026-05-21.md`
+- `docs/findings/bugs/OBS-36-23-stub-templates-pending-parity.md`

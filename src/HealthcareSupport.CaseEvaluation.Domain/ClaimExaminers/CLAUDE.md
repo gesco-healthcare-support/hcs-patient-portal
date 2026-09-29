@@ -40,7 +40,7 @@ CE is free-text, not the master FK).
 ### Multi-tenancy
 
 `IMultiTenant: yes`. DbContext config exists in BOTH `CaseEvaluationDbContext` and
-`CaseEvaluationTenantDbContext`. `StateId` FK points to the host-scoped `State` entity.
+`CaseEvaluationTenantDbContext`. `StateId` FK points to the office's own `State` entity (per-office, `IMultiTenant`).
 
 ## Gotchas
 

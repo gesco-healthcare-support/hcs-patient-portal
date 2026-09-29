@@ -11,6 +11,7 @@ using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Volo.Saas.Tenants;
 
@@ -24,16 +25,22 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
     private readonly IEnumerable<ICaseEvaluationDbSchemaMigrator> _dbSchemaMigrators;
     private readonly ITenantRepository _tenantRepository;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IAdminPasswordStore _adminPasswordStore;
+    private readonly AdminPasswordRotator _adminPasswordRotator;
 
     public CaseEvaluationDbMigrationService(
         IDataSeeder dataSeeder,
         ITenantRepository tenantRepository,
         ICurrentTenant currentTenant,
+        IAdminPasswordStore adminPasswordStore,
+        AdminPasswordRotator adminPasswordRotator,
         IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators)
     {
         _dataSeeder = dataSeeder;
         _tenantRepository = tenantRepository;
         _currentTenant = currentTenant;
+        _adminPasswordStore = adminPasswordStore;
+        _adminPasswordRotator = adminPasswordRotator;
         _dbSchemaMigrators = dbSchemaMigrators;
 
         Logger = NullLogger<CaseEvaluationDbMigrationService>.Instance;
@@ -108,16 +115,27 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
 
         // Per-office admin email comes from the office seed config (Falkinstein + the
         // other offices); the host pass + any unconfigured tenant fall back to the default.
-        // Password stays the shared dev default (force-reset on first login is set by the
-        // user seeders).
         var adminEmail = Saas.OfficeSeedData.FindByTenantName(tenant?.Name)?.AdminEmail
             ?? CaseEvaluationConsts.AdminEmailDefaultValue;
 
+        // B12: the password comes from the configured store, which generates one per database on
+        // first use and returns the stored value ever after. In Development the store is the
+        // published-default one, so a local clone still seeds the documented credentials and
+        // nothing about local work changes. There is deliberately no isDevelopment branch HERE --
+        // the branch lives in the store selection, so adding a fifth seeding site cannot forget it.
+        var adminPassword = await _adminPasswordStore.GetOrCreateAsync(tenant?.Id);
+
         await _dataSeeder.SeedAsync(new DataSeedContext(tenant?.Id)
             .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail)
-            .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName,
-                CaseEvaluationConsts.AdminPasswordDefaultValue)
+            .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword)
         );
+
+        // B12 decision D1. Seeding only helps a database created after this change: ABP's seeder
+        // creates the admin ONLY when no admin exists, so every database that already exists keeps
+        // whatever it was first seeded with -- which, until now, was a password published in the
+        // framework source and in this public repository. This is the step that moves those onto a
+        // generated one, and it is why no manual pass over the existing server is needed.
+        await _adminPasswordRotator.RotateIfOnAKnownDefaultAsync(tenant?.Id, scope);
     }
 
     private bool AddInitialMigrationIfNotExist()
