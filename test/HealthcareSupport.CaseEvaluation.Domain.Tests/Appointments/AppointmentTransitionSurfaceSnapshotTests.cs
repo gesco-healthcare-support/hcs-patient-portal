@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
+using HealthcareSupport.CaseEvaluation.Snapshots;
 using Shouldly;
 using Xunit;
 
@@ -13,9 +12,9 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// The approved appointment-transition snapshot.
 ///
 /// Renders every transition declared by AppointmentManager.BuildMachine and compares it with
-/// a committed file. Any difference fails until a human regenerates the committed file IN THE
-/// SAME PULL REQUEST, so every change to the lifecycle appears in a diff and has to be
-/// consciously accepted. Mirrors AuthorizationSurfaceSnapshotTests in Application.Tests.
+/// a committed file through the shared <see cref="ApprovedSnapshot"/> gate. Any difference fails
+/// until a human regenerates the committed file IN THE SAME PULL REQUEST, so every change to the
+/// lifecycle appears in a diff and has to be consciously accepted.
 ///
 /// It proves the DECLARATION has not changed silently. It does not prove any transition is
 /// reachable or correctly gated; see the <see cref="AppointmentTransitionSurface"/> docstring.
@@ -23,32 +22,19 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public sealed class AppointmentTransitionSurfaceSnapshotTests
 {
     private const string ApprovedFileName = "appointment-transitions.approved.txt";
-    private const string ReceivedFileName = "appointment-transitions.received.txt";
+
+    private static readonly ApprovedSnapshotWording Wording = new(
+        Headline: "The appointment transitions changed. Update docs/business-domain/APPOINTMENT-LIFECYCLE.md to match.",
+        IssueReference: null,
+        RemovedMeaning: "a transition, status or trigger was removed, renamed or renumbered");
 
     [Fact]
     public void Appointment_transitions_match_the_approved_snapshot()
     {
-        var actual = AppointmentTransitionSurface.Render();
-
-        var approvedPath = Path.Combine(ThisDirectory(), ApprovedFileName);
-        if (!File.Exists(approvedPath))
-        {
-            WriteReceived(actual);
-            throw new ShouldAssertException(
-                $"The approved snapshot is missing at {approvedPath}. It is the gate; without it " +
-                "there is nothing to compare against. The current rendering was written to " +
-                ReceivedFileName + " beside it for review.");
-        }
-
-        // Read without newline translation, so a file committed with CRLF fails loudly here
-        // rather than comparing equal on Windows and unequal in CI.
-        var approved = File.ReadAllText(approvedPath, Encoding.UTF8);
-
-        if (!string.Equals(approved, actual, StringComparison.Ordinal))
-        {
-            var receivedPath = WriteReceived(actual);
-            throw new ShouldAssertException(BuildFailureMessage(approved, actual, approvedPath, receivedPath));
-        }
+        ApprovedSnapshot.AssertMatches(
+            AppointmentTransitionSurface.Render(),
+            Path.Combine(ThisDirectory(), ApprovedFileName),
+            Wording);
     }
 
     /// <summary>
@@ -97,49 +83,9 @@ public sealed class AppointmentTransitionSurfaceSnapshotTests
             "pins it to eol=lf.");
     }
 
-    private static string WriteReceived(string actual)
-    {
-        var receivedPath = Path.Combine(ThisDirectory(), ReceivedFileName);
-        File.WriteAllText(receivedPath, actual, new UTF8Encoding(false));
-        return receivedPath;
-    }
-
-    private static string BuildFailureMessage(string approved, string actual, string approvedPath, string receivedPath)
-    {
-        var approvedLines = approved.Split('\n');
-        var actualLines = actual.Split('\n');
-        var approvedSet = new HashSet<string>(approvedLines, StringComparer.Ordinal);
-        var actualSet = new HashSet<string>(actualLines, StringComparer.Ordinal);
-
-        var removed = new StringBuilder();
-        foreach (var line in approvedLines.Where(l => l.Length > 0 && !actualSet.Contains(l)))
-        {
-            removed.Append("  - ").Append(line).Append('\n');
-        }
-
-        var added = new StringBuilder();
-        foreach (var line in actualLines.Where(l => l.Length > 0 && !approvedSet.Contains(l)))
-        {
-            added.Append("  + ").Append(line).Append('\n');
-        }
-
-        return
-            "The appointment transitions changed.\n\n" +
-            "This is not necessarily a bug -- it is the gate asking you to confirm the change was\n" +
-            "intended. Read the lines below. If every one is a change you meant to make, copy the\n" +
-            "received file over the approved file and commit it IN THIS SAME PULL REQUEST, and\n" +
-            "update docs/business-domain/APPOINTMENT-LIFECYCLE.md to match:\n\n" +
-            $"  cp \"{receivedPath}\" \"{approvedPath}\"\n\n" +
-            "Gone from the approved surface:\n" +
-            (removed.Length == 0 ? "  (none)\n" : removed.ToString()) +
-            "\nNew in the actual surface:\n" +
-            (added.Length == 0 ? "  (none)\n" : added.ToString());
-    }
-
     /// <summary>
-    /// The directory holding this source file, resolved at compile time, so a developer
-    /// updating the snapshot is pointed at the file they must commit rather than at a build
-    /// artefact.
+    /// The directory holding this source file, resolved at compile time, so the path handed to the
+    /// gate is the approved file a developer must commit rather than a build artefact.
     /// </summary>
     private static string ThisDirectory([CallerFilePath] string path = "")
     {
