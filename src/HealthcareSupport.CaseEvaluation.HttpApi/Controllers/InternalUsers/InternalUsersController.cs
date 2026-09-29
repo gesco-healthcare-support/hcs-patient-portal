@@ -64,16 +64,11 @@ public class InternalUsersController : AbpController
     }
 
     /// <summary>
-    /// Returns the active tenants for the form's tenant-picker
-    /// dropdown. <c>AllowAnonymous</c> on the AppService method is
-    /// intentional: the SPA route guard + the class-level
-    /// <c>[Authorize]</c> on the AppService already require an
-    /// authenticated IT Admin; this endpoint only ships tenant names
-    /// (no PHI / no internal data) so widening the gate keeps the
-    /// dropdown populating reliably even before the OAuth dance
-    /// completes.
+    /// Returns the active offices for the internal-users form's office picker and the internal
+    /// shell's office switcher. Requires a signed-in caller here, and
+    /// <c>CaseEvaluation.InternalUsers</c> at the app service; the office list is not public.
     /// </summary>
-    [AllowAnonymous]
+    [Authorize]
     [HttpGet]
     [Route("tenants")]
     public virtual Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(
