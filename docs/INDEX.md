@@ -12,7 +12,7 @@ Angular 20, and ABP Commercial. Per-layer and per-feature guidance lives in `CLA
 | Frontend          | Angular (standalone components)  | 20                   |
 | Database          | SQL Server (EF Core, code-first) | LocalDB / Docker     |
 | Auth              | OpenIddict (OAuth 2.0 / OIDC)    | --                   |
-| UI theme          | LeptonX (side-menu layout)       | 5.x                  |
+| UI theme          | LeptonX (AuthServer pages; the SPA draws its own shell) | 5.x |
 | Object mapping    | Riok.Mapperly                    | --                   |
 | Background jobs   | Hangfire                         | --                   |
 | Logging           | Serilog                          | --                   |
@@ -23,8 +23,9 @@ flowchart TB
     Angular -->|"OAuth2 (code + PKCE)"| Auth["AuthServer / OpenIddict (44368)"]
     API -->|"validate JWT"| Auth
     API --> SQL["SQL Server"]
-    API -.->|optional| Redis["Redis"]
+    API --> Redis["Redis (cache, DataProtection keys, locks)"]
     Auth --> SQL
+    Auth --> Redis
     Migrator["DbMigrator (one-shot)"] -->|"migrate + seed"| SQL
 ```
 
@@ -78,17 +79,17 @@ flowchart TB
 
 ## Frontend
 
-- [Angular Architecture](frontend/ANGULAR-ARCHITECTURE.md) -- standalone components, providers, LeptonX
-- [Component Patterns](frontend/COMPONENT-PATTERNS.md) -- abstract/concrete ABP Suite pattern + custom components
-- [Routing & Navigation](frontend/ROUTING-AND-NAVIGATION.md) -- route tree, guards, menu registration
-- [Appointment Booking Flow](frontend/APPOINTMENT-BOOKING-FLOW.md) -- the multi-section booking form
-- [Role-Based UI](frontend/ROLE-BASED-UI.md) -- external vs internal layout, role detection
+- [Angular Architecture](frontend/ANGULAR-ARCHITECTURE.md) -- bootstrap, providers, feature directories
+- [Component Patterns](frontend/COMPONENT-PATTERNS.md) -- custom standalone components, and the one remaining ABP Suite pair
+- [Routing & Navigation](frontend/ROUTING-AND-NAVIGATION.md) -- route table, guards, the staff sidebar, and where a route's permission comes from
+- [Appointment Booking Flow](frontend/APPOINTMENT-BOOKING-FLOW.md) -- the stepped booking wizard and its single submit call
+- [Role-Based UI](frontend/ROLE-BASED-UI.md) -- how the router gives external users and staff different pages
 
 ## Business domain
 
 - [Domain Overview](business-domain/DOMAIN-OVERVIEW.md) -- workers'-comp IME scheduling explained
 - [Appointment Lifecycle](business-domain/APPOINTMENT-LIFECYCLE.md) -- status state machine
-- [Doctor Availability](business-domain/DOCTOR-AVAILABILITY.md) -- slot generation + capacity booking
+- [Doctor Availability](business-domain/DOCTOR-AVAILABILITY.md) -- slots, the capacity rule, bulk generation
 - [User Roles & Actors](business-domain/USER-ROLES-AND-ACTORS.md) -- all roles and capabilities
 
 ## Security
@@ -148,7 +149,7 @@ it before the research below.
 - [System Architecture Baseline](architecture/SYSTEM-ARCHITECTURE-BASELINE.md) -- what the system
   is, measured rather than remembered
 - [Runtime and Data Profile](devops/RUNTIME-AND-DATA-PROFILE.md) -- real sizes, volumes and
-  runtime shape
+  runtime shape, measured on 2026-08-28 (a dated snapshot)
 - [CI Tests and Checks](devops/CI-TESTS-AND-CHECKS.md) -- what the pipeline actually enforces
 - [Code Standard Research](research/code-standard-2026-08-28/) -- exercise 1 (complete): gap
   analysis, [remediation plan](research/code-standard-2026-08-28/remediation-plan.md), and the
@@ -174,4 +175,4 @@ requirements to score against.
   production-readiness exercises linked above
 - [Engineering Roadmap](status-reports/ENGINEERING-ROADMAP.md) -- historical snapshot from
   2026-05-18, kept for the documents that cite it; not current status
-- Active plans live in `plans/` (e.g. docker lean images, SSN-at-rest encryption deferred)
+- Plans are working files and are not committed: `plans/` is gitignored and holds only a `.gitkeep`
