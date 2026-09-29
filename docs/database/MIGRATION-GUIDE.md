@@ -6,7 +6,7 @@
 
 ## Overview
 
-The HCS Case Evaluation Portal uses EF Core's code-first migrations with a **dual migration folder** strategy to support ABP's multi-tenancy model. Host and tenant databases have separate migration tracks, each tied to their respective DbContext.
+The Appointment Portal uses EF Core's code-first migrations with a **dual migration folder** strategy to support ABP's multi-tenancy model. Host and tenant databases have separate migration tracks, each tied to their respective DbContext.
 
 ---
 

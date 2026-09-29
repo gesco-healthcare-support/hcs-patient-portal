@@ -1,10 +1,10 @@
 [Home](INDEX.md) > Glossary
 
-# HCS Case Evaluation Portal Glossary
+# Appointment Portal Glossary
 
 > Purpose: Define all business, technical, and ABP terms used across the portal. Audience: all contributors.
 
-A comprehensive glossary of terms used throughout the HCS Case Evaluation Portal, a healthcare workers' compensation IME scheduling application built with .NET 10, Angular 20, and ABP Framework.
+A comprehensive glossary of terms used throughout the Appointment Portal, a healthcare workers' compensation IME scheduling application built with .NET 10, Angular 20, and ABP Framework.
 
 ---
 
@@ -18,7 +18,7 @@ A comprehensive glossary of terms used throughout the HCS Case Evaluation Portal
 | **WCAB (Workers' Compensation Appeals Board)** | The California state judicial body that adjudicates disputes in workers' compensation cases. The WCAB oversees hearings and appeals related to benefits, treatment, and disability ratings. The portal tracks WCAB office locations associated with cases. |
 | **Panel Number** | The number of the state-issued QME panel. The portal requires it for a Panel QME appointment and refuses it for every other appointment type (`AppointmentManager.EnsurePanelNumberMatchesType`). |
 | **Confirmation Number** | An auto-generated appointment identifier in the format `A00001` (letter "A" followed by a zero-padded sequential number). This number is provided to all parties (attorneys, applicants, claim examiners) as the primary reference for locating and managing a specific appointment. |
-| **Case Evaluation** | The overall examination process encompassing the scheduling, execution, and documentation of an independent medical examination. A case evaluation includes the appointment booking, the medical examination itself, and any associated administrative tasks such as record review and report generation. |
+| **CaseEvaluation** (code name) | The name the code was given when the project was created. The solution (`HealthcareSupport.CaseEvaluation.slnx`), every project under `src/` and `test/`, and the `HealthcareSupport.CaseEvaluation.*` namespaces carry it. It is not a business term and names no process; the product is the Appointment Portal. |
 | **Applicant Attorney** | The attorney representing the injured worker (applicant) in a workers' compensation claim. The applicant attorney advocates for the worker's benefits and participates in scheduling evaluations, selecting AMEs, or requesting QME panels. The portal stores applicant attorney contact details and firm information linked to appointments. |
 | **Defense Attorney** | The attorney representing the employer or insurance carrier in a workers' compensation claim. The defense attorney works to manage the employer's liability exposure and participates in evaluation scheduling, AME selection, and dispute resolution before the WCAB. |
 | **Claim Examiner** | The insurance company representative (also called a claims adjuster) responsible for managing a workers' compensation claim. The claim examiner authorizes medical evaluations, coordinates with attorneys, and makes benefit determinations. They are often the party that initiates an IME request. |
