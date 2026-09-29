@@ -36,7 +36,18 @@ import { PREFILL_SECTIONS } from '../shared/prefill-sections';
  * <p>Names, offices and confirmation numbers below are synthetic.</p>
  */
 describe('AppointmentWizardComponent shell', () => {
+  /** The key earlier builds autosaved the whole form under. The wizard neither writes nor reads it. */
   const DRAFT_KEY = 'ra-wizard-draft';
+
+  /** What an earlier build left on a shared computer. Every identifier in it is synthetic. */
+  const LEFT_BY_AN_EARLIER_USER = JSON.stringify({
+    v: {
+      firstName: 'Testpatient',
+      socialSecurityNumber: '000-12-3456',
+      employerName: 'Acme Manufacturing',
+    },
+    step: 2,
+  });
 
   /** Index into the wizard's STEPS array, which is fixed at nine. */
   const STEP = {
@@ -64,9 +75,6 @@ describe('AppointmentWizardComponent shell', () => {
   interface Probe {
     [key: string]: any;
   }
-
-  /** Every wizard create() has built in the current test. afterEach destroys them. */
-  let built: Probe[] = [];
 
   /** Shape-correct responses per endpoint -- several callers index `.items` directly. */
   function restFor(url: string): Observable<unknown> {
@@ -200,19 +208,12 @@ describe('AppointmentWizardComponent shell', () => {
     const wizard = TestBed.runInInjectionContext(
       () => new AppointmentWizardComponent(),
     ) as unknown as Probe;
-    built.push(wizard);
     return wizard;
   }
 
   beforeEach(() => localStorage.removeItem(DRAFT_KEY));
 
   afterEach(() => {
-    // Built with `new`, so nothing destroys these for us. A wizard left alive keeps its 600ms
-    // autosave subscription, and a form change in one test then fires saveDraft on a REAL timer
-    // inside a LATER one -- which is how #965's line came to be covered by timing rather than by
-    // an assertion. Destroy first, so no leaked write can land after the key is cleared below.
-    built.forEach((wizard) => wizard.ngOnDestroy());
-    built = [];
     localStorage.removeItem(DRAFT_KEY);
     TestBed.resetTestingModule();
   });
@@ -790,30 +791,29 @@ describe('AppointmentWizardComponent shell', () => {
       expect(c.current).toBe(0);
     });
 
-    it('falls back to the local cache when there is no server draft', () => {
-      localStorage.setItem(DRAFT_KEY, '{"v":{"employerName":"Acme Manufacturing"},"step":2}');
+    it('does not restore a booking an earlier user left in browser storage', () => {
+      localStorage.setItem(DRAFT_KEY, LEFT_BY_AN_EARLIER_USER);
       const c = create({ draft: null });
 
       c.ngOnInit();
 
-      expect(c.form.get('employerName')?.value).toBe('Acme Manufacturing');
-      expect(c.current).toBe(2);
+      expect(c.form.get('employerName')?.value).toBeNull();
+      expect(c.form.get('firstName')?.value).not.toBe('Testpatient');
+      expect(c.form.get('socialSecurityNumber')?.value).not.toBe('000-12-3456');
+      expect(c.current).toBe(0);
     });
 
-    it('falls back to the local cache when the server lookup fails', () => {
-      // A draft service outage must not cost the booker the work already typed.
-      localStorage.setItem(DRAFT_KEY, '{"v":{"employerName":"Acme Manufacturing"},"step":1}');
+    it('starts from an empty form when the server draft cannot be read', () => {
+      // This used to fall back to browser storage, which is where an earlier user's booking
+      // was left. Nothing the booker checkpointed is lost: the server draft still holds it and
+      // is offered on the next open. What they do not get is anyone else's.
+      localStorage.setItem(DRAFT_KEY, LEFT_BY_AN_EARLIER_USER);
       const c = create({ draftThrows: true });
 
-      c.ngOnInit();
-
-      expect(c.form.get('employerName')?.value).toBe('Acme Manufacturing');
-    });
-
-    it('ignores a corrupt local cache rather than failing to open', () => {
-      localStorage.setItem(DRAFT_KEY, 'not json at all');
-      const c = create({ draft: null });
       expect(() => c.ngOnInit()).not.toThrow();
+
+      expect(c.form.get('employerName')?.value).toBeNull();
+      expect(c.form.get('firstName')?.value).not.toBe('Testpatient');
       expect(c.current).toBe(0);
     });
 
@@ -826,18 +826,6 @@ describe('AppointmentWizardComponent shell', () => {
       const c = create();
       c.applyDraftPayload(undefined);
       expect(c.current).toBe(0);
-    });
-
-    it('writes the local cache on autosave', () => {
-      const c = create();
-      c.current = 4;
-      c.form.get('employerName')?.setValue('Acme Manufacturing');
-
-      c.saveDraft();
-
-      const cached = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? '{}');
-      expect(cached.step).toBe(4);
-      expect(cached.v.employerName).toBe('Acme Manufacturing');
     });
 
     it('checkpoints to the server with a non-PHI label', () => {
@@ -884,14 +872,12 @@ describe('AppointmentWizardComponent shell', () => {
       expect(c.draftState).toBe('idle');
     });
 
-    it('clears both stores on discard', () => {
+    it('discards the server draft', () => {
       const c = create();
-      localStorage.setItem(DRAFT_KEY, '{"v":{},"step":1}');
 
       c.discardServerDraft();
 
       expect(draftService.discardMine).toHaveBeenCalled();
-      expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
       expect(c.draftState).toBe('idle');
     });
 
@@ -902,68 +888,57 @@ describe('AppointmentWizardComponent shell', () => {
     });
 
     /**
-     * #965. The debounced autosave -- the `debounceTime(600)` subscription ngOnInit registers --
-     * used to be reached only by the two attorney-prefill tests below, whose form patch left a REAL
-     * 600ms timer running after they finished. Whether the line counted as covered depended on
-     * wall-clock timing. These drive the debounce on a fake clock, so it is covered by assertion.
+     * The form carries the patient's SSN, date of birth, name and address. Browser storage is
+     * tied to the browser, not to the signed-in user, and outlives sign-out, so none of it may
+     * be written there. These look at what is actually stored afterwards, under ANY key and in
+     * both stores, rather than at whether some write or clear was called.
      */
-    describe('debounced autosave (#965)', () => {
-      /** What autosave has written to the local cache, or null if it has written nothing. */
-      function cached(): { v: { employerName?: string } } | null {
-        const raw = localStorage.getItem(DRAFT_KEY);
-        return raw === null ? null : JSON.parse(raw);
+    describe('nothing about the booking reaches browser storage', () => {
+      /** Every key and value in both browser stores. */
+      function everythingStored(): string {
+        const entries: string[] = [];
+        for (const store of [localStorage, sessionStorage]) {
+          for (let i = 0; i < store.length; i++) {
+            const key = store.key(i);
+            if (key !== null) {
+              entries.push(`${key}=${store.getItem(key)}`);
+            }
+          }
+        }
+        return entries.join('\n');
       }
 
-      it('writes the local cache once the booker has paused for 600ms, and not before', fakeAsync(() => {
+      it('keeps the typed SSN, date of birth and name out of it, however long the booker pauses', fakeAsync(() => {
         const c = create();
         c.ngOnInit();
+        c.form.get('firstName')?.setValue('Testpatient');
+        c.form.get('dateOfBirth')?.setValue('1980-01-01');
+        c.form.get('socialSecurityNumber')?.setValue('000-12-3456');
         c.form.get('employerName')?.setValue('Acme Manufacturing');
 
-        tick(599);
-        expect(cached()).toBeNull();
+        // Earlier builds wrote the whole form 600ms after the last change.
+        tick(60_000);
 
-        tick(1);
-        expect(cached()?.v.employerName).toBe('Acme Manufacturing');
+        const stored = everythingStored();
+        expect(stored).not.toContain('000-12-3456');
+        expect(stored).not.toContain('1980-01-01');
+        expect(stored).not.toContain('Testpatient');
+        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
       }));
 
-      it('restarts the wait on every change, so a burst of typing is written only after the last one', fakeAsync(() => {
+      it('keeps the whole form in the per-user server draft, which is where resume comes from', () => {
+        // The server draft is behind sign-in, belongs to one user, and is purged after 30
+        // days untouched (DraftCleanupJob), so it may hold what browser storage may not.
         const c = create();
-        c.ngOnInit();
-        c.form.get('employerName')?.setValue('Acme');
-        tick(400);
-        c.form.get('employerName')?.setValue('Acme Manufacturing');
+        c.draftEnabled = true;
+        c.form.get('socialSecurityNumber')?.setValue('000-12-3456');
 
-        // 999ms after the FIRST change. A throttle or an audit window would have written by now;
-        // a debounce restarts its wait on every change, so it has not.
-        tick(599);
-        expect(cached()).toBeNull();
+        c.persistServerDraft();
 
-        tick(1);
-        expect(cached()?.v.employerName).toBe('Acme Manufacturing');
-      }));
-
-      it('does not autosave a re-evaluation, whose prefill a stale cache would collide with', fakeAsync(() => {
-        // The reason is the 2026-06-22 decision recorded above draftEnabled in ngOnInit. The
-        // window test is this one's positive control: the same steps in 'new' mode DO write.
-        const c = create({ queryParams: { type: '2' } });
-        c.ngOnInit();
-        c.form.get('employerName')?.setValue('Acme Manufacturing');
-
-        tick(600);
-
-        expect(cached()).toBeNull();
-      }));
-
-      it('stops autosaving once the wizard is destroyed', fakeAsync(() => {
-        const c = create();
-        c.ngOnInit();
-        c.ngOnDestroy();
-        c.form.get('employerName')?.setValue('Acme Manufacturing');
-
-        tick(600);
-
-        expect(cached()).toBeNull();
-      }));
+        const payload = JSON.parse(draftService.upsert.calls.mostRecent().args[0].payloadJson);
+        expect(payload.v.socialSecurityNumber).toBe('000-12-3456');
+        expect(everythingStored()).not.toContain('000-12-3456');
+      });
     });
   });
 
@@ -1074,13 +1049,6 @@ describe('AppointmentWizardComponent shell', () => {
       c.ngOnInit();
       expect(c.firmName).toBe('Hopper & Co');
       expect(c.navDisplayName).toBeTruthy();
-    });
-
-    it('unsubscribes the autosave stream on destroy', () => {
-      const c = create();
-      c.ngOnInit();
-      c.ngOnDestroy();
-      expect(c.draftSub.closed).toBeTrue();
     });
   });
 
