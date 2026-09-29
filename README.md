@@ -217,13 +217,13 @@ hcs-case-evaluation-portal/
 │   ├── HealthcareSupport.CaseEvaluation.HttpApi.Host  (:44327)
 │   ├── HealthcareSupport.CaseEvaluation.AuthServer    (:44368)
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
-├── test/                                      4 test projects (xUnit)
+├── test/                                      5 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
 ├── docs/                                      documentation; start at docs/INDEX.md
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
-├── docker-compose.yml                         6-service local stack
+├── docker-compose.yml                         9-service local stack
 ├── HealthcareSupport.CaseEvaluation.slnx      Solution file (.slnx format)
 ├── CONTRIBUTING.md                            Contribution workflow
 ├── SECURITY.md                                Security policy, HIPAA scope

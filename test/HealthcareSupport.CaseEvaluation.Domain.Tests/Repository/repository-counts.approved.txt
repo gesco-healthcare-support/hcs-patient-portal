@@ -1,0 +1,38 @@
+src project: HealthcareSupport.CaseEvaluation.Application
+src project: HealthcareSupport.CaseEvaluation.Application.Contracts
+src project: HealthcareSupport.CaseEvaluation.AuthServer
+src project: HealthcareSupport.CaseEvaluation.DbMigrator
+src project: HealthcareSupport.CaseEvaluation.Domain
+src project: HealthcareSupport.CaseEvaluation.Domain.Shared
+src project: HealthcareSupport.CaseEvaluation.EntityFrameworkCore
+src project: HealthcareSupport.CaseEvaluation.HttpApi
+src project: HealthcareSupport.CaseEvaluation.HttpApi.Client
+src project: HealthcareSupport.CaseEvaluation.HttpApi.Host
+src projects: 10
+test project: HealthcareSupport.CaseEvaluation.Application.Tests
+test project: HealthcareSupport.CaseEvaluation.Domain.Tests
+test project: HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests
+test project: HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp
+test project: HealthcareSupport.CaseEvaluation.TestBase
+test projects: 5
+compose service (docker-compose.yml): angular
+compose service (docker-compose.yml): api
+compose service (docker-compose.yml): authserver
+compose service (docker-compose.yml): db-migrator
+compose service (docker-compose.yml): minio
+compose service (docker-compose.yml): minio-init
+compose service (docker-compose.yml): packet-renderer
+compose service (docker-compose.yml): redis
+compose service (docker-compose.yml): sql-server
+compose services (docker-compose.yml): 9
+compose service (docker-compose.prod.yml): angular
+compose service (docker-compose.prod.yml): api
+compose service (docker-compose.prod.yml): authserver
+compose service (docker-compose.prod.yml): db-migrator
+compose service (docker-compose.prod.yml): minio
+compose service (docker-compose.prod.yml): minio-init
+compose service (docker-compose.prod.yml): packet-renderer
+compose service (docker-compose.prod.yml): redis
+compose service (docker-compose.prod.yml): reverse-proxy
+compose service (docker-compose.prod.yml): sql-server
+compose services (docker-compose.prod.yml): 10
