@@ -19,6 +19,10 @@
 #   feedback-research/**,     cites identifiers inside them, but they are not documentation
 #   research/**               and publishing them would present them as such.
 #   superpowers/**            tooling scaffolding, not product documentation.
+#   security/THREAT-MODEL.md,
+#   security/SESSION-KEY-ENCRYPTION.md
+#                             working security notes. Kept in the repo for engineers, not
+#                             published.
 #
 # Dates on each page come from git (see the git-revision-date-localized plugin), NOT from a
 # hand-written marker. 39 hand-written "Last verified" markers were removed on 2026-09-28
@@ -86,6 +90,8 @@ exclude_docs: |
   feedback-research/*
   research/*
   superpowers/*
+  security/THREAT-MODEL.md
+  security/SESSION-KEY-ENCRYPTION.md
 
 # Built and reachable by direct link, but deliberately NOT surfaced in the navigation.
 #
@@ -112,7 +118,6 @@ not_in_nav: |
   status-reports/*
   repo-map/*
   testing/*
-  security/THREAT-MODEL.md
   appointment-required-fields.md
 
 nav:
