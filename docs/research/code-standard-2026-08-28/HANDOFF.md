@@ -14,7 +14,7 @@
 > 0 of `remediation-plan.md`. Summary: the flaky-test drift theory and the `target-branch`
 > Dependabot diagnosis are **refuted**; CodeQL IS running; remediation items 12 and 14 are **false
 > positives**; item 13 is mostly already done; item 8's test jobs already exist. A new
-> launch-blocking item 0 was added (the Hangfire dashboard authorises everyone). **Revised
+> launch-blocking item 0 was added; it is tracked privately by the maintainers. **Revised
 > launch-blocking total: ~135 h, not 141**, and the 40 h/month capacity assumption originated in the
 > brief rather than from a stated allocation.
 
