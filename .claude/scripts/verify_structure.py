@@ -30,7 +30,7 @@ CLAUDE_MD = "CLAUDE.md"
 
 REQUIRED_FILES = [
     CLAUDE_MD,
-    "docs/INDEX.md",
+    "docs/index.md",
     "docs/repo-map/index.json",
     "docs/repo-map/map.md",
     "docs/repo-map/README.md",

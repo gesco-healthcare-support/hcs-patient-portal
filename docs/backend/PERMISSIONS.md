@@ -2,7 +2,7 @@
 
 > Purpose: Reference for all permission constants, group structure, and role assignments. Audience: Backend and frontend developers.
 
-[Home](../INDEX.md) > [Backend](./) > Permissions
+[Home](../index.md) > [Backend](./) > Permissions
 
 ---
 

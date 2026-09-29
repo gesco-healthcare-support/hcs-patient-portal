@@ -2,7 +2,7 @@
 
 > Purpose: Reference for adding and applying EF Core migrations in the dual-context (host/tenant) setup. Audience: Backend developers.
 
-[Home](../INDEX.md) > [Database](./) > Migration Guide
+[Home](../index.md) > [Database](./) > Migration Guide
 
 ## Overview
 

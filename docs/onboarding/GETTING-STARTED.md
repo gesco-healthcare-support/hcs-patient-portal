@@ -2,7 +2,7 @@
 
 > Purpose: Walk a new developer from fresh clone to a running application. Audience: engineers joining the project.
 
-[Home](../INDEX.md) > [Onboarding](./) > Getting Started
+[Home](../index.md) > [Onboarding](./) > Getting Started
 
 ---
 

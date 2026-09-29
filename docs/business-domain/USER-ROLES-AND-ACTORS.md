@@ -2,7 +2,7 @@
 
 > Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA.
 
-[Home](../INDEX.md) > [Business Domain](./) > User Roles & Actors
+[Home](../index.md) > [Business Domain](./) > User Roles & Actors
 
 ## Overview
 

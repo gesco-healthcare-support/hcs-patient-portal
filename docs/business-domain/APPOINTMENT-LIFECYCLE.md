@@ -5,7 +5,7 @@
 > Authority: `AppointmentManager.BuildMachine` is the only place transitions are declared.
 > Read it if this page and the code disagree, and then fix this page.
 
-[Home](../INDEX.md) > [Business Domain](./) > Appointment Lifecycle
+[Home](../index.md) > [Business Domain](./) > Appointment Lifecycle
 
 ## How to read this page
 

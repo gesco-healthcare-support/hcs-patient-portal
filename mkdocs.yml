@@ -133,7 +133,7 @@ not_in_nav: |
   appointment-required-fields.md
 
 nav:
-  - Home: INDEX.md
+  - Home: index.md
   - Start here:
       - Getting started: onboarding/GETTING-STARTED.md
       - Common tasks: onboarding/COMMON-TASKS.md

@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Runbooks > Local Development Troubleshooting
+[Home](../index.md) > Runbooks > Local Development Troubleshooting
 
 # Local Development Troubleshooting
 

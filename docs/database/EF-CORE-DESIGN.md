@@ -2,7 +2,7 @@
 
 > Purpose: Documents the dual-DbContext EF Core strategy, DbSet inventory, and entity configuration patterns for the Appointment Portal. Audience: backend developers adding or modifying entities.
 
-[Home](../INDEX.md) > [Database](./) > EF Core Design
+[Home](../index.md) > [Database](./) > EF Core Design
 
 ## Overview
 

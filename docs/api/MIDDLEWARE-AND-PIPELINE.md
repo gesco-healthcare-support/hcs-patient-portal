@@ -2,7 +2,7 @@
 
 > Purpose: Documents the ASP.NET Core middleware pipeline order, Serilog logging configuration, Redis caching, health checks, and ABP module composition for the HttpApi.Host. Audience: backend engineers.
 
-[Home](../INDEX.md) > [API](./) > Middleware & Pipeline
+[Home](../index.md) > [API](./) > Middleware & Pipeline
 
 **Related:** [API Architecture](API-ARCHITECTURE.md) | [Authentication Flow](AUTHENTICATION-FLOW.md) | [Architecture Overview](../architecture/OVERVIEW.md)
 

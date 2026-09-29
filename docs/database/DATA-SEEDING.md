@@ -2,7 +2,7 @@
 
 > Purpose: Describes the data seeding architecture, seed contributors, and default credentials for the Appointment Portal. Audience: backend developers.
 
-[Home](../INDEX.md) > [Database](./) > Data Seeding
+[Home](../index.md) > [Database](./) > Data Seeding
 
 ## Overview
 

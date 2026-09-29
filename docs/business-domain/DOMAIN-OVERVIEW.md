@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Business Domain](./) > Domain Overview
+[Home](../index.md) > [Business Domain](./) > Domain Overview
 
 # Business Domain Overview: California Workers' Compensation IME Scheduling
 

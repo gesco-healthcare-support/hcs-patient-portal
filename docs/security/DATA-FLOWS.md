@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > PHI Data Flows
+[Home](../index.md) > Security > PHI Data Flows
 
 # PHI Data Flows
 
