@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -44,12 +46,14 @@ public class AccessorAddedEmailHandlerTests
     }
 
     private static AccessorAddedEmailHandler BuildHandler(
-        INotificationDispatcher dispatcher, DocumentEmailContext? ctx) =>
+        INotificationDispatcher dispatcher,
+        DocumentEmailContext? ctx,
+        ILogger<AccessorAddedEmailHandler>? logger = null) =>
         new(
             dispatcher,
             StubResolver(ctx),
             Substitute.For<ICurrentTenant>(),
-            NullLogger<AccessorAddedEmailHandler>.Instance,
+            logger ?? NullLogger<AccessorAddedEmailHandler>.Instance,
             Substitute.For<ITenantStore>());
 
     [Fact]
@@ -124,5 +128,40 @@ public class AccessorAddedEmailHandlerTests
         }));
 
         thrown.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// The swallowed dispatch failure is logged with the accessor's user id, never their address.
+    /// The id is the one the dispatch's context tag carries.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_DispatchThrows_LogsTheAccessorId_NotTheAddress()
+    {
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        dispatcher
+            .DispatchAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<string>())
+            .ThrowsAsync(new Volo.Abp.BusinessException("NotificationTemplateNotFound"));
+        var logger = new RecordingLogger<AccessorAddedEmailHandler>();
+        var accessorUserId = Guid.NewGuid();
+
+        await BuildHandler(dispatcher, SampleContext(), logger).HandleEventAsync(new AppointmentAccessorAddedEto
+        {
+            AppointmentId = Guid.NewGuid(),
+            AccessorUserId = accessorUserId,
+            TenantId = Guid.NewGuid(),
+            Email = "TEST-accessor@test.local",
+            RoleName = "Applicant Attorney",
+            AccessTypeId = 23,
+        });
+
+        var error = logger.Entries.ShouldHaveSingleItem();
+        error.Level.ShouldBe(LogLevel.Error);
+        error.Message.ShouldNotContain("TEST-accessor@test.local");
+        error.Message.ShouldNotContain("@");
+        error.Message.ShouldContain(accessorUserId.ToString());
     }
 }

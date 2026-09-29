@@ -98,11 +98,13 @@ public class AccessorAddedEmailHandler :
             }
             catch (Exception ex)
             {
+                // The accessor's user id, not their address: the id is in the context tag, so the
+                // line still identifies whose email failed without writing PII to the log.
                 _logger.LogError(
                     ex,
-                    "AccessorAddedEmailHandler: failed to dispatch the added-accessor email for appointment {AppointmentId} to {Email}; the accessor link is unaffected.",
+                    "AccessorAddedEmailHandler: failed to dispatch the added-accessor email for appointment {AppointmentId} to accessor user {AccessorUserId}; the accessor link is unaffected.",
                     eventData.AppointmentId,
-                    eventData.Email);
+                    eventData.AccessorUserId);
             }
         }
     }
