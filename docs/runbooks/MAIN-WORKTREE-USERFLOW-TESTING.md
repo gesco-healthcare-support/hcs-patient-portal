@@ -6,7 +6,7 @@
 > one.
 > Owner: the portal maintainer.
 > **Last tested: written for a userflow-testing session that began 2026-05-13; its findings are
-> indexed in `docs/runbooks/findings/2026-05-13-userflow-findings.md`. No later dated run of this
+> indexed in `docs/findings/2026-05-13-userflow-findings.md`. No later dated run of this
 > protocol is recorded in the repo.**
 > **Not re-verified.** On 2026-09-28 this page gained its header, "When to run this", "Abort and
 > clean up" and a time box on escalation, and the mail correction its findings record (BUG-010).
@@ -777,7 +777,7 @@ Suggested fix scope:
 ### Where to put tickets
 
 Append to a single file per session at:
-`docs/runbooks/findings/{YYYY-MM-DD}-userflow-findings.md`
+`docs/findings/{YYYY-MM-DD}-userflow-findings.md`
 
 The fix worktree picks this up and triages.
 
@@ -951,7 +951,7 @@ unexpected, file it but mark it `medium` severity -- it's known.
 After each test session, push a single commit (or PR) to
 `feat/replicate-old-app` containing:
 
-1. Updated `docs/runbooks/findings/{YYYY-MM-DD}-userflow-findings.md`
+1. Updated `docs/findings/{YYYY-MM-DD}-userflow-findings.md`
 2. Any new parity audit docs you wrote under
    `docs/parity/wave-1-parity/`
 3. Updated `docs/parity/_parity-flags.md` if you added new flags
@@ -1068,7 +1068,7 @@ When you need a decision:
   with the flow, what you observed, and the relevant container log.
 - A security finding (an auth bypass, or a read that crosses offices or roles) goes to the portal
   maintainer at once, and privately. The repository is public, so it is NOT filed as a ticket in
-  `docs/runbooks/findings/` or as a public issue; follow the
+  `docs/findings/` or as a public issue; follow the
   [security policy](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/SECURITY.md).
 
 ### Abort and clean up
@@ -1092,7 +1092,7 @@ When you need a decision:
 - [ ] Verify the 16 seeded users via SQL (Part 9 query).
 - [ ] Open OLD at <http://localhost:4202> in one browser context.
 - [ ] Open NEW at <http://falkinstein.localhost:4200> in another.
-- [ ] Create `docs/runbooks/findings/{TODAY}-userflow-findings.md`
+- [ ] Create `docs/findings/{TODAY}-userflow-findings.md`
       with an empty bug list.
 - [ ] Pick your first flow (recommend: Patient register + login, since
       everything downstream depends on it working).

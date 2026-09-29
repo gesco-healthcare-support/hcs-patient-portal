@@ -1,5 +1,7 @@
 # FINDINGS -- MAIN post-merge QA (2026-06-24)
 
+> Historical QA record (2026-06-24), not maintained. Statuses below are as of that date; current status lives in GitHub Issues.
+
 Senior-QA pass on `main` after merge #322 (frontend-rework epic). Fresh DB seeded then driven.
 Synthetic data only. Severity: HIGH (blocks/real-user-impact) / MED / LOW / OBS (observation).
 

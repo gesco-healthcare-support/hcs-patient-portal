@@ -50,6 +50,9 @@ paths = [
   # real session). Gitleaks' generic-api-key rule flags the
   # high-entropy suffix; the file is documentation, not code.
   '''docs[\\/]runbooks[\\/]findings[\\/]bugs[\\/]BUG-029.*\.md$''',
+  # The same file after the archive moved to docs/findings/ (2026-09). The old path stays:
+  # gitleaks also scans history, where the file still lives there.
+  '''docs[\\/]findings[\\/]bugs[\\/]BUG-029.*\.md$''',
   # Data-seeding scripts use synthetic tenant/user keys (T1_P1,
   # T4_NullPatient, etc.) per the HIPAA "synthetic data only" rule. Whole
   # directory is test scaffolding.
@@ -64,6 +67,10 @@ paths = [
   # fingerprints. 2026-05-23 added after BUG-029's invite-token example
   # blocked every push from the repo.
   '''docs[\\/]runbooks[\\/]findings[\\/].*\.md''',
+  # The same reports after the archive moved to docs/findings/ (2026-09). Old path kept for
+  # history scans. Deliberately NOT docs/findings/.*: that would also allow-list
+  # investigations/ and the dated QA folders, which were never allow-listed before the move.
+  '''docs[\\/]findings[\\/](bugs[\\/])?[^\\/]*\.md''',
 ]
 regexTarget = "match"
 regexes = [

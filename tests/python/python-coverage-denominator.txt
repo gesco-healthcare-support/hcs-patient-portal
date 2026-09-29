@@ -12,6 +12,7 @@
 .claude/scripts/verify_structure.py
 docker/packet-renderer/app.py
 scripts/coverage-gate.py
+scripts/infra-ci.py
 scripts/maintenance/import-issues.py
 scripts/shard-tests.py
 tools/packet-templates/attorney/build_attorney.py

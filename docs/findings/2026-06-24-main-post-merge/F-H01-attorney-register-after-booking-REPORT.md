@@ -1,5 +1,7 @@
 # F-H01 (HIGH) -- Attorney "register-after-booking" fails with HTTP 500
 
+> Historical QA record (2026-06-24), not maintained. Fixed 2026-06-25: registration now adopts the attorney record the booking created (see the "F-H01" comments in `ExternalSignupAppService.cs`). Current status of any follow-up lives in GitHub Issues.
+
 Status: OPEN. Confirmed on `main` @ 74e91563 (post frontend-rework merge #322), 2026-06-24.
 No code changed for this. Written so it can be routed to the multi-tenant (db-per-tenant) session.
 
