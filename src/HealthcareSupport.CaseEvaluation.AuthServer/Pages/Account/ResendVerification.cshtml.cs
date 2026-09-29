@@ -107,10 +107,10 @@ public class ResendVerificationModel : AbpPageModel
             }
             catch (Exception ex)
             {
+                // No identifier: the address is PII (see ForgotPasswordModel's throttle branch).
                 _logger.LogWarning(
                     ex,
-                    "ResendVerificationModel.OnGetAsync (autosend): ResendEmailVerificationAsync threw for email-key {EmailKey}; surfacing generic success.",
-                    Email);
+                    "ResendVerificationModel.OnGetAsync (autosend): ResendEmailVerificationAsync threw; surfacing generic success.");
             }
             RequestSubmitted = true;
         }
@@ -137,8 +137,7 @@ public class ResendVerificationModel : AbpPageModel
             // dispatch failures with more context.
             _logger.LogWarning(
                 ex,
-                "ResendVerificationModel.OnPostAsync: ResendEmailVerificationAsync threw for email-key {EmailKey}; surfacing generic success.",
-                Email);
+                "ResendVerificationModel.OnPostAsync: ResendEmailVerificationAsync threw; surfacing generic success.");
         }
 
         RequestSubmitted = true;

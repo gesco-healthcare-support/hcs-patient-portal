@@ -4,9 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
+using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -153,6 +155,24 @@ public class CaseTrackerPushFailedEmailHandlerTests
         list.ShouldNotContain("Open the portal");
     }
 
+    /// <summary>
+    /// The alert's log line names the staff user by id, never by address. The id is the one the
+    /// dispatch's context tag carries, so the line still correlates with the email that went out.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_LogsTheStaffUserId_NotTheAddress()
+    {
+        var logger = new RecordingLogger<CaseTrackerPushFailedEmailHandler>();
+        var alert = Alert(2, Failure("TEST-A00001"));
+
+        await Build(Substitute.For<INotificationDispatcher>(), logger).HandleEventAsync(alert);
+
+        var line = logger.Entries.ShouldHaveSingleItem().Message;
+        line.ShouldNotContain(alert.StaffEmail);
+        line.ShouldNotContain("@");
+        line.ShouldContain(alert.StaffUserId.ToString());
+    }
+
     [Fact]
     public async Task HandleEventAsync_NoFailuresListed_SendsAnEmptyList()
     {
@@ -165,7 +185,9 @@ public class CaseTrackerPushFailedEmailHandlerTests
 
     // ------------------------------------------------------------------------
 
-    private static CaseTrackerPushFailedEmailHandler Build(INotificationDispatcher dispatcher)
+    private static CaseTrackerPushFailedEmailHandler Build(
+        INotificationDispatcher dispatcher,
+        ILogger<CaseTrackerPushFailedEmailHandler>? logger = null)
     {
         var urls = Substitute.For<IAccountUrlBuilder>();
         urls.BuildPortalRootUrlAsync(Arg.Any<Guid?>()).Returns("https://tenant-root.portal.test.local");
@@ -174,7 +196,7 @@ public class CaseTrackerPushFailedEmailHandlerTests
             dispatcher,
             Substitute.For<ICurrentTenant>(),
             urls,
-            NullLogger<CaseTrackerPushFailedEmailHandler>.Instance);
+            logger ?? NullLogger<CaseTrackerPushFailedEmailHandler>.Instance);
     }
 
     private static CaseTrackerPushFailureSummary Failure(string confirmation, int attempts = 5) => new()
