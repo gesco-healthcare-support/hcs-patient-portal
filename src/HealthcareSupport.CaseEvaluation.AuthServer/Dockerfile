@@ -153,7 +153,22 @@ ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEval
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
+# NON-ROOT RUNTIME (#701), as in the HttpApi.Host and DbMigrator prod stages;
+# the reasoning is written out in full in the HttpApi.Host Dockerfile. `app`
+# (uid 1654, gid 1654) is pre-created by the Microsoft runtime image. `Logs/` is
+# created and chowned because Serilog's file sink writes relative to WORKDIR, /app
+# is root-owned after COPY, and Serilog drops lines silently when it cannot open
+# the file.
+#
+# One requirement specific to this service: the token-signing certificate is
+# bind-mounted read-only at /app/openiddict.pfx, and this process reads it through
+# its group. The file must be mode 640, group 1654, or the service fails at
+# startup. scripts/hosting/gen-openiddict-cert.sh sets that when it can; an
+# existing certificate needs it done once on the host -- see
+# docs/security/SECRETS-MANAGEMENT.md.
+RUN mkdir -p /app/Logs && chown app:app /app/Logs
+USER app
 
 # Do NOT add empty-stub source dirs: ABP's ReplaceEmbeddedByPhysical replaces
 # (not merges) the embedded localization fileset when the physical path exists.
