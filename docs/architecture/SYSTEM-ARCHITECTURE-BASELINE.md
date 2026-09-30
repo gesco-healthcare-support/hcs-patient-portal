@@ -108,7 +108,8 @@ auth.<BASE_DOMAIN>              -> 404 JSON from the proxy, code missing_office_
 health.<BASE_DOMAIN>            -> /health-status only, proxied to the API as admin.api.<BASE_DOMAIN>;
                                    any other path 404 JSON, code health_probe_only (exact match)
 www.<BASE_DOMAIN>               -> 301 to the apex (exact match)
-<BASE_DOMAIN>                   -> static explanation page served by the proxy (exact match)
+<BASE_DOMAIN>                   -> static explanation page served by the proxy (exact match);
+                                   /docs/ serves the built documentation site
 admin                           -> RESERVED slug meaning host scope
 minio, api, auth, health, www   -> RESERVED slugs, consumed by the exact-match rules above
 ```
