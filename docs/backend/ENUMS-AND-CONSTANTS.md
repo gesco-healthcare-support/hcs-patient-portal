@@ -2,7 +2,7 @@
 
 > Purpose: Consolidate all domain enums and max-length constants for the CaseEvaluation solution. Audience: backend developer.
 
-[Home](../INDEX.md) > [Backend](./) > Enums & Constants
+[Home](../index.md) > [Backend](./) > Enums & Constants
 
 ---
 

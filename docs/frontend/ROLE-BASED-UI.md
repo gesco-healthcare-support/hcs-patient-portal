@@ -3,7 +3,7 @@
 > Purpose: Describes how the SPA gives external users and internal staff different pages and chrome, and
 > how each side's content varies by role. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Role-Based UI
+[Home](../index.md) > [Frontend](./) > Role-Based UI
 
 ## Overview
 

@@ -397,6 +397,14 @@ __pycache__/
 **/role-permission-surface.received.txt
 **/repository-counts.received.txt
 
+# Documentation site served by the reverse proxy at /docs/: build output of
+# scripts/hosting/build-docs-site.sh, rebuilt on every deploy, never committed.
+/docker/nginx-proxy/docs-site/
+
+# MkDocs privacy plugin cache (its default cache_dir). A local `mkdocs build` downloads the site's
+# fonts and diagram library here; the server build keeps its cache inside the builder container.
+/.cache/
+
 # Azure infrastructure parameters. The example file is committed; the real one is NOT.
 # This repository is PUBLIC and the real file carries a SQL admin password, an SSH
 # public key and a Key Vault certificate identifier.

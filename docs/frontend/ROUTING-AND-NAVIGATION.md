@@ -3,7 +3,7 @@
 > Purpose: Documents the Angular route table, the guards, the internal sidebar, and where a route's
 > permission check comes from. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Routing & Navigation
+[Home](../index.md) > [Frontend](./) > Routing & Navigation
 
 ## Overview
 

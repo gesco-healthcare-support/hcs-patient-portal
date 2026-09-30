@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Runbooks > Docker Development
+[Home](../index.md) > Runbooks > Docker Development
 
 # Docker Development Runbook
 
@@ -128,6 +128,22 @@ docker compose restart api
 
 The same applies to `authserver`, `db-migrator` and `angular`. There is no file watcher (Docker
 Desktop drops file events on Windows bind mounts), so a restart is the step that picks the change up.
+
+**Change a NuGet package** (add, remove or change the version of a `PackageReference`). The
+containers restore in locked mode: they restore exactly what the committed `packages.lock.json`
+files record, and a lock file that no longer matches its project file fails the restart with
+NU1004. So record the change in the lock files on the host first, then restart:
+
+```bash
+dotnet restore --force-evaluate
+```
+
+```bash
+docker compose restart api
+```
+
+Commit the changed `packages.lock.json` files together with the project file change; CI restores
+in locked mode as well.
 
 **Rebuild an image** (only after a Dockerfile or build-stage change):
 
@@ -278,6 +294,14 @@ Each entry is symptom, diagnosis, fix, then how to confirm the fix worked.
   `--secret id=abp_nuget_key,env=ABP_NUGET_API_KEY`; through `docker compose build` it is already
   wired.
 - **Verify.** `docker compose build` finishes without the error.
+
+### Restore fails with NU1004 ("restore can't be run in locked mode")
+
+- **Diagnosis.** A project file's packages changed but its `packages.lock.json` did not. Every
+  container restore, image build and CI run uses locked mode, so they refuse the mismatch.
+- **Fix.** On the host, run `dotnet restore --force-evaluate`, then restart the service (or rebuild
+  the image). Commit the updated lock files with the package change.
+- **Verify.** The service starts and `docker compose ps` shows it `(healthy)`.
 
 ### Port conflict on 1434 / 44327 / 44368 / 4200 / 6379
 

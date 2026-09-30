@@ -3,7 +3,7 @@
 > Purpose: reference for every recurring background job, what it does, when it runs, and the
 > switches that stop it. Audience: whoever operates the deployed stack.
 
-[Home](../INDEX.md) > [DevOps](./) > Background Jobs
+[Home](../index.md) > [DevOps](./) > Background Jobs
 
 ## Read this first
 

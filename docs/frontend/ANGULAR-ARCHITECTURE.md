@@ -2,11 +2,11 @@
 
 > Purpose: Describes the Angular 20 SPA bootstrap sequence, provider list, feature module structure, and key source files. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Angular Architecture
+[Home](../index.md) > [Frontend](./) > Angular Architecture
 
 ## Overview
 
-The HCS Case Evaluation Portal frontend is an **Angular 20** application built entirely with **standalone components** (no NgModules). It leverages the ABP Commercial Angular framework for authentication, authorization, theming, and multi-tenancy.
+The Appointment Portal frontend is an **Angular 20** application built entirely with **standalone components** (no NgModules). It leverages the ABP Commercial Angular framework for authentication, authorization, theming, and multi-tenancy.
 
 ## App Bootstrap Sequence
 

@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Architecture](./) > Tenancy and Isolation
+[Home](../index.md) > [Architecture](./) > Tenancy and Isolation
 
 # Tenancy and Isolation
 

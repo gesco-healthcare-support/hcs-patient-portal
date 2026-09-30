@@ -2,7 +2,7 @@
 
 > Purpose: Database-level reference for table naming, SQL type conventions, ABP system tables, and the dual-DbContext strategy. Audience: backend developers.
 
-[Home](../INDEX.md) > [Database](./) > Schema Reference
+[Home](../index.md) > [Database](./) > Schema Reference
 
 ---
 

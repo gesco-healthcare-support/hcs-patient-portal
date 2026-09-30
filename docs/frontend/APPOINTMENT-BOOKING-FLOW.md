@@ -3,7 +3,7 @@
 > Purpose: Documents the booking wizard: its steps, booking modes, slot picking, drafts, and the single
 > submit call. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Appointment Booking Flow
+[Home](../index.md) > [Frontend](./) > Appointment Booking Flow
 
 ## Overview
 

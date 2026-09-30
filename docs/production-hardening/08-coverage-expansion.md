@@ -224,7 +224,7 @@ Python denominator from its own analysis -- measured with no report in existence
 suite counts" and claims **115 backend test methods across 17 files**, last verified 2026-04-24.
 
 The suite currently runs roughly **2,290 backend tests**. The document is off by a factor of twenty
-and it is linked from `docs/INDEX.md`, so it actively misinforms anyone onboarding -- including the
+and it is linked from `docs/index.md`, so it actively misinforms anyone onboarding -- including the
 successor this epic is being built for.
 
 Fix this early in the phase. Either regenerate it from a real run or delete it and point at the

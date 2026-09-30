@@ -2,7 +2,7 @@
 
 > Purpose: Describes the test projects, harnesses, data seeding approach, and test layers for the Patient Portal backend and frontend. Audience: developers.
 
-[Home](../INDEX.md) > [DevOps](./) > Testing Strategy
+[Home](../index.md) > [DevOps](./) > Testing Strategy
 
 > Backend test coverage: [docs/testing/coverage-status.md](../testing/coverage-status.md) names the
 > commands that report test counts and coverage. It deliberately stores no figures, so there is

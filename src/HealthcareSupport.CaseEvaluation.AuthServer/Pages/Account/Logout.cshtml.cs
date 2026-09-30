@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
+using Volo.Abp.Security.Claims;
 
 namespace HealthcareSupport.CaseEvaluation.Pages.Account;
 
@@ -50,9 +51,13 @@ public class LogoutModel : AbpPageModel
             await HttpContext.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
             await HttpContext.SignOutAsync(IdentityConstants.TwoFactorRememberMeScheme);
 
+            // The user id, not User.Identity.Name: an external user's username IS their email
+            // address (ExternalSignupAppService sets userName = email), so the name put an
+            // address in the log on every sign-out. Read before any later change to the
+            // principal; SignOutAsync expires the cookies but leaves this request's User intact.
             _logger.LogInformation(
-                "LogoutModel: signed out user {User} on {Host}.",
-                User.Identity.Name ?? "<unknown>",
+                "LogoutModel: signed out user {UserId} on {Host}.",
+                User.FindFirst(AbpClaimTypes.UserId)?.Value ?? "<unknown>",
                 Request.Host.Host);
         }
 

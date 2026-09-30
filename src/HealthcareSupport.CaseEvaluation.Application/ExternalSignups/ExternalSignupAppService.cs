@@ -9,7 +9,6 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.Localization;
-using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -32,9 +31,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
-using System.Linq.Expressions;
 using Volo.Saas.Tenants;
-using Microsoft.Extensions.Hosting;
 using Volo.Abp.MultiTenancy;
 using System.Globalization;
 using HealthcareSupport.CaseEvaluation.Timing;
@@ -72,14 +69,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // the bulk-email filter inline is consistent with that style.
     private readonly IInvitationRepository _invitationRepository;
     private readonly INotificationDispatcher _notificationDispatcher;
-    // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
-    // gate on EnvironmentName so they cannot be invoked in production.
-    private readonly IHostEnvironment _hostEnvironment;
-    // 2026-05-06: cross-tenant queries in the dev helpers (find a user by
-    // email regardless of which tenant they registered under) need to bypass
-    // ABP's IMultiTenant filter. CurrentTenant.Change(null) only switches
-    // to host context; the filter still applies and excludes tenant rows.
-    // IDataFilter.Disable<IMultiTenant> turns the filter off entirely.
+    // Switches ABP data filters off for one query: the invite list disables the
+    // soft-delete filter so revoked invitations still surface as Revoked.
     private readonly IDataFilter _dataFilter;
     // 2026-05-18 (B-4): canonical ABP IAccountEmailer is the framework
     // contract for sending account-related links. Project's
@@ -98,10 +89,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // scopes an external caller's results to the SAME appointments that caller can
     // see, so the lookup and the appointment list cannot drift apart.
     private readonly AppointmentVisibilityService _appointmentVisibilityService;
-    // Phase C (db-per-office): the dev-only email helpers must look across every
-    // office's database, so they iterate offices via this runner instead of
-    // disabling the IMultiTenant filter on one shared connection.
-    private readonly ITenantWorkRunner _tenantWorkRunner;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -122,15 +109,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         DefenseAttorneyManager defenseAttorneyManager,
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
-        IHostEnvironment hostEnvironment,
         IDataFilter dataFilter,
         InvitationManager invitationManager,
         IInvitationRepository invitationRepository,
         INotificationDispatcher notificationDispatcher,
         IAccountEmailer accountEmailer,
         Notifications.IAccountUrlBuilder accountUrlBuilder,
-        AppointmentVisibilityService appointmentVisibilityService,
-        ITenantWorkRunner tenantWorkRunner)
+        AppointmentVisibilityService appointmentVisibilityService)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -150,7 +135,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _defenseAttorneyManager = defenseAttorneyManager;
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
-        _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;
         _invitationManager = invitationManager;
         _invitationRepository = invitationRepository;
@@ -158,7 +142,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _accountEmailer = accountEmailer;
         _accountUrlBuilder = accountUrlBuilder;
         _appointmentVisibilityService = appointmentVisibilityService;
-        _tenantWorkRunner = tenantWorkRunner;
     }
 
     /// <summary>

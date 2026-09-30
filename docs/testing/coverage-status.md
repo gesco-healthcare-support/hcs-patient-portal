@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Testing](./) > Coverage Status
+[Home](../index.md) > [Testing](./) > Coverage Status
 
 # Backend Test Coverage Status
 
@@ -10,7 +10,7 @@
 It used to. It claimed **115 backend test methods across 17 files**, verified 2026-04-24, and
 called itself "the single source of truth for backend test suite counts". By 2026-09-11 the
 real figure was roughly twenty times that, and nothing in the file could notice. It is linked from
-`docs/INDEX.md`, so the page that existed to stop drifted counts had itself become the drifted
+`docs/index.md`, so the page that existed to stop drifted counts had itself become the drifted
 count a new developer would read first.
 
 That is not a maintenance lapse to apologise for and patch. **A stored count begins rotting the

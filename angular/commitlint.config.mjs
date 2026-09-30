@@ -7,7 +7,15 @@ export default {
   // Skip "merge: ..." integration commits. config-conventional's defaultIgnores
   // catches "Merge ..." / "Revert ..." but not this repo's lowercase "merge:"
   // prefix; merge commits are not conventional commits and must not be linted.
-  ignores: [(message) => /^merge:/i.test(message)],
+  //
+  // Also skip Dependabot's commits (2026-09-29). Their titles are generated, often run past
+  // the 100-character header limit (the squash of PR #1154 was 106), and cannot be edited
+  // before they land. Matched on Dependabot's sign-off trailer, so a human commit that only
+  // mentions Dependabot is still linted.
+  ignores: [
+    (message) => /^merge:/i.test(message),
+    (message) => /^Signed-off-by: dependabot\[bot\] <support@github\.com>$/m.test(message),
+  ],
   rules: {
     'type-enum': [
       2,

@@ -219,7 +219,7 @@ hcs-case-evaluation-portal/
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
 ├── test/                                      5 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
-├── docs/                                      documentation; start at docs/INDEX.md
+├── docs/                                      documentation; start at docs/index.md
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
@@ -366,8 +366,11 @@ after review. Promotion then cascades automatically: `auto-pr-dev.yml` opens
 the `main -> development` PR, and `deploy-dev.yml` opens the
 `development -> staging` PR after its validate job passes. The
 `staging -> production` PR is always opened manually and requires two
-approvals. Promotion PRs between long-lived branches must use **rebase**,
-never a merge commit.
+approvals. Promotion PRs between long-lived branches merge with a **merge
+commit**, never a squash or a rebase, and "Update branch" is never pressed on
+them. `cascade-guard.yml` fails a squashed cascade into `development` and any
+merge of `development` into `main`; see
+[docs/devops/CI-TESTS-AND-CHECKS.md](docs/devops/CI-TESTS-AND-CHECKS.md).
 
 ### Branch Protection
 
@@ -593,7 +596,7 @@ Do not file public issues for vulnerabilities.
 ## Documentation Map
 
 This README is the landing page. The deep material lives in
-[docs/](docs/). Start at [docs/INDEX.md](docs/INDEX.md) for the full map.
+[docs/](docs/). Start at [docs/index.md](docs/index.md) for the full map.
 
 ### I want to
 

@@ -91,7 +91,7 @@ re-baseline. `ci.yml` also runs on push to `main`.
 | Workflow              | Trigger               | What it does                                                                                         |
 | --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------- |
 | `auto-pr-dev.yml`     | push to `main`        | Opens the `main -> development` cascade PR. Requires `AUTO_PR_TOKEN`                                 |
-| `cascade-guard.yml`   | push to `development` or `main` | Fails when a cascade into `development` arrived as a squash rather than a merge commit              |
+| `cascade-guard.yml`   | push to `development` or `main` | Fails when a cascade into `development` arrived as a squash rather than a merge commit, or when `main`'s tip merges `development` (the update-branch trap below) |
 | `deploy-dev.yml`      | push to `development` | **Does not deploy.** Runs `dotnet build` + `dotnet test`, then opens the `development -> staging` PR |
 | `promote-staging.yml` | push to `staging`     | `dotnet build` + `dotnet test`. Notes that staging -> production PRs are always manual               |
 | `release.yml`         | push to `production`  | `npx semantic-release`                                                                               |
@@ -160,6 +160,11 @@ updating.
 `development` and the head is `main`, so updating it would **merge `development` into `main`** and
 drag every accumulated sync commit backwards into the trunk -- permanently, and visibly in `main`'s
 history. There is no clean undo.
+
+`cascade-guard.yml`'s "Cascade: no backwards merge into main" job fails such a commit. It judges
+main's tip only, so the red also shows on the cascade PR (whose head is main) and stays until the next
+reviewed commit lands on `main`. Resetting `main` to remove the commit would rewrite public history;
+moving the tip forward is the fix.
 
 **BEHIND here is a true statement that is not a problem.** The tooling renders "stale, update me" and
 "structurally impossible, ignore me" identically, and nothing on the PR distinguishes them, so anyone

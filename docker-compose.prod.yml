@@ -215,8 +215,9 @@ services:
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
       # B12: exactly one admin-password store outside Development, or the process refuses to
       # start and names both keys. The folder store is the default here because this file runs a
-      # self-hosted box; Azure sets ADMIN_PASSWORD_VAULT_URI and ADMIN_PASSWORD_DIRECTORY= (empty),
-      # which is why the vault key defaults to empty rather than being omitted.
+      # self-hosted box. The vault key is reserved for Azure: setting it today REFUSES startup, because
+      # the Key Vault store is not in this build yet (AdminPasswordStoreRegistrar). It defaults to empty
+      # rather than being omitted so Azure can set it without editing this file.
       AdminPasswords__Directory: "${ADMIN_PASSWORD_DIRECTORY:-/run/admin-passwords}"
       AdminPasswords__VaultUri: "${ADMIN_PASSWORD_VAULT_URI:-}"
     volumes:
@@ -373,8 +374,9 @@ services:
       CaseTracker__TimeoutSeconds: "${CASE_TRACKER_TIMEOUT_SECONDS:-30}"
       # B12: exactly one admin-password store outside Development, or the process refuses to
       # start and names both keys. The folder store is the default here because this file runs a
-      # self-hosted box; Azure sets ADMIN_PASSWORD_VAULT_URI and ADMIN_PASSWORD_DIRECTORY= (empty),
-      # which is why the vault key defaults to empty rather than being omitted.
+      # self-hosted box. The vault key is reserved for Azure: setting it today REFUSES startup, because
+      # the Key Vault store is not in this build yet (AdminPasswordStoreRegistrar). It defaults to empty
+      # rather than being omitted so Azure can set it without editing this file.
       AdminPasswords__Directory: "${ADMIN_PASSWORD_DIRECTORY:-/run/admin-passwords}"
       AdminPasswords__VaultUri: "${ADMIN_PASSWORD_VAULT_URI:-}"
     volumes:
@@ -459,6 +461,10 @@ services:
       - ./docker/nginx-proxy/default.conf.template:/etc/nginx/templates/default.conf.template:ro
       # The apex explanation page (D14), served by the proxy itself; see the apex block in the template.
       - ./docker/nginx-proxy/apex:/usr/share/nginx/apex:ro
+      # The documentation site, served at /docs/ by the apex block. Build output, gitignored: it is
+      # written by scripts/hosting/build-docs-site.sh, which the deploy runs BEFORE compose so the
+      # directory exists and belongs to the deploy user (compose would otherwise create it as root).
+      - ./docker/nginx-proxy/docs-site:/usr/share/nginx/docs:ro
       - "${TLS_CERT_PATH}:/etc/nginx/certs/wildcard.crt:ro"
       - "${TLS_KEY_PATH}:/etc/nginx/certs/wildcard.key:ro"
     depends_on:

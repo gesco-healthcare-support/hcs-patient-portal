@@ -1,12 +1,12 @@
 # EF Core Design
 
-> Purpose: Documents the dual-DbContext EF Core strategy, DbSet inventory, and entity configuration patterns for the HCS Case Evaluation Portal. Audience: backend developers adding or modifying entities.
+> Purpose: Documents the dual-DbContext EF Core strategy, DbSet inventory, and entity configuration patterns for the Appointment Portal. Audience: backend developers adding or modifying entities.
 
-[Home](../INDEX.md) > [Database](./) > EF Core Design
+[Home](../index.md) > [Database](./) > EF Core Design
 
 ## Overview
 
-The HCS Case Evaluation Portal uses a **dual DbContext strategy** to support ABP's multi-tenancy model. Both contexts share a common base class that configures all ABP module entity mappings, while each context handles its own side of the multi-tenancy split.
+The Appointment Portal uses a **dual DbContext strategy** to support ABP's multi-tenancy model. Both contexts share a common base class that configures all ABP module entity mappings, while each context handles its own side of the multi-tenancy split.
 
 - **Connection string name:** `"Default"` (set via `[ConnectionStringName("Default")]`)
 - **Database provider:** SQL Server (configured in `CaseEvaluationDbContextFactoryBase` via `UseSqlServer`)

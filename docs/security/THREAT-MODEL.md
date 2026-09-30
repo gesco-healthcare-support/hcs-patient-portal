@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Threat Model
+[Home](../index.md) > Security > Threat Model
 
 # Threat Model
 
