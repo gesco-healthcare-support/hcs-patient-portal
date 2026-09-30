@@ -366,8 +366,11 @@ after review. Promotion then cascades automatically: `auto-pr-dev.yml` opens
 the `main -> development` PR, and `deploy-dev.yml` opens the
 `development -> staging` PR after its validate job passes. The
 `staging -> production` PR is always opened manually and requires two
-approvals. Promotion PRs between long-lived branches must use **rebase**,
-never a merge commit.
+approvals. Promotion PRs between long-lived branches merge with a **merge
+commit**, never a squash or a rebase, and "Update branch" is never pressed on
+them. `cascade-guard.yml` fails a squashed cascade into `development` and any
+merge of `development` into `main`; see
+[docs/devops/CI-TESTS-AND-CHECKS.md](docs/devops/CI-TESTS-AND-CHECKS.md).
 
 ### Branch Protection
 

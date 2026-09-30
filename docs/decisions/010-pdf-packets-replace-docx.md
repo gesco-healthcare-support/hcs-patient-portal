@@ -1,7 +1,10 @@
 # ADR-010: PDF packets replace DOCX
 
-**Status:** Accepted
+**Status:** Accepted; the DOCX-rendering portion is **superseded by ADR-016** (2026-06-10), which
+removed Gotenberg and the DOCX path entirely
 **Date:** 2026-05-29
+**Supersession recorded:** 2026-09-29 -- ADR-016 had named this ADR since 2026-06-10, but this one
+did not say so, so a reader starting here had no way to learn half of it was obsolete
 **Verified by:** code-inspect
 
 ## Context
