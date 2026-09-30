@@ -56,7 +56,8 @@ Each line below is a property of the code, with the file that establishes it.
   (`docker/packet-renderer/`) renders evaluation packets, so a rendering failure
   cannot take the API down with it.
 - **Compile-time object mapping.** Riok.Mapperly source-generates the DTO mappers
-  (23 files reference it); there is no runtime reflection-based mapper.
+  (`git grep -l Mapperly -- src/` returns 23 files; the count depends on the scope you ask
+  for, which is why the command is here); there is no runtime reflection-based mapper.
 - **Reference data is centrally owned.** Locations, appointment types, languages,
   states and WCAB offices are managed by the host organisation, not per office.
 
@@ -146,7 +147,7 @@ For the latest narrative status read
 | Database               | SQL Server                                          | LocalDB (dev) / 2022 (Docker)     | Code-first EF Core migrations                       |
 | Auth                   | [OpenIddict](https://documentation.openiddict.com/) | --                                | OAuth 2.0 / OIDC                                    |
 | Mapping                | [Riok.Mapperly](https://github.com/riok/mapperly)   | --                                | Compile-time source generation (not AutoMapper)     |
-| Cache + key ring       | Redis                                               | 7 (Docker)                        | **Required.** Holds the shared DataProtection key ring; see the note below |
+| Cache + key ring       | Redis                                               | 7.4.9 (Docker)                    | **Required by both hosts.** Holds the shared DataProtection key ring; see the note below |
 | Logging                | Serilog                                             | 9.x                               |                                                     |
 | Test framework         | xUnit + [Shouldly](https://docs.shouldly.org/)      | --                                |                                                     |
 | Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
@@ -157,14 +158,15 @@ For the latest narrative status read
 | Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
 
 > [!IMPORTANT]
-> **Redis is required, and `"IsEnabled": false` does not make it optional.**
-> `CaseEvaluationAuthServerModule.cs:424` decides whether to persist
+> **Redis is required by both hosts, and `"IsEnabled": false` does not make it
+> optional.** `CaseEvaluationAuthServerModule.cs:424` and
+> `CaseEvaluationHttpApiHostModule.cs:1404` each decide whether to persist
 > DataProtection keys to Redis by reading `Redis:Configuration`, not
 > `Redis:IsEnabled`. `appsettings.json` ships `Configuration` as `127.0.0.1`
 > with `IsEnabled` set to `false`, and the `appsettings.Local.json.example`
 > files add no Redis key, so the branch is taken and
-> `ConnectionMultiplexer.Connect` runs during startup. An unreachable Redis
-> therefore stops the AuthServer starting.
+> `ConnectionMultiplexer.Connect` runs during startup in both processes. An
+> unreachable Redis therefore stops either host starting.
 >
 > The key ring has to be shared because the AuthServer and the API host run as
 > separate containers with separate filesystems. Without a shared ring each
@@ -208,6 +210,7 @@ flowchart TB
     API -->|"Validate JWT"| Auth
     API --> SQL
     API --> Redis
+    Auth --> Redis
     Auth --> SQL
     Migrator -->|"Migrations + Seeding"| SQL
 ```
@@ -404,7 +407,9 @@ Troubleshooting the top-five local failures:
 ## Configuration
 
 Runtime configuration comes from environment variables in deployment and from
-`appsettings.*.json` plus .NET User Secrets locally. The deployed set is
+`appsettings.*.json` locally, with the gitignored `appsettings.secrets.json` and
+`appsettings.Local.json` holding what must not be committed. (.NET User Secrets is not wired
+up: there is no `UserSecretsId` and no `AddUserSecrets` call in the tree.) The deployed set is
 declared in [env.prod.example](env.prod.example), which carries 42 keys
 (`grep -cE '^[A-Z_]+=' env.prod.example`).
 
@@ -426,10 +431,10 @@ does the example: it ships with placeholders.**
 | Hosting and TLS | `BASE_DOMAIN`, `APP_NAME`, `HTTP_PORT`, `HTTPS_PORT`, `TLS_CERT_PATH`, `TLS_KEY_PATH`, `TRUSTED_PROXY_SET_REAL_IP_FROM`, `TRUSTED_PROXY_REAL_IP_RECURSIVE` | Base domain the office subdomains hang off, published ports, and the proxy's TLS material and real-IP trust |
 | Auth and crypto | `OPENIDDICT_PFX_PATH`, `AUTHSERVER_CERT_PASSPHRASE`, `STRING_ENCRYPTION_PASSPHRASE` | The OpenIddict signing certificate and its passphrase, plus ABP's string-encryption passphrase |
 | Database | `MSSQL_SA_PASSWORD`, `MSSQL_MEMORY_LIMIT_MB`, `DBMIGRATOR_ENVIRONMENT` | SQL Server credentials and memory ceiling; which environment the migrator runs as |
-| Object storage | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET_NAME`, `MINIO_CASE_TRACKER_BUCKET_NAME` | S3-compatible storage credentials and the two buckets: portal documents, and the Case Tracker feed |
+| Object storage | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET_NAME`, `MINIO_CASE_TRACKER_BUCKET_NAME` | S3-compatible storage credentials, the portal's own document bucket, and the separate bucket the Case Tracker reads from |
 | ABP licensing | `ABP_LICENSE_CODE`, `ABP_NUGET_API_KEY` | ABP Commercial licence and the private package-feed key. Both are required to restore and run |
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENABLE_SSL`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS`, `SMTP_FROM_NAME` | Outbound notification transport and sender identity |
-| Case Tracker feed | `CASE_TRACKER_BASE_URL`, `CASE_TRACKER_INTAKE_TOKEN`, `CASE_TRACKER_INTEGRATION_TOKEN`, `CASE_TRACKER_FEED_TOKEN`, `CASE_TRACKER_TIMEOUT_SECONDS`, `CASE_TRACKER_FEED_ALERT_RECIPIENTS` | Downstream endpoint, the three separate tokens the integration uses, its timeout, and who is alerted on terminal failure |
+| Case Tracker integration | `CASE_TRACKER_BASE_URL`, `CASE_TRACKER_INTAKE_TOKEN`, `CASE_TRACKER_INTEGRATION_TOKEN`, `CASE_TRACKER_FEED_TOKEN`, `CASE_TRACKER_TIMEOUT_SECONDS`, `CASE_TRACKER_FEED_ALERT_RECIPIENTS` | Downstream endpoint, the three separate tokens the integration uses, its timeout, and the recipients of both the feed alerts and the weekly missing-intake report |
 | Administrator passwords | `ADMIN_PASSWORD_DIRECTORY`, `ADMIN_PASSWORD_VAULT_URI` | Where generated administrator passwords are written. Set the vault URI instead of the directory to use a managed store |
 | Backup | `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_ALERT_RECIPIENTS` | Dump destination, retention window, and failure alert recipients |
 | Container memory | `SQL_MEM_LIMIT`, `API_MEM_LIMIT`, `AUTHSERVER_MEM_LIMIT`, `PACKET_RENDERER_MEM_LIMIT` | Per-container memory ceilings |
@@ -449,7 +454,7 @@ Secret handling, rotation and storage:
 | HttpApi.Host (Swagger) | <https://localhost:44327> | Local HTTPS; container exposes HTTP                           |
 | Angular SPA            | <http://localhost:4200>   | nginx in Docker, `npx serve` locally                          |
 | SQL Server (Docker)    | `localhost:1434 -> 1433`  | Remapped to avoid collisions with host LocalDB / SQL Server   |
-| Redis (Docker)         | `localhost:6379`          | Required: the AuthServer connects to it at startup            |
+| Redis (Docker)         | `localhost:6379`          | Required: both the AuthServer and the API host connect at startup |
 
 Services must start in order: **AuthServer -> HttpApi.Host -> Angular**. The
 API validates tokens against AuthServer; Angular calls both.
@@ -612,14 +617,14 @@ The local Compose stack (`docker-compose.yml`) runs nine services:
 
 | Service           | Image / Build                                | Port            | Role                                         |
 | ----------------- | -------------------------------------------- | --------------- | -------------------------------------------- |
-| `sql-server`      | `mcr.microsoft.com/mssql/server:2022-latest` | `1434 -> 1433`  | Primary database                             |
-| `redis`           | `redis:7-alpine`                             | `6379`          | Cache and the shared DataProtection key ring |
+| `sql-server`      | `mcr.microsoft.com/mssql/server:2022-CU25-GDR2-ubuntu-22.04` | `1434 -> 1433`  | Primary database                     |
+| `redis`           | `redis:7.4.9-alpine`                         | `6379`          | Cache and the shared DataProtection key ring |
 | `minio`           | MinIO                                        | `9000`          | Object store for uploaded documents          |
 | `minio-init`      | MinIO client                                 | --              | Runs once; creates the buckets               |
 | `db-migrator`     | local build                                  | --              | Runs once; applies migrations and seeds data |
 | `authserver`      | local build                                  | `44368 -> 8080` | OpenIddict OAuth server                      |
 | `api`             | local build                                  | `44327 -> 8080` | REST API                                     |
-| `packet-renderer` | local build                                  | --              | Renders appointment packets to PDF           |
+| `packet-renderer` | local build                                  | `3001`          | Renders appointment packets to PDF           |
 | `angular`         | local build                                  | `4200 -> 80`    | nginx-served production build                |
 
 Rebuild a single service after code changes:
@@ -639,12 +644,14 @@ flowchart LR
     Proxy --> Angular["angular<br/>nginx serving built dist"]
     Proxy --> Auth["authserver<br/>OpenIddict"]
     Proxy --> API["api<br/>REST"]
+    Proxy --> Minio
 
     API --> SQL[("sql-server<br/>one database per office")]
     Auth --> SQL
     API --> Minio[("minio<br/>object store")]
     API -->|"render packet"| Packet["packet-renderer<br/>WeasyPrint sidecar"]
     API --> Redis[("redis<br/>cache + DataProtection keys")]
+    Auth --> Redis
 
     subgraph RunOnce["Run once, then exit"]
         Migrator["db-migrator<br/>migrations + seed"]
@@ -702,8 +709,6 @@ Core safeguards in place:
 - **PHI scanner hook**: runs on every local development tool invocation to
   catch protected fields before they reach git.
 - **PR template**: every pull request carries a HIPAA checklist.
-
-Remediation work is tracked privately rather than in this file.
 
 Threat model:
 [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md). Data flows:
@@ -776,9 +781,9 @@ than just the fix.
 | Containers come up with no database password or no TLS | A Compose command ran without `--env-file`. See the warning under [Configuration](#configuration) |
 | Requests route to the wrong service after a backend rebuild | nginx resolves upstream container names once at worker start and caches the addresses. Force-recreate the reverse proxy after rebuilding a backend |
 | `?__tenant=` has no effect when you expect it to select an office | Intended. The resolver chain is cleared and rebuilt with two contributors, so the office comes from the request host only. See [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md) |
-| AuthServer exits at startup with a Redis connection error | Redis is required and is not running. See the note under [Tech Stack](#tech-stack): the key-ring branch is guarded on `Redis:Configuration`, which ships populated, so `"IsEnabled": false` does not skip it |
+| AuthServer or API host exits at startup with a Redis connection error | Redis is required and is not running. Both hosts connect at startup. See the note under [Tech Stack](#tech-stack): the key-ring branch is guarded on `Redis:Configuration`, which ships populated, so `"IsEnabled": false` does not skip it |
 | Email-confirmation or similar ABP token returns 403 `Volo.Abp.Identity:InvalidToken` | The AuthServer and API host are not sharing a DataProtection key ring, so the token was minted with keys the validating process does not have. Point both at the same Redis |
-| Angular tests pass locally but fail in CI, or vice versa | The SPA builds on Node 20 in Docker and Node 22 in CI, and nothing pins a version locally. See the note under [Tech Stack](#tech-stack) |
+| A frontend result differs between your machine and CI | Check the Node major first: the SPA builds on Node 20 in Docker and Node 22 in CI, and nothing pins one locally, so the two are not guaranteed to match. See the note under [Tech Stack](#tech-stack) |
 
 Local development failures in depth:
 [docs/runbooks/LOCAL-DEV.md](docs/runbooks/LOCAL-DEV.md). Docker specifics:
@@ -801,10 +806,11 @@ and quality programme. Status lives in the issue only, so the two cannot disagre
 
 Engineering work still open (summary; the issues carry the detail):
 
-- Set the backend coverage floor in `ci.yml`'s `Coverage: Floors` job. It is
-  deliberately unset, so that job fails until the figure its own first CI run
-  measures is filled in. Codecov is not being wired up; SonarCloud plus that
-  check cover it.
+- Raise the absolute coverage floors as coverage grows. `ci.yml`'s `Coverage: Floors`
+  job now sets them from measured figures (backend 73 against 73.6% measured,
+  frontend 20 against 21.0%), so they are deliberately loose; the sensitive control
+  is the changed-lines floor, not these. Codecov is not being wired up; SonarCloud
+  plus that check cover it.
 - Some dependency upgrades are gated on upstream ABP Commercial releases rather
   than on work in this repository.
 - Polish of the auto-PR workflow and expansion of the disabled
