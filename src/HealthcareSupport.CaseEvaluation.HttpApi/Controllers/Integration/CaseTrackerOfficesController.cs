@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using Microsoft.AspNetCore.Mvc;
@@ -74,5 +75,10 @@ public class CaseTrackerOfficesController : AbpController
 /// <summary>Body for the toggle. A named type rather than a bare bool so the JSON stays readable.</summary>
 public class CaseTrackerPushToggleInput
 {
+    /// <summary>
+    /// Required on the wire. Without it a body of <c>{}</c>, or one that misspells the key,
+    /// binds to <c>false</c> and switches the office's push OFF while reporting success.
+    /// </summary>
+    [JsonRequired]
     public bool Enabled { get; set; }
 }
