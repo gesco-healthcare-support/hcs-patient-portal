@@ -359,3 +359,6 @@ tools/packet-templates/tests/**
 **/AppointmentTypes/AppointmentTypeDataSeedContributor.cs
 **/AppointmentLanguages/AppointmentLanguageDataSeedContributor.cs
 **/AppointmentStatuses/AppointmentStatusDataSeedContributor.cs
+
+# Dev, test and deploy PowerShell scripts, no test harness; SonarCloud began counting them 2026-09-30 (56 files, 4,449 lines).
+**/*.ps1
