@@ -718,9 +718,8 @@ Core safeguards in place:
   (Admin, Doctor, Patient, Applicant Attorney, Claim Examiner).
 - **Multi-tenant isolation**: ABP's automatic tenant filter; `IMultiTenant`
   entities filtered on every query by default.
-- **Secret scanning**: Gitleaks on commit and push, TruffleHog in CI.
-- **PHI scanner hook**: runs on every local development tool invocation to
-  catch protected fields before they reach git.
+- **Secret scanning**: Gitleaks on commit and push when it is installed locally
+  (the hooks warn and continue without it), TruffleHog in CI.
 - **PR template**: every pull request carries a HIPAA checklist.
 
 Threat model:
