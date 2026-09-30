@@ -364,8 +364,6 @@ with a slot in any other status, `Booked` included, is reported as `DoctorAvaila
 | `ValidateInviteAsync` | Check an invitation token before the registration form uses it. |
 | `GetActiveInvitedEmailsAsync` | Which of a set of emails hold an open, unexpired invitation. |
 | `SendPortalLinkAsync` | Email an existing account holder a link to their office's portal. |
-| `MarkEmailConfirmedAsync` | Development only: mark an email as confirmed. Throws outside Development. |
-| `DeleteTestUsersAsync` | Development only: delete test users and their dependent records. Throws outside Development. |
 
 ### RegisterAsync
 

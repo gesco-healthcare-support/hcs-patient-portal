@@ -66,18 +66,6 @@ public sealed class AuthorizationSurfaceInvariantTests
         ["HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.SendPasswordResetCodeAsync(SendPasswordResetCodeInput)"]
             = "pre-authentication account recovery",
 
-        // Dev-only demo helpers. These two are the sharpest edges on this list: one HARD
-        // deletes IdentityUser rows and their master records, the other marks an email
-        // confirmed. Neither is protected by authorization at all -- the only guard is
-        // EnsureDevelopmentOnly, i.e. IHostEnvironment.IsDevelopment(). That holds because
-        // docker-compose.prod.yml sets ASPNETCORE_ENVIRONMENT=Production on both the api
-        // and authserver services, so they throw on the server. It is a guard made of one
-        // environment variable, and it is worth knowing that is all it is.
-        ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.DeleteTestUsersAsync(IList<String>)"]
-            = "dev-only demo helper; EnsureDevelopmentOnly is the only guard",
-        ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.MarkEmailConfirmedAsync(String)"]
-            = "dev-only demo helper; EnsureDevelopmentOnly is the only guard",
-
         // Tenant resolution on the sign-in / sign-up screens, before a session exists.
         ["HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.ResolveTenantByNameAsync(String)"]
             = "office resolution before sign-in",
