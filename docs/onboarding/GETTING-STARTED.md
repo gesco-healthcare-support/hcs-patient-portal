@@ -412,9 +412,9 @@ Both AuthServer and API Host expose health check endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/health-status` | JSON health report (database, Redis connectivity) |
-| `/health-ui` | Visual health dashboard (browser) |
-| `/health-api` | Machine-readable health API |
+| `/health-status` | JSON health report. On the API Host it runs one database check (`CaseEvaluationDatabaseCheck`); the AuthServer registers no checks, so it reports only that the process answers |
+| `/health-ui` | Visual health dashboard (browser). Open in Development; elsewhere it needs a host user holding `CaseEvaluation.BackgroundJobsDashboard` |
+| `/health-api` | Machine-readable health API behind `/health-ui`, with the same access rule |
 
 ```bash
 # Quick check from terminal

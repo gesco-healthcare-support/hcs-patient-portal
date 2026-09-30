@@ -9,7 +9,7 @@
 
 | Field      | Value                                                                                                                                                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Verified   | Sections 1-4, 5.3, 7 and 11 re-checked 2026-09-28 against main `51723e39`. Measurements marked **snapshot 2026-08-26** (test counts, SonarCloud, CodeQL, Scorecard, Dependabot, reliability) were taken on `bc4f2029` and not re-measured |
+| Verified   | Sections 1-4, 5.1 (test database), 5.2, 9 and 11 re-checked 2026-09-30 against main `2df2f2d9`; 5.3 and 7 on 2026-09-28 against `51723e39`. Measurements marked **snapshot 2026-08-26** (test counts, SonarCloud, CodeQL, Scorecard, Dependabot, reliability) were taken on `bc4f2029` and not re-measured |
 | Method     | Direct file reads of `.github/workflows/`, `.husky/`, test projects and config; `gh api` for branch protection and Dependabot; SonarCloud public API                                                                   |
 | Supersedes | Nothing |
 
@@ -22,8 +22,8 @@
 | Local pre-commit   | gitleaks, lint-staged, `dotnet format` on staged `.cs` | Yes, locally; bypassable with `--no-verify` |
 | Local commit-msg   | commitlint (Conventional Commits)                      | Yes, locally                                |
 | Local pre-push     | gitleaks full scan, backend Debug build                | Yes, locally                                |
-| CI on pull request | 9 workflows                                            | **18 required checks** (section 4)          |
-| CI after merge     | 6 workflows on push                                    | No                                          |
+| CI on pull request | 9 workflows, plus 2 that run only for their own paths  | **18 required checks** (section 4)          |
+| CI after merge     | 6 workflows on push, plus the same 2 path-filtered     | No                                          |
 | Scheduled          | 2 workflows (weekly)                                   | No                                          |
 
 **The most consequential fact in this document: `main` requires 18 checks,** including the backend and
@@ -64,7 +64,7 @@ Husky, installed from `angular/.husky/`, wired by `yarn prepare` (`cd .. && husk
 
 ## 3. Layer 2 -- CI workflows
 
-16 workflow files (`ls .github/workflows`), grouped by trigger. `doc-check.yml` and `sonarcloud.yml`
+18 workflow files (`ls .github/workflows | wc -l`), grouped by trigger. `doc-check.yml` and `sonarcloud.yml`
 no longer exist; SonarCloud now runs as a job inside `ci.yml`.
 
 ### 3.1 On pull request (9)
@@ -104,11 +104,33 @@ re-baseline. `ci.yml` also runs on push to `main`.
 | `security.yml`  | Mondays 06:00 UTC                  | .NET vulnerability audit, npm audit, TruffleHog full history, CodeQL |
 | `scorecard.yml` | Mondays 07:00 UTC + push to `main` | OpenSSF Scorecard, uploads SARIF                                     |
 
+`security.yml` has no push trigger; besides the schedule it runs only on a manual `workflow_dispatch`.
+
+### 3.4 Path-filtered (2)
+
+These run on a pull request only when it touches their paths, and neither is a required check.
+
+| Workflow        | Runs on                                                                                                                                              | Jobs                                        |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `docs-site.yml` | Pull request or push to `main` touching `docs/**`, `mkdocs.yml`, `.github/docs-requirements.*`, `scripts/docs/**` or the workflow; manual dispatch | Docs: Build site, Docs: Publish to Pages    |
+| `infra.yml`     | Pull request touching `infra/azure/**`, `scripts/infra-ci.py` or the workflow; push to `production` touching `infra/azure/**`; manual dispatch      | Infra: Bicep, Infra: What-If, Infra: Deploy |
+
+- **The documentation site is built and checked, not published.** The publish job runs only on `main` when the
+  repository variable `DOCS_SITE_PUBLISH` is `true`, and the repository defines no variables
+  (`gh api repos/<org>/hcs-patient-portal/actions/variables`, 2026-09-30). The deployed stack serves the same site
+  at `/docs` instead; see [RUNTIME-AND-DATA-PROFILE.md](RUNTIME-AND-DATA-PROFILE.md).
+- **The Azure preview and deploy are not configured.** Infra: What-If reads its Azure identity from repository
+  secrets that do not exist yet (the repository holds `ABP_LICENSE_CODE`, `ABP_NUGET_API_KEY`, `AUTO_PR_TOKEN` and
+  `SONAR_TOKEN`), so it reports that the preview is not configured. Infra: Deploy runs only on `production`. The
+  Bicep job runs on every matching pull request. Setup is in
+  [infra/azure/README.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/infra/azure/README.md).
+
 ---
 
 ## 4. The merge gate
 
-`gh api repos/<org>/hcs-patient-portal/branches/main/protection` on 2026-09-28:
+`gh api repos/<org>/hcs-patient-portal/branches/main/protection` on 2026-09-30 (the checks are unchanged from
+2026-09-28; the review count is not):
 
 ```text
 strict (branch must be up to date): true
@@ -120,7 +142,7 @@ REQUIRED CHECKS (18):
    - CodeQL: csharp               - CodeQL: javascript-typescript
    - TruffleHog: PR commits       - Dependency Review
    - Commitlint: PR commits       - PR Title: Conventional Commits
-required_approving_review_count: 1
+required_approving_review_count: 0
 enforce_admins: false
 required_linear_history: false
 allow_force_pushes: false
@@ -136,8 +158,9 @@ Consequences:
   blocks a merge to `main`.
 - A job that is skipped reports success. `Coverage: Floors` runs unconditionally for that reason and treats
   missing coverage input as a failure.
-- `enforce_admins: false` plus a single-maintainer repository means the one required review is routinely
-  satisfied by admin merge.
+- `main` requires no approving review. The downstream branches do: `development` and `staging` require one and
+  `production` two (the same command with the branch name; each also requires 17 checks, strict). With
+  `enforce_admins: false`, an administrator can merge past those requirements.
 - SonarCloud (`SonarCloud: Analysis`, and the separate `SonarCloud Code Analysis` check its app posts) is
   advisory.
 
@@ -196,16 +219,24 @@ re-measure are in [coverage-status.md](../testing/coverage-status.md).
 
 Attribute count and executed count differ because `[Theory]` expands per data row.
 
-**Every backend test runs against SQLite in-memory, not SQL Server.**
-`CaseEvaluationEntityFrameworkCoreTestModule.cs:123` opens
-`Data Source=:memory:;Foreign Keys=True`, and the multi-office harness does the same
-(`CaseEvaluationMultiOfficeTestModule.cs:122`). The production database is SQL Server. Behaviours
-that differ between the two -- filtered unique indexes, collation, `datetime2` semantics,
-concurrency tokens, computed columns -- are therefore not exercised by any test.
+**Almost every backend test runs against SQLite in-memory, not SQL Server.**
+`CaseEvaluationEntityFrameworkCoreTestModule.cs:152` opens
+`Data Source=:memory:;Foreign Keys=True`, and the multi-office harness uses SQLite too
+(`CaseEvaluationMultiOfficeTestModule.cs:133`, `MultiOfficeTestDatabase.cs`). The production database is
+SQL Server. Behaviours that differ between the two -- filtered unique indexes, collation, `datetime2`
+semantics, concurrency tokens, computed columns -- are therefore not exercised by those tests.
+
+**The exception is two classes that start a real SQL Server container**, from the image
+`docker-compose.yml` pins (`SqlServerFeedFixture.Image`): `CaseTrackerFeedSqlServerTests` (the feed's
+`rowversion` reads, and the tenant migrations applied on SQL Server) and `SqlAppLockTests` (the application
+lock behind the admin-password store). Both join `SqlServerCollection`, so one container serves them and they
+run one after the other (`git grep -l "SqlServerCollection" -- test`). Docker must be running for them;
+CI's Linux runners have it, and the `Backend: Test` shards include them.
 
 ### 5.2 The multi-office (tenant isolation) suite
 
-20 files under `test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/MultiOffice/`,
+26 files under `test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/MultiOffice/`
+(`git ls-files <that folder> | wc -l`, 2026-09-30),
 including `MultiOfficeIsolationMatrixTests.cs`, `MultiOfficeAppointmentsAppServiceTests.cs`,
 `MultiOfficeCatalogResolutionTests.cs`, `MultiOfficeConsentTokenResolutionTests.cs`,
 `MultiOfficeImpersonationRoleTests.cs` and a self-validating harness
@@ -366,6 +397,11 @@ The config comment gives the original reason for the zero limit: _"until ABP Com
 Angular 20.3+"_. Whether that constraint still binds against Angular 20.3.27 is not recorded
 anywhere and has not been retested.
 
+**Since the snapshot (checked 2026-09-30).** `.github/dependabot.yml` now has five entries, all still targeting
+`chore/dependency-updates`: `nuget` and the two `npm` directories keep `open-pull-requests-limit: 0`, while
+`github-actions` and `docker` allow 5 (`grep -n "open-pull-requests-limit" .github/dependabot.yml`). Dependabot pull
+requests can still reach `main`: #1154 (a `moment` bump in the AuthServer) merged there on 2026-09-29.
+
 ---
 
 ## 9. What does not exist
@@ -383,9 +419,9 @@ public deployment requires.
 | **DAST**                                  | No OWASP ZAP, Nuclei or equivalent                                                                                                    |
 | **Load / stress testing**                 | No k6, JMeter, NBomber or Gatling. Every sizing estimate is unmeasured                                                                |
 | **Mutation testing**                      | No Stryker                                                                                                                            |
-| **API contract testing**                  | None beyond the generated ABP proxies                                                                                                 |
-| **Tests against real SQL Server**         | Every test uses SQLite in-memory (section 5.1)                                                                                        |
-| **Automated deployment**                  | `deploy-dev.yml` validates and opens a PR; the server is updated by hand over SSH                                                     |
+| **API contract testing**                  | Only the generated ABP proxies, plus `CaseTrackerWireContractTests`, which pins the Case Tracker feed's route, header and parameter names as literals |
+| **Tests against real SQL Server**         | Two classes only (`CaseTrackerFeedSqlServerTests`, `SqlAppLockTests`); every other test uses SQLite in-memory (section 5.1)          |
+| **Automated deployment**                  | `deploy-dev.yml` validates and opens a PR; the application server is updated by hand. `infra.yml` has an Azure deploy job with no credentials configured (section 3.4) |
 | **Staging environment**                   | `staging` and `production` branches last moved 2026-05-01                                                                             |
 
 ---
@@ -414,7 +450,7 @@ public deployment requires.
 
 | Topic                     | Location                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------ |
-| CI workflows              | `.github/workflows/` (16 files)                                                |
+| CI workflows              | `.github/workflows/` (18 files)                                                |
 | Local hooks               | `angular/.husky/{pre-commit,commit-msg,pre-push}`                              |
 | Commit message rules      | `angular/commitlint.config.js`, `angular/commitlint.config.mjs`                |
 | Backend compiler settings | `Directory.Build.props`                                                        |

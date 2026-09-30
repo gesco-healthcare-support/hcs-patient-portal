@@ -62,10 +62,13 @@ All runtime secrets are managed externally:
   (see `docs/security/SECRETS-MANAGEMENT.md`).
 - **ABP license code**: GitHub secret `ABP_LICENSE_CODE`, injected into
   `appsettings.secrets.json` at build time.
-- **Encryption passphrases**: local `appsettings.Local.json` (gitignored) or
-  GitHub Environment secrets.
-- **Database credentials**: GitHub Environment secrets per environment
-  (development / staging / production).
+- **Encryption passphrases**: local `appsettings.Local.json` (gitignored) in
+  development; on a deployed server, the server's environment file, which is
+  never committed.
+- **Database credentials**: `.env` at the repository root locally (gitignored);
+  on a deployed server, the same environment file. The repository defines no
+  GitHub Environments, so no runtime secret is stored in GitHub beyond the build
+  secrets above.
 - **Test passwords**: `$env:TEST_PASSWORD` environment variable.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup. See
