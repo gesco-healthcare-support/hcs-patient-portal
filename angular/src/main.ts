@@ -97,4 +97,9 @@ function showConfigProblemBanner(problems: string[]): void {
 
     bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));
   }
-})();
+})().catch((err) => {
+  // typescript:S9383 -- everything above bootstrapApplication runs before Angular exists, so
+  // a throw from the config validation or the tenant redirect would otherwise surface only as an
+  // unhandled rejection. Log it under the same prefix as the other bootstrap messages.
+  console.error('[bootstrap] startup failed before Angular bootstrapped:', err);
+});

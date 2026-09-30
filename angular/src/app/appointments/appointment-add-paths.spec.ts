@@ -247,10 +247,10 @@ describe('AppointmentAddComponent remaining paths', () => {
       c.loadCustomFieldsForAppointmentType('type-1');
       c.loadCustomFieldsForAppointmentType('type-2');
       first.next([{ id: 'cf-stale', fieldType: CustomFieldType.Alphanumeric }]);
-      expect(c.customFieldsArray.length).toBe(0);
+      expect(c.customFieldsArray).toHaveSize(0);
 
       second.next([{ id: 'cf-fresh', fieldType: CustomFieldType.Alphanumeric }]);
-      expect(c.customFieldsArray.length).toBe(1);
+      expect(c.customFieldsArray).toHaveSize(1);
       expect(c.customFieldsArray.at(0).value.customFieldId).toBe('cf-fresh');
     });
   });
@@ -379,6 +379,66 @@ describe('AppointmentAddComponent remaining paths', () => {
       expect(c.stagedDocuments[0].status).toBe('failed');
       expect(c.stagedDocuments[0].error).toBe('Too large.');
     });
+
+    // typescript:S9382 moved the uploads out of a sequential loop. What that must not cost: a file
+    // already uploaded is never sent again, and one failure marks only its own file.
+    it('sends every pending file before any upload has answered', async () => {
+      const answers: Subject<unknown>[] = [];
+      const c = create({
+        rest: {
+          'appt-1/documents': () => {
+            const s = new Subject<unknown>();
+            answers.push(s);
+            return s.asObservable();
+          },
+        },
+      });
+      c.stagedDocuments = [staged(), staged({ status: 'uploaded' }), staged()];
+
+      const done = c.uploadStagedDocuments('appt-1');
+      await Promise.resolve();
+
+      expect(answers).toHaveSize(2);
+      expect(c.stagedDocuments.map((d: { status: string }) => d.status)).toEqual([
+        'uploading',
+        'uploaded',
+        'uploading',
+      ]);
+      answers.forEach((s) => {
+        s.next({});
+        s.complete();
+      });
+      expect(await done).toBeTrue();
+      expect(c.stagedDocuments.map((d: { status: string }) => d.status)).toEqual([
+        'uploaded',
+        'uploaded',
+        'uploaded',
+      ]);
+    });
+
+    it('marks only the file that failed and still uploads the others', async () => {
+      let call = 0;
+      const c = create({
+        rest: {
+          'appt-1/documents': () => {
+            call += 1;
+            return call === 1
+              ? throwError(() => ({ error: { error: { message: 'Too large.' } } }))
+              : of({});
+          },
+        },
+      });
+      c.stagedDocuments = [staged(), staged()];
+
+      expect(await c.uploadStagedDocuments('appt-1')).toBeFalse();
+
+      expect(c.stagedDocuments.map((d: { status: string }) => d.status)).toEqual([
+        'failed',
+        'uploaded',
+      ]);
+      expect(c.stagedDocuments[0].error).toBe('Too large.');
+      expect(c.stagedDocuments[1].error).toBeUndefined();
+    });
   });
 
   // ------------------------------------------------------------------ address standardisation
@@ -449,6 +509,98 @@ describe('AppointmentAddComponent remaining paths', () => {
       expect(c.form.get('city').value).toBe('encino');
       expect(c.form.get('zipCode').value).toBe('00000');
     }));
+
+    // typescript:S9382 moved the provider calls out of a sequential loop. These pin what that
+    // change is for, and what it must not cost: every address is asked about before any answer
+    // comes back, the dialog still lists groups in form order whichever answer lands first, and one
+    // failing address neither hides another's suggestion nor produces a second warning.
+    describe('with more than one address filled in', () => {
+      function withEmployerAddress(c: Probe): void {
+        c.form.patchValue(
+          {
+            employerStreet: '2 Example Plaza',
+            employerCity: 'encino',
+            employerStateId: 'state-1',
+            employerZipCode: '00000',
+          },
+          { emitEvent: false },
+        );
+      }
+
+      function deferredValidate(): Subject<unknown>[] {
+        const pendingCalls: Subject<unknown>[] = [];
+        validate.and.callFake(() => {
+          const s = new Subject<unknown>();
+          pendingCalls.push(s);
+          return s.asObservable();
+        });
+        return pendingCalls;
+      }
+
+      function answer(s: Subject<unknown>, value: unknown): void {
+        s.next(value);
+        s.complete();
+      }
+
+      it('asks about every address before any answer comes back', fakeAsync(() => {
+        const c = create();
+        withPatientAddress(c);
+        withEmployerAddress(c);
+        const pendingCalls = deferredValidate();
+
+        c.standardizeAddressesBeforeSubmit();
+        flushMicrotasks();
+
+        expect(pendingCalls).toHaveSize(2);
+        pendingCalls.forEach((s) =>
+          answer(s, { status: 'ok', standardized: null, matchesInput: true }),
+        );
+        flushMicrotasks();
+      }));
+
+      it('lists the groups in form order whichever answer lands first', fakeAsync(() => {
+        const c = create();
+        withPatientAddress(c);
+        withEmployerAddress(c);
+        const pendingCalls = deferredValidate();
+
+        c.standardizeAddressesBeforeSubmit();
+        flushMicrotasks();
+        answer(pendingCalls[1], suggestion);
+        flushMicrotasks();
+        answer(pendingCalls[0], suggestion);
+        flushMicrotasks();
+
+        expect((c.addressDialogItems ?? []).map((i: { key: string }) => i.key)).toEqual([
+          'patient',
+          'employer',
+        ]);
+        c.onAddressDialogResolved({ patient: 'mine', employer: 'mine' });
+        flushMicrotasks();
+      }));
+
+      it("still offers one address's suggestion when another's check fails, and warns once", fakeAsync(() => {
+        const c = create();
+        withPatientAddress(c);
+        withEmployerAddress(c);
+        const pendingCalls = deferredValidate();
+
+        c.standardizeAddressesBeforeSubmit();
+        flushMicrotasks();
+        pendingCalls[0].error({ status: 503 });
+        answer(pendingCalls[1], suggestion);
+        flushMicrotasks();
+
+        expect((c.addressDialogItems ?? []).map((i: { key: string }) => i.key)).toEqual([
+          'employer',
+        ]);
+        expect(toaster.warn).toHaveBeenCalledTimes(1);
+        c.onAddressDialogResolved({ employer: 'suggested' });
+        flushMicrotasks();
+        expect(c.form.get('employerCity').value).toBe('Encino');
+        expect(c.form.get('city').value).toBe('encino');
+      }));
+    });
   });
 
   // ------------------------------------------------------------------ English interpreter lock

@@ -337,7 +337,7 @@ describe('ExternalAppointmentDetailComponent', () => {
     it('loads the state options', () => {
       const c = create();
       c.ngOnInit();
-      expect(c.stateOptions.length).toBe(1);
+      expect(c.stateOptions).toHaveSize(1);
     });
 
     /**
@@ -671,7 +671,7 @@ describe('ExternalAppointmentDetailComponent', () => {
       const c = create();
       getHistory.and.returnValue(of([{ id: 'r1' }]));
       c.ngOnInit();
-      expect(c.historyRounds.length).toBe(1);
+      expect(c.historyRounds).toHaveSize(1);
 
       TestBed.resetTestingModule();
       const failed = create();
@@ -892,7 +892,7 @@ describe('ExternalAppointmentDetailComponent', () => {
 
       c.loadInjuryDraftsIfFlagged();
 
-      expect(c.injuryDrafts.length).toBe(1);
+      expect(c.injuryDrafts).toHaveSize(1);
     });
 
     it('starts from an empty set when the prefill fails', () => {

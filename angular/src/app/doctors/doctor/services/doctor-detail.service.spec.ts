@@ -153,7 +153,7 @@ describe('DoctorDetailViewService', () => {
     service.submitForm();
 
     expect(created).toEqual([]);
-    expect(updated.length).toBe(1);
+    expect(updated).toHaveSize(1);
     expect(updated[0].id).toBe('TEST-doctor-1');
     expect(updated[0].input['concurrencyStamp']).toBe('TEST-stamp-1');
     expect(updated[0].input['appointmentTypeIds']).toEqual(['TEST-type-1']);

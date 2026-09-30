@@ -296,7 +296,7 @@ describe('InternalGenerateSlotsComponent surfaces', () => {
       const c = create();
       c.monthCursor.set(new Date(2027, 1, 1));
       const days = c.monthCells().filter((x: { blank: boolean }) => !x.blank);
-      expect(days.length).toBe(new Date(2027, 2, 0).getDate());
+      expect(days).toHaveSize(new Date(2027, 2, 0).getDate());
     });
 
     it('disables days already in the past', () => {
@@ -384,7 +384,7 @@ describe('InternalGenerateSlotsComponent surfaces', () => {
     it('appends a second time range with its own defaults', () => {
       const c = create();
       c.addRange();
-      expect(c.timeRanges().length).toBe(2);
+      expect(c.timeRanges()).toHaveSize(2);
       expect(c.timeRanges()[1]).toEqual({
         fromTime: '13:00',
         toTime: '16:00',
@@ -396,7 +396,7 @@ describe('InternalGenerateSlotsComponent surfaces', () => {
       const c = create();
       c.addRange();
       c.removeRange(0);
-      expect(c.timeRanges().length).toBe(1);
+      expect(c.timeRanges()).toHaveSize(1);
       expect(c.timeRanges()[0].fromTime).toBe('13:00');
     });
 
@@ -404,7 +404,7 @@ describe('InternalGenerateSlotsComponent surfaces', () => {
       // A form with no time range can generate nothing and offers no way back.
       const c = create();
       c.removeRange(0);
-      expect(c.timeRanges().length).toBe(1);
+      expect(c.timeRanges()).toHaveSize(1);
     });
 
     it('toggles an appointment type on and off', () => {

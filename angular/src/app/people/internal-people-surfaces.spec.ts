@@ -256,7 +256,7 @@ describe('InternalPeopleComponent surfaces', () => {
 
     it('returns every row when nothing is searched or filtered', () => {
       const c = seeded();
-      expect(c.displayRows().length).toBe(2);
+      expect(c.displayRows()).toHaveSize(2);
     });
 
     it('matches on name, email, phone and firm alike', () => {
@@ -432,7 +432,7 @@ describe('InternalPeopleComponent surfaces', () => {
       const c = create();
       gateway['list'].and.returnValue(of([row()]));
       enter('patients');
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
       expect(c.loading()).toBeFalse();
     });
 
@@ -502,7 +502,7 @@ describe('InternalPeopleComponent surfaces', () => {
       gateway['list'].and.returnValue(of([row({ email: 'ada@example.test' })]));
       gateway['activeInvitedEmails'].and.returnValue(throwError(() => ({ status: 500 })));
       enter('patients');
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
       expect(c.rows()[0].portal).toBe('none');
     });
   });

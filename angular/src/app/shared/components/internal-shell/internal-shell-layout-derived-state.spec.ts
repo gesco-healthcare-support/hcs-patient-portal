@@ -718,7 +718,7 @@ describe('InternalShellLayoutComponent derived state', () => {
 
       c.toggleSwitcher();
 
-      expect(c.offices().length).toBe(2);
+      expect(c.offices()).toHaveSize(2);
     });
 
     it('leaves the list empty when the lookup fails', () => {

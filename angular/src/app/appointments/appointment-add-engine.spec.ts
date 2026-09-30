@@ -790,7 +790,7 @@ describe('AppointmentAddComponent booking engine', () => {
 
       c.form.get('appointmentTypeId')?.setValue('type-1');
 
-      expect(c.customFieldsArray.length).toBe(2);
+      expect(c.customFieldsArray).toHaveSize(2);
       expect(c.customFieldsArray.at(0).get('fieldLabel')?.value).toBe('First');
     });
 
@@ -820,7 +820,7 @@ describe('AppointmentAddComponent booking engine', () => {
 
       c.form.get('appointmentTypeId')?.setValue('type-1');
 
-      expect(c.customFieldsArray.length).toBe(1);
+      expect(c.customFieldsArray).toHaveSize(1);
       expect(c.customFieldsArray.at(0).get('fieldLabel')?.value).toBe('Live');
     });
 
@@ -862,18 +862,18 @@ describe('AppointmentAddComponent booking engine', () => {
         of([{ id: 'cf1', fieldLabel: 'Claim number', fieldType: CustomFieldType.Alphanumeric }]),
       );
       c.form.get('appointmentTypeId')?.setValue('type-1');
-      expect(c.customFieldsArray.length).toBe(1);
+      expect(c.customFieldsArray).toHaveSize(1);
 
       c.form.get('appointmentTypeId')?.setValue(null);
 
-      expect(c.customFieldsArray.length).toBe(0);
+      expect(c.customFieldsArray).toHaveSize(0);
     });
 
     it('clears the array when the fetch fails', () => {
       const c = create();
       getActiveForAppointmentType.and.returnValue(throwError(() => ({ status: 500 })));
       c.form.get('appointmentTypeId')?.setValue('type-1');
-      expect(c.customFieldsArray.length).toBe(0);
+      expect(c.customFieldsArray).toHaveSize(0);
     });
 
     it('serialises answers into the submit payload shape', () => {
@@ -942,7 +942,7 @@ describe('AppointmentAddComponent booking engine', () => {
     it('stages an acceptable file', () => {
       const c = create();
       c.onDocumentsSelected([file('records.pdf')]);
-      expect(c.stagedDocuments.length).toBe(1);
+      expect(c.stagedDocuments).toHaveSize(1);
       expect(c.stagedDocuments[0].status).toBe('staged');
     });
 
@@ -951,7 +951,7 @@ describe('AppointmentAddComponent booking engine', () => {
       // know which of them was refused.
       const c = create();
       c.onDocumentsSelected([file('script.exe', 'application/x-msdownload')]);
-      expect(c.stagedDocuments.length).toBe(0);
+      expect(c.stagedDocuments).toHaveSize(0);
       expect(toaster.error).toHaveBeenCalled();
       expect(toaster.error.calls.mostRecent().args[0]).toContain('script.exe');
     });
@@ -1074,7 +1074,7 @@ describe('AppointmentAddComponent booking engine', () => {
         { file: file('a.pdf'), status: 'staged', isStrikeList: false, documentTypeId: null },
       ];
       c.removeStagedDocument(0);
-      expect(c.stagedDocuments.length).toBe(0);
+      expect(c.stagedDocuments).toHaveSize(0);
     });
 
     it('refuses to remove a file that is uploading or already uploaded', () => {
@@ -1089,7 +1089,7 @@ describe('AppointmentAddComponent booking engine', () => {
       c.removeStagedDocument(0);
       c.removeStagedDocument(1);
 
-      expect(c.stagedDocuments.length).toBe(2);
+      expect(c.stagedDocuments).toHaveSize(2);
     });
 
     it('ignores a remove for a row that is gone', () => {
@@ -1109,7 +1109,7 @@ describe('AppointmentAddComponent booking engine', () => {
 
       c.form.get('appointmentTypeId')?.setValue('type-1');
 
-      expect(c.documentTypeOptions.length).toBe(2);
+      expect(c.documentTypeOptions).toHaveSize(2);
       expect(c.panelStrikeListTypeId).toBe('doc-strike');
     });
 
@@ -2009,7 +2009,7 @@ describe('AppointmentAddComponent booking engine', () => {
         },
       });
 
-      expect(c.externalAuthorizedUserOptions.length).toBe(3);
+      expect(c.externalAuthorizedUserOptions).toHaveSize(3);
       expect(c.applicantAttorneyOptions.map((o: any) => o.identityUserId)).toEqual(['u1']);
       expect(c.defenseAttorneyOptions.map((o: any) => o.identityUserId)).toEqual(['u2']);
     });
@@ -2539,7 +2539,7 @@ describe('AppointmentAddComponent booking engine', () => {
       await c.uploadStagedDocuments('appt-1');
 
       const posts = restRequest.calls.allArgs().filter(([req]) => req.method === 'POST');
-      expect(posts.length).toBe(1);
+      expect(posts).toHaveSize(1);
     });
 
     it('keeps a failed file for retry and reports the failure', async () => {

@@ -175,7 +175,7 @@ describe('AdminSectionGateway', () => {
       );
 
       const variables = emitted(g.getTemplateVariables('AppointmentApproved'));
-      expect(variables.length).toBe(1);
+      expect(variables).toHaveSize(1);
       expect(variables[0].token).toBe('{{PatientName}}');
       expect(variables[0].label).toBe('Patient name');
 
@@ -292,7 +292,7 @@ describe('AdminSectionGateway', () => {
       audit['getList'].and.returnValue(of({ items: [{ id: 'a-1', httpMethod: 'DELETE' }] }));
 
       const rows = emitted(g.listAuditLogs());
-      expect(rows.length).toBe(1);
+      expect(rows).toHaveSize(1);
       expect(rows[0].httpMethod).toBe('DELETE');
 
       audit['getList'].and.returnValue(of({}));
