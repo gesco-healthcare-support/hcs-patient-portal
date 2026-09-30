@@ -92,16 +92,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         // To that attorney with the creator + other parties CC'd. Resolves to null
         // when not promoted, so handlers fall back to the existing booker anchor and
         // Patient / Claim Examiner / internal-staff bookings stay unchanged.
-        IdentityUser? creatorUser = null;
-        IList<string> creatorRoles = new List<string>();
-        if (appointment.CreatorId.HasValue && appointment.CreatorId.Value != Guid.Empty)
-        {
-            creatorUser = await _userManager.FindByIdAsync(appointment.CreatorId.Value.ToString());
-            if (creatorUser != null)
-            {
-                creatorRoles = await _userManager.GetRolesAsync(creatorUser);
-            }
-        }
+        var (creatorUser, creatorRoles) = await ResolveCreatorAsync(appointment.CreatorId);
 
         var primaryRecipientEmail = AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
             creatorRoles,
@@ -135,18 +126,7 @@ public class DocumentEmailContextResolver : ITransientDependency
             : null;
         var uploaderName = JoinName(uploaderUser?.Name, uploaderUser?.Surname);
 
-        string? documentLabel = null;
-        if (document != null)
-        {
-            if (document.AppointmentDocumentTypeId is { } typeId && typeId != Guid.Empty)
-            {
-                var documentType = await _documentTypeRepository.FindAsync(typeId);
-                documentLabel = documentType?.Name;
-            }
-            documentLabel ??= string.IsNullOrWhiteSpace(document.OtherDocumentTypeName)
-                ? document.DocumentName
-                : document.OtherDocumentTypeName;
-        }
+        var documentLabel = await ResolveDocumentLabelAsync(document);
 
         // Route through IAccountUrlBuilder. Tenant comes from the
         // appointment row's TenantId (the source of truth) rather than
@@ -191,6 +171,39 @@ public class DocumentEmailContextResolver : ITransientDependency
             IsAdHoc = document?.IsAdHoc ?? false,
             IsJointDeclaration = document?.IsJointDeclaration ?? false,
         };
+    }
+
+    private async Task<(IdentityUser? User, IList<string> Roles)> ResolveCreatorAsync(Guid? creatorId)
+    {
+        if (!creatorId.HasValue || creatorId.Value == Guid.Empty)
+        {
+            return (null, new List<string>());
+        }
+
+        var creatorUser = await _userManager.FindByIdAsync(creatorId.Value.ToString());
+        if (creatorUser == null)
+        {
+            return (null, new List<string>());
+        }
+        return (creatorUser, await _userManager.GetRolesAsync(creatorUser));
+    }
+
+    private async Task<string?> ResolveDocumentLabelAsync(AppointmentDocument? document)
+    {
+        if (document == null)
+        {
+            return null;
+        }
+
+        string? documentLabel = null;
+        if (document.AppointmentDocumentTypeId is { } typeId && typeId != Guid.Empty)
+        {
+            var documentType = await _documentTypeRepository.FindAsync(typeId);
+            documentLabel = documentType?.Name;
+        }
+        return documentLabel ?? (string.IsNullOrWhiteSpace(document.OtherDocumentTypeName)
+            ? document.DocumentName
+            : document.OtherDocumentTypeName);
     }
 
     /// <summary>

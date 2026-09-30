@@ -136,8 +136,12 @@ A selection of the main ones (paths under `angular/src/app/`):
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | `AppointmentWizardComponent` | `appointments/wizard/appointment-wizard.component.ts` | The stepped booking wizard at `/appointments/request`, for external users and staff alike. It **extends** `AppointmentAddComponent` (`appointments/appointment-add.component.ts`), which no route loads any more and which survives as the base class holding the form state and cascades |
-| `ExternalAppointmentDetailComponent` | `appointments/appointment/components/external-appointment-detail.component.ts` | Appointment detail for external users |
-| `AppointmentViewComponent` | `appointments/appointment/components/appointment-view.component.ts` | Appointment detail for staff |
+| `InternalAppointmentsComponent` | `appointments/appointment/components/internal-appointments.component.ts` | The staff appointment queue at `/appointments` |
+| `InternalAppointmentDetailComponent` | `appointments/appointment/components/internal-appointment-detail.component.ts` | Appointment detail for staff (`/appointments/view/:id` inside the shell): status banner, office actions and edit mode |
+| `ExternalAppointmentDetailComponent` | `appointments/appointment/components/external-appointment-detail.component.ts` | Read-only appointment detail for external users |
+| `AppointmentViewComponent` | `appointments/appointment/components/appointment-view.component.ts` | Not a page: a selector-less `@Directive()` base class holding the shared load, form and actions. Both detail pages above **extend** it |
+| `InternalConfigurationComponent` | `configuration/internal-configuration.component.ts` | One hub for the reference lists (states, appointment types, statuses, document types, languages), one section per route |
+| `InternalPeopleComponent` | `people/internal-people.component.ts` | One hub for patients, applicant attorneys, defense attorneys and claim examiners, one section per route |
 | `InternalGenerateSlotsComponent` | `doctor-availabilities/doctor-availability/internal-generate-slots.component.ts` | Bulk generation of availability slots |
 | `PatientProfileRedesignComponent` | `patients/patient/components/patient-profile-redesign.component.ts` | The routed My Profile page; extends `PatientProfileComponent`, which holds the form logic |
 | `ExternalHomeComponent` | `home/external-home.component.ts` | External users' landing page |

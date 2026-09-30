@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Identity;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
 
@@ -54,7 +55,12 @@ public class AdminPasswordRotator : ITransientDependency
     ///
     /// <para>No-op in Development, which is the control: a local clone keeps the documented
     /// credentials and every runbook, onboarding page and docker guide stays correct.</para>
+    ///
+    /// <para>Transactional, so the new password and the must-change flag in
+    /// <see cref="ChangeToStoredPasswordAsync"/> commit together or not at all. The attribute takes
+    /// effect when this class is resolved from the container, as the DbMigrator resolves it.</para>
     /// </summary>
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task<bool> RotateIfOnAKnownDefaultAsync(Guid? tenantId, string databaseName)
     {
         Check.NotNullOrWhiteSpace(databaseName, nameof(databaseName));
@@ -72,39 +78,45 @@ public class AdminPasswordRotator : ITransientDependency
             return false;
         }
 
-        if (!await IsOnAKnownDefaultAsync(admin))
+        var knownDefault = await FindKnownDefaultAsync(admin);
+        if (knownDefault == null)
         {
             return false;
         }
 
-        await ResetToStoredPasswordAsync(admin, tenantId);
+        await ChangeToStoredPasswordAsync(admin, knownDefault, tenantId);
 
         Logger.LogWarning("Rotated the admin password of {Database}.", databaseName);
         return true;
     }
 
-    private async Task<bool> IsOnAKnownDefaultAsync(IdentityUser admin)
+    /// <summary>The published default the admin still authenticates with, or null if none.</summary>
+    private async Task<string?> FindKnownDefaultAsync(IdentityUser admin)
     {
         foreach (var known in AdminPasswordPolicy.KnownDefaults)
         {
             if (await _userManager.CheckPasswordAsync(admin, known))
             {
-                return true;
+                return known;
             }
         }
 
-        return false;
+        return null;
     }
 
-    private async Task ResetToStoredPasswordAsync(IdentityUser admin, Guid? tenantId)
+    private async Task ChangeToStoredPasswordAsync(IdentityUser admin, string currentPassword, Guid? tenantId)
     {
         var replacement = await _adminPasswordStore.GetOrCreateAsync(tenantId);
 
-        // Through a reset token rather than RemovePassword + AddPassword. The two-step form leaves
-        // the account with NO password in between, so a process that dies there leaves an account
-        // that cannot be signed into and whose recovery needs database access.
-        var token = await _userManager.GeneratePasswordResetTokenAsync(admin);
-        (await _userManager.ResetPasswordAsync(admin, token, replacement)).CheckErrors();
+        // A plain change from the password just verified -- NOT a reset token, and NOT remove + add.
+        // A reset token needs an Identity token provider, and the DbMigrator, the only production
+        // caller, registers none: the web hosts get theirs from the ASP.NET Core identity module,
+        // and the test harness registers a no-op one, which hid this until the 2026-09-30 release
+        // deploy stopped on "No IUserTwoFactorTokenProvider named 'Default' is registered". Remove +
+        // add would leave the account with NO password between two writes. A change is one write
+        // of the new hash, and it is possible here because the current password is known: it is the
+        // published default matched above.
+        (await _userManager.ChangePasswordAsync(admin, currentPassword, replacement)).CheckErrors();
 
         // The operator reads the generated password out of the store to hand it over, so it is
         // known to more than one person by construction. Forcing a change makes that handover

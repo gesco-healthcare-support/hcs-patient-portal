@@ -15,8 +15,8 @@ The Appointment Portal is a workers' compensation Independent Medical Examinatio
 | ORM | Entity Framework Core | - |
 | Database | SQL Server LocalDB | - |
 | Authentication | OpenIddict (OAuth 2.0 / OIDC) | - |
-| Frontend | Angular (standalone components) | 20 |
-| UI Theme | LeptonX | 5.0.2 |
+| Frontend | Angular (standalone components) | 20.3 |
+| UI Theme | LeptonX (AuthServer pages; the SPA draws its own shell and keeps the LeptonX styles) | 5.0.2 (Angular package) |
 | Caching + DataProtection | Redis. **Not optional as shipped** -- see the note below the table | - |
 | Logging | Serilog (file + console) | - |
 | Object Mapping | Mapperly (compile-time) | - |
@@ -82,7 +82,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph localhost["localhost (Development Machine)"]
-        subgraph angular_proc["Angular Dev Server"]
+        subgraph angular_proc["Static server (npx serve of an ng build)"]
             Angular["Angular SPA\nhttp://localhost:4200"]
         end
 

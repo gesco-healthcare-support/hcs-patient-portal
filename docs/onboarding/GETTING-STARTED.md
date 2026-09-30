@@ -83,7 +83,7 @@ Use this method when you need full debugging, hot-reload, or IDE integration. Re
 | .NET SDK | 10.0 | `dotnet --version` | [dotnet.microsoft.com](https://dotnet.microsoft.com/download) |
 | Node.js | LTS (22+) | `node --version` | [nodejs.org](https://nodejs.org/) |
 | SQL Server | Any (LocalDB, Docker, or full) | See database setup below | See database setup below |
-| Angular CLI | Latest | `ng version` | `npm install -g @angular/cli` |
+| Angular CLI | Not installed globally | `npx ng version` (from `angular/`) | Comes with `yarn install`: the project pins `@angular/cli` ~20.3 and every command here runs it through `npx ng` |
 | ABP CLI | Latest | `abp --version` | `dotnet tool install -g Volo.Abp.Studio.Cli` |
 
 Optional: Redis (disabled by default).
@@ -230,13 +230,13 @@ curl -sk -o /dev/null -w "%{http_code}" https://localhost:44327/swagger/index.ht
 curl -s -o /dev/null -w "%{http_code}" http://localhost:4200/
 ```
 
-Open **<http://localhost:4200>**, log in with `admin@abp.io` and the `TEST_PASSWORD` from your `.env.local`. You should see the LeptonX dashboard with sidebar menu (Appointments, Doctors, Patients, Locations).
+Open **<http://localhost:4200>**. The SPA redirects the bare host to **<http://admin.localhost:4200>**, the host administration surface (offices are reached at `<office>.localhost:4200`). Log in with `admin@abp.io` and the `TEST_PASSWORD` from your `.env.local`. You should land on `/dashboard` inside the staff shell: a sidebar with the host groups Overview, Practice Management and Administration. The office groups (Workspace, Scheduling, Administration, Configuration, People) appear once you work inside an office.
 
 | Service | URL | Expected |
 |---------|-----|----------|
 | AuthServer | <https://localhost:44368> | OpenIddict login page |
 | API Host | <https://localhost:44327/swagger> | Swagger API explorer |
-| Angular | <http://localhost:4200> | LeptonX themed SPA |
+| Angular | <http://localhost:4200> | Redirects to `admin.localhost:4200`, then the AuthServer sign-in |
 
 ## Running Services Independently
 
@@ -412,9 +412,9 @@ Both AuthServer and API Host expose health check endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/health-status` | JSON health report (database, Redis connectivity) |
-| `/health-ui` | Visual health dashboard (browser) |
-| `/health-api` | Machine-readable health API |
+| `/health-status` | JSON health report. On the API Host it runs one database check (`CaseEvaluationDatabaseCheck`); the AuthServer registers no checks, so it reports only that the process answers |
+| `/health-ui` | Visual health dashboard (browser). Open in Development; elsewhere it needs a host user holding `CaseEvaluation.BackgroundJobsDashboard` |
+| `/health-api` | Machine-readable health API behind `/health-ui`, with the same access rule |
 
 ```bash
 # Quick check from terminal
@@ -435,7 +435,7 @@ curl http://localhost:44368/health-status
 | SQL connection error on startup | Database server not running | Start your SQL Server (Docker: `docker start sql-server`, LocalDB: `sqllocaldb start MSSQLLocalDB`) |
 | SSL certificate errors in browser | Dev cert not trusted | Run `dotnet dev-certs https --trust` |
 | Port already in use | Previous instance still running | Find and kill: `lsof -i :44327` (macOS/Linux) or `netstat -ano \| findstr :44327` (Windows) |
-| Angular build fails with ABP library errors | ABP client-side libs not installed | Run `abp install-libs` from the solution root |
+| AuthServer pages load without their styles or scripts | The AuthServer's client-side libraries (`wwwroot/libs`) are not installed | Run `abp install-libs` in `src/HealthcareSupport.CaseEvaluation.AuthServer` (it reads `abp.resourcemapping.js`). The Angular app gets its ABP packages from `yarn install` instead |
 | `Host version X does not match binary Y` (esbuild) | Stale esbuild binary | Delete `node_modules/@esbuild/*/esbuild*`, re-run `yarn install` |
 | Migration error: "database already exists" | Partial previous run | Drop the `CaseEvaluation` database and re-run DbMigrator |
 | `MSB3030: Could not copy the file "...appsettings.secrets.json" because it was not found` | That file is gitignored, so it does not arrive with a clone and does not propagate into a new git worktree. The error names the file but not the reason | Copy it into `test/HealthcareSupport.CaseEvaluation.TestBase/` and `src/HealthcareSupport.CaseEvaluation.DbMigrator/` from an existing checkout, or create both from `docker/appsettings.secrets.json.example` |

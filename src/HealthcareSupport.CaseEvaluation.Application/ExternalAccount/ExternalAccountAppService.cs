@@ -598,7 +598,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     /// ships (deferred to end-of-categories per Adrian directive
     /// 2026-05-08, Decision A).
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildPasswordTokenVariables(
+    private static Dictionary<string, object?> BuildPasswordTokenVariables(
         Volo.Abp.Identity.IdentityUser user,
         string? url)
     {
@@ -691,13 +691,6 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             return false;
         }
-        foreach (var err in result.Errors)
-        {
-            if (string.Equals(err.Code, "InvalidToken", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-        return false;
+        return result.Errors.Any(err => string.Equals(err.Code, "InvalidToken", StringComparison.Ordinal));
     }
 }

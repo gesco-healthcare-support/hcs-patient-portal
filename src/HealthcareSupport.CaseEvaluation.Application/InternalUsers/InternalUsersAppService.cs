@@ -292,7 +292,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     /// so the seeded EmailBodies/ResetPassword.html renders identically whether
     /// the reset was self-service or admin-initiated.
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildPasswordResetVariables(
+    private static Dictionary<string, object?> BuildPasswordResetVariables(
         IdentityUser user,
         string resetUrl)
     {
@@ -445,7 +445,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     /// use; per-tenant branding fills them in when the branding feature
     /// ships.
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildWelcomeEmailVariables(
+    private static Dictionary<string, object?> BuildWelcomeEmailVariables(
         IdentityUser user,
         CreateInternalUserDto input,
         string generatedPassword,

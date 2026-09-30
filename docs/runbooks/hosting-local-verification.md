@@ -64,7 +64,10 @@ docker compose -f docker-compose.prod.yml -f docker-compose.prod.localseed.yml \
 ```
 
 Option B (confirming run -- full Production; no seeding; create an office via the host
-UI): omit the localseed override.
+UI): omit the localseed override. The migrator then generates the host admin's password into the
+admin-password folder, so create that folder first, owned by the containers' user (uid 1654), as
+`env.prod.example` describes under `ADMIN_PASSWORD_DIRECTORY`; a folder Docker creates itself is
+owned by root, and the migrator's first write fails.
 
 Watch health: `docker compose -f docker-compose.prod.yml ps` (all healthy; db-migrator
 exited 0). AuthServer/API cold start can take a couple of minutes.
@@ -83,11 +86,15 @@ Any other status stops the checkpoint: see Abort.
 
 - Log in over HTTPS at `https://admin.portal.local` (host) and at
   `https://test-office.portal.local` (office).
-  - Option A: `it.admin@hcs.test` with the password in
-    `InternalUsersDataSeedContributor.DefaultPassword`. The TEST office admin is
-    `test.admin@example.test` with `CaseEvaluationConsts.AdminPasswordDefaultValue`. That admin
-    exists only because Option A seeds as Development.
-  - Option B: the ABP host admin, then create an office via the UI.
+  - Option A seeds `it.admin@hcs.test` with `InternalUsersDataSeedContributor.DefaultPassword` and
+    the TEST office admin `test.admin@example.test` with
+    `CaseEvaluationConsts.AdminPasswordDefaultValue`. **Neither signs in here:** outside Development
+    the AuthServer refuses both published passwords (`KnownDefaultPasswordSignInManager`, listed in
+    `AdminPasswordPolicy.KnownDefaults`), and this rig runs the AuthServer as Production; the
+    override changes only the migrator. Use Option A for the routing checks in section 5, and
+    Option B for sign-in.
+  - Option B: the ABP host admin, whose generated password is in
+    `secrets/admin-passwords/admin-password-host`. Then create an office via the UI.
 - **The issuer is per request.** The AuthServer no longer pins `SetIssuer`
   (`CaseEvaluationAuthServerModule.cs`, the T9 comment), so each office's OIDC discovery reports
   its own host. Check it:

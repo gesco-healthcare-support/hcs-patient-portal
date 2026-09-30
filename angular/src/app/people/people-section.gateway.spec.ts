@@ -301,7 +301,7 @@ describe('PeopleSectionGateway', () => {
       let rows: unknown[] = [];
       gateway.appointmentsForPatient('p1').subscribe((r) => (rows = r));
       expect(appointments['getList'].calls.mostRecent().args[0].patientId).toBe('p1');
-      expect(rows.length).toBe(1);
+      expect(rows).toHaveSize(1);
     });
 
     it('returns an empty appointment list rather than undefined', () => {
