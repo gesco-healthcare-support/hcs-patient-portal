@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Architecture](./) > ABP Framework
+[Home](../index.md) > [Architecture](./) > ABP Framework
 
 # ABP Framework Conventions
 

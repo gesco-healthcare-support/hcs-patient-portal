@@ -219,7 +219,7 @@ hcs-case-evaluation-portal/
 │   └── HealthcareSupport.CaseEvaluation.DbMigrator
 ├── test/                                      5 test projects (xUnit)
 ├── angular/                                   Angular 20 SPA (:4200)
-├── docs/                                      documentation; start at docs/INDEX.md
+├── docs/                                      documentation; start at docs/index.md
 ├── etc/                                       Docker infra, Helm (local k8s)
 ├── scripts/                                   Setup helpers (NuGet.Config, etc.)
 ├── .github/                                   Workflows, CODEOWNERS, templates
@@ -593,7 +593,7 @@ Do not file public issues for vulnerabilities.
 ## Documentation Map
 
 This README is the landing page. The deep material lives in
-[docs/](docs/). Start at [docs/INDEX.md](docs/INDEX.md) for the full map.
+[docs/](docs/). Start at [docs/index.md](docs/index.md) for the full map.
 
 ### I want to
 

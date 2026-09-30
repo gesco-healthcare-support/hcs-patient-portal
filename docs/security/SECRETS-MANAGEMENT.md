@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Secrets Management
+[Home](../index.md) > Security > Secrets Management
 
 # Secrets Management
 

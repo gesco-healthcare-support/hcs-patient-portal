@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Architecture](./) > Multi-Tenancy
+[Home](../index.md) > [Architecture](./) > Multi-Tenancy
 
 # Multi-Tenancy Strategy
 

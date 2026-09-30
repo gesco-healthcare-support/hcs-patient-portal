@@ -242,7 +242,7 @@ replicated rather than corrected carries a `// PARITY-FLAG:` comment and a row i
 
 ## Where the documentation is
 
-`docs/INDEX.md` is the map. `README.md` is the landing page. Per-feature `CLAUDE.md` files
+`docs/index.md` is the map. `README.md` is the landing page. Per-feature `CLAUDE.md` files
 sit beside the code they describe.
 
 **Treat any document's counts and dates with suspicion until checked.** As of 2026-09-27 a

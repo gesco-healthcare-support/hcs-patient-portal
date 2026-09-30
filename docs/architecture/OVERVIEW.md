@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Architecture](./) > System Overview
+[Home](../index.md) > [Architecture](./) > System Overview
 
 # System Overview
 

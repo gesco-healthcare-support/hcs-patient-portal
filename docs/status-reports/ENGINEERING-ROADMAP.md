@@ -21,7 +21,7 @@ The status report is for leadership and describes the work in non-technical term
 | Individual bug entries (50+ files, YAML frontmatter) | `docs/findings/bugs/` |
 | Plan docs (5 top-level + 8 in SlotGenerationRework/) | `docs/plans/` |
 | Manual test scenarios (R1/R2/R3) | `docs/runbooks/HARDENING-TEST-SUITE.md` |
-| Repo-wide documentation map | `docs/INDEX.md` |
+| Repo-wide documentation map | `docs/index.md` |
 
 ---
 

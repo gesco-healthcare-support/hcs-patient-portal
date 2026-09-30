@@ -2,7 +2,7 @@
 
 > Purpose: Describes the Angular 20 SPA bootstrap sequence, provider list, feature module structure, and key source files. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Angular Architecture
+[Home](../index.md) > [Frontend](./) > Angular Architecture
 
 ## Overview
 

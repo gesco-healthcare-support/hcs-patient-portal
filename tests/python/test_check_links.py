@@ -55,7 +55,7 @@ class SkipReasonTests(unittest.TestCase):
     def test_a_real_relative_path_is_not_skipped(self):
         # The negative case matters most: if this ever returned a skip, every
         # broken link in the repo would report as valid.
-        self.assertIsNone(check_links._skip_reason("docs/INDEX.md"))
+        self.assertIsNone(check_links._skip_reason("docs/index.md"))
 
     def test_a_windows_drive_letter_is_not_treated_as_a_scheme(self):
         # Single letter then colon. The scheme regex requires 2+ chars before
@@ -135,7 +135,7 @@ class LinkRegexTests(unittest.TestCase):
         return [m.group("target") for m in check_links.LINK_RE.finditer(text)]
 
     def test_extracts_a_simple_link(self):
-        self.assertEqual(self._targets("see [docs](docs/INDEX.md) now"), ["docs/INDEX.md"])
+        self.assertEqual(self._targets("see [docs](docs/index.md) now"), ["docs/index.md"])
 
     def test_extracts_several_links_from_one_line(self):
         self.assertEqual(

@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Authorization
+[Home](../index.md) > Security > Authorization
 
 # Authorization & Permission Matrix
 

@@ -1,4 +1,4 @@
-[Home](INDEX.md) > Glossary
+[Home](index.md) > Glossary
 
 # Appointment Portal Glossary
 
