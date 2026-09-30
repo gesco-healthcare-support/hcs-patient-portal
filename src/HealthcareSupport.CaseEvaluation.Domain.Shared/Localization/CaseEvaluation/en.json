@@ -261,7 +261,7 @@
     "CaseEvaluation:AppointmentSubmit.PatientUpdateConflict": "This patient's details were changed by someone else while you were booking, so nothing was saved. Reload the page to see the current details, then book again.",
     "CaseEvaluation:AppointmentSubmit.SourceRequired": "This booking follows on from an earlier appointment, but that appointment was not identified, so nothing was saved. Start again from the original appointment.",
     "CaseEvaluation:Account.PasswordResetThrottled": "A reset link was already requested for this email address very recently. Please wait a minute and try again, or check your inbox and spam folder for the message already on its way.",
-    "CaseEvaluation:AdminPassword.IsAKnownDefault": "That password is one this product ships as a default and cannot be used. Choose a different password, or leave the field empty to have one generated.",
+    "CaseEvaluation:AdminPassword.IsAKnownDefault": "That password is one this product ships as a default and cannot be used. Choose a different password.",
     "CaseEvaluation:AppointmentDocument.FileEmpty": "The selected file is empty.",
     "CaseEvaluation:AppointmentDocument.FileTooLarge": "File is too large. Maximum allowed size is 10 MB.",
     "CaseEvaluation:AppointmentDocumentType.SystemReadOnly": "This is a built-in category and cannot be edited or deleted.",
