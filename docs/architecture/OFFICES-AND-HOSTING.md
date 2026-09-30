@@ -195,7 +195,7 @@ wildcard, then suffix wildcard, then regex, then `default_server`.
 | `api.${BASE_DOMAIN}` `auth.${BASE_DOMAIN}` | **JSON 404** with code `missing_office_label` |
 | `health.${BASE_DOMAIN}` | `= /health-status` proxies to `api:8080` with the upstream Host pinned to `admin.api.${BASE_DOMAIN}`; every other path is a JSON 404 with code `health_probe_only` |
 | `www.${BASE_DOMAIN}` | 301 to the apex |
-| `${BASE_DOMAIN}` (apex) | Static explanation page from `docker/nginx-proxy/apex/index.html`, served by the proxy itself. No upstream request, names no office |
+| `${BASE_DOMAIN}` (apex) | Static explanation page from `docker/nginx-proxy/apex/index.html`, served by the proxy itself. No upstream request, names no office. `/docs/` serves the built documentation site from the proxy's own files (`/docs` redirects to it); see [RUNTIME-AND-DATA-PROFILE.md](../devops/RUNTIME-AND-DATA-PROFILE.md) |
 | `minio.${BASE_DOMAIN}` | Proxy to `minio:9000`, path-style addressing. `client_max_body_size 0`, request and response buffering off, send/read timeouts 300s |
 | `*.${BASE_DOMAIN}` | Proxy to `angular:8080` (the SPA). Least specific; the blocks above win |
 
@@ -279,8 +279,10 @@ host; every other service is reachable only on the internal Docker network.
 
 Supporting detail:
 
-- **Persistent named volumes** `sqldata`, `redisdata`, `miniodata` hold all state, including every
-  per-office database and the DataProtection keys.
+- **Persistent named volumes** `sqldata`, `redisdata`, `miniodata` hold the databases, including every
+  per-office database, the DataProtection keys and the documents. One more piece of state is a host folder:
+  `secrets/admin-passwords/`, bind-mounted into the DbMigrator and the API as the admin-password store (see
+  [DATA-SEEDING.md](../database/DATA-SEEDING.md#admin-passwords)). Back it up with the database dumps.
 - **Secrets come only from the git-ignored `secrets/env.prod`** (see `env.prod.example`). Nothing
   secret is committed or baked into an image.
 - **The ABP Commercial feed key is a BuildKit secret**, not a build ARG: an ARG value is recorded in

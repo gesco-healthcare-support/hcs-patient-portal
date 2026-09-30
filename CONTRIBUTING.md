@@ -24,21 +24,27 @@ feature/* --> main --> development --> staging --> production
 | `staging`     | Pre-production verification.                 |
 | `production`  | Live application (not deployed yet).         |
 
-Merges flow one direction only. Promotion PRs between long-lived branches must
-use **rebase**, never a merge commit, to preserve linear history.
+Merges flow one direction only. Promotion PRs between long-lived branches merge
+as **merge commits**, never squash or rebase (see "Branch Protection" below).
 
 ## Branch Protection
 
-**The same 17 checks are required on all four branches.** There is no longer a
-per-branch gradient: a change that cannot merge to `main` cannot merge anywhere.
-The only thing that varies by branch is how many approvals a pull request needs.
+**The same 17 checks are required on all four branches, and `main` requires one
+more.** A change that cannot merge to `main` cannot merge anywhere. Besides that
+extra check, what varies by branch is how many approvals a pull request needs
+(`gh api repos/<org>/hcs-patient-portal/branches/<branch>/protection`,
+2026-09-30).
 
-| Branch        | Required checks | Approvals | Up to date with base |
-| ------------- | --------------- | --------- | -------------------- |
-| `main`        | all 17 below    | 1         | required             |
-| `development` | all 17 below    | 1         | required             |
-| `staging`     | all 17 below    | 1         | required             |
-| `production`  | all 17 below    | **2**     | required             |
+| Branch        | Required checks                           | Approvals | Up to date with base |
+| ------------- | ----------------------------------------- | --------- | -------------------- |
+| `main`        | the 17 below + `Tools: Packet Golden Output` | 0      | required             |
+| `development` | the 17 below                              | 1         | required             |
+| `staging`     | the 17 below                              | 1         | required             |
+| `production`  | the 17 below                              | **2**     | required             |
+
+`Tools: Packet Golden Output` runs the packet-template generator tests in
+`tools/packet-templates/tests`, which check that the generators emit
+byte-identical documents.
 
 The 17, exactly as configured:
 
@@ -70,8 +76,14 @@ Two checks run on pull requests but are deliberately **not** required:
 - `SonarCloud: Analysis` -- informational while its quality gate is being
   settled; making it required would block on conditions unrelated to the change.
 
-Promotion PRs between long-lived branches still use rebase, and "up to date with
-base" is enforced, so a promotion must be rebased on its target before it merges.
+Promotion PRs between long-lived branches merge as **merge commits**, never
+squash or rebase: the `development-merge-only` ruleset allows only merge commits
+into `development`, and `cascade-guard.yml` fails when a promotion into
+`development` lands as a squash. Promotion PRs show BEHIND permanently; do not use "Update branch" on
+one, because on the `main -> development` PR that merges `development` back into
+`main`. See
+[docs/devops/CI-TESTS-AND-CHECKS.md](docs/devops/CI-TESTS-AND-CHECKS.md#cascade-prs-report-behind-permanently----do-not-fix-it)
+for why, and for how such a PR is merged.
 
 ## Development Workflow
 
@@ -92,8 +104,8 @@ base" is enforced, so a promotion must be rebased on its target before it merges
 
 3. Push and open a pull request against `main`. Use the template that appears;
    fill in the summary, test plan, documentation, and HIPAA checklist.
-4. After CI passes and one approval, merge (squash is the default for feature
-   branches).
+4. After CI passes, merge with squash, the default for feature branches (`main`
+   requires no approving review; see the table above).
 5. Code promotes automatically via two workflows: `auto-pr-dev.yml` opens the
    `main` -> `development` PR on push to `main`, and `deploy-dev.yml` opens
    the `development` -> `staging` PR after its validate job passes on push

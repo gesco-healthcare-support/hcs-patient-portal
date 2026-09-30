@@ -9,6 +9,18 @@
 > **Dated snapshot.** Every figure below was measured on 2026-08-28 and is not re-derivable from the
 > code; re-measuring needs access to the running deployment. Treat it as a record of that day, not as
 > the current state.
+>
+> **Changed in the repository since the snapshot** (checked against `main` on 2026-09-30):
+>
+> - **Backup is scheduled and proves restores.** `scripts/hosting/systemd/` holds three timers: the off-box backup
+>   nightly at 01:30, the same plus a restore into a scratch database on Sundays at 02:30, and a freshness check at
+>   09:00 that emails when either has gone stale. Whether they are installed on a given server is checked with
+>   `systemctl list-timers 'hcs-portal-backup*'`; see [hosting-backup-restore.md](../runbooks/hosting-backup-restore.md).
+> - **16 recurring jobs**, two of them every 5 minutes; the current schedule is in
+>   [BACKGROUND-JOBS.md](BACKGROUND-JOBS.md).
+> - **42 variables** in `env.prod.example`, up from 35 (`grep -cE '^[A-Z][A-Z0-9_]+=' env.prod.example`).
+> - **Every image the stack builds runs as a non-root user** (`USER` in each Dockerfile), and the .NET images
+>   restore NuGet packages in locked mode.
 
 | Field                | Value                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |

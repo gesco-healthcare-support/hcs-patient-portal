@@ -40,14 +40,14 @@ flows can identify the user without re-prompting.
 
 | Key | Write site | Read site | Lifetime | Cleared on logout? |
 | --- | --- | --- | --- | --- |
-| `access_token` | `angular-oauth2-oidc.OAuthService.tryLogin` | every `HttpClient` request via the Bearer interceptor | Until refresh-token rotation (15-minute lifetime, set by `SetAccessTokenLifetime` in `CaseEvaluationAuthServerModule`) | YES -- `OAuthService.logOut` plus belt-and-suspenders defensive removal in `performFullLogout` |
+| `access_token` | `angular-oauth2-oidc.OAuthService.tryLogin` | every `HttpClient` request via the Bearer interceptor | Until refresh-token rotation (15-minute lifetime, set by `SetAccessTokenLifetime` in `CaseEvaluationAuthServerModule`) | YES -- `angular-oauth2-oidc` clears its storage when `performFullLogout` signs out (see below) |
 | `refresh_token` | same | `OAuthService.refreshToken` (silent renewal) | 14 days, rotated on each refresh | YES (same) |
 | `id_token` | same | `OAuthService.getIdentityClaims` -> `currentUser.id`, profile menu | matches access_token | YES (same) |
 | `id_token_claims_obj` | same | profile rendering helpers | matches | YES (same) |
 | `id_token_expires_at`, `expires_at` | same | renewal scheduler | matches | YES (same) |
 | `nonce`, `PKCE_verifier`, `session_state` | same (during sign-in dance) | OAuth state-validation | per-flow (cleared once the flow completes) | YES |
 | `granted_scopes` | same | scope-aware UI gating (currently unused) | matches access_token | YES |
-| `LPX_THEME` | LeptonX theme picker and the `Issue 1.5` provider initializer that backfills `'light'` for stale `'system'` users | LeptonX theme bootstrap | manual | NO (UI preference) |
+| `LPX_THEME` | The `Issue 1.5` provider initializer in `app.config.ts`, which backfills `'light'` for a missing or stale `'system'` value (the SPA renders no theme picker) | LeptonX theme bootstrap | manual | NO (UI preference) |
 
 ### sessionStorage (SPA host)
 
@@ -68,8 +68,10 @@ refresh-token rotation**:
    fresh access_token / refresh_token pair. Old refresh_token is
    server-side invalidated.
 3. If refresh fails (refresh_token expired, revoked, replay rotation
-   broken), the next API call returns 401 and the SPA bounces the user
-   to `/account/login` to start a new code flow.
+   broken), the next API call returns 401 and the SPA shows its
+   session-timeout screen. Its **Sign in again** button runs the same
+   sign-out as the Sign out action (below), which ends on the AuthServer
+   sign-in page and starts a new code flow.
 
 Silent-refresh via hidden iframe at `/connect/authorize?prompt=none`
 was tried (Bug D, May 2026) and ripped in Issue #107 -- the
@@ -85,35 +87,39 @@ rotation does the same work via a clean POST.
 | Cookie theft via network sniffing | `Secure` flag on cookies in prod (TLS termination at the load balancer). Dev uses HTTP. | Dev-only concern. |
 | CSRF on AuthServer Razor forms | ASP.NET Core antiforgery middleware: `XSRF-TOKEN` cookie + hidden form field validated on POST. | None for the live Razor surface. |
 | CSRF on API endpoints | Bearer-token-based; no cookie auth on `/api/*` so CSRF is not applicable. | None. |
-| Session replay after logout | `LogoutModel` expires all 4 Identity schemes plus `__tenant` plus `XSRF-TOKEN`; SPA `performFullLogout` mirrors the cookie cleanup and clears every OAuth localStorage key. | If a user does not click logout (just closes the tab), tokens stay until expiry. Accepted; matches industry norm. |
+| Session replay after logout | `LogoutModel` expires all 4 Identity schemes plus `__tenant` plus `XSRF-TOKEN`; SPA `performFullLogout` expires `__tenant` and `XSRF-TOKEN`, revokes the tokens and ends the AuthServer session; `angular-oauth2-oidc` clears its token storage. | If a user does not click logout (just closes the tab), tokens stay until expiry. Accepted; matches industry norm. |
 | Prior-user residue leaking into a new session | Logout clears every cookie and localStorage key listed above. Register flow fires a fire-and-forget GET to `/Account/Logout` so a brand-new registration cannot be silently auto-signed-in as the prior user when they click "Sign In". | Defense-in-depth, not a known live attack. |
 | Multi-tab session-account swap | `SessionIdentityWatcherService` listens to `OAuthService.events` and forces `location.reload` when the `sub` claim changes on token rotation. | Detection latency is "next token rotation" -- worst case ~1 hour. Accepted (was iframe-driven in May, now passive after Issue #107). |
 | Tenant-cookie leak across registrations | `__tenant` cookie is expired on logout AND fire-and-forget `/Account/Logout` runs after a successful register, so the prior user's `__tenant` cookie is gone before the new user does anything tenant-scoped. | None. |
 
 ## Logout invalidation flow
 
-1. User clicks the LeptonX top-bar Logout. ABP wires this to
-   `OAuthService.logOut` plus a redirect to the AuthServer's
-   `/Account/Logout` endpoint.
-2. AuthServer `LogoutModel.OnGetAsync`:
-   - `await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme)` and the three other Identity schemes -- the HttpOnly auth cookies expire.
-   - `Response.Cookies.Delete("__tenant", new CookieOptions { Path = "/" })`.
-   - `Response.Cookies.Delete("XSRF-TOKEN", new CookieOptions { Path = "/" })`.
-   - 302 redirect to the SPA root with `?logout=true`.
-3. SPA `app.component.handleAuthServerLogoutHandshake`:
-   - Detects `?logout=true`, calls `performFullLogout(injector)`.
-   - `performFullLogout` re-expires `__tenant` and `XSRF-TOKEN` on the SPA host (the AuthServer host:port differs from the SPA's, so this is belt-and-suspenders).
-   - Wipes every localStorage key listed in the "What we store" table above except `LPX_THEME` and `abp_user_culture` (UI preferences).
-   - Calls `clearOAuthStorage(injector)` then `AuthService.logout()`.
-4. `app.component` navigates to `/account/login`. The SPA bootstraps
-   anonymous; `ConfigStateService.currentUser` is empty; the `__tenant`
-   cookie is gone, so the next subdomain visit re-resolves the tenant
-   from the URL not from a stale cookie.
+Every sign-out entry point in the SPA calls one helper, `performFullLogout`
+(`angular/src/app/shared/auth/full-logout.ts`): the Sign out action in the staff shell and in the
+external pages' navbar, and the **Sign in again** button on the session-timeout screen. It is a
+standard OIDC RP-initiated logout:
+
+1. `performFullLogout` expires the `__tenant` and `XSRF-TOKEN` cookies on the SPA host. They are not
+   OAuth tokens, so the end-session flow does not clear them.
+2. If an access token is held, it calls `OAuthService.revokeTokenAndLogout()`, which revokes the
+   access and refresh tokens (RFC 7009) and then redirects; otherwise it calls `OAuthService.logOut()`.
+   Either way `angular-oauth2-oidc` clears its own token storage and sends the browser to the
+   discovered `end_session_endpoint` (`/connect/endsession`). If revocation fails, it falls back to
+   `logOut()`, so the redirect always happens.
+3. OpenIddict ends the AuthServer SSO session. No `post_logout_redirect_uri` is sent, so it lands on
+   the AuthServer's post-logout page (`Pages/Account/LoggedOut.cshtml.cs`), which redirects to
+   `/Account/Login`. The next sign-in starts a new code flow, and the next office visit resolves the
+   tenant from the URL rather than a stale cookie.
+
+`LPX_THEME` and `abp_user_culture` are kept on purpose: they are UI preferences, not session state.
+The AuthServer's own `/Account/Logout` page (`LogoutModel`) signs out all four Identity schemes,
+deletes `__tenant` and `XSRF-TOKEN`, and redirects to `/Account/Login`; the sign-up page calls it
+(below).
 
 ## Register-success isolation
 
 After a successful register POST (`global-scripts.js -> showSignupSuccess`)
-the SPA fires:
+the AuthServer's sign-up page script fires:
 
 ```js
 fetch('/Account/Logout', { method: 'GET', credentials: 'same-origin', redirect: 'manual' })
