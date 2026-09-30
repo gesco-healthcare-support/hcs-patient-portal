@@ -262,7 +262,8 @@ It also keeps the LeptonX custom properties (theme backgrounds and logo) that th
 LeptonX layout itself is not rendered.
 
 Third-party stylesheets are listed in the build target's `styles` array in `angular.json`: Quill (snow theme),
-ngx-datatable, Font Awesome, the ng-zorro tree, Bootstrap Icons, the LeptonX bundles and the Roboto font.
+ngx-datatable, Font Awesome, the ng-zorro tree, the LeptonX bundles, Bootstrap Icons, Cropper.js, the Uppy core and
+dashboard, and the Roboto font.
 
 ## Build, Test and Lint
 

@@ -25,12 +25,15 @@ Do not use `ng serve` or `yarn start`: the dev server's pre-bundling breaks ABP'
 
 ## Build configurations
 
-| Configuration          | Environment file                                     | Use                                   |
-| ---------------------- | ---------------------------------------------------- | ------------------------------------- |
-| `production` (default) | `src/environments/environment.prod.ts`               | The shipped image (`yarn build:prod`) |
-| `development`          | `src/environments/environment.ts`                    | Local work                            |
-| `docker`               | `src/environments/environment.docker.ts`             | The Docker development stack          |
-| `local`                | `src/environments/environment.local.ts` (gitignored) | Per-worktree stacks                   |
+| Configuration          | Environment file                                     | Use                          |
+| ---------------------- | ---------------------------------------------------- | ---------------------------- |
+| `production` (default) | `src/environments/environment.prod.ts`               | The shipped image            |
+| `development`          | `src/environments/environment.ts`                    | Local work                   |
+| `docker`               | `src/environments/environment.docker.ts`             | The Docker development stack |
+| `local`                | `src/environments/environment.local.ts` (gitignored) | Per-worktree stacks          |
+
+The production image is built by `docker-compose.prod.yml`, which sets `NG_CONFIG=production`, so the Dockerfile
+runs `yarn ng build --configuration production` (the same build as `yarn build:prod`).
 
 At start-up `src/main.ts` fetches `dynamic-env.json` and merges it over the built environment, so one image serves
 any deployment. In the production image, `prod-dynamic-env.envsh` writes that file from environment variables when
