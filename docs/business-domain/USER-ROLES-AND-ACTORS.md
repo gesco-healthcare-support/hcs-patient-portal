@@ -273,8 +273,10 @@ This pattern allows fine-grained, per-appointment access control without grantin
 
 ## External Layout Roles
 
-All four external roles share the same simplified portal layout (no LeptonX sidebar; custom
-`TopHeaderNavbarComponent` replaces the LeptonX topbar):
+All four external roles get the same external pages, outside the staff shell: the external home, the
+read-only appointment detail, the booking wizard and their own profile page. Each page renders
+`ExternalNavbarComponent` (`angular/src/app/shared/components/external-navbar/`) at the top; there is
+no sidebar.
 
 | Role                   | Gets external layout |
 |------------------------|:--------------------:|
@@ -283,17 +285,15 @@ All four external roles share the same simplified portal layout (no LeptonX side
 | **Defense Attorney**   | Y                    |
 | **Claim Examiner**     | Y                    |
 
-This is enforced in two places in the Angular app (both verified against code on main):
+The split is made by the Angular router (verified against code on main, 2026-09-30):
 
-- `angular/src/app/shared/auth/external-user-roles.ts` -- `EXTERNAL_USER_ROLES` constant
-  lists all four role names; `hasOnlyExternalRoles` (routing guard) and `hasAnyExternalRole`
-  (CSS toggle) both operate on this constant.
-- `angular/src/app/home/external-home.component.ts` -- `isPatientUser` getter explicitly includes
-  all four: `'patient'`, `'applicant attorney'`, `'defense attorney'`, `'claim examiner'`.
+- `angular/src/app/shared/auth/external-user-roles.ts` -- the `EXTERNAL_USER_ROLES` constant lists
+  all four role names, and `hasOnlyExternalRoles` is true when every role the user holds is one of
+  them. `externalUserOnlyMatchGuard` uses it, so a user with any internal role gets the staff pages.
+- `angular/src/app/home/external-home.component.ts` -- `ROLE_CONFIGS` gives each of the four roles
+  its own labels and default view on the external home.
 
-Note: the code snippets in [Role-Based UI](../frontend/ROLE-BASED-UI.md) show only three
-roles in some inline snippets; those snippets are stale. The canonical source is
-`external-user-roles.ts` and the `isPatientUser` getter above.
+See [Role-Based UI](../frontend/ROLE-BASED-UI.md) for the full split.
 
 ---
 

@@ -31,6 +31,7 @@ each key. The "Deployed location" column names the variable in that file.
 | SMTP relay credentials | `docker/appsettings.secrets.json` (`Settings:Abp.Mailing.Smtp.*`) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS` -> `Settings__Abp.Mailing.Smtp.*` | gitignored |
 | Case Tracker tokens | `.env` at repo root | `CASE_TRACKER_INTAKE_TOKEN` (issued to us), `CASE_TRACKER_INTEGRATION_TOKEN` (issued by us), `CASE_TRACKER_FEED_TOKEN` (issued by us, separate, #927) | gitignored |
 | TLS wildcard cert + key | `scripts/hosting/gen-local-certs.sh` (mkcert) | `TLS_CERT_PATH`, `TLS_KEY_PATH`, pointing at files under `secrets/` | `secrets/` gitignored |
+| Database admin passwords | None: Development seeds the documented local default | Generated per database by the DbMigrator and kept one file per database (mode 0600) in `secrets/admin-passwords/`, mounted at `/run/admin-passwords` (`ADMIN_PASSWORD_DIRECTORY`); `ADMIN_PASSWORD_VAULT_URI` stays empty. See [DATA-SEEDING.md](../database/DATA-SEEDING.md#admin-passwords) | `secrets/` gitignored |
 
 **Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).
 

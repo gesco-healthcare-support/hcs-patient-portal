@@ -177,6 +177,22 @@ both needs a migration in BOTH sets.
 
 ---
 
+## Pull requests
+
+- **A PR that finishes an issue MUST close it.** Put the keyword in the PR BODY, one per line:
+  `Closes #1116`. `Closes`, `Fixes` and `Resolves` all fire on merge, because `main` is the
+  default branch. An issue left open after its work merged costs somebody a re-read of a
+  finished ticket.
+- **Use `Refs #NNN` only when the PR genuinely does not finish the issue** -- a sweep split
+  across several PRs uses `Refs` on all but the last, and `Closes` on the last. Say which you
+  mean; the two are not interchangeable.
+- **Never write a closing keyword in prose in a COMMIT message.** GitHub matched `fix #610`
+  inside the words "this does NOT fix #610" and closed the issue. Keep them in the PR body.
+- **No tool-attribution footer.** A PR description ends with its content -- no "generated with",
+  no credit line.
+
+---
+
 ## Deliberate oddities: do not "fix" these without asking
 
 - **Three appointment states are DEAD and are not supposed to exist here**: `CheckedIn`
@@ -211,6 +227,7 @@ both needs a migration in BOTH sets.
 - Add an appointment-scoped write path without an ownership check.
 - Commit PHI, secrets, credentials, internal IPs, or real patient data.
 - File a security finding as a GitHub Issue on this public repository.
+- End a PR description with a tool-attribution footer.
 - Use `--no-verify` to get past a hook, or work around gitleaks.
 - Wrap `git commit` in `timeout`: the pre-commit C# format step can exceed 85 seconds.
 

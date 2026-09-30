@@ -12,7 +12,7 @@
 
 ## Test Projects
 
-The solution contains four test projects under the `test/` directory, plus a console-based E2E test app.
+The solution contains four test projects under the `test/` directory -- a shared base (`TestBase`) and three test suites -- plus a console-based E2E test app.
 
 ### 1. HealthcareSupport.CaseEvaluation.TestBase
 
@@ -76,8 +76,8 @@ Test patterns:
 
 Key contents:
 
-- **One database per test, classes in parallel (#1034).** Each test builds its own ABP application, and `CaseEvaluationEntityFrameworkCoreTestModule` opens a new in-memory SQLite connection for it. So the test classes carry no `[Collection]` attribute and xUnit runs them in parallel, one collection per class. Only the `MultiOffice` and `RealAuthorization` classes keep named collections, because their named shared-cache databases outlive a single test.
-- **`TestCollectionAllowlistTests`** -- Fails if any test class joins a collection other than those two. **`PerTestDatabaseIsolationTests`** proves at run time that each test has its own database. **`TestTenantIdentityTests`** proves the fixed test-tenant ids resolve in each test's own database.
+- **One database per test, classes in parallel (#1034).** Each test builds its own ABP application, and `CaseEvaluationEntityFrameworkCoreTestModule` opens a new in-memory SQLite connection for it. So the test classes carry no `[Collection]` attribute and xUnit runs them in parallel, one collection per class. Three named collections are allowed: `MultiOffice` and `RealAuthorization`, because their named shared-cache databases outlive a single test, and `SqlServerCollection`, which shares one SQL Server container (see [Tests on a real SQL Server](#tests-on-a-real-sql-server)).
+- **`TestCollectionAllowlistTests`** -- Fails if any test class joins a collection other than those three. **`PerTestDatabaseIsolationTests`** proves at run time that each test has its own database. **`TestTenantIdentityTests`** proves the fixed test-tenant ids resolve in each test's own database.
 - **`DoctorRepositoryTests`** -- Tests `IDoctorRepository` custom methods:
   - `GetListAsync()` -- Filters by firstName, lastName, email and verifies exact match
   - `GetCountAsync()` -- Filters and verifies count
@@ -116,7 +116,7 @@ Key contents:
 | Assertions | Shouldly |
 | DI container | Autofac (configured in `CaseEvaluationTestBase`) |
 | Data seeding | ABP `IDataSeedContributor` |
-| Collections | None by default (classes run in parallel); only `MultiOffice` and `RealAuthorization` use named collections |
+| Collections | None by default (classes run in parallel); only `MultiOffice`, `RealAuthorization` and `SqlServerCollection` use named collections |
 
 ---
 
@@ -137,10 +137,40 @@ Every fixed id a test may reference is in the `Data/*TestData.cs` classes (for e
 | Layer | Where | Proves |
 |-------|-------|--------|
 | Declaration | `Application.Tests/Authorization/` (`AuthorizationSurfaceSnapshotTests`, `AuthorizationSurfaceInvariantTests`) | The `[Authorize]` attributes on the application services have not changed or gone missing |
+| Grants | `Application.Tests/Authorization/RolePermissionSurfaceSnapshotTests` | Which seeded role holds which permission, and each permission's host or office side, have not changed |
 | Mechanism | `EntityFrameworkCore.Tests/RealAuthorization/` | A caller without the permission is actually refused, on the PHI-bearing surfaces |
 
 Everywhere else, `AddAlwaysAllowAuthorization()` makes permission attributes inert, so do not write a permission
 assertion in `Application.Tests` or the ordinary EF Core tests: it cannot fail.
+
+## Approved snapshots
+
+Some properties of the code are rendered into a text file, committed, and compared on every test run. A difference
+fails the test with every removed and added line, and writes a `*.received.txt` beside the approved file. If every
+line of the difference is intended, copy the received file over the approved one in the same pull request. The shared
+compare is `ApprovedSnapshot` in `TestBase/Snapshots/`.
+
+| Approved file | Test | What it pins |
+|---|---|---|
+| `Application.Tests/Authorization/authorization-surface.approved.txt` | `AuthorizationSurfaceSnapshotTests` | The permission each application-service method requires |
+| `Application.Tests/Authorization/role-permission-surface.approved.txt` | `RolePermissionSurfaceSnapshotTests` | Which seeded role holds which permission |
+| `Domain.Tests/Appointments/appointment-transitions.approved.txt` | `AppointmentTransitionSurfaceSnapshotTests` | The legal appointment status transitions |
+| `Domain.Tests/Repository/repository-counts.approved.txt` | `RepositoryCountsSurfaceSnapshotTests` | Repository-wide counts that documentation states |
+| `EntityFrameworkCore.Tests/EntityFrameworkCore/MultiTenancy/tenancy-surface.approved.txt` | `TenancySurfaceSnapshotTests` | Which entities are office-scoped and which DbContext maps each |
+
+List them with `git ls-files '*.approved.txt'`. A document can embed one that the script has a converter for as a table, between a
+`<!-- GENERATED: <name> BEGIN - do not edit by hand -->` marker and its `END` marker (see `APPOINTMENT-LIFECYCLE.md`); `python .claude/scripts/embed-generated-regions.py . --check`
+(run by `Docs: Structure Check`) fails when the two disagree, and the same script without `--check` rewrites them.
+
+## Tests on a real SQL Server
+
+Two classes run against a real SQL Server rather than SQLite: `CaseTrackerFeedSqlServerTests` (the Case Tracker feed
+reads `rowversion` and `MIN_ACTIVE_ROWVERSION()`, which SQLite cannot produce) and `SqlAppLockTests` (the SQL
+application lock the admin-password store uses). `SqlServerFeedFixture` starts one container from the image
+`docker-compose.yml` pins, and `SqlServerCollection` makes both classes share it and run one after the other.
+
+**Docker must be running** for these two classes. Without it they fail at fixture start-up; every other test is
+unaffected. CI's Linux runners have Docker, and the classes run in the ordinary `Backend: Test` shards.
 
 ---
 

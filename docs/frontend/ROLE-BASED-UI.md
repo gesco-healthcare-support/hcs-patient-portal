@@ -27,8 +27,9 @@ Two helpers in `angular/src/app/shared/auth/` read `currentUser.roles` from ABP'
 - **`hasOnlyExternalRoles(roles)`** (`external-user-roles.ts`) -- true when the user has at least one role and
   **every** role is one of the four external roles. A user holding any internal role counts as internal.
 - **`resolveInternalRoleKey(roles)`** (`internal-user-roles.ts`) -- maps an internal role to the sidebar's
-  role key: `admin` wins when present, otherwise the first of `it admin` -> `itadmin`,
-  `staff supervisor` -> `supervisor`, `intake staff` -> `intake`. Returns `null` for an external user.
+  role key: `admin` wins when present; otherwise it takes the first of the user's roles, in the order the user
+  holds them, that is `it admin` -> `itadmin`, `staff supervisor` -> `supervisor` or `intake staff` -> `intake`.
+  Returns `null` when none of the user's roles maps, as for an external user.
 
 `isHostScope(config)` (also `internal-user-roles.ts`) is true when there is no current tenant, which decides
 between the host sidebar and the office sidebar.
@@ -79,8 +80,9 @@ The appointment detail page links each role to its own profile page.
 
 - At host scope, IT Admin, `admin`, Staff Supervisor and Intake Staff get the host navigation (`IN_NAV_HOST`).
 - Inside an office, everyone gets the office navigation (`IN_NAV`).
-- An item shows only when the user's role key is listed on it **and** its `requiredPolicy` is granted. The
-  policy is the same string the route's guard checks, so a visible item never leads to a 403.
+- An item shows only when the user's role key is listed on it (the built-in `admin` key passes every item)
+  **and** its `requiredPolicy` is granted. The policy is the same string the route's guard checks, so a visible
+  item never leads to a 403.
 
 ## Which appointments an external user sees
 

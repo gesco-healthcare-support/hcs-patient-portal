@@ -4,6 +4,15 @@
 
 -
 
+## Related issues
+
+<!--
+One per line. Use Closes/Fixes/Resolves when this PR FINISHES the issue - it closes on merge.
+Use Refs when it does not, such as a sweep split across several PRs where the last one closes.
+-->
+
+Closes #
+
 ## Changes
 
 <!-- List the key changes made. -->

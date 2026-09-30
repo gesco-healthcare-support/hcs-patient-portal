@@ -8,7 +8,6 @@ platform, maintained by Gesco.
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Angular](https://img.shields.io/badge/Angular-20-DD0031?logo=angular&logoColor=white)](https://angular.dev/)
 [![ABP](https://img.shields.io/badge/ABP%20Commercial-10.0.2-3e6bf3)](https://abp.io/)
-[![Node](https://img.shields.io/badge/Node-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=alert_status)](https://sonarcloud.io/dashboard?id=gesco-healthcare-support_hcs-patient-portal)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=gesco-healthcare-support_hcs-patient-portal&metric=coverage)](https://sonarcloud.io/component_measures?id=gesco-healthcare-support_hcs-patient-portal&metric=coverage)
@@ -34,14 +33,46 @@ states, WCAB offices) is managed centrally by the host organisation.
 
 ---
 
+## Highlights
+
+Each line below is a property of the code, with the file that establishes it.
+
+- **One office, one database.** Multi-tenancy is physical, not a filtered column:
+  each office gets its own SQL Server database, chosen from the request host.
+- **The tenant resolver works by removal.** `TenantResolvers.Clear()` drops the
+  framework's query-string, route, header and cookie resolvers before registering
+  exactly two, so `?__tenant=` cannot select an office
+  (`src/HealthcareSupport.CaseEvaluation.AuthServer/CaseEvaluationAuthServerModule.cs:572`).
+- **One declaration site for the appointment lifecycle.** A `Stateless` state
+  machine built in `AppointmentManager.BuildMachine` is the only place transitions
+  are declared (`src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs:585`).
+- **Self-hosted OAuth 2.0 / OIDC.** OpenIddict issues tokens; the Angular client
+  uses Authorisation Code with PKCE.
+- **Outbound integration on a transactional outbox.** `IntegrationOutboxItem` is
+  written in the same transaction as the state change, with idempotency keys,
+  lease-based claiming, capped retries with backoff, and a terminal dead-letter
+  whose retry re-sends from current data rather than replaying a stale row.
+- **PDF packets render out of process.** A WeasyPrint sidecar
+  (`docker/packet-renderer/`) renders evaluation packets, so a rendering failure
+  cannot take the API down with it.
+- **Compile-time object mapping.** Riok.Mapperly source-generates the DTO mappers
+  (`git grep -l Mapperly -- src/` returns 23 files; the count depends on the scope you ask
+  for, which is why the command is here); there is no runtime reflection-based mapper.
+- **Reference data is centrally owned.** Locations, appointment types, languages,
+  states and WCAB offices are managed by the host organisation, not per office.
+
+---
+
 ## Table of Contents
 
+- [Highlights](#highlights)
 - [Project Status](#project-status)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Domain Overview](#domain-overview)
 - [Repository Structure](#repository-structure)
 - [Quick Start](#quick-start)
+- [Configuration](#configuration)
 - [Service Ports](#service-ports)
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
@@ -49,6 +80,7 @@ states, WCAB offices) is managed centrally by the host organisation.
 - [Docker and Deployment](#docker-and-deployment)
 - [Security and HIPAA](#security-and-hipaa)
 - [Documentation Map](#documentation-map)
+- [Troubleshooting](#troubleshooting)
 - [Known Issues and Roadmap](#known-issues-and-roadmap)
 - [Contributing](#contributing)
 - [License](#license)
@@ -58,11 +90,18 @@ states, WCAB offices) is managed centrally by the host organisation.
 
 ## Project Status
 
-This repository is in **active feature development**. The foundation
-(documentation, CI/CD, hooks, Docker), database-per-office multi-tenancy, and
-in-house LAN hosting are all in place. The stack is **deployed and running on an
-internal LAN server** (see [Docker and Deployment](#docker-and-deployment)); the
-remaining gate is staff go-live.
+**As of 2026-09-30.** This repository is in **active feature development**. The
+foundation (documentation, CI/CD, hooks, Docker), database-per-office
+multi-tenancy, and in-house hosting are all in place. The stack is **deployed and
+running in an internal environment** (see
+[Docker and Deployment](#docker-and-deployment)); the remaining gate is staff
+go-live.
+
+> [!NOTE]
+> The deployed environment tracks a release, not `main`. Anything this file
+> describes as built is a property of the repository at the commit you are
+> reading; whether it is running depends on which commit was last released.
+> Read the deployed version off the environment rather than inferring it here.
 
 | Aspect                  | Status                                                                                                                                     |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -78,8 +117,9 @@ remaining gate is staff go-live.
 **This repository is public.** Anyone can read it. The *licence* is proprietary
 (see [LICENSE](LICENSE)), but that restricts reuse, not visibility: nothing here
 is private. Never commit PHI, secrets, credentials or internal addresses, and
-report vulnerabilities per [SECURITY.md](SECURITY.md) rather than opening an
-issue.
+report vulnerabilities through the repository's **Security tab -> Report a
+vulnerability**, which is enabled for private reporting, rather than opening an
+issue. See [SECURITY.md](SECURITY.md).
 
 No test or issue counts are written in this file. Two different backend test
 figures once appeared in it and both were stale, which is why they are gone.
@@ -108,13 +148,39 @@ For the latest narrative status read
 | Database               | SQL Server                                          | LocalDB (dev) / 2022 (Docker)     | Code-first EF Core migrations                       |
 | Auth                   | [OpenIddict](https://documentation.openiddict.com/) | --                                | OAuth 2.0 / OIDC                                    |
 | Mapping                | [Riok.Mapperly](https://github.com/riok/mapperly)   | --                                | Compile-time source generation (not AutoMapper)     |
-| Caching                | Redis                                               | 7 (Docker)                        | Optional; disabled by default locally               |
+| Cache + key ring       | Redis                                               | 7.4.9 (Docker)                    | **Required by both hosts.** Holds the shared DataProtection key ring; see the note below |
 | Logging                | Serilog                                             | 9.x                               |                                                     |
 | Test framework         | xUnit + [Shouldly](https://docs.shouldly.org/)      | --                                |                                                     |
-| Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
+| Test DB                | SQLite in-memory, plus real SQL Server              | --                                | SQLite for most EF Core tests; two classes need a SQL Server container |
 | Package manager (Node) | Yarn                                                | 4.16.0                            | Berry, not Yarn 1; `yarn.lock` committed            |
+| TypeScript             | TypeScript                                          | 5.8.3                             | Resolved in `angular/yarn.lock`; the manifest range is `~5.8.0` |
+| Node (build only)      | Node.js                                             | 20 in Docker, 22 in CI            | Nothing pins it: no `.nvmrc`, no `engines` field. See the note below |
 | CI / CD                | GitHub Actions                                      | see `.github/workflows/`          | See [CI / CD](#ci--cd)                              |
 | Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
+
+> [!IMPORTANT]
+> **Redis is required by both hosts, and `"IsEnabled": false` does not make it
+> optional.** `CaseEvaluationAuthServerModule.cs:424` and
+> `CaseEvaluationHttpApiHostModule.cs:1401` each decide whether to persist
+> DataProtection keys to Redis by reading `Redis:Configuration`, not
+> `Redis:IsEnabled`. `appsettings.json` ships `Configuration` as `127.0.0.1`
+> with `IsEnabled` set to `false`, and the `appsettings.Local.json.example`
+> files add no Redis key, so the branch is taken and
+> `ConnectionMultiplexer.Connect` runs during startup in both processes. An
+> unreachable Redis therefore stops either host starting.
+>
+> The key ring has to be shared because the AuthServer and the API host run as
+> separate containers with separate filesystems. Without a shared ring each
+> process keeps its own ephemeral keys, and an ABP Identity token minted by the
+> API host (email confirmation, for instance) fails to decrypt on the
+> AuthServer, which returns 403 `Volo.Abp.Identity:InvalidToken`.
+
+> [!NOTE]
+> The SPA is built on **Node 20** inside `angular/Dockerfile` and on **Node 22**
+> in GitHub Actions (`ci.yml` sets `NODE_VERSION: "22"`; `commitlint.yml` and
+> `security.yml` use 20). Two Node majors therefore build the same artifact, and
+> nothing declares a version for local development. The prod image serves the
+> built `dist` from nginx, so Node is a build-time dependency only.
 
 ---
 
@@ -133,7 +199,7 @@ flowchart TB
 
     subgraph Data["Data Layer"]
         SQL[("SQL Server<br/>LocalDB / 2022")]
-        Redis[("Redis Cache<br/>Optional")]
+        Redis[("Redis<br/>cache + DataProtection keys")]
     end
 
     subgraph Tools["CLI Tools"]
@@ -144,7 +210,8 @@ flowchart TB
     Angular -->|"OAuth2 Authorisation Code + PKCE"| Auth
     API -->|"Validate JWT"| Auth
     API --> SQL
-    API -.->|"Optional"| Redis
+    API --> Redis
+    Auth --> Redis
     Auth --> SQL
     Migrator -->|"Migrations + Seeding"| SQL
 ```
@@ -338,6 +405,49 @@ Troubleshooting the top-five local failures:
 
 ---
 
+## Configuration
+
+Runtime configuration comes from environment variables in deployment and from
+`appsettings.*.json` locally, with the gitignored `appsettings.secrets.json` and
+`appsettings.Local.json` holding what must not be committed. (.NET User Secrets is not wired
+up: no project file declares a `UserSecretsId`, and no startup path calls
+`AddUserSecrets`.) The deployed set is
+declared in [env.prod.example](env.prod.example), which carries 42 keys
+(`grep -cE '^[A-Z_]+=' env.prod.example`).
+
+**Names and purposes only below. This file never carries values, and neither
+does the example: it ships with placeholders.**
+
+> [!WARNING]
+> On the server every Compose command needs `--env-file`. There is no `.env`
+> there, so Compose auto-loads nothing, every variable resolves to an empty
+> string, and it warns and carries on -- recreating containers with no database
+> password and no TLS paths. Use `scripts/hosting/dc.sh`, which injects the flag
+> and refuses to run without the file.
+
+<details>
+<summary>All 42 deployment keys, grouped by what they configure</summary>
+
+| Group | Keys | Purpose |
+| --- | --- | --- |
+| Hosting and TLS | `BASE_DOMAIN`, `APP_NAME`, `HTTP_PORT`, `HTTPS_PORT`, `TLS_CERT_PATH`, `TLS_KEY_PATH`, `TRUSTED_PROXY_SET_REAL_IP_FROM`, `TRUSTED_PROXY_REAL_IP_RECURSIVE` | Base domain the office subdomains hang off, published ports, and the proxy's TLS material and real-IP trust |
+| Auth and crypto | `OPENIDDICT_PFX_PATH`, `AUTHSERVER_CERT_PASSPHRASE`, `STRING_ENCRYPTION_PASSPHRASE` | The OpenIddict signing certificate and its passphrase, plus ABP's string-encryption passphrase |
+| Database | `MSSQL_SA_PASSWORD`, `MSSQL_MEMORY_LIMIT_MB`, `DBMIGRATOR_ENVIRONMENT` | SQL Server credentials and memory ceiling; which environment the migrator runs as |
+| Object storage | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET_NAME`, `MINIO_CASE_TRACKER_BUCKET_NAME` | S3-compatible storage credentials, the portal's own document bucket, and the separate bucket the Case Tracker reads from |
+| ABP licensing | `ABP_LICENSE_CODE`, `ABP_NUGET_API_KEY` | ABP Commercial licence and the private package-feed key. Both are required to restore and run |
+| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENABLE_SSL`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS`, `SMTP_FROM_NAME` | Outbound notification transport and sender identity |
+| Case Tracker integration | `CASE_TRACKER_BASE_URL`, `CASE_TRACKER_INTAKE_TOKEN`, `CASE_TRACKER_INTEGRATION_TOKEN`, `CASE_TRACKER_FEED_TOKEN`, `CASE_TRACKER_TIMEOUT_SECONDS`, `CASE_TRACKER_FEED_ALERT_RECIPIENTS` | Downstream endpoint, the three separate tokens the integration uses, its timeout, and the recipients of both the feed alerts and the weekly missing-intake report |
+| Administrator passwords | `ADMIN_PASSWORD_DIRECTORY`, `ADMIN_PASSWORD_VAULT_URI` | Where generated administrator passwords are written: a folder on the host, one file per database. **`ADMIN_PASSWORD_VAULT_URI` must stay empty.** The Key Vault store is not in this build and setting the URI stops start-up |
+| Backup | `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_ALERT_RECIPIENTS` | Dump destination, retention window, and failure alert recipients |
+| Container memory | `SQL_MEM_LIMIT`, `API_MEM_LIMIT`, `AUTHSERVER_MEM_LIMIT`, `PACKET_RENDERER_MEM_LIMIT` | Per-container memory ceilings |
+
+</details>
+
+Secret handling, rotation and storage:
+[docs/security/SECRETS-MANAGEMENT.md](docs/security/SECRETS-MANAGEMENT.md).
+
+---
+
 ## Service Ports
 
 | Service                | URL                       | Notes                                                         |
@@ -346,7 +456,7 @@ Troubleshooting the top-five local failures:
 | HttpApi.Host (Swagger) | <https://localhost:44327> | Local HTTPS; container exposes HTTP                           |
 | Angular SPA            | <http://localhost:4200>   | nginx in Docker, `npx serve` locally                          |
 | SQL Server (Docker)    | `localhost:1434 -> 1433`  | Remapped to avoid collisions with host LocalDB / SQL Server   |
-| Redis (Docker)         | `localhost:6379`          | Optional at runtime                                           |
+| Redis (Docker)         | `localhost:6379`          | Required: both the AuthServer and the API host connect at startup |
 
 Services must start in order: **AuthServer -> HttpApi.Host -> Angular**. The
 API validates tokens against AuthServer; Angular calls both.
@@ -383,12 +493,17 @@ Read these counts from the API rather than trusting the table, because branch
 protection is edited outside the repository and nothing here can notice:
 `gh api repos/OWNER/REPO/branches/main/protection/required_status_checks`.
 
-| Branch        | Required checks                 | Approvals |
-| ------------- | ------------------------------- | --------- |
-| `main`        | all, incl. Packet Golden Output | 1         |
-| `development` | all minus Packet Golden Output  | 1         |
-| `staging`     | all minus Packet Golden Output  | 1         |
-| `production`  | all minus Packet Golden Output  | **2**     |
+| Branch        | Required checks                      | Approvals |
+| ------------- | ------------------------------------ | --------- |
+| `main`        | 18, incl. Packet Golden Output       | **0**     |
+| `development` | 17, all minus Packet Golden Output   | 1         |
+| `staging`     | 17, all minus Packet Golden Output   | 1         |
+| `production`  | 17, all minus Packet Golden Output   | **2**     |
+
+Counts read from the API on 2026-09-30. `main` taking **zero** approvals is not a
+typo: the gate on `main` is the 18 checks, and the approval requirement rises as a
+change moves downstream. This table previously said `main` needed one, which is
+exactly the drift the paragraph above warns about.
 
 The checks are listed individually, with what each covers, in
 [CONTRIBUTING.md](CONTRIBUTING.md#branch-protection) -- deliberately in one place
@@ -443,8 +558,14 @@ the commands in the [Project Status](#project-status) table -- see
 [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md) for test
 patterns and the `CaseEvaluationTestBase<TModule>` chain.
 
-EF Core tests use SQLite in-memory (`AbpEntityFrameworkCoreSqliteModule`) and
-require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
+Most EF Core tests use SQLite in-memory (`AbpEntityFrameworkCoreSqliteModule`)
+and require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
+
+Two classes are the exception and need a **real SQL Server container**, started
+per class from the image `docker-compose.yml` pins: `CaseTrackerFeedSqlServerTests`
+and `SqlAppLockTests` (see `SqlServerFeedFixture`). They exist because the SQLite
+rig cannot reproduce the behaviour under test, so do not assume the whole backend
+suite runs without Docker.
 
 ---
 
@@ -509,20 +630,49 @@ The local Compose stack (`docker-compose.yml`) runs nine services:
 
 | Service           | Image / Build                                | Port            | Role                                         |
 | ----------------- | -------------------------------------------- | --------------- | -------------------------------------------- |
-| `sql-server`      | `mcr.microsoft.com/mssql/server:2022-latest` | `1434 -> 1433`  | Primary database                             |
-| `redis`           | `redis:7-alpine`                             | `6379`          | Cache                                        |
+| `sql-server`      | `mcr.microsoft.com/mssql/server:2022-CU25-GDR2-ubuntu-22.04` | `1434 -> 1433`  | Primary database                     |
+| `redis`           | `redis:7.4.9-alpine`                         | `6379`          | Cache and the shared DataProtection key ring |
 | `minio`           | MinIO                                        | `9000`          | Object store for uploaded documents          |
 | `minio-init`      | MinIO client                                 | --              | Runs once; creates the buckets               |
 | `db-migrator`     | local build                                  | --              | Runs once; applies migrations and seeds data |
 | `authserver`      | local build                                  | `44368 -> 8080` | OpenIddict OAuth server                      |
 | `api`             | local build                                  | `44327 -> 8080` | REST API                                     |
-| `packet-renderer` | local build                                  | --              | Renders appointment packets to PDF           |
+| `packet-renderer` | local build                                  | `3001`          | Renders appointment packets to PDF           |
 | `angular`         | local build                                  | `4200 -> 80`    | nginx-served production build                |
 
 Rebuild a single service after code changes:
 
 ```bash
 docker compose build api && docker compose up -d api
+```
+
+The deployed stack (`docker-compose.prod.yml`) is the same nine plus a
+`reverse-proxy` that terminates TLS and routes by subdomain. One office is one
+database, so the office is decided at the proxy and carried by the host name:
+
+```mermaid
+flowchart LR
+    Client["Browser"] -->|"HTTPS"| Proxy["reverse-proxy<br/>nginx: TLS + routes by subdomain"]
+
+    Proxy --> Angular["angular<br/>nginx serving built dist"]
+    Proxy --> Auth["authserver<br/>OpenIddict"]
+    Proxy --> API["api<br/>REST"]
+    Proxy --> Minio
+
+    API --> SQL[("sql-server<br/>one database per office")]
+    Auth --> SQL
+    API --> Minio[("minio<br/>object store")]
+    API -->|"render packet"| Packet["packet-renderer<br/>WeasyPrint sidecar"]
+    API --> Redis[("redis<br/>cache + DataProtection keys")]
+    Auth --> Redis
+
+    subgraph RunOnce["Run once, then exit"]
+        Migrator["db-migrator<br/>migrations + seed"]
+        MinioInit["minio-init<br/>creates buckets"]
+    end
+
+    Migrator --> SQL
+    MinioInit --> Minio
 ```
 
 ### Deployed environment
@@ -568,28 +718,20 @@ Core safeguards in place:
   (Admin, Doctor, Patient, Applicant Attorney, Claim Examiner).
 - **Multi-tenant isolation**: ABP's automatic tenant filter; `IMultiTenant`
   entities filtered on every query by default.
-- **Secret scanning**: Gitleaks on commit and push, TruffleHog in CI.
-- **PHI scanner hook**: runs on every local development tool invocation to
-  catch protected fields before they reach git.
+- **Secret scanning**: Gitleaks on commit and push when it is installed locally
+  (the hooks warn and continue without it), TruffleHog in CI.
 - **PR template**: every pull request carries a HIPAA checklist.
 
-Known gaps (documented, not yet remediated):
-
-- Secrets were previously committed to source control; rotation is in
-  progress.
-- PII logging is enabled by default in places.
-- One API endpoint exposes user data without an authorisation check.
-- Password complexity policy is weaker than HIPAA-recommended defaults.
-
-Open findings: [docs/production-hardening/](docs/production-hardening/). Threat model:
+Threat model:
 [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md). Data flows:
 [docs/security/DATA-FLOWS.md](docs/security/DATA-FLOWS.md). HIPAA technical
 safeguards inventory:
 [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md). Secret
 management: [docs/security/SECRETS-MANAGEMENT.md](docs/security/SECRETS-MANAGEMENT.md).
 
-Security reports go to the channel documented in [SECURITY.md](SECURITY.md).
-Do not file public issues for vulnerabilities.
+Report a suspected vulnerability privately through the repository's **Security tab
+-> Report a vulnerability**; see [SECURITY.md](SECURITY.md). Do not file a public
+issue for one.
 
 ---
 
@@ -639,28 +781,56 @@ Sub-project READMEs: [angular/README.md](angular/README.md),
 
 ---
 
+## Troubleshooting
+
+The failures most likely to cost you an afternoon, each with the reason rather
+than just the fix.
+
+| Symptom | Cause and fix |
+| --- | --- |
+| Angular throws on `CORE_OPTIONS` injection, or the app boots blank | You ran `ng serve` or `yarn start`. Angular 20's Vite pre-bundler splits `@abp/ng.core` across chunks and creates duplicate `InjectionToken` instances; DI matches on reference identity, so injection fails. Build then serve the output instead, as in [Quick Start](#quick-start) Path B |
+| SQL Server will not start, or connects to the wrong instance | The Docker SQL Server publishes **1434 -> 1433** on purpose, to avoid colliding with a host LocalDB or SQL Server install. Point local tools at 1434, not 1433 |
+| `dotnet restore` fails on an ABP package | The private package feed needs `ABP_NUGET_API_KEY`, and ABP Commercial needs `ABP_LICENSE_CODE`. Run the NuGet.Config setup script in [Quick Start](#quick-start) Path B first |
+| Containers come up with no database password or no TLS | A Compose command ran without `--env-file`. See the warning under [Configuration](#configuration) |
+| Requests route to the wrong service after a backend rebuild | nginx resolves upstream container names once at worker start and caches the addresses. Force-recreate the reverse proxy after rebuilding a backend |
+| `?__tenant=` has no effect when you expect it to select an office | Intended. The resolver chain is cleared and rebuilt with two contributors, so the office comes from the request host only. See [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md) |
+| AuthServer or API host exits at startup with a Redis connection error | Redis is required and is not running. Both hosts connect at startup. See the note under [Tech Stack](#tech-stack): the key-ring branch is guarded on `Redis:Configuration`, which ships populated, so `"IsEnabled": false` does not skip it |
+| Email-confirmation or similar ABP token returns 403 `Volo.Abp.Identity:InvalidToken` | The AuthServer and API host are not sharing a DataProtection key ring, so the token was minted with keys the validating process does not have. Point both at the same Redis |
+| A frontend result differs between your machine and CI | Check the Node major first: the SPA builds on Node 20 in Docker and Node 22 in CI, and nothing pins one locally, so the two are not guaranteed to match. See the note under [Tech Stack](#tech-stack) |
+
+Local development failures in depth:
+[docs/runbooks/LOCAL-DEV.md](docs/runbooks/LOCAL-DEV.md). Docker specifics:
+[docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md).
+
+---
+
 ## Known Issues and Roadmap
 
-Work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues) -- 124 open, labelled by `severity/*`,
-`type/*` and `source/*`. That is the single answer to "what is open".
+Work is tracked in [GitHub Issues](https://github.com/gesco-healthcare-support/hcs-patient-portal/issues),
+labelled by `severity/*`, `type/*` and `source/*`. That is the single answer to
+"what is open". No count is repeated here, for the reason given under
+[Project Status](#project-status): count it with
+`gh issue list --state open --limit 500 --json number --jq 'length'`.
 
 The supporting files are still there and still worth reading, but they no longer record
 status: `docs/findings/bugs/` holds the reproduction steps and diagnosis for each
 finding and links its issue, and `docs/production-hardening/` carries the phased security
 and quality programme. Status lives in the issue only, so the two cannot disagree.
 
-Pre-deployment TODOs still open (summary):
+Engineering work still open (summary; the issues carry the detail):
 
-- Set the backend coverage floor in `ci.yml`'s `Coverage: Floors` job. It is
-  deliberately unset, so that job fails until the figure its own first CI run
-  measures is filled in. Codecov is not being wired up; SonarCloud plus that
-  check cover it.
-- Seven Angular XSS advisories blocked on ABP Commercial 10.3+ releases
-  becoming available.
+- Keep coverage above the floors as the codebase grows. `ci.yml`'s
+  `Coverage: Floors` job enforces `FLOOR_BACKEND` 85, `FLOOR_FRONTEND` 90 and
+  `FLOOR_PYTHON` 90 on total line coverage, plus `FLOOR_CHANGED` 80 on the lines
+  each pull request touches. The absolute floors are backstops against slow
+  erosion; the changed-lines floor is the per-PR control. Codecov is not being
+  wired up; SonarCloud plus that check cover it.
+- Some dependency upgrades are gated on upstream ABP Commercial releases rather
+  than on work in this repository.
 - Polish of the auto-PR workflow and expansion of the disabled
   `doc-check.yml` placeholder.
-- Staff go-live on the internal LAN environment.
-- Coverage expansion beyond Doctors and Books.
+- Staff go-live on the internal environment.
+- Coverage expansion beyond the first feature areas.
 
 Release history and forward-looking notes: [CHANGELOG.md](CHANGELOG.md).
 
@@ -675,7 +845,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Highlights:
 - Never include real patient data in code, commits, PRs, tests, logs, or docs
   -- see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
+Report vulnerabilities privately through the Security tab, per
+[SECURITY.md](SECURITY.md).
 
 ---
 
