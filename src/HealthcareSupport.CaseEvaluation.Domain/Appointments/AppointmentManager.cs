@@ -524,7 +524,7 @@ public class AppointmentManager : DomainService
             }
         }
 
-        machine.Fire(trigger);
+        await machine.FireAsync(trigger);
 
         if (trigger == AppointmentTransitionTrigger.Approve)
         {
