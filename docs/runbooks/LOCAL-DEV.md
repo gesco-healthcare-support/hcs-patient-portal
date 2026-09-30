@@ -109,7 +109,7 @@ NullInjectorError: R3InjectorError(Standalone[AppComponent])
 - `Cannot open database "CaseEvaluation" requested by the login`
 - Permission seeding silently fails; all API calls return 403
 
-**Cause A (cold start):** .NET service started before SQL Server was ready. ABP's `UsePermissionSeeder` runs during startup; if the DB connection fails, the seeder silently skips without retrying.
+**Cause A (cold start):** .NET service started before SQL Server was ready. At start-up ABP writes the static permission definitions to the database (`PermissionManagementOptions.SaveStaticPermissionsToDatabase`, in `Volo.Abp.PermissionManagement.Domain`), retrying with back-off; if SQL Server is still unreachable, the failure is in the host's log rather than on screen. The permission grants themselves come from the DbMigrator's seed (Cause B).
 
 **Fix A:** Always verify SQL Server is fully ready before launching AuthServer / HttpApi.Host. For LocalDB:
 
