@@ -38,6 +38,12 @@ public class DbMigratorHostedService : IHostedService
             // ABP builds IAbpHostEnvironment from this option alone and reads a blank name as
             // Production, so without it DOTNET_ENVIRONMENT never reaches a seeder that asks ABP.
             options.Environment = _hostEnvironment.EnvironmentName;
+            // The application above is a SEPARATE container from this host's, so nothing the host
+            // registered is visible inside it -- including IHostEnvironment, which domain services
+            // take (AdminPasswordRotator reads IsDevelopment(); the tenant migration handler reads
+            // ApplicationName to know it is in the migrator). Without this they cannot be built and
+            // the migrator stops at start-up. The host's own instance, so both containers agree.
+            options.Services.AddSingleton<IHostEnvironment>(_hostEnvironment);
             options.UseAutofac();
             options.Services.AddLogging(c => c.AddSerilog());
             options.AddDataMigrationEnvironment();

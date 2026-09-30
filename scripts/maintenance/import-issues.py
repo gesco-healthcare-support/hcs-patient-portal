@@ -511,7 +511,7 @@ def already_created() -> dict[str, str]:
     if not MAP.exists():
         return {}
     rows = MAP.read_text(encoding="utf-8").splitlines()
-    return {name: value for name, value in (r.split("\t", 1) for r in rows if "\t" in r)}
+    return dict(r.split("\t", 1) for r in rows if "\t" in r)
 
 
 def dry_run() -> None:

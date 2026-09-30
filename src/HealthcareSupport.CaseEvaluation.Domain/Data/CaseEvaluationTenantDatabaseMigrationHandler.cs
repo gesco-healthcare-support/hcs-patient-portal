@@ -36,10 +36,19 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
 
     public async Task HandleEventAsync(TenantCreatedEto eventData)
     {
+        var suppliedPassword = eventData.Properties.GetOrDefault("AdminPassword");
+
+        // Refused here, BEFORE the DbMigrator check below, on purpose: offices are created in the
+        // API, where this handler otherwise does nothing, and this is the only place a typed
+        // published default is caught on that path.
+        RefuseAKnownDefault(suppliedPassword);
+
         await MigrateAndSeedForTenantAsync(
             eventData.Id,
             eventData.Properties.GetOrDefault("AdminEmail") ?? CaseEvaluationConsts.AdminEmailDefaultValue,
-            await ResolveSuppliedOrStoredAsync(eventData.Id, eventData.Properties.GetOrDefault("AdminPassword"))
+            () => suppliedPassword.IsNullOrWhiteSpace()
+                ? _adminPasswordStore.GetOrCreateAsync(eventData.Id)
+                : Task.FromResult(suppliedPassword!)
         );
     }
 
@@ -54,7 +63,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         await MigrateAndSeedForTenantAsync(
             eventData.Id,
             CaseEvaluationConsts.AdminEmailDefaultValue,
-            await _adminPasswordStore.GetOrCreateAsync(eventData.Id)
+            () => _adminPasswordStore.GetOrCreateAsync(eventData.Id)
         );
 
         /* You may want to move your data from the old database to the new database!
@@ -73,7 +82,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         await MigrateAndSeedForTenantAsync(
             eventData.TenantId.Value,
             CaseEvaluationConsts.AdminEmailDefaultValue,
-            await _adminPasswordStore.GetOrCreateAsync(eventData.TenantId.Value)
+            () => _adminPasswordStore.GetOrCreateAsync(eventData.TenantId.Value)
         );
     }
 
@@ -87,27 +96,25 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
     /// repository, by the one route that bypasses the generated store entirely.</para>
     ///
     /// <para>With nothing typed, the stored password for that database is used, generated on first
-    /// call.</para>
+    /// call -- and only in the DbMigrator, see <see cref="MigrateAndSeedForTenantAsync"/>.</para>
     /// </summary>
-    private async Task<string> ResolveSuppliedOrStoredAsync(Guid tenantId, string? suppliedPassword)
+    private static void RefuseAKnownDefault(string? suppliedPassword)
     {
-        if (suppliedPassword.IsNullOrWhiteSpace())
-        {
-            return await _adminPasswordStore.GetOrCreateAsync(tenantId);
-        }
-
         if (AdminPasswordPolicy.IsKnownDefault(suppliedPassword))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AdminPasswordIsAKnownDefault);
         }
-
-        return suppliedPassword;
     }
 
+    /// <param name="resolveAdminPassword">
+    /// Called only once this process is known to be the DbMigrator. It used to be evaluated by the
+    /// caller, so the API -- where this handler does nothing else -- wrote a store entry for every
+    /// office it created or re-pointed, holding a password no account was ever given.
+    /// </param>
     private async Task MigrateAndSeedForTenantAsync(
         Guid tenantId,
         string adminEmail,
-        string adminPassword)
+        Func<Task<string>> resolveAdminPassword)
     {
         // Smoke-test 2026-05-04 (G0c): the duplicate-key race on
         // AbpLocalizationResources came from this handler running concurrently
@@ -131,7 +138,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
 
         try
         {
-            await _officeProvisioner.ProvisionAsync(tenantId, adminEmail, adminPassword);
+            await _officeProvisioner.ProvisionAsync(tenantId, adminEmail, await resolveAdminPassword());
         }
         catch (Exception ex)
         {
