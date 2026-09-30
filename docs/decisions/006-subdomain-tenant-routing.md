@@ -191,7 +191,7 @@ the index. Both said so while every part of it was in the code.
 
 What shipped, checked against `origin/main` at `6be1e0b6`:
 
-```
+```text
 grep -rnE "TenantResolvers\.(Clear|Add)" --include=*.cs src/
   AuthServer/CaseEvaluationAuthServerModule.cs:572    options.TenantResolvers.Clear();
   AuthServer/CaseEvaluationAuthServerModule.cs:573    ...Add(new CurrentUserTenantResolveContributor());

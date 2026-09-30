@@ -72,7 +72,7 @@ changes made after 2026-05-11 that the Consequences section does not reflect. Ch
 Host context is reachable only on purpose -- the reserved `admin` label, or an internal name. Anything
 else naming no office throws:
 
-```
+```text
 HostAwareDomainTenantResolveContributor.cs:152
   throw new BusinessException(HostNotServedErrorCode, HostNotServedMessage);
 ```
@@ -84,7 +84,7 @@ a reader would most want. The refusal text is fixed and deliberately never echoe
 **2. The reserved set has grown beyond one slug, so the "if it grows" note describes work already
 done.** Alongside `ReservedHostSlug = "admin"` there is now a second mechanism:
 
-```
+```text
 HostAwareDomainTenantResolveContributor.cs:77
   public static readonly IReadOnlyList<string> InternalHosts = ["localhost", "authserver"];
 ```

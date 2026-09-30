@@ -114,7 +114,7 @@ Defense-in-depth bullet 1 previously read:
 
 Both halves are wrong. `Patient` implements `IMultiTenant`:
 
-```
+```text
 grep -n "class Patient" src/HealthcareSupport.CaseEvaluation.Domain/Patients/Patient.cs
   27:public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
 ```
