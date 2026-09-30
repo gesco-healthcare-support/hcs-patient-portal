@@ -12,6 +12,7 @@ threw.
 
 import pathlib
 import tempfile
+import time
 import unittest
 from collections import Counter
 
@@ -151,6 +152,33 @@ export const APPOINTMENT_TOKEN = 1;
     def test_language_is_labelled(self):
         entry = repo_map.extract_ts(self.write("angular/a.ts", self.SOURCE))
         self.assertEqual(entry["language"], "typescript")
+
+
+class TsImportPatternTests(unittest.TestCase):
+    """TS_IMPORT_RE must stay linear in its input and keep what it captures.
+
+    An earlier form let the whitespace after `import` and the free text before `from` match the
+    same spaces, so `import` followed by a long run of spaces and no quote made the engine try
+    every split point: 1.1 s at 8,000 characters, growing quadratically. The bound below is far
+    above the linear form's time and far below the quadratic form's, so it separates them
+    without being timing-sensitive.
+    """
+
+    def test_a_long_whitespace_run_is_rejected_in_linear_time(self):
+        text = "import" + " " * 20_000 + "x"
+        started = time.perf_counter()
+        match = repo_map.TS_IMPORT_RE.search(text)
+        elapsed = time.perf_counter() - started
+        self.assertIsNone(match)
+        self.assertLess(elapsed, 1.0, f"TS_IMPORT_RE took {elapsed:.2f}s on 20,000 spaces")
+
+    def test_a_multi_line_import_list_is_still_captured(self):
+        text = "import {\n  A,\n  B,\n} from './m';\n"
+        self.assertEqual(repo_map.TS_IMPORT_RE.findall(text), ["./m"])
+
+    def test_from_straight_after_import_is_still_captured(self):
+        # The free text before `from` is optional, so this keeps matching as it always did.
+        self.assertEqual(repo_map.TS_IMPORT_RE.findall("import from './m';"), ["./m"])
 
 
 class ExtractCsprojRefsTests(_TempRepo):
