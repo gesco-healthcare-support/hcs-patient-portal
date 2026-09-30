@@ -104,7 +104,7 @@ flowchart TB
 
 ## Decisions (ADRs)
 
-- [ADR Index](decisions/README.md) -- all architecture decision records (001-007) with the template
+- [ADR Index](decisions/README.md) -- all architecture decision records (001-017) with the template
 
 ## Design
 
