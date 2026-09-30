@@ -83,11 +83,10 @@ gaps.
 - **All test fixtures use synthetic values.** See
   [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md) for the
   seeding pattern.
-- **Runtime PHI** is stored only in environment-specific databases and never
-  logged. PII logging gaps are tracked in
-  [docs/issues/SECURITY.md](docs/issues/SECURITY.md).
-- A PHI scanner hook runs on every local tool invocation to catch accidental
-  inclusion of protected fields during development.
+- **Runtime PHI** is stored only in environment-specific databases.
+- The repository's AI-assistant rules (`.claude/rules/hipaa-data.md` and
+  `.claude/rules/test-data.md`) require synthetic data in code, tests and
+  fixtures.
 
 ## Further Reading
 
@@ -99,5 +98,3 @@ gaps.
   and how it moves between components.
 - [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md) --
   technical safeguards inventory and HIPAA-readiness gaps.
-- [docs/issues/SECURITY.md](docs/issues/SECURITY.md) -- currently tracked
-  security issues (open and closed).

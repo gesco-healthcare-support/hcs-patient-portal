@@ -24,8 +24,8 @@ feature/* --> main --> development --> staging --> production
 | `staging`     | Pre-production verification.                 |
 | `production`  | Live application (not deployed yet).         |
 
-Merges flow one direction only. Promotion PRs between long-lived branches must
-use **rebase**, never a merge commit, to preserve linear history.
+Merges flow one direction only. Promotion PRs between long-lived branches merge
+as **merge commits**, never squash or rebase (see "Branch Protection" below).
 
 ## Branch Protection
 
