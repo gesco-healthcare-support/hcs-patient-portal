@@ -23,3 +23,13 @@ RUN apt-get update \
 # generated from .github/docs-requirements.in; edit that file, never this list.
 COPY docs-requirements.txt /tmp/docs-requirements.txt
 RUN python -m pip install --no-cache-dir --require-hashes --only-binary ":all:" -r /tmp/docs-requirements.txt
+
+# Run as an unprivileged user (Sonar docker:S6471). Added after the installs, which need root.
+# scripts/hosting/build-docs-site.sh overrides it with --user <deploy uid>:<gid>, so the output
+# belongs to the deploy user; this default covers any other use of the image. The build needs no
+# home directory: the script sets HOME=/tmp and passes git's safe.directory through the environment.
+# The group is created first so uid and gid are both a fixed 10001, not taken from a system range.
+RUN groupadd --gid 10001 docs \
+ && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent \
+      --shell /usr/sbin/nologin docs
+USER docs
