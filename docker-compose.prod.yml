@@ -262,6 +262,11 @@ services:
       AuthServer__RequireHttpsMetadata: "true"
       # G6: passphrase for the openiddict.pfx mounted below. NEVER hardcode.
       AuthServer__CertificatePassPhrase: "${AUTHSERVER_CERT_PASSPHRASE}"
+      # The certificate that encrypts the Data Protection key ring (SESSION-KEY-ENCRYPTION.md).
+      # IDENTICAL in authserver and api: the two share one key ring, and a process that cannot
+      # decrypt it reads the other's cookies and tokens as invalid. NEVER hardcode the passphrase.
+      DataProtection__CertificatePath: /app/dataprotection.pfx
+      DataProtection__CertificatePassPhrase: "${DATAPROTECTION_CERT_PASSPHRASE}"
       ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       Redis__IsEnabled: "true"
@@ -288,6 +293,9 @@ services:
       # G6: OpenIddict token-signing cert mounted read-only at the content root. NEVER
       # baked into the image. Generate with scripts/hosting/gen-openiddict-cert.sh.
       - "${OPENIDDICT_PFX_PATH}:/app/openiddict.pfx:ro"
+      # The key-ring certificate, read-only, the SAME file in authserver and api. Generate with
+      # scripts/hosting/gen-dataprotection-cert.sh; it must be readable by the api's non-root user.
+      - "${DATAPROTECTION_PFX_PATH}:/app/dataprotection.pfx:ro"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
@@ -329,6 +337,11 @@ services:
       AuthServer__MetaAddress: "http://authserver:8080"
       AuthServer__RequireHttpsMetadata: "true"
       PacketRenderer__Url: "http://packet-renderer:3001"
+      # The certificate that encrypts the Data Protection key ring (SESSION-KEY-ENCRYPTION.md).
+      # IDENTICAL in authserver and api: the two share one key ring, and a process that cannot
+      # decrypt it reads the other's cookies and tokens as invalid. NEVER hardcode the passphrase.
+      DataProtection__CertificatePath: /app/dataprotection.pfx
+      DataProtection__CertificatePassPhrase: "${DATAPROTECTION_CERT_PASSPHRASE}"
       ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       Redis__IsEnabled: "true"
@@ -382,6 +395,9 @@ services:
       # because either process may be the one that first creates a database. Harmless on Azure,
       # where the directory key is left empty and the vault is used instead.
       - "./secrets/admin-passwords:/run/admin-passwords"
+      # The key-ring certificate, read-only, the SAME file in authserver and api. Generate with
+      # scripts/hosting/gen-dataprotection-cert.sh; it must be readable by the api's non-root user.
+      - "${DATAPROTECTION_PFX_PATH}:/app/dataprotection.pfx:ro"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
