@@ -17,6 +17,7 @@ was seen to fail naming its rule, before the rule was made to pass.
 """
 
 import os
+import time
 import unittest
 
 from gate_loader import load
@@ -172,6 +173,36 @@ class RestatementTests(TempRepo):
         doc = "# Feature\n\n`Widget`.\n\n```bash\npublic() { echo hi; }\n```\n"
         findings = self.check("Feature", doc, {"Widget.cs": "public class Widget { }\n"})
         self.assertNotIn("RESTATEMENT", kinds(findings))
+
+
+class MethodBodyPatternTests(unittest.TestCase):
+    """The Rule 4 pattern must stay linear in its input and keep what it accepts.
+
+    An earlier form let two quantifiers match the same whitespace, so a keyword followed by
+    a long run of spaces and no brace made the engine try every split point: 1.2 s at 32,000
+    characters, growing quadratically. The bound below is far above the linear form's time
+    and far below the quadratic form's, so it separates them without being timing-sensitive.
+    """
+
+    def test_a_long_whitespace_run_is_rejected_in_linear_time(self):
+        text = "public" + " " * 100_000 + "x"
+        started = time.perf_counter()
+        match = check_claude_md.METHOD_BODY.search(text)
+        elapsed = time.perf_counter() - started
+        self.assertIsNone(match)
+        self.assertLess(elapsed, 1.0, f"METHOD_BODY took {elapsed:.2f}s on 100,000 spaces")
+
+    def test_a_signature_with_a_brace_on_the_same_line_matches(self):
+        self.assertIsNotNone(check_claude_md.METHOD_BODY.search("public void Go() {"))
+
+    def test_blank_lines_between_keyword_and_signature_still_match(self):
+        self.assertIsNotNone(check_claude_md.METHOD_BODY.search("public\n\n  void Go() {"))
+
+    def test_a_signature_without_a_brace_does_not_match(self):
+        self.assertIsNone(check_claude_md.METHOD_BODY.search("public void Go()"))
+
+    def test_a_brace_on_the_next_line_after_the_signature_does_not_match(self):
+        self.assertIsNone(check_claude_md.METHOD_BODY.search("public void Go()\n{"))
 
 
 class NonEmptyAssertionTests(unittest.TestCase):
