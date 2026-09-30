@@ -146,7 +146,7 @@ For the latest narrative status read
 | Database               | SQL Server                                          | LocalDB (dev) / 2022 (Docker)     | Code-first EF Core migrations                       |
 | Auth                   | [OpenIddict](https://documentation.openiddict.com/) | --                                | OAuth 2.0 / OIDC                                    |
 | Mapping                | [Riok.Mapperly](https://github.com/riok/mapperly)   | --                                | Compile-time source generation (not AutoMapper)     |
-| Caching                | Redis                                               | 7 (Docker)                        | Optional; disabled by default locally               |
+| Cache + key ring       | Redis                                               | 7 (Docker)                        | **Required.** Holds the shared DataProtection key ring; see the note below |
 | Logging                | Serilog                                             | 9.x                               |                                                     |
 | Test framework         | xUnit + [Shouldly](https://docs.shouldly.org/)      | --                                |                                                     |
 | Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
@@ -155,6 +155,22 @@ For the latest narrative status read
 | Node (build only)      | Node.js                                             | 20 in Docker, 22 in CI            | Nothing pins it: no `.nvmrc`, no `engines` field. See the note below |
 | CI / CD                | GitHub Actions                                      | see `.github/workflows/`          | See [CI / CD](#ci--cd)                              |
 | Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
+
+> [!IMPORTANT]
+> **Redis is required, and `"IsEnabled": false` does not make it optional.**
+> `CaseEvaluationAuthServerModule.cs:424` decides whether to persist
+> DataProtection keys to Redis by reading `Redis:Configuration`, not
+> `Redis:IsEnabled`. `appsettings.json` ships `Configuration` as `127.0.0.1`
+> with `IsEnabled` set to `false`, and the `appsettings.Local.json.example`
+> files add no Redis key, so the branch is taken and
+> `ConnectionMultiplexer.Connect` runs during startup. An unreachable Redis
+> therefore stops the AuthServer starting.
+>
+> The key ring has to be shared because the AuthServer and the API host run as
+> separate containers with separate filesystems. Without a shared ring each
+> process keeps its own ephemeral keys, and an ABP Identity token minted by the
+> API host (email confirmation, for instance) fails to decrypt on the
+> AuthServer, which returns 403 `Volo.Abp.Identity:InvalidToken`.
 
 > [!NOTE]
 > The SPA is built on **Node 20** inside `angular/Dockerfile` and on **Node 22**
@@ -180,7 +196,7 @@ flowchart TB
 
     subgraph Data["Data Layer"]
         SQL[("SQL Server<br/>LocalDB / 2022")]
-        Redis[("Redis Cache<br/>Optional")]
+        Redis[("Redis<br/>cache + DataProtection keys")]
     end
 
     subgraph Tools["CLI Tools"]
@@ -191,7 +207,7 @@ flowchart TB
     Angular -->|"OAuth2 Authorisation Code + PKCE"| Auth
     API -->|"Validate JWT"| Auth
     API --> SQL
-    API -.->|"Optional"| Redis
+    API --> Redis
     Auth --> SQL
     Migrator -->|"Migrations + Seeding"| SQL
 ```
@@ -433,7 +449,7 @@ Secret handling, rotation and storage:
 | HttpApi.Host (Swagger) | <https://localhost:44327> | Local HTTPS; container exposes HTTP                           |
 | Angular SPA            | <http://localhost:4200>   | nginx in Docker, `npx serve` locally                          |
 | SQL Server (Docker)    | `localhost:1434 -> 1433`  | Remapped to avoid collisions with host LocalDB / SQL Server   |
-| Redis (Docker)         | `localhost:6379`          | Optional at runtime                                           |
+| Redis (Docker)         | `localhost:6379`          | Required: the AuthServer connects to it at startup            |
 
 Services must start in order: **AuthServer -> HttpApi.Host -> Angular**. The
 API validates tokens against AuthServer; Angular calls both.
@@ -597,7 +613,7 @@ The local Compose stack (`docker-compose.yml`) runs nine services:
 | Service           | Image / Build                                | Port            | Role                                         |
 | ----------------- | -------------------------------------------- | --------------- | -------------------------------------------- |
 | `sql-server`      | `mcr.microsoft.com/mssql/server:2022-latest` | `1434 -> 1433`  | Primary database                             |
-| `redis`           | `redis:7-alpine`                             | `6379`          | Cache                                        |
+| `redis`           | `redis:7-alpine`                             | `6379`          | Cache and the shared DataProtection key ring |
 | `minio`           | MinIO                                        | `9000`          | Object store for uploaded documents          |
 | `minio-init`      | MinIO client                                 | --              | Runs once; creates the buckets               |
 | `db-migrator`     | local build                                  | --              | Runs once; applies migrations and seeds data |
@@ -628,7 +644,7 @@ flowchart LR
     Auth --> SQL
     API --> Minio[("minio<br/>object store")]
     API -->|"render packet"| Packet["packet-renderer<br/>WeasyPrint sidecar"]
-    API -.->|"optional"| Redis[("redis")]
+    API --> Redis[("redis<br/>cache + DataProtection keys")]
 
     subgraph RunOnce["Run once, then exit"]
         Migrator["db-migrator<br/>migrations + seed"]
@@ -760,6 +776,8 @@ than just the fix.
 | Containers come up with no database password or no TLS | A Compose command ran without `--env-file`. See the warning under [Configuration](#configuration) |
 | Requests route to the wrong service after a backend rebuild | nginx resolves upstream container names once at worker start and caches the addresses. Force-recreate the reverse proxy after rebuilding a backend |
 | `?__tenant=` has no effect when you expect it to select an office | Intended. The resolver chain is cleared and rebuilt with two contributors, so the office comes from the request host only. See [docs/architecture/MULTI-TENANCY.md](docs/architecture/MULTI-TENANCY.md) |
+| AuthServer exits at startup with a Redis connection error | Redis is required and is not running. See the note under [Tech Stack](#tech-stack): the key-ring branch is guarded on `Redis:Configuration`, which ships populated, so `"IsEnabled": false` does not skip it |
+| Email-confirmation or similar ABP token returns 403 `Volo.Abp.Identity:InvalidToken` | The AuthServer and API host are not sharing a DataProtection key ring, so the token was minted with keys the validating process does not have. Point both at the same Redis |
 | Angular tests pass locally but fail in CI, or vice versa | The SPA builds on Node 20 in Docker and Node 22 in CI, and nothing pins a version locally. See the note under [Tech Stack](#tech-stack) |
 
 Local development failures in depth:
