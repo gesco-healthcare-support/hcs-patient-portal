@@ -171,9 +171,11 @@ public class YourEntityController : AbpController, IYourEntitiesAppService
 
 ### Layer 7: Angular (regenerate proxies, create UI)
 
+With `HttpApi.Host` running (the generator reads its `/api/abp/api-definition` endpoint):
+
 ```bash
 cd angular
-abp generate-proxy
+abp generate-proxy -t ng
 ```
 
 This regenerates the TypeScript proxy files in `angular/src/app/proxy/`. **Never edit proxy files manually.**
@@ -190,7 +192,7 @@ Create your Angular components as custom standalone components in `angular/src/a
 6. Configure in DbContext if needed (max length, required, index)
 7. Create the migration in both sets (see [How to Run Database Migrations](#how-to-run-database-migrations))
 8. Update the controller if the method signature changed
-9. Regenerate Angular proxies: `cd angular && abp generate-proxy`
+9. Regenerate Angular proxies, with `HttpApi.Host` running: `cd angular && abp generate-proxy -t ng`
 10. Update the Angular form template
 
 ## How to Run Database Migrations
@@ -229,11 +231,12 @@ To add tests for a new feature, see [Testing Strategy](../devops/TESTING-STRATEG
 
 ## How to Regenerate Angular Proxies
 
-After ANY backend API change (new endpoint, changed DTO, renamed method):
+After ANY backend API change (new endpoint, changed DTO, renamed method), start `HttpApi.Host` (the generator
+reads its `/api/abp/api-definition` endpoint), then:
 
 ```bash
 cd angular
-abp generate-proxy
+abp generate-proxy -t ng
 ```
 
 This updates files in `angular/src/app/proxy/`. Never edit these files manually -- your changes will be overwritten on the next proxy generation.
@@ -266,7 +269,7 @@ Use in Angular: `{{ '::Menu:YourFeature' | abpLocalization }}`
 | Serve Angular | `npx serve -s dist/CaseEvaluation/browser -p 4200` |
 | Add migration (both sets) | from `src/...EntityFrameworkCore`: `dotnet ef migrations add <Name> -c CaseEvaluationDbContext -o Migrations`, then the same with `-c CaseEvaluationTenantDbContext -o TenantMigrations` |
 | Apply migrations | `dotnet run --project src/...DbMigrator` |
-| Regenerate proxies | `cd angular && abp generate-proxy` |
+| Regenerate proxies | `cd angular && abp generate-proxy -t ng` (API running) |
 | Run all tests | `dotnet test` |
 
 ---

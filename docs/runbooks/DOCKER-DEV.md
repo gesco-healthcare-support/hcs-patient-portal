@@ -39,7 +39,7 @@ Docker Compose is the alternative to local .NET + Angular development. It packag
 | `authserver` | Built from `src/.../AuthServer/Dockerfile`, `dev` target | `44368 -> 8080` | OpenIddict OIDC |
 | `api` | Built from `src/.../HttpApi.Host/Dockerfile`, `dev` target | `44327 -> 8080` | Main API |
 | `packet-renderer` | Built from `docker/packet-renderer/Dockerfile` | `3001 -> 3001` | WeasyPrint HTML to fillable-PDF packet renderer |
-| `angular` | Built from `angular/Dockerfile`, `dev` target | `4200 -> 80` | SPA, built at container start and served by nginx |
+| `angular` | Built from `angular/Dockerfile`, `dev` target | `4200 -> 80` | SPA, built at container start (`dev-entrypoint.sh`) and served by the `serve` static server; nginx serves only the production image |
 
 Every image is pinned to the version production runs. The exact tags live in `docker-compose.yml`
 and are not repeated here, so this table cannot drift from them. Every host port binds to
@@ -369,7 +369,8 @@ Running `docker compose exec sql-server /opt/mssql-tools18/bin/sqlcmd ...` from 
 
 ### Angular Route Quick Reference
 
-Routes use ABP module prefixes. Use the sidebar for navigation; these are the actual URLs:
+Use the sidebar for navigation; these are the staff URLs behind it. The bare `localhost:4200` redirects to
+`admin.localhost:4200` (host administration); an office's pages are at `<office>.localhost:4200`.
 
 | Feature | Route |
 |---------|-------|
@@ -378,13 +379,17 @@ Routes use ABP module prefixes. Use the sidebar for navigation; these are the ac
 | Appointment Types | `/appointment-management/appointment-types` |
 | Appointment Statuses | `/appointment-management/appointment-statuses` |
 | Appointment Languages | `/appointment-management/appointment-languages` |
-| Doctors | `/doctor-management/doctors` |
 | Patients | `/user-management/patients` |
 | Locations | `/doctor-management/locations` |
 | Doctor Availabilities | `/doctor-management/doctor-availabilities` |
 | WCAB Offices | `/doctor-management/wcab-offices` |
 | Applicant Attorneys | `/applicant-attorneys` |
 | States | `/configurations/states` |
+| Change Requests | `/appointments/change-requests` |
+| Reports | `/reports` |
+| Book an appointment | `/appointments/request` |
+| Users and access | `/users/invite` |
+| Admin hub | `/admin` (opens the first section the user can see) |
 
 Full route tree with guards and components: [Routing & Navigation](../frontend/ROUTING-AND-NAVIGATION.md)
 

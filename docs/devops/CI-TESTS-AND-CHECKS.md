@@ -219,15 +219,14 @@ best-covered area in the suite.
 
 ### 5.3 Frontend
 
-- 66 `*.spec.ts` files, 206 `describe` blocks, **581 specs, all passing** on Chrome Headless
-  (snapshot 2026-08-26).
+- 184 `*.spec.ts` files (`find angular/src -name '*.spec.ts' | wc -l`, 2026-09-30). The CI run on main
+  `2df2f2d9` (run 36755133682, 2026-09-30) executed **3,515 specs, all passing**, on Chrome Headless.
 - Run via `yarn test --watch=false --browsers=ChromeHeadless --code-coverage`.
 - Coverage is uploaded (`Upload frontend coverage`, unconditionally) and checked by the required
   `Coverage: Floors` job against a whole-number floor, through the shared `.coverage-exclusions` list
   that the SonarCloud job also reads.
-- Spec concentration is in `appointments/` (9 in `appointment/components`, 7 in
-  `appointments/shared`, 3 each in `availability-calendar` and `appointment-documents`) and
-  `shared/`.
+- Spec concentration: 61 files under `app/appointments/` and 44 under `app/shared/`; no other folder
+  has more than 8.
 
 `Frontend: Test` still skips the test step, with a warning, when no `*.spec.ts` file exists. Because the
 coverage upload runs regardless and `Coverage: Floors` fails on missing coverage, a pull request that
