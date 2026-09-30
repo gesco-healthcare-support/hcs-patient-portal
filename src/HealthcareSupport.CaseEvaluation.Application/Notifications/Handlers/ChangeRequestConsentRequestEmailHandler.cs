@@ -125,6 +125,7 @@ public class ChangeRequestConsentRequestEmailHandler :
                 when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
             {
                 _logger.LogWarning(
+                    ex,
                     "ChangeRequestConsentRequestEmailHandler: consent template missing/inactive; email skipped for change request {ChangeRequestId}.",
                     eventData.ChangeRequestId);
             }
@@ -151,8 +152,7 @@ public class ChangeRequestConsentRequestEmailHandler :
     private static string FormatSlot(DateTime availableDate, TimeOnly fromTime)
     {
         var date = availableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-        var time = new DateTime(2000, 1, 1, fromTime.Hour, fromTime.Minute, fromTime.Second)
-            .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+        var time = fromTime.ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
         return $"{date} at {time}";
     }
 

@@ -57,6 +57,6 @@ internal static class EmailAddressVisibility
         var domain = emailAddress.Substring(at);
         return at == 0
             ? Mask3 + domain
-            : emailAddress.Substring(0, 1) + Mask3 + domain;
+            : string.Concat(emailAddress.AsSpan(0, 1), Mask3, domain);
     }
 }

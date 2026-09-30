@@ -43,12 +43,9 @@ internal static class FieldConfigReconciler
         // names, so a malformed batch can never create duplicate rows that would
         // violate the composite unique (TenantId, AppointmentTypeId, FieldName).
         var desiredByName = new Dictionary<string, Desired>(StringComparer.Ordinal);
-        foreach (var d in desired)
+        foreach (var d in desired.Where(d => !string.IsNullOrWhiteSpace(d.FieldName)))
         {
-            if (!string.IsNullOrWhiteSpace(d.FieldName))
-            {
-                desiredByName[d.FieldName] = d;
-            }
+            desiredByName[d.FieldName] = d;
         }
 
         var existingByName = existing
@@ -74,13 +71,7 @@ internal static class FieldConfigReconciler
             }
         }
 
-        foreach (var e in existing)
-        {
-            if (!desiredByName.ContainsKey(e.FieldName))
-            {
-                toDelete.Add(e.Id);
-            }
-        }
+        toDelete.AddRange(existing.Where(e => !desiredByName.ContainsKey(e.FieldName)).Select(e => e.Id));
 
         return new Result(toCreate, toUpdate, toDelete);
     }
