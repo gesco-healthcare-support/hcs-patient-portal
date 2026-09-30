@@ -1,6 +1,49 @@
-# Database backup + restore (T13)
+# Database backup and restore
 
-Nightly native SQL Server backups of the host database plus every per-office database.
+> Purpose: recover the host database and every per-office database from backup.
+> Audience: whoever operates the deployed server.
+> Owner: the portal maintainer.
+> **Last proven by a human: never. See the warning below.**
+
+## When you need this page
+
+Reach for it when any of these is true:
+
+- A database is corrupt, dropped, or an office's data is wrong and you need a known-good copy.
+- A migration or a seed run has damaged data and you are past the point of fixing it forward.
+- `hcs-portal-backup-freshness` has emailed that the last backup is older than 26 hours, or the
+  last restore proof older than 8 days.
+- You are doing the pre-go-live check that the backups you have are actually restorable.
+
+If you are simply taking a backup, that is the "Run" section and not an incident.
+
+## READ THIS BEFORE YOU RELY ON A RESTORE
+
+**No restore has ever been performed on real data by a person.** The maintainer confirmed this on
+2026-09-28, at handover.
+
+The automation below *does* include a restore proof: `backup-offbox.sh --verify-restore` performs
+a genuine `RESTORE DATABASE` into a scratch name and writes a `last-restore-proof` marker, and
+`hcs-portal-backup-verify.timer` is meant to run it weekly. But the scripts existing in this
+repository is not evidence that the timers are installed and running on the server, and the
+maintainer's answer suggests they may not be.
+
+**So the first thing to do is establish which world you are in.** On the server:
+
+```bash
+systemctl list-timers 'hcs-portal-backup*'
+systemctl status hcs-portal-backup-verify.service --no-pager
+ls -l /var/backups/hcs-portal/last-success /var/backups/hcs-portal/last-restore-proof
+```
+
+Expected if the automation is live: three timers listed with a next elapse, and both marker files
+present with recent timestamps. If the timers are absent, or `last-restore-proof` is missing or
+old, then **you have backups of unknown restorability** and the priority is to prove one restores
+into a scratch database before you need it in anger. That procedure is "Verify a backup is
+restorable" at the end of this page, and it is safe: it restores under a different name and drops
+it, touching nothing live.
+
+Until somebody has done that and dated it, treat every instruction below as untested.
 
 ## What it does
 
@@ -88,14 +131,71 @@ cutover, the timers and alerts above stay in force.
 
 ## Restore one database
 
+**This overwrites the target database. There is no undo once it completes.** Before running it,
+take a fresh backup of the database you are about to overwrite, even if you believe it is corrupt:
+it is the only way back if the backup you restore turns out to be worse.
+
+### 1. Establish what you are restoring from
+
+```bash
+ls -lt "$BACKUP_DIR"/CaseEvaluation_falkinstein_*.bak | head -5
+```
+
+Pick deliberately. The newest file is not always the right one: if the damage was caused by a bad
+migration at a known time, you want the last backup BEFORE it.
+
+### 2. Confirm the file is readable and see what is inside
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file secrets/env.prod exec -T sql-server \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<MSSQL_SA_PASSWORD>" -C -b \
+  -Q "RESTORE HEADERONLY FROM DISK = N'/var/opt/mssql/backups/CaseEvaluation_falkinstein_<stamp>.bak';"
+```
+
+Expect one row with a `BackupFinishDate` you recognise. An error here means a corrupt or truncated
+file: **stop, and pick a different backup.** Do not proceed to overwrite a live database using a
+file you could not read.
+
+### 3. Stop the applications
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file secrets/env.prod stop authserver api
+```
+
+Open connections block a restore. **Never `down -v`** -- that destroys the named volumes and with
+them every database and the DataProtection keys.
+
+### 4. Restore
+
 ```bash
 docker compose -f docker-compose.prod.yml --env-file secrets/env.prod exec -T sql-server \
   /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<MSSQL_SA_PASSWORD>" -C -b \
   -Q "RESTORE DATABASE [CaseEvaluation_falkinstein] FROM DISK = N'/var/opt/mssql/backups/CaseEvaluation_falkinstein_<stamp>.bak' WITH REPLACE, RECOVERY;"
 ```
 
-For a full restore, stop the app services (`docker compose ... stop authserver api`) first so no
-connections block the restore, restore each database, then start them again. NEVER `down -v`.
+Expect `RESTORE DATABASE successfully processed N pages`. `-b` makes sqlcmd exit non-zero on
+error, so check the exit status rather than reading the text.
+
+**If it fails part-way**, the database is left in a restoring or suspect state and the application
+will not start against it. Do not start the services. Either re-run the restore with a different
+backup file, or restore the pre-restore backup you took in step 0.
+
+### 5. Start the applications and check
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file secrets/env.prod start authserver api
+curl -sk -o /dev/null -w '%{http_code}\n' https://health.<BASE_DOMAIN>/health-status
+```
+
+Expect `200`. Then sign in to the affected office and confirm the data you expected to recover is
+present, because a successful restore of the wrong file is still a successful restore.
+
+### Full restore
+
+Same sequence, restoring the host `CaseEvaluation` database and every `CaseEvaluation_<slug>`
+database while the applications are stopped. Restore the host database first: the office
+connection strings are stored on the tenant rows in it, so an office database restored against a
+host database that does not know about that office is not reachable.
 
 ## Verify a backup is restorable
 
@@ -113,3 +213,15 @@ DROP DATABASE [CaseEvaluation_verify];
 
 (Confirm the logical names with `RESTORE FILELISTONLY FROM DISK = N'<file>.bak';` -- they may
 differ per database.)
+
+## Escalation
+
+- Before step 4 of a restore, tell the portal maintainer which database and which backup file:
+  the overwrite has no undo.
+- At once, with the services left stopped, if step 2 finds no readable backup or a restore fails
+  part-way. Send the file name, the command and its full output.
+- If the office is not serving the recovered data within 30 minutes of step 5, escalate with the
+  same detail and the output of
+  `docker compose -f docker-compose.prod.yml --env-file secrets/env.prod logs --tail=200 api`.
+- If a restore proof or the freshness check reports a failure, escalate within the working day:
+  it means the backups may not be restorable when they are needed.

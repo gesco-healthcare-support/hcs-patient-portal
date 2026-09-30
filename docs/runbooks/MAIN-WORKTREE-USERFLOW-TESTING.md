@@ -1,6 +1,25 @@
 # Main Worktree Userflow Testing -- Comprehensive Hand-off
 
-> Purpose: Guide the Claude Code session in systematically testing every userflow in the NEW Patient Portal against the OLD reference implementation, surfacing gaps as structured bug tickets. Audience: Claude Code session assigned to userflow testing in the main worktree.
+> Purpose: test every userflow in the new Patient Portal against the old reference application,
+> and record each gap as a structured bug ticket.
+> Audience: whoever runs a userflow parity pass: a QA engineer, or a Claude Code session driven by
+> one.
+> Owner: the portal maintainer.
+> **Last tested: written for a userflow-testing session that began 2026-05-13; its findings are
+> indexed in `docs/findings/2026-05-13-userflow-findings.md`. No later dated run of this
+> protocol is recorded in the repo.**
+> **Not re-verified.** On 2026-09-28 this page gained its header, "When to run this", "Abort and
+> clean up" and a time box on escalation, and the mail correction its findings record (BUG-010).
+> The rest of the body was NOT re-verified step by step against the current code. Where a step
+> does not match the product, file it as a doc defect rather than a product failure.
+
+## When to run this
+
+- A parity pass: checking a userflow, role by role, on the new portal against what the old
+  application does.
+- Writing a parity audit doc for a slice that does not have one yet (Part 10).
+
+It needs both applications running locally, one at a time (Part 3).
 
 **Audience:** the Claude Code session running in `W:\patient-portal\main`
 whose job is to systematically test every userflow in the NEW Patient
@@ -263,9 +282,12 @@ so test scripts can reference the same authoritative source.
 
 ### When to use which
 
-- **Synthetic users** (`@falkinstein.test`) for fast flow tests where
-  you don't need to check email content. Their mail goes to MailKit's
-  pickup folder, not a real inbox.
+- **Synthetic users** (`@<office-slug>.test`) for fast flow tests where
+  you don't need to check email content. Their mail cannot be read
+  anywhere: there is no pickup folder (BUG-010). With placeholder SMTP
+  credentials the Development stack swaps in a no-op sender and drops
+  it; with real credentials it goes to the SMTP relay, which cannot
+  deliver to a `.test` domain.
 - **Gmail inbox users** (`@gesco.com`) when the test needs to verify
   an email landed in a real inbox. Register them yourself from
   `/Account/Register`; ask Adrian to spot-check the inbox for the
@@ -755,7 +777,7 @@ Suggested fix scope:
 ### Where to put tickets
 
 Append to a single file per session at:
-`docs/runbooks/findings/{YYYY-MM-DD}-userflow-findings.md`
+`docs/findings/{YYYY-MM-DD}-userflow-findings.md`
 
 The fix worktree picks this up and triages.
 
@@ -929,7 +951,7 @@ unexpected, file it but mark it `medium` severity -- it's known.
 After each test session, push a single commit (or PR) to
 `feat/replicate-old-app` containing:
 
-1. Updated `docs/runbooks/findings/{YYYY-MM-DD}-userflow-findings.md`
+1. Updated `docs/findings/{YYYY-MM-DD}-userflow-findings.md`
 2. Any new parity audit docs you wrote under
    `docs/parity/wave-1-parity/`
 3. Updated `docs/parity/_parity-flags.md` if you added new flags
@@ -991,8 +1013,9 @@ docker compose logs -f api --tail 50
 # Run a SQL query
 sqlcmd -S localhost,1434 -U sa -P "$env:MSSQL_SA_PASSWORD" -d CaseEvaluation -Q "SELECT COUNT(*) FROM AbpUsers"
 
-# Capture every email pickup file (MailKit dev mode)
-ls docker/mail-pickup/ | head
+# Mail to synthetic .test users is not captured anywhere (no pickup
+# folder; BUG-010). Use a real-inbox user when the email itself must be
+# checked (Part 4).
 
 # Resolve a tenant id from a slug
 curl -s http://localhost:44327/api/public/external-signup/resolve-tenant?name=falkinstein
@@ -1012,12 +1035,12 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:44327/api/app/appointmen
 
 ### Decisions you do NOT make
 
-- Should we replicate this OLD bug? → ASK Adrian.
-- Is this flag intentional? → READ `_parity-flags.md`, then if still
+- Should we replicate this OLD bug? -> ASK the portal maintainer.
+- Is this flag intentional? -> READ `_parity-flags.md`, then if still
   unclear, ASK.
-- Should a missing-in-NEW feature be flagged as a gap or skipped? →
-  ASK Adrian.
-- Whether to merge a PR → never. The fix worktree handles merges.
+- Should a missing-in-NEW feature be flagged as a gap or skipped? ->
+  ASK the portal maintainer.
+- Whether to merge a PR -> never. The fix worktree handles merges.
 
 ### Decisions you DO make
 
@@ -1036,8 +1059,26 @@ When you need a decision:
    - What you observed
    - What you think the options are
    - What you'd lean toward if you had to decide
-3. Ask Adrian directly.
+3. Ask the portal maintainer directly.
 4. While waiting, move to a different flow.
+
+### Time box
+
+- A blocker that stops every remaining flow for more than 30 minutes goes to the portal maintainer,
+  with the flow, what you observed, and the relevant container log.
+- A security finding (an auth bypass, or a read that crosses offices or roles) goes to the portal
+  maintainer at once, and privately. The repository is public, so it is NOT filed as a ticket in
+  `docs/findings/` or as a public issue; follow the
+  [security policy](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/SECURITY.md).
+
+### Abort and clean up
+
+1. Stop at the flow you are on. File tickets for what you have found so far (Part 11), and note
+   the flows not reached in the findings index.
+2. Stop the stack you were running: `docker compose down` keeps its data for inspection. Never
+   leave the old and new stacks running together (Part 3).
+3. The next pass starts from a clean database anyway: Part 3's boot runs `docker compose down -v`,
+   which deletes the stack's databases, so use it only on a disposable local stack.
 
 ---
 
@@ -1051,7 +1092,7 @@ When you need a decision:
 - [ ] Verify the 16 seeded users via SQL (Part 9 query).
 - [ ] Open OLD at <http://localhost:4202> in one browser context.
 - [ ] Open NEW at <http://falkinstein.localhost:4200> in another.
-- [ ] Create `docs/runbooks/findings/{TODAY}-userflow-findings.md`
+- [ ] Create `docs/findings/{TODAY}-userflow-findings.md`
       with an empty bug list.
 - [ ] Pick your first flow (recommend: Patient register + login, since
       everything downstream depends on it working).

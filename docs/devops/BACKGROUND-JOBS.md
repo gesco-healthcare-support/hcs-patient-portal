@@ -3,7 +3,7 @@
 > Purpose: reference for every recurring background job, what it does, when it runs, and the
 > switches that stop it. Audience: whoever operates the deployed stack.
 
-[Home](../INDEX.md) > [DevOps](./) > Background Jobs
+[Home](../index.md) > [DevOps](./) > Background Jobs
 
 ## Read this first
 
@@ -139,8 +139,18 @@ store. This has already produced a blank office name in both a UI column and an 
 
 ## Hangfire itself
 
-SQL Server storage, 6 workers, 5-attempt retry to dead letter. Dashboard and health endpoints at
-`/health-status` and `/health-ui`. Configured in `CaseEvaluationHttpApiHostModule`.
+SQL Server storage, 6 workers, 5-attempt retry to dead letter (a failed job stays in Hangfire's
+Failed state for a manual retry). Configured in `CaseEvaluationHttpApiHostModule` (`ConfigureHangfire`).
+
+| Endpoint | Who may open it |
+| --- | --- |
+| `/hangfire` (the Hangfire dashboard, API host) | Development: local requests. Everywhere else: a signed-in host user holding `CaseEvaluation.BackgroundJobsDashboard` (`CreateHangfireDashboardOptions`). The API host authenticates by bearer token, so a plain browser visit gets 401 there |
+| `/health-ui` and `/health-api` (both hosts) | The same permission outside Development (`HealthChecksBuilderExtensions.MapHealthChecksUiEndpoints`) |
+| `/health-status` (both hosts) | Anyone. It is the probe the reverse proxy and monitoring call |
+
+`CaseEvaluation.BackgroundJobsDashboard` is a host-side permission. Of the seeded roles, the host `IT Admin` and
+`admin` roles hold it and no office role does (`role-permission-surface.approved.txt` in
+`test/HealthcareSupport.CaseEvaluation.Application.Tests/Authorization/`).
 
 `DbMigrator` explicitly disables background-job execution: it is a one-shot console host and must
 never drain the queue.

@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > HIPAA Compliance
+[Home](../index.md) > Security > HIPAA Compliance
 
 # HIPAA Technical Safeguards Inventory
 
@@ -8,7 +8,6 @@
 
 This is a **technical inventory**, not a legal compliance document. It catalogues the safeguards the application currently provides under each HIPAA Security Rule technical safeguard category, and the gaps that remain. Consult HIPAA compliance counsel for legal obligations.
 
-**Last verified:** 2026-06-01
 **Method:** code-inspect + architecture review
 
 ---
@@ -100,7 +99,6 @@ This document covers only the Security Rule *technical* safeguards. Administrati
 
 ## HIPAA-Relevant Features Already in the Codebase
 
-- **PHI scanner PreToolUse hook** (`.claude/hooks/phi-scanner.sh`) prevents Claude from committing real PHI to the repo.
 - **Synthetic-only test data rule** (`.claude/rules/hipaa-data.md`, `.claude/rules/test-data.md`) -- all test fixtures use synthetic data.
 - **ABP permission system** -- per-entity CRUD permissions gate every endpoint.
 - **Multi-tenant data isolation** -- `IMultiTenant` filter prevents cross-tenant reads. `Patient` implements `IMultiTenant` as of FEAT-09 (2026-05-05); no entity exception remains. Host/IT-Admin paths that must read across tenants use `IDataFilter<IMultiTenant>.Disable()` explicitly, matching the `DoctorsAppService` pattern.
@@ -129,4 +127,4 @@ Ordered by criticality for cloud production deployment:
 - [Authorization Matrix](AUTHORIZATION.md)
 - [Secrets Management](SECRETS-MANAGEMENT.md)
 - [Security Issues](THREAT-MODEL.md)
-- [Project HIPAA Rules](../../.claude/rules/hipaa-data.md)
+- [Project HIPAA Rules](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/.claude/rules/hipaa-data.md)

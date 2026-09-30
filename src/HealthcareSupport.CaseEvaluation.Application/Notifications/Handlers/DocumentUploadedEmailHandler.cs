@@ -130,7 +130,9 @@ public class DocumentUploadedEmailHandler :
                 wcabAdj: ctx.WcabAdj,
                 documentName: ctx.DocumentName,
                 rejectionNotes: null,
-                clinicName: _currentTenant.Name,
+                // Filled by NotificationTemplateRenderer from the tenant store (#1014):
+                // ICurrentTenant.Name is null inside Change(TenantId).
+                clinicName: null,
                 portalUrl: ctx.PortalBaseUrl);
 
             // Phase 6.B (Adrian Decision 6.1, 2026-05-08): pick template

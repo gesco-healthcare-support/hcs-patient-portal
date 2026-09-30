@@ -2,7 +2,7 @@
 
 > Purpose: Documents the ASP.NET Core middleware pipeline order, Serilog logging configuration, Redis caching, health checks, and ABP module composition for the HttpApi.Host. Audience: backend engineers.
 
-[Home](../INDEX.md) > [API](./) > Middleware & Pipeline
+[Home](../index.md) > [API](./) > Middleware & Pipeline
 
 **Related:** [API Architecture](API-ARCHITECTURE.md) | [Authentication Flow](AUTHENTICATION-FLOW.md) | [Architecture Overview](../architecture/OVERVIEW.md)
 
@@ -52,6 +52,16 @@ public override void OnApplicationInitialization(ApplicationInitializationContex
     app.UseConfiguredEndpoints();                  // 16
 }
 ```
+
+**The listing above is incomplete.** Three stages in `CaseEvaluationHttpApiHostModule.cs` are not shown in it
+or in the diagram below:
+
+- `app.UseForwardedHeaders()` runs FIRST, before everything else, so every later stage sees the original
+  https scheme and client IP from the TLS-terminating proxy.
+- `app.UseMiddleware<PasswordResetEmailPeekMiddleware>()` runs after `UseAuthorization`. It stashes the email
+  from anonymous password-reset requests for the rate limiter's partitioner.
+- `app.UseRateLimiter()` runs straight after that, so `[EnableRateLimiting]` on the anonymous endpoints takes
+  effect.
 
 ### Pipeline Diagram
 
@@ -185,11 +195,14 @@ In development without Redis, ABP falls back to in-memory caching and local data
 
 Configured in `HealthChecksBuilderExtensions.AddCaseEvaluationHealthChecks()`:
 
-| Endpoint | Purpose |
-|----------|---------|
-| `/health-status` | Health check endpoint (JSON format via `UIResponseWriter`) |
-| `/health-ui` | Health checks dashboard UI |
-| `/health-api` | Health checks API for the UI |
+| Endpoint | Purpose | Access |
+|----------|---------|--------|
+| `/health-status` | Health check endpoint (JSON format via `UIResponseWriter`) | Open; the reverse proxy's probe |
+| `/health-ui` | Health checks dashboard UI | Outside Development: a host user holding `CaseEvaluation.BackgroundJobsDashboard` |
+| `/health-api` | Health checks API for the UI | Same as `/health-ui` |
+
+The AuthServer maps the same three paths from its own `HealthChecksBuilderExtensions`, with no checks registered,
+so its `/health-status` reports only that the process answers.
 
 ### Database Check
 
@@ -275,7 +288,8 @@ The `ConfigureServices` method registers these features in order:
 9. **Data protection** - Redis key storage in non-development
 10. **Distributed locking** - Redis-based via Medallion.Threading
 11. **CORS** - Origins from `App:CorsOrigins`
-12. **External providers** - Google, Microsoft, Twitter dynamic login
+12. **External providers** - dynamic Google / Microsoft / Twitter options are still registered here, but the
+    AuthServer (the only login surface) removed those logins on 2026-05-19, so they are inert
 13. **Health checks** - Database connectivity check
 14. **Permission management** - Dynamic permission store enabled
 

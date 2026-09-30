@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Secrets Management
+[Home](../index.md) > Security > Secrets Management
 
 # Secrets Management
 
@@ -31,6 +31,7 @@ each key. The "Deployed location" column names the variable in that file.
 | SMTP relay credentials | `docker/appsettings.secrets.json` (`Settings:Abp.Mailing.Smtp.*`) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS` -> `Settings__Abp.Mailing.Smtp.*` | gitignored |
 | Case Tracker tokens | `.env` at repo root | `CASE_TRACKER_INTAKE_TOKEN` (issued to us), `CASE_TRACKER_INTEGRATION_TOKEN` (issued by us), `CASE_TRACKER_FEED_TOKEN` (issued by us, separate, #927) | gitignored |
 | TLS wildcard cert + key | `scripts/hosting/gen-local-certs.sh` (mkcert) | `TLS_CERT_PATH`, `TLS_KEY_PATH`, pointing at files under `secrets/` | `secrets/` gitignored |
+| Database admin passwords | None: Development seeds the documented local default | Generated per database by the DbMigrator and kept one file per database (mode 0600) in `secrets/admin-passwords/`, mounted at `/run/admin-passwords` (`ADMIN_PASSWORD_DIRECTORY`); `ADMIN_PASSWORD_VAULT_URI` stays empty. See [DATA-SEEDING.md](../database/DATA-SEEDING.md#admin-passwords) | `secrets/` gitignored |
 
 **Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).
 
@@ -129,6 +130,36 @@ serves as **both** the OpenIddict signing and encryption certificate
 (`CaseEvaluationAuthServerModule.cs:180`), so regenerating it invalidates every issued token
 and signs every user out.
 
+The AuthServer container runs as the runtime image's unprivileged `app` account (uid 1654, gid
+1654) and reads the mounted certificate through its group. The file must therefore be mode `640`
+with group `1654`, or the AuthServer fails at startup. `gen-openiddict-cert.sh` sets both when it
+is allowed to; otherwise it leaves the file private to its owner and prints the command. A
+certificate that already exists needs this once, on the host, before an AuthServer image that runs
+as `app` is deployed. Run it in the deployment directory; the path is the one `OPENIDDICT_PFX_PATH`
+names in `secrets/env.prod`.
+
+Check that no host group already uses gid 1654. If this prints a group, stop: its members would
+also be able to read the certificate.
+
+```bash
+getent group 1654 || echo "gid 1654 unused on host: OK"
+```
+
+```bash
+sudo chgrp 1654 secrets/openiddict.pfx
+```
+
+```bash
+sudo chmod 640 secrets/openiddict.pfx
+```
+
+```bash
+stat -c '%U:%g %a' secrets/openiddict.pfx
+```
+
+The last command should print the operator's name, then `:1654 640`. Never regenerate the
+certificate to fix its permissions.
+
 ---
 
 ## Scanning and Prevention
@@ -168,4 +199,4 @@ and signs every user out.
 - [SEC-01 Secrets in Source Control](THREAT-MODEL.md)
 - [Threat Model: AuthServer component](THREAT-MODEL.md#component-3-authserver-port-44368)
 - [HIPAA Compliance](HIPAA-COMPLIANCE.md)
-- [CI Workflow](../../.github/workflows/ci.yml)
+- [CI Workflow](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/.github/workflows/ci.yml)

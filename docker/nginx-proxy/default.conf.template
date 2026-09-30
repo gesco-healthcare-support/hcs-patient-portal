@@ -311,6 +311,36 @@ server {
     location / {
         try_files /index.html =404;
     }
+
+    # /docs/ -> the documentation site: static files built by scripts/hosting/build-docs-site.sh into
+    # docker/nginx-proxy/docs-site/ and mounted read-only by docker-compose.prod.yml. No login; the
+    # server is reachable only on the LAN and the VPN.
+    #
+    # A bare /docs would otherwise match `location /` above and answer 200 with the apex page.
+    location = /docs {
+        absolute_redirect off;
+        return 301 /docs/;
+    }
+
+    # BOTH headers are re-declared here: an add_header inside a location discards every add_header it
+    # would otherwise inherit from the server block (the same trap noted above the api/auth 404 block).
+    # The apex page keeps its own, stricter policy.
+    #
+    # 'unsafe-inline' is needed for scripts because one of the theme's inline bootstrap scripts differs
+    # by page depth, so a hash list cannot cover it; styles need it for inline style attributes. The site
+    # is static, built from this repository, and takes no input except client-side search. Everything it
+    # loads is same-origin: the privacy plugin in mkdocs.yml downloads fonts and the diagram library at
+    # build time. The theme's repository-stats call to api.github.com is blocked by connect-src on
+    # purpose, which leaves that badge empty.
+    location /docs/ {
+        root /usr/share/nginx;
+        default_type application/octet-stream;
+        absolute_redirect off;
+        try_files $uri $uri/ =404;
+        error_page 404 /docs/404.html;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    }
 }
 
 # minio.<domain> -> MinIO S3 API (Case Tracker document exchange, 2026-08-13).

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
+using HealthcareSupport.CaseEvaluation.Snapshots;
 using Shouldly;
 using Xunit;
 
@@ -28,7 +28,11 @@ namespace HealthcareSupport.CaseEvaluation.Authorization;
 public sealed class AuthorizationSurfaceSnapshotTests
 {
     private const string ApprovedFileName = "authorization-surface.approved.txt";
-    private const string ReceivedFileName = "authorization-surface.received.txt";
+
+    private static readonly ApprovedSnapshotWording Wording = new(
+        Headline: "The authorization surface changed.",
+        IssueReference: "#707",
+        RemovedMeaning: "a permission was removed, renamed, or weakened");
 
     [Fact]
     public void Authorization_surface_matches_the_approved_snapshot()
@@ -36,23 +40,8 @@ public sealed class AuthorizationSurfaceSnapshotTests
         var actual = AuthorizationSurface.Render(
             typeof(CaseEvaluationApplicationModule).Assembly);
 
-        var approvedPath = Path.Combine(ThisDirectory(), ApprovedFileName);
-        File.Exists(approvedPath).ShouldBeTrue(
-            $"The approved snapshot is missing at {approvedPath}. It is the gate; without " +
-            "it there is nothing to compare against.");
-
-        // Read as raw bytes decoded without newline translation, so a file that had been
-        // committed with CRLF fails loudly here rather than silently comparing equal on
-        // Windows and unequal in CI.
-        var approved = File.ReadAllText(approvedPath, Encoding.UTF8);
-
-        if (!string.Equals(approved, actual, StringComparison.Ordinal))
-        {
-            var receivedPath = Path.Combine(ThisDirectory(), ReceivedFileName);
-            File.WriteAllText(receivedPath, actual, new UTF8Encoding(false));
-
-            throw new ShouldAssertException(BuildFailureMessage(approved, actual, approvedPath, receivedPath));
-        }
+        ApprovedSnapshot.AssertMatches(
+            actual, Path.Combine(ThisDirectory(), ApprovedFileName), Wording);
     }
 
     /// <summary>
@@ -151,46 +140,6 @@ public sealed class AuthorizationSurfaceSnapshotTests
         carriageReturns.ShouldBe(0,
             $"{ApprovedFileName} contains CR bytes. It must be LF-only; check that " +
             ".gitattributes is not normalising it on checkout.");
-    }
-
-    private static string BuildFailureMessage(string approved, string actual, string approvedPath, string receivedPath)
-    {
-        var approvedLines = approved.Split('\n');
-        var actualLines = actual.Split('\n');
-
-        var removed = new StringBuilder();
-        var added = new StringBuilder();
-
-        var approvedSet = new System.Collections.Generic.HashSet<string>(approvedLines, StringComparer.Ordinal);
-        var actualSet = new System.Collections.Generic.HashSet<string>(actualLines, StringComparer.Ordinal);
-
-        foreach (var line in approvedLines)
-        {
-            if (line.Length > 0 && !actualSet.Contains(line))
-            {
-                removed.Append("  - ").Append(line).Append('\n');
-            }
-        }
-
-        foreach (var line in actualLines)
-        {
-            if (line.Length > 0 && !approvedSet.Contains(line))
-            {
-                added.Append("  + ").Append(line).Append('\n');
-            }
-        }
-
-        return
-            "The authorization surface changed.\n\n" +
-            "This is not necessarily a bug -- it is the gate asking you to confirm the\n" +
-            "change was intended (#707). Read the lines below. If every one of them is a\n" +
-            "change you meant to make, copy the received file over the approved file and\n" +
-            "commit it IN THIS SAME PULL REQUEST so the change appears in the diff:\n\n" +
-            $"  cp \"{receivedPath}\" \"{approvedPath}\"\n\n" +
-            "Gone from the approved surface (a permission was removed, renamed, or weakened):\n" +
-            (removed.Length == 0 ? "  (none)\n" : removed.ToString()) +
-            "\nNew in the actual surface:\n" +
-            (added.Length == 0 ? "  (none)\n" : added.ToString());
     }
 
     /// <summary>

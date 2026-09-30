@@ -87,6 +87,8 @@ public class ClinicalStaffCancellationEmailHandlerTests
             ContextResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(_ => Context);
             ChangeRequests.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(_ => ChangeRequest);
+            // DECOY, load-bearing (#1014): production's ambient name is null, so ClinicName
+            // must never come from it.
             CurrentTenant.Name.Returns("TEST-clinic");
             // Any tenant id gets a TENANT root; only a null id (the host) gets the host root. So a
             // Fact reading the host root proves the handler asked for the host, not a tenant.
@@ -148,6 +150,22 @@ public class ClinicalStaffCancellationEmailHandlerTests
         await rig.Build().HandleEventAsync(SubmittedEvent());
 
         SingleSend(rig.Dispatcher).TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.ClinicalStaffCancellation);
+    }
+
+    /// <summary>
+    /// Issue #1014: the handler leaves <c>ClinicName</c> blank for the renderer to fill from the tenant
+    /// store. The rig's ambient office name is a DECOY -- production's is null inside
+    /// <c>Change(TenantId)</c> -- so a handler that passed it through would pass here and blank it live.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_LeavesClinicNameForTheRenderer_NotTheAmbientName()
+    {
+        var rig = new Rig();
+
+        await rig.Build().HandleEventAsync(SubmittedEvent());
+
+        SingleSend(rig.Dispatcher).Variables["ClinicName"].ShouldBe(
+            string.Empty, "the renderer resolves the office name from the tenant store (#1014)");
     }
 
     [Fact]

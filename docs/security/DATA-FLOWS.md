@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > PHI Data Flows
+[Home](../index.md) > Security > PHI Data Flows
 
 # PHI Data Flows
 
@@ -6,7 +6,6 @@
 
 This document maps where Protected Health Information (PHI) lives, how it moves through the system, and every place it may be persisted or logged. Required for HIPAA technical safeguard analysis.
 
-**Last verified:** 2026-06-01
 **Method:** code-inspect on entity definitions + module configuration
 
 ---
@@ -64,7 +63,7 @@ Each location where PHI can land, with the implication for HIPAA analysis:
 |---|---|---|---|
 | SQL Server (primary) | All PHI fields in their full form | Highest | Tenant filter (all PHI entities including Patient as of FEAT-09), permission-gated access, audit logs |
 | EF Core change tracker (memory) | Current request's PHI during processing | Transient | Scoped per-request |
-| Redis cache | Permission grants, distributed cache entries, data protection keys | Low-medium | No PHI keys cached by default; verify no AppService uses `ICacheManager.Get<Appointment>` patterns |
+| Redis cache | Permission grants, distributed cache entries, data protection keys | Low-medium | No PHI keys cached by default; verify no AppService caches PHI through `IDistributedCache` |
 | ABP audit log table | Entity snapshots on Create/Update when enabled | High | Stored in DB; retention policy undocumented |
 | Serilog file sink (`Logs/`) | Exception messages that may embed PHI; with SEC-02 active, full JWT claims and PII | High | Active gap: SEC-02 logs full PII unless `App:DisablePII=true` |
 | HTTP response body (transit) | DTOs returned to the browser | Medium | HTTPS required; CORS limited to known origins |
@@ -95,7 +94,7 @@ the filter applies and scopes correctly without any disable call.
 
 The previous risk -- any caller with the `Patients` permission could read every tenant's
 patients -- is closed. See [docs/architecture/MULTI-TENANCY.md](../architecture/MULTI-TENANCY.md)
-for the broader tenant isolation design and the [Patient feature CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md)
+for the broader tenant isolation design and the [Patient feature CLAUDE.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md)
 for entity-level details.
 
 ---
@@ -114,7 +113,12 @@ Places PHI can leave the system:
 | Database backups | Wherever SA takes them | Not configured in repo; operator responsibility |
 | Excel export | Authenticated browser download | MiniExcel library; verify permission on each export endpoint |
 
-No email sending, no SMS, no third-party data sharing integrations are configured in the current codebase.
+PHI does leave the system on two outbound paths:
+
+- **Email.** Notification emails carry appointment and patient details. They are queued in a durable outbox and sent by `OutboxEmailSender` (`Domain/Notifications/Outbox/`).
+- **The Case Tracker.** Approved appointments are pushed to the Case Tracker integration through the integration outbox (`IntegrationOutboxDrainService`, `Domain/Integration/CaseTracker/`).
+
+No SMS is sent.
 
 ---
 
@@ -123,5 +127,5 @@ No email sending, no SMS, no third-party data sharing integrations are configure
 - [Threat Model](THREAT-MODEL.md) -- STRIDE analysis of the same components
 - [Authorization](AUTHORIZATION.md) -- permission gates controlling PHI access
 - [HIPAA Compliance](HIPAA-COMPLIANCE.md) -- technical safeguard inventory
-- [Patient Domain CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) -- Patient entity details, SSN rules, fuzzy match
+- [Patient Domain CLAUDE.md](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) -- Patient entity details, SSN rules, fuzzy match
 - [Multi-Tenancy Architecture](../architecture/MULTI-TENANCY.md) -- tenant isolation design

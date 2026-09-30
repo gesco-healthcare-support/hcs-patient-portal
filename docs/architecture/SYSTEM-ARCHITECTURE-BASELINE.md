@@ -8,9 +8,9 @@
 
 | Field                      | Value                                                                                                                                                                                                                                                                                                 |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Verified                   | 2026-08-28, against `origin/main`                                                                                                                                                                                                                                                                     |
+| Verified                   | 2026-08-28 against `origin/main`; code-derived facts re-checked 2026-09-28 against main `51723e39` |
 | Method                     | Direct source reads, plus live queries against the running deployment                                                                                                                                                                                                                                 |
-| Relationship to other docs | The 22 documents under `docs/architecture`, `docs/api`, `docs/database`, `docs/business-domain`, `docs/backend` and `docs/frontend` are all stamped **"Last verified: 2026-06-01"** and have not been re-checked. Where this document and those disagree, this one was read from source more recently |
+| Relationship to other docs | The other architecture, API, database, business-domain, backend and frontend documents are maintained alongside the code. Where one of them disagrees with this snapshot, the source decides |
 
 ---
 
@@ -18,22 +18,23 @@
 
 A workers' compensation Independent Medical Examination (IME) scheduling platform. Staff at a
 medical-evaluation company book patients with IME doctors at specific locations and time slots,
-collect the supporting documents, assemble them into a packet for the doctor, and track each
-appointment through a lifecycle from initial request to billing.
+collect the supporting documents, assemble them into a packet for the doctor, and take each
+appointment from request through approval, rescheduling and cancellation. After approval the Case
+Tracker (section 10.1) owns the appointment; this system does no billing.
 
 **Who uses it, and this matters for exposure design:**
 
 | Actor                               | Type     | Reaches the system how                             |
 | ----------------------------------- | -------- | -------------------------------------------------- |
 | IT Admin                            | internal | Host-scope console at the reserved `admin` slug    |
-| Staff Supervisor, Intake            | internal | Their office subdomain                             |
+| Staff Supervisor, Intake            | internal | Host login at the `admin` slug, then switch into an assigned office |
 | Applicant attorney                  | external | Self-register or emailed invitation                |
 | Defense attorney                    | external | Self-register or emailed invitation                |
 | Claim examiner (insurance adjuster) | external | Self-register or emailed invitation                |
 | Patient                             | external | Emailed invitation, or an anonymous tokenised link |
 
-The four external roles are **capability-identical**; they differ only in which records they can
-see. Public exposure means anonymous internet traffic reaching registration, login, password
+The four external roles are **capability-identical** except that only Patient may reveal a stored
+SSN (`Patients.RevealSsn`); otherwise they differ only in which records they can see. Public exposure means anonymous internet traffic reaching registration, login, password
 reset, consent-response and document-upload surfaces.
 
 ---
@@ -57,12 +58,16 @@ Standard ABP layered (DDD) solution. `HealthcareSupport.CaseEvaluation.*`:
 | `AuthServer`            | **Runtime process 2** -- OpenIddict authorisation server plus Razor identity UI           |
 | `DbMigrator`            | **Runtime process 3** -- one-shot. Applies migrations and runs seed contributors          |
 
-Measured surface: **56 application services, 52 HTTP controllers, 37 aggregate roots, 32 domain
-managers, 23 files containing background-job definitions.**
+Measured surface on 2026-09-28: **56 application services, 52 HTTP controllers, 38 aggregate
+roots, 32 domain managers, 16 recurring jobs** (section 7). Re-derive by counting class declarations
+(`class ...AppService :` in Application, less the `CaseEvaluationAppService` base; `class ...Controller :`
+in HttpApi, less the abstract `CaseEvaluationController`; `: DomainService` and the aggregate-root base
+classes in Domain).
 
 ### 2.2 Frontend
 
-Angular 20.3.19 SPA, `@angular/build:application` builder. **87 components, 45 routed paths.**
+Angular 20.3.19 SPA, `@angular/build:application` builder. **87 components** (non-proxy
+`*component.ts`) and 62 `path:` entries in `app.routes.ts` on 2026-09-28.
 ABP's `@abp/ng.core` 10.0.2 provides auth, config and localisation plumbing. Generated API proxies
 live under `angular/src/app/proxy/` and are excluded from analysis.
 
@@ -76,7 +81,7 @@ client-rendered SPA served as static files by nginx.
 | --------------- | -------------------------------------------------------------------------------------------------------- |
 | SQL Server 2022 | Host database plus one database per office                                                               |
 | Redis 7         | Three distinct jobs -- see section 6                                                                     |
-| MinIO           | S3-compatible object storage, six logical containers                                                     |
+| MinIO           | S3-compatible object storage, eight logical containers                                                     |
 | packet-renderer | Small Python/Flask service that renders document packets to PDF                                          |
 | nginx (x2)      | One reverse proxy terminating TLS and routing by Host; one inside the Angular image serving static files |
 
@@ -88,8 +93,10 @@ client-rendered SPA served as static files by nginx.
 
 ### 3.1 How a tenant is resolved
 
-**From the HTTP `Host` header, and nothing else.** There is no tenant switcher, no path prefix, no
-query parameter in normal operation. The leftmost DNS label is the office slug.
+**From the signed-in user's own tenant, else the HTTP `Host` header.** Both hosts clear ABP's
+default resolvers and register only `CurrentUserTenantResolveContributor` and
+`HostAwareDomainTenantResolveContributor`. There is no path prefix and no query parameter. The
+leftmost DNS label is the office slug.
 
 ```text
 {office}.<BASE_DOMAIN>          -> Angular SPA
@@ -101,7 +108,8 @@ auth.<BASE_DOMAIN>              -> 404 JSON from the proxy, code missing_office_
 health.<BASE_DOMAIN>            -> /health-status only, proxied to the API as admin.api.<BASE_DOMAIN>;
                                    any other path 404 JSON, code health_probe_only (exact match)
 www.<BASE_DOMAIN>               -> 301 to the apex (exact match)
-<BASE_DOMAIN>                   -> static explanation page served by the proxy (exact match)
+<BASE_DOMAIN>                   -> static explanation page served by the proxy (exact match);
+                                   /docs/ serves the built documentation site
 admin                           -> RESERVED slug meaning host scope
 minio, api, auth, health, www   -> RESERVED slugs, consumed by the exact-match rules above
 ```
@@ -122,10 +130,9 @@ an office". Only the reserved `admin` label and the internal names `localhost` a
 in host context. **A bare IP address cannot reach the
 application at all.**
 
-Important caveat recorded honestly: ABP registers four `__tenant` resolvers by default (query
-string, header, cookie, route). Whether those are disabled in this configuration **has never been
-tested**, and a remediation item exists to prove it. Treat "Host header only" as the intended
-design, not a verified property.
+ABP registers four `__tenant` resolvers by default (query string, header, cookie, route). This
+configuration removes them, and tests pin that: `TenantResolverChainTests` (Application.Tests),
+`BootedTenantResolverDefaultsTests` and `BootedTenantResolverOrderingTests` (EntityFrameworkCore.Tests).
 
 ### 3.2 How an office database is addressed
 
@@ -151,9 +158,12 @@ load-bearing to how the business expects to grow.
 |                    | Host                      | Tenant                          |
 | ------------------ | ------------------------- | ------------------------------- |
 | Class              | `CaseEvaluationDbContext` | `CaseEvaluationTenantDbContext` |
-| `DbSet<>` declared | 46                        | 44                              |
-| Migrations         | 90                        | 15                              |
+| `DbSet<>` declared | 47                        | 45                              |
+| Migrations         | 91                        | 19                              |
 | First migration    | 2026-01-31                | 2026-06-24                      |
+
+Counts on 2026-09-28: `grep -c 'DbSet<'` on each context file; migrations are the non-Designer `.cs`
+files in `Migrations/` and `TenantMigrations/`.
 
 Both derive from `CaseEvaluationDbContextBase<T>` and share `CaseEvaluationSharedModelConfiguration`.
 **An entity mapped in both requires a migration in both sets.** Forgetting one produces an office
@@ -164,7 +174,7 @@ database missing a table, which surfaces as an invalid-object-name exception at 
 ## 4. Identity, session and tokens
 
 - **OpenIddict** authorisation server (ABP Commercial `Volo.Abp.OpenIddict.Pro`), OIDC with PKCE.
-- **Access token lifetime: 15 minutes** (`CaseEvaluationAuthServerModule.cs:162`). The only
+- **Access token lifetime: 15 minutes** (`SetAccessTokenLifetime` in `CaseEvaluationAuthServerModule.cs`). The only
   lifetime explicitly configured; everything else is ABP/OpenIddict default.
 - **Token signing** uses a certificate mounted read-only into the AuthServer container from
   `OPENIDDICT_PFX_PATH`, with its passphrase supplied by environment. **Never baked into an image.**
@@ -175,7 +185,7 @@ database missing a table, which surfaces as an invalid-object-name exception at 
   login state and email-confirmation tokens among them.
 - **Two sign-in doors exist.** Internal staff and external parties authenticate through different
   entry points; testing one does not exercise the other.
-- **Dual accounts are possible and intentional.** Because identity is per-database, the same email
+- **Dual accounts are possible.** Because identity is per-database, the same email
   address can hold a host account and an office account with separate password hashes. Password
   reset and login are therefore subdomain-scoped: resetting at the wrong subdomain appears to do
   nothing. This has generated real support incidents.
@@ -195,14 +205,14 @@ database missing a table, which surfaces as an invalid-object-name exception at 
 `docker-compose.prod.yml` defines ten services; eight are long-running.
 
 ```text
-sql-server ──┐
-redis ───────┼──> db-migrator (one-shot, must exit 0)
-minio ───────┘         │
-   │                   ├──> authserver ──┐
-   └──> minio-init     └──> api ─────────┼──> reverse-proxy  [ports 80, 443]
-        (one-shot)          │            │
-                            └── packet-renderer
-                                              angular ───────┘
+sql-server --+
+redis -------+--> db-migrator (one-shot, must exit 0)
+minio -------+         |
+   |                   +--> authserver --+
+   +--> minio-init     +--> api ---------+--> reverse-proxy  [ports 80, 443]
+        (one-shot)          |            |
+                            +-- packet-renderer
+                                              angular -------+
 ```
 
 - `db-migrator` runs **on every bring-up**, applies migrations and seeds, then exits. `authserver`
@@ -230,9 +240,9 @@ Redis is not merely a cache here. It carries three distinct responsibilities:
 
 Persistence is AOF (`--appendonly yes`) with a named volume.
 
-**No application-level lock acquisition sites were found in `src`.** The provider is registered
-for ABP framework use (background job scheduling, seeding coordination). That is worth verifying
-independently before assuming lock traffic is negligible.
+**Application code takes the distributed lock in one place:** the Case Tracker outbox drain
+(`IntegrationOutboxDrainJob`). The outbox repository separately takes a SQL Server application lock
+(`sp_getapplock`) to keep deliveries in order. ABP also uses the provider for its own coordination.
 
 **Cache key shape** matters for any move to a shared cache: ABP's typed `IDistributedCache<T>`
 prefixes tenant-scoped keys with `t:{tenantId},`. Untyped usage does not. Key shapes observed:
@@ -254,27 +264,17 @@ prefixes tenant-scoped keys with `t:{tenantId},`. Untyped usage does not. Key sh
 - **Only `HttpApi.Host` runs the processing server.** The AuthServer sets
   `IsJobExecutionEnabled = false`.
 
-### The twelve recurring jobs
+### Recurring jobs
 
-| Job                                     | Cron           | Frequency    |
-| --------------------------------------- | -------------- | ------------ |
-| `case-tracker-reconciliation`           | `*/15 * * * *` | every 15 min |
-| `case-tracker-failure-alert`            | `*/15 * * * *` | every 15 min |
-| `approval-reconciliation`               | `*/15 * * * *` | every 15 min |
-| `case-tracker-completeness-sweep`       | `0 * * * *`    | hourly       |
-| `change-request-consent-expiry-sweep`   | `30 * * * *`   | hourly       |
-| `appt-jdf-auto-cancel`                  | `0 6 * * *`    | daily 06:00  |
-| `appt-day-reminder`                     | `0 7 * * *`    | daily 07:00  |
-| `appt-cancellation-reschedule-reminder` | `0 8 * * *`    | daily 08:00  |
-| `appt-request-scheduling-reminder`      | `0 8 * * *`    | daily 08:00  |
-| `appt-duedate-approaching`              | `15 8 * * *`   | daily 08:15  |
-| `appt-internal-staff-queue-digest`      | `15 9 * * *`   | daily 09:15  |
-| `appt-draft-cleanup`                    | `0 3 * * *`    | daily 03:00  |
+Sixteen recurring jobs are registered (each declares a `RecurringJobId` constant; two retired ids are
+removed at startup with `RemoveIfExists`). Their schedules and purposes are listed in
+[Background Jobs](../devops/BACKGROUND-JOBS.md). Five run every 5 or 15 minutes; the rest run hourly,
+daily or weekly.
 
 **These jobs iterate offices.** A recurring sweep opens a connection per office database inside a
 `ICurrentTenant.Change(officeId)` scope. At 11 offices that is 11 sequential connections per
-sweep; at 33 it is 33. The three 15-minute jobs therefore drive the steady-state connection
-pattern more than user traffic does.
+sweep; at 33 it is 33. The frequent sweeps therefore drive the steady-state connection pattern
+more than user traffic does.
 
 **A known correctness hazard:** ABP falls back to the ambient tenant when a job argument does not
 carry one, and the ambient tenant in a worker is null, which resolves to the **host** database.
@@ -286,7 +286,7 @@ carry one, and the ambient tenant in a worker is null, which resolves to the **h
 MinIO, S3-compatible, addressed **path-style** (bucket in the path) because the wildcard TLS
 certificate covers a single label only.
 
-Six logical blob containers:
+Eight logical blob containers (`src/*.Domain/BlobContainers/`):
 
 | Container               | Holds                                      |
 | ----------------------- | ------------------------------------------ |
@@ -296,6 +296,8 @@ Six logical blob containers:
 | `document-packages`     | Assembled bundles                          |
 | `joint-declarations`    | Signed joint declaration forms             |
 | `master-documents`      | Office-level template and master documents |
+| `office-logos`          | Office logos shown by the branding pages   |
+| `user-signatures`       | Stored user signatures                     |
 
 Two physical buckets are provisioned: the application bucket and a **partner-facing bucket** for
 document exchange with an external organisation.
@@ -363,7 +365,7 @@ Stated because their absence simplifies infrastructure design and would otherwis
 | Server-side rendering       | No Node runtime in production. Static file serving only                                          |
 | SignalR / WebSockets        | No sticky sessions needed for realtime. The nginx upgrade config is dead                         |
 | SQL Server Agent            | Scheduling is entirely in-process via Hangfire                                                   |
-| Raw SQL anywhere in `src`   | No cross-database queries, no three-part names, no linked servers. Verified by exhaustive search |
+| Cross-database SQL          | No three-part names, no linked servers. The only raw SQL in `src` is the `sp_getapplock` call in the outbox repository |
 | Cross-database joins        | Host and tenant data are joined in memory when at all, never in SQL                              |
 | Message broker              | No RabbitMQ/Kafka. ABP's local event bus is in-process; durability is the two database outboxes  |
 | Second application instance | Everything runs single-instance today                                                            |
@@ -403,4 +405,4 @@ What breaks what, for availability design:
 | Recurring jobs                                               | `src/*.Domain/**/Jobs/`                                                      |
 | Blob containers                                              | `src/*.Domain/BlobContainers/`                                               |
 | Case Tracker                                                 | `src/*.Domain/Integration/CaseTracker/`                                      |
-| Older architecture docs (all stamped 2026-06-01, unverified) | `docs/architecture/`, `docs/api/`, `docs/database/`, `docs/business-domain/` |
+| Other architecture docs | `docs/architecture/`, `docs/api/`, `docs/database/`, `docs/business-domain/` |

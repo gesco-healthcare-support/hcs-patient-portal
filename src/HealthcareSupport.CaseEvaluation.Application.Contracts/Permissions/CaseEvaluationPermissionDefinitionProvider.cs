@@ -265,9 +265,12 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             CaseEvaluationPermissions.IntakeAssignments.Default,
             L("Permission:IntakeAssignments"),
             MultiTenancySides.Host);
+        // A child without a side defaults to Both, whatever its parent's side; this one must be
+        // Host like its parent, or ABP grants it to every office's admin role.
         intakeAssignmentsPermission.AddChild(
             CaseEvaluationPermissions.IntakeAssignments.Manage,
-            L("Permission:IntakeAssignments.Manage"));
+            L("Permission:IntakeAssignments.Manage"),
+            MultiTenancySides.Host);
 
         // Phase D (2026-06-25) -- the host Intake operator's office-switch capability.
         // The per-office assignment gate (deny-by-default, server-side) is the boundary.
@@ -282,6 +285,13 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         administration.AddPermission(
             CaseEvaluationPermissions.CaseTrackerIntegration.Default,
             L("Permission:CaseTrackerIntegration"),
+            MultiTenancySides.Host);
+
+        // 2026-09-28 -- the technical consoles (job dashboard, health UI). HOST side: they show and
+        // manage state for every office.
+        administration.AddPermission(
+            CaseEvaluationPermissions.BackgroundJobsDashboard.Default,
+            L("Permission:BackgroundJobsDashboard"),
             MultiTenancySides.Host);
 
         // Phase E (2026-06-25) -- per-office branding (name + logo). Both sides.

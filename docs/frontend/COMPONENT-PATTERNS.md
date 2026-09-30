@@ -2,7 +2,7 @@
 
 > Purpose: Describes the two Angular component patterns (ABP Suite abstract/concrete and custom hand-written) used across the patient portal frontend. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Component Patterns
+[Home](../index.md) > [Frontend](./) > Component Patterns
 
 ## Overview
 
@@ -131,44 +131,35 @@ All ABP Suite list pages follow a consistent structure:
 
 These components are hand-written and do not follow the abstract/concrete pattern:
 
+A selection of the main ones (paths under `angular/src/app/`):
+
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| `AppointmentAddComponent` | `appointments/appointment-add.component.ts` | Multi-section booking form (most complex component) |
-| `AppointmentViewComponent` | `appointments/appointment/components/appointment-view.component.ts` | Read-only appointment detail |
-| `DoctorAvailabilityGenerateComponent` | `doctor-availabilities/.../doctor-availability-generate.component.ts` | Bulk generate availability slots |
-| `PatientProfileComponent` | `patients/patient/components/patient-profile.component.ts` | Self-service patient profile editing |
-| `TopHeaderNavbarComponent` | `shared/components/top-header-navbar/` | Custom header for external users |
-| `HomeComponent` | `home/home.component.ts` | Landing page with role-based rendering |
-| `DashboardComponent` | `dashboard/dashboard.component.ts` | Admin dashboard |
+| `AppointmentWizardComponent` | `appointments/wizard/appointment-wizard.component.ts` | The stepped booking wizard at `/appointments/request`, for external users and staff alike. It **extends** `AppointmentAddComponent` (`appointments/appointment-add.component.ts`), which no route loads any more and which survives as the base class holding the form state and cascades |
+| `InternalAppointmentsComponent` | `appointments/appointment/components/internal-appointments.component.ts` | The staff appointment queue at `/appointments` |
+| `InternalAppointmentDetailComponent` | `appointments/appointment/components/internal-appointment-detail.component.ts` | Appointment detail for staff (`/appointments/view/:id` inside the shell): status banner, office actions and edit mode |
+| `ExternalAppointmentDetailComponent` | `appointments/appointment/components/external-appointment-detail.component.ts` | Read-only appointment detail for external users |
+| `AppointmentViewComponent` | `appointments/appointment/components/appointment-view.component.ts` | Not a page: a selector-less `@Directive()` base class holding the shared load, form and actions. Both detail pages above **extend** it |
+| `InternalConfigurationComponent` | `configuration/internal-configuration.component.ts` | One hub for the reference lists (states, appointment types, statuses, document types, languages), one section per route |
+| `InternalPeopleComponent` | `people/internal-people.component.ts` | One hub for patients, applicant attorneys, defense attorneys and claim examiners, one section per route |
+| `InternalGenerateSlotsComponent` | `doctor-availabilities/doctor-availability/internal-generate-slots.component.ts` | Bulk generation of availability slots |
+| `PatientProfileRedesignComponent` | `patients/patient/components/patient-profile-redesign.component.ts` | The routed My Profile page; extends `PatientProfileComponent`, which holds the form logic |
+| `ExternalHomeComponent` | `home/external-home.component.ts` | External users' landing page |
+| `InternalDashboardComponent` | `dashboard/internal-dashboard.component.ts` | Staff dashboard |
+| `InternalShellLayoutComponent` | `shared/components/internal-shell/internal-shell-layout.component.ts` | Sidebar and top bar around every staff page |
 | `AppointmentPacketComponent` | `appointment-packet/appointment-packet.component.ts` | Per-kind packet status display with download and regenerate actions; polls every 5 s while any packet is Generating |
 
 ## Shared Components
 
-### TopHeaderNavbarComponent
+### ExternalNavbarComponent
 
-A standalone component used in the external-user (Patient/Attorney) layout:
+`shared/components/external-navbar/external-navbar.component.ts` is the top bar of every external page: the
+external home, the external appointment detail, the booking wizard (for external bookers) and the three
+profile pages. It takes the office logo and name, the user's name, role and email, and notifications as
+inputs, and emits `profileClick`, `documentsClick`, `helpClick` and `logoutClick` for the page to handle.
 
-```typescript
-@Component({
-  selector: 'app-top-header-navbar',
-  standalone: true,
-  imports: [CommonModule],
-})
-export class TopHeaderNavbarComponent {
-  @Input() tenantName = '';
-  @Input() userName = '';
-  @Input() roleName = '';
-  @Input() showProfile = true;
-  @Input() showHelp = true;
-  @Input() showLogout = true;
-
-  @Output() profileClick = new EventEmitter<void>();
-  @Output() helpClick = new EventEmitter<void>();
-  @Output() logoutClick = new EventEmitter<void>();
-}
-```
-
-Used by `HomeComponent` and `AppointmentAddComponent` to provide a simplified navigation header for external users, replacing the full LeptonX topbar.
+The older `TopHeaderNavbarComponent` (`shared/components/top-header-navbar/`) is referenced only by the
+template of `PatientProfileComponent`, which no route renders directly.
 
 ## Entities Using Suite Pattern
 

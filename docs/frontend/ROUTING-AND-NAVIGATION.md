@@ -1,217 +1,167 @@
 # Routing & Navigation
 
-> Purpose: Documents the Angular route tree, guards, lazy-loading strategy, and ABP menu registration for the patient portal SPA. Audience: frontend developers.
+> Purpose: Documents the Angular route table, the guards, the internal sidebar, and where a route's
+> permission check comes from. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Routing & Navigation
+[Home](../index.md) > [Frontend](./) > Routing & Navigation
 
 ## Overview
 
-The application uses Angular's standalone router with lazy loading via `loadComponent` and `loadChildren`. Routes are defined in `app.routes.ts` and menu items are registered separately via ABP `RoutesService` through route providers.
+Three separate files decide what a user can reach and see:
 
-## Complete Route Tree
+| Concern | Source |
+|---------|--------|
+| Which URLs exist, and their guards | `angular/src/app/app.routes.ts` (plus the per-feature `*-routes.ts` files it mounts as children) |
+| The internal staff sidebar | `angular/src/app/shared/components/internal-shell/internal-nav.config.ts` |
+| ABP menu registrations (route providers) | `angular/src/app/**/providers/*-base.routes.ts`, registered by the route providers in `app.config.ts` |
 
-```mermaid
-flowchart TD
-    ROOT["/ (root)"]
+No layout renders the ABP menu registrations any more -- the LeptonX layout is gone -- but ABP's
+`permissionGuard` still reads them (see [Where a route's permission comes from](#where-a-routes-permission-comes-from)).
 
-    ROOT --> HOME["/ <br/> HomeComponent <br/> canMatch: postLoginRedirectGuard"]
-    ROOT --> DASH["/dashboard <br/> DashboardComponent <br/> authGuard + permissionGuard"]
+## How the route table is shaped
 
-    ROOT --> ABP_ROUTES["ABP Built-in Routes"]
-    ABP_ROUTES --> GDPR_M["/gdpr <br/> loadChildren"]
-    ABP_ROUTES --> IDENT["/identity <br/> loadChildren"]
-    ABP_ROUTES --> LANG["/language-management <br/> loadChildren"]
-    ABP_ROUTES --> SAAS["/saas <br/> loadChildren"]
-    ABP_ROUTES --> AUDIT["/audit-logs <br/> loadChildren"]
-    ABP_ROUTES --> OIDC["/openiddict <br/> loadChildren"]
-    ABP_ROUTES --> TXTM["/text-template-management <br/> loadChildren"]
-    ABP_ROUTES --> FILEM["/file-management <br/> loadChildren"]
-    ABP_ROUTES --> GDPR_CC["/gdpr-cookie-consent <br/> children: GDPR_COOKIE_CONSENT_ROUTES"]
-    ABP_ROUTES --> SETTINGS["/setting-management <br/> loadChildren"]
+`APP_ROUTES` is matched top to bottom:
 
-    ROOT --> CONFIG["Configurations"]
-    CONFIG --> STATES["/configurations/states <br/> StateComponent <br/> authGuard + permissionGuard"]
+1. **`/`** -- `postLoginRedirectGuard` (a `canMatch` guard) runs before the home chunk loads.
+2. **Public pages** -- no guard at all; each page authorizes itself with the code or token in its URL.
+3. **External-only pages** -- declared before the shell, gated by `canMatch: [externalUserOnlyMatchGuard]`.
+   Two of them (`appointments/view/:id` and `appointments/request`) share their path with an in-shell copy:
+   an external user matches the chrome-less copy here, and everyone else falls through to the shell's copy.
+4. **External profile pages** -- the three `user-management/*/my-profile` routes, outside the shell.
+5. **The internal shell** -- one parent route (`path: ''`) rendering `InternalShellLayoutComponent`, gated by
+   `canMatch: [internalUserOnlyMatchGuard]` and `authGuard`, with every staff page as a child.
+6. **`**`** -- the branded `NotFoundComponent`. It must stay last.
 
-    ROOT --> APT_MGMT["Appointment Management"]
-    APT_MGMT --> APTYPES["/appointment-management/appointment-types <br/> AppointmentTypeComponent <br/> authGuard + permissionGuard"]
-    APT_MGMT --> APSTAT["/appointment-management/appointment-statuses <br/> AppointmentStatusComponent <br/> authGuard + permissionGuard"]
-    APT_MGMT --> APLANG["/appointment-management/appointment-languages <br/> AppointmentLanguageComponent <br/> authGuard + permissionGuard"]
+Re-derive the counts below with `grep -c "path:" angular/src/app/app.routes.ts` (62 on 2026-09-30) and
+`grep -oE "(canMatch|canActivate|canDeactivate): \[[^]]*\]" angular/src/app/app.routes.ts | sort | uniq -c`.
 
-    ROOT --> APPTS["Appointments"]
-    APPTS --> APPTS_LIST["/appointments <br/> AppointmentComponent <br/> authGuard + permissionGuard"]
-    APPTS --> APPTS_ADD["/appointments/add <br/> AppointmentAddComponent <br/> authGuard only"]
-    APPTS --> APPTS_VIEW["/appointments/view/:id <br/> AppointmentViewComponent <br/> authGuard only"]
-    APPTS --> APPTS_CL["/appointments/view/:id/change-log <br/> AppointmentChangeLogsComponent <br/> authGuard + permissionGuard"]
+## Route reference (as of 2026-09-30)
 
-    ROOT --> DOC_MGMT["Doctor Management"]
-    DOC_MGMT --> LOCS["/doctor-management/locations <br/> LocationComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> WCAB["/doctor-management/wcab-offices <br/> WcabOfficeComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> DOCS["/doctor-management/doctors <br/> DoctorComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> DA_LIST["/doctor-management/doctor-availabilities <br/> DoctorAvailabilityComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> DA_GEN["/doctor-management/doctor-availabilities/generate <br/> DoctorAvailabilityGenerateComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> DA_ADD["/doctor-management/doctor-availabilities/add <br/> DoctorAvailabilityGenerateComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> PAT_LIST["/doctor-management/patients <br/> PatientComponent <br/> authGuard + permissionGuard"]
-    DOC_MGMT --> PAT_PROF["/doctor-management/patients/my-profile <br/> PatientProfileComponent <br/> authGuard only"]
+"Policy" is the route's `data.requiredPolicy`. Where the route has none, the policy shown in brackets
+comes from the menu registration (see below).
 
-    ROOT --> ATTORNEYS["/applicant-attorneys <br/> ApplicantAttorneyComponent <br/> authGuard + permissionGuard"]
-    ROOT --> DA["/defense-attorneys <br/> DefenseAttorneyComponent <br/> authGuard + permissionGuard"]
+### Outside the shell
 
-    ROOT --> USER_MGMT["User Management"]
-    USER_MGMT --> INVITE["/users/invite <br/> InviteExternalUserComponent <br/> authGuard + permissionGuard"]
-    USER_MGMT --> INT_USERS["/internal-users <br/> InternalUsersFormComponent <br/> authGuard + permissionGuard"]
-```
+| Path | Loads | Guards | Policy |
+|------|-------|--------|--------|
+| `/` | `ExternalHomeComponent` | `canMatch: postLoginRedirectGuard` | -- |
+| `/public/document-upload/:id/:verificationCode` | `PublicDocumentUploadComponent` | none | -- |
+| `/public/change-request-consent/:token` | `PublicChangeRequestConsentComponent` | none | -- |
+| `/gdpr` | ABP GDPR module | none | -- |
+| `/gdpr-cookie-consent` | cookie and privacy policy pages | none | -- |
+| `/appointments/view/:id` (external copy) | `ExternalAppointmentDetailComponent` | `canMatch: externalUserOnlyMatchGuard`, `authGuard` | -- |
+| `/appointments/request` (external copy) | `AppointmentWizardComponent` | `canMatch: externalUserOnlyMatchGuard`, `authGuard`, `permissionGuard`, `canDeactivate: appointmentWizardCanDeactivateGuard` | `CaseEvaluation.Appointments.Create` |
+| `/user-management/patients/my-profile` | `PatientProfileRedesignComponent` | `authGuard` | -- |
+| `/user-management/attorneys/my-profile` | `AttorneyProfileComponent` | `authGuard` | -- |
+| `/user-management/claim-examiners/my-profile` | `ClaimExaminerProfileComponent` | `authGuard` | -- |
+| `**` | `NotFoundComponent` | none | -- |
 
-## Route Details Table
+### Inside the internal shell
 
-### Root Routes
+Every child below also sits behind the shell parent's `internalUserOnlyMatchGuard` and `authGuard`.
+Unless noted, a child carries `authGuard` + `permissionGuard`.
 
-| Path | Component | Guard | Notes |
-|------|-----------|-------|-------|
-| `/` | `HomeComponent` | `canMatch: postLoginRedirectGuard` | Fires before route match; redirects internal/anonymous users before the HomeComponent chunk downloads. External users land on HomeComponent. |
-| `/dashboard` | `DashboardComponent` | `authGuard` + `permissionGuard` | Policy: `CaseEvaluation.Dashboard.Host \|\| CaseEvaluation.Dashboard.Tenant` |
-
-### ABP Built-in Routes
-
-| Path | Load Strategy | Notes |
-|------|---------------|-------|
-| `/gdpr` | `loadChildren` | GDPR management |
-| `/identity` | `loadChildren` | Users, roles, organization units |
-| `/language-management` | `loadChildren` | Language resources |
-| `/saas` | `loadChildren` | Tenant management |
-| `/audit-logs` | `loadChildren` | Audit log viewer |
-| `/openiddict` | `loadChildren` | OpenIddict application/scope management |
-| `/text-template-management` | `loadChildren` | Email/notification templates |
-| `/file-management` | `loadChildren` | File browser |
-| `/setting-management` | `loadChildren` | Application settings |
-| `/gdpr-cookie-consent` | `children` | Cookie/privacy policy pages |
-
-### Configuration Routes
-
-| Path | Component | Guard | Permission |
-|------|-----------|-------|------------|
-| `/configurations/states` | `StateComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.States` |
-
-### Appointment Management Routes
-
-| Path | Component | Guard | Permission |
-|------|-----------|-------|------------|
-| `/appointment-management/appointment-types` | `AppointmentTypeComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.AppointmentTypes` |
-| `/appointment-management/appointment-statuses` | `AppointmentStatusComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.AppointmentStatuses` |
-| `/appointment-management/appointment-languages` | `AppointmentLanguageComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.AppointmentLanguages` |
-
-### Appointment Routes
-
-| Path | Component | Guard | Permission |
-|------|-----------|-------|------------|
-| `/appointments` | `AppointmentComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.Appointments` |
-| `/appointments/add` | `AppointmentAddComponent` | `authGuard` only | No permission required (any logged-in user) |
-| `/appointments/view/:id` | `AppointmentViewComponent` | `authGuard` only | No permission required (any logged-in user) |
-| `/appointments/view/:id/change-log` | `AppointmentChangeLogsComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.AppointmentChangeLogs` |
-
-### Doctor Management Routes
-
-| Path | Component | Guard | Permission |
-|------|-----------|-------|------------|
-| `/doctor-management/locations` | `LocationComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.Locations` |
-| `/doctor-management/wcab-offices` | `WcabOfficeComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.WcabOffices` |
-| `/doctor-management/doctors` | `DoctorComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.Doctors` |
-| `/doctor-management/doctor-availabilities` | `DoctorAvailabilityComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.DoctorAvailabilities` |
-| `/doctor-management/doctor-availabilities/generate` | `DoctorAvailabilityGenerateComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.DoctorAvailabilities` |
-| `/doctor-management/doctor-availabilities/add` | `DoctorAvailabilityGenerateComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.DoctorAvailabilities` |
-| `/doctor-management/patients` | `PatientComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.Patients` |
-| `/doctor-management/patients/my-profile` | `PatientProfileComponent` | `authGuard` only | No permission required |
-
-### Attorney Routes
-
-| Path | Component | Guard | Permission |
-|------|-----------|-------|------------|
-| `/applicant-attorneys` | `ApplicantAttorneyComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.ApplicantAttorneys` |
-| `/defense-attorneys` | `DefenseAttorneyComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.DefenseAttorneys` |
-
-### User Management Routes
-
-| Path | Component | Guard | Permission |
-|------|-----------|-------|------------|
-| `/users/invite` | `InviteExternalUserComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.UserManagement.InviteExternalUser` |
-| `/internal-users` | `InternalUsersFormComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.InternalUsers.Create` |
+| Path | Loads | Policy |
+|------|-------|--------|
+| `/dashboard` | `InternalDashboardComponent` | [`CaseEvaluation.Dashboard.Host \|\| CaseEvaluation.Dashboard.Tenant`] |
+| `/appointments` | `APPOINTMENT_ROUTES`: `InternalAppointmentsComponent` (the staff queue), and `view/:id` loading `InternalAppointmentDetailComponent` (staff detail; `authGuard` only) | [`CaseEvaluation.Appointments`] |
+| `/appointments/change-requests` | `CHANGE_REQUEST_ROUTES`: one tabbed inbox; `reschedules` and `cancellations` redirect to it | `CaseEvaluation.AppointmentChangeRequests` |
+| `/appointments/request` (staff copy) | `AppointmentWizardComponent`, plus `canDeactivate: appointmentWizardCanDeactivateGuard` | `CaseEvaluation.Appointments.Create` |
+| `/appointments/view/:id/change-log` | `AppointmentChangeLogsComponent` | `CaseEvaluation.AppointmentChangeLogs` |
+| `/appointment-change-logs` | `AppointmentChangeLogListComponent` | `CaseEvaluation.AppointmentChangeLogs` |
+| `/reports` | `AppointmentReportComponent` | `CaseEvaluation.Reports` |
+| `/doctor-management/doctor-availabilities` | `DOCTOR_AVAILABILITY_ROUTES`: `InternalAvailabilitiesComponent` (the list); `generate` and `add` load `InternalGenerateSlotsComponent`. The shell also declares `generate` and `add` directly, and those copies match first | [`CaseEvaluation.DoctorAvailabilities`] |
+| `/doctor-management/schedule` | `InternalScheduleComponent` | `CaseEvaluation.DoctorAvailabilities` |
+| `/doctor-management/locations` | `LOCATION_ROUTES`: `InternalLocationsComponent` | [`CaseEvaluation.Locations`] |
+| `/doctor-management/wcab-offices` | `WCAB_OFFICE_ROUTES`: `InternalWcabOfficesComponent` | [`CaseEvaluation.WcabOffices`] |
+| `/doctor-management/doctors` | `DOCTOR_ROUTES`: `DoctorComponent` -- dormant feature, no menu entry | -- |
+| `/configurations/states` | `STATE_ROUTES`: `InternalConfigurationComponent`, section `states` | `CaseEvaluation.States` |
+| `/appointment-management/appointment-types` | `APPOINTMENT_TYPE_ROUTES`: `InternalConfigurationComponent`, section `types` | `CaseEvaluation.AppointmentTypes` |
+| `/appointment-management/appointment-statuses` | `APPOINTMENT_STATUS_ROUTES`: `InternalConfigurationComponent`, section `statuses` | `CaseEvaluation.AppointmentStatuses` |
+| `/appointment-management/document-types` | `APPOINTMENT_DOCUMENT_TYPE_ROUTES`: `InternalConfigurationComponent`, section `doctypes` | `CaseEvaluation.AppointmentDocumentTypes` |
+| `/appointment-management/appointment-languages` | `APPOINTMENT_LANGUAGE_ROUTES`: `InternalConfigurationComponent`, section `languages` | `CaseEvaluation.AppointmentLanguages` |
+| `/user-management/patients` | `PATIENT_ROUTES`: `InternalPeopleComponent`, section `patients` | `CaseEvaluation.Patients` |
+| `/applicant-attorneys` | `APPLICANT_ATTORNEY_ROUTES`: `InternalPeopleComponent`, section `aa` | `CaseEvaluation.ApplicantAttorneys` |
+| `/defense-attorneys` | `DEFENSE_ATTORNEY_ROUTES`: `InternalPeopleComponent`, section `da` | `CaseEvaluation.DefenseAttorneys` |
+| `/claim-examiners` | `CLAIM_EXAMINER_ROUTES`: `InternalPeopleComponent`, section `ce` | `CaseEvaluation.ClaimExaminers` |
+| `/users` | redirects to `/users/invite` | -- |
+| `/users/invite`, `/users/pending` | `InternalUsersHubComponent` (one hub, one section per route) | `CaseEvaluation.UserManagement.InviteExternalUser` |
+| `/users/internal` | `InternalUsersHubComponent` | `CaseEvaluation.InternalUsers.Create` |
+| `/users/tenants` | `InternalUsersHubComponent` | `Saas.Tenants` |
+| `/internal-users` | redirects to `/users/internal` | -- |
+| `/host/intake-assignments` | `IntakeAssignmentsComponent` | `CaseEvaluation.IntakeAssignments` |
+| `/host/my-offices` | `IntakeOfficeSwitcherComponent` | `CaseEvaluation.IntakeImpersonation` |
+| `/host/branding` | `HostBrandingComponent` | `CaseEvaluation.Branding` |
+| `/office-branding` | `OfficeBrandingComponent` | `CaseEvaluation.Branding.Edit` |
+| `/admin` | redirects to the first admin section the caller can see (`firstVisibleAdminSection`), else `/dashboard` | -- |
+| `/admin/templates` | `InternalAdminHubComponent` (one hub, one section per route) | `CaseEvaluation.NotificationTemplates` |
+| `/admin/parameters` | `InternalAdminHubComponent` | `CaseEvaluation.SystemParameters` |
+| `/admin/roles` | `InternalAdminHubComponent` | `AbpIdentity.Roles` |
+| `/admin/audit` | `InternalAdminHubComponent` | `AuditLogging.AuditLogs` |
+| `/admin/integration-failures` | `InternalAdminHubComponent` | `CaseEvaluation.Appointments.ViewIntegrationDeadLetters` |
+| `/language-management` | `LanguageManagementComponent` (replaces the ABP module page) | `LanguageManagement.Languages` |
+| `/file-management` | `FileManagementComponent` (replaces the ABP module page) | `FileManagement.FileDescriptor` |
+| `/identity`, `/saas`, `/audit-logs`, `/openiddict`, `/text-template-management`, `/setting-management` | ABP module routes (`loadChildren`) | set by each module |
 
 ## Guards
 
-| Guard | Source | Hook | Purpose |
-|-------|--------|------|---------|
-| `postLoginRedirectGuard` | `shared/auth/post-login-redirect.guard.ts` | `canMatch` on `/` | Fires before the route is matched (before the HomeComponent chunk downloads). Redirects authenticated internal users to `/dashboard`; redirects unauthenticated users to the AuthServer OAuth challenge; lets external users through to `HomeComponent`. |
-| `authGuard` | `@abp/ng.core` | `canActivate` | Requires authenticated user; redirects to AuthServer login if not. |
-| `permissionGuard` | `@abp/ng.core` | `canActivate` | Requires specific ABP permission defined in route's `requiredPolicy`; shows 403 if denied. |
+| Guard | Source | Hook | What it does |
+|-------|--------|------|--------------|
+| `postLoginRedirectGuard` | `shared/auth/post-login-redirect.guard.ts` | `canMatch` on `/` | Anonymous: starts the AuthServer sign-in. Intake Staff at host scope: `/host/my-offices`. Other internal users: `/dashboard`. External users: stay on `/`. |
+| `externalUserOnlyMatchGuard` | `shared/auth/external-user-match.guard.ts` | `canMatch` | Matches only when every role the user holds is an external role. Anyone with an internal role, and anonymous users, fall through. |
+| `internalUserOnlyMatchGuard` | `shared/auth/internal-user-match.guard.ts` | `canMatch` | The exact complement: matches internal users and anonymous users (so a child's `authGuard` can start sign-in); pure-external users fall through. |
+| `authGuard` | `@abp/ng.core` | `canActivate` | Requires a signed-in user; otherwise starts sign-in. |
+| `permissionGuard` | `@abp/ng.core` | `canActivate` | Requires the route's policy; shows the 403 screen when it is not granted. |
+| `appointmentWizardCanDeactivateGuard` | `appointments/wizard/appointment-wizard-can-deactivate.guard.ts` | `canDeactivate` | Delegates to the wizard's `canDeactivate()`: leaving a partly filled new booking offers Save, Discard or Stay; a clean form or a finished submit leaves without asking. |
 
-**Important:** Routes with only `authGuard` (no `permissionGuard`) are accessible to any logged-in user, including external users (Patient, Attorney). This is by design for `/appointments/add`, `/appointments/view/:id`, and `/doctor-management/patients/my-profile`.
+Route guards decide what the browser shows. Every API call is authorized again on the server, which is the
+boundary that matters.
 
-## Lazy Loading
+## Where a route's permission comes from
 
-All routes use lazy loading:
+ABP's `permissionGuard` (in `@abp/ng.core`) takes the policy from the route's `data.requiredPolicy`. When the
+route has none, it looks up the ABP menu registration whose `path` matches the URL, walking up one segment at a
+time, and uses that registration's `requiredPolicy`. If it finds no policy either way, it allows the route.
 
-- **ABP modules** use `loadChildren` with dynamic imports (e.g., `import('@volo/abp.ng.identity').then(c => c.createRoutes())`)
-- **Feature routes** use `children` with `loadComponent` inside the child route definition
-- **Custom routes** use `loadComponent` directly (e.g., `import('./home/home.component').then(c => c.HomeComponent)`)
-- **Exception:** `AppointmentAddComponent` is eagerly imported and resolved via `Promise.resolve()` in the route definition
+So:
 
-## Menu Registration
+- **Set `data.requiredPolicy` on every new guarded route.** Several feature child routes (for example the
+  doctor availability, location and WCAB office routes) still take their policy from the menu registration, so
+  deleting a route provider changes what those routes check.
+- The route providers registered in `app.config.ts` are therefore not dead code, even though no layout renders
+  their menu. `APP_ROUTE_PROVIDER` (`route.provider.ts`) registers Home, Dashboard, User Management, Change Logs
+  and Reports; each feature's `*-base.routes.ts` registers its own entry. The Doctors feature registers none.
 
-Menus are registered separately from routes via ABP `RoutesService`, using route providers injected in `app.config.ts`:
+## The internal sidebar
 
-### Route Providers
+`InternalShellLayoutComponent` renders the sidebar from `internal-nav.config.ts`:
 
-| Provider | Menu Items |
-|----------|------------|
-| `APP_ROUTE_PROVIDER` | Home (`/`), Dashboard (`/dashboard`), User Management parent (`/users/invite`, `/internal-users`) |
-| `DOCTOR_MANAGEMENT_ROUTE_PROVIDER` | Doctor Management parent, Locations, WCAB Offices, Doctor Availabilities |
-| `STATES_STATE_ROUTE_PROVIDER` | Configurations parent, States |
-| `APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER` | Appointment Management parent, Appointment Types |
-| `APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER` | Appointment Statuses |
-| `APPOINTMENT_LANGUAGES_APPOINTMENT_LANGUAGE_ROUTE_PROVIDER` | Appointment Languages |
-| `LOCATIONS_LOCATION_ROUTE_PROVIDER` | (already in DOCTOR_MANAGEMENT) |
-| `DOCTORS_DOCTOR_ROUTE_PROVIDER` | Doctors |
-| `DOCTOR_AVAILABILITIES_DOCTOR_AVAILABILITY_ROUTE_PROVIDER` | Doctor Availabilities |
-| `PATIENTS_PATIENT_ROUTE_PROVIDER` | Patients |
-| `APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER` | Appointments |
-| `APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER` | Applicant Attorneys |
-| `DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER` | Defense Attorneys |
+- **`IN_NAV`** -- the office navigation: Workspace, Scheduling, Administration, Configuration and People groups.
+- **`IN_NAV_HOST`** -- the host navigation: Overview, Practice Management and Administration.
+- **`resolveNavGroups`** picks `IN_NAV_HOST` when the user is at host scope and is an IT Admin, the built-in
+  admin, a Staff Supervisor or Intake Staff; everyone else, including staff who have switched into an office,
+  gets `IN_NAV`.
+- **`filterNavGroups`** keeps an item only when the user's role key is listed on it (the built-in `admin` key
+  passes every item) and its `requiredPolicy` (the same string the route checks) is granted, so a visible item
+  never leads to a 403. A group left with no items is dropped.
 
-### Sidebar Menu Structure
+External users never get the shell; their pages render their own navbar. See [Role-Based UI](ROLE-BASED-UI.md).
 
-```mermaid
-flowchart TD
-    SIDEBAR[LeptonX Sidebar Menu]
-    SIDEBAR --> M_HOME["Home <br/> fas fa-home <br/> order: 1"]
-    SIDEBAR --> M_DASH["Dashboard <br/> fas fa-chart-line <br/> order: 2 <br/> policy: Dashboard.Host/Tenant"]
-    SIDEBAR --> M_APPTS["Appointments <br/> fas fa-file-alt <br/> policy: CaseEvaluation.Appointments"]
-    SIDEBAR --> M_APT_MGMT["Appointment Management <br/> fas fa-calendar-alt <br/> order: 3"]
-    M_APT_MGMT --> M_TYPES["Appointment Types <br/> fas fa-tags <br/> order: 1"]
-    M_APT_MGMT --> M_STAT["Appointment Statuses <br/> fas fa-traffic-light <br/> order: 2"]
-    M_APT_MGMT --> M_LANG["Appointment Languages <br/> fas fa-language <br/> order: 3"]
-    SIDEBAR --> M_CONFIG["Configurations <br/> fas fa-sliders-h <br/> order: 4"]
-    M_CONFIG --> M_STATES["States <br/> fas fa-flag <br/> order: 1"]
-    SIDEBAR --> M_DOC_MGMT["Doctor Management <br/> fas fa-user-md <br/> order: 5"]
-    M_DOC_MGMT --> M_LOCS["Locations <br/> fas fa-map-marker-alt <br/> order: 1"]
-    M_DOC_MGMT --> M_WCAB["WCAB Offices <br/> fas fa-building <br/> order: 2"]
-    M_DOC_MGMT --> M_DA["Doctor Availabilities <br/> fas fa-calendar-check <br/> order: 3"]
-    M_DOC_MGMT --> M_PATS["Patients <br/> fas fa-file-alt <br/> order: 4"]
-    SIDEBAR --> M_ATTYS["Applicant Attorneys <br/> fas fa-file-alt <br/> policy: CaseEvaluation.ApplicantAttorneys"]
-    SIDEBAR --> M_DA2["Defense Attorneys <br/> fas fa-file-alt <br/> policy: CaseEvaluation.DefenseAttorneys"]
-    SIDEBAR --> M_USR_MGMT["User Management <br/> fas fa-users-cog <br/> order: 100 <br/> policy: CaseEvaluation.UserManagement"]
-    M_USR_MGMT --> M_INVITE["Invite External User <br/> fas fa-envelope <br/> order: 1 <br/> policy: CaseEvaluation.UserManagement.InviteExternalUser"]
-    M_USR_MGMT --> M_INT_USERS["Internal Users <br/> fas fa-user-plus <br/> order: 2 <br/> policy: CaseEvaluation.InternalUsers.Create"]
-    SIDEBAR --> M_ABP["ABP Modules <br/> (Identity, SaaS, etc.)"]
-```
+## Lazy loading
 
-**Note:** The sidebar is hidden for external users (Patient, Applicant Attorney, Defense Attorney). See [Role-Based UI](ROLE-BASED-UI.md) for details.
+Every page is lazy-loaded: feature pages with `loadComponent`, ABP modules with `loadChildren`, and the per-feature
+`*_ROUTES` constants as `children` whose entries use `loadComponent`. The one eager import is
+`InternalShellLayoutComponent` (`app.routes.ts`), which the shell parent route renders directly.
 
-## Route Definition Order
+## Route order notes
 
-Route order in `app.routes.ts` matters. Notable ordering decisions:
-
-1. `/doctor-management/doctor-availabilities/generate` and `/add` are defined **before** the generic `/doctor-management/doctor-availabilities` children routes to ensure they match first
-2. `/appointments/add` is defined **after** the `/appointments` children route (which handles `/appointments` list and `/appointments/view/:id`)
-3. `/doctor-management/patients/my-profile` is defined **before** `/doctor-management/patients` children to prevent the list route from consuming it
+1. The external copies of `appointments/view/:id` and `appointments/request` come before the shell parent, so
+   `canMatch` can hand external users the chrome-less page and let staff fall through to the in-shell copy.
+2. The three `my-profile` routes are top-level and outside the shell, so they match before the shell's
+   `user-management/patients` children could.
+3. `/appointments/add` no longer exists; booking has one path, `/appointments/request`, for every role. Do not
+   add an alias for it: a redirect to a role-split route is what produced a 404 before.
+4. `**` must stay last.
 
 ---
 

@@ -5,6 +5,22 @@
 >
 > **Describes what is, not what should be.** Companion to
 > `docs/architecture/SYSTEM-ARCHITECTURE-BASELINE.md`.
+>
+> **Dated snapshot.** Every figure below was measured on 2026-08-28 and is not re-derivable from the
+> code; re-measuring needs access to the running deployment. Treat it as a record of that day, not as
+> the current state.
+>
+> **Changed in the repository since the snapshot** (checked against `main` on 2026-09-30):
+>
+> - **Backup is scheduled and proves restores.** `scripts/hosting/systemd/` holds three timers: the off-box backup
+>   nightly at 01:30, the same plus a restore into a scratch database on Sundays at 02:30, and a freshness check at
+>   09:00 that emails when either has gone stale. Whether they are installed on a given server is checked with
+>   `systemctl list-timers 'hcs-portal-backup*'`; see [hosting-backup-restore.md](../runbooks/hosting-backup-restore.md).
+> - **16 recurring jobs**, two of them every 5 minutes; the current schedule is in
+>   [BACKGROUND-JOBS.md](BACKGROUND-JOBS.md).
+> - **42 variables** in `env.prod.example`, up from 35 (`grep -cE '^[A-Z][A-Z0-9_]+=' env.prod.example`).
+> - **Every image the stack builds runs as a non-root user** (`USER` in each Dockerfile), and the .NET images
+>   restore NuGet packages in locked mode.
 
 | Field                | Value                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -172,7 +188,8 @@ audit.
 the next promotion pull request; it never touches a server.
 
 ```text
-backup -> git pull --ff-only -> docker compose build <changed services>
+backup -> git pull --ff-only -> ./scripts/hosting/build-docs-site.sh
+       -> docker compose build <changed services>
        -> docker compose up -d
        -> docker compose up -d --force-recreate reverse-proxy
 ```
@@ -184,6 +201,19 @@ Two traps that have each broken the deployment in practice:
    database password, no TLS paths and no base domain.
 2. **The reverse proxy must be force-recreated after any backend rebuild**, or nginx serves stale
    cached upstream IPs and routing silently breaks.
+
+**Documentation site.** The reverse proxy serves this documentation at `https://<BASE_DOMAIN>/docs/`
+from `docker/nginx-proxy/docs-site/`, a gitignored directory that `scripts/hosting/build-docs-site.sh`
+fills.
+
+- **What the script does.** It builds the site with the locked MkDocs toolchain in a container, checks
+  that nothing excluded from the site was built into it, and only then replaces the served copy. A
+  failed build leaves the served site as it was, and the script is safe to re-run.
+- **Order.** Run it before compose. The script creates that directory as the deploy user; if compose
+  starts first, Docker creates it as root and the script can no longer write into it. The reverse-proxy
+  recreate above also picks up the mount on the first deploy that adds it.
+- **Network.** It needs internet access, because the site's fonts and diagram library are downloaded at
+  build time.
 
 ### Backup
 

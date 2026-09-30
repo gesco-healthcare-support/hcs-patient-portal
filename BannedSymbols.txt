@@ -11,7 +11,7 @@
 ; (##Var## placeholders against the DB-backed NotificationTemplate aggregate).
 ;
 ; See Directory.Build.props lines 37-72 and
-; docs/runbooks/findings/bugs/OBS-14-auth-vs-api-email-split.md for the full
+; docs/findings/bugs/OBS-14-auth-vs-api-email-split.md for the full
 ; rationale and the alternative pipeline.
 ;
 ; Format reference:

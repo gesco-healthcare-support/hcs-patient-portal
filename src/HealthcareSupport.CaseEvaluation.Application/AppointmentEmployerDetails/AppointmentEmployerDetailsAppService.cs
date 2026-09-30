@@ -26,13 +26,15 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     protected AppointmentEmployerDetailManager _appointmentEmployerDetailManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> _appointmentRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
+    protected AppointmentChildOwnershipGuard _childOwnershipGuard;
 
-    public AppointmentEmployerDetailsAppService(IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository, AppointmentEmployerDetailManager appointmentEmployerDetailManager, IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository)
+    public AppointmentEmployerDetailsAppService(IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository, AppointmentEmployerDetailManager appointmentEmployerDetailManager, IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, AppointmentChildOwnershipGuard childOwnershipGuard)
     {
         _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
         _appointmentEmployerDetailManager = appointmentEmployerDetailManager;
         _appointmentRepository = appointmentRepository;
         _stateRepository = stateRepository;
+        _childOwnershipGuard = childOwnershipGuard;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentEmployerDetailWithNavigationPropertiesDto>> GetListAsync(GetAppointmentEmployerDetailsInput input)
@@ -93,6 +95,13 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+        // The caller must be a party to the appointment the new row hangs off. The external booking roles
+        // hold this service's Create permission, so the permission alone ties the caller to no appointment.
+        // Booking still passes: AppointmentsAppService.SubmitAsync flushes the new appointment, stamping its
+        // CreatorId, before AppointmentChildGroupWriter writes any child group, so the booker passes as its
+        // creator (AccessPathway.Creator; see AppointmentChildOwnershipGuard.EnsureIsPartyAsync for why that is permanent).
+        // Checked FIRST, before any other lookup, so a non-party is refused the same way whatever they send.
+        await _childOwnershipGuard.EnsureIsPartyAsync(input.AppointmentId);
 
         var appointmentEmployerDetail = await _appointmentEmployerDetailManager.CreateAsync(
             input.AppointmentId,
@@ -113,6 +122,13 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+        // The caller must be a party to the row's OWN parent, and may not move the row to a
+        // different one. The parent is read from the stored row, never from the request: checking
+        // the supplied id would let a caller nominate an appointment they are a party to and still
+        // write to somebody else's row. Every external role holds this service's Edit permission.
+        var existingChild = await _appointmentEmployerDetailRepository.GetAsync(id);
+        await _childOwnershipGuard.EnsureCanWriteChildAsync(existingChild.AppointmentId, input.AppointmentId);
+
 
         var appointmentEmployerDetail = await _appointmentEmployerDetailManager.UpdateAsync(
             id,

@@ -152,6 +152,11 @@ jobs:
               .markdownlint.json | README.md | CONTRIBUTING.md | CHANGELOG.md)
                 shared=true
                 ;;
+              infra/azure/*)
+                # Deliberately runs nothing here: .github/workflows/infra.yml builds, lints, guards and
+                # previews these templates, and nothing under infra/azure/ is compiled or tested by this
+                # file. One named directory, not a widening of the default below.
+                ;;
               *)
                 # Deny by default. Unrecognised path -> run everything.
                 unclassified=true
@@ -229,8 +234,9 @@ jobs:
       # entries, and build, tests and git status were all clean.
       #
       # Now it is NU1004 instead: "The package references have changed ... restore
-      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
-      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # can't be run in locked mode". RestoreLockedMode stays FALSE in Directory.Build.props
+      # only so that one host restore can rewrite the lock files; the Docker builds, the
+      # dev containers and new worktrees restore locked too (see that file). The cost is
       # that a dependency change must be followed by
       # `dotnet restore --force-evaluate` and the lock files committed.
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
@@ -580,11 +586,66 @@ jobs:
           python-version: "3.12"
       - name: Verify documentation structure
         run: python .claude/scripts/verify_structure.py
+      - name: Check GENERATED regions match their snapshots
+        run: python .claude/scripts/embed-generated-regions.py . --check
+        # --check REPORTS and writes nothing, so CI never mutates the tree it judges.
+        # A drifted document fails here naming the file; the fix is to run the same
+        # script without --check and commit the result.
+        #
+        # Ships as a NO-OP: no document carries markers yet. The first markers land in
+        # a separate reviewable PR, which is also how we find out whether the rendered
+        # output is tolerable BEFORE committing the corpus to it.
+        #
+        # WHY RENDERED, NOT VERBATIM (Adrian, 2026-09-29): a table is readable and a raw
+        # snapshot dump is not. The cost is a transform, and a wrong transform does not
+        # look wrong -- it produces a plausible table. Answered by test rather than by
+        # avoiding it: every converter has a lossless round-trip test AND a spelled-out
+        # header assertion, because a round trip proves the DATA survived and says
+        # nothing about whether the column labels are honest.
+      - name: Check per-folder CLAUDE.md against the code beside it
+        run: python .claude/scripts/check-claude-md.py .
+        # BLOCKING from the day it lands, deliberately. This PR does not merge until a
+        # full run on main is clean.
+        #
+        # Shipping it non-blocking with a follow-up to tighten later was offered and
+        # refused, because this repository had just finished repairing exactly that: the
+        # link checker below ran as "|| true" for months behind a justification citing
+        # docs/verification/BASELINE.md, a file that does not exist. A non-blocking check
+        # is indistinguishable from no check and buys the same false confidence. Adding a
+        # second one to this very job would have repeated the mistake mid-correction.
+        #
+        # A per-file exclusion list was refused too, for the same reason in slower motion:
+        # an entry nobody is accountable for outlives the condition it records.
+        #
+        # WHY THIS EXISTS. These files are read FIRST and trusted MOST by AI agents, which
+        # makes their staleness more dangerous than ordinary documentation, not less. An
+        # agent reads code correctly; what it cannot do is notice a file is lying to it.
+        # AppointmentsAppService.cs:396 once justified a scoping decision with "Patient is
+        # not IMultiTenant per CLAUDE.md" -- reasoning from a stale document rather than
+        # from the class, which does implement IMultiTenant.
+        #
+        # SEEN TO FAIL before being trusted: against main cb941303 it reported 92 findings
+        # in 28 of 49 files, including all four independently known to be stale. For
+        # Domain/AppointmentChangeRequests it named exactly the classes a human audit had
+        # found missing, without being told the answer.
       - name: Check documentation links
-        run: python .claude/scripts/check-links.py || true
-        # Link check is non-blocking: pre-existing broken links (tracked in
-        # docs/verification/BASELINE.md) should not fail CI. The job still
-        # prints the full report for visibility.
+        run: python .claude/scripts/check-links.py
+        # BLOCKING as of 2026-09-28. It was "|| true" before, which meant a working link
+        # checker could never fail a build, so a broken link reached main unnoticed.
+        #
+        # The comment justifying that deferred to "pre-existing broken links (tracked in
+        # docs/verification/BASELINE.md)". THAT FILE DOES NOT EXIST, and neither does its
+        # directory -- checked 2026-09-28. So the exemption pointed at a register nobody
+        # ever created, which is the shape of every other stale claim found in this repo
+        # during the documentation pass: reasoning that reads well and was never re-run.
+        #
+        # There is now nothing to exempt. The checker reports 0 failures over 437 files and
+        # 525 links, and it was proven able to fail by feeding it a deliberately broken link
+        # before this was flipped. It also no longer reports code spans as links: any "](" in
+        # a fence or inline code used to match, which is the kind of false positive that gets
+        # a gate switched off in the first place.
+        #
+        # If this starts failing, fix the link. Do not restore "|| true".
 
   packet-golden:
     name: "Tools: Packet Golden Output"
@@ -1989,8 +2050,9 @@ jobs:
       # entries, and build, tests and git status were all clean.
       #
       # Now it is NU1004 instead: "The package references have changed ... restore
-      # can't be run in locked mode". RestoreLockedMode stays FALSE locally, per the
-      # existing reasoning, so day-to-day package tweaks are unaffected; the cost is
+      # can't be run in locked mode". RestoreLockedMode stays FALSE in Directory.Build.props
+      # only so that one host restore can rewrite the lock files; the Docker builds, the
+      # dev containers and new worktrees restore locked too (see that file). The cost is
       # that a dependency change must be followed by
       # `dotnet restore --force-evaluate` and the lock files committed.
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode

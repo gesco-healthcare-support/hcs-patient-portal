@@ -18,6 +18,7 @@ using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Security;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
@@ -55,9 +56,11 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTestBase
 {
     private readonly IAppointmentsAppService _appointments;
+    private readonly IPatientsAppService _patients;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetails;
+    private readonly IAppointmentEmployerDetailsAppService _employerDetailsService;
     private readonly IRepository<AppointmentPrimaryInsurance, Guid> _primaryInsurances;
     private readonly IRepository<AppointmentClaimExaminer, Guid> _claimExaminers;
     private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetails;
@@ -78,9 +81,11 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     public MultiOfficeAtomicBookingSubmitTests()
     {
         _appointments = GetRequiredService<IAppointmentsAppService>();
+        _patients = GetRequiredService<IPatientsAppService>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();
         _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
         _employerDetails = GetRequiredService<IRepository<AppointmentEmployerDetail, Guid>>();
+        _employerDetailsService = GetRequiredService<IAppointmentEmployerDetailsAppService>();
         _primaryInsurances = GetRequiredService<IRepository<AppointmentPrimaryInsurance, Guid>>();
         _claimExaminers = GetRequiredService<IRepository<AppointmentClaimExaminer, Guid>>();
         _injuryDetails = GetRequiredService<IRepository<AppointmentInjuryDetail, Guid>>();
@@ -394,6 +399,96 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             after.GenderId.ShouldBe(Gender.Other, "self-service overwrites gender");
             after.DateOfBirth.Date.ShouldBe(new DateTime(1999, 12, 31), "...and date of birth");
             after.PhoneNumberTypeId.ShouldBe(PhoneNumberType.Work, "...and phone-number type");
+        });
+    }
+
+    /// <summary>
+    /// #598 -- an EXTERNAL booker who is not the patient books against an existing, claimed record and
+    /// sends edits. The booking must go through (the form always sends a patient update when a
+    /// patient is loaded, so refusing would fail every such booking) and the stored record must stay
+    /// exactly as it was. Before #598 the edits were applied.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_PatientUpdateFromAnExternalBookerForSomeoneElsesRecord_BooksButLeavesThePatientUnchanged()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(40);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var externalBooker = Guid.NewGuid();
+        Patient? seeded = null;
+        AppointmentSubmitResultDto? result = null;
+
+        // Claimed by the office's booker user -- a real login that is NOT the external caller.
+        await InOfficeAsync(office, async () =>
+            seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
+
+        await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 400);
+            input.Patient = null;
+            input.PatientId = seeded!.Id;
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            input.PatientUpdate = BuildPatientUpdate(seeded, firstName: "Overwritten", city: "Overwritten City");
+
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        result!.PatientId.ShouldBe(seeded!.Id);
+        await InOfficeAsync(office, async () =>
+        {
+            (await _appointmentRepository.FindAsync(result.AppointmentId)).ShouldNotBeNull(
+                "the booking itself must still be created");
+
+            var after = await _patientRepository.GetAsync(seeded.Id);
+            after.FirstName.ShouldBe("Original", "an external booker's edit to someone else's record must be dropped");
+            after.City.ShouldBe("Old City");
+            after.GenderId.ShouldBe(Gender.Female);
+        });
+    }
+
+    /// <summary>
+    /// #598 -- the two-step path. Booking against an existing patient's id makes the booker that
+    /// appointment's creator, which is a party relationship. It must NOT turn into the right to edit
+    /// the patient afterwards through the booking edit endpoint.
+    /// </summary>
+    [Fact]
+    public async Task Booking_for_an_existing_patient_does_not_grant_the_booker_the_right_to_edit_them()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(41);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var externalBooker = Guid.NewGuid();
+        Patient? seeded = null;
+
+        await InOfficeAsync(office, async () =>
+            seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
+
+        // Step 1: book with the claimed patient's id and no edits. This succeeds.
+        await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(10).AddMinutes(15), dayOffset: 410);
+            input.Patient = null;
+            input.PatientId = seeded!.Id;
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            await _appointments.SubmitAsync(input);
+        });
+
+        // Step 2: the same booker tries to edit that patient directly.
+        await Should.ThrowAsync<AbpAuthorizationException>(() =>
+            InOfficeAsAsync(office, externalBooker, "Applicant Attorney", () =>
+                _patients.UpdatePatientForAppointmentBookingAsync(
+                    seeded!.Id, BuildPatientUpdate(seeded, firstName: "Overwritten", city: "Overwritten City"))));
+
+        await InOfficeAsync(office, async () =>
+        {
+            var after = await _patientRepository.GetAsync(seeded!.Id);
+            after.FirstName.ShouldBe("Original");
+            after.City.ShouldBe("Old City");
         });
     }
 
@@ -799,6 +894,116 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     // ------------------------------------------------------------------ helpers
 
     /// <summary>
+    /// A new booking by an EXTERNAL booker still writes every child group. The child create endpoints
+    /// now refuse a caller who is not a party to the target appointment, and booking reaches five of
+    /// them inside its own unit of work, before the booker is linked to the appointment any other way.
+    /// It passes because <c>SubmitAsync</c> flushes the appointment, stamping its <c>CreatorId</c>,
+    /// before any child is written.
+    ///
+    /// <para><see cref="SubmitAsync_WithEveryChildGroup_PersistsAllOfThem"/> cannot catch a break
+    /// here: it books as the office admin, whom the read gate admits as staff whatever the
+    /// appointment. Only an external booker exercises the path that would fail.</para>
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_ByAnExternalBooker_WithEveryChildGroup_PersistsAllOfThem()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(50);
+        var externalBooker = Guid.NewGuid();
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 500);
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        await InOfficeAsync(office, async () =>
+        {
+            (await _employerDetails.CountAsync(x => x.AppointmentId == result!.AppointmentId)).ShouldBe(1);
+            (await _primaryInsurances.CountAsync(x => x.AppointmentId == result!.AppointmentId)).ShouldBe(1);
+            (await _claimExaminers.CountAsync(x => x.AppointmentId == result!.AppointmentId)).ShouldBe(1);
+            (await _applicantAttorneys.CountAsync(x => x.AppointmentId == result!.AppointmentId)).ShouldBe(1);
+            (await _defenseAttorneys.CountAsync(x => x.AppointmentId == result!.AppointmentId)).ShouldBe(1);
+
+            var injuries = await _injuryDetails.GetListAsync(x => x.AppointmentId == result!.AppointmentId);
+            injuries.Count.ShouldBe(2);
+            var injuryIds = injuries.Select(i => i.Id).ToList();
+            (await _bodyParts.CountAsync(x => injuryIds.Contains(x.AppointmentInjuryDetailId))).ShouldBe(3);
+        });
+    }
+
+    /// <summary>
+    /// The appointment view page adds an employer detail to an EXISTING appointment that has none
+    /// (<c>appointment-view.component.ts</c>, a <c>POST</c> to the employer-details route). That is the
+    /// one create caller outside booking, and its caller can already read the appointment, so the party
+    /// check must let them through.
+    /// </summary>
+    [Fact]
+    public async Task EmployerDetailCreate_OnTheirOwnAppointment_ByItsExternalBooker_Succeeds()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var booker = Guid.NewGuid();
+        var appointmentId = await BookWithoutEmployerAsync(office, booker, dayOffset: 510);
+
+        await InOfficeAsAsync(office, booker, "Applicant Attorney", () =>
+            _employerDetailsService.CreateAsync(NewEmployerDetail(appointmentId)));
+
+        await InOfficeAsync(office, async () =>
+            (await _employerDetails.CountAsync(x => x.AppointmentId == appointmentId)).ShouldBe(1));
+    }
+
+    /// <summary>
+    /// The create half of the child-record ownership rule, through the REAL read gate: another external
+    /// user in the same office, holding the same Create permission, cannot attach a record to an
+    /// appointment they are not a party to, and nothing is written.
+    /// </summary>
+    [Fact]
+    public async Task EmployerDetailCreate_OnSomeoneElsesAppointment_IsRefusedAndWritesNothing()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var appointmentId = await BookWithoutEmployerAsync(office, Guid.NewGuid(), dayOffset: 520);
+        var stranger = Guid.NewGuid();
+
+        var refused = await Should.ThrowAsync<BusinessException>(() =>
+            InOfficeAsAsync(office, stranger, "Applicant Attorney", () =>
+                _employerDetailsService.CreateAsync(NewEmployerDetail(appointmentId))));
+
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        await InOfficeAsync(office, async () =>
+            (await _employerDetails.CountAsync(x => x.AppointmentId == appointmentId)).ShouldBe(0));
+    }
+
+    /// <summary>A booking by <paramref name="booker"/> with no employer detail, for the create tests.</summary>
+    private async Task<Guid> BookWithoutEmployerAsync(SeededOffice office, Guid booker, int dayOffset)
+    {
+        var date = TestToday.AddDays(dayOffset / 10);
+        Guid appointmentId = default;
+        await InOfficeAsAsync(office, booker, "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: dayOffset);
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            input.EmployerDetail = null;
+            appointmentId = (await _appointments.SubmitAsync(input)).AppointmentId;
+        });
+        return appointmentId;
+    }
+
+    private static AppointmentEmployerDetailCreateDto NewEmployerDetail(Guid appointmentId) => new()
+    {
+        AppointmentId = appointmentId,
+        EmployerName = "TEST-Employer",
+        Occupation = "TEST-Occupation",
+    };
+
+    /// <summary>
     /// Runs <paramref name="body"/> in the office's tenant context AND as the office's booker.
     ///
     /// <para>The identity is not optional. Writing accessors goes through
@@ -811,6 +1016,21 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         {
             using (_currentTenant.Change(office.OfficeId))
             using (WithCurrentUser.Run(_principalAccessor, office.BookerUserId, "admin"))
+            {
+                await body();
+            }
+        }, requiresNew: true);
+
+    /// <summary>
+    /// <see cref="InOfficeAsync"/> as a chosen caller rather than the office's admin booker. #598's
+    /// tests need an EXTERNAL booker who is not the patient; the admin identity would be admitted as
+    /// staff and prove nothing about the external path.
+    /// </summary>
+    private Task InOfficeAsAsync(SeededOffice office, Guid userId, string role, Func<Task> body) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(office.OfficeId))
+            using (WithCurrentUser.Run(_principalAccessor, userId, role))
             {
                 await body();
             }

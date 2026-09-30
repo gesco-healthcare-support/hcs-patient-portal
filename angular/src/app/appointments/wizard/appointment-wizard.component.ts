@@ -1,12 +1,4 @@
-import {
-  Component,
-  ElementRef,
-  Injector,
-  OnDestroy,
-  OnInit,
-  ViewChild,
-  inject,
-} from '@angular/core';
+import { Component, ElementRef, Injector, OnInit, ViewChild, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -18,8 +10,6 @@ import {
 import { Confirmation, ConfirmationService, DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
 import { NgbDateAdapter, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
-import { Subscription } from 'rxjs';
-import { debounceTime } from 'rxjs/operators';
 
 import { AppointmentAddComponent } from '../appointment-add.component';
 import { MyAttorneyProfileService } from '../../proxy/my-attorney-profiles/my-attorney-profile.service';
@@ -119,10 +109,7 @@ const STEPS: WizardStep[] = [
   templateUrl: './appointment-wizard.component.html',
   styleUrl: './appointment-wizard.component.scss',
 })
-export class AppointmentWizardComponent
-  extends AppointmentAddComponent
-  implements OnInit, OnDestroy
-{
+export class AppointmentWizardComponent extends AppointmentAddComponent implements OnInit {
   private readonly shellRouter = inject(Router);
   private readonly shellInjector = inject(Injector);
   private readonly shellConfig = inject(AbpConfigStateService);
@@ -153,10 +140,12 @@ export class AppointmentWizardComponent
   protected navDisplayName = '';
   protected firmName = '';
 
-  // draft autosave (#15: localStorage is the instant per-keystroke cache; the
-  // server draft is the durable cross-session store).
-  private readonly DRAFT_KEY = 'ra-wizard-draft';
-  private readonly draftSub = new Subscription();
+  // Draft save / resume (#15). The SERVER draft is the only store: it is per user, and it
+  // is written at checkpoints (each step Continue and the leave prompt's Save). Nothing
+  // about the booking is kept in browser storage. The form carries the patient's SSN, date
+  // of birth, name and address, and browser storage is tied to the browser rather than to
+  // the signed-in user and outlives sign-out, so the next user of a shared computer could
+  // read it back. See legacy-draft-cache.ts for what earlier builds left there.
   // #15 draft state -- only active for a fresh 'new' booking (set in ngOnInit).
   protected draftEnabled = false;
   protected submitted = false;
@@ -184,9 +173,6 @@ export class AppointmentWizardComponent
     this.draftEnabled = this.bookingMode === 'new';
     if (this.draftEnabled) {
       this.initDraft();
-      this.draftSub.add(
-        this.form.valueChanges.pipe(debounceTime(600)).subscribe(() => this.saveDraft()),
-      );
     }
     // #9: pre-fill the booker's own attorney step from their profile (fills only a blank
     // section, so the draft/reval prefill above always wins).
@@ -218,13 +204,6 @@ export class AppointmentWizardComponent
       .subscribe((r) =>
         (r?.items ?? []).forEach((i) => this.wcabNames.set(i.id ?? '', i.displayName ?? '')),
       );
-  }
-
-  ngOnDestroy(): void {
-    this.draftSub.unsubscribe();
-    // #15: do NOT wipe here -- the server draft is the durable store (survives
-    // navigate-away) and is cleared explicitly on submit / discard. The leave
-    // guard already runs before destroy for a dirty form.
   }
 
   protected get currentStep(): WizardStep {
@@ -554,23 +533,22 @@ export class AppointmentWizardComponent
   }
 
   // ---- draft save / resume (#15) ------------------------------------------
-  // localStorage is the instant per-keystroke cache; the server draft is the
-  // durable cross-session store written at checkpoints (step Continue + the
-  // leave prompt's Save). Resume reads the server draft on open. Patient
-  // demographics for a non-patient booker are owned by the async profile load,
-  // so they may not round-trip on refresh.
+  // The server draft is written at checkpoints (step Continue + the leave
+  // prompt's Save) and read on open. Patient demographics for a non-patient
+  // booker are owned by the async profile load, so they may not round-trip.
 
-  /** On open: offer to resume a server draft, else restore a same-session local cache. */
+  /** On open: offer to resume the booker's server draft, if they have one. */
   private initDraft(): void {
     this.draftService.getMine().subscribe({
       next: (draft) => {
         if (draft?.payloadJson) {
           this.promptResume(draft);
-        } else {
-          this.restoreDraft();
         }
       },
-      error: () => this.restoreDraft(),
+      // The draft could not be read, so the booker starts from an empty form, as a booker
+      // with no draft does. There is deliberately no browser-storage fallback: see the
+      // note above draftEnabled.
+      error: () => undefined,
     });
   }
 
@@ -625,34 +603,7 @@ export class AppointmentWizardComponent
 
   private discardServerDraft(): void {
     this.draftService.discardMine().subscribe({ error: () => undefined });
-    localStorage.removeItem(this.DRAFT_KEY);
     this.draftState = 'idle';
-  }
-
-  private saveDraft(): void {
-    try {
-      localStorage.setItem(
-        this.DRAFT_KEY,
-        JSON.stringify({ v: this.form.getRawValue(), step: this.current }),
-      );
-    } catch {
-      /* serialization / quota -- autosave is best-effort */
-    }
-  }
-
-  private restoreDraft(): void {
-    try {
-      const raw = localStorage.getItem(this.DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw) as { v?: Record<string, unknown>; step?: number };
-      if (d.v) this.form.patchValue(d.v);
-      if (typeof d.step === 'number') {
-        this.current = d.step;
-        this.furthest = Math.max(this.furthest, d.step);
-      }
-    } catch {
-      /* corrupt draft -- ignore */
-    }
   }
 
   // ---- leave guard (#15 CanDeactivate) ------------------------------------

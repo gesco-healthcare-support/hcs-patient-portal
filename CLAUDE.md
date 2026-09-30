@@ -15,7 +15,15 @@ specific locations and time slots, and track each appointment through its lifecy
 
 **Multi-tenant, database per office.** Each doctor practice is one tenant with its own
 database; the host organisation owns the shared management database. Multi-tenancy is
-LIVE, not scaffolding.
+LIVE, not scaffolding. Separate databases are chosen for isolation and HIPAA, and also for
+blast radius: one consolidated database means a single corruption or failure takes down
+every office instead of one.
+
+**Where this portal's responsibility ends.** It owns the request and the decision:
+appointment requested, approved, rejected, rescheduled, cancelled. Once an appointment is
+APPROVED it is handed to the Case Tracker, which owns everything afterwards -- the day of
+the exam, the outcome, and billing. **This portal does not do billing and is not going to.**
+Do not add features that belong on the other side of that line without asking.
 
 **The repository is PUBLIC**, deliberately and permanently. Nothing committed here may
 contain PHI, secrets, credentials, internal IP addresses or real patient data. Security
@@ -71,6 +79,9 @@ both needs a migration in BOTH sets.
   `npx serve -s dist/CaseEvaluation/browser -p 4200`. Note `angular.json` still defines
   a working `serve` target, which fails with that cryptic error rather than refusing.
   Context: `docs/decisions/005-no-ng-serve-vite-workaround.md`.
+  **This ban is a workaround, not a principle** (product owner, 2026-09-28): it exists
+  because of a specific ABP-plus-Vite defect. If a later ABP or Angular release fixes it,
+  verify and lift the ban rather than preserving it out of habit. Test before changing it.
 - **Service start order: SQL, then AuthServer, then HttpApi.Host, then Angular.**
   Out-of-order cold starts break permission seeding and JWT validation.
 - **Never edit `angular/src/app/proxy/`.** It is generated; regenerate with
@@ -98,10 +109,15 @@ both needs a migration in BOTH sets.
   surface. `TenantNaming.ProxyReservedSlugs` = `{api, auth, minio, health, www}` are the
   single-label hosts the reverse proxy answers itself with an exact `server_name`, which
   nginx ranks above every wildcard.
-- **COUPLING NOTHING ENFORCES**: adding an exact `server_name` block to
-  `docker/nginx-proxy/default.conf.template` requires adding that slug to
-  `ProxyReservedSlugs`. Miss it and an office by that name is accepted everywhere and then
-  has no reachable front door, with no error explaining why.
+- **A COUPLING BETWEEN TWO FILES THAT DO NOT REFERENCE EACH OTHER**: adding an exact
+  single-label `server_name` block to `docker/nginx-proxy/default.conf.template` requires
+  adding that slug to `ProxyReservedSlugs`. Miss it and an office by that name is created
+  successfully and then has no reachable front door, with no error explaining why: nginx
+  ranks an exact name above every wildcard, so the proxy consumes the office's own host.
+  **A test enforces this**, in both directions, so a stale entry fails as loudly as a
+  missing one: `TenantNamingTests.ProxyReservedSlugs_matches_the_exact_single_label_hosts_in_the_nginx_template`.
+  Run the Domain tests after touching either file. Neither file mentions the other, so the
+  test is the only thing that will tell you.
 - `HostAwareDomainTenantResolveContributor` resolves the office from the Host header
   against `App:TenantDomainFormat` (default `{0}.localhost`). A host naming no office is
   REFUSED, except `localhost` and `authserver`, which internal health checks use. It
@@ -110,8 +126,17 @@ both needs a migration in BOTH sets.
 - **The resolver chain is a security control.** `ConfigureMultiTenancy` calls
   `TenantResolvers.Clear()` and registers only those two, removing ABP's QueryString,
   Cookie, Header and Route contributors so a caller cannot select an office with a
-  `__tenant` value. One `internal static` method serves both the AuthServer and the API.
-  Its test needs a seeded decoy resolver or it passes with the `Clear()` deleted.
+  `__tenant` value. Under database-per-office that is not a permission bug a later check
+  might catch: it is a different connection string, and the permission check would pass.
+- **There are TWO `ConfigureMultiTenancy` methods**, one per host process
+  (`CaseEvaluationAuthServerModule.cs:548`, `CaseEvaluationHttpApiHostModule.cs:409`),
+  because the two modules share no project that could hold one. Deliberate near-duplicates
+  of a security control, so drift is asserted rather than trusted:
+  `TenantResolverChainTests.Both_processes_register_the_same_chain_in_the_same_order`.
+  Change one, change the other, and run that test.
+- **Testing `Clear()` needs a seeded decoy resolver.** It is a negative guarantee, and a
+  bare `ServiceCollection` cannot prove one: with no decoy, deleting the `Clear()` left all
+  seven tests in that file green (measured 2026-09-04).
 
 ---
 
@@ -152,15 +177,33 @@ both needs a migration in BOTH sets.
 
 ---
 
+## Pull requests
+
+- **A PR that finishes an issue MUST close it.** Put the keyword in the PR BODY, one per line:
+  `Closes #1116`. `Closes`, `Fixes` and `Resolves` all fire on merge, because `main` is the
+  default branch. An issue left open after its work merged costs somebody a re-read of a
+  finished ticket.
+- **Use `Refs #NNN` only when the PR genuinely does not finish the issue** -- a sweep split
+  across several PRs uses `Refs` on all but the last, and `Closes` on the last. Say which you
+  mean; the two are not interchangeable.
+- **Never write a closing keyword in prose in a COMMIT message.** GitHub matched `fix #610`
+  inside the words "this does NOT fix #610" and closed the issue. Keep them in the PR body.
+- **No tool-attribution footer.** A PR description ends with its content -- no "generated with",
+  no credit line.
+
+---
+
 ## Deliberate oddities: do not "fix" these without asking
 
-- **Three appointment states are DEAD**: `CheckedIn` (9), `CheckedOut` (10), `Billed`
-  (11). The `AppointmentManager` transitions exist but nothing triggers them, so no
-  appointment can reach them. Their email templates, status pills and dashboard counters
-  are all present and never fire, and `DashboardAppService` hardcodes
-  `BilledThisMonth = 0`. Retained for data compatibility pending a product decision.
-  Tracked as PF-005. `NoShow` and `NotSeen` by contrast are LIVE but inbound-only from
-  the Case Tracker.
+- **Three appointment states are DEAD and are not supposed to exist here**: `CheckedIn`
+  (9), `CheckedOut` (10), `Billed` (11). The `AppointmentManager` transitions exist but
+  nothing triggers them. Their email templates, status pills and dashboard counters are
+  all present and never fire, and `DashboardAppService` hardcodes `BilledThisMonth = 0`.
+  They were planned for this portal and that responsibility moved to the Case Tracker
+  (product owner, 2026-09-28), so they are removal candidates rather than unfinished work.
+  Removing them is a data-compatibility exercise: the enum persists as integers and
+  renumbering would silently relabel stored rows. Tracked as PF-005. `NoShow` and
+  `NotSeen` by contrast are LIVE but inbound-only from the Case Tracker.
 - **`Email` is deliberately excluded from `AttorneySnapshot`.** Nine sibling fields are
   copied from the attorney master onto the appointment and `Email` is not, which reads
   like an oversight. It is load-bearing: `AppointmentAccessRules.IsAppointmentEmailRoleVisible`
@@ -184,6 +227,7 @@ both needs a migration in BOTH sets.
 - Add an appointment-scoped write path without an ownership check.
 - Commit PHI, secrets, credentials, internal IPs, or real patient data.
 - File a security finding as a GitHub Issue on this public repository.
+- End a PR description with a tool-attribution footer.
 - Use `--no-verify` to get past a hook, or work around gitleaks.
 - Wrap `git commit` in `timeout`: the pre-commit C# format step can exceed 85 seconds.
 
@@ -215,7 +259,7 @@ replicated rather than corrected carries a `// PARITY-FLAG:` comment and a row i
 
 ## Where the documentation is
 
-`docs/INDEX.md` is the map. `README.md` is the landing page. Per-feature `CLAUDE.md` files
+`docs/index.md` is the map. `README.md` is the landing page. Per-feature `CLAUDE.md` files
 sit beside the code they describe.
 
 **Treat any document's counts and dates with suspicion until checked.** As of 2026-09-27 a

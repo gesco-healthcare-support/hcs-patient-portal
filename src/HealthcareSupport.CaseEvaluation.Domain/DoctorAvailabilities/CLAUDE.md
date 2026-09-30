@@ -12,10 +12,13 @@ appointment booking, and surfaced in Angular grouped by location + date with con
 | Domain | `Domain/DoctorAvailabilities/DoctorAvailability.cs` | Aggregate root -- date + time slot, `BookingStatusId`, `LocationId` (req), `AppointmentTypeId` (opt) |
 | Domain | `Domain/DoctorAvailabilities/DoctorAvailabilityManager.cs` | Thin create/update over repo; no overlap or state validation |
 | Domain | `Domain/DoctorAvailabilities/IDoctorAvailabilityRepository.cs` | Custom repo -- nav-prop list/get, range filters on date/time/status/location/type |
+| Domain | `Domain/DoctorAvailabilities/DoctorAvailabilityAppointmentType.cs` | M2M join (2026-05-15) between a slot and `AppointmentType`. Composite PK on (DoctorAvailabilityId, AppointmentTypeId); `TenantId` is MIRRORED from the parent slot at insert so ABP's IMultiTenant filter scopes it. **An empty set means "any AppointmentType accepted"**, not "none" |
+| Domain | `Domain/DoctorAvailabilities/DoctorAvailabilityWithNavigationProperties.cs` | Read projection carrying the slot plus the AppointmentTypes it accepts, materialized by the EF repository's join. Same empty-means-any rule |
+| Domain | `Domain/DoctorAvailabilities/OfficeAvailabilitySeedContributor.cs` | DEV seeder: gives each freshly provisioned office future-dated bookable slots, because a fresh office otherwise has an empty calendar and nothing to book. Slots start beyond the 3-day booking lead time, at the seeded clinic location, accepting the office's seeded appointment types |
 | Contracts | `Application.Contracts/DoctorAvailabilities/` | DTOs + `IDoctorAvailabilitiesAppService` (CRUD, bulk-generate preview, three delete modes) |
 | Application | `Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` | CRUD + preview + three delete modes; `[RemoteService(IsEnabled=false)]` |
 | EF Core | `EntityFrameworkCore/DoctorAvailabilities/EfCoreDoctorAvailabilityRepository.cs` | LEFT JOIN Location + AppointmentType; `filterText` arm is a no-op (`e => true`) |
-| HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 11 routes |
+| HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 15 HTTP routes, counted with `grep -cE "\[Http(Get\|Post\|Put\|Delete\|Patch)" <that file>` |
 | Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | Active facts + 2 Skip gap-encoders (see Gotchas #2/#3) |
 | Angular | `angular/src/app/doctor-availabilities/` | List + detail modal + bulk-generate + abstract/concrete view-services |
 

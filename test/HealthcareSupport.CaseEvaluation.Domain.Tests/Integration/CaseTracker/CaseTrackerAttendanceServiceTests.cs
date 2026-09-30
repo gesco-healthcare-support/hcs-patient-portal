@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -46,7 +47,7 @@ public class CaseTrackerAttendanceServiceTests
         public IAppointmentRepository Repository { get; init; } = null!;
         public ICurrentTenant CurrentTenant { get; init; } = null!;
         public IDisposable TenantScope { get; init; } = null!;
-        public CapturingLogger Logger { get; init; } = null!;
+        public RecordingLogger<CaseTrackerAttendanceService> Logger { get; init; } = null!;
         public CaseTrackerFeedAlertPublisher Alerts { get; init; } = null!;
         public CaseTrackerInboundRefusalAlertPolicy AlertPolicy { get; init; } = null!;
     }
@@ -119,7 +120,7 @@ public class CaseTrackerAttendanceServiceTests
         var currentTenant = Substitute.For<ICurrentTenant>();
         currentTenant.Change(Arg.Any<Guid?>(), Arg.Any<string?>()).Returns(scope);
 
-        var logger = new CapturingLogger();
+        var logger = new RecordingLogger<CaseTrackerAttendanceService>();
 
         // The publisher is substituted so a test can see what was raised; the POLICY is real, because its
         // suppression is the behaviour under test and a substitute would answer whatever it was told.
@@ -346,36 +347,6 @@ public class CaseTrackerAttendanceServiceTests
 
         result.Result.ShouldBe(CaseTrackerAttendanceResult.Applied);
         h.Logger.Entries.ShouldNotContain(e => e.Level >= ProductionMinimumLevel);
-    }
-
-    private sealed record LogEntry(LogLevel Level, string Message);
-
-    /// <summary>
-    /// Records what the service logged. Same idea as the CapturingLoggerProvider in
-    /// <c>MultiOfficeImpersonationRoleTests</c>, but implementing <c>ILogger&lt;T&gt;</c> directly
-    /// because this service takes its typed logger through the constructor rather than resolving
-    /// one from the container.
-    ///
-    /// <para><see cref="IsEnabled"/> always returns true on purpose, so a test observes the level
-    /// the CALL SITE chose rather than whatever minimum a configuration happens to set. The
-    /// production minimum is then asserted explicitly, which is the thing actually at issue.</para>
-    /// </summary>
-    private sealed class CapturingLogger : ILogger<CaseTrackerAttendanceService>
-    {
-        public List<LogEntry> Entries { get; } = new();
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter)
-            => Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
     }
 
     // ---- refusals are alerted, because nothing else records them (#1043) ----

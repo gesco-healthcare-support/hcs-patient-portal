@@ -1,10 +1,10 @@
-[Home](../INDEX.md) > [Architecture](./) > System Overview
+[Home](../index.md) > [Architecture](./) > System Overview
 
 # System Overview
 
-> Purpose: High-level architecture reference for the HCS Case Evaluation Portal. Audience: developers.
+> Purpose: High-level architecture reference for the Appointment Portal. Audience: developers.
 
-The HCS Case Evaluation Portal is a workers' compensation Independent Medical Examination (IME) scheduling application. It follows a DDD layered monolith architecture with multi-tenancy support, where each doctor operates within an isolated tenant.
+The Appointment Portal is a workers' compensation Independent Medical Examination (IME) scheduling application. It follows a DDD layered monolith architecture with multi-tenancy support, where each doctor operates within an isolated tenant.
 
 ## Technology Stack
 
@@ -15,18 +15,43 @@ The HCS Case Evaluation Portal is a workers' compensation Independent Medical Ex
 | ORM | Entity Framework Core | - |
 | Database | SQL Server LocalDB | - |
 | Authentication | OpenIddict (OAuth 2.0 / OIDC) | - |
-| Frontend | Angular (standalone components) | 20 |
-| UI Theme | LeptonX | 5.0.2 |
-| Caching | Redis (optional, disabled by default) | - |
+| Frontend | Angular (standalone components) | 20.3 |
+| UI Theme | LeptonX (AuthServer pages; the SPA draws its own shell and keeps the LeptonX styles) | 5.0.2 (Angular package) |
+| Caching + DataProtection | Redis. **Not optional as shipped** -- see the note below the table | - |
 | Logging | Serilog (file + console) | - |
 | Object Mapping | Mapperly (compile-time) | - |
 | Excel Export | MiniExcel | 1.41.4 |
 | DI Container | Autofac | - |
 | Distributed Locking | Medallion.Threading (Redis-based) | - |
 
+> **`Redis:IsEnabled: false` does not disable Redis.** `ConfigureDataProtection` reads
+> `Redis:Configuration` only, and `appsettings.json` ships it as `127.0.0.1`, so the API calls
+> `ConnectionMultiplexer.Connect` at startup regardless of the `IsEnabled` flag. Nothing in the
+> solution reads `Redis:IsEnabled` except DbMigrator, which only writes it. If you want the API up
+> without Redis, blank `Redis:Configuration`; turning `IsEnabled` off will not do it.
+>
+> Redis is also not just a cache here: it holds the DataProtection key ring shared by the API and
+> the AuthServer, and the distributed lock database. Losing it invalidates protected payloads
+> across both services.
+
 ## System Components
 
-The application consists of four running processes during local development:
+> **This section said "four running processes" and the diagrams showed SQL Server as the single
+> data store.** There is a fifth process and there are three data stores. Corrected 2026-09-28.
+
+**Five processes**, not four: the four below plus **`packet-renderer`**, the WeasyPrint sidecar on
+port 3001 that renders appointment packets to PDF. It is not optional infrastructure -- the API is
+configured with `PacketRenderer__Url` and declares `depends_on: packet-renderer`.
+
+**Three data stores**, not one:
+
+| Store | Holds |
+|---|---|
+| SQL Server | The host database and every per-office database |
+| MinIO | Eight blob containers: uploaded appointment documents, generated packets, user signatures, office logos |
+| Redis | The shared DataProtection key ring and the distributed lock database |
+
+The four application processes during local development:
 
 | # | Process | Description |
 |---|---|---|
@@ -57,7 +82,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph localhost["localhost (Development Machine)"]
-        subgraph angular_proc["Angular Dev Server"]
+        subgraph angular_proc["Static server (npx serve of an ng build)"]
             Angular["Angular SPA\nhttp://localhost:4200"]
         end
 
@@ -151,7 +176,29 @@ The solution strictly follows DDD layering. Domain entities encapsulate business
 
 ### Multi-Tenant Isolation
 
-Each doctor operates within an isolated tenant. ABP's multi-tenancy infrastructure ensures data isolation at the database level, with tenant resolution handled automatically by the framework. Tenant-specific data is stored in a shared database using discriminator-based filtering.
+> **This section described a different system until 2026-09-28.** It said tenant data sits in a
+> shared database with discriminator filtering, that resolution is handled automatically by the
+> framework, and that the tenant is a doctor. All three were wrong.
+
+**The tenant is an OFFICE, a practice, not a doctor.** `Doctor` is an ordinary tenant-scoped
+aggregate living inside an office's database, so one office holds many doctors. Creating a tenant
+is an office-creation flow keyed on an office subdomain slug.
+
+**Isolation is physical, not a filter.** Each office gets its own SQL Server database named
+`CaseEvaluation_{slug}`, derived from the host `Default` connection string by swapping the catalog
+and stored on the tenant record. A query on an office connection cannot reach another office's
+rows at all, because they are not in that database. The `IMultiTenant` filter still applies and is
+defence in depth on top of that.
+
+**Resolution is deliberately NOT the framework default.** Both host processes call
+`TenantResolvers.Clear()` and register exactly two contributors: the authenticated user's token,
+then the Host header. Clearing removes ABP's QueryString, Cookie, Header and Route contributors,
+which is what stops a caller selecting an office with a `__tenant` value. Under
+database-per-office that would not be a permission bug a later check might catch; it would be a
+different connection string, and the permission check would pass.
+
+See [MULTI-TENANCY.md](MULTI-TENANCY.md), [TENANCY-AND-ISOLATION.md](TENANCY-AND-ISOLATION.md) and
+[OFFICES-AND-HOSTING.md](OFFICES-AND-HOSTING.md).
 
 ### ABP Modularity
 
@@ -159,11 +206,33 @@ The application leverages ABP Framework's module system. Each project is an ABP 
 
 ### Soft-Delete Auditing
 
-Entities implement ABP's `ISoftDelete` interface, ensuring that records are never physically removed from the database. All deletions are logical, preserving full audit trails. ABP's auditing infrastructure automatically tracks creation, modification, and deletion metadata.
+Most aggregates derive from `FullAuditedAggregateRoot` or `FullAuditedEntity` and so implement
+`ISoftDelete`: a delete sets `IsDeleted` and the row stays, which is why nearly every unique index
+in this schema carries an `[IsDeleted] = 0` filter. ABP's auditing tracks creation, modification
+and deletion metadata.
+
+> **But do not read that as "records are never physically removed", which is what this section
+> used to say.** `ExternalSignupAppService` calls `repository.HardDeleteAsync` to genuinely remove
+> Patient, ApplicantAttorney, DefenseAttorney and ClaimExaminer rows
+> (`ExternalSignups/ExternalSignupAppService.cs:355`). Not every entity is a soft-delete aggregate
+> either: the M2M join entities derive from plain `Entity`. Treat soft delete as the default, not
+> as a guarantee.
 
 ### Permission-Based Access
 
-Access control is enforced through ABP's permission system. Permissions are defined in `Application.Contracts`, checked declaratively via attributes on application services and controllers, and evaluated against the current user's grants at runtime.
+Permissions are defined in `Application.Contracts`, checked declaratively via attributes, and
+evaluated against the current user's grants at runtime.
+
+> **That is only half of the access model, and relying on the half described here is the most
+> common mistake made against this codebase.** Holding a permission does not grant access to a
+> specific appointment. Per-appointment access is decided by `AppointmentReadAccessGuard` composed
+> over `AppointmentAccessRules`: seven pathways, first match wins, plus a row-level rule matching
+> the caller's email against the appointment's party-email columns AND requiring the caller to
+> hold that column's role.
+>
+> All four external roles receive a byte-identical permission set, so permissions cannot be what
+> distinguishes them. See
+> [USER-ROLES-AND-ACTORS.md](../business-domain/USER-ROLES-AND-ACTORS.md).
 
 ## Port Reference Table
 

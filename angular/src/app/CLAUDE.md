@@ -15,25 +15,28 @@ For `shared/` sub-tree detail, see `angular/src/app/shared/CLAUDE.md`.
 - `app.component.ts` -- root standalone component
 - `app.config.ts` -- app-wide providers (auth, HTTP interceptors, locale, address DI)
 - `app.routes.ts` -- top-level lazy route tree
-- `route.provider.ts` -- lazy-loaded feature route registration
+- `route.provider.ts` -- ABP menu registration for Home, Dashboard, User Management, Change Logs and Reports
 
 ## Conventions
 
-**Standalone components only.** No NgModules. Components declare their own imports;
-features register routes via provider functions in `{feature}/providers/` folders and
-are lazily imported from `app.routes.ts`.
+**Standalone components only.** No NgModules. Components declare their own imports.
+Each feature's routes live in its `*-routes.ts` file and are mounted lazily from `app.routes.ts`.
+The `{feature}/providers/` folders register ABP MENU entries, not routes: no layout renders
+them, but `permissionGuard` falls back to them for a route with no `data.requiredPolicy`, so
+they are not dead code (see docs/frontend/ROUTING-AND-NAVIGATION.md).
 
-**Abstract + concrete component pattern.** List pages have `{entity}.abstract.component.ts`
-(ABP Suite base) and `{entity}.component.ts` (concrete). Never delete the abstract file;
-ABP Suite regeneration depends on it.
+**Abstract + concrete component pattern -- Doctors only.** Only `doctors/` still has the ABP
+Suite pair (`doctor.abstract.component.ts` + `doctor.component.ts`); do not delete its abstract
+file, because Suite regeneration depends on it. Every other list page is a custom standalone
+component (see docs/frontend/COMPONENT-PATTERNS.md).
 
 **Route guards.** Use ABP `permissionGuard` in lazy route config. The root path (`/`) is
 guarded by `postLoginRedirectGuard`, which is registered as `canMatch` (not `canActivate`) --
 it must stay `canMatch` so the guard runs before the route is matched, enabling redirect
 before the component activates. See `shared/CLAUDE.md` for implementation detail.
 
-**Never edit `proxy/`.** Regenerate with `abp generate-proxy` after backend DTO or
-AppService changes. See root CLAUDE.md + docs/decisions/005-no-ng-serve-vite-workaround.md.
+**Never edit `proxy/`.** Regenerate with `abp generate-proxy -t ng` (HttpApi.Host running)
+after backend DTO or AppService changes. See root CLAUDE.md + docs/decisions/005-no-ng-serve-vite-workaround.md.
 
 ## Gotchas
 
@@ -48,16 +51,19 @@ endpoints. Always use `HttpClient.get` with `responseType: 'blob'` -- create a t
 
 `AddressValidationProvider` is an abstract class used as the DI token (Angular cannot
 inject interfaces). `SmartyAddressProvider` is NOT decorated with `@Injectable`; it is
-instantiated by a `useFactory` in `app.config.ts`. The factory checks `environment.smartyKey`
-and falls back to `MockAddressProvider` when the key is absent. To swap vendors, replace the
+instantiated by a `useFactory` in `app.config.ts`. The factory checks `addressValidation.smartyKey`
+(exported from `src/environments/environment*.ts`) and falls back to `MockAddressProvider` when the
+key is empty. To swap vendors, replace the
 factory -- do not try to inject `SmartyAddressProvider` directly.
 
 ### AppointmentAddComponent -- FormGroup lives here only
 
-The reactive `FormGroup`, every cascade subscription, and every submit/validation call live
-exclusively in `AppointmentAddComponent`. The 7 section children
-(`appointment-add-*.component.ts`) are template-only: they receive `@Input() form: FormGroup`
-plus primitive inputs and render template controls. Sections own no form-building logic.
+The routed booking page is `appointments/wizard/appointment-wizard.component.ts`
+(`AppointmentWizardComponent`), which EXTENDS `AppointmentAddComponent`. The reactive
+`FormGroup`, every cascade subscription, and the submit call live in `AppointmentAddComponent`;
+the wizard adds only the stepper, per-step validation, drafts and the leave prompt. The nine
+section components in `appointments/sections/` render controls only: they receive the form (or a
+slice of state) as inputs and own no form-building logic or HTTP calls.
 
 ### AppLookupSelectComponent, performFullLogout, SsnInputComponent
 
@@ -72,18 +78,24 @@ requests after navigation.
 
 ## Notable single-component features
 
-**internal-users** (`InternalUsersFormComponent`) -- no abstract base. Branches on
-`currentTenant.id`: IT Admin gets an editable picker (GET `/api/app/internal-users/tenants`);
-tenant admin gets a disabled pre-filled dropdown. Use `form.getRawValue()` on submit --
-`form.value` silently drops disabled controls. Temporary password is never shown (emailed
-via Hangfire only). Role allow-list (`Intake Staff`, `Staff Supervisor`) mirrors backend
-`CreatableRoleNames`. After `form.reset()`, re-apply `disable()` when `tenantLocked()`.
+**users** (`InternalUsersHubComponent`, `users/internal-users-hub.component.ts`) -- one hub
+mounted at `/users/invite`, `/users/pending`, `/users/internal` and `/users/tenants`, each route
+gated by its own policy. It replaced `InternalUsersFormComponent` (`internal-users/`) and
+`InviteExternalUserComponent` (`external-users/`), which are still on disk but no route or
+component uses them.
 
-**external-users** (`InviteExternalUserComponent`) -- posts a tokenized invite; response
-`inviteUrl` is shown with a Copy button as SMTP fallback (do not remove it). `ExternalUserType`
-is NUMERIC (`Patient=1, ClaimExaminer=2, ApplicantAttorney=3, DefenseAttorney=4`). Dropdown
-order (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) differs from numeric
-order intentionally -- do not reorder. Permission: `CaseEvaluation.UserManagement.InviteExternalUser`.
+- **Creating staff:** the role allow-list (`CREATABLE_INTERNAL_ROLES` in `users/users-hub.util.ts`:
+  Staff Supervisor, Intake Staff) mirrors the backend `CreatableRoleNames`. Staff are HOST logins,
+  so the request carries no office: `InternalUsersAppService` creates the user at host level and
+  office access is granted later on `/host/intake-assignments`. The temporary password is never
+  shown; it is emailed.
+- **Inviting external users:** at host scope the invite requires a practice (office) choice; inside
+  an office the current office is used. The invite link can be copied from the result as a
+  fallback when mail does not arrive. When the email already has an account the server issues
+  nothing and says so. `ExternalUserType` is NUMERIC (`Patient=1, ClaimExaminer=2,
+ApplicantAttorney=3, DefenseAttorney=4`); the dropdown order in `INVITE_ROLE_OPTIONS`
+  (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) differs from the numeric order on
+  purpose -- do not reorder.
 
 ## Related
 

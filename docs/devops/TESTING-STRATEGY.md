@@ -1,8 +1,8 @@
 # Testing Strategy
 
-> Purpose: Describes the test projects, framework stack, data seeding approach, and test pyramid for the Patient Portal backend. Audience: developers.
+> Purpose: Describes the test projects, harnesses, data seeding approach, and test layers for the Patient Portal backend and frontend. Audience: developers.
 
-[Home](../INDEX.md) > [DevOps](./) > Testing Strategy
+[Home](../index.md) > [DevOps](./) > Testing Strategy
 
 > Backend test coverage: [docs/testing/coverage-status.md](../testing/coverage-status.md) names the
 > commands that report test counts and coverage. It deliberately stores no figures, so there is
@@ -12,7 +12,7 @@
 
 ## Test Projects
 
-The solution contains four test projects under the `test/` directory, plus a console-based E2E test app.
+The solution contains four test projects under the `test/` directory -- a shared base (`TestBase`) and three test suites -- plus a console-based E2E test app.
 
 ### 1. HealthcareSupport.CaseEvaluation.TestBase
 
@@ -21,7 +21,13 @@ The solution contains four test projects under the `test/` directory, plus a con
 Key classes:
 
 - **`CaseEvaluationTestBase<TStartupModule>`** -- Extends `AbpIntegratedTest<TStartupModule>`. Configures Autofac, loads `appsettings.json`, and provides `WithUnitOfWorkAsync()` helper methods for wrapping test logic in a unit of work.
-- **`CaseEvaluationTestDataBuilder`** -- Builds shared test data.
+- **`CaseEvaluationTestBaseModule`** -- Registers `AddAlwaysAllowAuthorization()`, so in every harness built on it
+  ABP's authorization interceptor always succeeds and an `[Authorize]` attribute cannot refuse a caller (#707). See
+  [Where authorization is tested](#where-authorization-is-tested).
+- **`Data/CaseEvaluationIntegrationTestSeedContributor`** -- The single seeder for integration tests (see
+  [Test Data Seeding](#test-data-seeding)); fixed ids live in the `Data/*TestData.cs` classes.
+- `CaseEvaluationTestDataBuilder.cs` holds only an empty `CaseEvaluationTestDataSeedContributor` stub from the ABP
+  template.
 - **`CaseEvaluationTestConsts`** -- Shared constants. Its `CollectionDefinitionName` (the old shared EF Core collection) is `[Obsolete(error: true)]`, kept only so a leftover `[Collection]` attribute fails to compile (#1034).
 - **`FakeCurrentPrincipalAccessor`** (in `Security/`) -- Provides a fake principal for testing authenticated scenarios.
 
@@ -31,7 +37,6 @@ Key classes:
 
 Key contents:
 
-- **`DoctorsDataSeedContributor`** -- Implements `IDataSeedContributor` to seed two test `Doctor` entities with known GUIDs (`63b171d1-...` and `b6d53903-...`). Uses `ISingletonDependency` to ensure seeding runs only once per test session.
 - **`SampleDomainTests`** -- Baseline domain service tests.
 - **`CaseEvaluationDomainTestModule`** -- Module configuration for domain test project.
 
@@ -39,11 +44,14 @@ Test patterns:
 
 - Validate Manager business rules (entity creation constraints, validation)
 - Verify domain entity behavior and invariants
-- Seed contributors provide consistent test data across all test layers
+- Pure rules (for example the booking and access predicates) are tested here directly, without a database
 
 ### 3. HealthcareSupport.CaseEvaluation.Application.Tests
 
-**Purpose:** Integration tests for application services (AppServices), testing through the full service layer including DTO mapping, permission checks, and repository integration.
+**Purpose:** Integration tests for application services, testing through the full service layer including DTO
+mapping and repository integration. Authorization is always allowed in this project, so a permission check here cannot
+fail; see [Where authorization is tested](#where-authorization-is-tested). The project references `HttpApi.Host` and
+`AuthServer`, which matters for one local gotcha (see [Running Tests](#running-tests)).
 
 Key contents:
 
@@ -53,8 +61,8 @@ Key contents:
   - `CreateAsync()` -- Creates a doctor and verifies persistence
   - `UpdateAsync()` -- Updates a doctor and verifies all fields changed
   - `DeleteAsync()` -- Deletes a doctor and verifies removal
-- **`BookAppService_Tests`** -- Application service tests for the Books sample.
 - **`SampleAppServiceTests`** -- Baseline application service tests.
+- One `*AppServiceTests` class (or folder) per feature, for example `Patients/`, `Appointments/`, `ExternalSignups/`.
 
 Test patterns:
 
@@ -68,13 +76,18 @@ Test patterns:
 
 Key contents:
 
-- **One database per test, classes in parallel (#1034).** Each test builds its own ABP application, and `CaseEvaluationEntityFrameworkCoreTestModule` opens a new in-memory SQLite connection for it. So the test classes carry no `[Collection]` attribute and xUnit runs them in parallel, one collection per class. Only the `MultiOffice` and `RealAuthorization` classes keep named collections, because their named shared-cache databases outlive a single test.
-- **`TestCollectionAllowlistTests`** -- Fails if any test class joins a collection other than those two. **`PerTestDatabaseIsolationTests`** proves at run time that each test has its own database. **`TestTenantIdentityTests`** proves the fixed test-tenant ids resolve in each test's own database.
+- **One database per test, classes in parallel (#1034).** Each test builds its own ABP application, and `CaseEvaluationEntityFrameworkCoreTestModule` opens a new in-memory SQLite connection for it. So the test classes carry no `[Collection]` attribute and xUnit runs them in parallel, one collection per class. Three named collections are allowed: `MultiOffice` and `RealAuthorization`, because their named shared-cache databases outlive a single test, and `SqlServerCollection`, which shares one SQL Server container (see [Tests on a real SQL Server](#tests-on-a-real-sql-server)).
+- **`TestCollectionAllowlistTests`** -- Fails if any test class joins a collection other than those three. **`PerTestDatabaseIsolationTests`** proves at run time that each test has its own database. **`TestTenantIdentityTests`** proves the fixed test-tenant ids resolve in each test's own database.
 - **`DoctorRepositoryTests`** -- Tests `IDoctorRepository` custom methods:
   - `GetListAsync()` -- Filters by firstName, lastName, email and verifies exact match
   - `GetCountAsync()` -- Filters and verifies count
 - **`EfCoreDoctorsAppServiceTests`** -- Runs the abstract `DoctorsAppServiceTests` against the EF Core module, testing the full stack from AppService through EF Core.
-- **`EfCoreBookAppService_Tests`** / **`EfCoreSampleAppServiceTests`** / **`EfCoreSampleDomainTests`** -- Run corresponding abstract tests against the EF Core infrastructure.
+- **`EfCoreSampleAppServiceTests`** / **`EfCoreSampleDomainTests`** -- Run corresponding abstract tests against the EF Core infrastructure.
+- **`MultiOffice/`** -- The multi-office harness (`CaseEvaluationMultiOfficeTestBase`, `CaseEvaluationMultiOfficeTestModule`):
+  a separate database per office, so tests can prove that one office's data is invisible from another. It includes a
+  self-validation test of the harness itself.
+- **`RealAuthorization/`** -- The real-authorization harness (`CaseEvaluationRealAuthorizationTestBase`). It does NOT
+  install the always-allow authorization, so this is where a permission check can actually refuse a caller.
 
 Test patterns:
 
@@ -103,20 +116,61 @@ Key contents:
 | Assertions | Shouldly |
 | DI container | Autofac (configured in `CaseEvaluationTestBase`) |
 | Data seeding | ABP `IDataSeedContributor` |
-| Collection fixtures | xUnit `ICollectionFixture<T>` |
+| Collections | None by default (classes run in parallel); only `MultiOffice`, `RealAuthorization` and `SqlServerCollection` use named collections |
 
 ---
 
 ## Test Data Seeding
 
-Test data is seeded via `DoctorsDataSeedContributor` in the Domain.Tests project. This contributor:
+Integration-test data is seeded by one contributor,
+`test/HealthcareSupport.CaseEvaluation.TestBase/Data/CaseEvaluationIntegrationTestSeedContributor.cs`. It is a single
+orchestrator on purpose: ABP does not guarantee the order of several contributors, and the data has a strict foreign-key
+chain. It seeds, in order: tenants (created through the same `ITenantManager` path production uses, then pinned to fixed
+ids), system parameters, identity users, states, appointment types, statuses and languages, WCAB offices, locations,
+doctor availabilities, doctors, patients, applicant attorneys and appointments.
 
-1. Implements `IDataSeedContributor` for ABP's automatic seeding pipeline
-2. Is registered as `ISingletonDependency` with an `IsSeeded` guard to run only once
-3. Inserts two `Doctor` entities with deterministic GUIDs and known field values
-4. Calls `SaveChangesAsync()` on the current unit of work
+Every fixed id a test may reference is in the `Data/*TestData.cs` classes (for example `TenantsTestData`,
+`PatientsTestData`, `AppointmentsTestData`). All synthetic.
 
-All test projects that reference Domain.Tests automatically receive this seeded data.
+## Where authorization is tested
+
+| Layer | Where | Proves |
+|-------|-------|--------|
+| Declaration | `Application.Tests/Authorization/` (`AuthorizationSurfaceSnapshotTests`, `AuthorizationSurfaceInvariantTests`) | The `[Authorize]` attributes on the application services have not changed or gone missing |
+| Grants | `Application.Tests/Authorization/RolePermissionSurfaceSnapshotTests` | Which seeded role holds which permission, and each permission's host or office side, have not changed |
+| Mechanism | `EntityFrameworkCore.Tests/RealAuthorization/` | A caller without the permission is actually refused, on the PHI-bearing surfaces |
+
+Everywhere else, `AddAlwaysAllowAuthorization()` makes permission attributes inert, so do not write a permission
+assertion in `Application.Tests` or the ordinary EF Core tests: it cannot fail.
+
+## Approved snapshots
+
+Some properties of the code are rendered into a text file, committed, and compared on every test run. A difference
+fails the test with every removed and added line, and writes a `*.received.txt` beside the approved file. If every
+line of the difference is intended, copy the received file over the approved one in the same pull request. The shared
+compare is `ApprovedSnapshot` in `TestBase/Snapshots/`.
+
+| Approved file | Test | What it pins |
+|---|---|---|
+| `Application.Tests/Authorization/authorization-surface.approved.txt` | `AuthorizationSurfaceSnapshotTests` | The permission each application-service method requires |
+| `Application.Tests/Authorization/role-permission-surface.approved.txt` | `RolePermissionSurfaceSnapshotTests` | Which seeded role holds which permission |
+| `Domain.Tests/Appointments/appointment-transitions.approved.txt` | `AppointmentTransitionSurfaceSnapshotTests` | The legal appointment status transitions |
+| `Domain.Tests/Repository/repository-counts.approved.txt` | `RepositoryCountsSurfaceSnapshotTests` | Repository-wide counts that documentation states |
+| `EntityFrameworkCore.Tests/EntityFrameworkCore/MultiTenancy/tenancy-surface.approved.txt` | `TenancySurfaceSnapshotTests` | Which entities are office-scoped and which DbContext maps each |
+
+List them with `git ls-files '*.approved.txt'`. A document can embed one that the script has a converter for as a table, between a
+`<!-- GENERATED: <name> BEGIN - do not edit by hand -->` marker and its `END` marker (see `APPOINTMENT-LIFECYCLE.md`); `python .claude/scripts/embed-generated-regions.py . --check`
+(run by `Docs: Structure Check`) fails when the two disagree, and the same script without `--check` rewrites them.
+
+## Tests on a real SQL Server
+
+Two classes run against a real SQL Server rather than SQLite: `CaseTrackerFeedSqlServerTests` (the Case Tracker feed
+reads `rowversion` and `MIN_ACTIVE_ROWVERSION()`, which SQLite cannot produce) and `SqlAppLockTests` (the SQL
+application lock the admin-password store uses). `SqlServerFeedFixture` starts one container from the image
+`docker-compose.yml` pins, and `SqlServerCollection` makes both classes share it and run one after the other.
+
+**Docker must be running** for these two classes. Without it they fail at fixture start-up; every other test is
+unaffected. CI's Linux runners have Docker, and the classes run in the ordinary `Backend: Test` shards.
 
 ---
 
@@ -147,6 +201,27 @@ cd test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests
 dotnet test
 ```
 
+### Local gotcha: the wrong `appsettings.json` in the EF Core test output
+
+`Application.Tests` references the `HttpApi.Host` and `AuthServer` projects, so their `appsettings.json` files can be
+copied into `test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/bin/Debug/net10.0/` and replace the
+TestBase one, depending on build order (a full-solution build, such as the pre-push hook, can cause it). The tests then
+read a real connection string, and a few EF Core tests fail locally while CI, which builds clean, stays green. If that
+happens: delete that `appsettings.json` from the bin folder, build only the EF Core test project, confirm the file is
+the small TestBase one, and run `dotnet test --no-build`.
+
+### Frontend (Angular)
+
+Karma and Jasmine, run headless:
+
+```bash
+cd angular
+npx ng test --watch=false --browsers=ChromeHeadless
+```
+
+On Windows, set `CHROME_BIN` to a Chrome or Edge executable first. Scope a run with
+`--include='**/<area>/**/*.spec.ts'`. CI runs the same suite with `--code-coverage` in `Frontend: Test`.
+
 ### Console Test App (E2E)
 
 ```bash
@@ -165,11 +240,11 @@ flowchart TB
     subgraph pyramid["Test Pyramid"]
         direction TB
         e2e["E2E / Manual\nHttpApi.Client.ConsoleTestApp\n(requires running services)"]
-        integration["Integration Tests\nApplication.Tests -- AppService CRUD, DTO mapping\nEntityFrameworkCore.Tests -- Repository queries, EF Core stack"]
-        unit["Unit / Domain Tests\nDomain.Tests -- Manager rules, entity logic, data seeding"]
+        integration["Integration Tests\nApplication.Tests -- AppService behaviour, DTO mapping\nEntityFrameworkCore.Tests -- repositories, office isolation, real authorization"]
+        unit["Unit / Domain Tests\nDomain.Tests -- Manager rules, entity logic, pure predicates"]
     end
 
-    unit -->|feeds data to| integration
+    unit -->|underpins| integration
     integration -->|verified by| e2e
 
     style unit fill:#e8f5e9
@@ -182,8 +257,9 @@ flowchart TB
 | Layer | Scope | Speed | Projects |
 |-------|-------|-------|----------|
 | **Unit (Domain)** | Manager validation, entity creation, business logic | Fast | Domain.Tests |
-| **Integration (Application)** | AppService CRUD, permission checks, DTO mapping | Medium | Application.Tests |
-| **Integration (EF Core)** | Repository queries, filtering, navigation properties, full stack | Medium | EntityFrameworkCore.Tests |
+| **Integration (Application)** | AppService behaviour and DTO mapping (authorization always allowed) | Medium | Application.Tests |
+| **Integration (EF Core)** | Repository queries, full stack, office isolation (`MultiOffice`), real authorization (`RealAuthorization`) | Medium | EntityFrameworkCore.Tests |
+| **Frontend** | Component and service specs (Karma + Jasmine) | Fast | `angular/` |
 | **E2E (Manual)** | HTTP API Client against running services | Slow | HttpApi.Client.ConsoleTestApp |
 
 ---

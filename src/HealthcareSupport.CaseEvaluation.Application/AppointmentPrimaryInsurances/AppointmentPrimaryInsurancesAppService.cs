@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
@@ -21,15 +22,18 @@ public class AppointmentPrimaryInsurancesAppService : CaseEvaluationAppService, 
     protected IRepository<AppointmentPrimaryInsurance, Guid> _repository;
     protected AppointmentPrimaryInsuranceManager _manager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
+    protected AppointmentChildOwnershipGuard _childOwnershipGuard;
 
     public AppointmentPrimaryInsurancesAppService(
         IRepository<AppointmentPrimaryInsurance, Guid> repository,
         AppointmentPrimaryInsuranceManager manager,
-        IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository)
+        IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository,
+        AppointmentChildOwnershipGuard childOwnershipGuard)
     {
         _repository = repository;
         _manager = manager;
         _stateRepository = stateRepository;
+        _childOwnershipGuard = childOwnershipGuard;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default)]
@@ -79,6 +83,13 @@ public class AppointmentPrimaryInsurancesAppService : CaseEvaluationAppService, 
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+        // The caller must be a party to the appointment the new row hangs off. The external booking roles
+        // hold this service's Create permission, so the permission alone ties the caller to no appointment.
+        // Booking still passes: AppointmentsAppService.SubmitAsync flushes the new appointment, stamping its
+        // CreatorId, before AppointmentChildGroupWriter writes any child group, so the booker passes as its
+        // creator (AccessPathway.Creator; see AppointmentChildOwnershipGuard.EnsureIsPartyAsync for why that is permanent).
+        // Checked FIRST, before any other lookup, so a non-party is refused the same way whatever they send.
+        await _childOwnershipGuard.EnsureIsPartyAsync(input.AppointmentId);
         var entity = await _manager.CreateAsync(
             input.AppointmentId,
             input.IsActive,
@@ -100,6 +111,13 @@ public class AppointmentPrimaryInsurancesAppService : CaseEvaluationAppService, 
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
+        // The caller must be a party to the row's OWN parent, and may not move the row to a
+        // different one. The parent is read from the stored row, never from the request: checking
+        // the supplied id would let a caller nominate an appointment they are a party to and still
+        // write to somebody else's row. Every external role holds this service's Edit permission.
+        var existingChild = await _repository.GetAsync(id);
+        await _childOwnershipGuard.EnsureCanWriteChildAsync(existingChild.AppointmentId, input.AppointmentId);
+
         var entity = await _manager.UpdateAsync(
             id,
             input.AppointmentId,

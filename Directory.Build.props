@@ -26,9 +26,20 @@
     <!--
       NuGet lock files: committing packages.lock.json per project lets
       actions/dependency-review-action scan transitive NuGet dependencies on
-      every PR. RestoreLockedMode stays false locally so day-to-day package
-      tweaks do not fail restore; CI can opt in via the dotnet restore flag
-      for locked mode when we want strict reproducibility.
+      every PR, so the lock files must match the project files exactly.
+
+      RestoreLockedMode stays false HERE so that one restore on the host can
+      rewrite the lock files after a package change. Every other restore passes
+      the dotnet restore flag for locked mode and fails with NU1004 on a stale
+      lock file: CI, every Docker image build, the dev containers on each start
+      (docker/dev-restore-run.sh) and new worktrees (add-worktree.sh).
+
+      So after adding, removing or changing a package, run dotnet restore on
+      the host with its force-evaluate option, then restart the dev containers,
+      and commit the changed lock files with the package change. The exact
+      command is in docs/runbooks/DOCKER-DEV.md, "Change a NuGet package".
+      (An XML comment may not contain two hyphens in a row, which is why the
+      command itself is not written out here: doing so breaks this file.)
     -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>

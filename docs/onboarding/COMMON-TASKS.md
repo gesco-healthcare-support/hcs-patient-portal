@@ -2,11 +2,11 @@
 
 > Purpose: Step-by-step recipes for the most frequent development tasks. Audience: engineers adding features or running migrations.
 
-[Home](../INDEX.md) > [Onboarding](./) > Common Tasks
+[Home](../index.md) > [Onboarding](./) > Common Tasks
 
 ---
 
-This guide walks through the most common development tasks in the Appointment Portal. Every example uses real file paths and code patterns from this codebase. When in doubt, trace the Appointments feature end-to-end -- it's the reference implementation (see `angular/src/app/appointment/` for Angular and `src/HealthcareSupport.CaseEvaluation.Application/Appointments/` for the AppService).
+This guide walks through the most common development tasks in the Appointment Portal. Every example uses real file paths and code patterns from this codebase. When in doubt, trace the Appointments feature end-to-end -- it's the reference implementation (see `angular/src/app/appointments/` for Angular and `src/HealthcareSupport.CaseEvaluation.Application/Appointments/` for the AppService).
 
 ## How to Add a New Entity
 
@@ -42,19 +42,24 @@ If the entity has a status or type enum, create it in `Domain.Shared/Enums/`.
 Create the entity in `src/HealthcareSupport.CaseEvaluation.Domain/{Feature}/{Entity}.cs`:
 
 ```csharp
-// Real pattern from src/.../Domain/States/State.cs
-public class State : FullAuditedAggregateRoot<Guid>
+// Real pattern from src/.../Domain/States/State.cs (abridged)
+public class State : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    public virtual Guid? TenantId { get; protected set; }
+
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
+
+    public virtual bool IsSystem { get; set; }
 
     protected State() { }
 
-    public State(Guid id, string name)
+    public State(Guid id, string name, bool isSystem = false)
     {
         Id = id;
         Check.NotNull(name, nameof(name));
         Name = name;
+        IsSystem = isSystem;
     }
 }
 ```
@@ -62,8 +67,10 @@ public class State : FullAuditedAggregateRoot<Guid>
 **Key decisions:**
 
 - `FullAuditedAggregateRoot<Guid>` -- soft delete + audit fields (most entities use this)
-- Add `IMultiTenant` if the entity should be tenant-scoped (see [Multi-Tenancy](../architecture/MULTI-TENANCY.md))
-- Host-scoped lookups (State, Location, AppointmentType) do NOT implement `IMultiTenant`
+- **Implement `IMultiTenant` for anything an office owns, which is almost everything.** Each office has its
+  own database, so even reference lists (State, Location, AppointmentType, languages, WCAB offices) are
+  office-scoped and seeded into every office database. Only two entities are host-only
+  (`OfficeBranding`, `IntakeOfficeAssignment`). See [Multi-Tenancy](../architecture/MULTI-TENANCY.md).
 
 Create the domain manager in `src/.../Domain/{Feature}/{Entity}Manager.cs` if business rules exist. Even simple entities have managers in this project.
 
@@ -116,17 +123,24 @@ public partial class EntityToEntityDtoMappers : MapperBase<Entity, EntityDto>
 
 ### Layer 5: EntityFrameworkCore (DbContext, repository, migration)
 
-Configure the entity in `CaseEvaluationDbContext.cs`. If host-scoped, wrap in `if (builder.IsHostDatabase())`. If tenant-scoped, also configure in `CaseEvaluationTenantDbContext.cs`.
+There are two DbContexts -- `CaseEvaluationDbContext` (host database) and `CaseEvaluationTenantDbContext`
+(office databases) -- and two migration sets.
+
+- Map the entity in `EntityFrameworkCore/EntityFrameworkCore/CaseEvaluationSharedModelConfiguration.cs`; both
+  contexts apply it through `builder.ConfigureCaseEvaluationShared()`. Declare its `DbSet<>` in both contexts.
+- Only a host-only entity goes inside the `if (builder.IsHostDatabase())` block of `CaseEvaluationDbContext`.
 
 Create the EF Core repository in `src/.../EntityFrameworkCore/{Feature}/EfCore{Entity}Repository.cs`.
 
-Create a migration:
+Create the migration in **both** sets, from `src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore`. Skipping
+the tenant set leaves every office database without the table:
 
 ```bash
-dotnet ef migrations add Add{Entity} \
-  --project src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore \
-  --startup-project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+dotnet ef migrations add Add{Entity} -c CaseEvaluationDbContext -o Migrations
+dotnet ef migrations add Add{Entity} -c CaseEvaluationTenantDbContext -o TenantMigrations
 ```
+
+See [Migration Guide](../database/MIGRATION-GUIDE.md) for the host-only case.
 
 ### Layer 6: HttpApi (controller)
 
@@ -157,14 +171,16 @@ public class YourEntityController : AbpController, IYourEntitiesAppService
 
 ### Layer 7: Angular (regenerate proxies, create UI)
 
+With `HttpApi.Host` running (the generator reads its `/api/abp/api-definition` endpoint):
+
 ```bash
 cd angular
-abp generate-proxy
+abp generate-proxy -t ng
 ```
 
 This regenerates the TypeScript proxy files in `angular/src/app/proxy/`. **Never edit proxy files manually.**
 
-Create your Angular components following the abstract/concrete pattern in `angular/src/app/{feature-kebab}/`.
+Create your Angular components as custom standalone components in `angular/src/app/{feature-kebab}/`. Only the Doctors list still uses the ABP Suite abstract/concrete pair (see [Component Patterns](../frontend/COMPONENT-PATTERNS.md)).
 
 ## How to Add a Field to an Existing Entity
 
@@ -174,20 +190,19 @@ Create your Angular components following the abstract/concrete pattern in `angul
 4. Update the AppService to pass the new field
 5. If the field needs a max length: add to `{Entity}Consts.cs` and `[StringLength]` on DTOs
 6. Configure in DbContext if needed (max length, required, index)
-7. Create a migration: `dotnet ef migrations add Add{Field}To{Entity} --project src/...EntityFrameworkCore --startup-project src/...HttpApi.Host`
+7. Create the migration in both sets (see [How to Run Database Migrations](#how-to-run-database-migrations))
 8. Update the controller if the method signature changed
-9. Regenerate Angular proxies: `cd angular && abp generate-proxy`
+9. Regenerate Angular proxies, with `HttpApi.Host` running: `cd angular && abp generate-proxy -t ng`
 10. Update the Angular form template
 
 ## How to Run Database Migrations
 
 ```bash
-# Create a new migration
-dotnet ef migrations add <MigrationName> \
-  --project src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore \
-  --startup-project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+# From src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore -- an entity in both contexts needs both
+dotnet ef migrations add <MigrationName> -c CaseEvaluationDbContext -o Migrations
+dotnet ef migrations add <MigrationName> -c CaseEvaluationTenantDbContext -o TenantMigrations
 
-# Apply migrations (run the DbMigrator)
+# Apply migrations to the host and every office database (run the DbMigrator from the repo root)
 dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 ```
 
@@ -208,19 +223,20 @@ dotnet test test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests
 # Single test method
 dotnet test --filter "FullyQualifiedName~DoctorsAppServiceTests.GetListAsync"
 
-# Angular tests
-cd angular && npm test
+# Angular tests (the project is pinned to Yarn 4)
+cd angular && npx ng test --watch=false --browsers=ChromeHeadless
 ```
 
 To add tests for a new feature, see [Testing Strategy](../devops/TESTING-STRATEGY.md) for the base class chain and seed contributor pattern.
 
 ## How to Regenerate Angular Proxies
 
-After ANY backend API change (new endpoint, changed DTO, renamed method):
+After ANY backend API change (new endpoint, changed DTO, renamed method), start `HttpApi.Host` (the generator
+reads its `/api/abp/api-definition` endpoint), then:
 
 ```bash
 cd angular
-abp generate-proxy
+abp generate-proxy -t ng
 ```
 
 This updates files in `angular/src/app/proxy/`. Never edit these files manually -- your changes will be overwritten on the next proxy generation.
@@ -245,15 +261,15 @@ Use in Angular: `{{ '::Menu:YourFeature' | abpLocalization }}`
 | Task | Command |
 |------|---------|
 | Restore .NET packages | `dotnet restore` |
-| Install Angular deps | `cd angular && npm install` |
+| Install Angular deps | `cd angular && yarn install` |
 | Start SQL Server | Docker: `docker start sql-server` / LocalDB: `sqllocaldb start MSSQLLocalDB` |
 | Run AuthServer | `dotnet run --project src/...AuthServer` |
 | Run API Host | `dotnet run --project src/...HttpApi.Host` |
 | Build Angular | `cd angular && npx ng build --configuration development` |
 | Serve Angular | `npx serve -s dist/CaseEvaluation/browser -p 4200` |
-| Add migration | `dotnet ef migrations add <Name> --project src/...EntityFrameworkCore --startup-project src/...HttpApi.Host` |
+| Add migration (both sets) | from `src/...EntityFrameworkCore`: `dotnet ef migrations add <Name> -c CaseEvaluationDbContext -o Migrations`, then the same with `-c CaseEvaluationTenantDbContext -o TenantMigrations` |
 | Apply migrations | `dotnet run --project src/...DbMigrator` |
-| Regenerate proxies | `cd angular && abp generate-proxy` |
+| Regenerate proxies | `cd angular && abp generate-proxy -t ng` (API running) |
 | Run all tests | `dotnet test` |
 
 ---
@@ -264,4 +280,4 @@ Use in Angular: `{{ '::Menu:YourFeature' | abpLocalization }}`
 - [Development Setup](../runbooks/DOCKER-DEV.md) -- detailed environment configuration
 - [DDD Layers](../architecture/OVERVIEW.md) -- understanding the layer structure
 - [ABP Framework](../architecture/ABP-FRAMEWORK.md) -- ABP-specific patterns and conventions
-- [Appointments AppService](../../src/HealthcareSupport.CaseEvaluation.Application/Appointments/) -- Appointments traced end-to-end (reference implementation)
+- [Appointments AppService](https://github.com/gesco-healthcare-support/hcs-patient-portal/tree/main/src/HealthcareSupport.CaseEvaluation.Application/Appointments/) -- Appointments traced end-to-end (reference implementation)

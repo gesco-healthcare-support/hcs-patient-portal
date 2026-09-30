@@ -2,7 +2,7 @@
 """Create the GitHub Issues backlog from the repository's existing trackers.
 
 This repository tracked work in four places that a clone could not fully see:
-`docs/runbooks/findings/bugs/` (git-tracked), `docs/production-hardening/`
+`docs/findings/bugs/` (git-tracked), `docs/production-hardening/`
 (git-tracked), `docs/backlog.md` (gitignored, so invisible to anyone else) and
 a stale roadmap. With a second developer onboarding, that fragmentation stopped
 working. This script moves the open items into GitHub Issues, which becomes the
@@ -23,7 +23,7 @@ practice: review it first.
 
 Sources and deliberate exclusions
 ---------------------------------
-finding    Every file in docs/runbooks/findings/bugs/ whose `status:` starts
+finding    Every file in docs/findings/bugs/ whose `status:` starts
            with "open". The ~48 closed findings stay as history in git.
 hardening  Numbered items in phases 4 onward only. Phases 1 and 2 are complete
            or in flight and phase 3 starts now, all owned by the hardening
@@ -118,7 +118,7 @@ LABELS = [
     (TYPE_OBSERVATION, "c2e0c6", "Observation from a test or review pass"),
     (TYPE_HARDENING, "5319e7", "Production-hardening programme item"),
     (TYPE_SWEEP, "0e8a16", "Static-analysis batch scoped to one directory tree"),
-    (SRC_FINDING, "ededed", "Imported from docs/runbooks/findings/bugs/"),
+    (SRC_FINDING, "ededed", "Imported from docs/findings/bugs/"),
     (SRC_HARDENING, "ededed", "Imported from docs/production-hardening/"),
     (SRC_BACKLOG, "ededed", "Imported from docs/backlog.md"),
     (SRC_SWEEP, "ededed", "Generated from Sonar / CodeQL by directory"),
@@ -199,7 +199,7 @@ def severity_of(raw: str) -> str:
 def collect_findings() -> list[dict]:
     """One issue per open finding file."""
     issues = []
-    for path in sorted((ROOT / "docs/runbooks/findings/bugs").glob("*.md")):
+    for path in sorted((ROOT / "docs/findings/bugs").glob("*.md")):
         fm = frontmatter(path)
         if not fm.get("status", "").lower().startswith("open"):
             continue
@@ -511,7 +511,7 @@ def already_created() -> dict[str, str]:
     if not MAP.exists():
         return {}
     rows = MAP.read_text(encoding="utf-8").splitlines()
-    return {name: value for name, value in (r.split("\t", 1) for r in rows if "\t" in r)}
+    return dict(r.split("\t", 1) for r in rows if "\t" in r)
 
 
 def dry_run() -> None:

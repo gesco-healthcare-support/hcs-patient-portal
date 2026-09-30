@@ -5,7 +5,7 @@
 > Authority: `AppointmentManager.BuildMachine` is the only place transitions are declared.
 > Read it if this page and the code disagree, and then fix this page.
 
-[Home](../INDEX.md) > [Business Domain](./) > Appointment Lifecycle
+[Home](../index.md) > [Business Domain](./) > Appointment Lifecycle
 
 ## How to read this page
 
@@ -20,6 +20,21 @@ members for months.
 **Three of the fifteen statuses are unreachable.** That is not a documentation caveat, it is
 the single most important fact on this page, so it comes before the tables.
 
+## Where this portal's responsibility ends
+
+**The Appointment Portal owns the request and the decision. The Case Tracker owns what happens
+afterwards.** Confirmed by the product owner on 2026-09-28.
+
+Concretely, this portal handles exactly five things: an appointment is **requested**, then
+**approved** or **rejected**, and thereafter **rescheduled** or **cancelled**. Once an
+appointment is approved it is handed to the Case Tracker, and the rest of the process -- the
+day of the exam, the outcome, and billing -- is the Case Tracker's responsibility.
+
+**This portal does not do billing, and is not going to.** Billing is handled elsewhere today and
+will move either to the Case Tracker or to a new application, but not here. Do not build it in.
+
+That boundary is the reason for the next section.
+
 ## The three dead statuses
 
 `CheckedIn` (9), `CheckedOut` (10) and `Billed` (11) **cannot be reached.** Their transitions
@@ -27,8 +42,18 @@ are configured in `BuildMachine`, but nothing anywhere triggers `CheckIn`, `Chec
 `Bill`: no application-service method, no endpoint, no UI control, no background job. Verified
 2026-09-16 and re-verified 2026-09-27.
 
-They are the legacy app's front-desk, day-of-exam flow, carried across and never wired up.
-Retained for data compatibility and pending a product decision. Tracked as PF-005 in
+They are the legacy app's front-desk, day-of-exam flow. They were planned for this portal, and
+then that responsibility moved to the Case Tracker, which is where it now lives. So they are not
+unfinished work and not a gap: **they are three states this application is not supposed to have.**
+
+**This is a settled product decision, not an open question.** An earlier version of this page
+said they were retained "pending a product decision"; the product owner settled it on 2026-09-28.
+They are removal candidates. Removing them is a schema and data-compatibility exercise rather
+than a behaviour change, since no row can be in one of these states, and it should be planned
+rather than done casually: the enum values are persisted as integers, and
+`AppointmentStatusType` warns that renumbering would silently relabel stored rows.
+
+Until they are removed, treat any code that references them as dead. Tracked as PF-005 in
 `docs/parity/_parity-flags.md`.
 
 Consequences a maintainer will otherwise trip over:
@@ -70,27 +95,74 @@ Values are persisted as integers, so **renumbering would silently relabel stored
 
 ## The transitions, exactly as configured
 
-Every transition in the system. Anything not in this table is not permitted and will throw.
+Every transition made through the state machine; the machine refuses anything not in this table with an
+invalid-transition error. One path sets the status directly instead of going through the machine: approving a
+cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) writes `CancelledNoBill` or
+`CancelledLate` onto the appointment, the same two outcomes this table lists from `CancellationRequested`.
+
+<!-- GENERATED: appointment-transitions BEGIN - do not edit by hand -->
+**Transitions the machine permits**
 
 | From | Trigger | To |
 | --- | --- | --- |
-| Pending | Approve | Approved |
-| Pending | Reject | Rejected |
-| Pending | SendBack | InfoRequested |
-| Pending | ConfirmReschedule | RescheduledNoBill |
-| Pending | ConfirmRescheduleLate | RescheduledLate |
-| InfoRequested | SaveAndResubmit | Pending |
-| Approved | RequestCancellation | CancellationRequested |
-| Approved | RequestReschedule | RescheduleRequested |
-| Approved | MarkNoShow | NoShow |
-| Approved | MarkNotSeen | NotSeen |
-| Approved | CheckIn | CheckedIn (**dead**) |
-| CancellationRequested | ConfirmCancellation | CancelledNoBill |
-| CancellationRequested | ConfirmCancellationLate | CancelledLate |
-| RescheduleRequested | ConfirmReschedule | RescheduledNoBill |
-| RescheduleRequested | ConfirmRescheduleLate | RescheduledLate |
-| CheckedIn | CheckOut | CheckedOut (**dead**) |
-| CheckedOut | Bill | Billed (**dead**) |
+| Pending(1) | Approve(1) | Approved(2) |
+| Pending(1) | Reject(2) | Rejected(3) |
+| Pending(1) | SendBack(3) | InfoRequested(14) |
+| Pending(1) | ConfirmReschedule(9) | RescheduledNoBill(7) |
+| Pending(1) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| Approved(2) | RequestCancellation(5) | CancellationRequested(13) |
+| Approved(2) | RequestReschedule(6) | RescheduleRequested(12) |
+| Approved(2) | MarkNoShow(11) | NoShow(4) |
+| Approved(2) | CheckIn(12) | CheckedIn(9) |
+| Approved(2) | MarkNotSeen(15) | NotSeen(15) |
+| CheckedIn(9) | CheckOut(13) | CheckedOut(10) |
+| CheckedOut(10) | Bill(14) | Billed(11) |
+| RescheduleRequested(12) | ConfirmReschedule(9) | RescheduledNoBill(7) |
+| RescheduleRequested(12) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| CancellationRequested(13) | ConfirmCancellation(7) | CancelledNoBill(5) |
+| CancellationRequested(13) | ConfirmCancellationLate(8) | CancelledLate(6) |
+| InfoRequested(14) | SaveAndResubmit(4) | Pending(1) |
+
+**Outgoing transitions per status**
+
+| Status | Outgoing |
+| --- | --- |
+| Pending(1) | 5 |
+| Approved(2) | 5 |
+| Rejected(3) | 0 |
+| NoShow(4) | 0 |
+| CancelledNoBill(5) | 0 |
+| CancelledLate(6) | 0 |
+| RescheduledNoBill(7) | 0 |
+| RescheduledLate(8) | 0 |
+| CheckedIn(9) | 1 |
+| CheckedOut(10) | 1 |
+| Billed(11) | 0 |
+| RescheduleRequested(12) | 2 |
+| CancellationRequested(13) | 2 |
+| InfoRequested(14) | 1 |
+| NotSeen(15) | 0 |
+
+**Transitions per trigger**
+
+| Trigger | Used by |
+| --- | --- |
+| Approve(1) | 1 |
+| Reject(2) | 1 |
+| SendBack(3) | 1 |
+| SaveAndResubmit(4) | 1 |
+| RequestCancellation(5) | 1 |
+| RequestReschedule(6) | 1 |
+| ConfirmCancellation(7) | 1 |
+| ConfirmCancellationLate(8) | 1 |
+| ConfirmReschedule(9) | 2 |
+| ConfirmRescheduleLate(10) | 2 |
+| MarkNoShow(11) | 1 |
+| CheckIn(12) | 1 |
+| CheckOut(13) | 1 |
+| Bill(14) | 1 |
+| MarkNotSeen(15) | 1 |
+<!-- GENERATED: appointment-transitions END -->
 
 ```mermaid
 stateDiagram-v2
@@ -125,8 +197,16 @@ stateDiagram-v2
 ```
 
 The dead `Approved -> CheckedIn -> CheckedOut -> Billed` chain is deliberately omitted from the
-diagram so it cannot be mistaken for a path an appointment travels. It is in the table above,
-marked, and in the code.
+diagram so it cannot be mistaken for a path an appointment travels. It **is** in the generated
+table above, and in the code.
+
+It is **not marked** as dead there, and that is a property of the generator rather than an
+oversight: the snapshot records the machine's own configuration and deliberately renders no
+"dead", "terminal" or "happy path" verdict, because a verdict is a derivation and a wrong
+derivation does not look wrong. Which transitions are unreachable is explained in prose under
+"The three dead statuses" above, where a human maintains it and can be argued with.
+
+The table therefore tells you what the machine permits. It does not tell you what anyone uses.
 
 ## Things the table does not tell you
 
@@ -174,8 +254,14 @@ office's notice window, which is configurable per office via `SystemParameter`
 | --- | --- |
 | `CancelledNoBill`, `RescheduledNoBill` | No charge for the affected appointment |
 | `CancelledLate`, `RescheduledLate` | May incur a late fee |
-| `NoShow`, `NotSeen` | May incur a fee depending on office rules; neither produces a replacement appointment |
-| `Billed` | Unreachable. The portal does not bill |
+| `NoShow`, `NotSeen` | Billed the same as each other. Neither produces a replacement appointment |
+| `Billed` | Unreachable, and deliberately so. See the responsibility boundary above |
+
+**These names record a billing consequence; they do not perform one.** The portal stores which
+side of the notice window an outcome fell, and something else acts on it. `NoShow` and `NotSeen`
+are billed identically, so the distinction between them is not a billing distinction: it exists
+for **reporting and for the conversation with the client**, because "the patient never arrived"
+and "the patient arrived and was not evaluated" are different facts about the same non-outcome.
 
 Neither attendance outcome produces a replacement appointment automatically: a client who still
 wants one submits a new request, or staff use ReBook.
