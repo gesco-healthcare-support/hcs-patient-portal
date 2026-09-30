@@ -130,15 +130,12 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
                     (zip != null && x.ZipCode == zip ? 1 : 0)
             });
 
-        var best = await query
+        return await query
             .Where(c => c.MatchCount >= PatientMatching.MinMatchCount)
             .OrderByDescending(c => c.MatchCount)
             .ThenBy(c => c.CreationTime)
+            .Select(c => new PatientMatchCandidate(c.Id, c.MatchCount, c.CreationTime))
             .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
-
-        return best is null
-            ? null
-            : new PatientMatchCandidate(best.Id, best.MatchCount, best.CreationTime);
     }
 
     public virtual async Task<List<Patient>> GetDeduplicationCandidatesAsync(

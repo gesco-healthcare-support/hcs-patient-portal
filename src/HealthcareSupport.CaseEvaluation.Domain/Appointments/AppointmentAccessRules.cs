@@ -77,31 +77,12 @@ public static class AppointmentAccessRules
 
         var userId = callerUserId.Value;
 
-        if (appointmentCreatorId.HasValue && appointmentCreatorId.Value == userId)
+        var namedParty = MatchNamedParty(
+            userId, callerEmail, appointmentCreatorId, patientIdentityUserId,
+            applicantAttorneyIdentityUserIds, defenseAttorneyIdentityUserIds, claimExaminerEmails);
+        if (namedParty.HasValue)
         {
-            return (true, AccessPathway.Creator);
-        }
-        if (patientIdentityUserId.HasValue && patientIdentityUserId.Value == userId)
-        {
-            return (true, AccessPathway.Patient);
-        }
-        if (applicantAttorneyIdentityUserIds != null
-            && applicantAttorneyIdentityUserIds.Any(id => id == userId))
-        {
-            return (true, AccessPathway.ApplicantAttorney);
-        }
-        if (defenseAttorneyIdentityUserIds != null
-            && defenseAttorneyIdentityUserIds.Any(id => id == userId))
-        {
-            return (true, AccessPathway.DefenseAttorney);
-        }
-        if (!string.IsNullOrWhiteSpace(callerEmail)
-            && claimExaminerEmails != null
-            && claimExaminerEmails.Any(e =>
-                !string.IsNullOrWhiteSpace(e)
-                && string.Equals(e.Trim(), callerEmail.Trim(), StringComparison.OrdinalIgnoreCase)))
-        {
-            return (true, AccessPathway.ClaimExaminer);
+            return (true, namedParty.Value);
         }
         if (accessorEntries != null
             && accessorEntries.Any(a => a.IdentityUserId == userId))
@@ -167,31 +148,12 @@ public static class AppointmentAccessRules
 
         var userId = callerUserId.Value;
 
-        if (appointmentCreatorId.HasValue && appointmentCreatorId.Value == userId)
+        var namedParty = MatchNamedParty(
+            userId, callerEmail, appointmentCreatorId, patientIdentityUserId,
+            applicantAttorneyIdentityUserIds, defenseAttorneyIdentityUserIds, claimExaminerEmails);
+        if (namedParty.HasValue)
         {
-            return (true, AccessPathway.Creator);
-        }
-        if (patientIdentityUserId.HasValue && patientIdentityUserId.Value == userId)
-        {
-            return (true, AccessPathway.Patient);
-        }
-        if (applicantAttorneyIdentityUserIds != null
-            && applicantAttorneyIdentityUserIds.Any(id => id == userId))
-        {
-            return (true, AccessPathway.ApplicantAttorney);
-        }
-        if (defenseAttorneyIdentityUserIds != null
-            && defenseAttorneyIdentityUserIds.Any(id => id == userId))
-        {
-            return (true, AccessPathway.DefenseAttorney);
-        }
-        if (!string.IsNullOrWhiteSpace(callerEmail)
-            && claimExaminerEmails != null
-            && claimExaminerEmails.Any(e =>
-                !string.IsNullOrWhiteSpace(e)
-                && string.Equals(e.Trim(), callerEmail.Trim(), StringComparison.OrdinalIgnoreCase)))
-        {
-            return (true, AccessPathway.ClaimExaminer);
+            return (true, namedParty.Value);
         }
         if (accessorEntries != null
             && accessorEntries.Any(a => a.IdentityUserId == userId
@@ -200,6 +162,51 @@ public static class AppointmentAccessRules
             return (true, AccessPathway.AppointmentAccessor);
         }
         return (false, null);
+    }
+
+    /// <summary>
+    /// Pathways 2 to 6, the parties named on the appointment: creator, patient, applicant
+    /// attorney, defense attorney, claim examiner, checked in that order with the first match
+    /// winning. Shared by the read and the edit gate so the two cannot drift apart: they differ
+    /// only in the accessor pathway, which each gate applies itself. Null when the caller is
+    /// none of these parties.
+    /// </summary>
+    private static AccessPathway? MatchNamedParty(
+        Guid userId,
+        string? callerEmail,
+        Guid? appointmentCreatorId,
+        Guid? patientIdentityUserId,
+        IEnumerable<Guid>? applicantAttorneyIdentityUserIds,
+        IEnumerable<Guid>? defenseAttorneyIdentityUserIds,
+        IEnumerable<string>? claimExaminerEmails)
+    {
+        if (appointmentCreatorId.HasValue && appointmentCreatorId.Value == userId)
+        {
+            return AccessPathway.Creator;
+        }
+        if (patientIdentityUserId.HasValue && patientIdentityUserId.Value == userId)
+        {
+            return AccessPathway.Patient;
+        }
+        if (applicantAttorneyIdentityUserIds != null
+            && applicantAttorneyIdentityUserIds.Any(id => id == userId))
+        {
+            return AccessPathway.ApplicantAttorney;
+        }
+        if (defenseAttorneyIdentityUserIds != null
+            && defenseAttorneyIdentityUserIds.Any(id => id == userId))
+        {
+            return AccessPathway.DefenseAttorney;
+        }
+        if (!string.IsNullOrWhiteSpace(callerEmail)
+            && claimExaminerEmails != null
+            && claimExaminerEmails.Any(e =>
+                !string.IsNullOrWhiteSpace(e)
+                && string.Equals(e.Trim(), callerEmail.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return AccessPathway.ClaimExaminer;
+        }
+        return null;
     }
 
     /// <summary>

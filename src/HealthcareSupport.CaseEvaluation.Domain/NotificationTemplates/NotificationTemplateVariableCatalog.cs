@@ -80,16 +80,8 @@ public static class NotificationTemplateVariableCatalog
     {
         var defaults = NotificationTemplateSeedDefaults.GetSeedDefaults(code);
 
-        var result = new List<string>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var token in CollectTokens(defaults))
-        {
-            if (seen.Add(token))
-            {
-                result.Add(token);
-            }
-        }
-        return result;
+        // Distinct yields each token at its first occurrence, so the catalog keeps template order.
+        return CollectTokens(defaults).Distinct(StringComparer.Ordinal).ToList();
     }
 
     /// <summary>
