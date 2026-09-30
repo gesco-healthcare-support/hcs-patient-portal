@@ -820,11 +820,12 @@ and quality programme. Status lives in the issue only, so the two cannot disagre
 
 Engineering work still open (summary; the issues carry the detail):
 
-- Raise the absolute coverage floors as coverage grows. `ci.yml`'s `Coverage: Floors`
-  job now sets them from measured figures (backend 73 against 73.6% measured,
-  frontend 20 against 21.0%), so they are deliberately loose; the sensitive control
-  is the changed-lines floor, not these. Codecov is not being wired up; SonarCloud
-  plus that check cover it.
+- Keep coverage above the floors as the codebase grows. `ci.yml`'s
+  `Coverage: Floors` job enforces `FLOOR_BACKEND` 85, `FLOOR_FRONTEND` 90 and
+  `FLOOR_PYTHON` 90 on total line coverage, plus `FLOOR_CHANGED` 80 on the lines
+  each pull request touches. The absolute floors are backstops against slow
+  erosion; the changed-lines floor is the per-PR control. Codecov is not being
+  wired up; SonarCloud plus that check cover it.
 - Some dependency upgrades are gated on upstream ABP Commercial releases rather
   than on work in this repository.
 - Polish of the auto-PR workflow and expansion of the disabled
