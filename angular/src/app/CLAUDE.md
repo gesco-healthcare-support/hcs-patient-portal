@@ -15,13 +15,15 @@ For `shared/` sub-tree detail, see `angular/src/app/shared/CLAUDE.md`.
 - `app.component.ts` -- root standalone component
 - `app.config.ts` -- app-wide providers (auth, HTTP interceptors, locale, address DI)
 - `app.routes.ts` -- top-level lazy route tree
-- `route.provider.ts` -- lazy-loaded feature route registration
+- `route.provider.ts` -- ABP menu registration for Home, Dashboard, User Management, Change Logs and Reports
 
 ## Conventions
 
-**Standalone components only.** No NgModules. Components declare their own imports;
-features register routes via provider functions in `{feature}/providers/` folders and
-are lazily imported from `app.routes.ts`.
+**Standalone components only.** No NgModules. Components declare their own imports.
+Each feature's routes live in its `*-routes.ts` file and are mounted lazily from `app.routes.ts`.
+The `{feature}/providers/` folders register ABP MENU entries, not routes: no layout renders
+them, but `permissionGuard` falls back to them for a route with no `data.requiredPolicy`, so
+they are not dead code (see docs/frontend/ROUTING-AND-NAVIGATION.md).
 
 **Abstract + concrete component pattern -- Doctors only.** Only `doctors/` still has the ABP
 Suite pair (`doctor.abstract.component.ts` + `doctor.component.ts`); do not delete its abstract
@@ -33,8 +35,8 @@ guarded by `postLoginRedirectGuard`, which is registered as `canMatch` (not `can
 it must stay `canMatch` so the guard runs before the route is matched, enabling redirect
 before the component activates. See `shared/CLAUDE.md` for implementation detail.
 
-**Never edit `proxy/`.** Regenerate with `abp generate-proxy` after backend DTO or
-AppService changes. See root CLAUDE.md + docs/decisions/005-no-ng-serve-vite-workaround.md.
+**Never edit `proxy/`.** Regenerate with `abp generate-proxy -t ng` (HttpApi.Host running)
+after backend DTO or AppService changes. See root CLAUDE.md + docs/decisions/005-no-ng-serve-vite-workaround.md.
 
 ## Gotchas
 

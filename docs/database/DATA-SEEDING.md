@@ -59,8 +59,12 @@ The migration service follows this sequence:
 1. **Check for initial migration** -- If no `Migrations/` folder exists in the EF Core project, it triggers `abp create-migration-and-run-migrator` via CLI and returns early.
 2. **Migrate host database schema** -- Iterates all registered `ICaseEvaluationDbSchemaMigrator` implementations and calls `MigrateAsync()`.
 3. **Seed host data** -- Calls `IDataSeeder.SeedAsync()` with a `DataSeedContext` containing:
-   - `AdminEmailPropertyName` = `CaseEvaluationConsts.AdminEmailDefaultValue`
-   - `AdminPasswordPropertyName` = `CaseEvaluationConsts.AdminPasswordDefaultValue`
+   - `AdminEmailPropertyName` = the office's admin email from `Saas/OfficeSeedData.cs`, or
+     `CaseEvaluationConsts.AdminEmailDefaultValue` for the host and any office it does not list
+   - `AdminPasswordPropertyName` = the value `AdminSeedPasswordResolver` returns (see [Admin passwords](#admin-passwords))
+
+   It then calls `AdminPasswordRotator.RotateIfOnAKnownDefaultAsync`, which moves an existing admin still on a
+   published default password onto a generated one.
 4. **Per-tenant processing** (if multi-tenancy is enabled):
    - Fetches all tenants from `ITenantRepository`
    - For each tenant, switches context via `ICurrentTenant.Change(tenant.Id)`
@@ -146,22 +150,42 @@ Not a seed contributor per se, but a `SettingDefinitionProvider` that relaxes th
 
 ### 5. ABP's IdentityDataSeedContributor (framework-provided)
 
-Creates the default admin user. Credentials are passed via the `DataSeedContext` properties set by the migration service:
+Creates the admin user when a database has none; where an admin already exists it ignores the password. Credentials
+are passed via the `DataSeedContext` properties set by the migration service:
 
 | Property | Value |
 |----------|-------|
-| Admin Email | `admin@abp.io` (from `IdentityDataSeedContributor.AdminEmailDefaultValue`) |
-| Admin Password | ABP default (from `IdentityDataSeedContributor.AdminPasswordDefaultValue`) — see `TEST_PASSWORD` in `.env.local` |
+| Admin Email | `admin@abp.io` (`IdentityDataSeedContributor.AdminEmailDefaultValue`) for the host; an office listed in `Saas/OfficeSeedData.cs` uses its own |
+| Admin Password | From `AdminSeedPasswordResolver`: see [Admin passwords](#admin-passwords) |
 
 ---
 
-## Default Credentials
+## Admin passwords
 
-| User | Email | Password | Notes |
-|------|-------|----------|-------|
-| Admin | <admin@abp.io> | See `TEST_PASSWORD` in `.env.local` | Created by ABP's IdentityDataSeedContributor |
+Which password an admin is seeded with depends on the environment. The rule lives in one place,
+`AdminPasswordStoreSelector` (`src/HealthcareSupport.CaseEvaluation.Domain/Identity/AdminPasswords/`).
 
-> **Security Warning:** These are development defaults. Change the admin password immediately in production environments.
+| Environment | Store | What the admin gets |
+|---|---|---|
+| Development, neither key set | The published default (`PublishedDefaultAdminPasswordStore`) | The documented local credentials, exactly as before; local sign-in is unchanged |
+| Anywhere else, `AdminPasswords:Directory` set | A folder: one file per database, mode 0600 (`FileAdminPasswordStore`) | A password generated on first use and kept in that database's file |
+| Anywhere else, `AdminPasswords:VaultUri` set | Not part of this build | Start-up is refused and says so |
+| Anywhere else, neither or both set | -- | The DbMigrator and the API refuse to start and name both keys |
+
+What to know about the folder store:
+
+- **An entry is written only when it is used**: when the migrator creates a database's admin, or when it rotates an
+  admin still on a published default (it logs `Rotated the admin password of <database>`). An office created through
+  the New Practice screen, or one whose admin already has its own password, gets no entry; its admin recovers access
+  through forgot-password.
+- **A rotated admin must change the password at first sign-in**, so after that the file holds only the handover
+  value.
+- **Outside Development the AuthServer refuses a published default at sign-in** (`KnownDefaultPasswordSignInManager`),
+  even where it is the account's real password.
+- **Operator setup** is in `env.prod.example` (`ADMIN_PASSWORD_DIRECTORY`): the folder must exist before the first
+  deploy and be owned by the containers' user (uid 1654), or the first write fails and the migrator exits. Back the
+  folder up with the database dumps: until an admin's first sign-in, a restored database's admin can be signed into
+  with its entry only.
 
 ---
 

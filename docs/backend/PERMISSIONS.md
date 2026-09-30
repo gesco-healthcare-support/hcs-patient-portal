@@ -17,7 +17,7 @@ All permissions belong to the `"CaseEvaluation"` group, defined in:
 
 ## Complete Permission Tree
 
-Generated from `CaseEvaluationPermissions.cs` on 2026-09-28. The constants file is the authority;
+Generated from `CaseEvaluationPermissions.cs` on 2026-09-28; `BackgroundJobsDashboard` added 2026-09-30. The constants file is the authority;
 when it changes, regenerate this tree rather than editing it by hand.
 
 ```mermaid
@@ -162,6 +162,7 @@ mindmap
     Branding
       Branding.Edit
     CaseTrackerIntegration
+    BackgroundJobsDashboard
 ```
 
 ### Permission String Details
@@ -181,10 +182,11 @@ Each entity group (except Dashboard and AppointmentChangeLogs) follows a parent-
 | UserManagement | `CaseEvaluation.UserManagement` | `...InviteExternalUser` | Action child for staff-issued external-user invitations. |
 | InternalUsers | `CaseEvaluation.InternalUsers` | `...Create`, `...Edit` | Internal staff accounts. No Delete child. |
 | Reports | `CaseEvaluation.Reports` | `...Export` | Report export only. |
-| IntakeAssignments | `CaseEvaluation.IntakeAssignments` | `...Manage` | Assigning Intake operators to offices. |
+| IntakeAssignments | `CaseEvaluation.IntakeAssignments` | `...Manage` | Assigning Intake operators to offices. Both are registered host-side (`MultiTenancySides.Host`). |
 | IntakeImpersonation | `CaseEvaluation.IntakeImpersonation` | _none_ | Single permission, no children. |
 | Branding | `CaseEvaluation.Branding` | `...Edit` | Per-office display name and logo. |
 | CaseTrackerIntegration | `CaseEvaluation.CaseTrackerIntegration` | _none_ | Single permission, no children. |
+| BackgroundJobsDashboard | `CaseEvaluation.BackgroundJobsDashboard` | _none_ | Single host-side permission. Opens the Hangfire dashboard (`/hangfire`) and the health UI outside Development; see [Background Jobs](../devops/BACKGROUND-JOBS.md#hangfire-itself). |
 | UserSignatures | `CaseEvaluation.UserSignatures` | `...ManageOwn` | Scoped to the caller's own signature; no per-target gate. |
 | AppointmentChangeRequests | `CaseEvaluation.AppointmentChangeRequests` | `...Approve`, `...Reject` | Supervisor approval surface; no Create/Delete. |
 | AppointmentDocuments | `CaseEvaluation.AppointmentDocuments` | `...Create`, `...Edit`, `...Delete`, `...Approve` | Approve child gates document acceptance/rejection (W2-11). |
