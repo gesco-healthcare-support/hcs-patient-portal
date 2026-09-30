@@ -61,3 +61,46 @@ curl -i -H "Host: falkinstien.localhost"  http://localhost:44327/api/abp/applica
 - ABP source -- `MultiTenancyMiddleware` 404 path: <https://github.com/abpframework/abp/blob/dev/framework/src/Volo.Abp.AspNetCore.MultiTenancy/Volo/Abp/AspNetCore/MultiTenancy/MultiTenancyMiddleware.cs>
 - ABP source -- stock `AbpDomainTenantResolveContributorBase`: <https://github.com/abpframework/abp/blob/dev/framework/src/Volo.Abp.MultiTenancy/Volo/Abp/MultiTenancy/AbpDomainTenantResolveContributorBase.cs>
 - Volo support thread #10261 -- same-shape "admin slug 404" problem with a custom contributor solution: <https://abp.io/support/questions/10261/Issue-with-Domain-Based-Tenant-Resolver-Login-Angular--OpenIddict>
+
+## Amendment 2026-09-29: three of the Consequences above are out of date
+
+**The decision stands and the contributor is still where this ADR says it is.** What follows are
+changes made after 2026-05-11 that the Consequences section does not reflect. Checked against
+`origin/main` at `6be1e0b6`.
+
+**1. A Host that names no office is now REFUSED, not run in Host context.** Added 2026-09-25 (B1).
+Host context is reachable only on purpose -- the reserved `admin` label, or an internal name. Anything
+else naming no office throws:
+
+```
+HostAwareDomainTenantResolveContributor.cs:152
+  throw new BusinessException(HostNotServedErrorCode, HostNotServedMessage);
+```
+
+This is a fail-closed change to the very boundary this ADR is about, and it is the current behaviour
+a reader would most want. The refusal text is fixed and deliberately never echoes the request's
+`Host`, because that value is caller-controlled.
+
+**2. The reserved set has grown beyond one slug, so the "if it grows" note describes work already
+done.** Alongside `ReservedHostSlug = "admin"` there is now a second mechanism:
+
+```
+HostAwareDomainTenantResolveContributor.cs:77
+  public static readonly IReadOnlyList<string> InternalHosts = ["localhost", "authserver"];
+```
+
+Matched exactly and case-insensitively, for in-deployment callers such as health checks. The
+Consequences above still suggest refactoring to a `HashSet<string>` "if the reserved set grows beyond
+one slug"; it has grown, by a different route.
+
+**3. The host suffix is config-driven, so the Phase 2 item is done.** Since 2026-07-09 the
+contributor is built by `FromConfiguration(configuration)` reading `App:TenantDomainFormat`, set per
+service in production and falling back to `{0}.localhost` in local dev. The Consequences above list
+this as future work.
+
+**Not a gap in this ADR, recorded to stop the next reader making my mistake:** this ADR does not
+describe `options.TenantResolvers.Clear()` or the dropping of the `QueryString`, `Route`, `Header`
+and `Cookie` contributors, and it should not -- that is **ADR-006's** content, and this ADR is
+deliberately scoped to replacing 006's second contributor, as its `Supersedes (partially)` line says.
+Read the two together. ADR-006's status field said `Proposed` until 2026-09-29, which made that easy
+to miss.
