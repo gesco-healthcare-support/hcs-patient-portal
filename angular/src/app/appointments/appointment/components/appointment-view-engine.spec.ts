@@ -272,7 +272,7 @@ describe('AppointmentViewComponent engine', () => {
       const c = create();
       getCustomFieldValues.and.returnValue(of([{ fieldType: 1, value: 'x', fieldLabel: 'L' }]));
       c.ngOnInit();
-      expect(c.customFieldDisplayValues.length).toBe(1);
+      expect(c.customFieldDisplayValues).toHaveSize(1);
     });
 
     it('hides the additional-details card when its fetch fails', () => {
@@ -1305,7 +1305,7 @@ describe('AppointmentViewComponent engine', () => {
       await c.removeAuthorizedUser(row);
 
       expect(restRequest.calls.allArgs().some(([r]) => r.method === 'DELETE')).toBeFalse();
-      expect(c.appointmentAuthorizedUsers.length).toBe(1);
+      expect(c.appointmentAuthorizedUsers).toHaveSize(1);
     });
 
     it('ignores a removal with no accessor id', async () => {
@@ -1335,7 +1335,7 @@ describe('AppointmentViewComponent engine', () => {
 
       c.loadAppointmentAccessors('appt-1');
 
-      expect(c.appointmentAuthorizedUsers.length).toBe(1);
+      expect(c.appointmentAuthorizedUsers).toHaveSize(1);
       expect(c.appointmentAuthorizedUsers[0].firstName).toBe('Grace');
       expect(c.appointmentAuthorizedUsers[0].accessTypeId).toBe(24);
       expect(c.appointmentAuthorizedUsers[0].userRole).toBe('Applicant Attorney');
@@ -1426,7 +1426,7 @@ describe('AppointmentViewComponent engine', () => {
 
       c.loadExternalAuthorizedUsers();
 
-      expect(c.externalAuthorizedUserOptions.length).toBe(3);
+      expect(c.externalAuthorizedUserOptions).toHaveSize(3);
       expect(c.applicantAttorneyOptions.map((o: any) => o.identityUserId)).toEqual(['u1']);
       expect(c.defenseAttorneyOptions.map((o: any) => o.identityUserId)).toEqual(['u2']);
     });

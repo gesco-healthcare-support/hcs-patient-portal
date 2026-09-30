@@ -226,7 +226,7 @@ export function collectStepErrors(
   const errors: StepErrorField[] = [];
   for (const control of controlNames) {
     const field = form.get(control);
-    if (field && field.enabled && field.invalid) {
+    if (field?.enabled && field.invalid) {
       errors.push({
         control,
         label: labelMap[control] ?? control,
