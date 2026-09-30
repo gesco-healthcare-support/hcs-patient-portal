@@ -166,10 +166,12 @@ public class SendAppointmentEmailJob :
             {
                 await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
             }
+            // No recipient address in this job's log lines, which fire on every send. Context
+            // identifies the send instead: it names the path and, for account emails, carries only
+            // a masked address. Dispatcher sends are also recorded per recipient in the outbox.
             Logger.LogInformation(
-                "SendAppointmentEmailJob: delivered ({Context}) to {To} (cc={CcCount}).",
+                "SendAppointmentEmailJob: delivered ({Context}) (cc={CcCount}).",
                 args.Context,
-                args.To,
                 args.Cc?.Count ?? 0);
         }
         catch (Exception ex)
@@ -179,9 +181,8 @@ public class SendAppointmentEmailJob :
             // /hangfire) -- the same guarantee the attachment path already has.
             Logger.LogError(
                 ex,
-                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To}; rethrowing for Hangfire retry/dead-letter.",
-                args.Context,
-                args.To);
+                "SendAppointmentEmailJob: SMTP delivery failed ({Context}); rethrowing for Hangfire retry/dead-letter.",
+                args.Context);
             throw;
         }
     }
@@ -197,8 +198,8 @@ public class SendAppointmentEmailJob :
             // Generated (Failed or Generating), skip the email + log.
             // Office can Regenerate; on success, the email fires.
             Logger.LogWarning(
-                "SendAppointmentEmailJob: packet {PacketId} (kind={Kind}) is not Generated; skipping packet email ({Context}) to {To}.",
-                packetRef.PacketId, packetRef.Kind, args.Context, args.To);
+                "SendAppointmentEmailJob: packet {PacketId} (kind={Kind}) is not Generated; skipping packet email ({Context}).",
+                packetRef.PacketId, packetRef.Kind, args.Context);
             return;
         }
 
@@ -233,8 +234,8 @@ public class SendAppointmentEmailJob :
             await _emailSender.SendAsync(mail);
             success = true;
             Logger.LogInformation(
-                "SendAppointmentEmailJob: delivered ({Context}) to {To} with attachment {FileName} ({Bytes} bytes).",
-                args.Context, args.To, attachment.FileName, attachment.Bytes.Length);
+                "SendAppointmentEmailJob: delivered ({Context}) with attachment {FileName} ({Bytes} bytes).",
+                args.Context, attachment.FileName, attachment.Bytes.Length);
         }
         finally
         {

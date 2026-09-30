@@ -65,6 +65,7 @@ import { AddressValidationProvider } from './shared/address/address-validation.p
 import { MockAddressProvider } from './shared/address/mock-address.provider';
 import { SmartyAddressProvider } from './shared/address/smarty-address.provider';
 import { BrandingService } from './shared/branding/branding.service';
+import { removeLegacyWizardDraftCache } from './appointments/wizard/legacy-draft-cache';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -126,6 +127,9 @@ export const appConfig: ApplicationConfig = {
         window.localStorage.setItem('LPX_THEME', 'light');
       }
     }),
+    // Remove the booking form earlier builds of the booking wizard autosaved to
+    // localStorage, SSN and date of birth included (legacy-draft-cache.ts says why).
+    provideAppInitializer(removeLegacyWizardDraftCache),
     // Phase E (2026-06-25) -- fetch the current office's branding (name + logo)
     // at boot from the AllowAnonymous endpoint (resolved by subdomain). Fired,
     // not awaited: the shell navbars + tab title update reactively when it

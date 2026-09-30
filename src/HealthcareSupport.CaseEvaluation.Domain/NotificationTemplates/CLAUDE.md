@@ -13,6 +13,11 @@ delete rows.
 | `EmailSubjects.cs` | `ByCode` dict of OLD-verbatim subjects keyed by template code |
 | `NotificationTemplateDataSeedContributor.cs` | Seeds 2 type rows (host pass) then one template row per code per tenant (tenant pass) |
 | `EmailBodies/` | Embedded `.html` body files; some codes are stub-only (no HTML file yet) |
+| `INotificationTemplateRepository.cs` | Repository for the template aggregate |
+| `INotificationTemplateTypeRepository.cs` | Repository for the type lookup. EMPTY interface -- it adds no members and exists only so the type has a named repository alongside the others; do not go looking for custom queries in it |
+| `NotificationTemplateSeedDefaults.cs` | Declares `NotificationTemplateSeedDefaults` (the table) and `NotificationTemplateSeedDefault` (one shipped subject + bodies for a code). The seed contributor reads these |
+| `NotificationTemplateVariableCatalog.cs` | Pure logic behind the IT-Admin template editor (B-B2, 2026-06-16): which `##Var##` placeholders are offered for a given code. No DI, no IO |
+| `NotificationTemplateWithNavigationProperties.cs` | Read-only projection of `NotificationTemplate` joined to its `NotificationTemplateType`, mirroring the `{Entity}WithNavigationProperties` pattern used elsewhere |
 
 Domain.Shared constants: `NotificationTemplateConsts` (`Domain.Shared/NotificationTemplates/`).
 Variable substitution utility: `Domain/Notifications/TemplateVariableSubstitutor.cs`.
@@ -25,7 +30,9 @@ Always address templates by the string constants in `NotificationTemplateConsts.
 by inline string literals. Codes split into three origin groups:
 
 - DB-managed codes (OLD `TemplateCode` int enum).
-- On-disk HTML codes (OLD `EmailTemplate` static class / `wwwroot/EmailTemplates/`).
+- On-disk HTML codes (OLD EmailTemplate static class / wwwroot/EmailTemplates/ -- both
+  names belong to the LEGACY system and neither exists in this repository, which is why
+  they carry no backticks here; in this file a backticked path is a claim CI verifies).
 - NEW codes added post-OLD (Phase 2.A per-recipient dispatch + invite/internal-user welcome).
 
 ### Adding a new template code
@@ -77,5 +84,5 @@ is for the IT Admin UI only.
 ## Related
 
 - `docs/design/it-admin-notification-templates-design.md`
-- `docs/runbooks/findings/template-review-2026-05-21.md`
-- `docs/runbooks/findings/bugs/OBS-36-23-stub-templates-pending-parity.md`
+- `docs/findings/template-review-2026-05-21.md`
+- `docs/findings/bugs/OBS-36-23-stub-templates-pending-parity.md`

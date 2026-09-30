@@ -8,7 +8,9 @@ AppServices orchestrate, managers enforce.
 | File / folder | Purpose |
 |---|---|
 | `Appointments/AppointmentManager.cs` | Aggregate root manager: create, update, state machine |
-| `Appointments/Appointment.cs` | Aggregate root: 5 required FKs, `AppointmentStatusType`, `IMultiTenant` |
+| `Appointments/Appointment.cs` | Aggregate root: required FKs to Patient, AppointmentType, Location and DoctorAvailability (`IdentityUserId` optional), `AppointmentStatusType`, `IMultiTenant` |
+| `CaseEvaluationDomainModule.cs` | The Domain layer's ABP module: module dependencies and domain-level configuration such as blob storing |
+| `CaseEvaluationConsts.cs` | Domain-level constants, for example the default admin email used by seeding |
 | `DoctorAvailabilities/DoctorAvailability.cs` | Slot aggregate: `AvailableDate`, `FromTime`/`ToTime`, `Capacity` (default 3), M2M `AppointmentTypes` |
 | `Patients/PatientManager.cs` | Patient domain service: `CreateAsync`, `UpdateAsync`, `FindOrCreateAsync` (fuzzy match) |
 | `AppointmentDocuments/AppointmentDocumentManager.cs` | Upload guard + `CreateQueuedAsync` factory |
@@ -34,8 +36,10 @@ or entity methods. AppServices call managers and coordinate cross-aggregate read
 ### IMPORTANT: Status transitions go through the state machine
 
 NEVER set `Appointment.AppointmentStatus` directly from outside `AppointmentManager`.
-The Stateless state machine in `AppointmentManager.ApplyTransitionAsync` (called via
-`ApproveAsync`, `RejectAsync`, `RequestRescheduleAsync`) is the only valid path. Setting
+The Stateless state machine in `AppointmentManager.ApplyTransitionAsync` is the only valid
+path. It is reached through the manager's transition methods, among them `ApproveAsync`,
+`RejectAsync`, `RequestRescheduleAsync`, `SendBackAsync`, `ResubmitInfoAsync`,
+`CloseForRescheduleAsync` and `MarkAttendanceOutcomeAsync`. Setting
 the property directly bypasses the guard, skips the `AppointmentStatusChangedEto` publish,
 and leaves `AppointmentApproveDate` / `RejectionNotes` unset.
 
@@ -94,27 +98,32 @@ All are backed by ABP's DB-BLOB provider at MVP. Anonymous uploads require an ex
 `_currentTenant.Change(tenantId)` scope because the uploader has no tenant in the ABP
 resolution chain yet.
 
-## Thin host-scoped lookups (no own CLAUDE.md)
+## Thin per-office lookups
 
-These live under their own subfolders but have no feature CLAUDE.md. Key facts only.
+Each of these has a short feature CLAUDE.md that points here; the facts are kept once, here.
+
+**These are per-office (tenant-scoped), not shared.** Each entity implements `IMultiTenant`.
+Under database-per-office, every office has its own copy in its own database, and there is
+no shared host catalogue to read from. The only host-only entities are `OfficeBranding` and
+`IntakeOfficeAssignment`. Never write a cross-office query against these tables.
 
 **States** -- single `Name` field; no `NameMaxLength` constant (effectively `nvarchar(max)`).
-5 inbound FKs, all `SetNull`. `StatesAppService` uses `ObjectMapper.Map<>` -- pre-existing
-Mapperly violation; flag it when that file is touched, do not silently copy the pattern.
+Inbound FKs use `SetNull`. `StatesAppService` maps with `ObjectMapper.Map<>`, which is the
+intended Mapperly call path (`Volo.Abp.Mapperly`); only AutoMapper is banned.
 
 **AppointmentStatuses** -- entity is NOT the state machine. The lifecycle enum is
 `AppointmentStatusType` in `Domain.Shared`; `AppointmentStatus` lookup rows are display-name
 metadata and are disconnected from `AppointmentStatusType` by design.
 
-**AppointmentTypes** -- host-scoped; M2M with Doctor via `DoctorAppointmentType`; supports
-Excel export. Referenced by slot type-matching in the booking gate.
+**AppointmentTypes** -- M2M with Doctor via `DoctorAppointmentType`. Referenced by slot
+type-matching in the booking gate. No Excel export; only WcabOffices has one.
 
-**AppointmentLanguages** -- exists in BOTH DbContexts but has no `DataSeedContributor`;
-defaults to English via `AppointmentLanguageId = null` on Patient. Missing seed means
-the language picker is empty until admin creates entries.
+**AppointmentLanguages** -- configured in both DbContexts and seeded per office by
+`AppointmentLanguageDataSeedContributor` (English among them). `Patient.AppointmentLanguageId`
+is optional (`Guid?`).
 
-**WcabOffices** -- 6 string fields; Excel export + download-token CSRF pattern.
-Host-scoped; no tenant data.
+**WcabOffices** -- Excel export via the download-token pattern, the only lookup with an
+export.
 
 ## Notable features (no own CLAUDE.md)
 

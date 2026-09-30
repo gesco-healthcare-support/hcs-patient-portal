@@ -33,8 +33,11 @@ hard-delete is built. Same shape as IP1 (Appointment Types) and IP2 (Appointment
   DeleteByIds `:111`, DeleteAll `:117`. The Excel export `GetListAsExcelFileAsync` is
   `[AllowAnonymous]` (`:94`) but token-guarded via `GetDownloadToken` (`:123`).
 - WcabOffice is **host-scoped (no IMultiTenant)** -- 6 string fields, Excel export +
-  download-token CSRF pattern (Domain/CLAUDE.md "Thin host-scoped lookups"). A tenant Staff
-  Supervisor editing it mutates host-shared data visible to all tenants.
+  download-token CSRF pattern (Domain/CLAUDE.md, then titled "Thin host-scoped lookups", now
+  "Thin per-office lookups"). A tenant Staff Supervisor editing it mutates host-shared data
+  visible to all tenants.
+  **Corrected 2026-09-28:** this premise no longer holds. `WcabOffice` implements `IMultiTenant`,
+  and under database-per-office each office edits only its own list.
 - Permission definitions already declare the full CRUD child-permission tree
   (`CaseEvaluationPermissions.cs:62-68`, `CaseEvaluationPermissionDefinitionProvider.cs:39-42`),
   so no new permission strings are needed.

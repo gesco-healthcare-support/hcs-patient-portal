@@ -88,8 +88,7 @@ should then become permanent automated tests, because every one of these failure
 pinning, and no rate limiting of any kind. `03` section 4.2 records that there is no
 `default_server` on 443 and no block for the bare apex, so an unmatched Host falls through to the
 first server block - the AuthServer - and `api.<base>` without an office label is served by the
-Angular container. `03` section 4.0 records an unauthenticated Hangfire dashboard mounted in the
-production path with antiforgery disabled.
+Angular container. One item from `03` section 4.0 is tracked privately by the maintainers.
 
 The single highest-value structural insight here, which the input documents do not state: **the
 number of edge routing rules is four, and it does not grow with office count.** Every office
@@ -213,7 +212,7 @@ better if the next item never happens.
 | 4 | **Narrow `EntityHistorySelectors` and set `SaveEntityHistoryWhenNavigationChanges = false`** | **8-14** | The cheapest order-of-magnitude available. Every downstream cost - storage, backup time, restore time, archive size - is linear in the audit ratio. Do this before separating any store, or the new store is sized wrong |
 | 5 | **Backups off the box, under a credential that can write but not delete** | **8-16** | Today backups default to the same disk as the data. This is the difference between having backups and believing you have them |
 | 6 | **One timed restore of one office database, recorded** | **8-12** | An untested backup is not a backup. Assume the first attempt fails; that is the point of doing it now, while every record is synthetic |
-| 7 | **`default_server` on 443 that terminates unmatched Host, and no `/hangfire` route at the edge** | **3-5** | Closes the bare-apex fallthrough to the AuthServer and takes an unauthenticated administrative console off the public internet, independently of the planned code fix |
+| 7 | **`default_server` on 443 that terminates unmatched Host** | **3-5** | Closes the bare-apex fallthrough to the AuthServer. One further part of this item is tracked privately by the maintainers |
 
 **Total: 38 to 64 hours.** Items 1, 2 and 7 together are under ten hours and remove the three risks
 that can end the business. Items 3 and 4 are the two structural fixes with the best ratio in the
@@ -1110,28 +1109,22 @@ drives the edge work.
 
 ## 16. Area 13: Administrative surface containment
 
-> **Not in the brief's list of twelve.** Added because `03` section 4.0 records a finding dated after
-> the rest of that document was written, and because it invalidates an assumption the edge design
-> would otherwise make.
+> **Not in the brief's list of twelve.** Added after the rest of `03` was written. One item behind
+> it is tracked privately by the maintainers.
 
-**Current state.** The job dashboard is served in the production path behind an authorisation filter
-whose entire body returns true, mounted inside a tooling guard that is **not** an environment gate,
-and registered with antiforgery ignored. It exposes every queued, completed and failed job with its
-arguments and full exception detail - **job arguments carry appointment identifiers and recipient
-addresses** - plus buttons to trigger, requeue and delete jobs. A code fix is planned and is small.
+One item from this section is tracked privately by the maintainers.
 
-**The architectural point survives the fix:** it means **the edge cannot assume every application
-route is either public by design or authenticated.** That assumption is exactly what a "put a WAF in
-front and let the application handle authorisation" design rests on, and one counter-example
-invalidates it.
+**The architectural point:** **the edge cannot assume every application route is either public by
+design or authenticated.** That assumption is exactly what a "put a WAF in front and let the
+application handle authorisation" design rests on.
 
 ### Recommendation: three layers, and the allow-list belongs in the application, not at the edge
 
 That is the direct answer to the design question, and the reasoning matters. **The edge and the
 application are different parsers of the same request**, and there is a specific disagreement that
 defeats a path-based deny-list outright: nginx prefix matching is case-sensitive on Linux while
-ASP.NET Core path matching is ordinal-ignore-case, so a `location /hangfire { deny all; }` does not
-stop a request for `/Hangfire`. An edge **allow**-list does not have that defect and is the right
+ASP.NET Core path matching is ordinal-ignore-case, so a `location /admin { deny all; }` does not
+stop a request for `/Admin`. An edge **allow**-list does not have that defect and is the right
 principle, but it couples every new controller to a manual proxy change in a deployment process that
 already has a known proxy-staleness trap, so **it will rot.**
 
@@ -2152,7 +2145,7 @@ Stated so nothing here is mistaken for complete.
 tenant boundary, sampling the disk, cutting audit capture at source, and closing the default-server
 fallthrough are four items that build almost nothing. They establish whether the design's central
 claim is true, put a date on the nearest hard failure, remove an order of magnitude of growth, and
-take an unauthenticated administrative console off the internet.
+close the fallthrough.
 
 **And one piece of timing expires.** There is no real patient data yet. That makes credential rotation
 free, destructive restore testing free, per-office encryption possible at all, the platform move a

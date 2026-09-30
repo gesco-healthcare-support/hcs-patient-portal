@@ -69,6 +69,12 @@ public class AppointmentBodyPartsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentInjuryDetail"]]);
         }
+        // A GRANDCHILD: its parent is an injury detail, so the party check is against the appointment that
+        // injury detail belongs to, read from the stored row. Booking still passes, because
+        // AppointmentChildGroupWriter writes each injury detail, under the flushed appointment, before its
+        // body parts.
+        var parentInjuryDetail = await _injuryDetailRepository.GetAsync(input.AppointmentInjuryDetailId);
+        await _childOwnershipGuard.EnsureIsPartyAsync(parentInjuryDetail.AppointmentId);
         var entity = await _manager.CreateAsync(input.AppointmentInjuryDetailId, input.BodyPartDescription);
         return ObjectMapper.Map<AppointmentBodyPart, AppointmentBodyPartDto>(entity);
     }

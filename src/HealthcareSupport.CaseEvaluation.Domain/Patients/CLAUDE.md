@@ -30,10 +30,13 @@ See `Patient.cs` for all fields. Key structural facts:
 
 ### Booking onboarding path
 
-`GetOrCreatePatientForAppointmentBookingAsync` is the canonical entry point. Search by
-trimmed email; if found return it; if not, find-or-create an IdentityUser with
-`CaseEvaluationConsts.AdminPasswordDefaultValue`, grant the "Patient" role, then call
-`PatientManager.CreateAsync`. Never replicate this sequence outside this method.
+`GetOrCreatePatientForAppointmentBookingAsync` is the canonical entry point, and booking is
+**record-only** (IP6, 2026-06-05): it creates a Patient row with no login, mints no
+IdentityUser, grants no role and sets no password. The order is: email fast path (a blank
+email skips it), then the 3-of-6 duplicate scan, then `PatientManager.FindOrCreateAsync`
+with `identityUserId: null`. The patient claims a login later; `ExternalSignupAppService.RegisterAsync`
+links the record by email and grants the Patient role. Never replicate this sequence
+outside this method.
 
 ### SSN never-clear rule
 
@@ -42,7 +45,9 @@ Defined in the Domain layer CLAUDE.md. Do not bypass it.
 ### Fuzzy match before insert
 
 Normalisation and threshold rules (3 of 6 keys) are defined in the Domain layer CLAUDE.md.
-Entry point: `PatientManager.FindOrCreateAsync`.
+Entry point: `PatientManager.FindOrCreateAsync`. `PatientMatching` holds the normalisation
+helpers that canonicalise inputs before the repository query; `PatientMatchCandidate` is the
+minimal result row the match returns (no PHI -- the caller reloads the full Patient).
 
 ### Length validation is double-enforced
 
@@ -56,17 +61,21 @@ remove either layer.
    is applied at the DTO/UI layer (SsnVisibility.MaskToLast4 + audited reveal), not in storage.
    At-rest encryption is a deferred decision -- none scheduled.
 
-2. **Hardcoded default password (Q-12).** Auto-created patient IdentityUsers get
-   `AdminPasswordDefaultValue`. Combined with the relaxed password policy (SEC-05), accounts
-   are trivially guessable. Intent: replace with invite-token flow.
+2. **Booking mints no login.** The old path that created patient IdentityUsers with a shared
+   default password was removed by deletion in IP6 (2026-06-05); do not reintroduce it. A
+   patient's login comes only from registration.
 
-3. **No email uniqueness guard.** Admin `CreateAsync` does not check for a duplicate Patient
-   email before inserting; only the booking flow's `_userManager.CreateAsync` enforces
-   IdentityUser-side uniqueness. Two Patient rows with the same email are possible.
+3. **No email uniqueness guard.** `Patient.Email` is NOT NULL but has no unique index, and
+   admin `CreateAsync` does not check for a duplicate email before inserting. The booking path
+   avoids duplicates through its email fast path and 3-of-6 matching, not through a constraint.
+   Two Patient rows with the same email are possible.
 
 4. **Booking update preserves frozen fields.** `UpdatePatientForAppointmentBookingAsync`
    keeps `IdentityUserId`, `TenantId`, `GenderId`, `DateOfBirth`, and `PhoneNumberTypeId`
-   from the existing row. Admin `UpdateAsync` does not use these fallbacks.
+   from the existing row. Admin `UpdateAsync` does not use these fallbacks. Who may call it
+   (#598): internal staff holding `Patients.Edit`, or the patient's own login -- never a party to
+   the patient's appointments, because booking makes anyone a party
+   (`Application/Patients/PatientBookingEditAccess.cs`).
 
 5. **Profile test suite is incomplete.** `GetMyProfileAsync` / `UpdateMyProfileAsync` tests
    are skipped pending `WithCurrentUser` test infrastructure. Profile endpoints rely on

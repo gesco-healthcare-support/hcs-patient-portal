@@ -1,5 +1,4 @@
 import type {
-  DeleteTestUsersResultDto,
   ExternalUserLookupDto,
   ExternalUserProfileDto,
   ExternalUserSignUpDto,
@@ -21,16 +20,6 @@ import type { LookupDto } from '../shared/models';
 export class ExternalSignupService {
   private restService = inject(RestService);
   apiName = 'Default';
-
-  deleteTestUsers = (emails: string[], config?: Partial<Rest.Config>) =>
-    this.restService.request<any, DeleteTestUsersResultDto>(
-      {
-        method: 'DELETE',
-        url: '/api/app/external-signup/test-users',
-        params: { emails },
-      },
-      { apiName: this.apiName, ...config },
-    );
 
   getActiveInvitedEmails = (emails: string[], config?: Partial<Rest.Config>) =>
     this.restService.request<any, string[]>(
@@ -102,16 +91,6 @@ export class ExternalSignupService {
         method: 'POST',
         url: '/api/app/external-signup/send-portal-link',
         body: input,
-      },
-      { apiName: this.apiName, ...config },
-    );
-
-  markEmailConfirmed = (email: string, config?: Partial<Rest.Config>) =>
-    this.restService.request<any, void>(
-      {
-        method: 'POST',
-        url: '/api/app/external-signup/mark-email-confirmed',
-        params: { email },
       },
       { apiName: this.apiName, ...config },
     );

@@ -28,9 +28,7 @@
 > | Remediation item 8 | `dotnet test` must be moved into `ci.yml`; `backend-test` / `frontend-test` jobs must be added | **They already exist and already run** (`ci.yml:127` and `:216`; `dotnet test` at `:161`), unmasked. They are simply not *required checks*. The gap is the gate, not the tests |
 > | Remediation item 29 | Delete `labeler.yml` because it uses `pull_request_target` | Both `pull_request_target` workflows do **not** check out PR code -- the safe pattern. Not warranted |
 >
-> **Not found by this analysis, and launch-blocking:** the Hangfire dashboard at `/hangfire` is
-> mounted with an authorisation filter that returns `true` for everyone, gated only on an ABP Studio
-> flag rather than on environment. See `remediation-plan.md` item 0.
+> One item from this section is tracked privately by the maintainers. See `remediation-plan.md` item 0.
 >
 > **Confirmed against the repository:** the reliability D is driven by 8 non-accessibility bugs, of
 > which 4 are CRITICAL `typescript:S2871` (`.sort()` without a comparator) and **two are in slot

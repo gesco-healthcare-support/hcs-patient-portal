@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HealthChecks.UI.Configuration;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -123,7 +124,63 @@ public class HealthCheckRegistrationTests
         routes.ShouldContain(route => route.StartsWith("/health-api", StringComparison.Ordinal));
     }
 
+    // Outside Development the health UI and its API need a signed-in host user holding the technical
+    // consoles permission, on both hosts. The /health-status probe stays open: the proxy and the
+    // monitoring poll it anonymously.
+    [Theory]
+    [InlineData(Host.ApiHost)]
+    [InlineData(Host.AuthServer)]
+    public void OutsideDevelopment_TheHealthUiAndApi_RequireTheHostPermission(Host host)
+    {
+        var endpoints = MappedEndpoints(host, "Production");
+
+        var consoles = endpoints
+            .Where(e => IsUnder(e, "/health-ui") || IsUnder(e, "/health-api"))
+            .ToList();
+        consoles.ShouldNotBeEmpty();
+        foreach (var endpoint in consoles)
+        {
+            endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()
+                .ShouldContain(data => data.Policy == "CaseEvaluation.BackgroundJobsDashboard",
+                    $"{endpoint.RoutePattern.RawText} is not restricted");
+        }
+
+        endpoints.Single(e => e.RoutePattern.RawText == "/health-status")
+            .Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Host.ApiHost)]
+    [InlineData(Host.AuthServer)]
+    public void InDevelopment_TheHealthUi_StaysOpen(Host host)
+    {
+        MappedEndpoints(host, "Development")
+            .Where(e => IsUnder(e, "/health-ui") || IsUnder(e, "/health-api"))
+            .SelectMany(e => e.Metadata.GetOrderedMetadata<IAuthorizeData>())
+            .ShouldBeEmpty();
+    }
+
     // ------------------------------------------------------------------------
+
+    private static bool IsUnder(RouteEndpoint endpoint, string prefix) =>
+        (endpoint.RoutePattern.RawText ?? string.Empty).StartsWith(prefix, StringComparison.Ordinal);
+
+    private static List<RouteEndpoint> MappedEndpoints(Host host, string environmentName)
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = environmentName });
+        AddHealthChecks(host, builder.Services);
+        var app = builder.Build();
+
+        foreach (var configure in app.Services.GetRequiredService<IOptions<AbpEndpointRouterOptions>>().Value.EndpointConfigureActions)
+        {
+            configure(new EndpointRouteBuilderContext(app, app.Services));
+        }
+
+        return ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToList();
+    }
 
     private static HealthCheckSetting UiEndpoint(Host host, Dictionary<string, string?> settings)
     {

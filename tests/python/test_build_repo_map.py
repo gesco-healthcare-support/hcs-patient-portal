@@ -331,7 +331,7 @@ class RenderMapMdTests(unittest.TestCase):
         self.out = repo_map.render_map_md(_sample_data())
 
     def test_starts_with_the_breadcrumb_and_title(self):
-        self.assertTrue(self.out.startswith("[Home](../INDEX.md) > Repository Map"))
+        self.assertTrue(self.out.startswith("[Home](../index.md) > Repository Map"))
         self.assertIn("# Repository Map", self.out)
 
     def test_carries_the_generation_timestamp(self):

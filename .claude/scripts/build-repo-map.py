@@ -231,7 +231,7 @@ def top_n(counter: Counter, n: int) -> list[tuple[str, int]]:
 
 def render_map_md(data: dict) -> str:
     lines: list[str] = []
-    lines.append("[Home](../INDEX.md) > Repository Map")
+    lines.append("[Home](../index.md) > Repository Map")
     lines.append("")
     lines.append("# Repository Map")
     lines.append("")
@@ -323,7 +323,7 @@ def ensure_readme() -> None:
     readme = OUT_DIR / "README.md"
     if readme.exists():
         return
-    content = """[Home](../INDEX.md) > Repository Map > README
+    content = """[Home](../index.md) > Repository Map > README
 
 # Repository Map
 

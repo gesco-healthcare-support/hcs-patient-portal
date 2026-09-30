@@ -5,6 +5,10 @@
 >
 > **Describes what is, not what should be.** Companion to
 > `docs/architecture/SYSTEM-ARCHITECTURE-BASELINE.md`.
+>
+> **Dated snapshot.** Every figure below was measured on 2026-08-28 and is not re-derivable from the
+> code; re-measuring needs access to the running deployment. Treat it as a record of that day, not as
+> the current state.
 
 | Field                | Value                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -172,7 +176,8 @@ audit.
 the next promotion pull request; it never touches a server.
 
 ```text
-backup -> git pull --ff-only -> docker compose build <changed services>
+backup -> git pull --ff-only -> ./scripts/hosting/build-docs-site.sh
+       -> docker compose build <changed services>
        -> docker compose up -d
        -> docker compose up -d --force-recreate reverse-proxy
 ```
@@ -184,6 +189,19 @@ Two traps that have each broken the deployment in practice:
    database password, no TLS paths and no base domain.
 2. **The reverse proxy must be force-recreated after any backend rebuild**, or nginx serves stale
    cached upstream IPs and routing silently breaks.
+
+**Documentation site.** The reverse proxy serves this documentation at `https://<BASE_DOMAIN>/docs/`
+from `docker/nginx-proxy/docs-site/`, a gitignored directory that `scripts/hosting/build-docs-site.sh`
+fills.
+
+- **What the script does.** It builds the site with the locked MkDocs toolchain in a container, checks
+  that nothing excluded from the site was built into it, and only then replaces the served copy. A
+  failed build leaves the served site as it was, and the script is safe to re-run.
+- **Order.** Run it before compose. The script creates that directory as the deploy user; if compose
+  starts first, Docker creates it as root and the script can no longer write into it. The reverse-proxy
+  recreate above also picks up the mount on the first deploy that adds it.
+- **Network.** It needs internet access, because the site's fonts and diagram library are downloaded at
+  build time.
 
 ### Backup
 

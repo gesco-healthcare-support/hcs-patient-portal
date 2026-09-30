@@ -1,250 +1,104 @@
 # Role-Based UI
 
-> Purpose: Describes how the app selects layout and content based on user role. Audience: frontend developer.
+> Purpose: Describes how the SPA gives external users and internal staff different pages and chrome, and
+> how each side's content varies by role. Audience: frontend developers.
 
-[Home](../INDEX.md) > [Frontend](./) > Role-Based UI
+[Home](../index.md) > [Frontend](./) > Role-Based UI
 
 ## Overview
 
-The application renders different UI layouts and content based on the current user's role. The primary distinction is between **external users** (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) who see a simplified portal, and **internal/admin users** who see the full ABP management interface with LeptonX sidebar navigation.
+The split between **external users** (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) and
+**internal staff** (IT Admin, Staff Supervisor, Intake Staff, and the built-in `admin`) is made by the
+**router**, not by CSS or DOM changes. The root component renders a bare `<router-outlet />`; every page
+brings its own chrome:
 
-## External vs Internal Users
+| Aspect | External users | Internal staff |
+|--------|----------------|----------------|
+| Chrome | `ExternalNavbarComponent` at the top of each external page | `InternalShellLayoutComponent`: sidebar and top bar around every staff page |
+| Landing page | `/` -- `ExternalHomeComponent` | `/dashboard` (Intake Staff at host scope: `/host/my-offices`) |
+| Navigation | Buttons on the home page and the navbar | The sidebar from `internal-nav.config.ts` |
+| Pages | Home, the appointment detail, the booking wizard, and their own profile | Everything under the shell (see [Routing & Navigation](ROUTING-AND-NAVIGATION.md)) |
 
-| Aspect | External Users | Internal/Admin Users |
-|--------|---------------|---------------------|
-| Roles | Patient, Applicant Attorney, Defense Attorney, Claim Examiner | Admin, and any role without external designation |
-| Sidebar | Hidden | Visible (LeptonX side menu) |
-| Topbar | Hidden (LeptonX), replaced by `TopHeaderNavbarComponent` | Visible (LeptonX topbar) |
-| Content width | Full width (no sidebar margin) | Standard width with sidebar offset |
-| Home page | Simplified portal with booking buttons + appointment table | ABP default landing with login prompt |
-| Navigation | Custom header with Profile/Help/Logout buttons | LeptonX sidebar menu |
+## How a user is classified
 
-## Role Detection
+Two helpers in `angular/src/app/shared/auth/` read `currentUser.roles` from ABP's `ConfigStateService`
+(compared lower-cased and trimmed):
 
-### AppComponent (app.component.ts)
+- **`hasOnlyExternalRoles(roles)`** (`external-user-roles.ts`) -- true when the user has at least one role and
+  **every** role is one of the four external roles. A user holding any internal role counts as internal.
+- **`resolveInternalRoleKey(roles)`** (`internal-user-roles.ts`) -- maps an internal role to the sidebar's
+  role key: `admin` wins when present, otherwise the first of `it admin` -> `itadmin`,
+  `staff supervisor` -> `supervisor`, `intake staff` -> `intake`. Returns `null` for an external user.
 
-Role detection happens in the root `AppComponent` and runs on every `NavigationEnd` event:
+`isHostScope(config)` (also `internal-user-roles.ts`) is true when there is no current tenant, which decides
+between the host sidebar and the office sidebar.
 
-```typescript
-// import at top of app.component.ts
-import { hasAnyExternalRole } from './shared/auth/external-user-roles';
+## Where the split happens
 
-private updatePatientRoleClass(): void {
-  const currentUser = this.configState.getOne('currentUser') as { roles?: string[] } | null;
-  const isExternalUser = hasAnyExternalRole(currentUser?.roles ?? []);
+1. **`/`** -- `postLoginRedirectGuard` sends internal users to `/dashboard` (Intake Staff at host scope to
+   `/host/my-offices`) before the external home chunk loads. External users stay on `/`.
+2. **Shared paths** -- `appointments/view/:id` and `appointments/request` each exist twice. The external copy
+   is gated by `externalUserOnlyMatchGuard` and renders chrome-less; the staff copy sits inside the shell,
+   behind `internalUserOnlyMatchGuard`.
+3. **Everything else under the shell** -- only internal users (and anonymous users, who are then sent to sign
+   in) match the shell parent route, so an external user who types a staff URL gets the 404 page.
 
-  document.body.classList.toggle('externaluser-role', isExternalUser);
-  document.documentElement.classList.toggle('externaluser-role', isExternalUser);
-  this.applySidebarVisibility(isExternalUser);
-}
-```
+The booking wizard is one component for both sides. It checks `isInternalBooker` to hide its own external
+navbar inside the shell and to adjust its copy and its exit route (`/appointments` for staff, `/` otherwise).
 
-- Uses ABP `ConfigStateService` to read `currentUser.roles` from the application configuration
-- Delegates role classification to `hasAnyExternalRole()` from `shared/auth/external-user-roles.ts` -- the canonical role list lives there (4 entries: patient, applicant attorney, defense attorney, claim examiner); `app.component.ts` holds no inline role array
-- `hasAnyExternalRole` returns true when at least one role is external (case-insensitive, trimmed); a mixed internal+external user therefore gets the sidebar-hidden layout
-- Toggles CSS classes on both `<body>` and `<html>` elements
-- Directly manipulates DOM elements to hide/show sidebar and expand content
+## External pages
 
-### HomeComponent (home.component.ts)
+`ExternalNavbarComponent` (`shared/components/external-navbar/`) is rendered by the external home, the
+external appointment detail, the booking wizard and the three profile pages. It shows the office's logo and
+name, the user's name and role, notifications, and Profile, Documents, Help and Sign-out actions (emitted as
+outputs for the page to handle).
 
-The home page performs role detection for rendering:
+### The external home (`home/external-home.component.ts`)
 
-```typescript
-/** Patient, Applicant Attorney, Defense Attorney, and Claim Examiner share the same layout. */
-get isPatientUser(): boolean {
-  if (!this.hasLoggedIn) return false;
-  const roles = this.currentUser?.roles ?? [];
-  const externalUserRoles = new Set([
-    'patient',
-    'applicant attorney',
-    'defense attorney',
-    'claim examiner',
-  ]);
-  return roles.some(role => externalUserRoles.has(role?.toLowerCase() ?? ''));
-}
-```
+- A per-role configuration (`ROLE_CONFIGS`) sets the labels, the default view (cards for a Patient, a table
+  for the other three roles) and whether a patient column is shown. All four roles can book and request a
+  re-evaluation.
+- **Book** opens `/appointments/request?type=1`; **Re-evaluation** opens `/appointments/request?type=2`.
+- The list shows only the appointments the server returns for this user (see below); a row opens
+  `/appointments/view/:id`.
 
-`HomeComponent` does not import the shared utility directly; it maintains a local 4-entry `Set` that mirrors `EXTERNAL_USER_ROLES`. There is no separate `isAttorneyUser` getter -- attorney-specific appointment filtering was removed when the server-side S-NEW-2 visibility filter was introduced (see "Appointment Filtering by Role" below).
+### Profile pages
 
-## CSS Class Toggles
+| Route | Page |
+|-------|------|
+| `/user-management/patients/my-profile` | Patient profile; shows a read-only card for the other three roles |
+| `/user-management/attorneys/my-profile` | Attorney self-edit |
+| `/user-management/claim-examiners/my-profile` | Claim examiner self-edit |
 
-When an external user is detected, the following changes are applied:
+The appointment detail page links each role to its own profile page.
 
-### Global Styles (styles.scss)
+## Internal pages
 
-```scss
-body.externaluser-role, html.externaluser-role {
-  // Hide LeptonX topbar
-  .lpx-topbar-container, .lpx-topbar {
-    display: none !important;
-  }
+`InternalShellLayoutComponent` (`shared/components/internal-shell/`) builds the sidebar with
+`resolveNavGroups(roleKey, hostScope, isGranted)` from `internal-nav.config.ts`:
 
-  // Hide sidebar
-  .lpx-sidebar-container, .lpx-sidebar,
-  aside, .externaluser-sidebar-hidden {
-    display: none !important;
-  }
+- At host scope, IT Admin, `admin`, Staff Supervisor and Intake Staff get the host navigation (`IN_NAV_HOST`).
+- Inside an office, everyone gets the office navigation (`IN_NAV`).
+- An item shows only when the user's role key is listed on it **and** its `requiredPolicy` is granted. The
+  policy is the same string the route's guard checks, so a visible item never leads to a 403.
 
-  // Full-width content
-  .lpx-content-container, main, .externaluser-main-full {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-  }
+## Which appointments an external user sees
 
-  // Hide user text next to avatar
-  lpx-avatar + .lpx-menu-item-text {
-    display: none !important;
-  }
-}
-```
+There is no client-side filtering: the server narrows the list. An external caller sees an appointment when
+they are its **creator**, an explicit **AppointmentAccessor**, the **patient identity** on it, or when one of
+the appointment's party-email columns equals their email **and** they hold that column's role
+(`PatientEmail` -> Patient, `ApplicantAttorneyEmail` -> Applicant Attorney, `DefenseAttorneyEmail` -> Defense
+Attorney, `ClaimExaminerEmail` -> Claim Examiner). The email-and-role rule is
+`AppointmentAccessRules.IsAppointmentEmailRoleVisible`; the list query and the per-appointment read guard
+(`AppointmentReadAccessGuard`) use the same rule, so a row in the list opens without a 403.
 
-### DOM Class Manipulation (AppComponent)
+## Sign-up fields by role (firm-based attorney accounts)
 
-In addition to the CSS body class, `applySidebarVisibility()` directly toggles classes on DOM elements:
-
-- **Sidebar selectors:** `.lpx-sidebar-container`, `.lpx-sidebar`, `.lpx-menu-container`, `.lpx-menu`, `aside` -- get `externaluser-sidebar-hidden` class
-- **Main content selectors:** `.lpx-content-container`, `.lpx-main-container`, `.lpx-main-content`, `.lpx-page`, `main` -- get `externaluser-main-full` class
-
-## TopHeaderNavbarComponent
-
-Custom header component for external users, replacing the LeptonX topbar:
-
-```typescript
-@Component({
-  selector: 'app-top-header-navbar',
-  standalone: true,
-  imports: [CommonModule],
-})
-export class TopHeaderNavbarComponent {
-  @Input() tenantName = '';    // e.g., "ABC Medical Group"
-  @Input() userName = '';      // e.g., "John Doe"
-  @Input() roleName = '';      // e.g., "Patient"
-  @Input() showProfile = true;
-  @Input() showHelp = true;
-  @Input() showLogout = true;
-
-  @Output() profileClick = new EventEmitter<void>();
-  @Output() helpClick = new EventEmitter<void>();
-  @Output() logoutClick = new EventEmitter<void>();
-}
-```
-
-Used in:
-
-- `HomeComponent` -- with `profileClick` navigating to `/doctor-management/patients/my-profile`
-- `AppointmentAddComponent` -- with same profile navigation
-
-## UI Rendering Decision Tree
-
-```mermaid
-flowchart TD
-    START[User navigates to page] --> AUTH{Is user<br/>authenticated?}
-    AUTH -->|No| UNAUTH[Show login/register<br/>landing page<br/>with ABP page layout]
-    AUTH -->|Yes| ROLE{User has role:<br/>Patient, Applicant Attorney,<br/>Defense Attorney, or Claim Examiner?}
-    ROLE -->|Yes - External| EXT_SETUP[Apply externaluser-role class<br/>Hide sidebar + LeptonX topbar<br/>Show TopHeaderNavbar]
-    ROLE -->|No - Admin/Internal| ADMIN_SETUP[Standard LeptonX layout<br/>Show sidebar + topbar<br/>Full admin navigation]
-
-    EXT_SETUP --> EXT_HOME{Current page?}
-    EXT_HOME -->|Home /| EXT_HOME_PAGE[Show patient portal:<br/>- TopHeaderNavbar<br/>- Book Appointment button<br/>- Book Re-evaluation button<br/>- My Appointments table]
-    EXT_HOME -->|/appointments/add| EXT_BOOK[Show booking form:<br/>- TopHeaderNavbar<br/>- Multi-tab form<br/>- Calendar date picker]
-    EXT_HOME -->|/appointments/view/:id| EXT_VIEW[Show appointment detail:<br/>- Read-only view]
-    EXT_HOME -->|/doctor-management/patients/my-profile| EXT_PROF[Show patient profile:<br/>- Self-service editing]
-
-    ADMIN_SETUP --> ADMIN_HOME{Current page?}
-    ADMIN_HOME -->|Home /| ADMIN_LANDING[Show admin landing:<br/>- ABP getting started page<br/>- or dashboard link]
-    ADMIN_HOME -->|Any admin route| ADMIN_PAGE[Show full management<br/>interface with sidebar<br/>navigation]
-
-    subgraph "External User - Appointment Visibility"
-        SRV_FILTER[Server email+role filter:<br/>caller is creator, accessor,<br/>patient identity, OR a party-email<br/>column matches AND caller holds<br/>that column's role]
-    end
-
-    EXT_HOME_PAGE --> SRV_FILTER
-```
-
-## HomeComponent Rendering by Role
-
-### Unauthenticated Users
-
-Shows a simple landing page wrapped in `<abp-page>`:
-
-- "Appointment Scheduling Portal" heading
-- "Click to login or register" message
-- Login button that calls `authService.navigateToLogin()`
-
-### Patient / Attorney / Claim Examiner Users (`isPatientUser === true`)
-
-Shows the external user portal:
-
-1. **TopHeaderNavbar** -- Displays tenant name, user name, role; profile button navigates to my-profile
-2. **Action buttons row:**
-   - "Book Appointment" -- navigates to `/appointments/add?type=1`
-   - "Book Re-evaluation" -- button present but not yet wired
-3. **My Appointments Requests table** -- ngx-datatable showing:
-   - Appointment Type (name)
-   - Patient (firstName + lastName)
-   - Panel Number
-   - Confirmation Number (clickable link to `/appointments/view/:id`)
-   - Appointment Date
-   - Appointment Status (localized enum display)
-   - Location (name)
-
-### Admin Users (not external)
-
-Shows the standard ABP landing page within `<abp-page>`. If not logged in, shows login prompt. Otherwise, the sidebar provides navigation to all management screens.
-
-## Appointment Filtering by Role
-
-Client-side role-based filtering was removed; the server narrows the appointment list. As of the
-firm-based AA/DA work (2026-06-12, `ComputeExternalPartyVisibilityAsync`), the narrowing is
-**email + role gated**: an external caller sees an appointment only where they are the **creator**,
-an explicit **AppointmentAccessor**, the **patient identity** on the row, OR one of the appointment's
-denormalized party-email columns equals their email **AND they hold that column's role**
-(`PatientEmail`->Patient, `ApplicantAttorneyEmail`->Applicant Attorney, `DefenseAttorneyEmail`->Defense
-Attorney, `ClaimExaminerEmail`->Claim Examiner). The earlier role-AGNOSTIC email match and the bare
-id-based AA/DA link unions were dropped -- they would surface a column to a user who lacks that role
-(e.g. a Defense-Attorney account whose email happens to be the Applicant-Attorney column). The
-per-appointment read guard (`AppointmentReadAccessGuard`) applies the *same* rule, so a row shown in
-the list never 403s on click. A firm holding both Applicant + Defense Attorney (accumulated via an
-accessor invite) sees both sides; a single-role account sees only its own.
-
-`HomeComponent.ngOnInit()` calls `this.service.hookToQuery()` unconditionally once `isPatientUser` is confirmed true; no per-role filter is pre-set on the client.
-
-## Registration field branching (firm-based AA/DA)
-
-The AuthServer sign-up overlay (`AuthServer/wwwroot/global-scripts.js`) branches the visible fields by
-selected role: **Patient / Claim Examiner** show First/Last name; **Applicant / Defense Attorney**
-hide First/Last and show **Firm Name** (those roles register as firm accounts). Because an attorney
-account's `Name`/`Surname` are blank, every display surface falls back via
-`resolveExternalUserDisplayName` (First+Last -> Firm Name -> email): the home banner and the
-appointment-view attorney picker show the firm name, never a blank or raw email. On the booking form
-the attorney section is **free-entry** for an AA/DA booker (a firm/paralegal books on behalf of a
-distinct attorney), so it is no longer auto-seeded with the booker's own identity.
-
-## Patient Self-Service Routes
-
-External users have access to specific routes without requiring ABP permissions (only `authGuard`):
-
-| Route | Purpose |
-|-------|---------|
-| `/` | Home with portal view |
-| `/appointments/add` | Book new appointment |
-| `/appointments/view/:id` | View appointment detail |
-| `/doctor-management/patients/my-profile` | Edit own patient profile |
-
-All other routes require `permissionGuard` and specific ABP policies, making them inaccessible to external users unless explicitly granted.
-
-## Cleanup
-
-`AppComponent.ngOnDestroy()` cleans up the role-based CSS modifications:
-
-```typescript
-ngOnDestroy(): void {
-  this.subscription.unsubscribe();
-  document.body.classList.remove('externaluser-role');
-  document.documentElement.classList.remove('externaluser-role');
-  this.applySidebarVisibility(false);
-}
-```
+The AuthServer sign-up page (`src/HealthcareSupport.CaseEvaluation.AuthServer/wwwroot/global-scripts.js`)
+changes its fields with the selected role: Patient and Claim Examiner enter first and last name; Applicant and
+Defense Attorney enter a **firm name** instead and register as firm accounts, so their first and last name
+stay blank. Every display surface therefore uses `resolveExternalUserDisplayName`
+(`shared/auth/external-user-display-name.ts`): first and last name, else firm name, else email.
 
 ---
 

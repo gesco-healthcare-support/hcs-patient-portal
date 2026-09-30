@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -34,6 +35,7 @@ public class AppointmentChildGroupWriter : ITransientDependency
     private readonly IAppointmentInjuryDetailsAppService _injuryDetails;
     private readonly IAppointmentBodyPartsAppService _bodyParts;
     private readonly IAppointmentAccessorsAppService _accessors;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
 
     public AppointmentChildGroupWriter(
         IAppointmentEmployerDetailsAppService employerDetails,
@@ -41,7 +43,8 @@ public class AppointmentChildGroupWriter : ITransientDependency
         IAppointmentClaimExaminersAppService claimExaminers,
         IAppointmentInjuryDetailsAppService injuryDetails,
         IAppointmentBodyPartsAppService bodyParts,
-        IAppointmentAccessorsAppService accessors)
+        IAppointmentAccessorsAppService accessors,
+        IUnitOfWorkManager unitOfWorkManager)
     {
         _employerDetails = employerDetails;
         _primaryInsurances = primaryInsurances;
@@ -49,6 +52,7 @@ public class AppointmentChildGroupWriter : ITransientDependency
         _injuryDetails = injuryDetails;
         _bodyParts = bodyParts;
         _accessors = accessors;
+        _unitOfWorkManager = unitOfWorkManager;
     }
 
     /// <summary>
@@ -90,6 +94,17 @@ public class AppointmentChildGroupWriter : ITransientDependency
             injury.Injury.AppointmentId = appointmentId;
             var createdInjury = await _injuryDetails.CreateAsync(injury.Injury);
             result.InjuryDetails++;
+
+            // Flush, do NOT commit, before the body parts: the body-part create checks the caller is a
+            // party to the appointment its parent injury detail belongs to, and finds that injury detail
+            // with a database query. An insert still pending in the change tracker is invisible to it,
+            // which surfaces as "no such entity" and would fail every booking that has body parts. Same
+            // reasoning as the flush in AppointmentsAppService.SubmitAsync: the INSERT joins the open
+            // transaction, which still commits once, so a later failure rolls the whole graph back.
+            if (injury.BodyParts is { Count: > 0 })
+            {
+                await _unitOfWorkManager.Current!.SaveChangesAsync();
+            }
 
             result.BodyParts += await WriteManyAsync(
                 injury.BodyParts,

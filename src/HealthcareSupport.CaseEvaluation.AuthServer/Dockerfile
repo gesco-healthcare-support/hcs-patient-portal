@@ -35,9 +35,13 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 
 # Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
 # later RUN would not help -- the layer that created the file still holds it.
+# --locked-mode restores exactly the committed packages.lock.json files, as CI
+# does, so a lock file that has fallen behind a project file fails here with
+# NU1004 instead of building an unrecorded dependency graph. After changing a
+# package: `dotnet restore --force-evaluate`, then commit the lock files.
 RUN --mount=type=secret,id=abp_nuget_key \
     sh /usr/local/bin/write-nuget-config.sh \
- && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; exit $rc; }
 
 # Node + ABP CLI to restore client-side libraries (wwwroot/libs is gitignored).
 #
@@ -102,9 +106,13 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 
 # Render NuGet.Config, restore, and delete it in ONE layer. Deleting it in a
 # later RUN would not help -- the layer that created the file still holds it.
+# --locked-mode restores exactly the committed packages.lock.json files, as CI
+# does, so a lock file that has fallen behind a project file fails here with
+# NU1004 instead of building an unrecorded dependency graph. After changing a
+# package: `dotnet restore --force-evaluate`, then commit the lock files.
 RUN --mount=type=secret,id=abp_nuget_key \
     sh /usr/local/bin/write-nuget-config.sh \
- && { dotnet restore HealthcareSupport.CaseEvaluation.slnx; rc=$?; rm -f NuGet.Config; exit $rc; }
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; exit $rc; }
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \
     -c Debug --no-restore
 
@@ -153,7 +161,22 @@ ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEval
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
+# NON-ROOT RUNTIME (#701), as in the HttpApi.Host and DbMigrator prod stages;
+# the reasoning is written out in full in the HttpApi.Host Dockerfile. `app`
+# (uid 1654, gid 1654) is pre-created by the Microsoft runtime image. `Logs/` is
+# created and chowned because Serilog's file sink writes relative to WORKDIR, /app
+# is root-owned after COPY, and Serilog drops lines silently when it cannot open
+# the file.
+#
+# One requirement specific to this service: the token-signing certificate is
+# bind-mounted read-only at /app/openiddict.pfx, and this process reads it through
+# its group. The file must be mode 640, group 1654, or the service fails at
+# startup. scripts/hosting/gen-openiddict-cert.sh sets that when it can; an
+# existing certificate needs it done once on the host -- see
+# docs/security/SECRETS-MANAGEMENT.md.
+RUN mkdir -p /app/Logs && chown app:app /app/Logs
+USER app
 
 # Do NOT add empty-stub source dirs: ABP's ReplaceEmbeddedByPhysical replaces
 # (not merges) the embedded localization fileset when the physical path exists.

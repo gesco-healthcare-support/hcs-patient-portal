@@ -40,9 +40,14 @@ misconfiguration fails closed rather than silently exposing data.
    another.
 
 4. **Defense in depth (does not rest on physical isolation alone).**
-   - `Patient` is NOT `IMultiTenant` (a known PHI leak risk), so every Patient list/count
-     query applies an explicit `Where(p => p.TenantId == currentTenantId)` filter
-     (`EfCorePatientRepository`).
+   - `Patient` **is** `IMultiTenant`, so ABP's automatic query filter scopes every read by
+     `CurrentTenant.Id`. That filter is the PRIMARY control. `EfCorePatientRepository`
+     additionally applies an explicit `Where(p => p.TenantId == currentTenantId)` on the
+     list and count paths, and its own comments label that explicit filter "defence in
+     depth on top of ABP's" -- it is the second layer, not the only one. Cross-office
+     visibility for host and IT-Admin paths is deliberate and goes through
+     `IDataFilter<IMultiTenant>.Disable()`. **See the amendment at the foot of this ADR:
+     this bullet said the opposite until 2026-09-29.**
    - Operational reads pass through `AppointmentReadAccessGuard` /
      `AppointmentVisibilityService`, which assert `p.TenantId == CurrentTenant.Id` plus a
      party check (creator / patient identity / accessor / booked email).
@@ -95,3 +100,42 @@ misconfiguration fails closed rather than silently exposing data.
   the residual gap.
 - The deny-by-default isolation gate (any cross-office PHI read = blocking) is now an
   automated, repeatable check that guards against regressions in future changes.
+
+## Amendment 2026-09-29: the `Patient` tenancy claim was false when written
+
+**The decision is unchanged. One factual claim inside it was wrong, and wrong in the
+direction that matters, so it is corrected in place rather than only footnoted.**
+
+Defense-in-depth bullet 1 previously read:
+
+> `Patient` is NOT `IMultiTenant` (a known PHI leak risk), so every Patient list/count
+> query applies an explicit `Where(p => p.TenantId == currentTenantId)` filter
+> (`EfCorePatientRepository`).
+
+Both halves are wrong. `Patient` implements `IMultiTenant`:
+
+```text
+grep -n "class Patient" src/HealthcareSupport.CaseEvaluation.Domain/Patients/Patient.cs
+  27:public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
+```
+
+It has done so since FEAT-09 / ADR-006 T4 on **2026-05-05**, which `Patient.cs:19-21`
+records, noting the entity was "previously host-only with a manual TenantId column but no
+auto-filter". This ADR is dated **2026-06-25**, seven weeks later, so the claim was false
+when written rather than having drifted afterwards.
+
+The repository states the correct ordering itself, at `EfCorePatientRepository:110` and
+`:162`: the explicit `TenantId` filter is "defence in depth on top of ABP's" automatic
+filter. The original bullet inverted that, denying the primary control existed and
+presenting the second layer as the only thing separating two offices' PHI.
+
+**Why the ordering is worth correcting rather than shrugging at.** The risk is not that
+somebody forgets to add a filter. It is that somebody reading this ADR treats ABP's global
+filter as absent for `Patient` -- and so removes it as dead configuration, or writes an
+`IgnoreQueryFilters` or raw-SQL query believing it changes nothing here. It also
+misdescribes the system's actual PHI control to anyone consulting these records for a
+compliance question.
+
+`docs/architecture/MULTI-TENANCY.md:134` already carried the correct statement, having been
+fixed by `#1112`, which found the same inverted-classification defect across seven entities
+on that page. This instance survived because `docs/decisions/` had never been audited.

@@ -87,7 +87,22 @@ public class AppointmentChildOwnershipGuard : ITransientDependency
         }
     }
 
-    /// <summary>Refuses unless the caller is a party to the appointment.</summary>
+    /// <summary>
+    /// Refuses unless the caller is a party to the appointment. The update path calls this against a
+    /// row's stored parent; the create path calls it against the appointment a new row will hang off.
+    ///
+    /// <para><b>Who passes it when a booking writes its own child rows.</b> The booker, through
+    /// <c>AppointmentAccessRules</c> pathway 2, <c>AccessPathway.Creator</c>: the appointment's
+    /// <c>CreatorId</c> (or <c>BookedByUserId</c>) equals the caller. <c>SubmitAsync</c> flushes the new
+    /// appointment before writing any child group, which is what stamps <c>CreatorId</c> in time; an
+    /// internal booker passes earlier, through pathway 1.</para>
+    ///
+    /// <para><b>That grant is PERMANENT, and deliberately so.</b> Whoever booked an appointment may go
+    /// on adding and editing its child records for as long as it exists, because it is their booking;
+    /// the view page's employer-detail add relies on exactly this. <c>CreatorId</c> does not change after
+    /// the booking, so nothing ever revokes it. If the booker should ever lose that right (for example
+    /// after handing a case over), this is the rule to change, and <c>CanReadAsync</c> is where.</para>
+    /// </summary>
     public virtual async Task EnsureIsPartyAsync(Guid appointmentId)
     {
         await _readAccessGuard.EnsureCanReadAsync(appointmentId);

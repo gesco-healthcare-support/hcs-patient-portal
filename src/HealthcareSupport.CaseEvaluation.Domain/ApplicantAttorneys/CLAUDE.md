@@ -43,7 +43,7 @@ added under BUG-042. No symmetric divergence remains in the entity shape.
 
 `IMultiTenant: yes`. DbContext config exists in BOTH `CaseEvaluationDbContext` and
 `CaseEvaluationTenantDbContext` -- no `IsHostDatabase()` guard.
-`StateId` FK points to the host-scoped `State` entity with `SetNull` on delete.
+`StateId` FK points to the office's own `State` entity (per-office, `IMultiTenant`) with `SetNull` on delete.
 
 ## Gotchas
 

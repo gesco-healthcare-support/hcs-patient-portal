@@ -1,6 +1,22 @@
 # Patient Portal Hardening Test Suite
 
-> Purpose: Repeatable end-to-end + API + DB validation runbook for the core booking pipeline. Audience: QA engineer / Adrian.
+> Purpose: a repeatable end-to-end, API and database validation of the core booking pipeline.
+> Audience: whoever runs a hardening pass: a QA engineer, or an agent driven by one.
+> Owner: the portal maintainer.
+> **Last tested: the last run on record is 2026-05-28 (run prefix `hrd-0528`), indexed in
+> `docs/findings/2026-05-28-userflow-findings.md`.**
+> **Not re-verified.** On 2026-09-28 this page gained its header, "When to run this", "Abort and
+> clean up" and "Escalation", and the Phase 0 correction its findings record (PROPOSED-OBS-DOC-1).
+> The rest of the body was NOT re-verified step by step against the current code. Where a step
+> does not match the product, file it as a doc defect rather than a product failure.
+
+## When to run this
+
+- A hardening pass: a planned end-to-end check of the booking pipeline, such as before a release
+  that changes slot generation, registration, booking, approval, packets, uploads, scope or auth.
+- A replay of open findings once fixes for them land (Round 3, Part 4.5).
+
+It runs against a local Docker stack, never a server holding real data (see Part 1).
 
 **Purpose.** Repeatable end-to-end + API + DB validation of the core booking
 pipeline (slot-gen -> register -> book -> approve -> packet -> upload ->
@@ -12,13 +28,13 @@ This doc is the **canonical** test plan for hardening passes. The earlier
 ad-hoc plan at `docs/plans/2026-05-14-core-process-hardening.md` was a
 one-off session log; this suite supersedes it.
 
-Findings filed during a run land in `docs/runbooks/findings/bugs/` with
+Findings filed during a run land in `docs/findings/bugs/` with
 stable IDs (`BUG-NNN`, `OBS-N`, `SEED-N`). The findings index lives at
-`docs/runbooks/findings/2026-05-13-userflow-findings.md` (rename the date
+`docs/findings/2026-05-13-userflow-findings.md` (rename the date
 when starting a fresh quarter).
 
 Template-review output for Phase 10 lands at
-`docs/runbooks/findings/template-review-<run-date>.md`.
+`docs/findings/template-review-<run-date>.md`.
 
 ---
 
@@ -52,7 +68,7 @@ Process:
    hard-coded confirmation numbers or "T+Nd" offsets.
 6. Execute Round 2 (major failure-mode probes).
 7. Execute Round 3 (replay sweep of open findings).
-8. For every Fail, file a finding under docs/runbooks/findings/bugs/
+8. For every Fail, file a finding under docs/findings/bugs/
    using the existing BUG-NNN / OBS-N / SEED-N naming. Include:
      - frontmatter (id, title, severity, status, found, flow, component)
      - Symptom (exact reproduction with HTTP status + body or DB row)
@@ -208,7 +224,7 @@ On fail -> file <BUG-NNN candidate>
 
 ```text
 HRD-R3.<finding-id>  <Title from the finding file>
-Repro           <copied verbatim from docs/runbooks/findings/bugs/<id>.md>
+Repro           <copied verbatim from docs/findings/bugs/<id>.md>
 Expected if fixed <what a passing run looks like now>
 Action on outcome
   - confirmed-open  -> update the finding's `last-replayed: <run-date>`
@@ -229,39 +245,57 @@ fails, document and skip dependents (note the cascade in the finding).
 Adrian's directive: NEVER seed the doctor. Every slot used downstream is
 created in this phase via the staff-supervisor-driven UI / API path.
 
+A location holds ONE slot per time window, and several appointment types share that slot through
+its type set. So Phase 0 runs one generation per location whose type set holds every active type.
+A second generation for another type over the same window at the same location overlaps the
+first and is flagged as a conflict (OBS-26, #563).
+
 ```text
-HRD-P0.1  Generate equal slots for every active AppointmentType x active Location
+HRD-P0.1  Generate slots for every active Location, each slot accepting every active AppointmentType
 Role        stafsuper1@gesco.com
 Inputs
-  - window: today+3 days .. today+60 days (in tenant TZ)
-  - slot duration: 30 minutes (default; confirm via SystemParameter)
-  - target slots per type: SAME count across types (e.g., 1 slot/day/type/location
-    over the window; equal-count is the assertion)
+  - window: today+3 days .. today+60 days (in the office's time zone)
+  - slot duration: 30 minutes (appointmentDurationMinutes)
+  - capacity: 3 appointments per slot (the default; send it explicitly)
 Steps
   1. Log in as stafsuper1@gesco.com.
-  2. For each (AppointmentType, Location) pair returned by
-     GET /api/app/appointment-types and GET /api/app/locations
-     (active rows only):
-       a. POST /api/app/doctor-availabilities/generate-preview with
-          { doctorId, locationId, appointmentTypeId,
-            startDate = today+3 days, endDate = today+60 days,
-            dailyStartTime, dailyEndTime, durationMinutes,
-            weekdays = [Mon..Fri] }.
-       b. POST /api/app/doctor-availabilities/create with the preview payload.
-  3. Persist state.slots[<type>].count and state.slots[<type>].earliestDate
+  2. Read the active rows from GET /api/app/appointment-types and
+     GET /api/app/locations.
+  3. For each active Location, ONE generation covers every type:
+       a. POST /api/app/doctor-availabilities/preview with
+          { fromDate = today+3 days, toDate = today+60 days,
+            selectedDays = [1, 2, 3, 4, 5]    (Mon..Fri; 0 = Sunday),
+            timeRanges = [{ fromTime = "09:00:00", toTime = "12:00:00" }],
+            bookingStatusId = 8               (Available),
+            locationId,
+            appointmentTypeIds = [every active type id]
+                                              (an empty list means any type),
+            appointmentDurationMinutes = 30,
+            capacity = 3 }.
+          There is no doctorId: slots belong to the office, not to a doctor
+          record (PROPOSED-OBS-DOC-1).
+       b. POST /api/app/doctor-availabilities/create-range with the same body.
+  4. Persist state.slots[<type>].count and state.slots[<type>].earliestDate
      from the verify SQL below.
 Expected
-  - HTTP 200 on every generate-preview + create call.
-  - SQL row count per AppointmentType differs by at most +/- 1 across types.
-Verify SQL
-  SELECT at.Name, COUNT(*) AS slots
-  FROM AppDoctorAvailabilities a
-  JOIN AppAppointmentTypes at ON at.Id = a.AppointmentTypeId
-  WHERE a.AvailableDate BETWEEN DATEADD(day, 3, GETDATE())
-                            AND DATEADD(day, 60, GETDATE())
-    AND a.BookingStatusId = 8
+  - HTTP 200 on every preview + create-range call.
+  - The preview flags no conflicts on a stack that starts near-empty.
+Verify SQL (run against the office's database, not the host database)
+  SELECT at.Name, COUNT(a.Id) AS slots, MIN(a.AvailableDate) AS earliest
+  FROM AppAppointmentTypes at
+  LEFT JOIN AppDoctorAvailabilities a
+    ON a.IsDeleted = 0
+   AND a.BookingStatusId = 8
+   AND a.AvailableDate BETWEEN CAST(DATEADD(day, 3, GETDATE()) AS date)
+                           AND CAST(DATEADD(day, 60, GETDATE()) AS date)
+   AND (EXISTS (SELECT 1 FROM AppDoctorAvailabilityAppointmentType t
+                WHERE t.DoctorAvailabilityId = a.Id AND t.AppointmentTypeId = at.Id)
+        OR NOT EXISTS (SELECT 1 FROM AppDoctorAvailabilityAppointmentType t
+                       WHERE t.DoctorAvailabilityId = a.Id))
+  WHERE at.IsDeleted = 0
   GROUP BY at.Name
   ORDER BY at.Name;
+  A slot whose type set is empty accepts any type, so it counts for every row.
 Persist   state.slots.<typeKey> for each row
 Pass criteria
   - Every active AppointmentType returns at least 1 slot in the window.
@@ -269,9 +303,10 @@ Pass criteria
   - Earliest slot per type is >= today+3 days.
 On fail
   - 0 slots for one type -> raise SEED-3 follow-up (still open) and stop.
-  - Unequal counts > 1 -> file new OBS about generate-preview not handling
-    weekend skips uniformly; continue if every type has >= 1 slot.
-  - 5xx from generate-preview -> capture container logs, raise new BUG.
+  - Unequal counts > 1 -> a type is missing from one location's type set;
+    check step 3a's appointmentTypeIds, then continue if every type has
+    >= 1 slot.
+  - 5xx from preview or create-range -> capture container logs, raise new BUG.
 ```
 
 ### Phase 1 - Registration (3 sub-phases)
@@ -882,7 +917,7 @@ Steps
   4. Render the template with the sample token dictionary (use the
      same Scriban/Razor renderer the runtime uses if reachable from a
      test harness; otherwise compute substitution manually).
-  5. Append a row to docs/runbooks/findings/template-review-<run-date>.md:
+  5. Append a row to docs/findings/template-review-<run-date>.md:
        | Code | Subject<=60 | One CTA | Tokens resolved | No jargon | Non-redundant | Notes |
        | ---  | --- | --- | --- | --- | --- | --- |
        | UserRegistered | PASS | PASS | PASS | PASS | FAIL | "Subject + first line both contain 'Patient Portal'" |
@@ -1093,7 +1128,7 @@ If missing: file BUG-025-style finding (currently still open).
 ## Part 4.5: Round 3 - Replay sweep of open findings
 
 Run after Round 1 + Round 2. For every finding under
-`docs/runbooks/findings/bugs/` with frontmatter `status: open` or
+`docs/findings/bugs/` with frontmatter `status: open` or
 `open-low`, attempt to reproduce. Skip `resolved-not-a-bug`,
 `fixed`, `superseded`, `driver-limitation`, and `stub` entries -- those
 are not candidates for replay.
@@ -1104,7 +1139,7 @@ The agent MUST regenerate this list at run-time by globbing the bugs
 directory:
 
 ```text
-Glob: docs/runbooks/findings/bugs/*.md
+Glob: docs/findings/bugs/*.md
 For each file: read frontmatter, keep iff status in {open, open-low}.
 ```
 
@@ -1148,7 +1183,7 @@ flip its status to `fixed`.
 
 ```text
 HRD-R3.<finding-id>  <Title from finding>
-Source            docs/runbooks/findings/bugs/<finding-id>.md
+Source            docs/findings/bugs/<finding-id>.md
 Repro
   <copied verbatim from the finding's Symptom or Repro section>
 Expected if fixed
@@ -1399,7 +1434,7 @@ Cross-link with `[[BUG-NNN]]` syntax to existing tickets.
 | `OBS-N` | Observation worth tracking but not a defect (design question, behavior nuance, driver limit) |
 | `SEED-N` | Test-data / seed gap |
 
-Increment N from the highest existing in `docs/runbooks/findings/bugs/`.
+Increment N from the highest existing in `docs/findings/bugs/`.
 
 ### Per-scenario finding map
 
@@ -1485,9 +1520,33 @@ After a complete run, post a summary message containing:
    the same scenario.
 8. **Template review summary**: how many of the 59 templates passed all
    5 rubric items; how many failed >= 2; link to
-   `docs/runbooks/findings/template-review-<run-date>.md`.
+   `docs/findings/template-review-<run-date>.md`.
 
 Do not commit the test run; the run produces findings, not code.
+
+---
+
+## Abort and clean up
+
+A run can stop at any scenario: a blocker for the next scenarios, a stack that will not stay
+healthy, or no time left.
+
+1. Stop at the scenario you are on and record it in the run-state file
+   (`.hardening-run/<YYYY-MM-DD>.json`, gitignored), so a later run can see what ran.
+2. File findings for what you have seen so far (Part 7), and report per Part 8 with every scenario
+   not run listed as skipped.
+3. The run's data (the run-prefixed users, slots, appointments and packets) lives in the local
+   stack. Leave it there for inspection. To discard it, `docker compose down -v` deletes the
+   stack's databases: use it only on a disposable local stack.
+
+## Escalation
+
+- A blocker that stops the run for more than 30 minutes goes to the portal maintainer, with the
+  scenario id, the request and response or SQL row, and the relevant container log.
+- A security finding (an auth bypass, or a read that crosses offices or roles in Phase 8 or 9) goes
+  to the portal maintainer at once, and privately. The repository is public, so it is NOT filed as
+  a finding file or a public issue; follow the
+  [security policy](https://github.com/gesco-healthcare-support/hcs-patient-portal/blob/main/SECURITY.md).
 
 ---
 
@@ -1496,9 +1555,9 @@ Do not commit the test run; the run produces findings, not code.
 This suite must stay current. When you change product behavior, update
 this suite **in the same PR** to keep the test corpus aligned.
 
-- Adding a new appointment type? Extend Phase 0's loop so slots are
-  generated for it. Add a Phase 3 row + decide its max-horizon
-  classification.
+- Adding a new appointment type? It is picked up by Phase 0's type set
+  (HRD-P0.1 step 3a takes every active type). Add a Phase 3 row + decide
+  its max-horizon classification.
 - Adding a new role? Add a Phase 8 scope scenario + extend the 12-user
   roster in Part 5.
 - Changing an error code or HTTP status mapping? Update the relevant
@@ -1511,5 +1570,5 @@ this suite **in the same PR** to keep the test corpus aligned.
   Phase 10.
 - Adding a new auth feature (MFA, SSO, etc.)? Add a Phase 9 scenario.
 
-The findings index at `docs/runbooks/findings/2026-05-13-userflow-findings.md`
+The findings index at `docs/findings/2026-05-13-userflow-findings.md`
 should be rotated quarterly (`YYYY-MM-DD-userflow-findings.md`).

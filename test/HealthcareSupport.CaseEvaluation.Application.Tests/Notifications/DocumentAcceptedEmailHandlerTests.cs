@@ -87,6 +87,8 @@ public class DocumentAcceptedEmailHandlerTests
             RecipientResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>()).Returns(_ => Parties);
             // A sealed record is not auto-substituted: unconfigured, this would return null and throw.
             MissingResolver.ResolveAsync(Arg.Any<Guid>()).Returns(MissingRequiredDocumentsResult.Empty);
+            // DECOY, load-bearing (#1014): production's ambient name is null, so ClinicName
+            // must never come from it.
             CurrentTenant.Name.Returns(ClinicName);
             UrlBuilder.BuildAuthServerRootUrlAsync(Arg.Any<Guid?>()).Returns(AuthRoot);
             UrlBuilder.BuildPortalRootUrlAsync(Arg.Any<Guid?>()).Returns(PortalRoot);
@@ -178,6 +180,22 @@ public class DocumentAcceptedEmailHandlerTests
         var sent = SingleSend(rig.Dispatcher);
         sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientDocumentAccepted);
         sent.To.Email.ShouldBe(UploaderEmail);
+    }
+
+    /// <summary>
+    /// Issue #1014: the handler leaves <c>ClinicName</c> blank for the renderer to fill from the tenant
+    /// store. The rig's ambient office name is a DECOY -- production's is null inside
+    /// <c>Change(TenantId)</c> -- so a handler that passed it through would pass here and blank it live.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_LeavesClinicNameForTheRenderer_NotTheAmbientName()
+    {
+        var rig = new Rig();
+
+        await rig.Build().HandleEventAsync(AcceptedEvent());
+
+        SingleSend(rig.Dispatcher).Variables["ClinicName"].ShouldBe(
+            string.Empty, "the renderer resolves the office name from the tenant store (#1014)");
     }
 
     [Fact]

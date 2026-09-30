@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Authorization
+[Home](../index.md) > Security > Authorization
 
 # Authorization & Permission Matrix
 
@@ -10,33 +10,81 @@ This document summarizes the permission surface and its mapping to roles, entiti
 
 **Source of truth:** `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissions.cs`
 
-**Last verified:** 2026-06-01
-
 ---
 
 ## Permission Groups
 
-The root group is `CaseEvaluation`. All permissions are nested under it.
+The root group is `CaseEvaluation`. Under it the provider declares **six groups**: appointments,
+people, doctors, configuration, usersAndAccess and administration. The table below names some of
+their permissions and is not maintained as a complete list; read the source file for the full tree.
+
+Every figure on this page is a count, so each carries the command that produces it. Measured on
+`main` at `92b8b192`, with `P` standing for
+`src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissionDefinitionProvider.cs`:
+
+| Figure | Value | Command |
+|---|---|---|
+| Groups | 6 | `grep -c "AddGroup(" $P` |
+| Top-level permissions | 42 | `grep -c "AddPermission(" $P` |
+| Child permissions | 97 | `grep -c "AddChild(" $P` |
+| Both combined | 139 | `grep -cE "AddPermission\(\|AddChild\(" $P` |
+
+**This page previously said "39 top-level groups", which was wrong and not checkable as phrased.**
+There are six groups. Forty-two is the number of top-level permissions, which is the closest real
+figure to 39 and may be what was meant. The claim is corrected rather than reworded because a
+number nobody can re-run is the kind of statement this documentation pass exists to remove.
+
+> **Three things in this table were wrong until 2026-09-28**, and they are worth naming because
+> each would mislead in a different direction.
+>
+> 1. **The multi-tenancy side column.** States, AppointmentTypes, AppointmentStatuses,
+>    AppointmentLanguages, Locations and WcabOffices were marked `Host`. None of those
+>    registrations passes a `MultiTenancySides` argument, so ABP registers each as `Both`.
+>
+>    **The figures here were themselves stale and are re-derived on `main` at `92b8b192`.** Of the
+>    **139** `AddPermission` and `AddChild` calls, **ten** declare a side in code: two `Both`, seven
+>    `Host`, one `Tenant`. So **eight** declare something other than `Both`, not six -- the two
+>    `Dashboard` variants plus six host-only grants.
+>
+>    Count them with, excluding comment lines, since one comment mentions a side and would
+>    otherwise inflate the figure:
+>
+>    ```bash
+>    grep -vE "^\s*//" $P | grep -oE "MultiTenancySides\.[A-Za-z]+" | sort | uniq -c
+>    ```
+>
+>    **ABP defaults a child permission to `Both` and checks only the permission's own side**, so a
+>    child declared under a `Host` parent without its own argument is reachable from a tenant. That
+>    is worth knowing before adding one: state the side you mean rather than relying on the
+>    parent's.
+> 2. **`Books`** was listed. That ABP-template sample permission was removed; only a comment
+>    recording the removal survives in the definition provider.
+> 3. **`AppointmentAccessors`** was listed with Default, Create, Edit and Delete. **No
+>    `AppointmentAccessors` permission of any kind exists.** `AppointmentAccessorsAppService`
+>    carries a bare `[Authorize]` and gates per-appointment access through
+>    `AppointmentReadAccessGuard` instead. Anyone who tried to grant that permission would find
+>    nothing to grant, and anyone who assumed it was enforcing something would be wrong.
 
 | Group | Default | Create | Edit | Delete | Multi-tenancy side |
 |---|---|---|---|---|---|
-| Dashboard | -- | -- | -- | -- | Host / Tenant (two vars) |
-| Books | yes | yes | yes | yes | Both |
-| States | yes | yes | yes | yes | Host |
-| AppointmentTypes | yes | yes | yes | yes | Host |
-| AppointmentStatuses | yes | yes | yes | yes | Host |
-| AppointmentLanguages | yes | yes | yes | yes | Host |
-| Locations | yes | yes | yes | yes | Host |
-| WcabOffices | yes | yes | yes | yes | Host |
-| Doctors | yes | yes | yes | yes | Tenant |
-| DoctorAvailabilities | yes | yes | yes | yes | Tenant |
+| Dashboard | -- | -- | -- | -- | Host / Tenant (declared explicitly) |
+| States | yes | yes | yes | yes | Both |
+| AppointmentTypes | yes | yes | yes | yes | Both |
+| AppointmentStatuses | yes | yes | yes | yes | Both |
+| AppointmentLanguages | yes | yes | yes | yes | Both |
+| Locations | yes | yes | yes | yes | Both |
+| WcabOffices | yes | yes | yes | yes | Both |
+| Doctors | yes | yes | yes | yes | Both |
+| DoctorAvailabilities | yes | yes | yes | yes | Both |
 | Patients | yes | yes | yes | yes | Both |
 | Patients.RevealSsn | yes | -- | -- | -- | Both |
-| Appointments | yes | yes | yes | yes | Tenant |
-| AppointmentEmployerDetails | yes | yes | yes | yes | Tenant |
-| AppointmentAccessors | yes | yes | yes | yes | Tenant |
-| ApplicantAttorneys | yes | yes | yes | yes | Tenant |
-| AppointmentApplicantAttorneys | yes | yes | yes | yes | Tenant |
+| Appointments | yes | yes | yes | yes | Both |
+| AppointmentEmployerDetails | yes | yes | yes | yes | Both |
+| ApplicantAttorneys | yes | yes | yes | yes | Both |
+| AppointmentApplicantAttorneys | yes | yes | yes | yes | Both |
+
+`Appointments` also carries `Approve`, `Reject`, `RequestCancellation`, `RequestReschedule`,
+`PushToCaseTracker` and `ViewIntegrationDeadLetters` beyond the CRUD four.
 
 **Dashboard permissions:** `CaseEvaluation.Dashboard.Host` and `CaseEvaluation.Dashboard.Tenant`. These gate the dashboard widgets by multi-tenancy side. The host dashboard aggregates across tenants; the tenant dashboard is scoped to the current tenant.
 
@@ -44,16 +92,50 @@ The root group is `CaseEvaluation`. All permissions are nested under it.
 
 ---
 
-## Roles (ABP Identity defaults)
+## Roles
 
-ABP seeds two default roles; this project does not define custom roles in code.
+> **This section said "ABP seeds two default roles; this project does not define custom roles in
+> code", and that the repository "does not yet define role-based permission seeds beyond ABP
+> defaults".** Both were wrong. Seven named roles are seeded in code, and both seeders grant
+> permission sets to them at seed time, per office. Corrected 2026-09-28.
 
-| Role | Scope | Intended Permissions |
-|---|---|---|
-| `admin` | Host + Tenant | All permissions for their scope |
-| (user's direct permissions) | Tenant | Individually granted per user |
+Seven named roles plus the ABP superuser.
 
-**Gap:** The repository does not yet define role-based permission seeds beyond ABP defaults. New tenants get no custom role setup; all permissions must be granted per-user or via manual role creation in the admin UI.
+| Role | Seeded by | Scope | Notes |
+|---|---|---|---|
+| `admin` | ABP | Host + Tenant | The framework superuser. Sees every nav item |
+| `IT Admin` | `InternalUserRoleDataSeedContributor` | Host | Internal |
+| `Staff Supervisor` | `InternalUserRoleDataSeedContributor` | Host + Tenant | Internal |
+| `Intake Staff` | `InternalUserRoleDataSeedContributor` | Host + Tenant | Internal |
+| `Patient` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Applicant Attorney` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Defense Attorney` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Claim Examiner` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+
+**The four external roles exist on the host as well, and that surprises people.**
+`ExternalUserRoleDataSeedContributor.SeedAsync` calls `EnsureRoleAsync` for every name in
+`ExternalRoleConsts.All` on **every** seeding pass, before it checks the tenant
+(`ExternalUserRoleDataSeedContributor.cs:39-42`). The GRANTS are what is tenant-only: they sit
+behind `if (context?.TenantId != null)`, with a comment explaining that external roles are
+tenant-scoped.
+
+Both halves of that are true of different things, which is why the page had it wrong. The
+**permissions** are tenant-scoped. The **role rows** are not: four external roles exist in the host
+database with nothing granted to them. Empty roles are not a way in by themselves, but anyone
+auditing the host role list should expect to find them rather than treat them as a surprise.
+
+**The four external roles receive a byte-identical permission set.** The seeder loops over
+`ExternalRoleConsts.All` and grants every role the same `BookingBaselineGrants()` list, so any
+statement that a Defense Attorney or Claim Examiner cannot do something an Applicant Attorney can
+is wrong at the permission layer. The only per-role difference is `Patients.RevealSsn`, granted to
+`Patient` alone.
+
+Differences in what those roles can actually reach come from **per-record access**, not from
+permissions: see the appointment-accessor rules below.
+
+Internal roles never appear in `ExternalRoleConsts`, and external users never reach the internal
+shell -- `internalUserOnlyMatchGuard` and `externalUserOnlyMatchGuard` decide that at the route
+level in the Angular app.
 
 ---
 
@@ -77,15 +159,61 @@ Feature-specific custom methods (e.g., `AppointmentsAppService.UpdateStatusAsync
 
 ## Multi-tenancy Authorization Rules
 
-**Host-only entities:** Locations, States, WcabOffices, AppointmentTypes, AppointmentStatuses, AppointmentLanguages. Only host-context users can mutate these. Tenants read them via the host database.
+> **This section previously listed Locations, States, WcabOffices, AppointmentTypes,
+> AppointmentStatuses and AppointmentLanguages as host-only entities that "tenants read via the
+> host database", and claimed a single sanctioned use each of the tenant-filter disable and of
+> `CurrentTenant.Change`. All of that was wrong.** Corrected 2026-09-28 with counts.
 
-**Tenant-scoped entities:** Doctors, DoctorAvailabilities, Appointments, AppointmentEmployerDetails, AppointmentAccessors, ApplicantAttorneys, AppointmentApplicantAttorneys. Automatically filtered by `IMultiTenant` data filter.
+**There are two host-only entities, and they are not reference data:** `OfficeBranding` and
+`IntakeOfficeAssignment`. Everything else a maintainer is likely to touch is tenant-scoped,
+including all six entities this section used to call host-only. Under database-per-office there is
+no shared catalogue to read from: each office owns its own locations, states, appointment types
+and languages. See [MULTI-TENANCY.md](../architecture/MULTI-TENANCY.md).
 
-**Tenant-scoped (auto-filtered):** Patients. Implements `IMultiTenant` since FEAT-09 (2026-05-05); ABP's data filter scopes all queries to `CurrentTenant.Id` automatically. Host or IT Admin paths that must enumerate across tenants must explicitly opt in via `IDataFilter.Disable<IMultiTenant>()`, matching the pattern used in `DoctorsAppService`. See [DATA-FLOWS.md](DATA-FLOWS.md) for SSN egress rules.
+**Disabling the tenant filter is not rare.** There are **12 call sites in the Application layer**,
+not one:
 
-**Cross-tenant escape hatch:** `DoctorsAppService` uses `IDataFilter.Disable<IMultiTenant>()` to enumerate doctors across tenants from host context. This is the only sanctioned use of the disable pattern in the Application layer. Any new code disabling `IMultiTenant` filter requires explicit ADR.
+| Service | Sites | Why |
+|---|---|---|
+| `PatientsAppService` | 10 | Host and IT-Admin paths run with `CurrentTenant.Id == null`, where the filter generates `WHERE TenantId IS NULL` and excludes every office's rows |
+| `DoctorsAppService` | 1 | Same reason, for doctors |
+| `InternalUsersAppService` | 1 | `Disable<IMultiTenant>()` explicitly |
 
-**Explicit tenant switch:** `DoctorTenantAppService` uses `CurrentTenant.Change(tenantId)` during tenant provisioning. This is the only sanctioned use of `CurrentTenant.Change` outside of ABP framework code.
+Both `PatientsAppService` and `DoctorsAppService` hold `IDataFilter<IMultiTenant>`, so their
+bare `.Disable()` lifts the tenant filter only, not every filter. Two further sites disable
+`ISoftDelete` instead, which is a different thing and not a tenancy concern.
+
+Count them before trusting this table:
+
+```bash
+git grep -nE '_dataFilter\.Disable|DataFilter\.Disable' -- 'src/HealthcareSupport.CaseEvaluation.Application/*.cs'
+```
+
+That command prints 16 lines, not 14. Two of them are comments (`PatientsAppService.cs:43` and
+`ExternalSignupAppService.cs:82`), and the other two non-table lines are the `ISoftDelete` sites.
+
+**`CurrentTenant.Change` is common, not exceptional.** There are **65 call sites across 34 files**
+in the Application layer alone, and more elsewhere. 28 of them, in 6 files, call the base-class
+`CurrentTenant.Change(`; the other 37 call the same method through an injected field,
+`_currentTenant.Change(`, and 28 of those are in `Notifications/`. Count code lines only, because
+the plain grep also matches comments and XML docs (8 of its 73 lines):
+
+```bash
+git grep -nE '[Cc]urrentTenant\.Change\(' -- 'src/HealthcareSupport.CaseEvaluation.Application/*.cs' \
+  | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*)'
+```
+
+`DoctorTenantAppService` has exactly **one**,
+and it is `CurrentTenant.Change(null)` -- opening host context, the opposite of the
+`Change(tenantId)` this section described. Any background job that touches every office uses the
+pattern by design, through `TenantWorkRunner`.
+
+**What actually constrains cross-office access** is not a convention about these two APIs. It is
+that each office has its own database, so a query on an office connection cannot reach another
+office's rows at all, and that the resolver chain refuses caller-supplied tenant selection. See
+[TENANCY-AND-ISOLATION.md](../architecture/TENANCY-AND-ISOLATION.md).
+
+See [DATA-FLOWS.md](DATA-FLOWS.md) for SSN egress rules.
 
 ---
 
@@ -149,11 +277,58 @@ the newly-held role's own-side appointments). The grant is gated upstream by `Ca
 
 ---
 
+## The authorization surface is measured, and you should read the measurement
+
+The repository generates an approval snapshot of every public application-service method and the
+guard on it:
+
+```text
+test/HealthcareSupport.CaseEvaluation.Application.Tests/Authorization/authorization-surface.approved.txt
+```
+
+Each line reads `Namespace.Service.Method(args) -> class=<guard> method=<permission or ->`. There
+are 358 entries. **This file, not this page, is the authority on what is guarded.**
+
+What it currently records:
+
+| Shape | Count | Meaning |
+|---|---|---|
+| `class=(authenticated)` | 181 | Class-level bare `[Authorize]`: signed in, no permission required at the class |
+| `method=-` under `class=(authenticated)` | 20 | **No permission anywhere.** Any signed-in caller reaches these |
+| `class=(anonymous)` | 2 | Deliberate: the public change-request consent endpoints, gated by a single-use token |
+
+`AuthorizationSurfaceInvariantTests` guards this well: it asserts every method declares some
+authorization, that every anonymous method sits on a justified allow-list, that the allow-list
+carries no stale entries, and that the surface exceeds 200 entries so the suite cannot pass
+against an empty inventory.
+
+**But note exactly what the first invariant asserts.** "Declares some authorization" is satisfied
+by a bare `[Authorize]`. That is **authentication**, not authorisation: it proves a caller is
+signed in and nothing about whether they should see the record they asked for. The 20 methods with
+no permission at all pass that invariant. So the harness is a good tripwire for a forgotten
+attribute and is not a check that access is correctly scoped.
+
+Many methods need no permission by design -- a caller reading their own profile or their own
+notifications, for example. Holding a permission is not access to a particular record either:
+per-record access is decided in code, by guards such as `AppointmentReadAccessGuard` (see the
+data-level sections above), and the snapshot does not show those guards.
+
+Also worth knowing: a method-level `[RemoteService(IsEnabled = false)]` removes a method from the
+HTTP surface entirely, so an entry in that snapshot is not by itself evidence of a reachable
+endpoint. Check the hand-written controller before drawing a conclusion.
+
 ## Enforcement Gaps (to be audited)
 
-1. **Controller layer:** Controllers delegate to AppServices. If an AppService method lacks `[Authorize]`, there is no fallback; the controller does not re-check. Gap: no automated lint for missing `[Authorize]`.
-2. **Anonymous endpoints:** Some AppService methods may have `[AllowAnonymous]` (e.g., public signup flow in `ExternalSignups`). These should be manually inventoried.
-3. **Permission check vs policy check:** All checks are permission-based, not policy-based. Data-level authorization (e.g., "only the appointment owner can edit") is inconsistent and implemented per-AppService when present.
+1. **Permission held is not access granted.** The most common mistake in this codebase. Holding
+   `Appointments.Edit` does not mean you may edit a PARTICULAR appointment. Per-record access is
+   `AppointmentReadAccessGuard` over `AppointmentAccessRules`. A service that checks only a
+   permission has not checked access.
+2. **Anonymous endpoints** are inventoried, not "should be": the allow-list and its staleness
+   check are in `AuthorizationSurfaceInvariantTests`.
+3. **Automated lint for a missing `[Authorize]` exists** -- it is the invariant test above. What
+   does not exist is a check that a guard is the RIGHT strength.
+4. **Controllers do not re-check.** Still true: controllers delegate, so a gap in an application
+   service is a gap in the endpoint.
 
 ---
 

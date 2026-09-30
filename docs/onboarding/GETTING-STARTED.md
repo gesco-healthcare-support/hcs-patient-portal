@@ -2,7 +2,7 @@
 
 > Purpose: Walk a new developer from fresh clone to a running application. Audience: engineers joining the project.
 
-[Home](../INDEX.md) > [Onboarding](./) > Getting Started
+[Home](../index.md) > [Onboarding](./) > Getting Started
 
 ---
 
@@ -103,13 +103,36 @@ cd hcs-case-evaluation-portal
 # Backend (.NET packages)
 dotnet restore
 
-# Frontend (Angular packages)
+# Frontend -- YARN, not npm. See below.
 cd angular
-npm install
+yarn install
 cd ..
 ```
 
-The `npm install` step downloads ~1GB of Angular + ABP packages. `ERESOLVE` warnings are typically safe to ignore for ABP projects.
+> **Use `yarn`, not `npm`.** This page said `npm install` until 2026-09-28 and that was wrong.
+> The frontend is pinned to Yarn 4 (Berry): `angular/package.json` declares
+> `"packageManager": "yarn@4.16.0"` and `angular/.yarnrc.yml` sets `yarnPath` to a checked-in
+> release under `.yarn/releases/`. Running `npm install` produces a `package-lock.json` that
+> nothing else uses, resolves versions the committed `yarn.lock` never pinned, and leaves you
+> debugging a tree no one else has. There is no `ERESOLVE` to ignore, because npm is not the
+> tool.
+
+`yarn install` downloads roughly a gigabyte of Angular and ABP packages. Two settings in
+`.yarnrc.yml` will surprise you if you do not know about them:
+
+- **`enableScripts: false`** repo-wide. Package lifecycle scripts do not run, deliberately: a
+  postinstall script is arbitrary code execution at install time. If a package genuinely needs
+  its build step, it goes on the `npmPreapprovedPackages` list rather than turning the setting
+  off.
+- **`npmMinimalAgeGate`** refuses packages published more recently than the configured age. A
+  brand-new release will be rejected until it ages past the gate. That is the gate working, not
+  a broken registry.
+
+`yarn install` also runs husky's `prepare` step, which creates `angular/.husky/_`. **Until that
+has run, git hooks do not execute at all** -- `core.hooksPath` points at that directory, and git
+silently runs nothing when it is missing. So a fresh clone or a fresh worktree has no gitleaks
+scan, no `dotnet format` check and no commitlint until you have done this step. The hook scripts
+in `angular/.husky/` being present is not evidence that they run.
 
 ## Step 3: Database Setup
 
@@ -413,8 +436,10 @@ curl http://localhost:44368/health-status
 | SSL certificate errors in browser | Dev cert not trusted | Run `dotnet dev-certs https --trust` |
 | Port already in use | Previous instance still running | Find and kill: `lsof -i :44327` (macOS/Linux) or `netstat -ano \| findstr :44327` (Windows) |
 | Angular build fails with ABP library errors | ABP client-side libs not installed | Run `abp install-libs` from the solution root |
-| `Host version X does not match binary Y` (esbuild) | Stale esbuild binary | Delete `node_modules/@esbuild/*/esbuild*`, re-run `npm install` |
+| `Host version X does not match binary Y` (esbuild) | Stale esbuild binary | Delete `node_modules/@esbuild/*/esbuild*`, re-run `yarn install` |
 | Migration error: "database already exists" | Partial previous run | Drop the `CaseEvaluation` database and re-run DbMigrator |
+| `MSB3030: Could not copy the file "...appsettings.secrets.json" because it was not found` | That file is gitignored, so it does not arrive with a clone and does not propagate into a new git worktree. The error names the file but not the reason | Copy it into `test/HealthcareSupport.CaseEvaluation.TestBase/` and `src/HealthcareSupport.CaseEvaluation.DbMigrator/` from an existing checkout, or create both from `docker/appsettings.secrets.json.example` |
+| Commits succeed with no hook output, no gitleaks scan and no format check | `core.hooksPath` points at `angular/.husky/_`, which husky creates during `yarn install`. Until then git silently runs no hooks at all | Run `yarn install` inside `angular/`. Verify with `ls angular/.husky/_` -- if the directory is missing, nothing is protecting your commits |
 
 ---
 

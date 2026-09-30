@@ -2,7 +2,7 @@
 
 > Purpose: Documents the HttpApi controller pattern, Swagger/CORS/health-check configuration, and request pipeline for the HCS Patient Portal API. Audience: backend developers.
 
-[Home](../INDEX.md) > [API](./) > API Architecture
+[Home](../index.md) > [API](./) > API Architecture
 
 **Related:** [Endpoints Reference](API-ARCHITECTURE.md) | [Authentication Flow](AUTHENTICATION-FLOW.md) | [Middleware & Pipeline](MIDDLEWARE-AND-PIPELINE.md) | [Application Services](../backend/APPLICATION-SERVICES.md)
 
@@ -160,6 +160,10 @@ sequenceDiagram
 ```
 
 ### Controller Layer Component Diagram
+
+A selection, not the full set. List every controller with
+`git ls-files 'src/*Controller.cs'`; the Case Tracker integration controllers live separately, in
+`src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Controllers/Integration/`.
 
 ```mermaid
 graph TD

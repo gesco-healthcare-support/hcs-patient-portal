@@ -159,4 +159,4 @@ security vulnerability.
 - Docker issues: [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md).
 - How the code is organised:
   [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md).
-- Everything else: the index at [docs/INDEX.md](docs/INDEX.md).
+- Everything else: the index at [docs/index.md](docs/index.md).

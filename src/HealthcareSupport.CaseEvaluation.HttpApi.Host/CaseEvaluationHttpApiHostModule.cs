@@ -29,6 +29,7 @@ using HealthcareSupport.CaseEvaluation.HealthChecks;
 using Hangfire;
 using Hangfire.SqlServer;
 using HealthcareSupport.CaseEvaluation.BackgroundJobs;
+using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Hangfire;
@@ -85,6 +86,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
         Hosting.HostingConfigValidator.ValidateOrThrow(
             configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+
+        // B12: the admin-password store, and the startup gate that refuses a host configuring
+        // neither or both. Registered in both this process and the other one that can create a
+        // database, so neither can seed a published default.
+        EntityFrameworkCore.AdminPasswords.AdminPasswordStoreRegistrar.Register(
+            context.Services, configuration, hostingEnvironment.IsDevelopment());
 
         if (!configuration.GetValue<bool>("App:DisablePII"))
         {
@@ -748,6 +755,29 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                                 AutoReplenishment = true,
                             });
                     }
+                    if (IsExternalSignupAnonymousLookupPath(httpContext))
+                    {
+                        // Every OTHER anonymous call under the external-signup prefix: office
+                        // resolution by name, invite-token validation, and anything added later.
+                        // resolve-tenant turns a guessed name into an office id and validate-invite
+                        // probes tokens, so both are enumeration surfaces. Before this branch they
+                        // matched nothing and fell through to the unlimited partition.
+                        //
+                        // Its OWN bucket, not register's: the sign-up page calls these on every
+                        // load, and sharing would spend the 15/hour registration budget a clinic
+                        // behind one NAT'd address needs.
+                        var key = ResolveExternalSignupPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"signup-lookup:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = ExternalSignupLookupRequestsPerHour,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
                     if (IsFeedPath(httpContext))
                     {
                         // #927 -- BEFORE the integration branch, so the feed never shares the 300/hour
@@ -881,6 +911,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>2026-05-13: full path matched by the register rate limiter.</summary>
     public const string ExternalSignupRegisterPath = "/api/public/external-signup/register";
+
+    /// <summary>Prefix of every external-signup route, anonymous or not.</summary>
+    public const string ExternalSignupPathPrefix = "/api/public/external-signup";
+
+    /// <summary>
+    /// Anonymous external-signup lookups per client address per hour. Four times the register
+    /// budget: the sign-up page makes one or two lookups per load, so a clinic registering its
+    /// full 15 patients an hour from one address stays well inside it.
+    /// </summary>
+    public const int ExternalSignupLookupRequestsPerHour = 60;
 
     /// <summary>
     /// 2026-07-29: path prefix matched by the machine-to-machine integration limiter
@@ -1024,6 +1064,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// (<see cref="ExternalSignupRegisterPath"/>). Only POST is matched
     /// (a future GET on the same path -- e.g. for client-side checks --
     /// would not be brute-forceable in the same way).
+    /// <para>That reasoning holds for the register path only. Sibling GETs under the same prefix
+    /// DO enumerate, and they used to fall through to no limit at all; they are covered by
+    /// <see cref="IsExternalSignupAnonymousLookupPath"/>.</para>
     /// </summary>
     internal static bool IsExternalSignupRegisterPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
@@ -1034,6 +1077,26 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         return httpContext.Request.Path.Equals(
             ExternalSignupRegisterPath,
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True for an ANONYMOUS request anywhere under <see cref="ExternalSignupPathPrefix"/>, except the
+    /// register POST (its own bucket) and the Development-only <c>dev/</c> helpers, which refuse to
+    /// run outside Development and would otherwise throttle local test tooling.
+    /// <para>Prefix-scoped, like the integration matcher, so an anonymous route added here later
+    /// arrives already throttled instead of having to remember to ask. Signed-in callers are left
+    /// alone: the booking form's external-user lookup runs as the user types, and it is attributable
+    /// and bound to a token. The limiter runs after authentication, so the user is known here.</para>
+    /// </summary>
+    internal static bool IsExternalSignupAnonymousLookupPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (httpContext.User.Identity?.IsAuthenticated == true || IsExternalSignupRegisterPath(httpContext))
+        {
+            return false;
+        }
+        var path = httpContext.Request.Path;
+        return path.StartsWithSegments(ExternalSignupPathPrefix, StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWithSegments(ExternalSignupPathPrefix + "/dev", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -1363,9 +1426,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// Wires Hangfire with SQL Server storage to back ABP's background-jobs runtime.
     /// Wave 0 lays the runtime; Wave 1 capabilities (scheduler-notifications) add the
     /// recurring-job classes. Schema is auto-created on first connection via
-    /// <c>PrepareSchemaIfNecessary = true</c> (Hangfire default). Dashboard is mounted
-    /// at <c>/hangfire</c> in <c>OnApplicationInitialization</c> below; auth-filter
-    /// hardening is deferred to the post-MVP "Wave 0 hardening" tail.
+    /// <c>PrepareSchemaIfNecessary = true</c> (Hangfire default). The dashboard is mounted
+    /// at <c>/hangfire</c> in <c>OnApplicationInitialization</c> below; see
+    /// <c>CreateHangfireDashboardOptions</c> for who may open it.
     /// </summary>
     private static void ConfigureHangfire(ServiceConfigurationContext context, IConfiguration configuration)
     {
@@ -1533,16 +1596,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
         });
 
-        // Hangfire dashboard at /hangfire. Wave 0 ships dev-anonymous access (per the
-        // approved plan -- auth filter is policy hardening, deferred to post-MVP tail).
+        // Hangfire dashboard at /hangfire; CreateHangfireDashboardOptions decides who may open it.
         // Hangfire server starts automatically via AbpBackgroundJobsHangFireModule.
         if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
         {
-            app.UseHangfireDashboard("/hangfire", new DashboardOptions
-            {
-                Authorization = new[] { new AnonymousHangfireDashboardAuthorizationFilter() },
-                IgnoreAntiforgeryToken = true,
-            });
+            app.UseHangfireDashboard("/hangfire", CreateHangfireDashboardOptions(env.IsDevelopment()));
 
             // W2-10: register the 3 CCR-driven recurring jobs. Cron timezone is
             // explicit America/Los_Angeles per the deep-dive (08:00 PT for CCR
@@ -1555,6 +1613,38 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+    }
+
+    /// <summary>
+    /// The job dashboard's options for this environment. In Development the dashboard is open, for
+    /// local work. Everywhere else it needs a signed-in HOST user holding
+    /// <see cref="CaseEvaluationPermissions.BackgroundJobsDashboard.Default"/>: ABP's filter refuses a
+    /// request that resolves to an office, then requires an authenticated user and the permission.
+    /// This host authenticates by bearer token only, so outside Development a browser gets 401 until
+    /// the dashboard has a sign-in of its own.
+    /// <para><c>Authorization</c> is set to empty on purpose: Hangfire evaluates it as well as
+    /// <c>AsyncAuthorization</c>, and its default is a local-requests-only filter.</para>
+    /// </summary>
+    internal static DashboardOptions CreateHangfireDashboardOptions(bool isDevelopment)
+    {
+        if (isDevelopment)
+        {
+            return new DashboardOptions
+            {
+                Authorization = [new DevelopmentHangfireDashboardAuthorizationFilter()],
+                IgnoreAntiforgeryToken = true,
+            };
+        }
+
+        return new DashboardOptions
+        {
+            Authorization = [],
+            AsyncAuthorization =
+            [
+                new AbpHangfireAuthorizationFilter(
+                    requiredPermissionName: CaseEvaluationPermissions.BackgroundJobsDashboard.Default),
+            ],
+        };
     }
 
     /// <summary>

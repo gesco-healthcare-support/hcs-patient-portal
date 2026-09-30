@@ -73,7 +73,7 @@ public class InternalStaffQueueDigestEmailHandler :
                 ["PendingAppointmentCount"] = eventData.PendingAppointmentCount,
                 ["ApprovedAppointmentCount"] = eventData.ApprovedAppointmentCount,
                 ["PortalUrl"] = portalUrl ?? string.Empty,
-                ["ClinicName"] = _currentTenant.Name ?? string.Empty,
+                // No ClinicName: NotificationTemplateRenderer fills it from the tenant store (#1014).
             };
 
             await _dispatcher.DispatchAsync(
@@ -82,9 +82,11 @@ public class InternalStaffQueueDigestEmailHandler :
                 variables: variables,
                 contextTag: $"InternalStaffQueueDigest/{eventData.StaffUserId}");
 
+            // The staff user's id, not their address: the id is in the context tag above, so the
+            // line still correlates with the email that went out without writing PII to the log.
             _logger.LogDebug(
-                "InternalStaffQueueDigestEmailHandler: dispatched to {Email} (pending={Pending}, approved={Approved}).",
-                eventData.StaffEmail,
+                "InternalStaffQueueDigestEmailHandler: dispatched to staff user {StaffUserId} (pending={Pending}, approved={Approved}).",
+                eventData.StaffUserId,
                 eventData.PendingAppointmentCount,
                 eventData.ApprovedAppointmentCount);
         }

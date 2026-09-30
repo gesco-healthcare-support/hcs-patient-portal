@@ -95,11 +95,12 @@ updates:
   - package-ecosystem: "docker"
     # An explicit list, not a glob. `directories` accepts `*`, but how glob
     # expansion treats a directory with no Dockerfile was not verified, and the
-    # five paths are stable. `directory: "/"` would NOT work: the fetcher reads
+    # six paths are stable. `directory: "/"` would NOT work: the fetcher reads
     # one directory and does not recurse, and the repository root holds no
     # Dockerfile -- the entry would fail rather than find nothing quietly.
     directories:
       - "/angular"
+      - "/docker/docs-site"
       - "/docker/packet-renderer"
       - "/src/HealthcareSupport.CaseEvaluation.AuthServer"
       - "/src/HealthcareSupport.CaseEvaluation.DbMigrator"

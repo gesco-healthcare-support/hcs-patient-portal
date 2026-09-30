@@ -315,16 +315,27 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         };
     }
 
-    [AllowAnonymous]
+    // Gated by the class-level [Authorize(InternalUsers.Default)]. This method used to carry
+    // [AllowAnonymous], and a method-level [AllowAnonymous] wins over the class attribute (ABP
+    // 10.0.2 MethodInvocationAuthorizationService returns before reading it), so the office list
+    // was readable without signing in -- and from every host, because the lookup below leaves
+    // the caller's office for host context itself.
+    //
+    // InternalUsers.Default is the one permission every caller holds. The internal-users form
+    // is used by holders of InternalUsers.Create. The shell's office switcher calls this from
+    // host scope (IT Admin, Staff Supervisor, admin: all hold it on the host) and from inside an
+    // office while switched in. There the caller is NOT the host operator but their own
+    // per-office shadow user (HostIntakeImpersonationExtensionGrant), holding the office admin
+    // role (IT Admin) or the office Staff Supervisor role (anyone else with
+    // Saas.Tenants.Impersonation), and both hold it in every office. A host-only permission
+    // such as Saas.Tenants would refuse that caller. An in-office Intake operator is not a
+    // caller: the switcher sends them to IntakeAssignments.GetSwitchableOffices instead.
+    // Pinned by InternalUsersTenantOptionsGateTests, which runs the real permission check.
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(
         string? filter = null)
     {
-        // Host-context tenant lookup. The form is reachable only by an
-        // authenticated IT Admin (the route guard + class-level
-        // [Authorize] gate), but we mark this endpoint AllowAnonymous
-        // so the dropdown populates BEFORE any other check fires --
-        // the SPA's permission guard handles the "is this user
-        // allowed" question; we just hand back the tenant list.
+        // The list spans every office, so it is read in host context whichever office the
+        // caller is signed in to.
         using (CurrentTenant.Change(null))
         using (_dataFilter.Disable<IMultiTenant>())
         {

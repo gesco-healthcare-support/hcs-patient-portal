@@ -7,6 +7,7 @@ using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -98,26 +99,13 @@ public class SendAppointmentEmailJobPathTests
         }
     }
 
-    /// <summary>Hand-written logger that keeps each rendered message with its level.</summary>
-    private sealed class RecordingLogger : ILogger<AsyncBackgroundJob<SendAppointmentEmailArgs>>
-    {
-        public List<(LogLevel Level, string Message)> Entries { get; } = new();
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entries.Add((logLevel, formatter(state, exception)));
-    }
-
     private sealed class World
     {
         public RecordingEmailSender Sender { get; } = new();
         public IPacketAttachmentProvider Packets { get; } = Substitute.For<IPacketAttachmentProvider>();
         public ICurrentTenant CurrentTenant { get; } = Substitute.For<ICurrentTenant>();
         public IConfiguration Configuration { get; } = Substitute.For<IConfiguration>();
-        public RecordingLogger Log { get; } = new();
+        public RecordingLogger<AsyncBackgroundJob<SendAppointmentEmailArgs>> Log { get; } = new();
         public SendAppointmentEmailJob Job { get; }
 
         public World()
@@ -261,5 +249,66 @@ public class SendAppointmentEmailJobPathTests
 
         world.Sender.Sent.ShouldHaveSingleItem().Attachments.ShouldHaveSingleItem();
         world.Messages(LogLevel.Warning).ShouldContain(m => m.Contains("NotifySendCompletedAsync threw"));
+    }
+
+    // ------------------------------------------------------------------ no addresses in logs
+
+    [Fact]
+    public async Task A_plain_delivery_logs_its_context_but_no_recipient_address()
+    {
+        var world = new World();
+
+        await world.Job.ExecuteAsync(Args(null, "TEST-cc1@test.local"));
+
+        ShouldLogNoAddress(world);
+        world.Messages(LogLevel.Information).ShouldContain(m => m.Contains("delivered") && m.Contains("TEST/Approved"));
+    }
+
+    [Fact]
+    public async Task A_failed_plain_send_logs_its_context_but_no_recipient_address()
+    {
+        var world = new World();
+        world.Sender.FailWith = new SmtpException("TEST relay down");
+
+        await Should.ThrowAsync<SmtpException>(() => world.Job.ExecuteAsync(Args()));
+
+        ShouldLogNoAddress(world);
+        world.Messages(LogLevel.Error).ShouldContain(m => m.Contains("SMTP delivery failed") && m.Contains("TEST/Approved"));
+    }
+
+    [Fact]
+    public async Task A_skipped_packet_email_logs_its_context_but_no_recipient_address()
+    {
+        var world = new World();
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.Patient, Arg.Any<CancellationToken>())
+            .Returns((PacketAttachment?)null);
+
+        await world.Job.ExecuteAsync(Args(PatientPacket()));
+
+        ShouldLogNoAddress(world);
+        world.Messages(LogLevel.Warning).ShouldContain(m => m.Contains("is not Generated; skipping") && m.Contains("TEST/Approved"));
+    }
+
+    [Fact]
+    public async Task A_packet_delivery_logs_its_context_but_no_recipient_address()
+    {
+        var world = new World();
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.Patient, Arg.Any<CancellationToken>())
+            .Returns(new PacketAttachment(new byte[] { 1 }, "TEST.pdf", "application/pdf"));
+
+        await world.Job.ExecuteAsync(Args(PatientPacket()));
+
+        ShouldLogNoAddress(world);
+        world.Messages(LogLevel.Information).ShouldContain(m => m.Contains("with attachment") && m.Contains("TEST/Approved"));
+    }
+
+    /// <summary>
+    /// No line the job logs may carry a recipient address. Context identifies the send instead: it
+    /// names the path and, for account emails, carries only a masked address.
+    /// </summary>
+    private static void ShouldLogNoAddress(World world)
+    {
+        world.Log.Entries.ShouldNotBeEmpty("the path under test logged nothing, so this assertion would prove nothing");
+        world.Log.Entries.ShouldAllBe(e => !e.Message.Contains('@'), "a log line carries an email address");
     }
 }

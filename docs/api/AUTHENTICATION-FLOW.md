@@ -2,7 +2,7 @@
 
 > Purpose: Documents the OpenIddict OAuth2/OIDC authentication flow, registered clients, token validation, and external user registration. Audience: backend and frontend engineers.
 
-[Home](../INDEX.md) > [API](./) > Authentication Flow
+[Home](../index.md) > [API](./) > Authentication Flow
 
 **Related:** [API Architecture](API-ARCHITECTURE.md) | [Middleware & Pipeline](MIDDLEWARE-AND-PIPELINE.md) | [Role-Based UI](../frontend/ROLE-BASED-UI.md) | [User Roles and Actors](../business-domain/USER-ROLES-AND-ACTORS.md)
 
@@ -35,7 +35,7 @@ Configured in `OpenIddictDataSeedContributor.CreateApplicationsAsync()`:
 | **Client Type** | Public (no secret) |
 | **Consent Type** | Implicit (no consent screen) |
 | **Display Name** | "Console Test / Angular Application" |
-| **Grant Types** | `authorization_code`, `password`, `client_credentials`, `refresh_token`, `LinkLogin`, `Impersonation` |
+| **Grant Types** | `authorization_code`, `client_credentials`, `refresh_token`, `LinkLogin`, `Impersonation` (the password grant was removed on 2026-05-19) |
 | **Redirect URI** | `{RootUrl}` (typically `http://localhost:4200`) |
 | **Post-Logout Redirect** | `{RootUrl}` |
 | **Logo** | `/images/clients/angular.svg` |
@@ -117,15 +117,10 @@ After registration, the `GET /api/app/external-users/me` endpoint (authenticated
 
 ## External Login Providers
 
-The API Host configures dynamic external login providers:
-
-| Provider | Configuration Properties |
-|----------|------------------------|
-| **Google** | `ClientId`, `ClientSecret` (secret) |
-| **Microsoft** | `ClientId`, `ClientSecret` (secret) |
-| **Twitter** | `ConsumerKey`, `ConsumerSecret` (secret) |
-
-These are configured dynamically at runtime, allowing tenant-specific external login settings.
+There are none. Google, Microsoft and Twitter sign-in were removed from the AuthServer, the only
+login surface, on 2026-05-19: they were wired with per-office dynamic settings that were never
+populated. The API host still registers dynamic options for them, but with no login surface they
+are inert.
 
 ---
 

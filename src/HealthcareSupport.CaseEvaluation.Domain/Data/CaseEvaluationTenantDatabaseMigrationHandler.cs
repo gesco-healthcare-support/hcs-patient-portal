@@ -2,6 +2,8 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
+using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus.Distributed;
@@ -17,15 +19,18 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
 {
     private readonly IOfficeDatabaseProvisioner _officeProvisioner;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly IAdminPasswordStore _adminPasswordStore;
     private readonly ILogger<CaseEvaluationTenantDatabaseMigrationHandler> _logger;
 
     public CaseEvaluationTenantDatabaseMigrationHandler(
         IOfficeDatabaseProvisioner officeProvisioner,
         IHostEnvironment hostEnvironment,
+        IAdminPasswordStore adminPasswordStore,
         ILogger<CaseEvaluationTenantDatabaseMigrationHandler> logger)
     {
         _officeProvisioner = officeProvisioner;
         _hostEnvironment = hostEnvironment;
+        _adminPasswordStore = adminPasswordStore;
         _logger = logger;
     }
 
@@ -34,7 +39,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         await MigrateAndSeedForTenantAsync(
             eventData.Id,
             eventData.Properties.GetOrDefault("AdminEmail") ?? CaseEvaluationConsts.AdminEmailDefaultValue,
-            eventData.Properties.GetOrDefault("AdminPassword") ?? CaseEvaluationConsts.AdminPasswordDefaultValue
+            await ResolveSuppliedOrStoredAsync(eventData.Id, eventData.Properties.GetOrDefault("AdminPassword"))
         );
     }
 
@@ -49,7 +54,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         await MigrateAndSeedForTenantAsync(
             eventData.Id,
             CaseEvaluationConsts.AdminEmailDefaultValue,
-            CaseEvaluationConsts.AdminPasswordDefaultValue
+            await _adminPasswordStore.GetOrCreateAsync(eventData.Id)
         );
 
         /* You may want to move your data from the old database to the new database!
@@ -68,8 +73,35 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         await MigrateAndSeedForTenantAsync(
             eventData.TenantId.Value,
             CaseEvaluationConsts.AdminEmailDefaultValue,
-            CaseEvaluationConsts.AdminPasswordDefaultValue
+            await _adminPasswordStore.GetOrCreateAsync(eventData.TenantId.Value)
         );
+    }
+
+    /// <summary>
+    /// B12 -- the password a newly created office is seeded with.
+    ///
+    /// <para>An operator creating an office through the SaaS screen may TYPE a password, and that
+    /// is kept: they chose it and they are the one who will hand it over. What is refused is a
+    /// typed password that happens to be one this product publishes -- accepting it would put a
+    /// brand new office on a password anybody can read in the framework source or in this
+    /// repository, by the one route that bypasses the generated store entirely.</para>
+    ///
+    /// <para>With nothing typed, the stored password for that database is used, generated on first
+    /// call.</para>
+    /// </summary>
+    private async Task<string> ResolveSuppliedOrStoredAsync(Guid tenantId, string? suppliedPassword)
+    {
+        if (suppliedPassword.IsNullOrWhiteSpace())
+        {
+            return await _adminPasswordStore.GetOrCreateAsync(tenantId);
+        }
+
+        if (AdminPasswordPolicy.IsKnownDefault(suppliedPassword))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AdminPasswordIsAKnownDefault);
+        }
+
+        return suppliedPassword;
     }
 
     private async Task MigrateAndSeedForTenantAsync(

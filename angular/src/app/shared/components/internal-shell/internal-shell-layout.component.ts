@@ -372,9 +372,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Load the offices the switcher may hop into. At host scope (or for a supervisor
-   * impersonating as an office admin) that is every active office (getTenantOptions,
-   * AllowAnonymous + host-scoped). An in-office Intake operator instead gets only
+   * Load the offices the switcher may hop into. At host scope, or for a supervisor / IT
+   * Admin switched into an office as their own shadow user, that is every active office
+   * (getTenantOptions: requires CaseEvaluation.InternalUsers, which those shadows' office
+   * roles hold; see InternalUsersTenantOptionsGateTests). A refusal lands in the error
+   * handler below and shows only as an empty list. An in-office Intake operator instead gets only
    * their assigned offices (getSwitchableOffices, resolved server-side from the
    * impersonation claim -- the in-office shadow user does not hold IntakeImpersonation).
    * The current office is excluded so the menu reads "where else can I go". The grant

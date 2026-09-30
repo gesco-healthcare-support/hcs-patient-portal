@@ -72,6 +72,8 @@ public class ChangeRequestRejectedEmailHandlerTests
             ContextResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(_ => Context);
             // List<T> is concrete, so an unconfigured resolver would hand back null and throw at .Where.
             RecipientResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>()).Returns(_ => Parties);
+            // DECOY, load-bearing (#1014): production's ambient name is null, so ClinicName
+            // must never come from it.
             CurrentTenant.Name.Returns("TEST-clinic");
         }
 
@@ -139,6 +141,22 @@ public class ChangeRequestRejectedEmailHandlerTests
         sent.Recipients.Select(r => r.Email).ShouldBe(
             new[] { "TEST-applicant-attorney@test.local", "TEST-patient@test.local" },
             ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// Issue #1014: the handler leaves <c>ClinicName</c> blank for the renderer to fill from the tenant
+    /// store. The rig's ambient office name is a DECOY -- production's is null inside
+    /// <c>Change(TenantId)</c> -- so a handler that passed it through would pass here and blank it live.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_LeavesClinicNameForTheRenderer_NotTheAmbientName()
+    {
+        var rig = new Rig();
+
+        await rig.Build().HandleEventAsync(RejectedEvent());
+
+        SingleSend(rig.Dispatcher).Variables["ClinicName"].ShouldBe(
+            string.Empty, "the renderer resolves the office name from the tenant store (#1014)");
     }
 
     [Fact]
