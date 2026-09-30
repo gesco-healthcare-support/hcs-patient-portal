@@ -178,21 +178,6 @@ public class ShapingControllersTests
     // ------------------------------------------------------------------ External signups
 
     [Fact]
-    public async Task Signup_bodies_are_unwrapped_before_reaching_the_service()
-    {
-        var service = Substitute.For<IExternalSignupAppService>();
-        var controller = new ExternalSignupController(service);
-        var emails = new List<string> { "one@example.test", "two@example.test" };
-        var deleted = new DeleteTestUsersResultDto();
-        service.DeleteTestUsersAsync(emails).Returns(deleted);
-
-        (await controller.DeleteTestUsersAsync(new DeleteTestUsersDto { Emails = emails })).ShouldBeSameAs(deleted);
-        await controller.MarkEmailConfirmedAsync(new MarkEmailConfirmedDto { Email = "one@example.test" });
-
-        await service.Received(1).MarkEmailConfirmedAsync("one@example.test");
-    }
-
-    [Fact]
     public async Task Tenant_resolution_is_a_404_when_no_practice_matches()
     {
         var service = Substitute.For<IExternalSignupAppService>();

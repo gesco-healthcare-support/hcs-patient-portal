@@ -72,8 +72,6 @@ public class ControllerDelegationTests
         "CaseTrackerOfficesController.SetPushEnabledAsync(Guid,CaseTrackerPushToggleInput)",
         "DocumentsController.CreateAsync(DocumentCreateDto,IFormFile)",
         "DocumentsController.ReplaceFileAsync(Guid,IFormFile)",
-        "ExternalSignupController.DeleteTestUsersAsync(DeleteTestUsersDto)",
-        "ExternalSignupController.MarkEmailConfirmedAsync(MarkEmailConfirmedDto)",
         "ExternalSignupController.ResolveTenantByNameAsync(String)",
         "PackageDetailsController.LinkDocumentsAsync(Guid,LinkDocumentsRequest)",
         "PublicChangeRequestConsentController.GetAsync(String)",
