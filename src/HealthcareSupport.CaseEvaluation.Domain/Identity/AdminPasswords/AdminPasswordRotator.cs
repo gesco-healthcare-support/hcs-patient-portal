@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Identity;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
 
@@ -54,7 +55,12 @@ public class AdminPasswordRotator : ITransientDependency
     ///
     /// <para>No-op in Development, which is the control: a local clone keeps the documented
     /// credentials and every runbook, onboarding page and docker guide stays correct.</para>
+    ///
+    /// <para>Transactional, so the two password writes in <see cref="ResetToStoredPasswordAsync"/>
+    /// commit together or not at all. The attribute takes effect when this class is resolved from
+    /// the container, as the DbMigrator resolves it.</para>
     /// </summary>
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task<bool> RotateIfOnAKnownDefaultAsync(Guid? tenantId, string databaseName)
     {
         Check.NotNullOrWhiteSpace(databaseName, nameof(databaseName));
@@ -100,11 +106,15 @@ public class AdminPasswordRotator : ITransientDependency
     {
         var replacement = await _adminPasswordStore.GetOrCreateAsync(tenantId);
 
-        // Through a reset token rather than RemovePassword + AddPassword. The two-step form leaves
-        // the account with NO password in between, so a process that dies there leaves an account
-        // that cannot be signed into and whose recovery needs database access.
-        var token = await _userManager.GeneratePasswordResetTokenAsync(admin);
-        (await _userManager.ResetPasswordAsync(admin, token, replacement)).CheckErrors();
+        // Remove + add, NOT a password-reset token. A reset token needs an Identity token provider,
+        // and the DbMigrator -- the only production caller -- registers none (the web hosts get
+        // theirs from the ASP.NET Core identity module; the test harness registers a no-op one,
+        // which hid this). The token form stopped the 2026-09-30 release deploy with "No
+        // IUserTwoFactorTokenProvider named 'Default' is registered". The risk the token form
+        // avoided -- an account left with NO password if the process dies between the two steps --
+        // is closed by the transactional unit of work on RotateIfOnAKnownDefaultAsync instead.
+        (await _userManager.RemovePasswordAsync(admin)).CheckErrors();
+        (await _userManager.AddPasswordAsync(admin, replacement)).CheckErrors();
 
         // The operator reads the generated password out of the store to hand it over, so it is
         // known to more than one person by construction. Forcing a change makes that handover
