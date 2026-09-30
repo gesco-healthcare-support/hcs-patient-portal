@@ -117,8 +117,9 @@ go-live.
 **This repository is public.** Anyone can read it. The *licence* is proprietary
 (see [LICENSE](LICENSE)), but that restricts reuse, not visibility: nothing here
 is private. Never commit PHI, secrets, credentials or internal addresses, and
-report vulnerabilities per [SECURITY.md](SECURITY.md) rather than opening an
-issue.
+report vulnerabilities through the repository's **Security tab -> Report a
+vulnerability**, which is enabled for private reporting, rather than opening an
+issue. See [SECURITY.md](SECURITY.md).
 
 No test or issue counts are written in this file. Two different backend test
 figures once appeared in it and both were stale, which is why they are gone.
@@ -150,9 +151,9 @@ For the latest narrative status read
 | Cache + key ring       | Redis                                               | 7.4.9 (Docker)                    | **Required by both hosts.** Holds the shared DataProtection key ring; see the note below |
 | Logging                | Serilog                                             | 9.x                               |                                                     |
 | Test framework         | xUnit + [Shouldly](https://docs.shouldly.org/)      | --                                |                                                     |
-| Test DB                | SQLite in-memory                                    | --                                | EF Core tests only                                  |
+| Test DB                | SQLite in-memory, plus real SQL Server              | --                                | SQLite for most EF Core tests; two classes need a SQL Server container |
 | Package manager (Node) | Yarn                                                | 4.16.0                            | Berry, not Yarn 1; `yarn.lock` committed            |
-| TypeScript             | TypeScript                                          | ~5.8.0                            | From `angular/package.json`                         |
+| TypeScript             | TypeScript                                          | 5.8.3                             | Resolved in `angular/yarn.lock`; the manifest range is `~5.8.0` |
 | Node (build only)      | Node.js                                             | 20 in Docker, 22 in CI            | Nothing pins it: no `.nvmrc`, no `engines` field. See the note below |
 | CI / CD                | GitHub Actions                                      | see `.github/workflows/`          | See [CI / CD](#ci--cd)                              |
 | Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
@@ -160,7 +161,7 @@ For the latest narrative status read
 > [!IMPORTANT]
 > **Redis is required by both hosts, and `"IsEnabled": false` does not make it
 > optional.** `CaseEvaluationAuthServerModule.cs:424` and
-> `CaseEvaluationHttpApiHostModule.cs:1404` each decide whether to persist
+> `CaseEvaluationHttpApiHostModule.cs:1401` each decide whether to persist
 > DataProtection keys to Redis by reading `Redis:Configuration`, not
 > `Redis:IsEnabled`. `appsettings.json` ships `Configuration` as `127.0.0.1`
 > with `IsEnabled` set to `false`, and the `appsettings.Local.json.example`
@@ -409,7 +410,8 @@ Troubleshooting the top-five local failures:
 Runtime configuration comes from environment variables in deployment and from
 `appsettings.*.json` locally, with the gitignored `appsettings.secrets.json` and
 `appsettings.Local.json` holding what must not be committed. (.NET User Secrets is not wired
-up: there is no `UserSecretsId` and no `AddUserSecrets` call in the tree.) The deployed set is
+up: no project file declares a `UserSecretsId`, and no startup path calls
+`AddUserSecrets`.) The deployed set is
 declared in [env.prod.example](env.prod.example), which carries 42 keys
 (`grep -cE '^[A-Z_]+=' env.prod.example`).
 
@@ -491,12 +493,17 @@ Read these counts from the API rather than trusting the table, because branch
 protection is edited outside the repository and nothing here can notice:
 `gh api repos/OWNER/REPO/branches/main/protection/required_status_checks`.
 
-| Branch        | Required checks                 | Approvals |
-| ------------- | ------------------------------- | --------- |
-| `main`        | all, incl. Packet Golden Output | 1         |
-| `development` | all minus Packet Golden Output  | 1         |
-| `staging`     | all minus Packet Golden Output  | 1         |
-| `production`  | all minus Packet Golden Output  | **2**     |
+| Branch        | Required checks                      | Approvals |
+| ------------- | ------------------------------------ | --------- |
+| `main`        | 18, incl. Packet Golden Output       | **0**     |
+| `development` | 17, all minus Packet Golden Output   | 1         |
+| `staging`     | 17, all minus Packet Golden Output   | 1         |
+| `production`  | 17, all minus Packet Golden Output   | **2**     |
+
+Counts read from the API on 2026-09-30. `main` taking **zero** approvals is not a
+typo: the gate on `main` is the 18 checks, and the approval requirement rises as a
+change moves downstream. This table previously said `main` needed one, which is
+exactly the drift the paragraph above warns about.
 
 The checks are listed individually, with what each covers, in
 [CONTRIBUTING.md](CONTRIBUTING.md#branch-protection) -- deliberately in one place
@@ -551,8 +558,14 @@ the commands in the [Project Status](#project-status) table -- see
 [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md) for test
 patterns and the `CaseEvaluationTestBase<TModule>` chain.
 
-EF Core tests use SQLite in-memory (`AbpEntityFrameworkCoreSqliteModule`) and
-require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
+Most EF Core tests use SQLite in-memory (`AbpEntityFrameworkCoreSqliteModule`)
+and require `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]`.
+
+Two classes are the exception and need a **real SQL Server container**, started
+per class from the image `docker-compose.yml` pins: `CaseTrackerFeedSqlServerTests`
+and `SqlAppLockTests` (see `SqlServerFeedFixture`). They exist because the SQLite
+rig cannot reproduce the behaviour under test, so do not assume the whole backend
+suite runs without Docker.
 
 ---
 
@@ -717,8 +730,9 @@ safeguards inventory:
 [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md). Secret
 management: [docs/security/SECRETS-MANAGEMENT.md](docs/security/SECRETS-MANAGEMENT.md).
 
-Security reports go to the channel documented in [SECURITY.md](SECURITY.md).
-Do not file public issues for vulnerabilities.
+Report a suspected vulnerability privately through the repository's **Security tab
+-> Report a vulnerability**; see [SECURITY.md](SECURITY.md). Do not file a public
+issue for one.
 
 ---
 
@@ -831,7 +845,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Highlights:
 - Never include real patient data in code, commits, PRs, tests, logs, or docs
   -- see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
+Report vulnerabilities privately through the Security tab, per
+[SECURITY.md](SECURITY.md).
 
 ---
 
