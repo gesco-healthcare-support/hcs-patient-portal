@@ -115,7 +115,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
       const c = create();
       service['getList'].and.returnValue(of([doc()]));
       c.refresh();
-      expect(c.documents.length).toBe(1);
+      expect(c.documents).toHaveSize(1);
       expect(c.isLoading).toBeFalse();
     });
 
@@ -196,7 +196,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
         missing: [{ documentTypeName: 'Medical Report' }],
       } as never;
       expect(c.allRequiredReceived).toBeFalse();
-      expect(c.missingRequired.length).toBe(1);
+      expect(c.missingRequired).toHaveSize(1);
     });
 
     it('names each state a missing document can be in', () => {
@@ -212,7 +212,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
       const c = create();
       rest.request.and.returnValue(of([{ id: 't-1', displayName: 'Medical Report' }]));
       c.loadDocumentTypeOptions();
-      expect(c.documentTypes.length).toBe(1);
+      expect(c.documentTypes).toHaveSize(1);
     });
 
     it('treats a null payload as no options', () => {
@@ -272,7 +272,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
 
     it('shows everything by default', () => {
       const c = seeded();
-      expect(c.filteredDocuments.length).toBe(4);
+      expect(c.filteredDocuments).toHaveSize(4);
     });
 
     it('narrows to one category', () => {

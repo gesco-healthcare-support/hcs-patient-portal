@@ -316,7 +316,7 @@ describe('AppointmentReportComponent surfaces', () => {
         of({ items: [{ appointmentId: 'a-1' }], totalCount: 31 }),
       );
       c.load();
-      expect(c.rows.length).toBe(1);
+      expect(c.rows).toHaveSize(1);
       expect(c.totalCount).toBe(31);
       expect(c.isLoading).toBeFalse();
       expect(c.hasSearched).toBeTrue();

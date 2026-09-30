@@ -111,7 +111,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       pending.resched = [cr({ id: 'r-1' })];
       pending.cancel = [cr({ id: 'c-1', changeRequestType: ChangeRequestType.Cancel })];
       c.ngOnInit();
-      expect(c.rows().length).toBe(2);
+      expect(c.rows()).toHaveSize(2);
       expect(c.loading()).toBeFalse();
     });
 
@@ -173,7 +173,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
 
     it('shows everything on the all tab', () => {
       const c = seeded();
-      expect(c.visibleRows().length).toBe(3);
+      expect(c.visibleRows()).toHaveSize(3);
     });
 
     it('narrows to reschedules', () => {

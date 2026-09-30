@@ -16,6 +16,7 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Authorization;
@@ -126,16 +127,21 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         }
         uow.Failed += (_, _) =>
         {
-            // Best-effort, sync-only: the Failed event is sync. Swallow
-            // any exception so the cleanup never masks the original
-            // failure. The entity row is the source of truth; if blob
-            // delete fails here it becomes a cleanup-job concern.
+            // Best-effort, sync-only: the Failed event is sync. Do not
+            // rethrow, so the cleanup never masks the original failure.
+            // The entity row is the source of truth; a delete that fails
+            // here leaves an orphaned object, and the warning is the only
+            // record of which one.
             try
             {
                 _blobContainer.DeleteAsync(blobName).GetAwaiter().GetResult();
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.LogWarning(
+                    ex,
+                    "AppointmentDocumentsAppService: compensating delete of blob {BlobName} failed after the unit of work rolled back; the object is orphaned.",
+                    blobName);
             }
         };
     }
@@ -814,7 +820,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             {
                 Id = p.Id,
                 Source = PatientPortalDocumentSource.GeneratedPacket,
-                FileName = p.BlobName.Split('/').Last(),
+                FileName = p.BlobName.Split('/')[^1],
                 // Part 2 (2026-07-28): packets have rendered as PDF since 2026-06-10, so the
                 // hardcoded DOCX type was wrong for every current row. Derived from the blob (as
                 // AppointmentPacketsAppService.DownloadByKindAsync already does) so legacy DOCX

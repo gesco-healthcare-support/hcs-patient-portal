@@ -68,11 +68,8 @@ public class AppointmentVisibilityService : ITransientDependency
         // Internal-role check: anyone with a non-external role bypasses the
         // narrowing. Use the canonical role names from
         // ExternalUserRoleDataSeedContributor.
-        var externalRoles = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
         var roles = _currentUser.Roles ?? Array.Empty<string>();
-        var hasOnlyExternalRoles = roles.Length > 0
-            && roles.All(r => externalRoles.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
-        if (!hasOnlyExternalRoles)
+        if (!HasOnlyExternalRoles(roles))
         {
             // Internal user (admin / Intake Staff / Staff Supervisor / Doctor)
             // OR a multi-role user with at least one internal role.
@@ -126,44 +123,55 @@ public class AppointmentVisibilityService : ITransientDependency
         // the per-appointment read guard agree exactly. The candidate set is first
         // narrowed in SQL to appointments naming the caller's email, then the pure
         // rule applies the role gate in memory against CurrentUser.Roles.
-        var emailRoleAppointmentIds = new List<Guid>();
-        if (!string.IsNullOrWhiteSpace(userEmail))
-        {
-            var callerEmailLower = userEmail.Trim().ToLower();
-            var candidates = await _asyncExecuter.ToListAsync(
-                appointmentQuery
-                    .Where(a =>
-                        (a.PatientEmail != null && a.PatientEmail.ToLower() == callerEmailLower) ||
-                        (a.ApplicantAttorneyEmail != null && a.ApplicantAttorneyEmail.ToLower() == callerEmailLower) ||
-                        (a.DefenseAttorneyEmail != null && a.DefenseAttorneyEmail.ToLower() == callerEmailLower) ||
-                        (a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == callerEmailLower))
-                    .Select(a => new
-                    {
-                        a.Id,
-                        a.PatientEmail,
-                        a.ApplicantAttorneyEmail,
-                        a.DefenseAttorneyEmail,
-                        a.ClaimExaminerEmail,
-                    }));
-            foreach (var c in candidates)
-            {
-                if (AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-                        userEmail,
-                        roles,
-                        c.PatientEmail,
-                        c.ApplicantAttorneyEmail,
-                        c.DefenseAttorneyEmail,
-                        c.ClaimExaminerEmail))
-                {
-                    emailRoleAppointmentIds.Add(c.Id);
-                }
-            }
-        }
+        var emailRoleAppointmentIds = await GetEmailRoleAppointmentIdsAsync(appointmentQuery, userEmail, roles);
 
         var union = new HashSet<Guid>(bookerIds);
         union.UnionWith(patientAppointmentIds);
         union.UnionWith(accessorAppointmentIds);
         union.UnionWith(emailRoleAppointmentIds);
         return union.ToList();
+    }
+
+    private static bool HasOnlyExternalRoles(string[] roles)
+    {
+        var externalRoles = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
+        return roles.Length > 0
+            && roles.All(r => externalRoles.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task<List<Guid>> GetEmailRoleAppointmentIdsAsync(
+        IQueryable<Appointment> appointmentQuery, string? userEmail, string[] roles)
+    {
+        if (string.IsNullOrWhiteSpace(userEmail))
+        {
+            return new List<Guid>();
+        }
+
+        var callerEmailLower = userEmail.Trim().ToLower();
+        var candidates = await _asyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a =>
+                    (a.PatientEmail != null && a.PatientEmail.ToLower() == callerEmailLower) ||
+                    (a.ApplicantAttorneyEmail != null && a.ApplicantAttorneyEmail.ToLower() == callerEmailLower) ||
+                    (a.DefenseAttorneyEmail != null && a.DefenseAttorneyEmail.ToLower() == callerEmailLower) ||
+                    (a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == callerEmailLower))
+                .Select(a => new
+                {
+                    a.Id,
+                    a.PatientEmail,
+                    a.ApplicantAttorneyEmail,
+                    a.DefenseAttorneyEmail,
+                    a.ClaimExaminerEmail,
+                }));
+        return candidates
+            .Where(c => AppointmentAccessRules.IsAppointmentEmailRoleVisible(
+                userEmail,
+                roles,
+                c.PatientEmail,
+                c.ApplicantAttorneyEmail,
+                c.DefenseAttorneyEmail,
+                c.ClaimExaminerEmail))
+            .Select(c => c.Id)
+            .ToList();
     }
 }

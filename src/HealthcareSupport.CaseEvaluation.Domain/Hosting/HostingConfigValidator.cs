@@ -49,6 +49,13 @@ public static class HostingConfigValidator
             ("Redis:Configuration", IsBlankOrPlaceholder),
             ("AuthServer:Authority", IsBlankOrPlaceholder),
             ("App:SelfUrl", IsBlankOrPlaceholder),
+
+            // The certificate that encrypts the Data Protection key ring, needed by BOTH processes
+            // because they share one ring (CaseEvaluationKeyRing in HttpApi; the names are pinned
+            // to its constants by DataProtectionKeyRingTests). Without it the ring is stored as
+            // plain XML in Redis.
+            ("DataProtection:CertificatePath", IsBlankOrPlaceholder),
+            ("DataProtection:CertificatePassPhrase", IsBlankOrPlaceholder),
         };
 
         if (requireSigningCertificate)

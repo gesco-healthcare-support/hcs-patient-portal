@@ -746,7 +746,7 @@ describe('SsnInputComponent surfaces', () => {
     it('caps an over-long written value at nine digits', () => {
       const c = create();
       c.writeValue(NINE + '9999');
-      expect(c.entryDigits().length).toBe(9);
+      expect(c.entryDigits()).toHaveSize(9);
     });
 
     it('records the disabled state the form sets', () => {

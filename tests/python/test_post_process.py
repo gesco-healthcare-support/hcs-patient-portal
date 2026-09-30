@@ -584,7 +584,7 @@ class HarvestCircleFieldsTest(unittest.TestCase):
         added, printed = self._harvest(pdf)
         self.assertEqual(added, 1)
         self.assertIn("circle fields harvested: 1", printed)
-        widget = list(pdf.Root.AcroForm.Fields)[0]
+        widget = next(iter(pdf.Root.AcroForm.Fields))
         self.assertEqual(str(widget[Name.Subtype]), "/Widget")
         self.assertEqual(str(widget[Name.FT]), "/Btn")
         self.assertEqual(widget[Name.T], "packet.doctor.spinal.x")
@@ -596,7 +596,7 @@ class HarvestCircleFieldsTest(unittest.TestCase):
         page = fake.Page(Dictionary(Annots=Array([self._link("cc:packet.doctor.spinal.x")])))
         pdf = make_pdf(fields=[], pages=[page])
         self._harvest(pdf)
-        self.assertTrue(list(pdf.Root.AcroForm.Fields)[0][Name("/CcChoice")])
+        self.assertTrue(next(iter(pdf.Root.AcroForm.Fields))[Name("/CcChoice")])
 
     def test_the_widget_takes_the_glyph_rectangle(self):
         page = fake.Page(
@@ -604,7 +604,7 @@ class HarvestCircleFieldsTest(unittest.TestCase):
         )
         pdf = make_pdf(fields=[], pages=[page])
         self._harvest(pdf)
-        widget = list(pdf.Root.AcroForm.Fields)[0]
+        widget = next(iter(pdf.Root.AcroForm.Fields))
         self.assertEqual(list(widget[Name.Rect]), [10.0, 20.0, 30.0, 40.0])
 
     def test_a_reversed_rectangle_is_normalised(self):
@@ -615,7 +615,7 @@ class HarvestCircleFieldsTest(unittest.TestCase):
         )
         pdf = make_pdf(fields=[], pages=[page])
         self._harvest(pdf)
-        widget = list(pdf.Root.AcroForm.Fields)[0]
+        widget = next(iter(pdf.Root.AcroForm.Fields))
         self.assertEqual(list(widget[Name.Rect]), [10.0, 20.0, 30.0, 40.0])
 
     def test_the_link_annotation_is_replaced_rather_than_kept_alongside(self):
@@ -701,7 +701,7 @@ class FinalizeTest(unittest.TestCase):
 
         self.assertIn("circle fields harvested: 1", printed)
         self.assertIn("highlights=1", printed)
-        widget = list(pdf.Root.AcroForm.Fields)[0]
+        widget = next(iter(pdf.Root.AcroForm.Fields))
         self.assertIn("/GS1 gs", widget[Name.AP][Name.N][Name("/Yes")].read_text())
 
     def test_a_flat_notice_passes_through_without_raising(self):

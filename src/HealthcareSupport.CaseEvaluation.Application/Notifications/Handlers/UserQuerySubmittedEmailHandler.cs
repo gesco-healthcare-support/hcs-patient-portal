@@ -144,6 +144,7 @@ public class UserQuerySubmittedEmailHandler :
                 // request (the query row already committed). Log + swallow,
                 // matching StatusChangeEmailHandler.
                 _logger.LogWarning(
+                    ex,
                     "UserQuerySubmittedEmailHandler: UserQuery template missing/inactive; email skipped for query {UserQueryId}.",
                     eventData.UserQueryId);
             }
@@ -168,14 +169,10 @@ public class UserQuerySubmittedEmailHandler :
         {
             var users = await _userManager.GetUsersInRoleAsync(
                 InternalUserRoleDataSeedContributor.ItAdminRoleName);
-            foreach (var user in users)
+            foreach (var email in users.Select(user => user.Email).Where(email => !string.IsNullOrWhiteSpace(email)))
             {
-                if (string.IsNullOrWhiteSpace(user.Email))
-                {
-                    continue;
-                }
-                byEmail[user.Email] = new NotificationRecipient(
-                    email: user.Email, role: RecipientRole.OfficeAdmin, isRegistered: true);
+                byEmail[email] = new NotificationRecipient(
+                    email: email, role: RecipientRole.OfficeAdmin, isRegistered: true);
             }
         }
 

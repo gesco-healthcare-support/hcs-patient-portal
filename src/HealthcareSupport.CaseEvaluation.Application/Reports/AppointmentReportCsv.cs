@@ -44,7 +44,7 @@ internal static class AppointmentReportCsv
         return bytes;
     }
 
-    private static IEnumerable<string?> CellValues(AppointmentReportRowDto row) => new[]
+    private static string?[] CellValues(AppointmentReportRowDto row) => new[]
     {
         row.RequestConfirmationNumber,
         row.AppointmentTypeName,

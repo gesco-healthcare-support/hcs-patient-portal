@@ -36,7 +36,7 @@ internal static class SsnVisibility
         {
             return MaskedPrefix;
         }
-        return MaskedPrefix + ssn.Substring(ssn.Length - 4);
+        return string.Concat(MaskedPrefix, ssn.AsSpan(ssn.Length - 4));
     }
 
     internal static PatientDto? MaskToLast4(PatientDto? dto)
