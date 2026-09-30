@@ -13,11 +13,13 @@ namespace HealthcareSupport.CaseEvaluation.HealthChecks;
 
 public static class HealthChecksBuilderExtensions
 {
+    private static readonly string[] DatabaseTags = { "database" };
+
     public static void AddCaseEvaluationHealthChecks(this IServiceCollection services)
     {
         // Add your health checks here
         var healthChecksBuilder = services.AddHealthChecks();
-        healthChecksBuilder.AddCheck<CaseEvaluationDatabaseCheck>("CaseEvaluation DbContext Check", tags: new string[] { "database" });
+        healthChecksBuilder.AddCheck<CaseEvaluationDatabaseCheck>("CaseEvaluation DbContext Check", tags: DatabaseTags);
 
         services.ConfigureHealthCheckEndpoint("/health-status");
 
@@ -43,7 +45,7 @@ public static class HealthChecksBuilderExtensions
         });
     }
 
-    private static IServiceCollection ConfigureHealthCheckEndpoint(this IServiceCollection services, string path)
+    private static void ConfigureHealthCheckEndpoint(this IServiceCollection services, string path)
     {
         services.Configure<AbpEndpointRouterOptions>(options =>
         {
@@ -59,8 +61,6 @@ public static class HealthChecksBuilderExtensions
                     });
             });
         });
-
-        return services;
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public static class HealthChecksBuilderExtensions
     /// by bearer token only, so a browser gets 401 there. The <c>/health-status</c> probe mapped above
     /// stays open for the proxy and monitoring.
     /// </summary>
-    private static IServiceCollection MapHealthChecksUiEndpoints(this IServiceCollection services, Action<global::HealthChecks.UI.Configuration.Options>? setupOption = null)
+    private static void MapHealthChecksUiEndpoints(this IServiceCollection services, Action<global::HealthChecks.UI.Configuration.Options>? setupOption = null)
     {
         services.Configure<AbpEndpointRouterOptions>(routerOptions =>
         {
@@ -82,7 +82,5 @@ public static class HealthChecksBuilderExtensions
                 }
             });
         });
-
-        return services;
     }
 }

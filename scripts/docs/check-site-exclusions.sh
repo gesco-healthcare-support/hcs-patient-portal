@@ -35,14 +35,14 @@ for path in \
   superpowers
 do
   if [ -e "$site/$path" ] || [ -e "$site/$path.md" ] || [ -e "$site/$path.html" ]; then
-    echo "::error::excluded path was built into the site: $path"
+    echo "::error::excluded path was built into the site: $path" >&2
     failed=1
   fi
   if [ -f "$index" ] && grep -q "\"location\":\"$path[/#\"]" "$index"; then
-    echo "::error::excluded path is in the search index: $path"
+    echo "::error::excluded path is in the search index: $path" >&2
     failed=1
   fi
 done
 
-test -s "$index" || { echo "::error::search index missing: $index"; failed=1; }
+test -s "$index" || { echo "::error::search index missing: $index" >&2; failed=1; }
 exit "$failed"
