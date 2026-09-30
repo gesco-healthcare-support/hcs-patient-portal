@@ -8,7 +8,7 @@ The intended runtime is **`docker compose up -d`** inside any worktree. Host por
 
 | Script | Purpose |
 |---|---|
-| `add-worktree.sh <branch>` | Create a feature worktree: allocate ports, copy secrets, render Angular/dotnet per-worktree config, write per-worktree compose overrides to `.env`, run `dotnet restore` + `yarn install` for the direct-dotnet-run fallback path. |
+| `add-worktree.sh <branch>` | Create a feature worktree: allocate ports, copy secrets, render Angular/dotnet per-worktree config, write per-worktree compose overrides to `.env`, run `dotnet restore --locked-mode` + `yarn install` for the direct-dotnet-run fallback path. |
 | `rm-worktree.sh <slug> [--force]` | Remove a worktree. Prompts to drop the LocalDB database for persistent worktrees (development/staging/production); never touches shared state. Does not touch docker volumes -- run `docker compose down -v` in the worktree first if you want to clean those. |
 | `render-config.sh <wt> <AUTH> <API> <NG> <DB>` | Emit per-worktree `appsettings.Local.json` (3) + `environment.local.ts`. Uses Python's `json.dump` for reliable LocalDB backslash escaping. Invoked by `add-worktree.sh`; can be re-run manually if config drifts. |
 | `refresh-secrets.sh` | Re-copy `docker/appsettings.secrets.json` into every worktree's four service locations after the ABP license rotates. |

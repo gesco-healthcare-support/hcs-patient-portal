@@ -31,11 +31,20 @@ else
   echo "  packages means it is not. Add the service's secrets: block." >&2
 fi
 
+# --locked-mode: restore exactly the committed packages.lock.json files, as CI and
+# the image builds do. This container therefore no longer rewrites a lock file on
+# the bind mount after a package edit. The edit is recorded on the host instead,
+# with `dotnet restore --force-evaluate`, before restarting (docs/runbooks/DOCKER-DEV.md,
+# "Change a NuGet package"); otherwise this restore fails with NU1004.
 rc=0
-dotnet restore "$SOLUTION" >/tmp/restore.log 2>&1 || rc=$?
+dotnet restore "$SOLUTION" --locked-mode >/tmp/restore.log 2>&1 || rc=$?
 rm -f NuGet.Config
 if [ "$rc" -ne 0 ]; then
   cat /tmp/restore.log
+  if grep -q NU1004 /tmp/restore.log; then
+    echo "dev-restore-run: a package changed but its packages.lock.json did not. On the" >&2
+    echo "  host, run: dotnet restore --force-evaluate   then restart this service." >&2
+  fi
   exit "$rc"
 fi
 

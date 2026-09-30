@@ -25,21 +25,21 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
     private readonly IEnumerable<ICaseEvaluationDbSchemaMigrator> _dbSchemaMigrators;
     private readonly ITenantRepository _tenantRepository;
     private readonly ICurrentTenant _currentTenant;
-    private readonly IAdminPasswordStore _adminPasswordStore;
+    private readonly AdminSeedPasswordResolver _adminSeedPasswordResolver;
     private readonly AdminPasswordRotator _adminPasswordRotator;
 
     public CaseEvaluationDbMigrationService(
         IDataSeeder dataSeeder,
         ITenantRepository tenantRepository,
         ICurrentTenant currentTenant,
-        IAdminPasswordStore adminPasswordStore,
+        AdminSeedPasswordResolver adminSeedPasswordResolver,
         AdminPasswordRotator adminPasswordRotator,
         IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators)
     {
         _dataSeeder = dataSeeder;
         _tenantRepository = tenantRepository;
         _currentTenant = currentTenant;
-        _adminPasswordStore = adminPasswordStore;
+        _adminSeedPasswordResolver = adminSeedPasswordResolver;
         _adminPasswordRotator = adminPasswordRotator;
         _dbSchemaMigrators = dbSchemaMigrators;
 
@@ -119,11 +119,14 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
             ?? CaseEvaluationConsts.AdminEmailDefaultValue;
 
         // B12: the password comes from the configured store, which generates one per database on
-        // first use and returns the stored value ever after. In Development the store is the
+        // first use and returns the stored value ever after -- but only when this pass is about to
+        // CREATE the admin. Where the admin already exists the seeder ignores the password, and
+        // writing a store entry anyway would leave a file that does not match the account
+        // (AdminSeedPasswordResolver says which accounts that was). In Development the store is the
         // published-default one, so a local clone still seeds the documented credentials and
         // nothing about local work changes. There is deliberately no isDevelopment branch HERE --
         // the branch lives in the store selection, so adding a fifth seeding site cannot forget it.
-        var adminPassword = await _adminPasswordStore.GetOrCreateAsync(tenant?.Id);
+        var adminPassword = await _adminSeedPasswordResolver.ResolveAsync(tenant?.Id);
 
         await _dataSeeder.SeedAsync(new DataSeedContext(tenant?.Id)
             .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmail)

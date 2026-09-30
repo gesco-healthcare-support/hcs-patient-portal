@@ -34,7 +34,7 @@ usage() { echo "usage: backup-alert.sh failed <unit> | stale <what> <detail>" >&
 refuse() { echo "backup-alert: ERROR: $* -- this alert was NOT sent" >&2; exit 1; }
 
 # One key from the env file; empty when absent. Never echoed.
-env_value() { { grep -E "^$1=" "$ENV_FILE" || true; } | head -1 | cut -d= -f2-; }
+env_value() { local key="$1"; { grep -E "^${key}=" "$ENV_FILE" || true; } | head -1 | cut -d= -f2-; }
 
 kind="${1:-}"
 case "$kind" in

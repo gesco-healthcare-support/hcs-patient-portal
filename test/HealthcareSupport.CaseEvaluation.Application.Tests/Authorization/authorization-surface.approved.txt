@@ -240,14 +240,12 @@ HealthcareSupport.CaseEvaluation.ExternalAccount.CaseEvaluationProfileAppService
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.ResendEmailVerificationAsync(ResendEmailVerificationInput) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.ResetPasswordAsync(ResetPasswordInput) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.SendPasswordResetCodeAsync(SendPasswordResetCodeInput) -> class=- method=(anonymous)
-HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.DeleteTestUsersAsync(IList<String>) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetActiveInvitedEmailsAsync(List<String>) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetExternalUserLookupAsync(String) -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetInvitesAsync(GetInvitesInput) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetMyProfileAsync() -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetTenantOptionsAsync(String) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.InviteExternalUserAsync(InviteExternalUserDto) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
-HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.MarkEmailConfirmedAsync(String) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.RegisterAsync(ExternalUserSignUpDto) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.ResendInviteAsync(Guid) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.ResolveTenantByNameAsync(String) -> class=- method=(anonymous)

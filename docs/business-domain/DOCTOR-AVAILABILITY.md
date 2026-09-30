@@ -3,7 +3,7 @@
 > Purpose: the availability slot model, how a slot fills under the capacity model, bulk generation, and
 > what the booking gate checks. Audience: developers.
 
-[Home](../INDEX.md) > [Business Domain](./) > Doctor Availability
+[Home](../index.md) > [Business Domain](./) > Doctor Availability
 
 ## Overview
 

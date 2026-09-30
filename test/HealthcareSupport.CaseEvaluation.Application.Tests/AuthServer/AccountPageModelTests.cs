@@ -417,6 +417,34 @@ public class AccountPageModelTests
         setCookies.ShouldContain("XSRF-TOKEN=;");
     }
 
+    /// <summary>
+    /// An external user's username IS their email address, so the sign-out line names the user by
+    /// id. The principal here carries the address as its Name, exactly as an external user's does.
+    /// </summary>
+    [Fact]
+    public async Task Logout_logs_the_user_id_and_not_the_username_which_is_an_email_address()
+    {
+        var userId = new Guid("0ff1ce00-0000-4000-8000-00000000d0e1");
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new RecordingAuthentication())
+            .BuildServiceProvider();
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.Name, Email),
+                new Claim(Volo.Abp.Security.Claims.AbpClaimTypes.UserId, userId.ToString()),
+            },
+            "Test"));
+        var logger = new RecordingLogger<LogoutModel>();
+
+        await WithContext(new LogoutModel(logger), services, user).OnGetAsync();
+
+        var line = logger.Entries.ShouldHaveSingleItem().Message;
+        line.ShouldContain(userId.ToString());
+        line.ShouldNotContain(Email);
+        line.ShouldNotContain("@");
+    }
+
     [Fact]
     public void The_locked_out_page_shows_the_remaining_time_handed_over_by_login_or_the_generic_wording()
     {

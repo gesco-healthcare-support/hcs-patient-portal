@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Secrets Management
+[Home](../index.md) > Security > Secrets Management
 
 # Secrets Management
 
@@ -128,6 +128,36 @@ produces `secrets/openiddict.pfx` from `AUTHSERVER_CERT_PASSPHRASE`. Note that t
 serves as **both** the OpenIddict signing and encryption certificate
 (`CaseEvaluationAuthServerModule.cs:180`), so regenerating it invalidates every issued token
 and signs every user out.
+
+The AuthServer container runs as the runtime image's unprivileged `app` account (uid 1654, gid
+1654) and reads the mounted certificate through its group. The file must therefore be mode `640`
+with group `1654`, or the AuthServer fails at startup. `gen-openiddict-cert.sh` sets both when it
+is allowed to; otherwise it leaves the file private to its owner and prints the command. A
+certificate that already exists needs this once, on the host, before an AuthServer image that runs
+as `app` is deployed. Run it in the deployment directory; the path is the one `OPENIDDICT_PFX_PATH`
+names in `secrets/env.prod`.
+
+Check that no host group already uses gid 1654. If this prints a group, stop: its members would
+also be able to read the certificate.
+
+```bash
+getent group 1654 || echo "gid 1654 unused on host: OK"
+```
+
+```bash
+sudo chgrp 1654 secrets/openiddict.pfx
+```
+
+```bash
+sudo chmod 640 secrets/openiddict.pfx
+```
+
+```bash
+stat -c '%U:%g %a' secrets/openiddict.pfx
+```
+
+The last command should print the operator's name, then `:1654 640`. Never regenerate the
+certificate to fix its permissions.
 
 ---
 

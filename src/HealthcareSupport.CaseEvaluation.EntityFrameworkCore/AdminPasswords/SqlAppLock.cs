@@ -6,7 +6,6 @@ using HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Volo.Abp;
-using Volo.Abp.DependencyInjection;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.AdminPasswords;
 
@@ -28,8 +27,13 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.AdminPasswords;
 /// crash between acquire and release, for the lifetime of the pooled connection. With
 /// <c>Pooling=false</c>, disposing really does log out, which makes the release a belt-and-braces
 /// step rather than the only thing standing between a crash and a stuck lock.</para>
+///
+/// <para><b>Registered by <see cref="AdminPasswordStoreRegistrar"/>, deliberately without a dependency
+/// marker.</b> ABP's conventional registration would expose this class only as itself, because the
+/// interface name does not match the class name, so a marker here looks like a registration and is
+/// not one.</para>
 /// </summary>
-public sealed class SqlAppLock : IAdminPasswordStoreLock, ITransientDependency
+public sealed class SqlAppLock : IAdminPasswordStoreLock
 {
     /// <summary>
     /// Namespaced so these can never collide with an application lock taken for another purpose in

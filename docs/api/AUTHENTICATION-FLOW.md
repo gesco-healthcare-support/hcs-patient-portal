@@ -2,7 +2,7 @@
 
 > Purpose: Documents the OpenIddict OAuth2/OIDC authentication flow, registered clients, token validation, and external user registration. Audience: backend and frontend engineers.
 
-[Home](../INDEX.md) > [API](./) > Authentication Flow
+[Home](../index.md) > [API](./) > Authentication Flow
 
 **Related:** [API Architecture](API-ARCHITECTURE.md) | [Middleware & Pipeline](MIDDLEWARE-AND-PIPELINE.md) | [Role-Based UI](../frontend/ROLE-BASED-UI.md) | [User Roles and Actors](../business-domain/USER-ROLES-AND-ACTORS.md)
 

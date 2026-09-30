@@ -1,11 +1,11 @@
-[Home](../INDEX.md) > [Business Domain](./) > Domain Overview
+[Home](../index.md) > [Business Domain](./) > Domain Overview
 
 # Business Domain Overview: California Workers' Compensation IME Scheduling
 
 > Purpose: plain-language explanation of the workers' compensation IME scheduling domain and of what
 > this portal does within it. Audience: all contributors.
 
-This page explains what the HCS Case Evaluation Portal does in plain language. No prior knowledge of
+This page explains what the Appointment Portal does in plain language. No prior knowledge of
 workers' compensation, healthcare or California law is assumed. For the exact rules, it links to the
 pages that are verified against the code rather than restating them.
 

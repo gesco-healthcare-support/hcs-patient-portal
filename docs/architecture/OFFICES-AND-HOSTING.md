@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > [Architecture](./) > Offices and Hosting
+[Home](../index.md) > [Architecture](./) > Offices and Hosting
 
 # Offices and Hosting
 

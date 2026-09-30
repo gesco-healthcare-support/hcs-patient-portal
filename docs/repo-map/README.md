@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Repository Map > README
+[Home](../index.md) > Repository Map > README
 
 # Repository Map
 

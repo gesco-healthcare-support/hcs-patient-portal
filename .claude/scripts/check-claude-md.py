@@ -102,7 +102,12 @@ BULLET = re.compile(r"^\s*[-*]\s+`?([A-Za-z_]\w*)`?", re.MULTILINE)
 # Rule 4 proxy: a fenced block tagged as C#/TS that contains a method signature plus a
 # brace, i.e. a body rather than a one-line illustration.
 FENCE = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
-METHOD_BODY = re.compile(r"(public|private|protected|internal|function|async)\s+[^\n]*\{", re.MULTILINE)
+# The \S after the whitespace keeps the two quantifiers from matching the same characters,
+# so a keyword followed by a long whitespace run with no brace is rejected in linear time.
+# `\s+[^\n]*` accepted the same strings but tried every split point (quadratic).
+METHOD_BODY = re.compile(
+    r"(public|private|protected|internal|function|async)\s+(?:\S[^\n]*)?\{", re.MULTILINE
+)
 
 # Rule 5: a count with no command beside it.
 #

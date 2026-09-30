@@ -2,11 +2,11 @@
 
 > Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA.
 
-[Home](../INDEX.md) > [Business Domain](./) > User Roles & Actors
+[Home](../index.md) > [Business Domain](./) > User Roles & Actors
 
 ## Overview
 
-The HCS Case Evaluation Portal uses a role-based access model built on top of ABP Framework's identity system. Roles are seeded at application startup and assigned during user registration. Each tenant (doctor practice) has its own set of users and role assignments.
+The Appointment Portal uses a role-based access model built on top of ABP Framework's identity system. Roles are seeded at application startup and assigned during user registration. Each tenant (doctor practice) has its own set of users and role assignments.
 
 ---
 

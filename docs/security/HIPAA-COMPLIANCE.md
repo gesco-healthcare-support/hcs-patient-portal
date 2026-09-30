@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > HIPAA Compliance
+[Home](../index.md) > Security > HIPAA Compliance
 
 # HIPAA Technical Safeguards Inventory
 

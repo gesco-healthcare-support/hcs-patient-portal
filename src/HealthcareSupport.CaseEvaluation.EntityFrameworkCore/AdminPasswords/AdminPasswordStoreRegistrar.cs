@@ -35,6 +35,13 @@ public static class AdminPasswordStoreRegistrar
 
             case AdminPasswordStoreKind.Directory:
                 var directory = configuration[AdminPasswordStoreSelector.DirectoryKey]!;
+
+                // The lock is registered HERE, beside the only thing that needs it, and not left to
+                // ABP's conventional registration. Conventions expose a class only as itself and its
+                // default interfaces -- those whose name, less the leading I, ends the class name --
+                // and SqlAppLock is not an ...AdminPasswordStoreLock, so a dependency marker on it
+                // registered nothing this factory can ask for, and no host could start.
+                services.AddTransient<IAdminPasswordStoreLock, SqlAppLock>();
                 services.AddSingleton<IAdminPasswordStore>(provider => new LockedAdminPasswordStore(
                     new FileAdminPasswordStore(directory),
                     provider.GetRequiredService<IAdminPasswordStoreLock>()));

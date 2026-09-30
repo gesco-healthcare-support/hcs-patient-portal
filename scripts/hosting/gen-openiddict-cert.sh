@@ -54,8 +54,34 @@ openssl pkcs12 -export \
   -out "$OUT" -passout "pass:${AUTHSERVER_CERT_PASSPHRASE}"
 
 chmod 600 "$OUT" 2>/dev/null || true
-echo "Wrote ${OUT} (valid ${DAYS} days, self-signed RSA-2048)."
+
+# The AuthServer container runs as the runtime image's unprivileged `app` account
+# (uid 1654, gid 1654) and reads this file through its group, so it must end up
+# mode 640, group 1654. Only open it to the group once the group IS 1654: widening
+# to 640 while the file still carries the operator's own group would let every
+# member of that group read the key. chgrp to a group the operator is not in needs
+# root, so failing here is normal; the file is kept 600 and the command printed.
+#
+# Success is judged by the file's resulting group and mode, not by the commands'
+# exit codes: Git Bash on Windows reports chgrp and chmod as succeeding while
+# changing neither.
+AUTHSERVER_GID=1654
+chgrp "$AUTHSERVER_GID" "$OUT" 2>/dev/null && chmod 640 "$OUT" 2>/dev/null || true
+if [[ "$(stat -c '%g %a' "$OUT" 2>/dev/null)" == "${AUTHSERVER_GID} 640" ]]; then
+  access="group ${AUTHSERVER_GID}, mode 640: readable by the AuthServer container"
+  access_todo=""
+else
+  chmod 600 "$OUT" 2>/dev/null || true
+  access="group is not ${AUTHSERVER_GID}: NOT yet readable by the AuthServer container"
+  access_todo="sudo chgrp ${AUTHSERVER_GID} ${OUT} && sudo chmod 640 ${OUT}"
+fi
+
+echo "Wrote ${OUT} (valid ${DAYS} days, self-signed RSA-2048; ${access})."
 echo "Next:"
+if [[ -n "$access_todo" ]]; then
+  echo "  - on the Linux host, let the AuthServer container (gid ${AUTHSERVER_GID}) read it, or it fails at startup:"
+  echo "      ${access_todo}"
+fi
 echo "  - mount it read-only at /app/openiddict.pfx in the AuthServer container"
 echo "  - set AuthServer__CertificatePassPhrase to the same passphrase in .env.prod"
 echo "  - keep a secure backup; never commit the .pfx or its passphrase"

@@ -2,15 +2,6 @@ import type { ExternalUserType } from './external-user-type.enum';
 import type { EntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { InvitationStatus } from '../invitations/invitation-status.enum';
 
-export interface DeleteTestUsersDto {
-  emails?: string[];
-}
-
-export interface DeleteTestUsersResultDto {
-  deleted?: string[];
-  notFound?: string[];
-}
-
 export interface ExternalUserLookupDto {
   identityUserId?: string;
   firstName?: string;
@@ -96,8 +87,4 @@ export interface InviteExternalUserResultDto {
 export interface SendPortalLinkInput {
   email: string;
   tenantId?: string;
-}
-
-export interface MarkEmailConfirmedDto {
-  email?: string;
 }

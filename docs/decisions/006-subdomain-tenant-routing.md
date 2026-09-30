@@ -1,8 +1,15 @@
 # ADR-006: Subdomain Tenant Routing + Database-per-Tenant
 
-**Status:** Proposed
+**Status:** Accepted and IN FORCE; partially superseded by ADR-007 (the assumption block, not the
+routing intent)
 **Date:** 2026-05-05
+**Status corrected:** 2026-09-29 -- it read `Proposed` for four months while shipped. See "Status
+correction" at the foot.
 **Verified by:** code-inspect (current state) + ABP framework docs (target mechanism)
+
+> **Read this ADR even though it was labelled `Proposed`.** It is the record of why an office
+> cannot be selected by a query string, a cookie, a header or a route value, and that hardening is
+> in the code today in both services.
 
 ## Context
 
@@ -172,3 +179,41 @@ FEAT-09 (Patient must be IMultiTenant) is documented in
 `Patients/CLAUDE.md` Known Gotchas section. Skipped test
 `PatientsAppServiceTests.GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients`
 pins the target behavior and flips green when this ADR ships.
+
+## Status correction 2026-09-29
+
+**The decision is unchanged. Its `Status` field was wrong and is now corrected.** This ADR read
+`Proposed` from 2026-05-05 until 2026-09-29, and `docs/decisions/README.md` listed it that way in
+the index. Both said so while every part of it was in the code.
+
+`README.md` states the convention it broke: "Set Status to `Proposed` until reviewed, then
+`Accepted`". The review happened in the form of the work shipping; the field was never moved.
+
+What shipped, checked against `origin/main` at `6be1e0b6`:
+
+```text
+grep -rnE "TenantResolvers\.(Clear|Add)" --include=*.cs src/
+  AuthServer/CaseEvaluationAuthServerModule.cs:572    options.TenantResolvers.Clear();
+  AuthServer/CaseEvaluationAuthServerModule.cs:573    ...Add(new CurrentUserTenantResolveContributor());
+  HttpApi.Host/CaseEvaluationHttpApiHostModule.cs:422 options.TenantResolvers.Clear();
+  HttpApi.Host/CaseEvaluationHttpApiHostModule.cs:423 ...Add(new CurrentUserTenantResolveContributor());
+```
+
+Cleared and rebuilt with exactly two contributors, in both services, as this ADR specifies. The
+`QueryString`, `Route`, `Header` and `Cookie` contributors are gone, so `?__tenant=<id>` and a
+`__tenant` cookie cannot select an office.
+
+FEAT-09 also landed. `Patient` implements `IMultiTenant`
+(`Domain/Patients/Patient.cs:27`), and the test named just above is no longer skipped: it is a live
+`[Fact]` at `PatientsAppServiceTests.cs:364`, above a comment recording that ABP's automatic filter
+scopes the query and no AppService change was needed.
+
+**Why a wrong status field is worth a correction of its own.** `Proposed` is a routing signal: it
+tells a reader this is a plan, not a description, and it is reasonable to skip. This is the ADR
+that records why an office cannot be selected by a query parameter. A maintainer filtering for
+decisions in force would have skipped it, and one who read it could reasonably have concluded the
+hardening was never built and gone looking for work already done.
+
+Note also that ADR-017 (2026-06-25) later asserted `Patient` is NOT `IMultiTenant` -- contradicting
+this ADR, which is where that change was decided. That claim was corrected on 2026-09-29; see the
+amendment in ADR-017.

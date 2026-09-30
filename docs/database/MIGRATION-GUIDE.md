@@ -2,11 +2,11 @@
 
 > Purpose: Reference for adding and applying EF Core migrations in the dual-context (host/tenant) setup. Audience: Backend developers.
 
-[Home](../INDEX.md) > [Database](./) > Migration Guide
+[Home](../index.md) > [Database](./) > Migration Guide
 
 ## Overview
 
-The HCS Case Evaluation Portal uses EF Core's code-first migrations with a **dual migration folder** strategy to support ABP's multi-tenancy model. Host and tenant databases have separate migration tracks, each tied to their respective DbContext.
+The Appointment Portal uses EF Core's code-first migrations with a **dual migration folder** strategy to support ABP's multi-tenancy model. Host and tenant databases have separate migration tracks, each tied to their respective DbContext.
 
 ---
 

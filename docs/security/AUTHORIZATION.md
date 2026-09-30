@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Security > Authorization
+[Home](../index.md) > Security > Authorization
 
 # Authorization & Permission Matrix
 
@@ -14,18 +14,49 @@ This document summarizes the permission surface and its mapping to roles, entiti
 
 ## Permission Groups
 
-The root group is `CaseEvaluation`. There are **39 top-level groups**; the table below names some
-of them and is not maintained as a complete list. Read the source file for the full tree.
+The root group is `CaseEvaluation`. Under it the provider declares **six groups**: appointments,
+people, doctors, configuration, usersAndAccess and administration. The table below names some of
+their permissions and is not maintained as a complete list; read the source file for the full tree.
+
+Every figure on this page is a count, so each carries the command that produces it. Measured on
+`main` at `92b8b192`, with `P` standing for
+`src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissionDefinitionProvider.cs`:
+
+| Figure | Value | Command |
+|---|---|---|
+| Groups | 6 | `grep -c "AddGroup(" $P` |
+| Top-level permissions | 42 | `grep -c "AddPermission(" $P` |
+| Child permissions | 97 | `grep -c "AddChild(" $P` |
+| Both combined | 139 | `grep -cE "AddPermission\(\|AddChild\(" $P` |
+
+**This page previously said "39 top-level groups", which was wrong and not checkable as phrased.**
+There are six groups. Forty-two is the number of top-level permissions, which is the closest real
+figure to 39 and may be what was meant. The claim is corrected rather than reworded because a
+number nobody can re-run is the kind of statement this documentation pass exists to remove.
 
 > **Three things in this table were wrong until 2026-09-28**, and they are worth naming because
 > each would mislead in a different direction.
 >
 > 1. **The multi-tenancy side column.** States, AppointmentTypes, AppointmentStatuses,
 >    AppointmentLanguages, Locations and WcabOffices were marked `Host`. None of those
->    registrations passes a `MultiTenancySides` argument, so ABP registers each as `Both`. Of 138
->    `AddPermission` and `AddChild` calls, only six declare a side: the two `Dashboard` variants
->    and four genuinely host-only grants (integration dead letters, intake assignments, intake
->    impersonation, Case Tracker integration).
+>    registrations passes a `MultiTenancySides` argument, so ABP registers each as `Both`.
+>
+>    **The figures here were themselves stale and are re-derived on `main` at `92b8b192`.** Of the
+>    **139** `AddPermission` and `AddChild` calls, **ten** declare a side in code: two `Both`, seven
+>    `Host`, one `Tenant`. So **eight** declare something other than `Both`, not six -- the two
+>    `Dashboard` variants plus six host-only grants.
+>
+>    Count them with, excluding comment lines, since one comment mentions a side and would
+>    otherwise inflate the figure:
+>
+>    ```bash
+>    grep -vE "^\s*//" $P | grep -oE "MultiTenancySides\.[A-Za-z]+" | sort | uniq -c
+>    ```
+>
+>    **ABP defaults a child permission to `Both` and checks only the permission's own side**, so a
+>    child declared under a `Host` parent without its own argument is reachable from a tenant. That
+>    is worth knowing before adding one: state the side you mean rather than relying on the
+>    parent's.
 > 2. **`Books`** was listed. That ABP-template sample permission was removed; only a comment
 >    recording the removal survives in the definition provider.
 > 3. **`AppointmentAccessors`** was listed with Default, Create, Edit and Delete. **No
@@ -76,10 +107,22 @@ Seven named roles plus the ABP superuser.
 | `IT Admin` | `InternalUserRoleDataSeedContributor` | Host | Internal |
 | `Staff Supervisor` | `InternalUserRoleDataSeedContributor` | Host + Tenant | Internal |
 | `Intake Staff` | `InternalUserRoleDataSeedContributor` | Host + Tenant | Internal |
-| `Patient` | `ExternalUserRoleDataSeedContributor` | Tenant | External |
-| `Applicant Attorney` | `ExternalUserRoleDataSeedContributor` | Tenant | External |
-| `Defense Attorney` | `ExternalUserRoleDataSeedContributor` | Tenant | External |
-| `Claim Examiner` | `ExternalUserRoleDataSeedContributor` | Tenant | External |
+| `Patient` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Applicant Attorney` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Defense Attorney` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Claim Examiner` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+
+**The four external roles exist on the host as well, and that surprises people.**
+`ExternalUserRoleDataSeedContributor.SeedAsync` calls `EnsureRoleAsync` for every name in
+`ExternalRoleConsts.All` on **every** seeding pass, before it checks the tenant
+(`ExternalUserRoleDataSeedContributor.cs:39-42`). The GRANTS are what is tenant-only: they sit
+behind `if (context?.TenantId != null)`, with a comment explaining that external roles are
+tenant-scoped.
+
+Both halves of that are true of different things, which is why the page had it wrong. The
+**permissions** are tenant-scoped. The **role rows** are not: four external roles exist in the host
+database with nothing granted to them. Empty roles are not a way in by themselves, but anyone
+auditing the host role list should expect to find them rather than treat them as a surprise.
 
 **The four external roles receive a byte-identical permission set.** The seeder loops over
 `ExternalRoleConsts.All` and grants every role the same `BookingBaselineGrants()` list, so any
