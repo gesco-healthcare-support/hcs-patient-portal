@@ -1,0 +1,8 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+
+public class EfCorePublicChangeRequestConsentAppServiceTests
+    : PublicChangeRequestConsentAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

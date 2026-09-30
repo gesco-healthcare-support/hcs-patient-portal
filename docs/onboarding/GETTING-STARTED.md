@@ -1,12 +1,14 @@
 # Getting Started
 
-[Home](../INDEX.md) > [Onboarding](./) > Getting Started
+> Purpose: Walk a new developer from fresh clone to a running application. Audience: engineers joining the project.
+
+[Home](../index.md) > [Onboarding](./) > Getting Started
 
 ---
 
-This guide takes you from a fresh clone to a running application. The Patient Portal is a workers' compensation IME scheduling system built with .NET 10, Angular 20, and ABP Commercial. It runs three services locally: an OAuth authentication server, a REST API, and an Angular single-page application.
+This guide takes you from a fresh clone to a running application. The Appointment Portal is a workers' compensation IME scheduling system built with .NET 10, Angular 20, and ABP Commercial. It runs three services locally: an OAuth authentication server, a REST API, and an Angular single-page application.
 
-For detailed configuration (connection strings, HTTPS certificates, Redis, ABP Studio profiles), see [Development Setup](../devops/DEVELOPMENT-SETUP.md).
+For detailed configuration (connection strings, HTTPS certificates, Redis, ABP Studio profiles), see [Development Setup](../runbooks/DOCKER-DEV.md).
 
 ## ABP Commercial License (Required Before Anything Else)
 
@@ -46,13 +48,13 @@ cp docker/appsettings.secrets.json.example docker/appsettings.secrets.json
 docker compose up --build
 ```
 
-Wait ~3-5 minutes for first build. When you see all health checks pass, open http://localhost:4200.
+Wait ~3-5 minutes for first build. When you see all health checks pass, open <http://localhost:4200>.
 
 | Service | URL | Container |
 |---------|-----|-----------|
-| Angular | http://localhost:4200 | patient-portal-ui |
-| API + Swagger | http://localhost:44327/swagger | patient-portal-api |
-| AuthServer | http://localhost:44368 | patient-portal-auth |
+| Angular | <http://localhost:4200> | patient-portal-ui |
+| API + Swagger | <http://localhost:44327/swagger> | patient-portal-api |
+| AuthServer | <http://localhost:44368> | patient-portal-auth |
 | SQL Server | localhost:1434 | patient-portal-db |
 | Redis | localhost:6379 | patient-portal-redis |
 
@@ -70,6 +72,8 @@ docker compose down -v
 
 ## Local Setup (Without Docker)
 
+> **Note:** Docker Compose (see Quick Start above) is the supported dev path. Use local setup only when you need full IDE debugging or hot-reload and cannot run Docker. All `dotnet run` commands below require `DOTNET_ENVIRONMENT=Development` and `ASPNETCORE_ENVIRONMENT=Development` so that `appsettings.Development.json` is loaded (see `.claude/rules/dotnet-env.md`).
+
 Use this method when you need full debugging, hot-reload, or IDE integration. Requires installing all tools locally.
 
 ### Prerequisites
@@ -79,7 +83,7 @@ Use this method when you need full debugging, hot-reload, or IDE integration. Re
 | .NET SDK | 10.0 | `dotnet --version` | [dotnet.microsoft.com](https://dotnet.microsoft.com/download) |
 | Node.js | LTS (22+) | `node --version` | [nodejs.org](https://nodejs.org/) |
 | SQL Server | Any (LocalDB, Docker, or full) | See database setup below | See database setup below |
-| Angular CLI | Latest | `ng version` | `npm install -g @angular/cli` |
+| Angular CLI | Not installed globally | `npx ng version` (from `angular/`) | Comes with `yarn install`: the project pins `@angular/cli` ~20.3 and every command here runs it through `npx ng` |
 | ABP CLI | Latest | `abp --version` | `dotnet tool install -g Volo.Abp.Studio.Cli` |
 
 Optional: Redis (disabled by default).
@@ -99,38 +103,68 @@ cd hcs-case-evaluation-portal
 # Backend (.NET packages)
 dotnet restore
 
-# Frontend (Angular packages)
+# Frontend -- YARN, not npm. See below.
 cd angular
-npm install
+yarn install
 cd ..
 ```
 
-The `npm install` step downloads ~1GB of Angular + ABP packages. `ERESOLVE` warnings are typically safe to ignore for ABP projects.
+> **Use `yarn`, not `npm`.** This page said `npm install` until 2026-09-28 and that was wrong.
+> The frontend is pinned to Yarn 4 (Berry): `angular/package.json` declares
+> `"packageManager": "yarn@4.16.0"` and `angular/.yarnrc.yml` sets `yarnPath` to a checked-in
+> release under `.yarn/releases/`. Running `npm install` produces a `package-lock.json` that
+> nothing else uses, resolves versions the committed `yarn.lock` never pinned, and leaves you
+> debugging a tree no one else has. There is no `ERESOLVE` to ignore, because npm is not the
+> tool.
+
+`yarn install` downloads roughly a gigabyte of Angular and ABP packages. Two settings in
+`.yarnrc.yml` will surprise you if you do not know about them:
+
+- **`enableScripts: false`** repo-wide. Package lifecycle scripts do not run, deliberately: a
+  postinstall script is arbitrary code execution at install time. If a package genuinely needs
+  its build step, it goes on the `npmPreapprovedPackages` list rather than turning the setting
+  off.
+- **`npmMinimalAgeGate`** refuses packages published more recently than the configured age. A
+  brand-new release will be rejected until it ages past the gate. That is the gate working, not
+  a broken registry.
+
+`yarn install` also runs husky's `prepare` step, which creates `angular/.husky/_`. **Until that
+has run, git hooks do not execute at all** -- `core.hooksPath` points at that directory, and git
+silently runs nothing when it is missing. So a fresh clone or a fresh worktree has no gitleaks
+scan, no `dotnet format` check and no commitlint until you have done this step. The hook scripts
+in `angular/.husky/` being present is not evidence that they run.
 
 ## Step 3: Database Setup
 
 The application needs a SQL Server instance. Choose one option:
 
 ### Option A: Docker (recommended, cross-platform)
+
 ```bash
 # If you have Docker installed:
 docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=YourStrong!Passw0rd" \
   -p 1433:1433 --name sql-server -d mcr.microsoft.com/mssql/server:2022-latest
 ```
+
 Then update `ConnectionStrings:Default` in `src/*/appsettings.json` to use `Server=localhost;...`.
 
 ### Option B: SQL Server LocalDB (Windows only)
+
 ```bash
 sqllocaldb start MSSQLLocalDB
 ```
+
 The default connection strings already point to LocalDB — no config changes needed.
 
 ### Option C: Full SQL Server
+
 Point the connection strings in `src/*/appsettings.json` to your SQL Server instance.
 
 ### Run Migrations
+
 ```bash
-dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 ```
 
 This creates the database, applies all migrations, and seeds initial data (admin user, OAuth clients, permissions).
@@ -156,18 +190,25 @@ flowchart LR
 ```
 
 **Terminal 1 -- AuthServer** (start first):
+
 ```bash
-dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 ```
+
 Wait for `Now listening on: https://localhost:44368`.
 
 **Terminal 2 -- API Host** (start after AuthServer is ready):
+
 ```bash
-dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
+
 Wait for `Now listening on: https://localhost:44327`.
 
 **Terminal 3 -- Angular** (start last):
+
 ```bash
 cd angular
 npx ng build --configuration development
@@ -189,13 +230,13 @@ curl -sk -o /dev/null -w "%{http_code}" https://localhost:44327/swagger/index.ht
 curl -s -o /dev/null -w "%{http_code}" http://localhost:4200/
 ```
 
-Open **http://localhost:4200**, log in with `admin@abp.io` and the `TEST_PASSWORD` from your `.env.local`. You should see the LeptonX dashboard with sidebar menu (Appointments, Doctors, Patients, Locations).
+Open **<http://localhost:4200>**. The SPA redirects the bare host to **<http://admin.localhost:4200>**, the host administration surface (offices are reached at `<office>.localhost:4200`). Log in with `admin@abp.io` and the `TEST_PASSWORD` from your `.env.local`. You should land on `/dashboard` inside the staff shell: a sidebar with the host groups Overview, Practice Management and Administration. The office groups (Workspace, Scheduling, Administration, Configuration, People) appear once you work inside an office.
 
 | Service | URL | Expected |
 |---------|-----|----------|
-| AuthServer | https://localhost:44368 | OpenIddict login page |
-| API Host | https://localhost:44327/swagger | Swagger API explorer |
-| Angular | http://localhost:4200 | LeptonX themed SPA |
+| AuthServer | <https://localhost:44368> | OpenIddict login page |
+| API Host | <https://localhost:44327/swagger> | Swagger API explorer |
+| Angular | <http://localhost:4200> | Redirects to `admin.localhost:4200`, then the AuthServer sign-in |
 
 ## Running Services Independently
 
@@ -273,31 +314,40 @@ docker exec patient-portal-api env | sort
 
 For local development with full .NET hot-reload and debugging:
 
-**AuthServer** (Terminal 1 — start first):
+**AuthServer** (Terminal 1 -- start first):
+
 ```bash
 # Standard
-dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 
 # Verbose logging (shows SQL queries, ABP internals)
-dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer --verbosity detailed
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer --verbosity detailed
 
 # Watch mode (auto-restart on code changes)
-dotnet watch run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet watch run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 ```
 
-**API Host** (Terminal 2 — start after AuthServer):
+**API Host** (Terminal 2 -- start after AuthServer):
+
 ```bash
 # Standard
-dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 
 # Verbose logging
-dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host --verbosity detailed
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host --verbosity detailed
 
 # Watch mode
-dotnet watch run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet watch run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
 
 **Angular** (Terminal 3 — start last):
+
 ```bash
 cd angular
 
@@ -311,12 +361,15 @@ npx ng build --configuration production && npx serve -s dist/CaseEvaluation/brow
 > **Critical:** Never use `ng serve` or `yarn start`. See [Deep Dive](#deep-dive-why-ng-serve-breaks).
 
 **DbMigrator** (one-time, run before services):
+
 ```bash
 # Standard
-dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 
 # Skip Redis connection (useful when Redis isn't running)
-dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disable-redis
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disable-redis
 ```
 
 ### Logging Configuration
@@ -324,8 +377,9 @@ dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disabl
 Logging is configured via Serilog in each service's `Program.cs`. Override at runtime using environment variables:
 
 ```bash
-# .NET services — set minimum log level
-Serilog__MinimumLevel__Default=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+# .NET services -- set minimum log level
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  Serilog__MinimumLevel__Default=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 
 # Docker — override via environment
 docker compose exec api sh -c 'export Serilog__MinimumLevel__Default=Debug && dotnet HealthcareSupport.CaseEvaluation.HttpApi.Host.dll'
@@ -339,12 +393,17 @@ docker compose exec api sh -c 'export Serilog__MinimumLevel__Default=Debug && do
 | `Verbose` | Everything including framework internals | Last resort deep debugging |
 
 Override specific namespaces for targeted debugging:
+
 ```bash
 # See all SQL queries
-Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Debug \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 
 # See ABP internals
-Serilog__MinimumLevel__Override__Volo.Abp=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  Serilog__MinimumLevel__Override__Volo.Abp=Debug \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
 
 ### Health Check Endpoints
@@ -353,9 +412,9 @@ Both AuthServer and API Host expose health check endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/health-status` | JSON health report (database, Redis connectivity) |
-| `/health-ui` | Visual health dashboard (browser) |
-| `/health-api` | Machine-readable health API |
+| `/health-status` | JSON health report. On the API Host it runs one database check (`CaseEvaluationDatabaseCheck`); the AuthServer registers no checks, so it reports only that the process answers |
+| `/health-ui` | Visual health dashboard (browser). Open in Development; elsewhere it needs a host user holding `CaseEvaluation.BackgroundJobsDashboard` |
+| `/health-api` | Machine-readable health API behind `/health-ui`, with the same access rule |
 
 ```bash
 # Quick check from terminal
@@ -370,15 +429,17 @@ curl http://localhost:44368/health-status
 | Problem | Cause | Solution |
 |---------|-------|----------|
 | `NullInjectorError: CORE_OPTIONS` | Used `ng serve` instead of `ng build` + `npx serve` | Kill any running Angular processes, rebuild with `npx ng build --configuration development`, serve with `npx serve` |
-| CORE_OPTIONS persists after rebuild | Ghost dev server still on port 4200 | Check `lsof -i :4200` (macOS/Linux) or `netstat -ano | findstr :4200` (Windows), kill the process, then restart |
+| CORE_OPTIONS persists after rebuild | Ghost dev server still on port 4200 | Check `lsof -i :4200` (macOS/Linux) or `netstat -ano \| findstr :4200` (Windows), kill the process, then restart |
 | `OIDC configuration error` from API Host | AuthServer not running or not ready | Start AuthServer first, wait for "listening" message |
 | `HTTP 500` on API requests (Windows) | Project path exceeds 260 chars | Move project to a shorter path. See [path length note](#deep-dive-windows-path-length) |
 | SQL connection error on startup | Database server not running | Start your SQL Server (Docker: `docker start sql-server`, LocalDB: `sqllocaldb start MSSQLLocalDB`) |
 | SSL certificate errors in browser | Dev cert not trusted | Run `dotnet dev-certs https --trust` |
-| Port already in use | Previous instance still running | Find and kill: `lsof -i :44327` (macOS/Linux) or `netstat -ano | findstr :44327` (Windows) |
-| Angular build fails with ABP library errors | ABP client-side libs not installed | Run `abp install-libs` from the solution root |
-| `Host version X does not match binary Y` (esbuild) | Stale esbuild binary | Delete `node_modules/@esbuild/*/esbuild*`, re-run `npm install` |
+| Port already in use | Previous instance still running | Find and kill: `lsof -i :44327` (macOS/Linux) or `netstat -ano \| findstr :44327` (Windows) |
+| AuthServer pages load without their styles or scripts | The AuthServer's client-side libraries (`wwwroot/libs`) are not installed | Run `abp install-libs` in `src/HealthcareSupport.CaseEvaluation.AuthServer` (it reads `abp.resourcemapping.js`). The Angular app gets its ABP packages from `yarn install` instead |
+| `Host version X does not match binary Y` (esbuild) | Stale esbuild binary | Delete `node_modules/@esbuild/*/esbuild*`, re-run `yarn install` |
 | Migration error: "database already exists" | Partial previous run | Drop the `CaseEvaluation` database and re-run DbMigrator |
+| `MSB3030: Could not copy the file "...appsettings.secrets.json" because it was not found` | That file is gitignored, so it does not arrive with a clone and does not propagate into a new git worktree. The error names the file but not the reason | Copy it into `test/HealthcareSupport.CaseEvaluation.TestBase/` and `src/HealthcareSupport.CaseEvaluation.DbMigrator/` from an existing checkout, or create both from `docker/appsettings.secrets.json.example` |
+| Commits succeed with no hook output, no gitleaks scan and no format check | `core.hooksPath` points at `angular/.husky/_`, which husky creates during `yarn install`. Until then git silently runs no hooks at all | Run `yarn install` inside `angular/`. Verify with `ls angular/.husky/_` -- if the directory is missing, nothing is protecting your commits |
 
 ---
 
@@ -414,6 +475,7 @@ Redis is disabled by default. Only needed for multi-instance deployment. Set `Re
 ---
 
 **Next steps:**
+
 - [Common Tasks](COMMON-TASKS.md) -- add entities, run migrations, create tests
 - [Architecture Overview](../architecture/OVERVIEW.md) -- understand the system structure
 - [Docker & Deployment](../runbooks/DOCKER-DEV.md) -- containerization

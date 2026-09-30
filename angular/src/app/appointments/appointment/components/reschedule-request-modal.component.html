@@ -1,0 +1,82 @@
+<abp-modal
+  [busy]="isBusy"
+  [visible]="visible"
+  [options]="modalOptions"
+  (visibleChange)="setVisible($event)"
+>
+  <ng-template #abpHeader>
+    <h3>{{ '::Appointment:Modal:RescheduleTitle' | abpLocalization }}</h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <div class="alert alert-info py-2 mb-3" role="note">
+      @if (requesterIsStaff) {
+        {{ '::Appointment:Modal:ConsentNoteStaff' | abpLocalization }}
+      } @else {
+        {{ '::Appointment:Modal:ConsentNoteExternal' | abpLocalization }}
+      }
+    </div>
+
+    <!--
+      Phase 4b (2026-08-04): the raw slot <select> became the shared availability calendar, and
+      only internal staff see it. The dropdown listed every Available slot in a hardcoded 90-day
+      fetch with NO lead-time or horizon gating, so it offered dates the server rejects; the
+      calendar applies the same rules the booking flow does. External requestors get no date
+      control at all -- staff choose the date at approval -- so they see the notice below instead.
+    -->
+    @if (requesterIsStaff) {
+      <app-availability-calendar
+        [locationId]="locationId"
+        [appointmentTypeId]="appointmentTypeId"
+        [typeChosen]="true"
+        [selectedDate]="selectedDate"
+        [selectedTime]="selectedTime"
+        [minimumBookingRuleMessage]="minimumBookingRuleMessage"
+        [dateLabel]="'::Appointment:Modal:RescheduleDateLabel' | abpLocalization"
+        [timeLabel]="'::Appointment:Modal:RescheduleTimeLabel' | abpLocalization"
+        [noSlotsMessage]="'::Appointment:Modal:RescheduleNoSlots' | abpLocalization"
+        (slotSelected)="onSlotSelected($event)"
+        (dateCleared)="onDateCleared()"
+      />
+    } @else {
+      <p class="text-muted small mb-3">
+        {{ '::Appointment:Modal:RescheduleStaffPicksDateNote' | abpLocalization }}
+      </p>
+    }
+
+    <div class="mb-3">
+      <label class="form-label" for="reschedule-reason">
+        {{ '::Appointment:Modal:RescheduleReasonLabel' | abpLocalization }} *
+      </label>
+      <textarea
+        id="reschedule-reason"
+        class="form-control"
+        rows="4"
+        [maxlength]="maxReasonLength"
+        [(ngModel)]="reason"
+        [placeholder]="'::Appointment:Modal:RescheduleReasonPlaceholder' | abpLocalization"
+        required
+      ></textarea>
+      <small class="text-muted">{{ reason.length }} / {{ maxReasonLength }}</small>
+    </div>
+
+    @if (errorMessage) {
+      <div class="alert alert-danger mb-0" role="alert">{{ errorMessage }}</div>
+    }
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button
+      iconClass="fa fa-calendar"
+      buttonType="button"
+      [disabled]="!canSubmit"
+      (click)="submit()"
+    >
+      {{ '::Appointment:Action:Reschedule' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

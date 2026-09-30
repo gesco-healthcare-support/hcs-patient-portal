@@ -1,0 +1,5 @@
+# Two known false positives, both the same value: an ASP.NET Core Data Protection key ID
+# (a GUID) recorded in docs/security/SESSION-KEY-ENCRYPTION.md:189. A key ID is not key
+# material -- every protected payload begins with it in the clear. Approved 2026-09-22.
+862a912677aa5b5f9fd74734a5adc52ca4b5e5d6:docs/security/SESSION-KEY-ENCRYPTION.md:generic-api-key:189
+c440b1aa3914fb3b43a4bd44e916872fdfb7ac08:docs/security/SESSION-KEY-ENCRYPTION.md:generic-api-key:189

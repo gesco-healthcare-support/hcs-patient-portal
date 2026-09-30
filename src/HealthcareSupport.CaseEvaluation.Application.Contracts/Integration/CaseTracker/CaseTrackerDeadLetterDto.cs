@@ -1,0 +1,83 @@
+using System;
+
+namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
+
+/// <summary>
+/// One outstanding dead letter, as the admin screen shows it.
+///
+/// <para>Carries NO patient field, deliberately. The confirmation number identifies the appointment for
+/// a human, and the screen is an operations tool -- there is no reason for it to render PHI, and section
+/// I2 of the integration contract requires it not to.</para>
+/// </summary>
+public class CaseTrackerDeadLetterDto
+{
+    public Guid Id { get; set; }
+
+    /// <summary>Which office's database this row lives in. Needed to retry it.</summary>
+    public Guid OfficeId { get; set; }
+
+    public string OfficeName { get; set; } = string.Empty;
+
+    public Guid AppointmentId { get; set; }
+
+    /// <summary>Human reference staff can search on, e.g. <c>A00065</c>. Empty if the appointment is gone.</summary>
+    public string ConfirmationNumber { get; set; } = string.Empty;
+
+    /// <summary><c>Intake</c> or <c>DocumentUpdate</c>.</summary>
+    public string MessageType { get; set; } = string.Empty;
+
+    /// <summary>The relative path the push was addressed to; useful when diagnosing a 404.</summary>
+    public string TargetPath { get; set; } = string.Empty;
+
+    public int AttemptCount { get; set; }
+
+    /// <summary>The receiver's own error text, already truncated when it was recorded.</summary>
+    public string? LastError { get; set; }
+
+    public DateTime FailedAt { get; set; }
+
+    /// <summary>When staff were emailed about it; null if the alert has not run yet.</summary>
+    public DateTime? AlertedAt { get; set; }
+}
+
+/// <summary>Outcome of a retry, so the screen can report what happened without a refetch.</summary>
+public class CaseTrackerDeadLetterRetryResultDto
+{
+    /// <summary>
+    /// The outbox row the retry created or collapsed onto. When <see cref="AlreadyDelivered"/> is true
+    /// this is the NEWER row that already delivered the current content, not a newly queued one.
+    /// </summary>
+    public Guid QueuedOutboxItemId { get; set; }
+
+    /// <summary>The dead letter that was marked resolved.</summary>
+    public Guid ResolvedOutboxItemId { get; set; }
+
+    /// <summary>
+    /// True when nothing new was queued because a newer row had already delivered the appointment's
+    /// current content (#961): the Case Tracker holds the current state, so the dead letter was
+    /// resolved without sending again.
+    /// </summary>
+    public bool AlreadyDelivered { get; set; }
+}
+
+/// <summary>
+/// Outcome of retrying every dead letter in one office (#917). Counts only: the screen reloads the list
+/// afterwards, and every row that was not dealt with is still on it.
+/// </summary>
+public class CaseTrackerDeadLetterRetryAllResultDto
+{
+    /// <summary>Dead letters resolved by queueing a fresh push.</summary>
+    public int Requeued { get; set; }
+
+    /// <summary>Dead letters resolved because a newer push had already delivered the current content.</summary>
+    public int AlreadyDelivered { get; set; }
+
+    /// <summary>Dead letters that could not be retried. Each is still listed, unchanged.</summary>
+    public int NotRetried { get; set; }
+
+    /// <summary>
+    /// Dead letters left for another press because this one reached its per-call limit. Each is still
+    /// listed, unchanged.
+    /// </summary>
+    public int Remaining { get; set; }
+}

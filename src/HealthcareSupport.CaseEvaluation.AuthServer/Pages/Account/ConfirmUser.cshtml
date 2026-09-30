@@ -1,0 +1,17 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.ConfirmUserModel
+@*
+    Custom Razor view for /Account/ConfirmUser. Filesystem precedence
+    overrides the Pro framework's stock ConfirmUser page. The paired
+    PageModel 302s to /Account/Login on every request; this view body
+    is never rendered (the redirect fires before the view runs) but
+    exists so the file-based route handler picks up our PageModel.
+
+    Why the redirect: unverified-email login state is absorbed into
+    Login + the always-visible Resend verification link below the form
+    (B-3, proposed-copy.md 2.4). The dedicated ConfirmUser page is no
+    longer reachable through the project's auth flow, but a stale
+    bookmark or old email reference still bounces here -- 302 to Login
+    keeps the user moving forward.
+*@
+<p>Redirecting...</p>

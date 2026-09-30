@@ -1,6 +1,8 @@
 # Permissions
 
-[Home](../INDEX.md) > [Backend](./) > Permissions
+> Purpose: Reference for all permission constants, group structure, and role assignments. Audience: Backend and frontend developers.
+
+[Home](../index.md) > [Backend](./) > Permissions
 
 ---
 
@@ -15,108 +17,229 @@ All permissions belong to the `"CaseEvaluation"` group, defined in:
 
 ## Complete Permission Tree
 
+Generated from `CaseEvaluationPermissions.cs` on 2026-09-28; `BackgroundJobsDashboard` added 2026-09-30. The constants file is the authority;
+when it changes, regenerate this tree rather than editing it by hand.
+
 ```mermaid
 mindmap
   root((CaseEvaluation))
     Dashboard
       Dashboard.Host
       Dashboard.Tenant
-    Books
-      Books.Create
-      Books.Edit
-      Books.Delete
     States
-      States.Create
       States.Edit
+      States.Create
       States.Delete
     AppointmentTypes
-      AppointmentTypes.Create
       AppointmentTypes.Edit
+      AppointmentTypes.Create
       AppointmentTypes.Delete
     AppointmentStatuses
-      AppointmentStatuses.Create
       AppointmentStatuses.Edit
+      AppointmentStatuses.Create
       AppointmentStatuses.Delete
+    AppointmentDocumentTypes
+      AppointmentDocumentTypes.Edit
+      AppointmentDocumentTypes.Create
+      AppointmentDocumentTypes.Delete
     AppointmentLanguages
-      AppointmentLanguages.Create
       AppointmentLanguages.Edit
+      AppointmentLanguages.Create
       AppointmentLanguages.Delete
     Locations
-      Locations.Create
       Locations.Edit
+      Locations.Create
       Locations.Delete
     WcabOffices
-      WcabOffices.Create
       WcabOffices.Edit
+      WcabOffices.Create
       WcabOffices.Delete
     Doctors
-      Doctors.Create
       Doctors.Edit
+      Doctors.Create
       Doctors.Delete
     DoctorAvailabilities
-      DoctorAvailabilities.Create
       DoctorAvailabilities.Edit
+      DoctorAvailabilities.Create
       DoctorAvailabilities.Delete
     Patients
-      Patients.Create
       Patients.Edit
+      Patients.Create
       Patients.Delete
+      Patients.RevealSsn
     Appointments
-      Appointments.Create
       Appointments.Edit
+      Appointments.Create
       Appointments.Delete
+      Appointments.Approve
+      Appointments.Reject
+      Appointments.RequestCancellation
+      Appointments.RequestReschedule
+      Appointments.PushToCaseTracker
+      Appointments.ViewIntegrationDeadLetters
+    AppointmentDocuments
+      AppointmentDocuments.Create
+      AppointmentDocuments.Edit
+      AppointmentDocuments.Delete
+      AppointmentDocuments.Approve
+    AppointmentPackets
+      AppointmentPackets.Regenerate
     AppointmentEmployerDetails
-      AppointmentEmployerDetails.Create
       AppointmentEmployerDetails.Edit
+      AppointmentEmployerDetails.Create
       AppointmentEmployerDetails.Delete
-    AppointmentAccessors
-      AppointmentAccessors.Create
-      AppointmentAccessors.Edit
-      AppointmentAccessors.Delete
     ApplicantAttorneys
-      ApplicantAttorneys.Create
       ApplicantAttorneys.Edit
+      ApplicantAttorneys.Create
       ApplicantAttorneys.Delete
+    ClaimExaminers
+      ClaimExaminers.Edit
+      ClaimExaminers.Create
+      ClaimExaminers.Delete
     AppointmentApplicantAttorneys
-      AppointmentApplicantAttorneys.Create
       AppointmentApplicantAttorneys.Edit
+      AppointmentApplicantAttorneys.Create
       AppointmentApplicantAttorneys.Delete
+    DefenseAttorneys
+      DefenseAttorneys.Edit
+      DefenseAttorneys.Create
+      DefenseAttorneys.Delete
+    AppointmentDefenseAttorneys
+      AppointmentDefenseAttorneys.Edit
+      AppointmentDefenseAttorneys.Create
+      AppointmentDefenseAttorneys.Delete
+    AppointmentInjuryDetails
+      AppointmentInjuryDetails.Edit
+      AppointmentInjuryDetails.Create
+      AppointmentInjuryDetails.Delete
+    AppointmentBodyParts
+      AppointmentBodyParts.Edit
+      AppointmentBodyParts.Create
+      AppointmentBodyParts.Delete
+    AppointmentClaimExaminers
+      AppointmentClaimExaminers.Edit
+      AppointmentClaimExaminers.Create
+      AppointmentClaimExaminers.Delete
+    AppointmentPrimaryInsurances
+      AppointmentPrimaryInsurances.Edit
+      AppointmentPrimaryInsurances.Create
+      AppointmentPrimaryInsurances.Delete
+    AppointmentChangeLogs
+    Reports
+      Reports.Export
+    CustomFields
+      CustomFields.Create
+      CustomFields.Edit
+      CustomFields.Delete
+    SystemParameters
+      SystemParameters.Edit
+    AppointmentChangeRequests
+      AppointmentChangeRequests.Approve
+      AppointmentChangeRequests.Reject
+    NotificationTemplates
+      NotificationTemplates.Edit
+    Documents
+      Documents.Create
+      Documents.Edit
+      Documents.Delete
+    PackageDetails
+      PackageDetails.Create
+      PackageDetails.Edit
+      PackageDetails.Delete
+      PackageDetails.ManageDocuments
+    DoctorPreferredLocations
+      DoctorPreferredLocations.Toggle
+    UserManagement
+      UserManagement.InviteExternalUser
+    InternalUsers
+      InternalUsers.Create
+      InternalUsers.Edit
+    UserSignatures
+      UserSignatures.ManageOwn
+    IntakeAssignments
+      IntakeAssignments.Manage
+    IntakeImpersonation
+    Branding
+      Branding.Edit
+    CaseTrackerIntegration
+    BackgroundJobsDashboard
 ```
 
 ### Permission String Details
 
-Each entity group (except Dashboard) follows a parent-child hierarchy where the **Default** permission is the parent and CRUD actions are children. A user must have the parent permission to access any child.
+Each entity group (except Dashboard and AppointmentChangeLogs) follows a parent-child hierarchy where the **Default** permission is the parent and CRUD or action permissions are children. A user must have the parent permission to access any child.
+
+**Atypical groups -- read the notes column:**
+
+| Entity Group | Default (Parent) | Children | Notes |
+|---|---|---|---|
+| Dashboard | _none_ | `CaseEvaluation.Dashboard.Host`, `CaseEvaluation.Dashboard.Tenant` | No Default parent. Host and Tenant are registered directly on the permission group with `MultiTenancySides.Host` / `.Tenant`. |
+| AppointmentChangeLogs | `CaseEvaluation.AppointmentChangeLogs` | _none_ | Read-only audit history. Rows are immutable so no Create/Edit/Delete children exist. |
+| AppointmentPackets | `CaseEvaluation.AppointmentPackets` | `...Regenerate` | No CRUD children; only the `Regenerate` action child. |
+| DoctorPreferredLocations | `CaseEvaluation.DoctorPreferredLocations` | `...Toggle` | No CRUD children; only the `Toggle` action child. |
+| SystemParameters | `CaseEvaluation.SystemParameters` | `...Edit` | Read is gated by Default; only Edit is a child (no Create/Delete). |
+| NotificationTemplates | `CaseEvaluation.NotificationTemplates` | `...Edit` | Templates are seeded; no Create/Delete children. |
+| UserManagement | `CaseEvaluation.UserManagement` | `...InviteExternalUser` | Action child for staff-issued external-user invitations. |
+| InternalUsers | `CaseEvaluation.InternalUsers` | `...Create`, `...Edit` | Internal staff accounts. No Delete child. |
+| Reports | `CaseEvaluation.Reports` | `...Export` | Report export only. |
+| IntakeAssignments | `CaseEvaluation.IntakeAssignments` | `...Manage` | Assigning Intake operators to offices. Both are registered host-side (`MultiTenancySides.Host`). |
+| IntakeImpersonation | `CaseEvaluation.IntakeImpersonation` | _none_ | Single permission, no children. |
+| Branding | `CaseEvaluation.Branding` | `...Edit` | Per-office display name and logo. |
+| CaseTrackerIntegration | `CaseEvaluation.CaseTrackerIntegration` | _none_ | Single permission, no children. |
+| BackgroundJobsDashboard | `CaseEvaluation.BackgroundJobsDashboard` | _none_ | Single host-side permission. Opens the Hangfire dashboard (`/hangfire`) and the health UI outside Development; see [Background Jobs](../devops/BACKGROUND-JOBS.md#hangfire-itself). |
+| UserSignatures | `CaseEvaluation.UserSignatures` | `...ManageOwn` | Scoped to the caller's own signature; no per-target gate. |
+| AppointmentChangeRequests | `CaseEvaluation.AppointmentChangeRequests` | `...Approve`, `...Reject` | Supervisor approval surface; no Create/Delete. |
+| AppointmentDocuments | `CaseEvaluation.AppointmentDocuments` | `...Create`, `...Edit`, `...Delete`, `...Approve` | Approve child gates document acceptance/rejection (W2-11). |
+| PackageDetails | `CaseEvaluation.PackageDetails` | `...Create`, `...Edit`, `...Delete`, `...ManageDocuments` | ManageDocuments gates Link/Unlink endpoints separately from the package CRUD. |
+
+**Standard groups (Default + Create/Edit/Delete):**
 
 | Entity Group | Default (Parent) | Create | Edit | Delete |
 |---|---|---|---|---|
-| Dashboard | _N/A (Host/Tenant are top-level)_ | `CaseEvaluation.Dashboard.Host` | `CaseEvaluation.Dashboard.Tenant` | - |
-| Books | `CaseEvaluation.Books` | `CaseEvaluation.Books.Create` | `CaseEvaluation.Books.Edit` | `CaseEvaluation.Books.Delete` |
-| States | `CaseEvaluation.States` | `CaseEvaluation.States.Create` | `CaseEvaluation.States.Edit` | `CaseEvaluation.States.Delete` |
-| AppointmentTypes | `CaseEvaluation.AppointmentTypes` | `CaseEvaluation.AppointmentTypes.Create` | `CaseEvaluation.AppointmentTypes.Edit` | `CaseEvaluation.AppointmentTypes.Delete` |
-| AppointmentStatuses | `CaseEvaluation.AppointmentStatuses` | `CaseEvaluation.AppointmentStatuses.Create` | `CaseEvaluation.AppointmentStatuses.Edit` | `CaseEvaluation.AppointmentStatuses.Delete` |
-| AppointmentLanguages | `CaseEvaluation.AppointmentLanguages` | `CaseEvaluation.AppointmentLanguages.Create` | `CaseEvaluation.AppointmentLanguages.Edit` | `CaseEvaluation.AppointmentLanguages.Delete` |
-| Locations | `CaseEvaluation.Locations` | `CaseEvaluation.Locations.Create` | `CaseEvaluation.Locations.Edit` | `CaseEvaluation.Locations.Delete` |
-| WcabOffices | `CaseEvaluation.WcabOffices` | `CaseEvaluation.WcabOffices.Create` | `CaseEvaluation.WcabOffices.Edit` | `CaseEvaluation.WcabOffices.Delete` |
-| Doctors | `CaseEvaluation.Doctors` | `CaseEvaluation.Doctors.Create` | `CaseEvaluation.Doctors.Edit` | `CaseEvaluation.Doctors.Delete` |
-| DoctorAvailabilities | `CaseEvaluation.DoctorAvailabilities` | `CaseEvaluation.DoctorAvailabilities.Create` | `CaseEvaluation.DoctorAvailabilities.Edit` | `CaseEvaluation.DoctorAvailabilities.Delete` |
-| Patients | `CaseEvaluation.Patients` | `CaseEvaluation.Patients.Create` | `CaseEvaluation.Patients.Edit` | `CaseEvaluation.Patients.Delete` |
-| Appointments | `CaseEvaluation.Appointments` | `CaseEvaluation.Appointments.Create` | `CaseEvaluation.Appointments.Edit` | `CaseEvaluation.Appointments.Delete` |
-| AppointmentEmployerDetails | `CaseEvaluation.AppointmentEmployerDetails` | `CaseEvaluation.AppointmentEmployerDetails.Create` | `CaseEvaluation.AppointmentEmployerDetails.Edit` | `CaseEvaluation.AppointmentEmployerDetails.Delete` |
-| AppointmentAccessors | `CaseEvaluation.AppointmentAccessors` | `CaseEvaluation.AppointmentAccessors.Create` | `CaseEvaluation.AppointmentAccessors.Edit` | `CaseEvaluation.AppointmentAccessors.Delete` |
-| ApplicantAttorneys | `CaseEvaluation.ApplicantAttorneys` | `CaseEvaluation.ApplicantAttorneys.Create` | `CaseEvaluation.ApplicantAttorneys.Edit` | `CaseEvaluation.ApplicantAttorneys.Delete` |
-| AppointmentApplicantAttorneys | `CaseEvaluation.AppointmentApplicantAttorneys` | `CaseEvaluation.AppointmentApplicantAttorneys.Create` | `CaseEvaluation.AppointmentApplicantAttorneys.Edit` | `CaseEvaluation.AppointmentApplicantAttorneys.Delete` |
+| States | `CaseEvaluation.States` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentTypes | `CaseEvaluation.AppointmentTypes` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentDocumentTypes | `CaseEvaluation.AppointmentDocumentTypes` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentStatuses | `CaseEvaluation.AppointmentStatuses` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentLanguages | `CaseEvaluation.AppointmentLanguages` | `...Create` | `...Edit` | `...Delete` |
+| Locations | `CaseEvaluation.Locations` | `...Create` | `...Edit` | `...Delete` |
+| WcabOffices | `CaseEvaluation.WcabOffices` | `...Create` | `...Edit` | `...Delete` |
+| Doctors | `CaseEvaluation.Doctors` | `...Create` | `...Edit` | `...Delete` |
+| DoctorAvailabilities | `CaseEvaluation.DoctorAvailabilities` | `...Create` | `...Edit` | `...Delete` |
+| Patients | `CaseEvaluation.Patients` | `...Create` | `...Edit` | `...Delete` |
+| Appointments | `CaseEvaluation.Appointments` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentEmployerDetails | `CaseEvaluation.AppointmentEmployerDetails` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentInjuryDetails | `CaseEvaluation.AppointmentInjuryDetails` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentBodyParts | `CaseEvaluation.AppointmentBodyParts` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentClaimExaminers | `CaseEvaluation.AppointmentClaimExaminers` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentPrimaryInsurances | `CaseEvaluation.AppointmentPrimaryInsurances` | `...Create` | `...Edit` | `...Delete` |
+| ApplicantAttorneys | `CaseEvaluation.ApplicantAttorneys` | `...Create` | `...Edit` | `...Delete` |
+| ClaimExaminers | `CaseEvaluation.ClaimExaminers` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentApplicantAttorneys | `CaseEvaluation.AppointmentApplicantAttorneys` | `...Create` | `...Edit` | `...Delete` |
+| DefenseAttorneys | `CaseEvaluation.DefenseAttorneys` | `...Create` | `...Edit` | `...Delete` |
+| AppointmentDefenseAttorneys | `CaseEvaluation.AppointmentDefenseAttorneys` | `...Create` | `...Edit` | `...Delete` |
+| CustomFields | `CaseEvaluation.CustomFields` | `...Create` | `...Edit` | `...Delete` |
+| Documents | `CaseEvaluation.Documents` | `...Create` | `...Edit` | `...Delete` |
+
+**Extra action children on standard groups:**
+
+| Entity Group | Extra Children | Notes |
+|---|---|---|
+| Patients | `Patients.RevealSsn` | Gates `GetFullSsnAsync`; standard payloads carry only the masked last-4. Requires internal-or-owner check in addition to this permission. |
+| Appointments | `Appointments.Approve`, `Appointments.Reject`, `Appointments.RequestCancellation`, `Appointments.RequestReschedule`, `Appointments.PushToCaseTracker`, `Appointments.ViewIntegrationDeadLetters` | Phase 2.5 per-action gates for the clinic-staff approval and external-user change-request flows. |
 
 ### Permission String Format
 
-```
+```text
 CaseEvaluation.{Entity}.{Action}
 ```
 
 Examples:
+
 - `CaseEvaluation.Appointments` -- Default/read permission for appointments
 - `CaseEvaluation.Appointments.Create` -- Create new appointments
-- `CaseEvaluation.Patients.Edit` -- Edit existing patients
-- `CaseEvaluation.Doctors.Delete` -- Delete doctors
+- `CaseEvaluation.Appointments.Approve` -- Approve a pending appointment
+- `CaseEvaluation.Patients.RevealSsn` -- Retrieve the full, unmasked SSN
+- `CaseEvaluation.PackageDetails.ManageDocuments` -- Link/Unlink documents in a package
 
 ---
 
@@ -171,54 +294,35 @@ UI elements (buttons, menus) are conditionally shown using the `*abpPermission` 
 
 ## Seeded Roles
 
-Roles are created by two mechanisms:
+There are seven named roles plus ABP's built-in `admin`. They are created in code by two seed
+contributors, and their default grants are seeded there too -- not configured by hand.
 
-### 1. Built-in ABP Role
-
-| Role | Source | Description |
+| Role | Kind | Seeded by |
 |---|---|---|
-| **admin** | ABP framework default | Full access to all permissions. Created during initial data seed. |
+| **IT Admin** | Internal (host) | `InternalUserRoleDataSeedContributor` |
+| **Staff Supervisor** | Internal | `InternalUserRoleDataSeedContributor` |
+| **Intake Staff** | Internal | `InternalUserRoleDataSeedContributor` |
+| **Patient** | External | `ExternalUserRoleDataSeedContributor` |
+| **Applicant Attorney** | External | `ExternalUserRoleDataSeedContributor` |
+| **Defense Attorney** | External | `ExternalUserRoleDataSeedContributor` |
+| **Claim Examiner** | External | `ExternalUserRoleDataSeedContributor` |
+| **admin** | ABP built-in | ABP's identity seed; holds every permission |
 
-### 2. Custom External Roles
-
-Created by `ExternalUserRoleDataSeedContributor` (`src/HealthcareSupport.CaseEvaluation.Domain/Identity/ExternalUserRoleDataSeedContributor.cs`):
-
-| Role | Description |
-|---|---|
-| **Patient** | End users who are patients in the system |
-| **Claim Examiner** | Insurance claim examiners who manage case evaluations |
-| **Applicant Attorney** | Attorneys representing the applicant/patient |
-| **Defense Attorney** | Attorneys representing the defense side |
-
-The seed contributor uses `EnsureRoleAsync` to create roles idempotently -- it checks if the role already exists before creating it, and is tenant-aware.
+**All four external roles receive the same permission set** (`BookingBaselineGrants()` in
+`ExternalUserRoleDataSeedContributor`). The only difference is `Patients.RevealSsn`, which only
+Patient holds.
 
 ---
 
-## Role-Permission Matrix
+## What each role can do
 
-> **Note:** The admin role receives all permissions by default through ABP's permission management. The external roles (Patient, Claim Examiner, Applicant Attorney, Defense Attorney) are seeded as empty roles -- their specific permissions are assigned at runtime through the ABP Permission Management UI by an administrator.
+This page deliberately carries no role-permission matrix; a hand-kept one here went wrong. See
+[Authorization](../security/AUTHORIZATION.md) and
+[User Roles and Actors](../business-domain/USER-ROLES-AND-ACTORS.md), which were corrected against
+the seed contributors.
 
-| Permission | admin | Patient | Claim Examiner | Applicant Attorney | Defense Attorney |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Dashboard.Host | Y | - | - | - | - |
-| Dashboard.Tenant | Y | - | - | - | - |
-| Appointments (CRUD) | Y | Configured at runtime | Configured at runtime | Configured at runtime | Configured at runtime |
-| Patients (CRUD) | Y | Configured at runtime | Configured at runtime | Configured at runtime | Configured at runtime |
-| Doctors (CRUD) | Y | - | Configured at runtime | - | - |
-| DoctorAvailabilities (CRUD) | Y | - | Configured at runtime | - | - |
-| Locations (CRUD) | Y | - | Configured at runtime | - | - |
-| WcabOffices (CRUD) | Y | - | Configured at runtime | - | - |
-| AppointmentTypes (CRUD) | Y | - | Configured at runtime | - | - |
-| AppointmentStatuses (CRUD) | Y | - | Configured at runtime | - | - |
-| AppointmentLanguages (CRUD) | Y | - | Configured at runtime | - | - |
-| States (CRUD) | Y | - | Configured at runtime | - | - |
-| ApplicantAttorneys (CRUD) | Y | - | Configured at runtime | Configured at runtime | - |
-| AppointmentApplicantAttorneys (CRUD) | Y | - | Configured at runtime | Configured at runtime | - |
-| AppointmentAccessors (CRUD) | Y | - | Configured at runtime | - | Configured at runtime |
-| AppointmentEmployerDetails (CRUD) | Y | - | Configured at runtime | - | - |
-| Books (CRUD) | Y | - | - | - | - |
-
-**Legend:** Y = granted by default | - = not granted | Configured at runtime = assigned by admin through Permission Management UI
+Remember that a permission is not access to a particular record: per-appointment access is
+decided in code by `AppointmentReadAccessGuard`.
 
 ---
 
@@ -226,9 +330,10 @@ The seed contributor uses `EnsureRoleAsync` to create roles idempotently -- it c
 
 | File | Purpose |
 |---|---|
-| `src/.../Application.Contracts/Permissions/CaseEvaluationPermissions.cs` | Permission string constants (16 entity groups) |
+| `src/.../Application.Contracts/Permissions/CaseEvaluationPermissions.cs` | Permission string constants |
 | `src/.../Application.Contracts/Permissions/CaseEvaluationPermissionDefinitionProvider.cs` | Registers permissions with ABP's permission system |
-| `src/.../Domain/Identity/ExternalUserRoleDataSeedContributor.cs` | Seeds custom roles (Patient, Claim Examiner, Applicant Attorney, Defense Attorney) |
+| `src/.../Domain/Identity/ExternalUserRoleDataSeedContributor.cs` | Seeds the four external roles and their shared grants |
+| `src/.../Domain/Identity/InternalUserRoleDataSeedContributor.cs` | Seeds the three internal roles and their grants |
 
 ---
 

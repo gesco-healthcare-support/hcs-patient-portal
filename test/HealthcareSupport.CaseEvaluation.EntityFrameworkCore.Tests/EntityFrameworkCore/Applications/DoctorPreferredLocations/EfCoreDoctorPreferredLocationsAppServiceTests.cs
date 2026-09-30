@@ -1,0 +1,8 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+
+namespace HealthcareSupport.CaseEvaluation.DoctorPreferredLocations;
+
+public class EfCoreDoctorPreferredLocationsAppServiceTests
+    : DoctorPreferredLocationsAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

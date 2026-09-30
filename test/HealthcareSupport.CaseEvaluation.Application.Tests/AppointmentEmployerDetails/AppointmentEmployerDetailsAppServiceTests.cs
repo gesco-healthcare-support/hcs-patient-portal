@@ -69,31 +69,37 @@ public abstract class AppointmentEmployerDetailsAppServiceTests<TStartupModule> 
     [Fact]
     public async Task CreateAsync_PersistsNewDetail()
     {
-        var input = new AppointmentEmployerDetailCreateDto
+        // Inside the office that owns Appointment1. Creating a child row needs the caller to be a party
+        // to its appointment, and from host context that appointment is not visible at all. These tests
+        // used to create from host context, writing an unscoped row onto another office's appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            EmployerName = "TEST-NewEmployer",
-            Occupation = "TEST-NewOccupation",
-            PhoneNumber = "5551234567",
-            Street = "TEST-Street",
-            City = "TEST-City",
-            ZipCode = "90210",
-            AppointmentId = AppointmentsTestData.Appointment1Id,
-            StateId = LocationsTestData.State1Id
-        };
+            var input = new AppointmentEmployerDetailCreateDto
+            {
+                EmployerName = "TEST-NewEmployer",
+                Occupation = "TEST-NewOccupation",
+                PhoneNumber = "5551234567",
+                Street = "TEST-Street",
+                City = "TEST-City",
+                ZipCode = "90210",
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                StateId = LocationsTestData.State1Id
+            };
 
-        var created = await _detailsAppService.CreateAsync(input);
+            var created = await _detailsAppService.CreateAsync(input);
 
-        created.ShouldNotBeNull();
-        created.EmployerName.ShouldBe(input.EmployerName);
-        created.Occupation.ShouldBe(input.Occupation);
-        created.PhoneNumber.ShouldBe(input.PhoneNumber);
-        created.AppointmentId.ShouldBe(input.AppointmentId);
-        created.StateId.ShouldBe(input.StateId);
+            created.ShouldNotBeNull();
+            created.EmployerName.ShouldBe(input.EmployerName);
+            created.Occupation.ShouldBe(input.Occupation);
+            created.PhoneNumber.ShouldBe(input.PhoneNumber);
+            created.AppointmentId.ShouldBe(input.AppointmentId);
+            created.StateId.ShouldBe(input.StateId);
 
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var persisted = await _detailRepository.FindAsync(created.Id);
-            persisted.ShouldNotBeNull();
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var persisted = await _detailRepository.FindAsync(created.Id);
+                persisted.ShouldNotBeNull();
+            }
         }
     }
 
@@ -129,18 +135,24 @@ public abstract class AppointmentEmployerDetailsAppServiceTests<TStartupModule> 
     [Fact]
     public async Task DeleteAsync_RemovesDetail()
     {
-        var created = await _detailsAppService.CreateAsync(new AppointmentEmployerDetailCreateDto
+        // Inside the office that owns Appointment1. Creating a child row needs the caller to be a party
+        // to its appointment, and from host context that appointment is not visible at all. These tests
+        // used to create from host context, writing an unscoped row onto another office's appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            EmployerName = "TEST-ToDelete",
-            Occupation = "TEST-Occ",
-            AppointmentId = AppointmentsTestData.Appointment1Id
-        });
+            var created = await _detailsAppService.CreateAsync(new AppointmentEmployerDetailCreateDto
+            {
+                EmployerName = "TEST-ToDelete",
+                Occupation = "TEST-Occ",
+                AppointmentId = AppointmentsTestData.Appointment1Id
+            });
 
-        await _detailsAppService.DeleteAsync(created.Id);
+            await _detailsAppService.DeleteAsync(created.Id);
 
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            (await _detailRepository.FindAsync(created.Id)).ShouldBeNull();
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                (await _detailRepository.FindAsync(created.Id)).ShouldBeNull();
+            }
         }
     }
 
@@ -203,53 +215,18 @@ public abstract class AppointmentEmployerDetailsAppServiceTests<TStartupModule> 
     // ------------------------------------------------------------------------
     // Nav-prop + lookup
     // ------------------------------------------------------------------------
-
-    [Fact]
-    public async Task GetWithNavigationPropertiesAsync_ReturnsDetailWithPopulatedState()
-    {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _detailsAppService.GetWithNavigationPropertiesAsync(AppointmentEmployerDetailsTestData.Detail1Id);
-
-            result.ShouldNotBeNull();
-            result.AppointmentEmployerDetail.Id.ShouldBe(AppointmentEmployerDetailsTestData.Detail1Id);
-            result.State.ShouldNotBeNull();
-            result.State!.Id.ShouldBe(LocationsTestData.State1Id);
-        }
-    }
-
-    [Fact]
-    public async Task GetStateLookupAsync_ReturnsSeededStates()
-    {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _detailsAppService.GetStateLookupAsync(new LookupRequestDto
-            {
-                MaxResultCount = 100
-            });
-
-            result.Items.Any(x => x.Id == LocationsTestData.State1Id).ShouldBeTrue();
-        }
-    }
+    // GetWithNavigationPropertiesAsync_ReturnsDetailWithPopulatedState and
+    // GetStateLookupAsync_ReturnsSeededStates moved to the multi-office harness as
+    // per-office assertions (Phase F / F2):
+    // MultiOffice.MultiOfficeCatalogResolutionTests.
 
     // ------------------------------------------------------------------------
-    // Permission-gap encoding (GAP: AppointmentEmployerDetailsAppService
-    // CreateAsync and UpdateAsync use generic [Authorize] instead of the
-    // feature-specific Create/Edit permissions. Only DeleteAsync is enforced).
+    // Permission gate (was: GAP encoding). CreateAsync/UpdateAsync now carry the
+    // feature-specific [Authorize(...Create)] / [Authorize(...Edit)] policies at
+    // parity with the sibling child services. The gate is pinned by a
+    // harness-independent reflection guard in
+    // AppointmentEmployerDetailsAppServiceAuthorizationTests (behavioral denial
+    // is not testable here -- the SQLite harness does not seed role->permission
+    // grants; see AppointmentsAppServiceAuthorizationTests).
     // ------------------------------------------------------------------------
-
-    [Fact(Skip = "GAP: AppointmentEmployerDetailsAppService Create/Update use generic "
-              + "[Authorize]; feature-specific Create/Edit permissions exist in "
-              + "CaseEvaluationPermissions.AppointmentEmployerDetails but are NOT "
-              + "enforced. Only DeleteAsync uses the specific permission. When the "
-              + "AppService gets [Authorize(...Create)] / [Authorize(...Edit)] this "
-              + "test flips live. Tracked: src/.../Domain/AppointmentEmployerDetails/CLAUDE.md "
-              + "Known Gotchas #2.")]
-    public Task CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow()
-    {
-        // Target behaviour: caller without CaseEvaluation.AppointmentEmployerDetails.Create
-        // should get AbpAuthorizationException when calling CreateAsync. Today the
-        // method only requires generic [Authorize] so any authenticated user creates.
-        return Task.CompletedTask;
-    }
 }

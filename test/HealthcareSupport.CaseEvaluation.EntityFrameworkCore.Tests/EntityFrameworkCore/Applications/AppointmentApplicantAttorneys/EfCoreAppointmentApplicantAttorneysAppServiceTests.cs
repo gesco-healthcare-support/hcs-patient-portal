@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentApplicantAttorneysAppServiceTests : AppointmentApplicantAttorneysAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

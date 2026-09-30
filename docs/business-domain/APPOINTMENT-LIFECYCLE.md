@@ -1,195 +1,281 @@
 # Appointment Lifecycle
 
-[Home](../INDEX.md) > [Business Domain](./) > Appointment Lifecycle
+> Purpose: reference for the appointment status set and the transitions between them.
+> Audience: backend and frontend developers.
+> Authority: `AppointmentManager.BuildMachine` is the only place transitions are declared.
+> Read it if this page and the code disagree, and then fix this page.
 
-## Overview
+[Home](../index.md) > [Business Domain](./) > Appointment Lifecycle
 
-Every appointment in the HCS Case Evaluation Portal moves through a defined set of statuses. The `AppointmentStatusType` enum (defined in `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs`) contains **13 statuses**, each representing a distinct phase in the appointment lifecycle.
+## How to read this page
 
----
+The status set lives in
+`src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs`, and the
+transitions live in one `Stateless` state machine built by
+`AppointmentManager.BuildMachine` (`src/.../Domain/Appointments/AppointmentManager.cs`).
+**Nothing else declares a transition.** No enum member is reproduced here as source, because a
+copied enum goes stale: an earlier version of this page inlined one that was missing two
+members for months.
 
-## Appointment Statuses
+**Three of the fifteen statuses are unreachable.** That is not a documentation caveat, it is
+the single most important fact on this page, so it comes before the tables.
 
-| Value | Status                  | Description                                                                 |
-|-------|-------------------------|-----------------------------------------------------------------------------|
-| 1     | **Pending**             | Initial state when an appointment is created or requested                   |
-| 2     | **Approved**            | Appointment confirmed by admin or doctor                                    |
-| 3     | **Rejected**            | Appointment denied                                                          |
-| 4     | **NoShow**              | Patient did not appear for the scheduled examination                        |
-| 5     | **CancelledNoBill**     | Cancelled with sufficient notice; no billing applies                        |
-| 6     | **CancelledLate**       | Cancelled late; may incur a late-cancellation fee                           |
-| 7     | **RescheduledNoBill**   | Rescheduled with sufficient notice; no billing for the original slot        |
-| 8     | **RescheduledLate**     | Rescheduled late; may incur billing for the original slot                   |
-| 9     | **CheckedIn**           | Patient has arrived and checked in at the office                            |
-| 10    | **CheckedOut**          | Examination completed; patient has left                                     |
-| 11    | **Billed**              | Final state; examination report and billing have been processed             |
-| 12    | **RescheduleRequested** | An external user requested a reschedule (awaiting admin action)             |
-| 13    | **CancellationRequested** | An external user requested cancellation (awaiting admin action)           |
+## Where this portal's responsibility ends
 
----
+**The Appointment Portal owns the request and the decision. The Case Tracker owns what happens
+afterwards.** Confirmed by the product owner on 2026-09-28.
 
-## Full State Machine Diagram
+Concretely, this portal handles exactly five things: an appointment is **requested**, then
+**approved** or **rejected**, and thereafter **rescheduled** or **cancelled**. Once an
+appointment is approved it is handed to the Case Tracker, and the rest of the process -- the
+day of the exam, the outcome, and billing -- is the Case Tracker's responsibility.
 
-This is the **centerpiece** diagram showing all 13 states and their valid transitions.
+**This portal does not do billing, and is not going to.** Billing is handled elsewhere today and
+will move either to the Case Tracker or to a new application, but not here. Do not build it in.
+
+That boundary is the reason for the next section.
+
+## The three dead statuses
+
+`CheckedIn` (9), `CheckedOut` (10) and `Billed` (11) **cannot be reached.** Their transitions
+are configured in `BuildMachine`, but nothing anywhere triggers `CheckIn`, `CheckOut` or
+`Bill`: no application-service method, no endpoint, no UI control, no background job. Verified
+2026-09-16 and re-verified 2026-09-27.
+
+They are the legacy app's front-desk, day-of-exam flow. They were planned for this portal, and
+then that responsibility moved to the Case Tracker, which is where it now lives. So they are not
+unfinished work and not a gap: **they are three states this application is not supposed to have.**
+
+**This is a settled product decision, not an open question.** An earlier version of this page
+said they were retained "pending a product decision"; the product owner settled it on 2026-09-28.
+They are removal candidates. Removing them is a schema and data-compatibility exercise rather
+than a behaviour change, since no row can be in one of these states, and it should be planned
+rather than done casually: the enum values are persisted as integers, and
+`AppointmentStatusType` warns that renumbering would silently relabel stored rows.
+
+Until they are removed, treat any code that references them as dead. Tracked as PF-005 in
+`docs/parity/_parity-flags.md`.
+
+Consequences a maintainer will otherwise trip over:
+
+- **The portal does not do billing.** `DashboardAppService` hardcodes `BilledThisMonth = 0`,
+  so the dashboard's billed counter is permanently zero rather than merely empty.
+- The email templates `PatientAppointmentCheckedIn` and `PatientAppointmentCheckedOut` exist in
+  the catalogue and never fire.
+- `appointment-status.util.ts` maps all three to a status pill that no appointment can display.
+
+Do not build on them, and do not make them reachable without a product decision.
+
+## The status set
+
+| Value | Status | Reachable | Meaning |
+| --- | --- | --- | --- |
+| 1 | **Pending** | yes | Created or requested, awaiting staff decision |
+| 2 | **Approved** | yes | Confirmed by staff. The only source of an attendance outcome |
+| 3 | **Rejected** | yes | Denied. Terminal; re-submitting creates a NEW appointment |
+| 4 | **NoShow** | yes, inbound only | Patient never arrived. Authored in the Case Tracker |
+| 5 | **CancelledNoBill** | yes | Cancelled with enough notice; no charge |
+| 6 | **CancelledLate** | yes | Cancelled inside the window; may incur a fee |
+| 7 | **RescheduledNoBill** | yes | Rescheduled with enough notice; no charge for the original slot |
+| 8 | **RescheduledLate** | yes | Rescheduled inside the window; may incur a fee for the original slot |
+| 9 | **CheckedIn** | **NO** | Dead. See above |
+| 10 | **CheckedOut** | **NO** | Dead. See above |
+| 11 | **Billed** | **NO** | Dead. See above |
+| 12 | **RescheduleRequested** | yes | A reschedule request is open, awaiting staff action |
+| 13 | **CancellationRequested** | yes | A cancellation request is open, awaiting staff action |
+| 14 | **InfoRequested** | yes | Staff sent the request back for more information. Transient, not terminal |
+| 15 | **NotSeen** | yes, inbound only | Patient arrived but was not evaluated. Authored in the Case Tracker |
+
+`NoShow` and `NotSeen` are **inbound only**: the portal never originates them. Intake staff
+record them in the Case Tracker and they are pushed to the portal, so they do reach and persist
+here. `AppointmentLifecycleValidators.IsAttendanceOutcome` is the single definition of that
+pair; ask it rather than restating the two.
+
+Values are persisted as integers, so **renumbering would silently relabel stored rows.**
+
+## The transitions, exactly as configured
+
+Every transition made through the state machine; the machine refuses anything not in this table with an
+invalid-transition error. One path sets the status directly instead of going through the machine: approving a
+cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) writes `CancelledNoBill` or
+`CancelledLate` onto the appointment, the same two outcomes this table lists from `CancellationRequested`.
+
+<!-- GENERATED: appointment-transitions BEGIN - do not edit by hand -->
+**Transitions the machine permits**
+
+| From | Trigger | To |
+| --- | --- | --- |
+| Pending(1) | Approve(1) | Approved(2) |
+| Pending(1) | Reject(2) | Rejected(3) |
+| Pending(1) | SendBack(3) | InfoRequested(14) |
+| Pending(1) | ConfirmReschedule(9) | RescheduledNoBill(7) |
+| Pending(1) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| Approved(2) | RequestCancellation(5) | CancellationRequested(13) |
+| Approved(2) | RequestReschedule(6) | RescheduleRequested(12) |
+| Approved(2) | MarkNoShow(11) | NoShow(4) |
+| Approved(2) | CheckIn(12) | CheckedIn(9) |
+| Approved(2) | MarkNotSeen(15) | NotSeen(15) |
+| CheckedIn(9) | CheckOut(13) | CheckedOut(10) |
+| CheckedOut(10) | Bill(14) | Billed(11) |
+| RescheduleRequested(12) | ConfirmReschedule(9) | RescheduledNoBill(7) |
+| RescheduleRequested(12) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| CancellationRequested(13) | ConfirmCancellation(7) | CancelledNoBill(5) |
+| CancellationRequested(13) | ConfirmCancellationLate(8) | CancelledLate(6) |
+| InfoRequested(14) | SaveAndResubmit(4) | Pending(1) |
+
+**Outgoing transitions per status**
+
+| Status | Outgoing |
+| --- | --- |
+| Pending(1) | 5 |
+| Approved(2) | 5 |
+| Rejected(3) | 0 |
+| NoShow(4) | 0 |
+| CancelledNoBill(5) | 0 |
+| CancelledLate(6) | 0 |
+| RescheduledNoBill(7) | 0 |
+| RescheduledLate(8) | 0 |
+| CheckedIn(9) | 1 |
+| CheckedOut(10) | 1 |
+| Billed(11) | 0 |
+| RescheduleRequested(12) | 2 |
+| CancellationRequested(13) | 2 |
+| InfoRequested(14) | 1 |
+| NotSeen(15) | 0 |
+
+**Transitions per trigger**
+
+| Trigger | Used by |
+| --- | --- |
+| Approve(1) | 1 |
+| Reject(2) | 1 |
+| SendBack(3) | 1 |
+| SaveAndResubmit(4) | 1 |
+| RequestCancellation(5) | 1 |
+| RequestReschedule(6) | 1 |
+| ConfirmCancellation(7) | 1 |
+| ConfirmCancellationLate(8) | 1 |
+| ConfirmReschedule(9) | 2 |
+| ConfirmRescheduleLate(10) | 2 |
+| MarkNoShow(11) | 1 |
+| CheckIn(12) | 1 |
+| CheckOut(13) | 1 |
+| Bill(14) | 1 |
+| MarkNotSeen(15) | 1 |
+<!-- GENERATED: appointment-transitions END -->
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Pending : Appointment created
+    [*] --> Pending : created or requested
 
-    Pending --> Approved : Admin/doctor confirms
-    Pending --> Rejected : Admin/doctor denies
-    Pending --> CancelledNoBill : Cancelled early
-    Pending --> CancelledLate : Cancelled late
-    Pending --> RescheduledNoBill : Rescheduled early
-    Pending --> RescheduledLate : Rescheduled late
-    Pending --> RescheduleRequested : External user requests reschedule
-    Pending --> CancellationRequested : External user requests cancellation
+    Pending --> Approved : Approve
+    Pending --> Rejected : Reject
+    Pending --> InfoRequested : SendBack
+    Pending --> RescheduledNoBill : ConfirmReschedule
+    Pending --> RescheduledLate : ConfirmRescheduleLate
 
-    Approved --> CheckedIn : Patient arrives
-    Approved --> NoShow : Patient does not appear
-    Approved --> CancelledNoBill : Cancelled early
-    Approved --> CancelledLate : Cancelled late
-    Approved --> RescheduledNoBill : Rescheduled early
-    Approved --> RescheduledLate : Rescheduled late
-    Approved --> RescheduleRequested : External user requests reschedule
-    Approved --> CancellationRequested : External user requests cancellation
+    InfoRequested --> Pending : SaveAndResubmit
 
-    CheckedIn --> CheckedOut : Examination completed
+    Approved --> CancellationRequested : RequestCancellation
+    Approved --> RescheduleRequested : RequestReschedule
+    Approved --> NoShow : MarkNoShow (from Case Tracker)
+    Approved --> NotSeen : MarkNotSeen (from Case Tracker)
 
-    CheckedOut --> Billed : Billing processed
+    CancellationRequested --> CancelledNoBill : ConfirmCancellation
+    CancellationRequested --> CancelledLate : ConfirmCancellationLate
 
-    RescheduleRequested --> Approved : Admin approves reschedule
-    RescheduleRequested --> RescheduledNoBill : Admin reschedules (no bill)
-    RescheduleRequested --> RescheduledLate : Admin reschedules (late)
-    RescheduleRequested --> Rejected : Admin rejects request
+    RescheduleRequested --> RescheduledNoBill : ConfirmReschedule
+    RescheduleRequested --> RescheduledLate : ConfirmRescheduleLate
 
-    CancellationRequested --> CancelledNoBill : Admin cancels (no bill)
-    CancellationRequested --> CancelledLate : Admin cancels (late)
-    CancellationRequested --> Approved : Admin denies cancellation
-
-    Billed --> [*]
     Rejected --> [*]
+    NoShow --> [*]
+    NotSeen --> [*]
     CancelledNoBill --> [*]
     CancelledLate --> [*]
     RescheduledNoBill --> [*]
     RescheduledLate --> [*]
-    NoShow --> [*]
 ```
 
----
+The dead `Approved -> CheckedIn -> CheckedOut -> Billed` chain is deliberately omitted from the
+diagram so it cannot be mistaken for a path an appointment travels. It **is** in the generated
+table above, and in the code.
 
-## Happy Path
+It is **not marked** as dead there, and that is a property of the generator rather than an
+oversight: the snapshot records the machine's own configuration and deliberately renders no
+"dead", "terminal" or "happy path" verdict, because a verdict is a derivation and a wrong
+derivation does not look wrong. Which transitions are unreachable is explained in prose under
+"The three dead statuses" above, where a human maintains it and can be argued with.
 
-The ideal appointment flow from creation to billing.
+The table therefore tells you what the machine permits. It does not tell you what anyone uses.
 
-```mermaid
-flowchart LR
-    A[Pending] -->|Admin confirms| B[Approved]
-    B -->|Patient arrives| C[CheckedIn]
-    C -->|Exam completed| D[CheckedOut]
-    D -->|Billing processed| E[Billed]
+## Things the table does not tell you
 
-    style A fill:#ffd966,stroke:#333
-    style B fill:#93c47d,stroke:#333
-    style C fill:#6fa8dc,stroke:#333
-    style D fill:#8e7cc3,stroke:#333
-    style E fill:#76a5af,stroke:#333
-```
+- **`Approved` is the ONLY source for both attendance outcomes**, and deliberately so. Filing a
+  change request against an Approved appointment moves it to `RescheduleRequested` or
+  `CancellationRequested`, so an appointment that can still take a terminal attendance outcome
+  never has an open request the outcome could strand.
+- **`InfoRequested` is transient, not terminal.** The slot stays `Reserved` throughout, so a
+  request sent back for information does not release its slot.
+- **`Pending` can reach a Rescheduled outcome directly.** Added in Phase 4d (2026-08-05),
+  because internal staff may file a reschedule against a not-yet-approved appointment;
+  `SubmitRescheduleAsync` skips the `Approved -> RescheduleRequested` step for such a source,
+  so it arrives at finalisation still `Pending`. Without those two transitions the whole
+  Pending-source path throws.
+- **Nothing transitions out of `Rejected`.** Re-submitting a rejected request creates a new
+  appointment rather than reviving the old one.
 
-**Sequence:** `Pending (1)` -> `Approved (2)` -> `CheckedIn (9)` -> `CheckedOut (10)` -> `Billed (11)`
+## Re-booking: three separate flows
 
----
+None of these is a transition. Each creates a NEW appointment from a source, and each has its
+own eligibility gate in `AppointmentLifecycleValidators`.
 
-## Cancellation and Reschedule Paths
+| Flow | Source must be | Notes |
+| --- | --- | --- |
+| **ReSubmit** | `Rejected` | The rejected request never became an appointment |
+| **Reval** | `Approved`, or an attendance outcome where the source was itself a re-evaluation | A first evaluation that no-showed may NOT be re-evalled: nothing has established the need yet |
+| **ReBook** | `CancelledNoBill`, `CancelledLate`, `NoShow` or `NotSeen` | The appointment did not happen. Deliberately not `Approved`, which would strand a live appointment |
 
-```mermaid
-flowchart TD
-    subgraph Direct Admin Actions
-        ANY1[Any Active Status] -->|Early cancellation| CNB[CancelledNoBill]
-        ANY1 -->|Late cancellation| CL[CancelledLate]
-        ANY2[Any Active Status] -->|Early reschedule| RNB[RescheduledNoBill]
-        ANY2 -->|Late reschedule| RL[RescheduledLate]
-    end
+**All three mint a FRESH confirmation number.** ReSubmit used to carry the source's number
+forward for legacy parity and could not: the unique index on
+`(TenantId, RequestConfirmationNumber)` filtered on `IsDeleted = 0` is still satisfied by the
+rejected source row, so every re-submit failed on that constraint. Changed 2026-08-22. The link
+back to the source is carried on `RescheduledFromAppointmentId`.
 
-    subgraph External User Requests
-        ANY3[Any Active Status] -->|User requests reschedule| RR[RescheduleRequested]
-        ANY3 -->|User requests cancellation| CR[CancellationRequested]
-        RR -->|Admin acts| RNB2[RescheduledNoBill / RescheduledLate]
-        CR -->|Admin acts| CNB2[CancelledNoBill / CancelledLate]
-        RR -->|Admin denies| APR[Approved / Rejected]
-        CR -->|Admin denies| APR2[Approved]
-    end
+An IT Admin override exists on Reval but is **not** a free pass: it changes the error message,
+not the outcome.
 
-    style CNB fill:#ea9999,stroke:#333
-    style CL fill:#e06666,stroke:#333
-    style RNB fill:#f9cb9c,stroke:#333
-    style RL fill:#e69138,stroke:#333
-    style RR fill:#ffe599,stroke:#333
-    style CR fill:#ffe599,stroke:#333
-```
+## Billing semantics of the outcome pairs
 
-### External User Request Flow
+The `NoBill` and `Late` suffixes record whether the cancellation or reschedule fell inside the
+office's notice window, which is configurable per office via `SystemParameter`
+(`Scheduling.CancelWindowMinutes`).
 
-When an external user (Patient, Attorney, etc.) wants to cancel or reschedule, they do not directly change the appointment status. Instead:
+| Variant | Billing impact |
+| --- | --- |
+| `CancelledNoBill`, `RescheduledNoBill` | No charge for the affected appointment |
+| `CancelledLate`, `RescheduledLate` | May incur a late fee |
+| `NoShow`, `NotSeen` | Billed the same as each other. Neither produces a replacement appointment |
+| `Billed` | Unreachable, and deliberately so. See the responsibility boundary above |
 
-1. The appointment moves to **RescheduleRequested (12)** or **CancellationRequested (13)** -- these are "pending admin action" states.
-2. An admin reviews the request and transitions to the appropriate terminal status.
+**These names record a billing consequence; they do not perform one.** The portal stores which
+side of the notice window an outcome fell, and something else acts on it. `NoShow` and `NotSeen`
+are billed identically, so the distinction between them is not a billing distinction: it exists
+for **reporting and for the conversation with the client**, because "the patient never arrived"
+and "the patient arrived and was not evaluated" are different facts about the same non-outcome.
 
----
+Neither attendance outcome produces a replacement appointment automatically: a client who still
+wants one submits a new request, or staff use ReBook.
 
-## Terminal States
+## Source reference
 
-These statuses represent the end of an appointment's lifecycle. No further transitions occur from these states.
+- Status set: `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs`
+  -- read it for the per-member commentary, which is more detailed than this page
+- Transitions: `src/.../Domain/Appointments/AppointmentManager.cs`, `BuildMachine`
+- Re-booking gates: `src/.../Domain/Appointments/AppointmentLifecycleValidators.cs`
+- Attendance outcomes arriving from the Case Tracker:
+  `src/.../Domain/Integration/CaseTracker/CaseTrackerAttendanceService.cs`
 
-| Status              | Description                                         |
-|---------------------|-----------------------------------------------------|
-| **Billed (11)**           | Successfully completed and billed                 |
-| **Rejected (3)**          | Denied before it could proceed                    |
-| **CancelledNoBill (5)**   | Cancelled early, no charge                        |
-| **CancelledLate (6)**     | Cancelled late, possible fee                      |
-| **RescheduledNoBill (7)** | Rescheduled early, no charge for original         |
-| **RescheduledLate (8)**   | Rescheduled late, possible fee for original       |
-| **NoShow (4)**            | Patient failed to appear                          |
-
----
-
-## Billing Implications
-
-| Variant            | Billing Impact                                                   |
-|--------------------|------------------------------------------------------------------|
-| **NoBill** variants (CancelledNoBill, RescheduledNoBill) | No charge for the cancelled/rescheduled appointment |
-| **Late** variants (CancelledLate, RescheduledLate)       | Possible late-cancellation or late-reschedule fee   |
-| **Billed**         | Full examination billing has been processed                      |
-| **NoShow**         | May incur a no-show fee depending on business rules              |
-
----
-
-## Source Reference
-
-- **Enum definition:** `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs`
-
-```csharp
-public enum AppointmentStatusType
-{
-    Pending = 1,
-    Approved = 2,
-    Rejected = 3,
-    NoShow = 4,
-    CancelledNoBill = 5,
-    CancelledLate = 6,
-    RescheduledNoBill = 7,
-    RescheduledLate = 8,
-    CheckedIn = 9,
-    CheckedOut = 10,
-    Billed = 11,
-    RescheduleRequested = 12,
-    CancellationRequested = 13,
-}
-```
-
----
-
-## Related Documentation
+## Related documentation
 
 - [Domain Overview](DOMAIN-OVERVIEW.md)
 - [Doctor Availability](DOCTOR-AVAILABILITY.md)

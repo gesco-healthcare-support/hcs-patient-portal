@@ -45,13 +45,6 @@ public class DoctorController : AbpController, IDoctorsAppService
     }
 
     [HttpGet]
-    [Route("identity-user-lookup")]
-    public virtual Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
-    {
-        return _doctorsAppService.GetIdentityUserLookupAsync(input);
-    }
-
-    [HttpGet]
     [Route("tenant-lookup")]
     public virtual Task<PagedResultDto<LookupDto<Guid>>> GetTenantLookupAsync(LookupRequestDto input)
     {

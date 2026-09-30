@@ -96,7 +96,7 @@ if ($testApptId -and $testSlotId) {
                 concurrencyStamp=$slotResp.Body.concurrencyStamp
             }
             Invoke-ApiCall -Method "PUT" -Url "$availUrl/$testSlotId" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     }
 } else {
     Add-SkipResult -TestResults $TestResults -TestId "B11.2.1" -Name "Slot release on DELETE" -Reason "No appointment-slot pair"

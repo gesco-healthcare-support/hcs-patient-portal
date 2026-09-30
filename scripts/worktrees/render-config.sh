@@ -14,7 +14,7 @@ API="${3:?}"
 NG="${4:?}"
 DB="${5:?}"
 
-[ -d "$WT" ] || { echo "error: worktree path '$WT' does not exist" >&2; exit 1; }
+[[ -d "$WT" ]] || { echo "error: worktree path '$WT' does not exist" >&2; exit 1; }
 
 # AuthServer
 python3 - "$WT" "$AUTH" "$API" "$NG" "$DB" <<'PY'
@@ -108,5 +108,13 @@ export const environment = {
     AbpAccountPublic: { url: 'https://localhost:$AUTH', rootNamespace: 'AbpAccountPublic' },
   },
 } as Environment;
+
+// Address validation (Smarty). Empty smartyKey keeps the mock provider;
+// set the embedded key + allow-list the host to enable live autocomplete.
+export const addressValidation = {
+  smartyKey: '',
+  autocompleteUrl: 'https://us-autocomplete-pro.api.smarty.com/lookup',
+  verifyUrl: 'https://us-street.api.smarty.com/street-address',
+};
 EOF
 echo "wrote $WT/angular/src/environments/environment.local.ts"

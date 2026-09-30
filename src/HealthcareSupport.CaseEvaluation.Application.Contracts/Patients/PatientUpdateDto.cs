@@ -3,6 +3,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
 using Volo.Abp.Domain.Entities;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -26,6 +27,7 @@ public class PatientUpdateDto : IHasConcurrencyStamp
     public DateTime DateOfBirth { get; set; }
 
     [StringLength(PatientConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(PatientConsts.SocialSecurityNumberMaxLength)]
@@ -40,10 +42,8 @@ public class PatientUpdateDto : IHasConcurrencyStamp
     [StringLength(PatientConsts.ZipCodeMaxLength)]
     public string? ZipCode { get; set; }
 
-    [StringLength(PatientConsts.RefferedByMaxLength)]
-    public string? RefferedBy { get; set; }
-
     [StringLength(PatientConsts.CellPhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? CellPhoneNumber { get; set; }
 
     public PhoneNumberType PhoneNumberTypeId { get; set; }
@@ -64,7 +64,9 @@ public class PatientUpdateDto : IHasConcurrencyStamp
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): optional -- mirrors the nullable Patient.IdentityUserId
+    // (record-only patients have no login until claimed).
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 

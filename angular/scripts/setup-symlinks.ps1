@@ -10,6 +10,56 @@ $packageDirectories = Get-PackageDirectories
 # Global variables for interactive mode
 $scriptPath = $PSCommandPath
 
+# Extracted from Setup-SelectiveSymlinks so neither function nests past two levels;
+# combined they scored 27 on cognitive complexity against a limit of 15 (Sonar
+# powershelldre:S3776). The body is the original loop body verbatim, with the two
+# counter increments replaced by a returned status the caller tallies.
+function New-PackageSymlink {
+    param(
+        [string]$package,
+        [string]$mainNodeModules,
+        [string]$targetNodeModules
+    )
+
+    $sourcePackage = Join-Path $mainNodeModules $package
+    $targetPackage = Join-Path $targetNodeModules $package
+
+    # Skip if trying to symlink to the same location (avoid circular symlinks)
+    if ($sourcePackage -eq $targetPackage) {
+        Write-Host "   ⚠️  Skipping $package (would create circular symlink)" -ForegroundColor Yellow
+        return 'skipped'
+        continue
+    }
+
+    # Check if source package exists
+    if (-not (Test-Path $sourcePackage)) {
+        Write-Host "   ⚠️  Package $package not found in main node_modules" -ForegroundColor Yellow
+        return 'skipped'
+        continue
+    }
+
+    try {
+        # Remove existing symlink/folder if it exists
+        if (Test-Path $targetPackage) {
+            Remove-Item $targetPackage -Recurse -Force
+        }
+
+        # Create symlink for the specific package
+        if ($IsWindows) {
+            cmd /c "mklink /J `"$targetPackage`" `"$sourcePackage`""
+        } else {
+            New-Item -ItemType SymbolicLink -Path $targetPackage -Target $sourcePackage | Out-Null
+        }
+
+        Write-Host "   ✅ Linked $package" -ForegroundColor Green
+        return 'linked'
+    }
+    catch {
+        Write-Host "   ❌ Failed to link $package`: $($_.Exception.Message)" -ForegroundColor Red
+        return 'skipped'
+    }
+}
+
 function Setup-SelectiveSymlinks {
     Write-Host "🔗 Setting up selective symlinks for specific packages...`n" -ForegroundColor Cyan
 
@@ -58,43 +108,8 @@ function Setup-SelectiveSymlinks {
         }
 
         foreach ($package in $packagesToSymlink) {
-            $sourcePackage = Join-Path $mainNodeModules $package
-            $targetPackage = Join-Path $targetNodeModules $package
-
-            # Skip if trying to symlink to the same location (avoid circular symlinks)
-            if ($sourcePackage -eq $targetPackage) {
-                Write-Host "   ⚠️  Skipping $package (would create circular symlink)" -ForegroundColor Yellow
-                $totalSkipped++
-                continue
-            }
-
-            # Check if source package exists
-            if (-not (Test-Path $sourcePackage)) {
-                Write-Host "   ⚠️  Package $package not found in main node_modules" -ForegroundColor Yellow
-                $totalSkipped++
-                continue
-            }
-
-            try {
-                # Remove existing symlink/folder if it exists
-                if (Test-Path $targetPackage) {
-                    Remove-Item $targetPackage -Recurse -Force
-                }
-
-                # Create symlink for the specific package
-                if ($IsWindows) {
-                    cmd /c "mklink /J `"$targetPackage`" `"$sourcePackage`""
-                } else {
-                    New-Item -ItemType SymbolicLink -Path $targetPackage -Target $sourcePackage | Out-Null
-                }
-
-                Write-Host "   ✅ Linked $package" -ForegroundColor Green
-                $totalLinked++
-            }
-            catch {
-                Write-Host "   ❌ Failed to link $package`: $($_.Exception.Message)" -ForegroundColor Red
-                $totalSkipped++
-            }
+            $result = New-PackageSymlink -package $package -mainNodeModules $mainNodeModules -targetNodeModules $targetNodeModules
+            if ($result -eq 'linked') { $totalLinked++ } else { $totalSkipped++ }
         }
         Write-Host ""
     }

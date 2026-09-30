@@ -1,16 +1,30 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Security;
+using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
+using Volo.Abp.Validation;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -32,16 +46,24 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     private readonly IAppointmentsAppService _appointmentsAppService;
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
+    private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected AppointmentsAppServiceTests()
     {
         _appointmentsAppService = GetRequiredService<IAppointmentsAppService>();
         _appointmentRepository = GetRequiredService<IAppointmentRepository>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
+        _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
+        _appointmentApplicantAttorneyRepository = GetRequiredService<IAppointmentApplicantAttorneyRepository>();
+        _appointmentDefenseAttorneyRepository = GetRequiredService<IAppointmentDefenseAttorneyRepository>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // =====================================================================
@@ -57,10 +79,13 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.PatientId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator (#181) now fires before the
+        // AppService's manual UserFriendlyException check; AbpValidationException
+        // wins. Assertion checks the validator-produced ValidationErrors collection.
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Patient");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Patient"));
     }
 
     [Fact]
@@ -69,12 +94,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.IdentityUserId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; its WithMessage
+        // produces "Booker (IdentityUser) is required."
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        // ABP's L["..."] localizer inserts a space between CamelCase words, so
-        // the localized field label is "Identity User" rather than "IdentityUser".
-        ex.Message.ShouldContain("Identity User");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("IdentityUser"));
     }
 
     [Fact]
@@ -83,10 +108,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.AppointmentTypeId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; message is
+        // "Appointment type is required." (lowercase 'type').
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Appointment Type");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Appointment type"));
     }
 
     [Fact]
@@ -95,10 +122,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.LocationId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins.
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Location");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Location"));
     }
 
     [Fact]
@@ -107,13 +135,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.DoctorAvailabilityId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; message is
+        // "Time slot is required." (the user-facing label the validator picked).
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        // Note: the localized label for `L["DoctorAvailability"]` resolves to
-        // "Availability & Time Slots" (the user-facing display name), not a
-        // CamelCase-split of the key.
-        ex.Message.ShouldContain("Availability & Time Slots");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Time slot"));
     }
 
     // =====================================================================
@@ -221,13 +248,136 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     }
 
     // =====================================================================
+    // Prompt 10 (2026-06-14) -- GetStatusCountsAsync (chip counts) + the
+    // multi-status list filter that backs the pill chips. Each test isolates
+    // its scratch rows from the shared seed via a unique appointment date range.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetStatusCountsAsync_ReturnsPerStatusTotals_HonoringDateFilter()
+    {
+        var date = DateTime.Today.AddDays(70);
+        var slotId = await InsertScratchSlotForStatusCountsAsync(date);
+
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(5), "A-CNT-P1", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(10), "A-CNT-P2", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(15), "A-CNT-A1", AppointmentStatusType.Approved);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(20), "A-CNT-C1", AppointmentStatusType.CancelledLate);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var counts = await _appointmentsAppService.GetStatusCountsAsync(new GetAppointmentsInput
+            {
+                AppointmentDateMin = date,
+                AppointmentDateMax = date.AddDays(1),
+            });
+
+            CountOf(counts, AppointmentStatusType.Pending).ShouldBe(2);
+            CountOf(counts, AppointmentStatusType.Approved).ShouldBe(1);
+            CountOf(counts, AppointmentStatusType.CancelledLate).ShouldBe(1);
+            CountOf(counts, AppointmentStatusType.Rejected).ShouldBe(0);
+        }
+    }
+
+    [Fact]
+    public async Task GetStatusCountsAsync_IgnoresStatusFilter_SoChipsStayIndependent()
+    {
+        var date = DateTime.Today.AddDays(77);
+        var slotId = await InsertScratchSlotForStatusCountsAsync(date);
+
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(5), "A-IND-P1", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(10), "A-IND-A1", AppointmentStatusType.Approved);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Selecting the Approved chip (status filter) must NOT zero the Pending count.
+            var counts = await _appointmentsAppService.GetStatusCountsAsync(new GetAppointmentsInput
+            {
+                AppointmentDateMin = date,
+                AppointmentDateMax = date.AddDays(1),
+                AppointmentStatus = AppointmentStatusType.Approved,
+                AppointmentStatuses = new List<AppointmentStatusType> { AppointmentStatusType.Approved },
+            });
+
+            CountOf(counts, AppointmentStatusType.Pending).ShouldBe(1);
+            CountOf(counts, AppointmentStatusType.Approved).ShouldBe(1);
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_WithAppointmentStatuses_ReturnsOnlyThoseStatuses()
+    {
+        var date = DateTime.Today.AddDays(84);
+        var slotId = await InsertScratchSlotForStatusCountsAsync(date);
+
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(5), "A-MS-P", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(10), "A-MS-C5", AppointmentStatusType.CancelledNoBill);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(15), "A-MS-C6", AppointmentStatusType.CancelledLate);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // The "Cancelled" pill spans several raw statuses -> sent as a set.
+            var result = await _appointmentsAppService.GetListAsync(new GetAppointmentsInput
+            {
+                AppointmentDateMin = date,
+                AppointmentDateMax = date.AddDays(1),
+                AppointmentStatuses = new List<AppointmentStatusType>
+                {
+                    AppointmentStatusType.CancelledNoBill,
+                    AppointmentStatusType.CancelledLate,
+                },
+            });
+
+            result.Items.ShouldContain(x => x.Appointment.RequestConfirmationNumber == "A-MS-C5");
+            result.Items.ShouldContain(x => x.Appointment.RequestConfirmationNumber == "A-MS-C6");
+            result.Items.ShouldNotContain(x => x.Appointment.RequestConfirmationNumber == "A-MS-P");
+        }
+    }
+
+    private static int CountOf(List<AppointmentStatusCountDto> counts, AppointmentStatusType status)
+    {
+        return counts.FirstOrDefault(c => c.Status == status)?.Count ?? 0;
+    }
+
+    private async Task<Guid> InsertScratchSlotForStatusCountsAsync(DateTime date)
+    {
+        var slot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: date,
+            scratchFromTime: new TimeOnly(9, 0),
+            scratchToTime: new TimeOnly(17, 0));
+        return slot.Id;
+    }
+
+    private async Task InsertAppointmentWithStatusAsync(
+        Guid doctorAvailabilityId,
+        DateTime appointmentDate,
+        string requestConfirmationNumber,
+        AppointmentStatusType status)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var appointment = new Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: doctorAvailabilityId,
+                appointmentDate: appointmentDate,
+                requestConfirmationNumber: requestConfirmationNumber,
+                appointmentStatus: status);
+            await _appointmentRepository.InsertAsync(appointment, autoSave: true);
+        }
+    }
+
+    // =====================================================================
     // Gap-encoding tests (Skip= with tracking references).
     // Each [Fact(Skip="KNOWN GAP: ...")] documents an intended behaviour that
     // the current code does NOT enforce. When the gap is closed in a future
     // PR, flip Skip to null and the test runs; failure then forces a decision.
     // =====================================================================
 
-    [Fact(Skip = "KNOWN GAP: DeleteAsync does not release DoctorAvailability.BookingStatusId back to Available. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md under 'Business Rules' rule 2.")]
+    [Fact(Skip = "SUPERSEDED PREMISE, corrected 2026-09-16 -- this describes a gap against a model the product no longer uses, so it is off permanently rather than pending. DeleteAsync (AppointmentsAppService.cs:683) genuinely does not write BookingStatusId, but it SHOULD NOT: since the 2026-05-15 slot rework that field is a manual-close override, not a derived value (SlotCascadeHandler.cs:8-20), so writing it on delete would silently undo an operator's deliberate close. What actually frees the slot is the active-appointment count dropping -- GetActiveCountForSlotAsync against Capacity is the authoritative bookability measure (AppointmentsAppService.cs:1480). Re-check: grep BookingStatusId writes across src/, excluding comments; none is in a delete path.")]
     public Task DeleteAsync_ReleasesSlotBackToAvailable()
     {
         // Expected behaviour (not yet implemented):
@@ -238,7 +388,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "KNOWN GAP: No enforced state-machine on AppointmentStatus. Any code path can set any status directly. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md under 'State Machine' warning.")]
+    [Fact(Skip = "KNOWN GAP, still live -- wording corrected 2026-09-16. A state machine DOES exist (AppointmentManager.BuildMachine, Stateless, with Permit rules) and ApplyTransitionAsync enforces it; the original 'no enforced state-machine' was imprecise. What remains true is the part that matters: it is not the only write path. Two approval paths set the status directly on the entity, bypassing the machine -- AppointmentChangeRequestsAppService.Approval.cs:133 and :683. Tracked as issue #926. Re-check by enumerating '.AppointmentStatus =' writes across src/ with comment lines excluded: exactly three, and only AppointmentManager.cs:566 is the machine's own setter.")]
     public Task UpdateAsync_TransitionFromBilledToPending_ShouldThrow()
     {
         // Expected behaviour (not yet implemented):
@@ -249,23 +399,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "KNOWN GAP: CreateAsync only requires [Authorize] (any authenticated user), not [Authorize(CaseEvaluationPermissions.Appointments.Create)]. UI checks the permission but API does not. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md under 'Business Rules' rule 5.")]
-    public Task CreateAsync_WithoutAppointmentsCreatePermission_ShouldThrow()
-    {
-        // Expected behaviour (not yet implemented):
-        // Invoking CreateAsync as an authenticated user who does NOT have
-        // CaseEvaluation.Appointments.Create should throw AbpAuthorizationException.
-        return Task.CompletedTask;
-    }
-
-    [Fact(Skip = "KNOWN GAP: UpdateAsync only requires [Authorize]. Mirror of the Create permission gap. Tracked in the same CLAUDE.md section.")]
-    public Task UpdateAsync_WithoutAppointmentsEditPermission_ShouldThrow()
-    {
-        // Expected behaviour (not yet implemented):
-        // Invoking UpdateAsync as an authenticated user who does NOT have
-        // CaseEvaluation.Appointments.Edit should throw AbpAuthorizationException.
-        return Task.CompletedTask;
-    }
+    // Permission-gate coverage for Create/Update moved to the deterministic
+    // reflection guard in AppointmentsAppServiceAuthorizationTests (the SQLite
+    // harness does not seed role->permission grants, so behavioral denial here
+    // could only ever be a Skip stub). UpdateAsync is now gated by
+    // Appointments.Edit; the gap those stubs tracked is closed.
 
     // =====================================================================
     // Wave-2 PR-W2A: happy-path CRUD using seeded Appointment1/2 + slot
@@ -325,186 +463,20 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         }
     }
 
-    [Fact]
-    public async Task GetWithNavigationPropertiesAsync_ResolvesPatientLocationTypeAndSlot()
-    {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _appointmentsAppService.GetWithNavigationPropertiesAsync(AppointmentsTestData.Appointment1Id);
+    // R2 (Phase 9, 2026-05-04): pin that AppointmentCreateDto.IsPatientAlreadyExist
+    // round-trips to the persisted Appointment row. Mirrors OLD
+    // AppointmentDomain.cs:210, 217 where the dedup outcome lands on the entity
+    // at booking time. The Angular booking form populates this from the
+    // PatientWithNavigationPropertiesDto.IsExisting flag.
 
-            result.ShouldNotBeNull();
-            result.Appointment.Id.ShouldBe(AppointmentsTestData.Appointment1Id);
-            // Patient is NOT IMultiTenant (FEAT-09) but the FK still resolves.
-            result.Patient.ShouldNotBeNull();
-            result.Patient!.Id.ShouldBe(PatientsTestData.Patient1Id);
-            result.AppointmentType.ShouldNotBeNull();
-            result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
-            result.Location.ShouldNotBeNull();
-            result.Location!.Id.ShouldBe(LocationsTestData.Location1Id);
-            result.DoctorAvailability.ShouldNotBeNull();
-            result.DoctorAvailability!.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_WhenInputValid_PersistsAppointmentAndReturnsDto()
-    {
-        // Insert a scratch Available slot in TenantA (don't mutate Slot2 from
-        // the shared seed). Then book it via the AppService.
-        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 1, 10, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0));
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
-
-            var created = await _appointmentsAppService.CreateAsync(input);
-
-            created.ShouldNotBeNull();
-            created.PatientId.ShouldBe(input.PatientId);
-            created.DoctorAvailabilityId.ShouldBe(scratchSlot.Id);
-            created.Id.ShouldNotBe(Guid.Empty);
-
-            var persisted = await _appointmentRepository.FindAsync(created.Id);
-            persisted.ShouldNotBeNull();
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_GeneratesConfirmationNumberInAFormat()
-    {
-        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 2, 5, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0));
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(30));
-
-            var created = await _appointmentsAppService.CreateAsync(input);
-
-            // Format confirmed mechanically; race window between MAX read and
-            // INSERT is documented in src/.../Appointments/CLAUDE.md gotcha 5
-            // and is encoded as an inherited skipped Fact, NOT asserted here.
-            Regex.IsMatch(created.RequestConfirmationNumber, @"^A\d{5}$").ShouldBeTrue();
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_TwoSequentialCreates_ProduceIncreasingNumbers()
-    {
-        var scratchA = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 3, 1, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0));
-        var scratchB = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 3, 2, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0));
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var firstInput = BuildScratchCreateDto(scratchA.Id, scratchA.AvailableDate.Date.AddHours(10).AddMinutes(15));
-            var first = await _appointmentsAppService.CreateAsync(firstInput);
-
-            var secondInput = BuildScratchCreateDto(scratchB.Id, scratchB.AvailableDate.Date.AddHours(10).AddMinutes(15));
-            var second = await _appointmentsAppService.CreateAsync(secondInput);
-
-            int firstNum = int.Parse(first.RequestConfirmationNumber.Substring(1));
-            int secondNum = int.Parse(second.RequestConfirmationNumber.Substring(1));
-            secondNum.ShouldBeGreaterThan(firstNum);
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_FlipsSlotOutOfAvailable_ButNotEnshrineBooked()
-    {
-        // W2-1 lock: assert the slot's status is no longer Available after
-        // booking, but do NOT assert it is Booked. Product intent (per
-        // docs/product/doctor-availabilities.md) is Available -> Reserved
-        // (pending office review) -> Booked. Current code skips Reserved.
-        // The Skip Fact below pins the divergence; this live Fact passes
-        // either way the production code resolves it.
-        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 4, 7, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0));
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
-
-            await _appointmentsAppService.CreateAsync(input);
-
-            var slotAfter = await _doctorAvailabilityRepository.GetAsync(scratchSlot.Id);
-            slotAfter.BookingStatusId.ShouldNotBe(BookingStatus.Available);
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_WhenSlotIsNotAvailable_Throws()
-    {
-        // Slot1 is seeded as Booked; attempting to book it again must reject.
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var input = BuildScratchCreateDto(
-                DoctorAvailabilitiesTestData.Slot1Id,
-                DoctorAvailabilitiesTestData.Slot1AvailableDate.Date.AddHours(9).AddMinutes(15));
-            input.LocationId = LocationsTestData.Location1Id;
-            input.AppointmentTypeId = LocationsTestData.AppointmentType1Id;
-
-            var ex = await Should.ThrowAsync<UserFriendlyException>(
-                async () => await _appointmentsAppService.CreateAsync(input));
-
-            ex.Message.ShouldContain("no longer available");
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_WhenSlotLocationMismatch_Throws()
-    {
-        // Scratch slot at Location2; input asks for Location1.
-        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 5, 5, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0),
-            locationId: LocationsTestData.Location2Id);
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
-            input.LocationId = LocationsTestData.Location1Id;
-
-            var ex = await Should.ThrowAsync<UserFriendlyException>(
-                async () => await _appointmentsAppService.CreateAsync(input));
-
-            ex.Message.ShouldContain("location");
-        }
-    }
-
-    [Fact]
-    public async Task CreateAsync_WhenSlotDateMismatch_Throws()
-    {
-        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 6, 1, 0, 0, 0, DateTimeKind.Utc),
-            scratchFromTime: new TimeOnly(10, 0),
-            scratchToTime: new TimeOnly(11, 0));
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var input = BuildScratchCreateDto(scratchSlot.Id, new DateTime(2027, 6, 8, 10, 15, 0, DateTimeKind.Utc));
-
-            var ex = await Should.ThrowAsync<UserFriendlyException>(
-                async () => await _appointmentsAppService.CreateAsync(input));
-
-            ex.Message.ShouldContain("date");
-        }
-    }
-
-    [Fact(Skip = "KNOWN GAP: AppointmentsAppService.CreateAsync should transition slot Available -> Reserved (pending office review) -> Booked, but currently flips directly to Booked. Tracked: docs/product/doctor-availabilities.md slot-lifecycle section AND src/.../Domain/Appointments/CLAUDE.md Business Rule 4 (slot booking is one-way). When production code is fixed to emit Reserved as the post-create state, this Fact flips live.")]
+    // F-M05 (2026-06-25): a re-evaluation child must link back to its source
+    // appointment via OriginalAppointmentId (reschedule children already do).
+    // Before the fix the reval child's OriginalAppointmentId stayed NULL, so a
+    // re-evaluation was untraceable to the appointment it follows up.
+    // Skipped on the epic for the same reason as the sibling create-flow tests:
+    // db-per-office makes catalogs IMultiTenant per office and the shared-SQLite
+    // test rig can't seed per-tenant catalogs (Phase F harness restore).
+    [Fact(Skip = "SUPERSEDED PREMISE, corrected 2026-09-16 -- BOTH halves of the original note were false, so it is off permanently rather than pending a fix. CreateAsync does not flip the slot to Booked: it writes nothing to BookingStatusId at all. And Reserved is not a state the booking flow produces -- since the 2026-05-15 slot rework it is a manual-close marker the create path READS in order to REFUSE a booking (AppointmentsAppService.cs:1472, arm 1, throwing AppointmentBookingSlotClosed). The comment two lines above that arm records the rest: Booked is treated as Available for backward compatibility because the active-count probe is authoritative. Re-check: grep BookingStatusId writes across src/, excluding comments; none is in a create path.")]
     public Task CreateAsync_BookingTransitionsSlotToReserved_NotBookedDirectly()
     {
         // Expected behaviour (not yet implemented):
@@ -513,6 +485,117 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // Current code sets it to `Booked` immediately, which conflates the
         // pending-review and confirmed-booking states.
         return Task.CompletedTask;
+    }
+
+    // =====================================================================
+    // T5 (2026-08-14) -- caller-linkage on the confirmation-number create
+    // flows. Confirmation numbers are sequential (A00005, A00036, A00065) and
+    // therefore guessable. Before this gate, ReSubmitAsync and CreateRevalAsync
+    // validated the source's STATUS only: the accessor/creator check lived
+    // solely in GetByConfirmationNumberAsync, the read the UI happens to call
+    // first, so a caller who skipped the UI could create against a stranger's
+    // appointment.
+    //
+    // These assert on EntityNotFoundException's EntityType + Id rather than the
+    // bare type, because an unseeded catalog FK also raises
+    // EntityNotFoundException further down the create path -- asserting the type
+    // alone would pass for the wrong reason.
+    // =====================================================================
+
+    private static readonly Guid UnlinkedCallerUserId =
+        Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddd10");
+
+    [Fact]
+    public async Task ReSubmitAsync_WhenCallerIsNotLinkedToSource_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var ex = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.ReSubmitAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.EntityType.ShouldBe(typeof(Appointment));
+            ex.Id.ShouldBe(AppointmentsTestData.Appointment1RequestConfirmationNumber);
+        }
+    }
+
+    // Appointment2 / A90002 is seeded in TENANT B (Approved, the only
+    // reval-eligible status). Running these in TenantA would make the lookup
+    // miss and raise EntityNotFoundException(Appointment, "A90002") from the
+    // manager's not-found branch -- indistinguishable from the gate's refusal,
+    // so the test would pass without the gate existing at all.
+    [Fact]
+    public async Task CreateRevalAsync_WhenCallerIsNotLinkedToSource_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var ex = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.EntityType.ShouldBe(typeof(Appointment));
+            ex.Id.ShouldBe(AppointmentsTestData.Appointment2RequestConfirmationNumber);
+        }
+    }
+
+    [Fact]
+    public async Task CreateRevalAsync_UnknownAndUnlinkedSources_AreIndistinguishable()
+    {
+        // The refusal must not reveal whether the confirmation number exists,
+        // otherwise the endpoint is an oracle for enumerating them.
+        const string unknownConfirmationNumber = "A99999";
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   UnlinkedCallerUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var unlinked = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            var unknown = await Should.ThrowAsync<EntityNotFoundException>(
+                async () => await _appointmentsAppService.CreateRevalAsync(
+                    unknownConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            unlinked.GetType().ShouldBe(unknown.GetType());
+            unlinked.EntityType.ShouldBe(unknown.EntityType);
+
+            // A90002 is seeded Approved; the refusal must not disclose that.
+            unlinked.Message.ShouldNotContain(
+                AppointmentsTestData.Appointment2Status.ToString());
+        }
+    }
+
+    [Fact]
+    public async Task ReSubmitAsync_WhenCallerIsInternal_StillReachesTheStatusGate()
+    {
+        // Regression guard against over-tightening: the default fake principal is
+        // the internal "admin" role, so linkage passes and the STATUS gate is what
+        // refuses -- Appointment1 is seeded Pending, not Rejected.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.ReSubmitAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected);
+        }
     }
 
     // =====================================================================
@@ -570,35 +653,1464 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             var slot = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: locationId ?? LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: scratchFromTime,
                 toTime: scratchToTime,
                 bookingStatusId: BookingStatus.Available);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             return await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
         }
     }
 
-    /// <summary>
-    /// Builds a TenantA-scoped CreateDto pre-populated with seeded FK targets
-    /// (Patient1, Patient1's IdentityUser, AppointmentType1, Location1) plus
-    /// the caller-supplied scratch slot id and AppointmentDate. Tests override
-    /// individual fields to drive specific validation paths.
-    /// </summary>
-    private static AppointmentCreateDto BuildScratchCreateDto(Guid scratchSlotId, DateTime appointmentDate)
+
+    // =====================================================================
+    // BUG-042 (T2): attorney name is stored on the master record so a
+    // booked attorney who never registered (IdentityUserId == null) still
+    // has a persisted First/Last name. Tests the domain managers directly.
+    // =====================================================================
+
+    [Fact]
+    public async Task ApplicantAttorneyManager_CreateAsync_PersistsFirstAndLastName_WithoutIdentityUser()
     {
-        return new AppointmentCreateDto
+        var manager = GetRequiredService<ApplicantAttorneyManager>();
+        var repository = GetRequiredService<IApplicantAttorneyRepository>();
+
+        var created = await manager.CreateAsync(
+            stateId: null,
+            identityUserId: null,
+            firmName: "Stone & Associates",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: "aria.synthetic@test.local",
+            firstName: "Aria",
+            lastName: "Stone");
+
+        using (_dataFilter.Disable<IMultiTenant>())
         {
-            PatientId = PatientsTestData.Patient1Id,
+            var persisted = await repository.GetAsync(created.Id);
+            persisted.FirstName.ShouldBe("Aria");
+            persisted.LastName.ShouldBe("Stone");
+            persisted.IdentityUserId.ShouldBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task DefenseAttorneyManager_CreateAsync_PersistsFirstAndLastName_WithoutIdentityUser()
+    {
+        var manager = GetRequiredService<DefenseAttorneyManager>();
+        var repository = GetRequiredService<IDefenseAttorneyRepository>();
+
+        var created = await manager.CreateAsync(
+            stateId: null,
+            identityUserId: null,
+            firmName: "Shield Defense Group",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: "dana.synthetic@test.local",
+            firstName: "Dana",
+            lastName: "Defense");
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var persisted = await repository.GetAsync(created.Id);
+            persisted.FirstName.ShouldBe("Dana");
+            persisted.LastName.ShouldBe("Defense");
+            persisted.IdentityUserId.ShouldBeNull();
+        }
+    }
+
+    // =====================================================================
+    // BUG-042 (T3): the appointment attorney getters return the stored
+    // (booked) name even when the attorney never registered (no
+    // IdentityUser). Previously the getter returned null in that case,
+    // leaving the section blank in the view.
+    // =====================================================================
+
+    // =====================================================================
+    // BUG-043 (T8): approval-time defense-in-depth. The Pending -> Approved
+    // transition is blocked unless the appointment carries at least one
+    // Claim Information (injury detail) row. Mirrors the client-side guard
+    // (T7) so a direct API approve cannot bypass the requirement. The gate
+    // lives in AppointmentManager.ApplyTransitionAsync's Approve branch --
+    // the single chokepoint both approve surfaces funnel through.
+    // =====================================================================
+
+    [Fact]
+    public async Task ApproveAsync_Throws_WhenAppointmentHasNoInjuryDetail()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(42),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T8-NOINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var manager = GetRequiredService<AppointmentManager>();
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail);
+        }
+    }
+
+    [Fact]
+    public async Task ApproveAsync_Succeeds_WhenAppointmentHasInjuryAndClaimExaminer()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(49),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T8-WITHINJURY");
+
+        // CI1: the inserts below use autoSave; without an ambient UoW the
+        // repository DbContext is disposed before manager.ApproveAsync runs.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+                await injuryRepository.InsertAsync(
+                    new AppointmentInjuryDetail(
+                        Guid.NewGuid(),
+                        appointment.Id,
+                        dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                        claimNumber: "CLM-TEST-0001",
+                        isCumulativeInjury: false,
+                        bodyPartsSummary: "Lower back",
+                        wcabAdj: "ADJ-CI3"),
+                    autoSave: true);
+
+                // CI1 (2026-06-05): approval also requires an active Claim Examiner.
+                var claimExaminerRepository = GetRequiredService<IRepository<AppointmentClaimExaminer, Guid>>();
+                await claimExaminerRepository.InsertAsync(
+                    new AppointmentClaimExaminer(Guid.NewGuid(), appointment.Id, isActive: true)
+                    {
+                        Name = "Jane Examiner",
+                        Email = "ce@gesco.com",
+                    },
+                    autoSave: true);
+
+                var manager = GetRequiredService<AppointmentManager>();
+                var approved = await manager.ApproveAsync(appointment.Id, Guid.NewGuid());
+
+                approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ApproveAsync_Throws_WhenAppointmentHasNoClaimExaminer()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(63),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-CI1-NOCE");
+
+        // CI1: the insert below uses autoSave; without an ambient UoW the
+        // repository DbContext is disposed before manager.ApproveAsync runs.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // Inject an injury so the injury-detail gate passes and the
+                // claim-examiner gate is the one under test.
+                var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+                await injuryRepository.InsertAsync(
+                    new AppointmentInjuryDetail(
+                        Guid.NewGuid(),
+                        appointment.Id,
+                        dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                        claimNumber: "CLM-CI1-0001",
+                        isCumulativeInjury: false,
+                        bodyPartsSummary: "Lower back",
+                        wcabAdj: "ADJ-CI3"),
+                    autoSave: true);
+
+                var manager = GetRequiredService<AppointmentManager>();
+
+                var ex = await Should.ThrowAsync<BusinessException>(
+                    () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
+
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer);
+            }
+        });
+    }
+
+    // =====================================================================
+    // 2026-05-15 -- slot rework plan 3: capacity-aware booking gate.
+    // ValidateDoctorAvailabilityForBooking now rejects on Reserved (slot
+    // closed), capacity exhausted (active count >= Capacity), and type
+    // not in non-empty AppointmentTypes set. Race-to-last-seat test (#8)
+    // is deferred per the wave-wide invariant -- SQLite cannot honor the
+    // T-SQL row-lock hint.
+    // =====================================================================
+
+    /// <summary>
+    /// Inserts a Pending appointment directly via the repository (bypassing
+    /// the AppService CreateAsync, whose internal-caller fast-path stamps
+    /// Approved in the always-allow test harness). Mirrors the
+    /// <c>new Appointment(...)</c> seeding precedent in
+    /// AppointmentApprovalValidatorUnitTests; reuses seeded FK targets so
+    /// the SQLite FK constraints are satisfied.
+    /// </summary>
+    private async Task<Appointment> InsertPendingAppointmentInTenantAAsync(
+        Guid doctorAvailabilityId,
+        DateTime appointmentDate,
+        string requestConfirmationNumber)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var appointment = new Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: doctorAvailabilityId,
+                appointmentDate: appointmentDate,
+                requestConfirmationNumber: requestConfirmationNumber,
+                appointmentStatus: AppointmentStatusType.Pending);
+            return await _appointmentRepository.InsertAsync(appointment, autoSave: true);
+        }
+    }
+
+    // =====================================================================
+    // Issue 6 (T6 / 2026-05-27): the appointments list path must load
+    // AppointmentInjuryDetails for each row so the external "My Appointments
+    // Requests" home grid renders Claim # + Date Of Injury (data already
+    // present, list query previously omitted it). Previously, only the
+    // single-item GetWithNavigationPropertiesAsync ran the injury loader;
+    // the list ran only the base 5-way join. Batched fetch -- one query per
+    // sub-table for the whole page (no N+1).
+    // =====================================================================
+
+    [Fact]
+    public async Task GetListWithNavigationPropertiesAsync_LoadsInjuryDetails_ForEachRow()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(56),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T6-LISTINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+            await injuryRepository.InsertAsync(
+                new AppointmentInjuryDetail(
+                    Guid.NewGuid(),
+                    appointment.Id,
+                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    claimNumber: "CLM-T6-LIST",
+                    isCumulativeInjury: false,
+                    bodyPartsSummary: "Test",
+                    wcabAdj: "ADJ-CI3"),
+                autoSave: true);
+
+            var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(
+                appointmentDateMin: scratchSlot.AvailableDate.Date,
+                appointmentDateMax: scratchSlot.AvailableDate.Date.AddDays(1));
+
+            var row = items.FirstOrDefault(r => r.Appointment.Id == appointment.Id);
+            row.ShouldNotBeNull();
+            row!.AppointmentInjuryDetails.Count.ShouldBe(1);
+            row.AppointmentInjuryDetails[0].AppointmentInjuryDetail.ClaimNumber.ShouldBe("CLM-T6-LIST");
+        }
+    }
+
+    // =====================================================================
+    // Item 4 (2026-08-17) -- the re-book gates. Both refusals run BEFORE any
+    // create work, so they are reachable in this harness even though the
+    // success path is not (the SQLite rig cannot seed per-tenant catalogs).
+    // =====================================================================
+
+    [Fact]
+    public async Task CreateReBookAsync_WhenSourceDidHappen_IsRefused()
+    {
+        // Appointment1 is seeded Pending: it is still expected to take place, so there is
+        // nothing to replace. Re-booking it would strand a live appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateReBookAsync(
+                    AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                    BuildValidCreateDto()));
+
+            // The default fake principal is the internal "admin" role, so the staff-facing
+            // variant is expected -- but it is still a refusal, not an override.
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceNotEligibleStaffHint);
+        }
+    }
+
+    [Fact]
+    public async Task CreateReBookAsync_WhenSourceWasAlreadyReBooked_IsRefused()
+    {
+        // Guards an invariant the Case Tracker payload depends on: it finds the successor by
+        // querying for appointments pointing back at this one and takes the first match, on
+        // the documented assumption that at most one exists. Two would make that choice
+        // arbitrary AND unstable between pushes.
+        var sourceId = new Guid("e1a2b3c4-d5e6-4f70-8a1b-2c3d4e5f6a70");
+        var existingReBookId = new Guid("e1a2b3c4-d5e6-4f70-8a1b-2c3d4e5f6a71");
+        const string sourceConfirmation = "A90777";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentRepository.InsertAsync(
+                new Appointment(
+                    id: sourceId,
+                    patientId: PatientsTestData.Patient1Id,
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    locationId: LocationsTestData.Location1Id,
+                    doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                    appointmentDate: new DateTime(2027, 3, 1, 9, 0, 0, DateTimeKind.Utc),
+                    requestConfirmationNumber: sourceConfirmation,
+                    appointmentStatus: AppointmentStatusType.NoShow),
+                autoSave: true);
+
+            var alreadyReBooked = new Appointment(
+                id: existingReBookId,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 4, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: "A90778",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                RescheduledFromAppointmentId = sourceId,
+            };
+            await _appointmentRepository.InsertAsync(alreadyReBooked, autoSave: true);
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateReBookAsync(
+                    sourceConfirmation,
+                    BuildValidCreateDto()));
+
+            ex.Code.ShouldBe(
+                CaseEvaluationDomainErrorCodes.AppointmentReBookSourceAlreadyReBooked);
+        }
+    }
+
+    // =====================================================================
+    // GetPatientLookupAsync -- the PII guard and the per-role scoping.
+    // Phase 8 tranche 1, item 4 (2026-09-15).
+    //
+    // WHY THESE ARE NOT REDUNDANT WITH PatientLookupFilterUnitTests.
+    // That suite proves the PREDICATE IsLookupFilterTooShort classifies a
+    // filter correctly. It cannot see whether GetPatientLookupAsync ever
+    // CALLS it. Delete the guard block from the service and every one of
+    // those unit tests stays green -- the predicate they exercise is still
+    // right, it has simply stopped being consulted. The Facts below assert
+    // the WIRING, which is the half that can rot in silence.
+    //
+    // EVERY FIXTURE HERE IS UNIQUE PER TEST, which is load-bearing rather
+    // than tidiness. Rows accumulate across the shared test collection, and
+    // other suites already seed appointments carrying the shared
+    // ClaimExaminer1Email (AppointmentReadAccessGuardTests.cs:124). A scoping
+    // assertion written against the shared identities would be answering a
+    // question about whatever else happened to run first.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds one patient in TenantA whose email embeds <paramref name="token"/>, so a lookup
+    /// filtered on that token reaches this row and no other -- including rows left behind by
+    /// earlier tests in the shared collection.
+    /// </summary>
+    private async Task<Guid> SeedLookupPatientAsync(string token, string suffix)
+    {
+        var patientId = Guid.NewGuid();
+        await _patientRepository.InsertAsync(
+            new Patient(
+                id: patientId,
+                stateId: null,
+                appointmentLanguageId: null,
+                identityUserId: null,
+                tenantId: TenantsTestData.TenantARef,
+                firstName: "TEST-Lookup",
+                lastName: "Synthetic",
+                email: $"TEST-lookup-{token}-{suffix}@test.local",
+                genderId: Gender.Unspecified,
+                dateOfBirth: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                phoneNumberTypeId: PhoneNumberType.Work),
+            autoSave: true);
+        return patientId;
+    }
+
+    /// <summary>
+    /// Seeds one TenantA appointment for <paramref name="patientId"/> naming
+    /// <paramref name="claimExaminerEmail"/> as its examiner. The confirmation number embeds the
+    /// token because (TenantId, RequestConfirmationNumber) is a hard unique index and these rows
+    /// accumulate across the collection.
+    /// </summary>
+    private async Task<Guid> SeedLookupAppointmentAsync(
+        string token,
+        string suffix,
+        Guid patientId,
+        string claimExaminerEmail)
+    {
+        var appointmentId = Guid.NewGuid();
+        await _appointmentRepository.InsertAsync(
+            new Appointment(
+                id: appointmentId,
+                patientId: patientId,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 6, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: $"A9-LK-{token}-{suffix}",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                TenantId = TenantsTestData.TenantARef,
+                ClaimExaminerEmail = claimExaminerEmail,
+            },
+            autoSave: true);
+
+        return appointmentId;
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_BelowMinimumFilterLength_ReturnsNothingEvenThoughAPatientMatches()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await SeedLookupPatientAsync(token, "short");
+
+                // One character, and deliberately a character the seeded email DOES contain, so
+                // an empty page can only be the guard firing -- never a filter that missed.
+                var result = await _appointmentsAppService.GetPatientLookupAsync(
+                    new LookupRequestDto { Filter = token[..1], MaxResultCount = 1000 });
+
+                result.TotalCount.ShouldBe(
+                    0,
+                    "A filter shorter than PatientLookupMinFilterLength must return an EMPTY page. "
+                    + "If this fails, GetPatientLookupAsync has stopped consulting "
+                    + "IsLookupFilterTooShort, and any caller can enumerate the tenant's patient "
+                    + "emails one character at a time -- the PII guard this endpoint exists for.");
+                result.Items.ShouldBeEmpty();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_WithASufficientFilter_ReturnsTheMatchingPatient()
+    {
+        // The companion to the guard Fact above, and the reason that one is not vacuous: same
+        // seed, same endpoint, a longer filter. Without this, an empty page would be evidence of
+        // nothing -- a lookup that never returns anybody would satisfy the guard test too.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var patientId = await SeedLookupPatientAsync(token, "long");
+
+                var result = await _appointmentsAppService.GetPatientLookupAsync(
+                    new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                result.Items.ShouldContain(
+                    x => x.Id == patientId,
+                    "A filter at or above the minimum length must reach a matching patient. "
+                    + "If this fails the guard Fact above proves nothing, because an endpoint "
+                    + "that returns nobody would pass it regardless.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsClaimExaminer_ExcludesPatientsWhoseAppointmentNamesAnotherExaminer()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var callerEmail = $"TEST-ce-{token}@test.local";
+        var otherExaminerEmail = $"TEST-ce-other-{token}@test.local";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // BOTH patients match the filter. That is the point: the scoping rule is the only
+                // thing that can separate them, so removing it changes the answer.
+                var minePatientId = await SeedLookupPatientAsync(token, "mine");
+                var otherPatientId = await SeedLookupPatientAsync(token, "other");
+
+                await SeedLookupAppointmentAsync(token, "mine", minePatientId, callerEmail);
+                await SeedLookupAppointmentAsync(token, "other", otherPatientId, otherExaminerEmail);
+
+                // RunWithEmail, NOT Run. GetClaimExaminerVisiblePatientIdsAsync reads
+                // CurrentUser.Email and returns an empty list when it is null, and Run emits no
+                // Email claim at all. Under Run this Fact would pass with the ENTIRE Claim
+                // Examiner scoping rule deleted, because the caller would see nothing either way.
+                using (WithCurrentUser.RunWithEmail(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.ClaimExaminer1UserId,
+                           callerEmail,
+                           IdentityUsersTestData.ClaimExaminerRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == minePatientId,
+                        "A Claim Examiner must still see the patient on the appointment that "
+                        + "names them. If this fails the exclusion below proves nothing.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherPatientId,
+                        "A Claim Examiner must NOT see a patient whose only appointment names a "
+                        + "DIFFERENT examiner. Both patients match the filter, so an unscoped "
+                        + "query returns both -- this is the tenant-wide patient enumeration the "
+                        + "Claim Examiner scoping exists to stop.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsApplicantAttorney_ExcludesPatientsOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var minePatientId = await SeedLookupPatientAsync(token, "aa-mine");
+                var otherPatientId = await SeedLookupPatientAsync(token, "aa-other");
+
+                Guid mineAppointmentId;
+
+                // BOTH appointments are inserted while acting as the HOST ADMIN, and that is the
+                // load-bearing part of this fixture. The visibility rule is
+                // `(a.CreatorId ?? a.BookedByUserId) == userId  OR  an attorney link names them`,
+                // so seeding under the attorney would satisfy the FIRST arm and the link would
+                // never be exercised -- the Fact would pass with the entire join-table lookup
+                // deleted. Creating both under somebody else leaves the link as the only thing
+                // that can separate the two patients.
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "aa-mine", minePatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                    await SeedLookupAppointmentAsync(
+                        token, "aa-other", otherPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                }
+
+                await _appointmentApplicantAttorneyRepository.InsertAsync(
+                    new AppointmentApplicantAttorney(
+                        id: Guid.NewGuid(),
+                        appointmentId: mineAppointmentId,
+                        applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                        identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId)
+                    {
+                        TenantId = TenantsTestData.TenantARef,
+                    },
+                    autoSave: true);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.ApplicantAttorney1UserId,
+                           IdentityUsersTestData.ApplicantAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == minePatientId,
+                        "An Applicant Attorney must see the patient on the appointment whose "
+                        + "attorney link names them. If this fails the exclusion below is vacuous.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherPatientId,
+                        "An Applicant Attorney must NOT see a patient on an appointment they are "
+                        + "neither the creator of nor linked to. Both patients match the filter "
+                        + "and neither appointment was created by this attorney, so the join-table "
+                        + "scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    // =====================================================================
+    // Defense Attorney scoping, and the booker-side scoping on
+    // GetIdentityUserLookupAsync. Phase 8 tranche 1 follow-up (2026-09-16).
+    //
+    // These mirror the Applicant Attorney and Claim Examiner Facts above. The
+    // booker Facts create their OWN IdentityUsers with a unique token in the
+    // email, rather than reusing the seeded roster, because the lookup filters
+    // on email and rows accumulate across the shared collection: an assertion
+    // that a SEEDED user is absent would really be asserting that no earlier
+    // test happened to link them.
+    // =====================================================================
+
+    /// <summary>
+    /// Creates one IdentityUser in TenantA whose email embeds <paramref name="token"/>, so a
+    /// lookup filtered on that token can reach this row and no other.
+    /// </summary>
+    private async Task<Guid> SeedLookupUserAsync(string token, string suffix)
+    {
+        var userManager = GetRequiredService<Volo.Abp.Identity.IdentityUserManager>();
+        var userId = Guid.NewGuid();
+        var user = new Volo.Abp.Identity.IdentityUser(
+            userId,
+            $"TEST-bk-{token}-{suffix}",
+            $"TEST-bk-{token}-{suffix}@test.local",
+            _currentTenant.Id);
+
+        var result = await userManager.CreateAsync(user, IdentityUsersTestData.SeedPassword);
+        result.Succeeded.ShouldBeTrue(
+            "Seeding the booker failed, so this Fact would assert against a user that does not "
+            + "exist: " + string.Join("; ", result.Errors.Select(e => e.Description)));
+        return userId;
+    }
+
+    /// <summary>
+    /// Seeds a TenantA appointment whose BOOKER is <paramref name="bookerId"/>, created under the
+    /// host admin so the caller can never satisfy the creator arm of the visibility rule.
+    /// </summary>
+    private async Task<Guid> SeedBookerAppointmentAsync(string token, string suffix, Guid bookerId)
+    {
+        var appointmentId = Guid.NewGuid();
+        await _appointmentRepository.InsertAsync(
+            new Appointment(
+                id: appointmentId,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: bookerId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 8, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: $"A9-BK-{token}-{suffix}",
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                TenantId = TenantsTestData.TenantARef,
+            },
+            autoSave: true);
+        return appointmentId;
+    }
+
+    /// <summary>
+    /// Creates a DefenseAttorney row and links it to <paramref name="appointmentId"/> for
+    /// <see cref="IdentityUsersTestData.DefenseAttorney1UserId"/>. No such link is seeded, and
+    /// AppointmentDefenseAttorney.DefenseAttorneyId is a real FK, so the row must exist first.
+    /// </summary>
+    private async Task LinkDefenseAttorneyAsync(Guid appointmentId, string token)
+    {
+        var defenseAttorney = await GetRequiredService<DefenseAttorneyManager>().CreateAsync(
+            stateId: null,
+            identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
+            firmName: $"TEST-firm-{token}",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: $"TEST-da-{token}@test.local",
+            firstName: "TEST-Dana",
+            lastName: "Synthetic");
+
+        await _appointmentDefenseAttorneyRepository.InsertAsync(
+            new AppointmentDefenseAttorney(
+                id: Guid.NewGuid(),
+                appointmentId: appointmentId,
+                defenseAttorneyId: defenseAttorney.Id,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId)
+            {
+                TenantId = TenantsTestData.TenantARef,
+            },
+            autoSave: true);
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsDefenseAttorney_ExcludesPatientsOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var minePatientId = await SeedLookupPatientAsync(token, "da-mine");
+                var otherPatientId = await SeedLookupPatientAsync(token, "da-other");
+
+                Guid mineAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "da-mine", minePatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                    await SeedLookupAppointmentAsync(
+                        token, "da-other", otherPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                }
+
+                await LinkDefenseAttorneyAsync(mineAppointmentId, token);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.DefenseAttorney1UserId,
+                           IdentityUsersTestData.DefenseAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == minePatientId,
+                        "A Defense Attorney must see the patient on the appointment whose defense "
+                        + "link names them. If this fails the exclusion below is vacuous.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherPatientId,
+                        "A Defense Attorney must NOT see a patient on an appointment they are "
+                        + "neither the creator of nor linked to. Both patients match the filter "
+                        + "and neither appointment was created by this attorney, so the defense "
+                        + "join-table scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetIdentityUserLookupAsync_AsApplicantAttorney_ExcludesBookersOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var mineBookerId = await SeedLookupUserAsync(token, "aa-mine");
+                var otherBookerId = await SeedLookupUserAsync(token, "aa-other");
+
+                Guid mineAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedBookerAppointmentAsync(token, "aa-mine", mineBookerId);
+                    await SeedBookerAppointmentAsync(token, "aa-other", otherBookerId);
+                }
+
+                await _appointmentApplicantAttorneyRepository.InsertAsync(
+                    new AppointmentApplicantAttorney(
+                        id: Guid.NewGuid(),
+                        appointmentId: mineAppointmentId,
+                        applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                        identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId)
+                    {
+                        TenantId = TenantsTestData.TenantARef,
+                    },
+                    autoSave: true);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.ApplicantAttorney1UserId,
+                           IdentityUsersTestData.ApplicantAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetIdentityUserLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == mineBookerId,
+                        "An Applicant Attorney must see the booker on the appointment whose "
+                        + "attorney link names them.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherBookerId,
+                        "An Applicant Attorney must NOT see the booker of an appointment they are "
+                        + "neither creator of nor linked to. Both bookers match the email filter, "
+                        + "so the visible-booker scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetIdentityUserLookupAsync_AsDefenseAttorney_ExcludesBookersOnUnlinkedAppointments()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var mineBookerId = await SeedLookupUserAsync(token, "da-mine");
+                var otherBookerId = await SeedLookupUserAsync(token, "da-other");
+
+                Guid mineAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    mineAppointmentId = await SeedBookerAppointmentAsync(token, "da-mine", mineBookerId);
+                    await SeedBookerAppointmentAsync(token, "da-other", otherBookerId);
+                }
+
+                await LinkDefenseAttorneyAsync(mineAppointmentId, token);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.DefenseAttorney1UserId,
+                           IdentityUsersTestData.DefenseAttorneyRoleName))
+                {
+                    var result = await _appointmentsAppService.GetIdentityUserLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == mineBookerId,
+                        "A Defense Attorney must see the booker on the appointment whose defense "
+                        + "link names them.");
+
+                    result.Items.ShouldNotContain(
+                        x => x.Id == otherBookerId,
+                        "A Defense Attorney must NOT see the booker of an appointment they are "
+                        + "neither creator of nor linked to.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetIdentityUserLookupAsync_AsInternalUser_IsNotScopedToLinkedBookers()
+    {
+        // The companion that stops the two Facts above being vacuous. They assert that a booker is
+        // ABSENT, and absent is also what an unreachable row looks like -- a lookup that returned
+        // nobody would satisfy both. Here the SAME two users are seeded with no link at all, and an
+        // internal caller must see BOTH, which proves the exclusions above are the scoping working
+        // rather than the rows being invisible.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var firstBookerId = await SeedLookupUserAsync(token, "int-a");
+                var secondBookerId = await SeedLookupUserAsync(token, "int-b");
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    await SeedBookerAppointmentAsync(token, "int-a", firstBookerId);
+                    await SeedBookerAppointmentAsync(token, "int-b", secondBookerId);
+
+                    var result = await _appointmentsAppService.GetIdentityUserLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == firstBookerId,
+                        "An internal caller is not attorney-scoped and must see both bookers.");
+                    result.Items.ShouldContain(
+                        x => x.Id == secondBookerId,
+                        "An internal caller is not attorney-scoped and must see both bookers. If "
+                        + "this fails, the attorney Facts above prove nothing: their excluded "
+                        + "booker would be unreachable rather than scoped out.");
+                }
+            }
+        });
+    }
+
+    // =====================================================================
+    // UpdateAsync's happy path and the two events it publishes.
+    //
+    // NOTHING IN THIS SUITE HAD EVER DRIVEN UpdateAsync PAST ITS GUARDS -- all five existing call
+    // sites set a Guid to Empty and assert the throw, so BuildValidUpdateDto deliberately carries
+    // NON-EXISTENT foreign keys. These Facts are the first to run the method for real, which is why
+    // they seed their own appointment and read its actual ConcurrencyStamp rather than reusing that
+    // helper.
+    //
+    // Events are captured by AppointmentEventCapture, a singleton handler pair declared in this
+    // assembly and discovered by ABP's conventional registration. See its docstring for why a
+    // substituted bus was not an option here.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds an appointment and returns an update DTO carrying its REAL concurrency stamp and real
+    /// foreign keys, so <see cref="AppointmentsAppService.UpdateAsync"/> can actually complete.
+    /// </summary>
+    private async Task<(Guid AppointmentId, AppointmentUpdateDto Input)> SeedUpdatableAppointmentAsync(
+        string token)
+    {
+        var patientId = await SeedLookupPatientAsync(token, "upd");
+        var appointmentId = await SeedLookupAppointmentAsync(
+            token, "upd", patientId, IdentityUsersTestData.ClaimExaminer1Email);
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+
+        return (appointmentId, new AppointmentUpdateDto
+        {
+            PatientId = patientId,
             IdentityUserId = IdentityUsersTestData.Patient1UserId,
             AppointmentTypeId = LocationsTestData.AppointmentType1Id,
             LocationId = LocationsTestData.Location1Id,
-            DoctorAvailabilityId = scratchSlotId,
-            AppointmentDate = appointmentDate,
-            RequestConfirmationNumber = "ignored-by-server",
-            AppointmentStatus = AppointmentStatusType.Pending,
-            PanelNumber = null,
-            DueDate = null,
-        };
+            DoctorAvailabilityId = DoctorAvailabilitiesTestData.Slot1Id,
+            AppointmentDate = appointment.AppointmentDate,
+            RequestConfirmationNumber = appointment.RequestConfirmationNumber,
+            PanelNumber = appointment.PanelNumber,
+            DueDate = appointment.DueDate,
+            ConcurrencyStamp = appointment.ConcurrencyStamp,
+        });
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithValidInput_CompletesAndPersistsTheChange()
+    {
+        // The precondition for both event Facts below, and worth its own name: if this cannot run,
+        // neither of those can, and the reason would be about the rig rather than the events.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var (appointmentId, input) = await SeedUpdatableAppointmentAsync(token);
+
+                // RefferedBy is changed rather than an INTAKE field, and the reason is recorded
+                // above the class: changing a diffable intake field publishes
+                // AppointmentIntakeChangedEto, whose real production handler renders a notification
+                // template that this rig cannot resolve, so the update throws. RefferedBy is
+                // persisted by UpdateAsync but is not part of AppointmentIntakeDiff, so it
+                // exercises the write path without tripping the notification chain.
+                //
+                // Two earlier attempts here were both the test being wrong rather than the product:
+                // PanelNumber is refused outright on a non-PQME type
+                // (AppointmentManager.EnsurePanelNumberMatchesType), and DueDate publishes the event.
+                input.RefferedBy = $"TEST-ref-{token}";
+
+                await _appointmentsAppService.UpdateAsync(appointmentId, input);
+
+                var after = await _appointmentRepository.GetAsync(appointmentId);
+                after.RefferedBy.ShouldBe(
+                    $"TEST-ref-{token}",
+                    "UpdateAsync must persist an edit to a non-intake field.");
+            }
+        });
+    }
+
+    // THE POSITIVE EVENT FACT IS ABSENT ON PURPOSE, AND THIS IS THE FINDING.
+    //
+    // "Changing an intake field publishes AppointmentIntakeChangedEto" CANNOT be asserted in this
+    // rig. Publishing it runs the real production handler, IntakeChangedEmailHandler, which renders
+    // a notification template -- and NotificationTemplateDataSeedContributor is TENANT-SCOPED, so
+    // with no tenant in the seed context only the four host codes are seeded and a tenant render
+    // throws BusinessException("CaseEvaluation:NotificationTemplate.NotFound").
+    //
+    // CORRECTED 2026-09-17. An earlier version of this comment said the exception "propagates out of
+    // UpdateAsync, so the update itself fails", and presented a call stack ending in
+    // AppointmentsAppService.UpdateAsync as "measured, not inferred". That stack cannot be right and
+    // I did not capture it verbatim -- I reconstructed it. ABP queues locally-published events on the
+    // unit of work (onUnitOfWorkComplete defaults to true) and dispatches them at CompleteAsync();
+    // UpdateAsync joins the ambient unit of work as a ChildUnitOfWork whose CompleteAsync is a no-op
+    // forwarding to its parent. So the handler runs at the OUTER unit-of-work completion and the
+    // throw surfaces there, after UpdateAsync has already returned.
+    //
+    // Recording the shape of the error rather than just the fix: the conclusion was right, the
+    // reason was wrong, and the wrong reason read as more authoritative than the conclusion because
+    // it carried a stack trace. Nobody re-runs a reason.
+    //
+    // This is the SAME root cause that blocks ExternalAccountAppService's send paths, now confirmed
+    // to block a second area. Seeding a template here to force it green would be asserting against
+    // scaffolding I invented, so the Fact is not written. Per-tenant template seeding is the fixture
+    // work that would unblock both, and it is deliberately not invented under a deadline.
+    //
+    // The NEGATIVE half below IS reachable and is kept: no intake change means no event, and that
+    // path never reaches the renderer.
+
+    [Fact]
+    public async Task UpdateAsync_WhenNoIntakeFieldChanges_PublishesNoIntakeChangedEvent()
+    {
+        // The negative half, and it needs the Fact above to mean anything. AppointmentIntakeDiff
+        // only reports genuine differences, so re-saving identical values must NOT notify anyone --
+        // otherwise every incidental save mails the whole party list.
+        //
+        // THE ASSERTION SITS OUTSIDE THE UNIT OF WORK ON PURPOSE, and the first version of this
+        // Fact had it inside, where it COULD NOT FAIL. ABP's IEventBus.PublishAsync defaults
+        // onUnitOfWorkComplete: true, so a locally-published event is QUEUED on the unit of work and
+        // dispatched by CompleteAsync(). WithUnitOfWorkAsync runs the lambda and only then completes,
+        // so an assertion inside the lambda reads the capture bag before any handler has run: it was
+        // satisfied by an empty bag on every possible input, including a broken product.
+        //
+        // The old version still went RED under mutation, which is why it survived review as long as
+        // it did: the red came from another component throwing, not from its own assertion. A red
+        // test is not evidence. The NAME of the failure is the evidence.
+        //
+        // THIS VERSION IS PROVEN BY ASSERTION, measured 2026-09-17, not predicted:
+        //   mutate AppointmentsAppService.cs:1619  if (intakeChanges.Count > 0) -> (... >= 0)
+        //   baseline   Passed!  1/1
+        //   mutated    Failed!  Shouldly.ShouldAssertException : capture.IntakeChanged
+        //
+        // Why no template exception drowns it, which is the part worth keeping: the mutation
+        // publishes an ETO whose ChangedFields is EMPTY (nothing changed, so the diff is empty), and
+        // IntakeChangedEmailHandler.cs:50-53 early-returns on `ChangedFields.Count == 0` before it
+        // ever reaches the renderer. Only the capture handler records it. So the guarantee under
+        // test -- "no intake change means no event" -- has a mutation that isolates it cleanly, and
+        // this Fact needs NO notification-template fixture to be provable.
+        //
+        // Both predictions about this were wrong, mine included: I expected the real handler to
+        // throw at unit-of-work completion and mask the assertion. It does not, for the reason
+        // above. The measurement is why that is a footnote rather than a wrong comment shipped.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var capture = GetRequiredService<AppointmentEventCapture>();
+        var appointmentId = Guid.Empty;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var seeded = await SeedUpdatableAppointmentAsync(token);
+                appointmentId = seeded.AppointmentId;
+
+                // Every field left exactly as seeded.
+                await _appointmentsAppService.UpdateAsync(appointmentId, seeded.Input);
+            }
+        });
+
+        // Guard the guard: if the lambda never ran, the ShouldNotContain below would pass against a
+        // default Guid and be vacuous all over again, in a new way.
+        appointmentId.ShouldNotBe(
+            Guid.Empty,
+            "The fixture must have run, or the assertion that follows proves nothing.");
+
+        capture.IntakeChanged.ShouldNotContain(
+            e => e.AppointmentId == appointmentId,
+            "Re-saving identical intake values must publish NOTHING. If it does, every "
+            + "incidental save notifies the whole party list about a change that did not "
+            + "happen.");
+    }
+
+    // =====================================================================
+    // The attorney-details-for-booking pair. Both methods have the same shape: resolve a user by
+    // id OR by email, return null if nothing resolves, then merge the attorney record (which may
+    // not exist) over the identity user.
+    //
+    // The email resolution is the part worth pinning. It lower-cases and trims on BOTH sides, so
+    // an address typed with different casing or stray spaces during booking still finds the
+    // attorney. Without it the booking form silently fails to prefill and the user re-types
+    // details that were already on file.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetApplicantAttorneyDetailsForBookingAsync_ResolvesByEmail_IgnoringCaseAndPadding()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var typedDifferently = "  " + IdentityUsersTestData.ApplicantAttorney1Email.ToUpperInvariant() + "  ";
+
+                var result = await _appointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(
+                    identityUserId: null,
+                    email: typedDifferently);
+
+                result.ShouldNotBeNull(
+                    "An address typed with different casing or stray padding must still resolve. "
+                    + "If it does not, the booking form stops prefilling for anyone who types "
+                    + "their own address slightly differently from how it was stored.");
+                result!.IdentityUserId.ShouldBe(IdentityUsersTestData.ApplicantAttorney1UserId);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetApplicantAttorneyDetailsForBookingAsync_WhenNeitherIdNorEmailResolves_ReturnsNull()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var byNothing = await _appointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(
+                    identityUserId: null, email: null);
+                byNothing.ShouldBeNull("No id and no email cannot identify anybody.");
+
+                var byUnknownEmail = await _appointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(
+                    identityUserId: null,
+                    email: $"TEST-nobody-{Guid.NewGuid():N}@test.local");
+                byUnknownEmail.ShouldBeNull(
+                    "An address belonging to nobody must return null rather than a partially "
+                    + "populated DTO.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetDefenseAttorneyDetailsForBookingAsync_ResolvesByEmail_IgnoringCaseAndPadding()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var typedDifferently = "  " + IdentityUsersTestData.DefenseAttorney1Email.ToUpperInvariant() + "  ";
+
+                var result = await _appointmentsAppService.GetDefenseAttorneyDetailsForBookingAsync(
+                    identityUserId: null,
+                    email: typedDifferently);
+
+                result.ShouldNotBeNull("The defense-side mirror of the applicant Fact above.");
+                result!.IdentityUserId.ShouldBe(IdentityUsersTestData.DefenseAttorney1UserId);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetDefenseAttorneyDetailsForBookingAsync_ForAUserWithNoAttorneyRecord_StillReturnsIdentityDetails()
+    {
+        // The attorney row is OPTIONAL -- `defense?.Id` is nullable throughout the projection. A
+        // user who has logged in but never had a defense-attorney record created must still come
+        // back with their identity details so booking can proceed, with the attorney id null.
+        // Returning null here instead would block booking for exactly the new users the flow is
+        // meant to onboard.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _appointmentsAppService.GetDefenseAttorneyDetailsForBookingAsync(
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    email: null);
+
+                result.ShouldNotBeNull(
+                    "A resolvable identity user with no defense-attorney record must still return "
+                    + "details. Returning null would block booking for a user who simply has no "
+                    + "attorney row yet.");
+                result!.IdentityUserId.ShouldBe(IdentityUsersTestData.Patient1UserId);
+                result.DefenseAttorneyId.ShouldBeNull(
+                    "There is no defense-attorney record for this user, so the id must be null "
+                    + "rather than invented.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesTheAppointment_AndLeavesTheSlotStatusAlone()
+    {
+        // BOTH halves matter, and the second is the one the 2026-09-16 audit changed my mind about.
+        // DeleteAsync publishes AppointmentStatusChangedEto with ToStatus = null, and its own
+        // comment still claims SlotCascadeHandler "frees the slot". That handler is a log-only stub
+        // -- under the capacity model BookingStatusId is a manual-close override, not a derived
+        // value, and what frees a slot is the active-appointment count dropping. So the slot status
+        // must come through the delete UNCHANGED. Asserting that pins the current design against a
+        // well-meaning future change that "restores" the cascade to match the stale comment.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var patientId = await SeedLookupPatientAsync(token, "del");
+                var appointmentId = await SeedLookupAppointmentAsync(
+                    token, "del", patientId, IdentityUsersTestData.ClaimExaminer1Email);
+
+                var slotBefore = await _doctorAvailabilityRepository.GetAsync(
+                    DoctorAvailabilitiesTestData.Slot1Id);
+                var statusBefore = slotBefore.BookingStatusId;
+
+                await _appointmentsAppService.DeleteAsync(appointmentId);
+
+                (await _appointmentRepository.FindAsync(appointmentId)).ShouldBeNull(
+                    "The appointment must actually be gone.");
+
+                var slotAfter = await _doctorAvailabilityRepository.GetAsync(
+                    DoctorAvailabilitiesTestData.Slot1Id);
+                slotAfter.BookingStatusId.ShouldBe(
+                    statusBefore,
+                    "Deleting an appointment must NOT rewrite the slot's BookingStatusId. That "
+                    + "field is a manual-close override; writing it here would silently undo an "
+                    + "operator's deliberate close. Freeing the slot is the active-count dropping, "
+                    + "which the delete achieves by removing the row.");
+            }
+        });
+    }
+
+    // =====================================================================
+    // The catalog lookups. Labelled honestly: only the first of these pins a real rule.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetAppointmentTypeLookupAsync_WithAnEvaluationContext_OffersOnlyTypesValidForIt()
+    {
+        // THIS ONE PINS BEHAVIOUR, but only because it seeds its own subject -- and that is the
+        // whole point of the fixture below.
+        //
+        // THE FIRST VERSION OF THIS FACT WAS VACUOUS AND BATCH MUTATION CAUGHT IT. It compared
+        // filtered counts against the unfiltered count and asserted subset-ness, which holds
+        // perfectly well when the filter is deleted. The reason it could not fail is that NO
+        // seeded appointment type carries a specific EvaluationType -- every one is null, which the
+        // rule always admits -- so against seeded data the filter never narrows anything and there
+        // was nothing for the assertion to catch.
+        //
+        // Seeding a type that belongs exclusively to ONE context is what gives the filter work to
+        // do. The rule is: offer a type when it is untyped, or marked Both, or matches the
+        // requested context. Getting it wrong offers a clinician an evaluation type the
+        // appointment cannot actually be.
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var reOnlyTypeId = Guid.NewGuid();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await GetRequiredService<IRepository<AppointmentType, Guid>>().InsertAsync(
+                    new AppointmentType(
+                        id: reOnlyTypeId,
+                        name: $"TEST-re-only-{token}",
+                        description: null,
+                        evaluationType: EvaluationType.Re),
+                    autoSave: true);
+
+                var askingForNormal = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 }, EvaluationType.Normal);
+                var askingForRe = await _appointmentsAppService.GetAppointmentTypeLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 }, EvaluationType.Re);
+
+                askingForRe.Items.ShouldContain(
+                    x => x.Id == reOnlyTypeId,
+                    "A type belonging to the Re context must be offered when Re is requested. "
+                    + "Without this half the exclusion below is vacuous -- a lookup returning "
+                    + "nothing would satisfy it.");
+
+                askingForNormal.Items.ShouldNotContain(
+                    x => x.Id == reOnlyTypeId,
+                    "A type belonging exclusively to the Re context must NOT be offered when "
+                    + "Normal is requested. If it is, the evaluation-context filter is not being "
+                    + "applied and the booking form offers a type the appointment cannot be.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetLocationLookupAsync_FiltersByName()
+    {
+        // Modest: the only decision in this method is the name filter. Asserted both ways so a
+        // lookup that ignored the filter entirely would fail on the second half.
+        //
+        // RUNS IN THE HOST CONTEXT, NOT TenantA, and the first version of this Fact did not -- it
+        // failed on its own precondition. Location is IMultiTenant and the rig seeds all three rows
+        // under `_currentTenant.Change(null)` (CaseEvaluationIntegrationTestSeedContributor:188),
+        // so a TenantA caller sees an empty catalog and the filter assertion would have passed
+        // against nothing at all. The filter itself is tenant-agnostic, so asserting it where the
+        // data actually lives tests the same rule without pretending the rig is arranged
+        // differently than it is.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var all = await _appointmentsAppService.GetLocationLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 });
+                all.Items.ShouldNotBeEmpty(
+                    "Locations must be visible with the tenant filter disabled; without any row "
+                    + "the filter assertion below would be vacuous.");
+
+                var impossible = await _appointmentsAppService.GetLocationLookupAsync(
+                    new LookupRequestDto { Filter = $"NO-SUCH-{Guid.NewGuid():N}", MaxResultCount = 1000 });
+
+                impossible.Items.ShouldBeEmpty(
+                    "A filter matching no location must return nothing. If this returns rows the "
+                    + "filter is being ignored and the picker shows every location regardless of "
+                    + "what the user typed.");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_ReturnsSeededSlots()
+    {
+        // COVERAGE-ORIENTED, and labelled so rather than dressed up. This method applies no filter
+        // and makes no decision -- it pages the table and maps it. There is no rule to pin; the
+        // only thing assertable is that it returns what is there.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _appointmentsAppService.GetDoctorAvailabilityLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 });
+
+                result.Items.ShouldNotBeEmpty();
+            }
+        });
+    }
+
+    // =====================================================================
+    // GetByConfirmationNumberAsync -- the confirmation-number read path.
+    // Phase 8 tranche 1, item 4 (2026-09-15).
+    //
+    // The SSN Fact below is the one worth having. The masking call sits on a
+    // single line (ApplyPatientSsnVisibility) with nothing downstream that
+    // would notice its absence: remove it and the endpoint returns a complete
+    // social security number to every caller, the suite stays green, and the
+    // DTO still looks entirely well-formed. There is no shape change to catch.
+    // =====================================================================
+
+    /// <summary>
+    /// Seeds a patient carrying <paramref name="ssn"/> plus one appointment pointing at them, in
+    /// <paramref name="tenantId"/>, and returns that appointment's confirmation number.
+    /// </summary>
+    private async Task<string> SeedAppointmentForConfirmationLookupAsync(
+        string token,
+        Guid? tenantId,
+        string ssn)
+    {
+        var patientId = Guid.NewGuid();
+        await _patientRepository.InsertAsync(
+            new Patient(
+                id: patientId,
+                stateId: null,
+                appointmentLanguageId: null,
+                identityUserId: null,
+                tenantId: tenantId,
+                firstName: "TEST-Confirm",
+                lastName: "Synthetic",
+                email: $"TEST-confirm-{token}@test.local",
+                genderId: Gender.Unspecified,
+                dateOfBirth: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                phoneNumberTypeId: PhoneNumberType.Work,
+                socialSecurityNumber: ssn),
+            autoSave: true);
+
+        var confirmationNumber = $"A9-CN-{token}";
+        await _appointmentRepository.InsertAsync(
+            new Appointment(
+                id: Guid.NewGuid(),
+                patientId: patientId,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: new DateTime(2027, 7, 1, 9, 0, 0, DateTimeKind.Utc),
+                requestConfirmationNumber: confirmationNumber,
+                appointmentStatus: AppointmentStatusType.Pending)
+            {
+                TenantId = tenantId,
+            },
+            autoSave: true);
+
+        return confirmationNumber;
+    }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_WhenNothingMatches_ReturnsNull()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _appointmentsAppService.GetByConfirmationNumberAsync(
+                    $"A9-ABSENT-{Guid.NewGuid():N}");
+
+                result.ShouldBeNull();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_MasksThePatientSsnRatherThanReturningItWhole()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        // Synthetic and deliberately NOT in the XXX-XX-XXXX shape a PHI scanner matches, matching
+        // how PatientsTestData builds its own. No real number appears in this repository.
+        const string fullSsn = "AB1234CD9";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var confirmationNumber = await SeedAppointmentForConfirmationLookupAsync(
+                    token, TenantsTestData.TenantARef, fullSsn);
+
+                var result = await _appointmentsAppService.GetByConfirmationNumberAsync(
+                    confirmationNumber);
+
+                result.ShouldNotBeNull();
+                result!.Patient.ShouldNotBeNull();
+
+                result.Patient!.SocialSecurityNumber.ShouldNotBe(
+                    fullSsn,
+                    "GetByConfirmationNumberAsync returned the patient's FULL social security "
+                    + "number. ApplyPatientSsnVisibility is no longer masking it, and the only "
+                    + "endpoint allowed to serve the whole value is the audited reveal "
+                    + "(PatientsAppService.GetFullSsnAsync).");
+
+                // Asserted on the last four rather than the mask prefix so the Fact pins the
+                // GUARANTEE (everything but the last four is withheld) instead of the cosmetic
+                // choice of padding characters, which is free to change.
+                // The masked value must still end in the last four, which is what makes it usable
+                // for identification at all. No custom message here: Shouldly's third positional
+                // argument on ShouldEndWith is a Case, not a string.
+                result.Patient.SocialSecurityNumber.ShouldEndWith(fullSsn[^4..]);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_ForAnotherTenantsAppointment_ReportsNotFound()
+    {
+        // The confirmation-number space is guessable, so "does this number exist" must not be
+        // answerable across a tenant boundary. FindByConfirmationNumberAsync relies on ABP's
+        // IMultiTenant filter for this (EfCoreAppointmentRepository.cs:413), which means the row
+        // is invisible rather than forbidden -- the caller gets the same null as for a number
+        // nobody ever issued, and cannot tell the two apart.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        var confirmationNumber = await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                return await SeedAppointmentForConfirmationLookupAsync(
+                    token, TenantsTestData.TenantARef, "AB1234CD9");
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
+            {
+                var result = await _appointmentsAppService.GetByConfirmationNumberAsync(
+                    confirmationNumber);
+
+                result.ShouldBeNull(
+                    "A TenantB caller must not be able to confirm that TenantA issued this "
+                    + "confirmation number. Returning a row -- or throwing anything other than "
+                    + "the not-found answer -- turns the number space into an oracle for which "
+                    + "appointments exist in other tenants.");
+            }
+        });
     }
 }

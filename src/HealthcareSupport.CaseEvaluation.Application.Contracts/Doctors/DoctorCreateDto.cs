@@ -18,7 +18,6 @@ public class DoctorCreateDto
     [StringLength(DoctorConsts.EmailMaxLength)]
     public string Email { get; set; } = null!;
     public Gender Gender { get; set; } = Enum.GetValues<Gender>()[0];
-    public Guid? IdentityUserId { get; set; }
 
     public List<Guid> AppointmentTypeIds { get; set; } = new();
 

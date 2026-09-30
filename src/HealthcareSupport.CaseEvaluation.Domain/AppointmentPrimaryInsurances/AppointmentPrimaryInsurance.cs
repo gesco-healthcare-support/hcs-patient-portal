@@ -16,16 +16,19 @@ public class AppointmentPrimaryInsurance : FullAuditedAggregateRoot<Guid>, IMult
 {
     public virtual Guid? TenantId { get; set; }
 
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
     [CanBeNull]
     public virtual string? Name { get; set; }
 
+    // Issue 2.3 (2026-05-12): renamed from InsuranceNumber -> Suite.
+    // The on-screen label remained "STE" (USPS postal abbreviation for
+    // Suite, per Pub 28 \xa7213). The OLD column name "InsuranceNumber"
+    // was a misnomer; the field always stored a suite identifier (the
+    // OLD form positioned it as the address-line-2 between Street and
+    // City). EF migration `RenameColumn` preserves existing values.
     [CanBeNull]
-    public virtual string? InsuranceNumber { get; set; }
-
-    [CanBeNull]
-    public virtual string? Attention { get; set; }
+    public virtual string? Suite { get; set; }
 
     [CanBeNull]
     public virtual string? PhoneNumber { get; set; }
@@ -50,10 +53,10 @@ public class AppointmentPrimaryInsurance : FullAuditedAggregateRoot<Guid>, IMult
     {
     }
 
-    public AppointmentPrimaryInsurance(Guid id, Guid appointmentInjuryDetailId, bool isActive)
+    public AppointmentPrimaryInsurance(Guid id, Guid appointmentId, bool isActive)
     {
         Id = id;
-        AppointmentInjuryDetailId = appointmentInjuryDetailId;
+        AppointmentId = appointmentId;
         IsActive = isActive;
     }
 }

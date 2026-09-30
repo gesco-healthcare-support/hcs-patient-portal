@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -17,16 +18,22 @@ public class CreatePatientForAppointmentBookingInput
     [StringLength(PatientConsts.MiddleNameMaxLength)]
     public string? MiddleName { get; set; }
 
-    [Required]
+    // task_d5407b22 (2026-07-21): patient email is OPTIONAL (injured workers often lack one).
+    // No [Required]; [EmailAddress] still validates the FORMAT of a provided value (and allows
+    // null). The wizard sends null for a blank field; the service stores "".
     [EmailAddress]
     [StringLength(PatientConsts.EmailMaxLength)]
-    public string Email { get; set; } = null!;
+    public string? Email { get; set; }
 
-    public Gender GenderId { get; set; } = Enum.GetValues<Gender>()[0];
+    // G-06-08 (2026-06-01): default to the explicit "not provided" sentinel
+    // rather than positional [0] (which silently meant Male before Unspecified
+    // was added). The booking form requires a real gender; this governs omission.
+    public Gender GenderId { get; set; } = Gender.Unspecified;
 
     public DateTime DateOfBirth { get; set; }
 
     [StringLength(PatientConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(PatientConsts.SocialSecurityNumberMaxLength)]
@@ -41,10 +48,8 @@ public class CreatePatientForAppointmentBookingInput
     [StringLength(PatientConsts.ZipCodeMaxLength)]
     public string? ZipCode { get; set; }
 
-    [StringLength(PatientConsts.RefferedByMaxLength)]
-    public string? RefferedBy { get; set; }
-
     [StringLength(PatientConsts.CellPhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? CellPhoneNumber { get; set; }
 
     public PhoneNumberType PhoneNumberTypeId { get; set; } = Enum.GetValues<PhoneNumberType>()[0];

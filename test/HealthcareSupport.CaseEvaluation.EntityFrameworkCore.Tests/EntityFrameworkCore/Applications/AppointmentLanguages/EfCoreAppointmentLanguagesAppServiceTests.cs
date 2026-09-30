@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreAppointmentLanguagesAppServiceTests : AppointmentLanguagesAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

@@ -12,7 +12,6 @@ public interface IDoctorsAppService : IApplicationService
     Task<PagedResultDto<DoctorWithNavigationPropertiesDto>> GetListAsync(GetDoctorsInput input);
     Task<DoctorWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id);
     Task<DoctorDto> GetAsync(Guid id);
-    Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetTenantLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetLocationLookupAsync(LookupRequestDto input);

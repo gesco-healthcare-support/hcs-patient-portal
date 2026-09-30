@@ -19,6 +19,16 @@ public class EfCoreDefenseAttorneyRepository : EfCoreRepository<CaseEvaluationDb
     {
     }
 
+    public virtual async Task<DefenseAttorney?> FindByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default)
+    {
+        var loweredEmail = normalizedEmail.Trim().ToLower();
+        var dbSet = await GetDbSetAsync();
+        return await dbSet
+            .Where(a => a.Email != null && a.Email.ToLower() == loweredEmail)
+            .OrderBy(a => a.CreationTime)
+            .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
+    }
+
     public virtual async Task<DefenseAttorneyWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
@@ -38,7 +48,7 @@ public class EfCoreDefenseAttorneyRepository : EfCoreRepository<CaseEvaluationDb
         return from defenseAttorney in (await GetDbSetAsync())
                join state in (await GetDbContextAsync()).Set<State>() on defenseAttorney.StateId equals state.Id into states
                from state in states.DefaultIfEmpty()
-               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on defenseAttorney.IdentityUserId equals identityUser.Id into identityUsers
+               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on defenseAttorney.IdentityUserId equals (Guid?)identityUser.Id into identityUsers
                from identityUser in identityUsers.DefaultIfEmpty()
                select new DefenseAttorneyWithNavigationProperties
                {

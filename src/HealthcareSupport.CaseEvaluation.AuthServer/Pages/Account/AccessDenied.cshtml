@@ -1,0 +1,34 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.AccessDeniedModel
+@{
+    ViewData["Title"] = "Access denied";
+}
+@*
+    Custom Razor view for /Account/AccessDenied. Filesystem precedence
+    overrides the stock AbpAccountPublicWeb RCL page so this view + its
+    PageModel substitute for the stock pair. Layout mirrors the existing
+    ResetPassword / ForgotPassword overrides.
+
+    Behaviour: shows a plain-language "access denied" message and a back
+    link to /Account/Login. The stock framework page used title-case +
+    an exclamation mark ("Access denied!"); the rewritten copy drops the
+    bang and uses sentence-case per the 2026-05-18 style rules.
+*@
+
+<div class="account-card">
+    <div class="account-content">
+
+        <h1 class="text-center mt-4 mb-3">Access denied</h1>
+
+        <p class="text-center mt-3" role="alert">
+            You don't have access to this page.
+        </p>
+
+        <hr class="my-4" />
+
+        <p class="text-center">
+            <a href="~/Account/Login">&larr; Back to sign-in</a>
+        </p>
+
+    </div>
+</div>

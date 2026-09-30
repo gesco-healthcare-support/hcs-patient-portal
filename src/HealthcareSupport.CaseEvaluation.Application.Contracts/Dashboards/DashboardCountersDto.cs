@@ -19,6 +19,11 @@ public class DashboardCountersDto
     public int PendingChangeRequests { get; set; }
     public int RequestsApproachingLegalDeadline { get; set; }
 
+    // 2026-06-11: Pending requests past the per-tenant decision deadline
+    // (PendingAppointmentOverDueNotificationDays, default 3). Escalate / notify
+    // only -- no automatic status change.
+    public int DecisionOverdue { get; set; }
+
     // 8 placeholders (return 0 until corresponding caps land)
     public int BilledThisMonth { get; set; }
     public int NoShowThisMonth { get; set; }

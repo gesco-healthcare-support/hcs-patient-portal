@@ -1,0 +1,43 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.LoggedOutModel
+@{
+    ViewData["Title"] = "Signed out";
+}
+@*
+    Custom Razor view for /Account/LoggedOut. Filesystem precedence
+    overrides the stock AbpAccountPublicWeb RCL page so this view + its
+    PageModel substitute for the stock pair. Layout mirrors the existing
+    ResetPassword / ForgotPassword overrides (same account-card /
+    account-content wrapper, same accessibility attrs).
+
+    Behaviour: shows a brief "you're signed out" confirmation and
+    auto-redirects to /Account/Login after 3 seconds. A manual fallback
+    link is rendered for WCAG 2.2.4 conformance (users who disable
+    redirects or whose AT does not auto-follow meta-refresh can click).
+*@
+
+<div class="account-card">
+    <div class="account-content">
+
+        <h1 class="text-center mt-4 mb-3">You're signed out</h1>
+
+        <p class="text-center mt-3" role="status" aria-live="polite">
+            Taking you back to sign-in...
+        </p>
+
+        <p class="text-center mt-2">
+            <a href="~/Account/Login">Or click here.</a>
+        </p>
+
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        // WCAG 2.2.4 (AAA): the visible "click here" link is the manual
+        // fallback for users who disable redirects.
+        setTimeout(function () {
+            window.location.href = '/Account/Login';
+        }, 3000);
+    </script>
+}

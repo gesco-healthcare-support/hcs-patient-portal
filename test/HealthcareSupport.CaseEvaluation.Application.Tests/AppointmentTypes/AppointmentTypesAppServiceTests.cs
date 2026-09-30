@@ -150,20 +150,20 @@ public abstract class AppointmentTypesAppServiceTests<TStartupModule> : CaseEval
     // methods. Create/Edit/Delete are correctly permission-gated).
     // ------------------------------------------------------------------------
 
-    [Fact(Skip = "GAP: AppointmentTypesAppService class-level [Authorize] is generic; "
-              + "feature-specific Default permission exists in CaseEvaluationPermissions"
-              + ".AppointmentTypes but is NOT enforced on Read methods (GetAsync, "
-              + "GetListAsync). Create/Edit/Delete are correctly permission-gated. When "
-              + "the AppService gets [Authorize(... .Default)] at class level, this test "
-              + "flips live. Tracked: src/.../Domain/AppointmentTypes/CLAUDE.md Known "
-              + "Gotchas (when added) AND docs/issues/INCOMPLETE-FEATURES.md.")]
+    [Fact(Skip = "IP1 (2026-06-03): the read guard is now in place -- "
+              + "AppointmentTypesAppService carries [Authorize(...AppointmentTypes.Default)] at "
+              + "class level, so GetAsync/GetListAsync require the Default permission in "
+              + "production. A LIVE permission-denied assertion is not possible in-process "
+              + "because the test base registers AddAlwaysAllowAuthorization "
+              + "(CaseEvaluationTestBaseModule), which makes every [Authorize] succeed "
+              + "regardless of granted permissions. Enforcement is verified by the attribute "
+              + "plus the Staff-Supervisor role-grant seed query.")]
     public Task GetAsync_WhenCallerLacksDefaultPermission_ShouldThrow()
     {
-        // Target behaviour: caller without CaseEvaluation.AppointmentTypes (Default)
-        // permission should get AbpAuthorizationException when calling GetAsync /
-        // GetListAsync. Today the class-level [Authorize] is generic (auth-only),
-        // so any authenticated user can read appointment types regardless of
-        // whether they were granted the feature-specific Default permission.
+        // The guard exists (class-level [Authorize(...AppointmentTypes.Default)]). Under
+        // AddAlwaysAllowAuthorization the authorization interceptor always succeeds, so the
+        // caller-lacks-permission path cannot be exercised in-process; kept as documentation
+        // of the intended production behavior.
         return Task.CompletedTask;
     }
 }

@@ -1,0 +1,141 @@
+<app-external-navbar
+  [clinicName]="navClinicName"
+  [userName]="navDisplayName"
+  [roleLabel]="navRoleLabel"
+  [userEmail]="navUserEmail"
+  (documentsClick)="backHome()"
+  (logoutClick)="signOut()"
+/>
+
+<div class="mp" role="main">
+  @if (isLoading) {
+    <div class="mp-card" style="padding: 24px; color: var(--n-500)">
+      Loading your profile&hellip;
+    </div>
+  } @else if (notFound) {
+    <div class="mp-card" style="padding: 24px">
+      <b>No claim examiner profile found</b>
+      <p>Your account is not linked to a claim examiner record.</p>
+    </div>
+  } @else {
+    <!-- header band -->
+    <div class="mp-head">
+      <div class="mp-head__id">
+        <h1>{{ form.value.firstName }} {{ form.value.lastName }}</h1>
+        <span class="mp-head__role">{{ roleLabel }}</span>
+        @if (email) {
+          <span class="mp-head__email">{{ email }}</span>
+        }
+      </div>
+    </div>
+
+    <!-- editable profile -->
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+          <h3>Profile details</h3>
+        </div>
+        <div class="mp-card__body">
+          <p class="ra-note">
+            <span class="i"><app-icon name="info" [size]="15" /></span>
+            Editing here updates your details for future bookings. Past appointments keep the
+            information recorded when they were booked.
+          </p>
+
+          <div class="ra-grid">
+            <div class="ra-field col-6">
+              <label for="ce-profile-first-name">First name</label>
+              <input
+                id="ce-profile-first-name"
+                class="ra-input"
+                type="text"
+                formControlName="firstName"
+                maxlength="50"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label for="ce-profile-last-name">Last name</label>
+              <input
+                id="ce-profile-last-name"
+                class="ra-input"
+                type="text"
+                formControlName="lastName"
+                maxlength="50"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label for="ce-profile-phone-number">Phone</label>
+              <input
+                id="ce-profile-phone-number"
+                appPhoneNumber
+                class="ra-input"
+                type="text"
+                formControlName="phoneNumber"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label for="ce-profile-fax-number">Fax</label>
+              <input
+                id="ce-profile-fax-number"
+                appPhoneNumber
+                class="ra-input"
+                type="text"
+                formControlName="faxNumber"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label for="ce-profile-email">Email</label>
+              <input id="ce-profile-email" class="ra-input" type="text" [value]="email" disabled />
+            </div>
+            <div class="ra-field col-6">
+              <label for="ce-profile-street">Street</label>
+              <input
+                id="ce-profile-street"
+                class="ra-input"
+                type="text"
+                formControlName="street"
+                maxlength="255"
+              />
+            </div>
+            <div class="ra-field col-4">
+              <label for="ce-profile-city">City</label>
+              <input
+                id="ce-profile-city"
+                class="ra-input"
+                type="text"
+                formControlName="city"
+                maxlength="50"
+              />
+            </div>
+            <div class="ra-field col-4">
+              <label for="ce-profile-state-id">State</label>
+              <select id="ce-profile-state-id" class="ra-select" formControlName="stateId">
+                <option [ngValue]="null">-- Select --</option>
+                @for (s of states; track s.id) {
+                  <option [ngValue]="s.id">{{ s.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="ra-field col-4">
+              <label for="ce-profile-zip-code">Zip code</label>
+              <input
+                id="ce-profile-zip-code"
+                class="ra-input"
+                type="text"
+                formControlName="zipCode"
+                maxlength="10"
+              />
+            </div>
+          </div>
+
+          <div class="mp-editfoot">
+            <button class="ap-btn ap-btn--primary" type="submit" [disabled]="isBusy">
+              {{ isBusy ? 'Saving...' : 'Save changes' }}
+            </button>
+          </div>
+        </div>
+      </section>
+    </form>
+  }
+</div>
