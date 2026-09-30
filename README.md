@@ -437,7 +437,7 @@ does the example: it ships with placeholders.**
 | ABP licensing | `ABP_LICENSE_CODE`, `ABP_NUGET_API_KEY` | ABP Commercial licence and the private package-feed key. Both are required to restore and run |
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENABLE_SSL`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS`, `SMTP_FROM_NAME` | Outbound notification transport and sender identity |
 | Case Tracker integration | `CASE_TRACKER_BASE_URL`, `CASE_TRACKER_INTAKE_TOKEN`, `CASE_TRACKER_INTEGRATION_TOKEN`, `CASE_TRACKER_FEED_TOKEN`, `CASE_TRACKER_TIMEOUT_SECONDS`, `CASE_TRACKER_FEED_ALERT_RECIPIENTS` | Downstream endpoint, the three separate tokens the integration uses, its timeout, and the recipients of both the feed alerts and the weekly missing-intake report |
-| Administrator passwords | `ADMIN_PASSWORD_DIRECTORY`, `ADMIN_PASSWORD_VAULT_URI` | Where generated administrator passwords are written. Set the vault URI instead of the directory to use a managed store |
+| Administrator passwords | `ADMIN_PASSWORD_DIRECTORY`, `ADMIN_PASSWORD_VAULT_URI` | Where generated administrator passwords are written: a folder on the host, one file per database. **`ADMIN_PASSWORD_VAULT_URI` must stay empty.** The Key Vault store is not in this build and setting the URI stops start-up |
 | Backup | `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_ALERT_RECIPIENTS` | Dump destination, retention window, and failure alert recipients |
 | Container memory | `SQL_MEM_LIMIT`, `API_MEM_LIMIT`, `AUTHSERVER_MEM_LIMIT`, `PACKET_RENDERER_MEM_LIMIT` | Per-container memory ceilings |
 
