@@ -195,11 +195,14 @@ In development without Redis, ABP falls back to in-memory caching and local data
 
 Configured in `HealthChecksBuilderExtensions.AddCaseEvaluationHealthChecks()`:
 
-| Endpoint | Purpose |
-|----------|---------|
-| `/health-status` | Health check endpoint (JSON format via `UIResponseWriter`) |
-| `/health-ui` | Health checks dashboard UI |
-| `/health-api` | Health checks API for the UI |
+| Endpoint | Purpose | Access |
+|----------|---------|--------|
+| `/health-status` | Health check endpoint (JSON format via `UIResponseWriter`) | Open; the reverse proxy's probe |
+| `/health-ui` | Health checks dashboard UI | Outside Development: a host user holding `CaseEvaluation.BackgroundJobsDashboard` |
+| `/health-api` | Health checks API for the UI | Same as `/health-ui` |
+
+The AuthServer maps the same three paths from its own `HealthChecksBuilderExtensions`, with no checks registered,
+so its `/health-status` reports only that the process answers.
 
 ### Database Check
 
