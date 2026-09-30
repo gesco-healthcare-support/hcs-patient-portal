@@ -49,12 +49,9 @@ internal static class BookingFlowRoles
                 continue;
             }
             var trimmed = role.Trim();
-            foreach (var internalRole in InternalUserRoles)
+            if (InternalUserRoles.Any(r => string.Equals(trimmed, r, System.StringComparison.OrdinalIgnoreCase)))
             {
-                if (string.Equals(trimmed, internalRole, System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                return true;
             }
         }
         return false;
@@ -97,12 +94,9 @@ internal static class BookingFlowRoles
                 continue;
             }
             var trimmed = role.Trim();
-            foreach (var managerRole in ExternalAccessorManagerRoles)
+            if (ExternalAccessorManagerRoles.Any(r => string.Equals(trimmed, r, System.StringComparison.OrdinalIgnoreCase)))
             {
-                if (string.Equals(trimmed, managerRole, System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                return true;
             }
         }
         return false;

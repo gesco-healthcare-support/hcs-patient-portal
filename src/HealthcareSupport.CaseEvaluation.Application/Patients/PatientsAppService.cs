@@ -88,15 +88,9 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     }
 
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
-    public virtual async Task<PatientWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
+    public virtual Task<PatientWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        var isHost = CurrentTenant.Id == null;
-        using (isHost ? _dataFilter.Disable() : null)
-        {
-            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
-            ApplySsnVisibility(dto);
-            return dto;
-        }
+        return GetMaskedPatientAsync(id);
     }
 
     // Bare [Authorize], and it has to stay that way: the booking wizard fetches a selected
@@ -112,7 +106,14 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     //
     //     git grep -n "for-appointment-booking" -- angular/src/app ':!*.spec.ts'
     [Authorize]
-    public virtual async Task<PatientWithNavigationPropertiesDto> GetPatientForAppointmentBookingAsync(Guid id)
+    public virtual Task<PatientWithNavigationPropertiesDto> GetPatientForAppointmentBookingAsync(Guid id)
+    {
+        return GetMaskedPatientAsync(id);
+    }
+
+    // Shared by the two reads above, which differ only in who may call them. The
+    // authorization lives on each public method, never here.
+    private async Task<PatientWithNavigationPropertiesDto> GetMaskedPatientAsync(Guid id)
     {
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
@@ -151,6 +152,52 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             ApplySsnVisibility(dto);
             return dto;
         }
+    }
+
+    // Returns the first de-duplication candidate the 3-of-6 rule matches, mapped and masked
+    // for the caller, or null when none does.
+    private async Task<PatientWithNavigationPropertiesDto?> FindDedupMatchAsync(
+        CreatePatientForAppointmentBookingInput input,
+        string? email,
+        List<Patient> dedupCandidates)
+    {
+        var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+        {
+            LastName = input.LastName,
+            DateOfBirth = input.DateOfBirth,
+            PhoneNumber = input.PhoneNumber,
+            Email = email ?? string.Empty,
+            SocialSecurityNumber = input.SocialSecurityNumber,
+            ClaimNumber = null,
+        };
+
+        foreach (var candidate in dedupCandidates)
+        {
+            var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+            {
+                LastName = candidate.LastName,
+                DateOfBirth = candidate.DateOfBirth,
+                PhoneNumber = candidate.PhoneNumber,
+                Email = candidate.Email,
+                SocialSecurityNumber = candidate.SocialSecurityNumber,
+                ClaimNumber = null,
+            };
+
+            if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
+                .IsPatientDuplicate(incoming, candidateBag))
+            {
+                var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
+                if (matchedWithNav != null)
+                {
+                    // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
+                    var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
+                    dtoMatched.IsExisting = true;
+                    ApplySsnVisibility(dtoMatched);
+                    return dtoMatched;
+                }
+            }
+        }
+        return null;
     }
 
     [Authorize]
@@ -214,44 +261,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 // the predicate counts the remaining 5 fields.
                 claimNumbers: null);
 
-            if (dedupCandidates.Count > 0)
+            var dedupMatch = await FindDedupMatchAsync(input, email, dedupCandidates);
+            if (dedupMatch != null)
             {
-                var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
-                {
-                    LastName = input.LastName,
-                    DateOfBirth = input.DateOfBirth,
-                    PhoneNumber = input.PhoneNumber,
-                    Email = email ?? string.Empty,
-                    SocialSecurityNumber = input.SocialSecurityNumber,
-                    ClaimNumber = null,
-                };
-
-                foreach (var candidate in dedupCandidates)
-                {
-                    var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
-                    {
-                        LastName = candidate.LastName,
-                        DateOfBirth = candidate.DateOfBirth,
-                        PhoneNumber = candidate.PhoneNumber,
-                        Email = candidate.Email,
-                        SocialSecurityNumber = candidate.SocialSecurityNumber,
-                        ClaimNumber = null,
-                    };
-
-                    if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
-                        .IsPatientDuplicate(incoming, candidateBag))
-                    {
-                        var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
-                        if (matchedWithNav != null)
-                        {
-                            // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
-                            var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
-                            dtoMatched.IsExisting = true;
-                            ApplySsnVisibility(dtoMatched);
-                            return dtoMatched;
-                        }
-                    }
-                }
+                return dedupMatch;
             }
 
             // IP6 (2026-06-05): record-only model. Booking inserts a Patient

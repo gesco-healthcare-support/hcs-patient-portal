@@ -43,9 +43,6 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 [Authorize]
 public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsAppService
 {
-    private const string RequestConfirmationPrefix = "A";
-    private const int RequestConfirmationDigits = 5;
-
     protected IAppointmentRepository _appointmentRepository;
     protected AppointmentManager _appointmentManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> _patientRepository;
@@ -1475,7 +1472,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // 2026-05-15 slot rework (plan 3): capacity-aware booking gate.
         // Previous single-row gate (BookingStatusId == Available) is
         // replaced with: Reserved => manually closed (always blocks);
-        // capacity exhausted (active count >= Capacity) => SlotFull;
+        // capacity exhausted (active count at or over Capacity) gives SlotFull;
         // non-empty AppointmentTypes set not containing requested type
         // => TypeMismatch. Booked is treated as Available for backward
         // compatibility (the active-count probe is authoritative).
@@ -1504,7 +1501,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         // Arm 3: type membership. Empty set = any type accepted
         // (loose mode); non-empty must contain the requested type.
-        if (doctorAvailability.AppointmentTypes.Any() &&
+        if (doctorAvailability.AppointmentTypes.Count > 0 &&
             !doctorAvailability.AppointmentTypes.Any(at => at.AppointmentTypeId == input.AppointmentTypeId))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch);

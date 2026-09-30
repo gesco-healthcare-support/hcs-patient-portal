@@ -33,6 +33,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// </summary>
 public class CcRecipientAppender : ITransientDependency
 {
+    private static readonly char[] CcSeparators = { ';', ',' };
+
     private readonly ISystemParameterRepository _systemParameterRepository;
     private readonly ILogger<CcRecipientAppender> _logger;
 
@@ -74,7 +76,7 @@ public class CcRecipientAppender : ITransientDependency
             StringComparer.OrdinalIgnoreCase);
 
         var ccAddresses = systemParameter.CcEmailIds
-            .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
+            .Split(CcSeparators, StringSplitOptions.RemoveEmptyEntries)
             .Select(a => a.Trim())
             .Where(a => a.Length > 0);
 

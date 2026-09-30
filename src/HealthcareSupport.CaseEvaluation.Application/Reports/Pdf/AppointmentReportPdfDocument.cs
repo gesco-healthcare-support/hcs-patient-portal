@@ -50,39 +50,7 @@ internal sealed class AppointmentReportPdfDocument : IDocument
 
             page.Header().Text("Appointment Request Report").FontSize(14).SemiBold();
 
-            page.Content().PaddingVertical(8).Table(table =>
-            {
-                table.ColumnsDefinition(columns =>
-                {
-                    foreach (var width in ColumnWidths)
-                    {
-                        columns.RelativeColumn(width);
-                    }
-                });
-
-                table.Header(header =>
-                {
-                    foreach (var label in Headers)
-                    {
-                        header.Cell().Background(HeaderColor).Padding(4)
-                            .Text(label).FontColor(Colors.White).Bold();
-                    }
-                });
-
-                var rowIndex = 0;
-                foreach (var row in _rows)
-                {
-                    var background = rowIndex % 2 == 1 ? Colors.Grey.Lighten4 : Colors.White;
-                    foreach (var value in CellValues(row))
-                    {
-                        table.Cell().Background(background)
-                            .BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2)
-                            .Padding(4).Text(value ?? string.Empty);
-                    }
-
-                    rowIndex++;
-                }
-            });
+            page.Content().PaddingVertical(8).Table(ComposeTable);
 
             page.Footer().AlignRight().Text(text =>
             {
@@ -93,7 +61,41 @@ internal sealed class AppointmentReportPdfDocument : IDocument
         });
     }
 
-    private static IEnumerable<string?> CellValues(AppointmentReportRowDto row) => new[]
+    private void ComposeTable(TableDescriptor table)
+    {
+        table.ColumnsDefinition(columns =>
+        {
+            foreach (var width in ColumnWidths)
+            {
+                columns.RelativeColumn(width);
+            }
+        });
+
+        table.Header(header =>
+        {
+            foreach (var label in Headers)
+            {
+                header.Cell().Background(HeaderColor).Padding(4)
+                    .Text(label).FontColor(Colors.White).Bold();
+            }
+        });
+
+        var rowIndex = 0;
+        foreach (var row in _rows)
+        {
+            var background = rowIndex % 2 == 1 ? Colors.Grey.Lighten4 : Colors.White;
+            foreach (var value in CellValues(row))
+            {
+                table.Cell().Background(background)
+                    .BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2)
+                    .Padding(4).Text(value ?? string.Empty);
+            }
+
+            rowIndex++;
+        }
+    }
+
+    private static string?[] CellValues(AppointmentReportRowDto row) => new[]
     {
         row.RequestConfirmationNumber,
         row.AppointmentTypeName,

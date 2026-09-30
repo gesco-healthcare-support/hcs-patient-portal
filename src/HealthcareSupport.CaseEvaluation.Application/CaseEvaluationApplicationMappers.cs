@@ -34,6 +34,17 @@ using HealthcareSupport.CaseEvaluation.SystemParameters;
 
 namespace HealthcareSupport.CaseEvaluation;
 
+// An attorney row is not always linked to a portal account, so the entity's
+// IdentityUserId is nullable while the DTOs carry a non-nullable Guid. The wire
+// contract spells "no linked account" as the all-zero Guid (the Angular side's
+// UNASSIGNED_APPOINTMENT_ID). Mapperly's default for Guid? -> Guid skips the
+// assignment on null, which in the Map(source, destination) overload would keep
+// the destination's previous id; the mappers below route through this instead.
+internal static class AttorneyIdentityMapping
+{
+    public static Guid OrUnassigned(Guid? value) => value ?? Guid.Empty;
+}
+
 [Mapper]
 public partial class StateToStateDtoMappers : MapperBase<State, StateDto>
 {
@@ -359,6 +370,8 @@ public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigat
 {
     public override partial AppointmentWithNavigationPropertiesDto Map(AppointmentWithNavigationProperties source);
     public override partial void Map(AppointmentWithNavigationProperties source, AppointmentWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -454,6 +467,8 @@ public partial class ApplicantAttorneyToApplicantAttorneyDtoMappers : MapperBase
 {
     public override partial ApplicantAttorneyDto Map(ApplicantAttorney source);
     public override partial void Map(ApplicantAttorney source, ApplicantAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -461,6 +476,8 @@ public partial class ApplicantAttorneyWithNavigationPropertiesToApplicantAttorne
 {
     public override partial ApplicantAttorneyWithNavigationPropertiesDto Map(ApplicantAttorneyWithNavigationProperties source);
     public override partial void Map(ApplicantAttorneyWithNavigationProperties source, ApplicantAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -468,6 +485,8 @@ public partial class AppointmentApplicantAttorneyToAppointmentApplicantAttorneyD
 {
     public override partial AppointmentApplicantAttorneyDto Map(AppointmentApplicantAttorney source);
     public override partial void Map(AppointmentApplicantAttorney source, AppointmentApplicantAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -475,6 +494,8 @@ public partial class AppointmentApplicantAttorneyWithNavigationPropertiesToAppoi
 {
     public override partial AppointmentApplicantAttorneyWithNavigationPropertiesDto Map(AppointmentApplicantAttorneyWithNavigationProperties source);
     public override partial void Map(AppointmentApplicantAttorneyWithNavigationProperties source, AppointmentApplicantAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -526,6 +547,8 @@ public partial class DefenseAttorneyToDefenseAttorneyDtoMappers : MapperBase<Def
 {
     public override partial DefenseAttorneyDto Map(DefenseAttorney source);
     public override partial void Map(DefenseAttorney source, DefenseAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -533,6 +556,8 @@ public partial class DefenseAttorneyWithNavigationPropertiesToDefenseAttorneyWit
 {
     public override partial DefenseAttorneyWithNavigationPropertiesDto Map(DefenseAttorneyWithNavigationProperties source);
     public override partial void Map(DefenseAttorneyWithNavigationProperties source, DefenseAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -540,6 +565,8 @@ public partial class AppointmentDefenseAttorneyToAppointmentDefenseAttorneyDtoMa
 {
     public override partial AppointmentDefenseAttorneyDto Map(AppointmentDefenseAttorney source);
     public override partial void Map(AppointmentDefenseAttorney source, AppointmentDefenseAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -547,6 +574,8 @@ public partial class AppointmentDefenseAttorneyWithNavigationPropertiesToAppoint
 {
     public override partial AppointmentDefenseAttorneyWithNavigationPropertiesDto Map(AppointmentDefenseAttorneyWithNavigationProperties source);
     public override partial void Map(AppointmentDefenseAttorneyWithNavigationProperties source, AppointmentDefenseAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]

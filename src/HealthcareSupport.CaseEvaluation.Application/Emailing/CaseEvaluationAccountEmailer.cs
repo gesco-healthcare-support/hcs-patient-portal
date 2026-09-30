@@ -231,7 +231,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     // instead of ambient ICurrentTenant.Name (which is null inside the
     // Change(tenantId) scopes opened by Register / Reset / Invite).
 
-    private static IReadOnlyDictionary<string, object?> BuildLinkVariables(IdentityUser user, string url)
+    private static Dictionary<string, object?> BuildLinkVariables(IdentityUser user, string url)
     {
         var vars = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -245,7 +245,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         return vars;
     }
 
-    private static IReadOnlyDictionary<string, object?> BuildCodeVariables(string? firstName, string? lastName, string code)
+    private static Dictionary<string, object?> BuildCodeVariables(string? firstName, string? lastName, string code)
     {
         var vars = new Dictionary<string, object?>(StringComparer.Ordinal)
         {

@@ -930,9 +930,9 @@ public class AppointmentChangeRequestsApprovalAppService :
     /// 2026-08-27, so that conversion is now a no-op rather than a correction; it is kept because
     /// every decision call site reads identically either way.</para>
     /// </summary>
-    private Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
+    private async Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {
-        return _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+        await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
     }
 
 }
