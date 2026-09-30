@@ -1,0 +1,78 @@
+# In-house hosting (2026-07-09, T4). Sourced by nginx's /docker-entrypoint.sh at
+# container start (file ends in .envsh, so nginx sources it -- no executable bit
+# needed, robust over Windows bind mounts). Regenerates dynamic-env.json from this
+# deployment's env vars so the SAME built prod SPA image is re-pointable per
+# environment. The SPA fetches dynamic-env.json at boot (src/main.ts), merges it
+# over the baked environment, then tenant-bootstrap.ts prepends the office slug as
+# the leftmost host label -> per-office, per-service URLs.
+#
+# The URLs below are OFFICE-LESS service bases (no {office} label); the SPA adds the
+# office at runtime. baseHost is the office-less app host used to detect the office
+# subdomain and to redirect the bare host to the reserved `admin` surface.
+#
+#   APP_BASE_HOST    e.g. portal.example.com        (office-less app host)
+#   APP_SPA_BASE_URL e.g. https://portal.example.com
+#   APP_AUTH_URL     e.g. https://auth.portal.example.com   (issuer base, no slug)
+#   APP_API_URL      e.g. https://api.portal.example.com
+#   APP_NAME         display name (optional)
+#   APP_REQUIRE_HTTPS "true" | "false" (default true)
+#
+# Defaults fall back to the local dev URLs so an unconfigured container is still
+# coherent.
+APP_BASE_HOST_VALUE="${APP_BASE_HOST:-localhost}"
+APP_SPA_BASE_URL_VALUE="${APP_SPA_BASE_URL:-http://localhost:4200}"
+APP_AUTH_URL_VALUE="${APP_AUTH_URL:-http://localhost:44368}"
+APP_API_URL_VALUE="${APP_API_URL:-http://localhost:44327}"
+APP_NAME_VALUE="${APP_NAME:-Appointment Portal}"
+APP_REQUIRE_HTTPS_VALUE="${APP_REQUIRE_HTTPS:-true}"
+
+# Production hardening 1.7 (2026-09-01). baseHost is interpolated into a URL authority
+# by the SPA (tenant-bootstrap.ts), so a value carrying a scheme, path, credentials or
+# whitespace produces wrong tenant routing that looks like an application bug.
+#
+# This FAILS THE CONTAINER START rather than warning, unlike the SPA's own check which
+# starts and shows a banner. The difference is the audience: nothing is being served yet
+# at this point, and the person who sees this message is the operator running the deploy,
+# who can act on it. A container that serves misrouted tenants is worse than one that
+# refuses to start.
+#
+# It cannot fire on a currently-valid deployment: the :- default above already turns an
+# unset or empty APP_BASE_HOST into "localhost", so only malformed values reach here.
+case "${APP_BASE_HOST_VALUE}" in
+    *[!A-Za-z0-9._-]*)
+        echo "ERROR: APP_BASE_HOST is not a bare hostname: '${APP_BASE_HOST_VALUE}'" >&2
+        echo "       Expected something like 'portal.example.com' -- no scheme, no path," >&2
+        echo "       no port, no credentials, no spaces. Fix BASE_DOMAIN and redeploy." >&2
+        exit 1
+        ;;
+esac
+
+cat > /usr/share/nginx/html/dynamic-env.json <<EOF
+{
+  "production": true,
+  "baseHost": "${APP_BASE_HOST_VALUE}",
+  "application": {
+    "baseUrl": "${APP_SPA_BASE_URL_VALUE}",
+    "name": "${APP_NAME_VALUE}",
+    "logoUrl": ""
+  },
+  "oAuthConfig": {
+    "issuer": "${APP_AUTH_URL_VALUE}/",
+    "redirectUri": "${APP_SPA_BASE_URL_VALUE}",
+    "clientId": "CaseEvaluation_App",
+    "responseType": "code",
+    "scope": "offline_access openid profile email phone CaseEvaluation",
+    "requireHttps": ${APP_REQUIRE_HTTPS_VALUE}
+  },
+  "apis": {
+    "default": {
+      "url": "${APP_API_URL_VALUE}",
+      "rootNamespace": "HealthcareSupport.CaseEvaluation"
+    },
+    "AbpAccountPublic": {
+      "url": "${APP_AUTH_URL_VALUE}",
+      "rootNamespace": "AbpAccountPublic"
+    }
+  }
+}
+EOF

@@ -1,25 +1,25 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 
 public class AppointmentPrimaryInsuranceCreateDto
 {
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.NameMaxLength)]
     public string? Name { get; set; }
 
-    [StringLength(AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength)]
-    public string? InsuranceNumber { get; set; }
-
-    [StringLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength)]
-    public string? Attention { get; set; }
+    [StringLength(AppointmentPrimaryInsuranceConsts.SuiteMaxLength)]
+    public string? Suite { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength)]
+    [PhoneNumber]
     public string? PhoneNumber { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength)]
+    [PhoneNumber]
     public string? FaxNumber { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.StreetMaxLength)]

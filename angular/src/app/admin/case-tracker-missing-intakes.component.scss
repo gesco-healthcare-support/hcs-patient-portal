@@ -1,0 +1,103 @@
+:host {
+  display: block;
+  margin-top: 28px;
+}
+.cmi-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.cmi-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.cmi-sub {
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+  max-width: 70ch;
+}
+.cmi-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.cmi-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.cmi-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 20px;
+  color: #555;
+  font-size: 13px;
+}
+.cmi-error {
+  color: #a4262c;
+}
+.cmi-summary {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.cmi-office {
+  border-top: 1px solid #e5e5e5;
+  padding: 12px 0;
+}
+.cmi-office h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.cmi-note {
+  margin: 4px 0;
+  color: #555;
+  font-size: 13px;
+}
+.cmi-warn {
+  margin: 4px 0;
+  color: #a4262c;
+  font-size: 13px;
+}
+.cmi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 6px 0;
+}
+.cmi-table th,
+.cmi-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+.cmi-id {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.cmi-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #0b5cad;
+  cursor: pointer;
+  font-size: 13px;
+}
+.cmi-before {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #444;
+}

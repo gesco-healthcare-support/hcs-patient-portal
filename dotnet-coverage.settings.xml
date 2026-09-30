@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings for `dotnet-coverage collect -s` in ci.yml (backend-test-shard, both collect steps).
+
+  WHAT: instrument ONLY this repository's assemblies. Every project here builds an assembly named
+  HealthcareSupport.CaseEvaluation[.X] (no <AssemblyName> override anywhere), so a rule on that file
+  name keeps all of our modules, test assemblies included, and nothing else.
+
+  WHY: dotnet-coverage instruments every module that loads and has a PDB. A dependency that ships
+  SourceLinked PDBs then lands in the backend report as if it were our code, and the Coverage: Floors
+  gate refuses it (#683: "counted file(s) are not tracked in this repository"). That happened with
+  FluentValidation, MessagePack and HealthChecks.UI. Each was answered by naming the vendor in
+  .coverage-exclusions, one at a time, which that file itself calls the problem rather than the
+  solution. This stops dependencies being instrumented at all.
+
+  DEFAULTS ARE KEPT: a custom list MERGES with the built-in default exclusions (mergeDefaults defaults
+  to True, since 17.14; CI pins 18.11.0). So nothing the defaults exclude today, for example
+  [ExcludeFromCodeCoverage], starts counting. Source: microsoft/codecoverage docs/configuration.md.
+
+  Patterns are case-insensitive ECMAScript regexes over the module's file path.
+
+  KNOWN LIMIT: a future project whose assembly name lacks the prefix would drop out of coverage
+  silently. Keep the prefix, or add its name here.
+-->
+<Configuration>
+  <CodeCoverage>
+    <ModulePaths>
+      <Include>
+        <ModulePath>.*[\\/]HealthcareSupport\.CaseEvaluation(\.[^\\/]*)?\.dll$</ModulePath>
+      </Include>
+    </ModulePaths>
+  </CodeCoverage>
+</Configuration>

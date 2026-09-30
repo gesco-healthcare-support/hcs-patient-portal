@@ -1,0 +1,11 @@
+# #945: emails a person when a backup unit fails. Started by OnFailure= on hcs-portal-backup.service and
+# hcs-portal-backup-verify.service; %i is the failed unit's name. Runs as root to read secrets/env.prod and that
+# unit's journal. Invoked through bash so it does not depend on the file's execute bit.
+[Unit]
+Description=Patient Portal backup alert for %i
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/backup-alert.sh failed %i

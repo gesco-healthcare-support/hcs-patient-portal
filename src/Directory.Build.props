@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    Shipping-code-only build defaults, added 2026-08-27.
+
+    MSBuild stops walking up at the FIRST Directory.Build.props it finds, so this file must
+    explicitly import the repo-root one or every project under src/ would silently lose
+    TreatWarningsAsErrors, the CVE package pins and the OBS-14 Scriban ban.
+
+    It exists so a banned-API list can apply to SHIPPING code without applying to tests. The
+    repo-root BannedSymbols.txt is solution-wide and stays that way; src/BannedSymbols.txt is
+    additive on top of it, and BannedApiAnalyzers merges every AdditionalFile named
+    BannedSymbols.txt rather than taking one. Test projects therefore keep the Scriban ban and
+    are free to build fixtures from concrete DateTime values, which is what a test should do.
+  -->
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

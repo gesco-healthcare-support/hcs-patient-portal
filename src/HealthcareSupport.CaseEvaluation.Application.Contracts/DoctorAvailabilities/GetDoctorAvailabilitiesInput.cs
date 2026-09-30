@@ -24,8 +24,6 @@ public class GetDoctorAvailabilitiesInput : PagedAndSortedResultRequestDto
 
     public Guid? LocationId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
-
     public GetDoctorAvailabilitiesInput()
     {
     }

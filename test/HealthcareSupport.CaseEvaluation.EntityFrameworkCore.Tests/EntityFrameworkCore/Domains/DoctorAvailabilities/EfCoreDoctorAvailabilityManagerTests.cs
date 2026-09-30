@@ -1,9 +1,7 @@
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
-using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.DoctorAvailabilities;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class EfCoreDoctorAvailabilityManagerTests : DoctorAvailabilityManagerTests<CaseEvaluationEntityFrameworkCoreTestModule>
 {
 }

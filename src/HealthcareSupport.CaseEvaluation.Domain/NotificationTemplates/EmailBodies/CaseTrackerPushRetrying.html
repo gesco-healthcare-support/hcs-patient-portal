@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <title>Case Tracker deliveries still retrying</title>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 20px; color: #000;">
+    <p>Hello ##StaffFirstName##,</p>
+    <p>
+        <strong>##FailureCount##</strong> appointment push(es) to the Case Tracker for
+        <strong>##OfficeName##</strong> have failed at least twice and are still being retried. These cases
+        have not reached the Case Tracker yet.
+    </p>
+    <!--
+      Plain text inside <pre>, for the same reason as CaseTrackerPushFailed.html: the template must not
+      depend on whether the dispatcher HTML-escapes substituted values.
+    -->
+    <pre style="font-family: Consolas, Menlo, monospace; font-size: 13px; background: #f6f8fa; padding: 12px; border-radius: 4px; white-space: pre-wrap;">##FailureList##</pre>
+    <p>
+        The portal retries each push automatically for 24 hours after its first failure. A push that has
+        still not been delivered by then is moved to the Case Tracker failures screen, and a separate email
+        is sent.
+    </p>
+    <!--
+      No portal button: the failures screen lists only pushes that have stopped retrying, so a link here
+      would lead to a screen that does not show these.
+    -->
+    <p style="margin-top: 20px; color: #555; font-size: 12px;">
+        Appointments are identified by confirmation number only. No patient details are included in this
+        message.
+    </p>
+</body>
+</html>

@@ -1,12 +1,15 @@
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.Shared;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
@@ -18,6 +21,7 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     private readonly IAppointmentAccessorRepository _accessorRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected AppointmentAccessorsAppServiceTests()
     {
@@ -25,6 +29,7 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
         _accessorRepository = GetRequiredService<IAppointmentAccessorRepository>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // ------------------------------------------------------------------------
@@ -59,26 +64,62 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     }
 
     [Fact]
-    public async Task CreateAsync_PersistsNewAccessor_AsHostScoped()
+    public async Task CreateAsync_AsInternalUser_LinksExistingUserByEmail()
     {
-        // Create in host context -> TenantId = null; the ABP IMultiTenant filter
-        // hides this from tenant-scoped callers but keeps it visible from host.
-        var input = new AppointmentAccessorCreateDto
+        // Group J: accessors are added by typing an email. An internal caller
+        // bypasses the edit-gate; the email resolves to a seeded user so
+        // create-or-link LINKS the existing identity (no auto-provision).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   IdentityUsersTestData.HostAdminId,
+                   IdentityUsersTestData.HostAdminRoleName))
         {
-            AccessTypeId = AccessType.View,
-            IdentityUserId = IdentityUsersTestData.Patient1UserId,
-            AppointmentId = AppointmentsTestData.Appointment1Id
-        };
+            var input = new AppointmentAccessorCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                Email = IdentityUsersTestData.Patient1Email,
+                Role = IdentityUsersTestData.PatientRoleName,
+                AccessTypeId = AccessType.View
+            };
 
-        var created = await _accessorsAppService.CreateAsync(input);
+            var created = await _accessorsAppService.CreateAsync(input);
 
-        created.ShouldNotBeNull();
-        created.AccessTypeId.ShouldBe(AccessType.View);
-        created.IdentityUserId.ShouldBe(input.IdentityUserId);
-        created.AppointmentId.ShouldBe(input.AppointmentId);
+            created.ShouldNotBeNull();
+            created.AccessTypeId.ShouldBe(AccessType.View);
+            created.IdentityUserId.ShouldBe(IdentityUsersTestData.Patient1UserId);
+            created.AppointmentId.ShouldBe(input.AppointmentId);
 
-        var persisted = await _accessorRepository.FindAsync(created.Id);
-        persisted.ShouldNotBeNull();
+            var persisted = await _accessorRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCallerIsNonParty_IsDenied()
+    {
+        // Deny-by-default (Group J): a same-tenant external user who is NOT a
+        // party to the appointment (not creator, not an Edit-accessor) must not
+        // be able to add an accessor -- blocks self-escalation. The edit-gate
+        // fires before create-or-link, so the email never resolves.
+        var nonPartyUserId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   nonPartyUserId,
+                   IdentityUsersTestData.PatientRoleName))
+        {
+            var input = new AppointmentAccessorCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                Email = "TEST-outsider@test.local",
+                Role = IdentityUsersTestData.PatientRoleName,
+                AccessTypeId = AccessType.View
+            };
+
+            await Should.ThrowAsync<BusinessException>(
+                async () => await _accessorsAppService.CreateAsync(input));
+        }
     }
 
     [Fact]
@@ -105,18 +146,27 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     }
 
     [Fact]
-    public async Task DeleteAsync_RemovesAccessor()
+    public async Task DeleteAsync_AsInternalUser_RemovesAccessor()
     {
-        var created = await _accessorsAppService.CreateAsync(new AppointmentAccessorCreateDto
+        // Delete is gated by edit-access; an internal caller bypasses the gate.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   IdentityUsersTestData.HostAdminId,
+                   IdentityUsersTestData.HostAdminRoleName))
         {
-            AccessTypeId = AccessType.View,
-            IdentityUserId = IdentityUsersTestData.Patient1UserId,
-            AppointmentId = AppointmentsTestData.Appointment1Id
-        });
+            var created = await _accessorsAppService.CreateAsync(new AppointmentAccessorCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                Email = IdentityUsersTestData.Patient1Email,
+                Role = IdentityUsersTestData.PatientRoleName,
+                AccessTypeId = AccessType.View
+            });
 
-        await _accessorsAppService.DeleteAsync(created.Id);
+            await _accessorsAppService.DeleteAsync(created.Id);
 
-        (await _accessorRepository.FindAsync(created.Id)).ShouldBeNull();
+            (await _accessorRepository.FindAsync(created.Id)).ShouldBeNull();
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -184,21 +234,25 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
     }
 
     // ------------------------------------------------------------------------
-    // Permission-gap encoding (GAP: AppointmentAccessorsAppService uses generic
-    // [Authorize] on Create/Edit/Delete instead of feature-specific permissions.
-    // Tracked as Known Gotcha in the feature CLAUDE.md).
+    // DESIGN NOTE, 2026-09-15 -- A ROAD NOT TAKEN. This is not outstanding work.
+    //
+    // A skipped test used to sit here, holding open the idea that accessor
+    // mutations would one day be gated by feature-specific permissions
+    // (CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}). Those constants
+    // were defined and granted to roles, but never enforced by anything, and the
+    // whole surface was removed on 2026-09-15.
+    //
+    // The decision was deliberate rather than a cleanup: accessor mutations are
+    // gated by AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync, which
+    // composes the pure AppointmentAccessRules.CanManageAccessors rule. That gate
+    // is STRICTER than a permission would be -- deny-by-default, and it excludes
+    // the Edit-accessor pathway that appointment edit-access allows. Swapping it
+    // for a role permission would LOOSEN the rule, not tighten it.
+    //
+    // So there is nothing to resume here. If accessor permissions are ever wanted,
+    // that is a new design decision about the authorization model, not the
+    // completion of an unfinished one -- and it would start by asking whether a
+    // role-level grant can express "the creator, if they also hold an accessor-
+    // managing external role", which is what the guard actually enforces.
     // ------------------------------------------------------------------------
-
-    [Fact(Skip = "GAP: AppointmentAccessorsAppService Create/Edit/Delete methods use generic "
-              + "[Authorize] -- feature-specific Create/Edit/Delete permissions exist in "
-              + "CaseEvaluationPermissions.AppointmentAccessors but are NOT enforced. When the "
-              + "AppService gets specific [Authorize(... .Create)] etc, this test flips live. "
-              + "Tracked: src/.../Domain/AppointmentAccessors/CLAUDE.md Known Gotchas #2.")]
-    public Task CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow()
-    {
-        // Target behaviour: caller without CaseEvaluation.AppointmentAccessors.Create should
-        // get AbpAuthorizationException when calling CreateAsync. Today the method only
-        // requires generic [Authorize] so ANY authenticated user can create accessors.
-        return Task.CompletedTask;
-    }
 }

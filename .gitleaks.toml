@@ -45,10 +45,32 @@ paths = [
   '''docker[\\/]appsettings\.secrets\.json$''',
   # Per-project appsettings.secrets.json files. Gitignored.
   '''[\\/]appsettings\.secrets\.json$''',
+  # BUG-029 follow-up (2026-05-22) -- bug runbook documents synthetic
+  # invitation-link tokens (`med_<base64>` format, never issued by a
+  # real session). Gitleaks' generic-api-key rule flags the
+  # high-entropy suffix; the file is documentation, not code.
+  '''docs[\\/]runbooks[\\/]findings[\\/]bugs[\\/]BUG-029.*\.md$''',
+  # The same file after the archive moved to docs/findings/ (2026-09). The old path stays:
+  # gitleaks also scans history, where the file still lives there.
+  '''docs[\\/]findings[\\/]bugs[\\/]BUG-029.*\.md$''',
   # Data-seeding scripts use synthetic tenant/user keys (T1_P1,
   # T4_NullPatient, etc.) per the HIPAA "synthetic data only" rule. Whole
   # directory is test scaffolding.
   '''scripts[\\/]phases[\\/]Phase-.*\.ps1''',
+  # Bug/observation reports under docs/runbooks/findings/ embed example
+  # URLs (OAuth invite tokens, OpenID confirmation tokens, OOB codes) to
+  # document specific reproductions. Those tokens are synthetic from local
+  # dev tenants and high-entropy enough to trigger generic-api-key. Adrian
+  # is the only writer and these docs are intentional documentation; if a
+  # real secret ever slipped into a finding it would be caught at code-
+  # review time. Allowlist the folder rather than chasing individual
+  # fingerprints. 2026-05-23 added after BUG-029's invite-token example
+  # blocked every push from the repo.
+  '''docs[\\/]runbooks[\\/]findings[\\/].*\.md''',
+  # The same reports after the archive moved to docs/findings/ (2026-09). Old path kept for
+  # history scans. Deliberately NOT docs/findings/.*: that would also allow-list
+  # investigations/ and the dated QA folders, which were never allow-listed before the move.
+  '''docs[\\/]findings[\\/](bugs[\\/])?[^\\/]*\.md''',
 ]
 regexTarget = "match"
 regexes = [
@@ -60,4 +82,18 @@ regexes = [
   '''generate-your-own.*''',
   # Synthetic seeded-tenant keys: T1_P1, T2_AA1, T4_NullPatient, T5_DA2, etc.
   '''T\d+_[A-Za-z]+\d*''',
+  # BUG-029 follow-up (2026-05-22) -- synthetic invitation tokens in
+  # docs/runbooks/findings/bugs/BUG-029-*.md and related runbook docs
+  # use the `med_<base64-ish>` prefix to document one-time-use invite
+  # URLs. Gitleaks' generic-api-key rule flags the high-entropy
+  # remainder; the prefix + 32-char alphanumeric suffix is the
+  # documented synthetic format (no real session ever issues these).
+  '''med_[A-Za-z0-9_-]{30,}''',
+  # Microsoft's public built-in Azure role definition ids, identical in every tenant and
+  # published in the Azure RBAC documentation: Key Vault Secrets User and Key Vault
+  # Certificate User. infra/azure/main.bicep holds them in variables whose names contain
+  # 'Secrets' and 'Key', which is what generic-api-key keys on. Exact values, so no other
+  # string is covered. Decided 2026-09-25.
+  '''4633458b-17de-408a-b874-0445c86b69e6''',
+  '''db79e9a7-68ee-4b58-9aeb-b90e7c24fcba''',
 ]

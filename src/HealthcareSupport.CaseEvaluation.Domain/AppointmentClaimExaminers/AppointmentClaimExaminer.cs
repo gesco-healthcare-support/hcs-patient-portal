@@ -16,13 +16,17 @@ public class AppointmentClaimExaminer : FullAuditedAggregateRoot<Guid>, IMultiTe
 {
     public virtual Guid? TenantId { get; set; }
 
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
     [CanBeNull]
     public virtual string? Name { get; set; }
 
+    // Issue 2.3 (2026-05-12): renamed from ClaimExaminerNumber -> Suite.
+    // Same fix as AppointmentPrimaryInsurance.Suite — the form labels
+    // this "STE" (USPS abbreviation for Suite); the OLD column name was
+    // a misnomer.
     [CanBeNull]
-    public virtual string? ClaimExaminerNumber { get; set; }
+    public virtual string? Suite { get; set; }
 
     [CanBeNull]
     public virtual string? Email { get; set; }
@@ -50,10 +54,10 @@ public class AppointmentClaimExaminer : FullAuditedAggregateRoot<Guid>, IMultiTe
     {
     }
 
-    public AppointmentClaimExaminer(Guid id, Guid appointmentInjuryDetailId, bool isActive)
+    public AppointmentClaimExaminer(Guid id, Guid appointmentId, bool isActive)
     {
         Id = id;
-        AppointmentInjuryDetailId = appointmentInjuryDetailId;
+        AppointmentId = appointmentId;
         IsActive = isActive;
     }
 }

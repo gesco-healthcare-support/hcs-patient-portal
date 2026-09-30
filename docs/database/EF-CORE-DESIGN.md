@@ -1,10 +1,12 @@
 # EF Core Design
 
-[Home](../INDEX.md) > [Database](./) > EF Core Design
+> Purpose: Documents the dual-DbContext EF Core strategy, DbSet inventory, and entity configuration patterns for the Appointment Portal. Audience: backend developers adding or modifying entities.
+
+[Home](../index.md) > [Database](./) > EF Core Design
 
 ## Overview
 
-The HCS Case Evaluation Portal uses a **dual DbContext strategy** to support ABP's multi-tenancy model. Both contexts share a common base class that configures all ABP module entity mappings, while each context handles its own side of the multi-tenancy split.
+The Appointment Portal uses a **dual DbContext strategy** to support ABP's multi-tenancy model. Both contexts share a common base class that configures all ABP module entity mappings, while each context handles its own side of the multi-tenancy split.
 
 - **Connection string name:** `"Default"` (set via `[ConnectionStringName("Default")]`)
 - **Database provider:** SQL Server (configured in `CaseEvaluationDbContextFactoryBase` via `UseSqlServer`)
@@ -29,12 +31,12 @@ classDiagram
     }
     class CaseEvaluationDbContext {
         MultiTenancySides.Both
-        +14 DbSet properties
+        +DbSet properties
         #OnModelCreating(ModelBuilder)
     }
     class CaseEvaluationTenantDbContext {
         MultiTenancySides.Tenant
-        +11 DbSet properties
+        +DbSet properties
         #OnModelCreating(ModelBuilder)
     }
 
@@ -86,50 +88,97 @@ builder.Entity<Book>(b =>
 
 Sets `MultiTenancySides.Both` -- this context manages the host database, which contains both host-only and shared data.
 
-### DbSet Properties (14)
+### DbSet Properties
+
+The context file is the complete list (`grep -c 'public DbSet<'` on `CaseEvaluationDbContext.cs` gives 47 on
+2026-09-28); the table below predates several newer entities.
 
 | DbSet | Entity Type |
 |-------|-------------|
 | `Appointments` | `Appointment` |
-| `Patients` | `Patient` |
-| `Doctors` | `Doctor` |
-| `DoctorAvailabilities` | `DoctorAvailability` |
-| `Locations` | `Location` |
-| `States` | `State` |
-| `AppointmentTypes` | `AppointmentType` |
-| `AppointmentStatuses` | `AppointmentStatus` |
-| `AppointmentLanguages` | `AppointmentLanguage` |
-| `WcabOffices` | `WcabOffice` |
-| `AppointmentEmployerDetails` | `AppointmentEmployerDetail` |
-| `AppointmentAccessors` | `AppointmentAccessor` |
-| `ApplicantAttorneys` | `ApplicantAttorney` |
 | `AppointmentApplicantAttorneys` | `AppointmentApplicantAttorney` |
+| `ApplicantAttorneys` | `ApplicantAttorney` |
+| `AppointmentDefenseAttorneys` | `AppointmentDefenseAttorney` |
+| `DefenseAttorneys` | `DefenseAttorney` |
+| `AppointmentInjuryDetails` | `AppointmentInjuryDetail` |
+| `AppointmentBodyParts` | `AppointmentBodyPart` |
+| `AppointmentClaimExaminers` | `AppointmentClaimExaminer` |
+| `AppointmentPrimaryInsurances` | `AppointmentPrimaryInsurance` |
+| `AppointmentAccessors` | `AppointmentAccessor` |
+| `AppointmentEmployerDetails` | `AppointmentEmployerDetail` |
+| `AppointmentDocuments` | `AppointmentDocument` |
+| `AppointmentPackets` | `AppointmentPacket` |
+| `AppointmentTypeFieldConfigs` | `AppointmentTypeFieldConfig` |
+| `AppointmentChangeRequests` | `AppointmentChangeRequest` |
+| `AppointmentChangeRequestDocuments` | `AppointmentChangeRequestDocument` |
+| `SystemParameters` | `SystemParameter` |
+| `Documents` | `Document` |
+| `CustomFields` | `CustomField` |
+| `CustomFieldValues` | `CustomFieldValue` |
+| `PackageDetails` | `PackageDetail` |
+| `DocumentPackages` | `DocumentPackage` |
+| `NotificationTemplates` | `NotificationTemplate` |
+| `NotificationTemplateTypes` | `NotificationTemplateType` |
+| `Invitations` | `Invitation` |
+| `Patients` | `Patient` |
+| `DoctorAvailabilities` | `DoctorAvailability` |
+| `DoctorPreferredLocations` | `DoctorPreferredLocation` |
+| `WcabOffices` | `WcabOffice` |
+| `Doctors` | `Doctor` |
+| `Locations` | `Location` |
+| `AppointmentLanguages` | `AppointmentLanguage` |
+| `AppointmentStatuses` | `AppointmentStatus` |
+| `AppointmentTypes` | `AppointmentType` |
+| `States` | `State` |
 
-### Host-Only Entities (guarded by `builder.IsHostDatabase()`)
+### Where each entity lives
 
-These entities are configured inside `if (builder.IsHostDatabase())` blocks and will only exist in the host database:
+**Only two entities are host-only:** `OfficeBranding` and `IntakeOfficeAssignment`. They are
+configured inside `if (builder.IsHostDatabase())` and never exist in an office database.
 
-- **Location** -- FK to State (SetNull), FK to AppointmentType (SetNull)
-- **WcabOffice** -- FK to State (SetNull)
-- **Doctor** -- FK to IdentityUser (SetNull), FK to Tenant (SetNull)
-- **DoctorAppointmentType** -- composite key (DoctorId, AppointmentTypeId), Cascade deletes
-- **DoctorLocation** -- composite key (DoctorId, LocationId), Cascade deletes
-- **AppointmentStatus** -- standalone lookup
-- **AppointmentType** -- standalone lookup
-- **AppointmentLanguage** -- standalone lookup
-- **Patient** -- FK to State (SetNull), FK to AppointmentLanguage (SetNull), FK to IdentityUser (NoAction), FK to Tenant (SetNull)
-- **State** -- standalone lookup
+**`Doctor`, `Patient` and the Doctor join tables** (`DoctorAppointmentType`, `DoctorLocation`) are
+configured behind `IsHostDatabase()` in this context and UNCONDITIONALLY in
+`CaseEvaluationTenantDbContext`, so every office database has them and holds the office's rows.
+`Doctor` and `Patient` get an FK to the SaaS `Tenant` table only here, because that table exists
+only in the host database.
+
+**Everything else**, including `Location`, `WcabOffice`, `State`, `AppointmentType`,
+`AppointmentStatus`, `AppointmentLanguage` and `NotificationTemplateType`, is configured once in
+`CaseEvaluationSharedModelConfiguration` and exists in both contexts. Each is `IMultiTenant`, so
+under database-per-office each office's database holds its own copy; there is no shared host
+catalogue.
 
 ### Shared Entities (configured outside `IsHostDatabase()` guards)
 
 These entities exist in both host and tenant databases:
 
-- **DoctorAvailability** -- FK to Location (NoAction), FK to AppointmentType (SetNull)
-- **Appointment** -- FK to Patient (NoAction), FK to IdentityUser (NoAction), FK to AppointmentType (NoAction), FK to Location (NoAction), FK to DoctorAvailability (NoAction)
+- **DoctorAvailability** -- FK to Location (NoAction); appointment types linked via `DoctorAvailabilityAppointmentType` M2M join; default Capacity = 3
+- **DoctorAvailabilityAppointmentType** -- M2M join between DoctorAvailability and AppointmentType; composite key (DoctorAvailabilityId, AppointmentTypeId); no explicit DbSet
+- **DoctorPreferredLocation** -- M2M toggle; composite key (DoctorId, LocationId); FK to Location (NoAction), FK to Doctor (NoAction)
+- **Appointment** -- FK to Patient (NoAction), FK to IdentityUser (NoAction), FK to AppointmentType (NoAction), FK to Location (NoAction), FK to DoctorAvailability (NoAction); unique index on (TenantId, RequestConfirmationNumber)
+- **AppointmentDocument** -- FK to Appointment (NoAction); indexes on AppointmentId, (AppointmentId, Status), VerificationCode
+- **AppointmentPacket** -- FK to Appointment (NoAction); unique filtered index on (TenantId, AppointmentId, Kind) where IsDeleted=0 and TenantId IS NOT NULL
 - **AppointmentEmployerDetail** -- FK to Appointment (NoAction), FK to State (SetNull)
 - **AppointmentAccessor** -- FK to IdentityUser (NoAction), FK to Appointment (NoAction)
-- **ApplicantAttorney** -- FK to State (SetNull), FK to IdentityUser (NoAction)
-- **AppointmentApplicantAttorney** -- FK to Appointment (NoAction), FK to ApplicantAttorney (NoAction), FK to IdentityUser (NoAction)
+- **ApplicantAttorney** -- FK to State (SetNull), FK to IdentityUser (NoAction, optional)
+- **AppointmentApplicantAttorney** -- FK to Appointment (NoAction), FK to ApplicantAttorney (NoAction), FK to IdentityUser (NoAction, optional)
+- **DefenseAttorney** -- FK to State (SetNull), FK to IdentityUser (NoAction, optional)
+- **AppointmentDefenseAttorney** -- FK to Appointment (NoAction), FK to DefenseAttorney (NoAction), FK to IdentityUser (NoAction, optional)
+- **AppointmentInjuryDetail** -- FK to Appointment (NoAction), FK to WcabOffice (NoAction)
+- **AppointmentBodyPart** -- FK to AppointmentInjuryDetail (NoAction)
+- **AppointmentClaimExaminer** -- FK to AppointmentInjuryDetail (NoAction), FK to State (SetNull)
+- **AppointmentPrimaryInsurance** -- FK to AppointmentInjuryDetail (NoAction), FK to State (SetNull)
+- **AppointmentChangeRequest** -- FK to Appointment (NoAction); indexes on AppointmentId and (AppointmentId, RequestStatus)
+- **AppointmentChangeRequestDocument** -- FK to AppointmentChangeRequest (Cascade)
+- **AppointmentTypeFieldConfig** -- FK to AppointmentType (Cascade); unique index on (TenantId, AppointmentTypeId, FieldName)
+- **NotificationTemplate** -- FK to NotificationTemplateType (NoAction); unique index on (TenantId, TemplateCode)
+- **SystemParameter** -- per-tenant singleton; unique index on TenantId
+- **Document** -- master template catalog; no FK constraints
+- **PackageDetail** -- FK owns DocumentPackage children (Cascade)
+- **DocumentPackage** -- M2M link PackageDetail/Document; composite key (PackageDetailId, DocumentId)
+- **CustomField** -- FK to AppointmentType implicit; index on (TenantId, AppointmentTypeId, IsActive)
+- **CustomFieldValue** -- FK to CustomField (NoAction), FK to Appointment (NoAction)
+- **Invitation** -- unique index on TokenHash
 
 ---
 
@@ -139,29 +188,55 @@ These entities exist in both host and tenant databases:
 
 Sets `MultiTenancySides.Tenant` -- this context manages individual tenant databases.
 
-### DbSet Properties (11)
+### DbSet Properties
+
+The context file is the complete list (`grep -c 'public DbSet<'` on `CaseEvaluationTenantDbContext.cs` gives
+45 on 2026-09-28); the table below predates several newer entities.
 
 | DbSet | Entity Type |
 |-------|-------------|
-| `Appointments` | `Appointment` |
-| `Doctors` | `Doctor` |
-| `DoctorAvailabilities` | `DoctorAvailability` |
-| `AppointmentTypes` | `AppointmentType` |
-| `AppointmentStatuses` | `AppointmentStatus` |
-| `AppointmentLanguages` | `AppointmentLanguage` |
-| `States` | `State` |
-| `AppointmentEmployerDetails` | `AppointmentEmployerDetail` |
-| `AppointmentAccessors` | `AppointmentAccessor` |
-| `ApplicantAttorneys` | `ApplicantAttorney` |
 | `AppointmentApplicantAttorneys` | `AppointmentApplicantAttorney` |
+| `ApplicantAttorneys` | `ApplicantAttorney` |
+| `AppointmentDefenseAttorneys` | `AppointmentDefenseAttorney` |
+| `DefenseAttorneys` | `DefenseAttorney` |
+| `AppointmentInjuryDetails` | `AppointmentInjuryDetail` |
+| `AppointmentBodyParts` | `AppointmentBodyPart` |
+| `AppointmentClaimExaminers` | `AppointmentClaimExaminer` |
+| `AppointmentPrimaryInsurances` | `AppointmentPrimaryInsurance` |
+| `AppointmentAccessors` | `AppointmentAccessor` |
+| `AppointmentEmployerDetails` | `AppointmentEmployerDetail` |
+| `Doctors` | `Doctor` |
+| `Appointments` | `Appointment` |
+| `AppointmentDocuments` | `AppointmentDocument` |
+| `SystemParameters` | `SystemParameter` |
+| `Documents` | `Document` |
+| `PackageDetails` | `PackageDetail` |
+| `DocumentPackages` | `DocumentPackage` |
+| `CustomFields` | `CustomField` |
+| `CustomFieldValues` | `CustomFieldValue` |
+| `NotificationTemplates` | `NotificationTemplate` |
+| `NotificationTemplateTypes` | `NotificationTemplateType` |
+| `Invitations` | `Invitation` |
+| `AppointmentChangeRequests` | `AppointmentChangeRequest` |
+| `AppointmentChangeRequestDocuments` | `AppointmentChangeRequestDocument` |
+| `AppointmentPackets` | `AppointmentPacket` |
+| `DoctorAvailabilities` | `DoctorAvailability` |
+| `DoctorPreferredLocations` | `DoctorPreferredLocation` |
+| `AppointmentLanguages` | `AppointmentLanguage` |
+| `AppointmentStatuses` | `AppointmentStatus` |
+| `AppointmentTypes` | `AppointmentType` |
+| `States` | `State` |
 
-**Not in tenant context:** `Patient`, `Location`, `WcabOffice` (these are host-only or shared via the host DB).
+**Not in the office context:** only the two host-only entities, `OfficeBranding` and `IntakeOfficeAssignment`.
+`Patient`, `Location` and `WcabOffice` are all configured here and hold each office's rows.
 
-The tenant context re-configures all its entities with full fluent API mappings (not relying on the host context configuration). It also configures the junction tables `DoctorAppointmentType` and `DoctorLocation` even though they are not explicit DbSets.
+The tenant context re-configures all its entities with full fluent API mappings (not relying on the host context configuration). It also configures the junction tables `DoctorAppointmentType`, `DoctorLocation`, and `DoctorAvailabilityAppointmentType` even though they are not explicit DbSets.
 
 ---
 
 ## Entity Configuration Pattern
+
+All entity configuration is inline inside `OnModelCreating` in each DbContext file. There are no separate `IEntityTypeConfiguration<T>` classes and no `CaseEvaluationDbContextModelCreatingExtensions.cs`. Do not create such files -- the inline pattern is intentional.
 
 All entities follow the same configuration pattern:
 
@@ -176,12 +251,14 @@ builder.Entity<EntityName>(b => {
 
 ### Composite Keys
 
-Two junction tables use composite primary keys:
+Four junction tables use composite primary keys (none have an explicit DbSet):
 
 - **DoctorAppointmentType:** `b.HasKey(x => new { x.DoctorId, x.AppointmentTypeId })`
 - **DoctorLocation:** `b.HasKey(x => new { x.DoctorId, x.LocationId })`
+- **DoctorAvailabilityAppointmentType:** `b.HasKey(x => new { x.DoctorAvailabilityId, x.AppointmentTypeId })`
+- **DocumentPackage:** `b.HasKey(x => new { x.PackageDetailId, x.DocumentId })`
 
-Both have matching composite indexes on the same columns.
+The first three also have matching composite indexes on the same columns.
 
 ---
 
@@ -199,33 +276,60 @@ flowchart TD
     E --> H[Host DB + Tenant DB]
     F --> G
 
-    subgraph "Host-Only Entities"
-        H1[Location]
-        H2[WcabOffice]
-        H3[Patient]
-        H4[State]
-        H5[AppointmentType]
-        H6[AppointmentStatus]
-        H7[AppointmentLanguage]
-        H8[Doctor *]
-        H9[DoctorAppointmentType *]
-        H10[DoctorLocation *]
+    subgraph "Host-Only Entities (IsHostDatabase guard, never in an office DB)"
+        H1[OfficeBranding]
+        H2[IntakeOfficeAssignment]
+    end
+
+    subgraph "Per-office, also configured in the host context"
+        P1[Location]
+        P2[WcabOffice]
+        P3[Patient]
+        P4[State]
+        P5[AppointmentType]
+        P6[AppointmentStatus]
+        P7[AppointmentLanguage]
+        P8[Doctor]
+        P9[DoctorAppointmentType]
+        P10[DoctorLocation]
+        P11[NotificationTemplateType]
     end
 
     subgraph "Both Host + Tenant Entities"
         B1[DoctorAvailability]
-        B2[Appointment]
-        B3[AppointmentEmployerDetail]
-        B4[AppointmentAccessor]
-        B5[ApplicantAttorney]
-        B6[AppointmentApplicantAttorney]
+        B2[DoctorAvailabilityAppointmentType]
+        B3[DoctorPreferredLocation]
+        B4[Appointment]
+        B5[AppointmentDocument]
+        B6[AppointmentPacket]
+        B7[AppointmentEmployerDetail]
+        B8[AppointmentAccessor]
+        B9[ApplicantAttorney]
+        B10[AppointmentApplicantAttorney]
+        B11[DefenseAttorney]
+        B12[AppointmentDefenseAttorney]
+        B13[AppointmentInjuryDetail]
+        B14[AppointmentBodyPart]
+        B15[AppointmentClaimExaminer]
+        B16[AppointmentPrimaryInsurance]
+        B17[AppointmentChangeRequest]
+        B18[AppointmentChangeRequestDocument]
+        B19[AppointmentTypeFieldConfig]
+        B20[NotificationTemplate]
+        B21[SystemParameter]
+        B22[Document]
+        B23[PackageDetail]
+        B24[DocumentPackage]
+        B25[CustomField]
+        B26[CustomFieldValue]
+        B27[Invitation]
     end
 
-    G --> H1 & H2 & H3 & H4 & H5 & H6 & H7 & H8 & H9 & H10
-    H --> B1 & B2 & B3 & B4 & B5 & B6
+    G --> H1 & H2 & H3 & H4 & H5 & H6 & H7 & H8 & H9 & H10 & H11
+    H --> B1 & B2 & B3 & B4 & B5 & B6 & B7 & B8 & B9 & B10 & B11 & B12 & B13 & B14 & B15 & B16 & B17 & B18 & B19 & B20 & B21 & B22 & B23 & B24 & B25 & B26 & B27
 ```
 
-> **Note:** Entities marked with `*` are guarded by `IsHostDatabase()` in the host context but are also configured in the tenant context (Doctor, DoctorAppointmentType, DoctorLocation). This means they effectively exist in both host and tenant databases despite being inside the guard in the host context.
+> **Note:** `Patient` implements `IMultiTenant` (added FEAT-09, 2026-05-05), so ABP's automatic tenant filter applies. Its host-context configuration sits inside the `IsHostDatabase()` guard, but `CaseEvaluationTenantDbContext` configures it unconditionally: each office's `Patient` rows live in that office's database. Host or IT-Admin callers that need cross-tenant access must explicitly disable the multi-tenant filter via `IDataFilter<IMultiTenant>.Disable()`.
 
 ---
 

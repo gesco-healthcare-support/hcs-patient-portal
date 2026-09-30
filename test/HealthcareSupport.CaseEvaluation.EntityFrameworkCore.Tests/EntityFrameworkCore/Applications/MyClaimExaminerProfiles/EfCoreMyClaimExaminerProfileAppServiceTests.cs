@@ -1,0 +1,8 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+
+namespace HealthcareSupport.CaseEvaluation.MyClaimExaminerProfiles;
+
+public class EfCoreMyClaimExaminerProfileAppServiceTests
+    : MyClaimExaminerProfileAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

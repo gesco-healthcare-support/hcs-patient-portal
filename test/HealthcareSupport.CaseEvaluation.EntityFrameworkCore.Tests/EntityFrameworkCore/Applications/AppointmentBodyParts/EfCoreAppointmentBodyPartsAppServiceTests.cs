@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
+
+public class EfCoreAppointmentBodyPartsAppServiceTests : AppointmentBodyPartsAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

@@ -1,4 +1,5 @@
 using System;
+using HealthcareSupport.CaseEvaluation.Data;
 
 namespace HealthcareSupport.CaseEvaluation.TestData;
 
@@ -31,4 +32,12 @@ public static class AppointmentTypesTestData
     public static readonly Guid AppointmentType2Id = Guid.Parse("31111111-1111-1111-1111-111111111111");
     public const string AppointmentType2Name = "TEST-Orthopedic";
     public const string AppointmentType2Description = "TEST-Orthopedic-Description";
+
+    // --- PQME: aliases the canonical PanelQme identity (AF3/AF4, 2026-06-04) ---
+    // The AppointmentManager panel-number rule keys off CaseEvaluationSeedIds.AppointmentTypes.PanelQme.
+    // No fixture seeding is needed: the production AppointmentTypeDataSeedContributor already
+    // seeds AME/IME/PQME (canonical GUIDs) and runs in the test app, so this row exists and the
+    // Appointment->AppointmentType FK resolves. AppointmentType1/2 remain the non-PQME
+    // (AME/IME-equivalent) fixtures used by the panel-number "not allowed" tests.
+    public static readonly Guid PqmeAppointmentTypeId = CaseEvaluationSeedIds.AppointmentTypes.PanelQme;
 }

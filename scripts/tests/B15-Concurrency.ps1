@@ -133,7 +133,7 @@ public class TrustAllCertsPolicy : ICertificatePolicy {
             $ub = @{ availableDate=$slot.availableDate; fromTime=$slot.fromTime; toTime=$slot.toTime; bookingStatusId=8; locationId=$slot.locationId; appointmentTypeId=$slot.appointmentTypeId; concurrencyStamp=$slot.concurrencyStamp }
             Invoke-ApiCall -Method "PUT" -Url "$availUrl/$raceSlotId" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
         }
-    } catch {}
+    } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     Invoke-TestApiCall -Method "DELETE" -Url "$availUrl/$raceSlotId" -Token $t1Token -TenantId $t1Id | Out-Null
 } else {
     Add-SkipResult -TestResults $TestResults -TestId "B15.1.1" -Name "Race condition test" -Reason "Cannot create test slot"

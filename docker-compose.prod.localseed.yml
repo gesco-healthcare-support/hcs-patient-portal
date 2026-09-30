@@ -1,0 +1,28 @@
+# CHECKPOINT 1 local-seed override (Option A, 2026-07-09). LOCAL VERIFICATION ONLY --
+# NEVER use on the server.
+#
+# Runs the DbMigrator in Development so its dev-only seed contributors also create the
+# synthetic TEST office's admin, the demo users + it.admin@hcs.test in the persistent SQL
+# volume. The app services still run ASPNETCORE_ENVIRONMENT=Production (base compose), so
+# the never-before-run prod code path (openiddict.pfx cert, RequireHttpsMetadata,
+# SetIssuer -> G6/G8) executes against real seeded data -- letting CHECKPOINT 1 observe G8
+# with an office to log into, without waiting to create one through the host UI.
+#
+# Usage (from the worktree root):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.localseed.yml \
+#     --env-file secrets/env.prod up -d --build
+#
+# The full-Production confirming run (Option B) omits this override, so the DbMigrator
+# seeds only the synthetic TEST office (no admin user) and real offices are created via
+# the host UI -- the real go-live path.
+services:
+  db-migrator:
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      # B12: blank so the migrator has NO admin-password store and seeds the documented
+      # local credentials, which is the whole point of this override -- CHECKPOINT 1 needs an
+      # office it can log into. Explicit configuration otherwise wins over the environment,
+      # so leaving the base file's directory default in place would generate a password here
+      # instead. Only the ABP admin account is affected; the demo users carry their own
+      # seeded password either way. Blank is allowed because this runs as Development.
+      AdminPasswords__Directory: ""

@@ -11,12 +11,12 @@ If you discover a security vulnerability in this project:
 2. **Do NOT include real PHI in the report.** Use synthetic data to reproduce
    issues involving patient fields. If you cannot reproduce without real data,
    describe the behaviour abstractly and we will work with you.
-3. Email [AdrianG@gesco.com](mailto:AdrianG@gesco.com) with the subject prefix
-   `[SECURITY]`.
+3. Report it privately through GitHub: the repository's **Security** tab, then
+   **Report a vulnerability**. Private vulnerability reporting is enabled for
+   this repository, so the report is visible only to the maintainers.
 
-This project is currently maintained by a single developer, so response times
-depend on availability. Acknowledgement target: **72 hours**. Fix timeline
-varies by severity.
+Response times depend on maintainer availability. Acknowledgement target:
+**72 hours**. Fix timeline varies by severity.
 
 ### What to Include in a Report
 
@@ -57,13 +57,18 @@ TruffleHog in CI). Never commit real secrets.
 All runtime secrets are managed externally:
 
 - **ABP NuGet API key**: GitHub secret `ABP_NUGET_API_KEY`, injected at build
-  time via `NuGet.Config.template`.
+  time via `NuGet.Config.template`. Docker image builds take it as a BuildKit
+  secret mount rather than a build ARG, so it is not recorded in layer metadata
+  (see `docs/security/SECRETS-MANAGEMENT.md`).
 - **ABP license code**: GitHub secret `ABP_LICENSE_CODE`, injected into
   `appsettings.secrets.json` at build time.
-- **Encryption passphrases**: local `appsettings.Local.json` (gitignored) or
-  GitHub Environment secrets.
-- **Database credentials**: GitHub Environment secrets per environment
-  (development / staging / production).
+- **Encryption passphrases**: local `appsettings.Local.json` (gitignored) in
+  development; on a deployed server, the server's environment file, which is
+  never committed.
+- **Database credentials**: `.env` at the repository root locally (gitignored);
+  on a deployed server, the same environment file. The repository defines no
+  GitHub Environments, so no runtime secret is stored in GitHub beyond the build
+  secrets above.
 - **Test passwords**: `$env:TEST_PASSWORD` environment variable.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup. See
@@ -78,11 +83,10 @@ gaps.
 - **All test fixtures use synthetic values.** See
   [docs/devops/TESTING-STRATEGY.md](docs/devops/TESTING-STRATEGY.md) for the
   seeding pattern.
-- **Runtime PHI** is stored only in environment-specific databases and never
-  logged. PII logging gaps are tracked in
-  [docs/issues/SECURITY.md](docs/issues/SECURITY.md).
-- A PHI scanner hook runs on every local tool invocation to catch accidental
-  inclusion of protected fields during development.
+- **Runtime PHI** is stored only in environment-specific databases.
+- The repository's AI-assistant rules (`.claude/rules/hipaa-data.md` and
+  `.claude/rules/test-data.md`) require synthetic data in code, tests and
+  fixtures.
 
 ## Further Reading
 
@@ -94,5 +98,3 @@ gaps.
   and how it moves between components.
 - [docs/security/HIPAA-COMPLIANCE.md](docs/security/HIPAA-COMPLIANCE.md) --
   technical safeguards inventory and HIPAA-readiness gaps.
-- [docs/issues/SECURITY.md](docs/issues/SECURITY.md) -- currently tracked
-  security issues (open and closed).

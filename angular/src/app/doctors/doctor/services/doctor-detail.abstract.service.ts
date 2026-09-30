@@ -19,10 +19,6 @@ export abstract class AbstractDoctorDetailViewService {
 
   public readonly getLocationLookup = this.proxyService.getLocationLookup;
 
-  public readonly getIdentityUserLookup = this.proxyService.getIdentityUserLookup;
-
-  public readonly getTenantLookup = this.proxyService.getTenantLookup;
-
   genderOptions = genderOptions;
 
   isBusy = false;
@@ -31,10 +27,11 @@ export abstract class AbstractDoctorDetailViewService {
   form: FormGroup | undefined;
 
   protected createRequest() {
+    const formValue = this.form!.value;
     const formValues = {
-      ...this.form.value,
-      appointmentTypeIds: this.form.value.appointmentTypeIds.map(({ id }) => id),
-      locationIds: this.form.value.locationIds.map(({ id }) => id),
+      ...formValue,
+      appointmentTypeIds: (formValue.appointmentTypeIds ?? []).map(({ id }: { id: string }) => id),
+      locationIds: (formValue.locationIds ?? []).map(({ id }: { id: string }) => id),
     };
 
     if (this.selected) {
@@ -48,8 +45,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   buildForm() {
-    const { firstName, lastName, email, gender, identityUserId, tenantId } =
-      this.selected?.doctor || {};
+    const { firstName, lastName, email, gender } = this.selected?.doctor || {};
 
     const { appointmentTypes = [], locations = [] } = this.selected || {};
 
@@ -58,8 +54,6 @@ export abstract class AbstractDoctorDetailViewService {
       lastName: [lastName ?? null, [Validators.required, Validators.maxLength(50)]],
       email: [email ?? null, [Validators.required, Validators.maxLength(49), Validators.email]],
       gender: [gender ?? null, [Validators.required]],
-      identityUserId: [identityUserId ?? null, []],
-      tenantId: [tenantId ?? null, []],
       appointmentTypeIds: [appointmentTypes, []],
       locationIds: [locations, []],
     });
@@ -76,7 +70,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   update(record: DoctorWithNavigationPropertiesDto) {
-    this.proxyService.getWithNavigationProperties(record.doctor.id).subscribe((data) => {
+    this.proxyService.getWithNavigationProperties(record.doctor!.id!).subscribe((data) => {
       this.selected = data;
       this.showForm();
     });
@@ -87,7 +81,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   submitForm() {
-    if (this.form.invalid) return;
+    if (this.form!.invalid) return;
 
     this.isBusy = true;
 

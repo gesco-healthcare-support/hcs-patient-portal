@@ -42,5 +42,5 @@ static class Program
                 services.AddHostedService<DbMigratorHostedService>();
             });
 
-    public static bool DisableRedis;
+    public static bool DisableRedis { get; private set; }
 }

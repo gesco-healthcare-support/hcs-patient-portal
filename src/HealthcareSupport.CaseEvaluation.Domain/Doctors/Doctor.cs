@@ -1,5 +1,4 @@
 using HealthcareSupport.CaseEvaluation.Enums;
-using Volo.Abp.Identity;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -27,8 +26,6 @@ public class Doctor : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual Gender Gender { get; set; }
 
-    public Guid? IdentityUserId { get; set; }
-
     public virtual ICollection<DoctorAppointmentType> AppointmentTypes { get; protected set; } = new Collection<DoctorAppointmentType>();
 
     public virtual ICollection<DoctorLocation> Locations { get; protected set; } = new Collection<DoctorLocation>();
@@ -37,7 +34,7 @@ public class Doctor : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
     }
 
-    public Doctor(Guid id, Guid? identityUserId, string firstName, string lastName, string email, Gender gender)
+    public Doctor(Guid id, string firstName, string lastName, string email, Gender gender)
     {
         Id = id;
         Check.NotNull(firstName, nameof(firstName));
@@ -50,7 +47,6 @@ public class Doctor : FullAuditedAggregateRoot<Guid>, IMultiTenant
         LastName = lastName;
         Email = email;
         Gender = gender;
-        IdentityUserId = identityUserId;
         AppointmentTypes = new Collection<DoctorAppointmentType>();
         Locations = new Collection<DoctorLocation>();
     }

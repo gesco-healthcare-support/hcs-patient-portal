@@ -8,7 +8,6 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentEmployerDetailRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IAppointmentEmployerDetailRepository _detailRepository;

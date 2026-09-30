@@ -22,7 +22,6 @@ import { PageComponent } from '@abp/ng.components/page';
 import {
   AdvancedEntityFiltersComponent,
   AdvancedEntityFiltersFormComponent,
-  LookupSelectComponent,
   LookupTypeaheadComponent,
 } from '@volo/abp.commercial.ng.ui';
 import { DoctorViewService } from '../services/doctor.service';
@@ -55,7 +54,6 @@ import {
     PageComponent,
     AdvancedEntityFiltersComponent,
     AdvancedEntityFiltersFormComponent,
-    LookupSelectComponent,
     LookupTypeaheadComponent,
 
     DoctorDetailModalComponent,
