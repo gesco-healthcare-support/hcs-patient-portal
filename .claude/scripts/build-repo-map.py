@@ -61,8 +61,12 @@ TS_SYMBOL_RE = re.compile(
     r"(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)",
     re.MULTILINE,
 )
+# The free text before `from` must start with a non-space, so it can never share whitespace with
+# the `\s+` after `import`. When they could, `import` followed by a long run of spaces and no quote
+# made the engine try every split point: quadratic time (1.1 s at 8,000 characters). What the
+# pattern captures is unchanged.
 TS_IMPORT_RE = re.compile(
-    r"""^\s*import\s+(?:[^;'"]*\bfrom\s+)?['"]([^'"]+)['"]""", re.MULTILINE
+    r"""^\s*import\s+(?:(?:[^\s;'"][^;'"]*)?\bfrom\s+)?['"]([^'"]+)['"]""", re.MULTILINE
 )
 
 PROJECT_REF_RE = re.compile(
