@@ -12,7 +12,7 @@
 
 ## Test Projects
 
-The solution contains four test projects under the `test/` directory, plus a console-based E2E test app.
+The solution contains four test projects under the `test/` directory -- a shared base (`TestBase`) and three test suites -- plus a console-based E2E test app.
 
 ### 1. HealthcareSupport.CaseEvaluation.TestBase
 

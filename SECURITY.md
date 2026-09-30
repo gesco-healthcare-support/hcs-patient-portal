@@ -11,12 +11,12 @@ If you discover a security vulnerability in this project:
 2. **Do NOT include real PHI in the report.** Use synthetic data to reproduce
    issues involving patient fields. If you cannot reproduce without real data,
    describe the behaviour abstractly and we will work with you.
-3. Email [AdrianG@gesco.com](mailto:AdrianG@gesco.com) with the subject prefix
-   `[SECURITY]`.
+3. Report it privately through GitHub: the repository's **Security** tab, then
+   **Report a vulnerability**. Private vulnerability reporting is enabled for
+   this repository, so the report is visible only to the maintainers.
 
-This project is currently maintained by a single developer, so response times
-depend on availability. Acknowledgement target: **72 hours**. Fix timeline
-varies by severity.
+Response times depend on maintainer availability. Acknowledgement target:
+**72 hours**. Fix timeline varies by severity.
 
 ### What to Include in a Report
 
