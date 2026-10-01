@@ -296,8 +296,8 @@ public class AccountPageModelTests
 
         await account.Received(1).ResendEmailVerificationAsync(Arg.Is<ResendEmailVerificationInput>(i => i.Email == Email));
         model.RequestSubmitted.ShouldBeTrue();
-        ResendVerificationModel.Heading.ShouldBe("Verify your email");
-        ResendVerificationModel.Intro.ShouldContain("Resend below");
+        model.GetHeading().ShouldBe("Verify your email");
+        model.GetIntro().ShouldContain("Resend below");
     }
 
     [Theory]

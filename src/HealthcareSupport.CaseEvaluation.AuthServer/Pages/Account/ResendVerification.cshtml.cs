@@ -145,17 +145,17 @@ public class ResendVerificationModel : AbpPageModel
     }
 
     /// <summary>
-    /// Page heading. Context-independent after the
+    /// View helper: page heading. Context-independent after the
     /// 2026-05-18 copy rewrite (proposed-copy.md 2.3).
     /// </summary>
-    public const string Heading = "Verify your email";
+    public string GetHeading() => "Verify your email";
 
     /// <summary>
-    /// Page intro. Context-independent after the
+    /// View helper: page intro. Context-independent after the
     /// 2026-05-18 copy rewrite (proposed-copy.md 2.3). The email field
     /// is pre-filled below, so the intro stays short and stops repeating
     /// the address.
     /// </summary>
-    public const string Intro =
+    public string GetIntro() =>
         "Click the link we sent to verify your address. Didn't get it? Resend below.";
 }
