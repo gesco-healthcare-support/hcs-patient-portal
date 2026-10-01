@@ -1,7 +1,8 @@
 @page
 @model HealthcareSupport.CaseEvaluation.Pages.Account.ResendVerificationModel
+@using HealthcareSupport.CaseEvaluation.Pages.Account
 @{
-    ViewData["Title"] = Model.GetHeading();
+    ViewData["Title"] = ResendVerificationModel.Heading;
 }
 @*
     Phase 1.D follow-up (Category 1, 2026-05-08) -- the resend-verification
@@ -19,7 +20,7 @@
         aria-describedby pointing at the helper text below it.
       - The submit button gets a title attribute mirroring its visible
         label so AT users hear context even when scanning links.
-      - Status / confirmation block uses role="status" + aria-live="polite"
+      - Status / confirmation block is an <output> (implicit role="status") + aria-live="polite"
         so screen readers announce changes to RequestSubmitted without
         moving focus.
       - Color contrast: relies on LeptonX defaults (passes WCAG AA).
@@ -35,17 +36,17 @@
 <div class="account-card">
     <div class="account-content">
 
-        <h1 class="text-center mt-4 mb-3">@Model.GetHeading()</h1>
+        <h1 class="text-center mt-4 mb-3">@ResendVerificationModel.Heading</h1>
 
         @if (Model.RequestSubmitted)
         {
-            <div class="alert alert-success mt-3" role="status" aria-live="polite">
+            <output class="alert alert-success mt-3 d-block" aria-live="polite">
                 Sent. Check your inbox and spam folder. You can resend after 60 seconds.
-            </div>
+            </output>
         }
 
         <p class="mt-3" id="resend-verification-intro">
-            @Model.GetIntro()
+            @ResendVerificationModel.Intro
         </p>
 
         <form method="post" asp-page="ResendVerification" novalidate>

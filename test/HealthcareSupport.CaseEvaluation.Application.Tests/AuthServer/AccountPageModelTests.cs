@@ -296,8 +296,8 @@ public class AccountPageModelTests
 
         await account.Received(1).ResendEmailVerificationAsync(Arg.Is<ResendEmailVerificationInput>(i => i.Email == Email));
         model.RequestSubmitted.ShouldBeTrue();
-        model.GetHeading().ShouldBe("Verify your email");
-        model.GetIntro().ShouldContain("Resend below");
+        ResendVerificationModel.Heading.ShouldBe("Verify your email");
+        ResendVerificationModel.Intro.ShouldContain("Resend below");
     }
 
     [Theory]
@@ -358,6 +358,18 @@ public class AccountPageModelTests
         var result = (await model.OnGetAsync()).ShouldBeOfType<LocalRedirectResult>();
 
         result.Url.ShouldBe("~/Account/Login?flash=verification-invalid&ReturnUrl=%2FTEST%20return&ReturnUrlHash=%23TEST");
+    }
+
+    [Fact]
+    public void Email_confirmation_failure_is_logged_by_error_code_not_by_type_name()
+    {
+        // IdentityError has no ToString override, so joining the errors themselves would log
+        // "Microsoft.AspNetCore.Identity.IdentityError" once per error and never the reason.
+        var failed = IdentityResult.Failed(
+            new IdentityError { Code = "InvalidToken", Description = "TEST-first" },
+            new IdentityError { Code = "TEST-second-code", Description = "TEST-second" });
+
+        EmailConfirmationModel.DescribeErrors(failed).ShouldBe("InvalidToken, TEST-second-code");
     }
 
     // ---------------------------------------------------------------- logout + locked out
