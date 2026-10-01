@@ -188,7 +188,7 @@ class TestPartitionWithCollections(unittest.TestCase):
 
         holders = [i for i, bucket in enumerate(shards) if set(self.GROUP) & set(bucket)]
         self.assertEqual(len(holders), 1)
-        self.assertTrue(set(self.GROUP) <= set(shards[holders[0]]))
+        self.assertLessEqual(set(self.GROUP), set(shards[holders[0]]))
 
     def test_grouping_still_places_every_class_exactly_once(self):
         flat = [cls for bucket in shard.partition(self.COUNTS, 4, self.GROUP) for cls in bucket]

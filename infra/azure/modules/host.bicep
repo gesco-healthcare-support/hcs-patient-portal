@@ -104,10 +104,10 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-11-01' = {
 resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   name: vmName
   location: location
-  tags: tags
   identity: {
     type: 'SystemAssigned'
   }
+  tags: tags
   properties: {
     hardwareProfile: {
       vmSize: vmSize
@@ -211,8 +211,8 @@ resource monitorAgent 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' 
 resource syslogRule 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
   name: 'dcr-portal-${envName}-syslog'
   location: location
-  tags: tags
   kind: 'Linux'
+  tags: tags
   properties: {
     dataSources: {
       syslog: [
