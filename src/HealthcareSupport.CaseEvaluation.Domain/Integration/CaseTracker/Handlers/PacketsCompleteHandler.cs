@@ -79,11 +79,14 @@ public class PacketsCompleteHandler :
             var packets = await _packetRepository.GetListAsync(p => p.AppointmentId == eventData.AppointmentId);
             if (!PacketSetPolicy.IsComplete(packets))
             {
-                _logger.LogDebug(
-                    "PacketsCompleteHandler: appointment {AppointmentId} has {Generated} of {Expected} packets generated; waiting for the rest.",
-                    eventData.AppointmentId,
-                    packets.Count(p => p.Status == PacketGenerationStatus.Generated),
-                    PacketSetPolicy.AllKinds.Count);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "PacketsCompleteHandler: appointment {AppointmentId} has {Generated} of {Expected} packets generated; waiting for the rest.",
+                        eventData.AppointmentId,
+                        packets.Count(p => p.Status == PacketGenerationStatus.Generated),
+                        PacketSetPolicy.AllKinds.Count);
+                }
                 return;
             }
 

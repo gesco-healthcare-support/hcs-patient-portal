@@ -55,12 +55,12 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
             return;
         }
 
-        Logger.LogInformation("Started database migrations...");
-
+        // No separate "started" line: MigrateDatabaseSchemaAsync opens with "Migrating schema for
+        // host database...", which already marks the start of the run.
         await MigrateDatabaseSchemaAsync();
         await SeedDataAsync();
 
-        Logger.LogInformation($"Successfully completed host database migrations.");
+        Logger.LogInformation("Successfully completed host database migrations.");
 
         if (MultiTenancyConsts.IsEnabled)
         {
@@ -214,9 +214,9 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         {
             Process.Start(procStartInfo);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            throw new Exception("Couldn't run ABP CLI...");
+            throw new InvalidOperationException("Couldn't run ABP CLI...", ex);
         }
     }
 
@@ -226,7 +226,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
 
         if (slnDirectoryPath == null)
         {
-            throw new Exception("Solution folder not found!");
+            throw new InvalidOperationException("Solution folder not found!");
         }
 
         var srcDirectoryPath = Path.Combine(slnDirectoryPath, "src");
