@@ -60,6 +60,7 @@ using Volo.Abp.AspNetCore.Authentication.JwtBearer;
 using Localization.Resources.AbpUi;
 using Volo.Abp.Account.Localization;
 using Volo.Abp.Localization;
+using Serilog;
 
 namespace HealthcareSupport.CaseEvaluation;
 
@@ -94,11 +95,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         EntityFrameworkCore.AdminPasswords.AdminPasswordStoreRegistrar.Register(
             context.Services, configuration, hostingEnvironment.IsDevelopment());
 
-        if (!configuration.GetValue<bool>("App:DisablePII"))
-        {
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
-        }
+        // Development only, decided in code: see IdentityModelPiiLogging for why a setting is not enough.
+        Hosting.IdentityModelPiiLogging.Apply(hostingEnvironment, configuration);
 
         ConfigureStudio(hostingEnvironment);
         ConfigureUrls(configuration);
@@ -1557,6 +1555,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         }
 
         app.UseAbpRequestLocalization();
+        // One line per request, path only; see CaseEvaluationHost.ConfigureLevels.
+        app.UseSerilogRequestLogging();
         app.UseRouting();
         app.MapAbpStaticAssets();
         app.UseAbpStudioLink();
