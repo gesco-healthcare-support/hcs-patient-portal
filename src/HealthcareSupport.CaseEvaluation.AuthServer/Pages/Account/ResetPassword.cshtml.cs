@@ -138,7 +138,7 @@ public class ResetPasswordModel : AbpPageModel
         return LocalRedirect(loginUrl);
     }
 
-    private IActionResult RedirectToForgotWithError(string message)
+    private RedirectToPageResult RedirectToForgotWithError(string message)
     {
         TempData["ErrorMessage"] = message;
         return RedirectToPage("./ForgotPassword");

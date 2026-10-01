@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
@@ -103,7 +105,7 @@ public class EmailConfirmationModel : AbpPageModel
             _logger.LogWarning(
                 "EmailConfirmationModel: ConfirmEmailAsync failed for user {UserId} with errors: {Errors}.",
                 UserId,
-                string.Join(", ", result.Errors));
+                DescribeErrors(result));
             return RedirectToLogin("verification-invalid");
         }
 
@@ -113,7 +115,15 @@ public class EmailConfirmationModel : AbpPageModel
         return RedirectToLogin("email-verified");
     }
 
-    private IActionResult RedirectToLogin(string flash)
+    /// <summary>
+    /// The error CODES of a failed identity result, comma-separated. <see cref="IdentityError"/>
+    /// has no ToString override, so joining the errors themselves logs the type name once per
+    /// error and never the reason. Codes carry no personal data.
+    /// </summary>
+    public static string DescribeErrors(IdentityResult result) =>
+        string.Join(", ", result.Errors.Select(e => e.Code));
+
+    private LocalRedirectResult RedirectToLogin(string flash)
     {
         var url = $"~/Account/Login?flash={flash}";
         if (!string.IsNullOrWhiteSpace(ReturnUrl))
