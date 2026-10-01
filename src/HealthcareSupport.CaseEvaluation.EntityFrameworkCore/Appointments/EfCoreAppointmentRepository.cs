@@ -359,6 +359,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             .WhereIf(IsSet(patientId), e => e.Appointment.PatientId == patientId!.Value);
     }
 
+    protected virtual IQueryable<Appointment> ApplyFilter(IQueryable<Appointment> query, string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null)
+    {
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.PanelNumber!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(panelNumber), e => e.PanelNumber!.Contains(panelNumber!)).WhereIf(appointmentDateMin.HasValue, e => e.AppointmentDate >= appointmentDateMin!.Value).WhereIf(appointmentDateMax.HasValue, e => e.AppointmentDate <= appointmentDateMax!.Value);
+    }
+
     /// <summary>A filter id counts only when it is present and not the empty Guid.</summary>
     private static bool IsSet(Guid? id) => id.HasValue && id.Value != Guid.Empty;
 
@@ -375,11 +380,6 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             (e.Patient != null && e.Patient.LastName != null && e.Patient.LastName.Contains(ft)) ||
             (e.IdentityUser != null && e.IdentityUser.Name != null && e.IdentityUser.Name.Contains(ft)) ||
             (e.IdentityUser != null && e.IdentityUser.Surname != null && e.IdentityUser.Surname.Contains(ft));
-
-    protected virtual IQueryable<Appointment> ApplyFilter(IQueryable<Appointment> query, string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null)
-    {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.PanelNumber!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(panelNumber), e => e.PanelNumber!.Contains(panelNumber!)).WhereIf(appointmentDateMin.HasValue, e => e.AppointmentDate >= appointmentDateMin!.Value).WhereIf(appointmentDateMax.HasValue, e => e.AppointmentDate <= appointmentDateMax!.Value);
-    }
 
     public virtual async Task<List<Appointment>> GetListAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
