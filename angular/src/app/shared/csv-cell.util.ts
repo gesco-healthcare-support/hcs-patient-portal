@@ -21,7 +21,7 @@
  */
 
 /** Characters a spreadsheet treats as the start of a formula. */
-const FORMULA_TRIGGERS = ['=', '+', '-', '@', '\t', '\r'];
+const FORMULA_TRIGGERS = new Set(['=', '+', '-', '@', '\t', '\r']);
 
 /**
  * Prefixes an apostrophe when the value opens with a formula trigger. Spreadsheets read
@@ -39,5 +39,5 @@ const FORMULA_TRIGGERS = ['=', '+', '-', '@', '\t', '\r'];
  */
 export function neutraliseCsvCell(value: string | number | null | undefined): string {
   const text = String(value ?? '');
-  return text.length > 0 && FORMULA_TRIGGERS.includes(text[0]) ? `'${text}` : text;
+  return text.length > 0 && FORMULA_TRIGGERS.has(text[0]) ? `'${text}` : text;
 }

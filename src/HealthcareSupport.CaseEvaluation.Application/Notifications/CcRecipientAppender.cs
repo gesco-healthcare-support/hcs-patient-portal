@@ -80,24 +80,25 @@ public class CcRecipientAppender : ITransientDependency
             .Select(a => a.Trim())
             .Where(a => a.Length > 0);
 
-        var added = 0;
-        foreach (var address in ccAddresses)
+        // Skip anything already addressed, and collapse repeats within the CC list itself,
+        // keeping the first spelling of each address. Both comparisons ignore case.
+        var toAdd = ccAddresses
+            .Where(a => !existing.Contains(a))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var address in toAdd)
         {
-            if (existing.Add(address))
-            {
-                recipients.Add(new NotificationRecipient(
-                    email: address,
-                    role: RecipientRole.OfficeAdmin,
-                    isRegistered: false));
-                added++;
-            }
+            recipients.Add(new NotificationRecipient(
+                email: address,
+                role: RecipientRole.OfficeAdmin,
+                isRegistered: false));
         }
 
-        if (added > 0)
+        if (toAdd.Count > 0)
         {
             _logger.LogDebug(
                 "CcRecipientAppender: appended {Count} CC recipient(s) for {Context}.",
-                added, contextTagForLogging ?? "(none)");
+                toAdd.Count, contextTagForLogging ?? "(none)");
         }
     }
 }
