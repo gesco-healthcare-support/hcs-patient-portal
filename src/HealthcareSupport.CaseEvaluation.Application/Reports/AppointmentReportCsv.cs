@@ -58,9 +58,46 @@ internal static class AppointmentReportCsv
         row.SocialSecurityNumber,
     };
 
+    /// <summary>
+    /// Characters that make a spreadsheet read a cell as a formula rather than text.
+    ///
+    /// <para>Quoting does not stop this. RFC-4180 quotes are removed on import, so
+    /// <c>"=HYPERLINK(...)"</c> is still evaluated. The cells at risk here are
+    /// caller-supplied: Patient Name, Email and Phone Number come from the patient record,
+    /// and external users enter those during anonymous self-registration and in the booking
+    /// wizard. The report lists many patients, so a formula can read neighbouring cells and
+    /// carry another patient's data out on one click.</para>
+    /// </summary>
+    private static readonly char[] FormulaTriggers = { '=', '+', '-', '@', '\t', '\r' };
+
     private static string Escape(string? value)
     {
-        var v = value ?? string.Empty;
+        return Quote(Neutralise(value ?? string.Empty));
+    }
+
+    /// <summary>
+    /// Prefixes a formula-triggering cell with an apostrophe, which spreadsheets read as
+    /// "treat the rest as text" and do not display in the cell.
+    ///
+    /// <para><c>+</c> and <c>-</c> are on the list even though a phone number may legitimately
+    /// begin with <c>+</c>. The apostrophe is hidden in the cell and visible only in the formula
+    /// bar, so the cost is a formula-bar oddity on international numbers; the cost of leaving
+    /// them off is that <c>+</c> is one of the two characters Excel actually accepts as a formula
+    /// start. Neutralising is applied BEFORE quoting, so a neutralised cell that also contains a
+    /// comma still gets its RFC-4180 quotes.</para>
+    /// </summary>
+    private static string Neutralise(string value)
+    {
+        if (value.Length > 0 && FormulaTriggers.Contains(value[0]))
+        {
+            return "'" + value;
+        }
+
+        return value;
+    }
+
+    private static string Quote(string v)
+    {
         if (v.Contains('"') || v.Contains(',') || v.Contains('\n') || v.Contains('\r'))
         {
             return "\"" + v.Replace("\"", "\"\"") + "\"";

@@ -84,6 +84,90 @@ public class AppointmentReportCsvTests
         bytes[2].ShouldBe((byte)0xBF);
     }
 
+    /// <summary>
+    /// A cell that begins with a formula trigger is prefixed with an apostrophe, so a
+    /// spreadsheet reads it as text. Quoting alone does not do this: the quotes are removed
+    /// on import and the formula still runs.
+    ///
+    /// <para>Patient Name, Email and Phone Number all come from the patient record, which
+    /// external users populate during anonymous self-registration and in the booking wizard.
+    /// The export lists many patients, so a formula in one row can read its neighbours.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("=HYPERLINK(\"http://x.test\")")]
+    [InlineData("+1234")]
+    [InlineData("-1+2")]
+    [InlineData("@SUM(A1)")]
+    [InlineData("\tlead-tab")]
+    public void Neutralises_a_cell_that_opens_with_a_formula_trigger(string hostile)
+    {
+        var text = Decode(AppointmentReportCsv.Build(RowWithPatientName(hostile)));
+        var cells = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries)[1];
+
+        // Assert on the boundary, not the whole value: a cell carrying quotes is also
+        // RFC-4180 quoted, which doubles them, so the raw payload is not in the output
+        // verbatim. What must hold is that the trigger is preceded by the apostrophe...
+        cells.ShouldContain("'" + hostile[0]);
+
+        // ...and never sits directly against a field delimiter, which is where a
+        // spreadsheet would read it as the start of a formula.
+        cells.ShouldNotContain("," + hostile[0]);
+    }
+
+    /// <summary>
+    /// The trade-off, stated rather than left to be discovered: an international phone number
+    /// legitimately begins with <c>+</c>, and <c>+</c> is a formula start, so it is neutralised
+    /// too. The apostrophe does not show in the cell, only in the formula bar.
+    /// </summary>
+    [Fact]
+    public void Neutralises_an_international_phone_number_and_that_is_deliberate()
+    {
+        var text = Decode(AppointmentReportCsv.Build(
+            RowWithPatientName("DOE JANE", phoneNumber: "+15550100")));
+
+        text.ShouldContain("'+15550100");
+    }
+
+    /// <summary>
+    /// Neutralising runs BEFORE quoting, so a hostile cell that also carries a comma still
+    /// gets its RFC-4180 quotes and cannot split the columns.
+    /// </summary>
+    [Fact]
+    public void Still_quotes_a_neutralised_cell_that_contains_a_comma()
+    {
+        var text = Decode(AppointmentReportCsv.Build(RowWithPatientName("=A1,B1")));
+
+        text.ShouldContain("\"'=A1,B1\"");
+    }
+
+    [Fact]
+    public void Leaves_an_ordinary_cell_untouched()
+    {
+        var text = Decode(AppointmentReportCsv.Build(RowWithPatientName("DOE JANE")));
+
+        text.ShouldContain(",DOE JANE,");
+        text.ShouldNotContain("'DOE JANE");
+    }
+
+    private static List<AppointmentReportRowDto> RowWithPatientName(
+        string patientName,
+        string phoneNumber = "555-0101") => new()
+    {
+        new()
+        {
+            RequestConfirmationNumber = "A90002",
+            AppointmentTypeName = "Panel QME",
+            LocationName = "Downtown Clinic",
+            AppointmentDate = new DateTime(2026, 6, 10, 9, 30, 0),
+            AppointmentStatus = AppointmentStatusType.Approved,
+            PatientName = patientName,
+            DateOfBirth = "1985",
+            Email = "jane.doe@example.test",
+            PhoneNumber = phoneNumber,
+            SocialSecurityNumber = "***-**-9012",
+        },
+    };
+
     private static string Decode(byte[] bytes)
     {
         // Strip the 3-byte UTF-8 BOM for assertion convenience.
