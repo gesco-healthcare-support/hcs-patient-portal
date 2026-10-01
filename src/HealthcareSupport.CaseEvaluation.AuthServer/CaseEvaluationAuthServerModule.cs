@@ -64,6 +64,7 @@ using Microsoft.Extensions.Configuration;
 using Volo.Abp.Account.Localization;
 using Volo.Abp.Security.Claims;
 using Volo.Abp.Studio.Client.AspNetCore;
+using Serilog;
 
 namespace HealthcareSupport.CaseEvaluation;
 
@@ -225,11 +226,8 @@ public class CaseEvaluationAuthServerModule : AbpModule
             });
         }
 
-        if (!configuration.GetValue<bool>("App:DisablePII"))
-        {
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
-        }
+        // Development only, decided in code: see IdentityModelPiiLogging for why a setting is not enough.
+        Hosting.IdentityModelPiiLogging.Apply(hostingEnvironment, configuration);
 
         // In-house hosting (2026-07-09, G7): always honor the reverse proxy's
         // X-Forwarded-Proto so the app sees the original https scheme behind
@@ -617,6 +615,8 @@ public class CaseEvaluationAuthServerModule : AbpModule
         }
 
         app.UseCorrelationId();
+        // One line per request, path only; see CaseEvaluationHost.ConfigureLevels.
+        app.UseSerilogRequestLogging();
         app.UseRouting();
         // Issue #107 (2026-05-13) -- the silent-refresh wiring was ripped
         // (broken on the @abp/ng.oauth interceptor; refresh-token rotation
