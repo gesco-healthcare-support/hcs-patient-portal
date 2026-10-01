@@ -48,7 +48,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
             eventData.Properties.GetOrDefault("AdminEmail") ?? CaseEvaluationConsts.AdminEmailDefaultValue,
             () => suppliedPassword.IsNullOrWhiteSpace()
                 ? _adminPasswordStore.GetOrCreateAsync(eventData.Id)
-                : Task.FromResult(suppliedPassword!)
+                : Task.FromResult(suppliedPassword)
         );
     }
 

@@ -101,30 +101,30 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     {
     }
 
-    protected override void OnModelCreating(ModelBuilder builder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        builder.SetMultiTenancySide(MultiTenancySides.Tenant);
-        base.OnModelCreating(builder);
+        modelBuilder.SetMultiTenancySide(MultiTenancySides.Tenant);
+        base.OnModelCreating(modelBuilder);
 
         // Shared with CaseEvaluationDbContext -- see
         // CaseEvaluationSharedModelConfiguration for why it is declared once.
-        builder.ConfigureCaseEvaluationShared();
+        modelBuilder.ConfigureCaseEvaluationShared();
 
         // The host gates these behind IsHostDatabase(); the office databases always
         // need them, so they are called unconditionally here.
-        builder.ConfigureDoctor();
+        modelBuilder.ConfigureDoctor();
 
         // Declared only for the office databases. This MUST come before
         // ConfigureDoctorJoinEntities: WithOne() names no inverse navigation, so once the
         // join entities have declared the relationship in full, EF treats this as a second
         // relationship and adds a DoctorId1 shadow column.
-        builder.Entity<Doctor>(b =>
+        modelBuilder.Entity<Doctor>(b =>
         {
             b.HasMany(x => x.AppointmentTypes).WithOne().HasForeignKey(x => x.DoctorId).IsRequired().OnDelete(DeleteBehavior.NoAction);
             b.HasMany(x => x.Locations).WithOne().HasForeignKey(x => x.DoctorId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
 
-        builder.ConfigureDoctorJoinEntities();
-        builder.ConfigurePatient();
+        modelBuilder.ConfigureDoctorJoinEntities();
+        modelBuilder.ConfigurePatient();
     }
 }
