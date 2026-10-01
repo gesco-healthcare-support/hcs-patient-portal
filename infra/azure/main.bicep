@@ -149,6 +149,7 @@ var roleKeyVaultSecretsUser = '4633458b-17de-408a-b874-0445c86b69e6'
 var roleKeyVaultCertificateUser = 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
 var roleKeyVaultCryptoServiceEncryptionUser = 'e147488a-f6f5-4113-8e2d-b22465e65bf6'
 var roleStorageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+var roleDefinitionType = 'Microsoft.Authorization/roleDefinitions'
 
 // ---------------------------------------------------------------- identity
 //
@@ -295,7 +296,7 @@ resource hostPullsImages 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   scope: registry
   name: guid(registry.id, 'host-acr-pull')
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleAcrPull)
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleAcrPull)
     principalId: host.outputs.principalId
     principalType: 'ServicePrincipal'
   }
@@ -305,7 +306,7 @@ resource hostReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' =
   scope: keyVault
   name: guid(keyVault.id, 'host-kv-secrets-user')
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleKeyVaultSecretsUser)
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleKeyVaultSecretsUser)
     principalId: host.outputs.principalId
     principalType: 'ServicePrincipal'
   }
@@ -314,17 +315,17 @@ resource hostReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' =
 resource hostWritesDocuments 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: documentsAccount
   name: guid(documentsAccount.id, 'host-blob-contributor')
+  dependsOn: [
+    data
+  ]
   properties: {
     roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
+      roleDefinitionType,
       roleStorageBlobDataContributor
     )
     principalId: host.outputs.principalId
     principalType: 'ServicePrincipal'
   }
-  dependsOn: [
-    data
-  ]
 }
 
 // Wrap and unwrap with the data-protection key, and nothing else: scoped to THAT KEY, not
@@ -334,7 +335,7 @@ resource hostWrapsWithDataProtectionKey 'Microsoft.Authorization/roleAssignments
   name: guid(dataProtectionKey.id, 'host-kv-crypto-service-encryption-user')
   properties: {
     roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
+      roleDefinitionType,
       roleKeyVaultCryptoServiceEncryptionUser
     )
     principalId: host.outputs.principalId
@@ -347,42 +348,42 @@ resource hostWrapsWithDataProtectionKey 'Microsoft.Authorization/roleAssignments
 resource hostUsesCache 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = {
   parent: redisDatabase
   name: 'hostvm'
+  dependsOn: [
+    data
+  ]
   properties: {
     accessPolicyName: 'default'
     user: {
       objectId: host.outputs.principalId
     }
   }
-  dependsOn: [
-    data
-  ]
 }
 
 // The gateway needs BOTH: the certificate object and the secret behind it.
 resource gatewayReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: keyVault
   name: guid(keyVault.id, 'gateway-kv-secrets-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleKeyVaultSecretsUser)
-    principalId: gatewayIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
   dependsOn: [
     platform
   ]
+  properties: {
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleKeyVaultSecretsUser)
+    principalId: gatewayIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource gatewayReadsCertificates 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: keyVault
   name: guid(keyVault.id, 'gateway-kv-cert-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleKeyVaultCertificateUser)
-    principalId: gatewayIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
   dependsOn: [
     platform
   ]
+  properties: {
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleKeyVaultCertificateUser)
+    principalId: gatewayIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 // ---------------------------------------------------------------- outputs
