@@ -148,10 +148,10 @@ resource keyVaultEndpointDns 'Microsoft.Network/privateEndpoints/privateDnsZoneG
 resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' = {
   name: registryName
   location: location
-  tags: tags
   sku: {
     name: registrySku
   }
+  tags: tags
   properties: {
     adminUserEnabled: false
     publicNetworkAccess: 'Enabled'

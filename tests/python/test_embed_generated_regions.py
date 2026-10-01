@@ -155,9 +155,8 @@ class UnhandledLineKindTests(unittest.TestCase):
         """Never silently ignored, whichever of the two it is."""
         render = embed.CONVERTERS["appointment-transitions"][0]
         for kind in ("dynamic", "ignore", "superstate"):
-            with self.subTest(kind=kind):
-                with self.assertRaises(ValueError):
-                    render(["%s Something(1) detail" % kind])
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                render(["%s Something(1) detail" % kind])
 
 
 class RoundTripDiscriminationTests(unittest.TestCase):
@@ -377,6 +376,33 @@ class FailLoudlyTests(TempRepo):
         self.assertEqual(code, 1)
         self.assertIn("UNTERMINATED", out)
         self.assertEqual(io.open(path, "rb").read(), before)
+
+    def test_a_begin_inside_an_open_region_leaves_the_outer_one_unterminated(self):
+        """Without the nested-BEGIN stop, the outer region would borrow the inner END and
+        swallow everything between them, including the inner region's markers."""
+        self.snapshot("authorization-surface", AUTH_ROWS)
+        self.doc(
+            "docs/page.md",
+            "<!-- GENERATED: authorization-surface BEGIN -->\nouter\n"
+            "<!-- GENERATED: no-such-fact BEGIN -->\ninner\n"
+            "<!-- GENERATED: no-such-fact END -->\n",
+        )
+        code, out = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertIn("UNTERMINATED", out)
+        self.assertIn("region `authorization-surface` has no END marker", out)
+
+    def test_an_end_marker_with_a_different_name_is_reported(self):
+        self.snapshot("authorization-surface", AUTH_ROWS)
+        self.doc(
+            "docs/page.md",
+            "<!-- GENERATED: authorization-surface BEGIN -->\nx\n"
+            "<!-- GENERATED: something-else END -->\n",
+        )
+        code, out = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertIn("MISMATCHED", out)
+        self.assertIn("authorization-surface", out)
 
     def test_a_missing_directory_is_a_usage_error(self):
         self.assertEqual(embed.main(["embed.py", os.path.join("no", "such")]), 2)

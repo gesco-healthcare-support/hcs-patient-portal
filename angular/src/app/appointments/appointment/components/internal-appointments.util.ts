@@ -1,6 +1,7 @@
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import type { AppointmentStatusCountDto } from '../../../proxy/appointments/models';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
+import { neutraliseCsvCell } from '../../../shared/csv-cell.util';
 import {
   appointmentStatusToPill,
   appointmentStatusToSegment,
@@ -182,12 +183,19 @@ export function avatarColor(seed: string): string {
  * Serializes a header row + body matrix to RFC-4180 CSV text (fields quoted,
  * embedded quotes doubled, CRLF line breaks). ASCII output; callers pre-strip
  * any non-ASCII from cell values.
+ *
+ * Cells are neutralised before quoting so a spreadsheet cannot read one as a formula.
+ * The caller's `asciiOnly` does not cover this: it strips everything outside
+ * `\x20-\x7E`, and `=`, `+`, `-` and `@` are all inside that range. Quoting does not
+ * cover it either, because the quotes come off on import. The appointments export
+ * carries the patient name, which external users set during self-registration.
  */
 export function toCsvContent(
   headers: ReadonlyArray<string>,
   rows: ReadonlyArray<ReadonlyArray<string>>,
 ): string {
-  const escapeCell = (value: string): string => `"${(value ?? '').replaceAll('"', '""')}"`;
+  const escapeCell = (value: string): string =>
+    `"${neutraliseCsvCell(value).replaceAll('"', '""')}"`;
   const lines = [headers, ...rows].map((cells) => cells.map(escapeCell).join(','));
   return lines.join('\r\n');
 }

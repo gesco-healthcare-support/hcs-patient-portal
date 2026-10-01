@@ -78,9 +78,8 @@ class DiscoverTrackedTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             os.chdir(tmp)
             try:
-                with contextlib.redirect_stdout(buf):
-                    with self.assertRaises(SystemExit) as caught:
-                        gate.discover_tracked()
+                with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as caught:
+                    gate.discover_tracked()
             finally:
                 os.chdir(original)
         self.assertEqual(caught.exception.code, 1)
@@ -104,9 +103,8 @@ class DiscoverTrackedTests(unittest.TestCase):
                            check=True, capture_output=True)
             os.chdir(tmp)
             try:
-                with contextlib.redirect_stdout(buf):
-                    with self.assertRaises(SystemExit) as caught:
-                        gate.discover_tracked()
+                with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as caught:
+                    gate.discover_tracked()
             finally:
                 os.chdir(original)
         self.assertEqual(caught.exception.code, 1)
