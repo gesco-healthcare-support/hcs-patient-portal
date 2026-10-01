@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Dynamic.Core;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -324,6 +325,9 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
     {
         var accessorUserId = accessorIdentityUserId; // Capture for closure
         var ft = filterText;
+        var filterByAccessor = IsSet(accessorIdentityUserId);
+        // The booker filter stands down when an accessor filter is present; the two never combine.
+        var filterByBooker = IsSet(identityUserId) && !filterByAccessor;
         // S-NEW-2 (2026-04-30): when caller computed a visibility list (Patient,
         // AA, DA, CE involved-on-appointment), narrow the result. Empty list
         // means "user matches no appointment" -> return zero rows.
@@ -333,28 +337,18 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             query = query.Where(e => idsCopy.Contains(e.Appointment.Id));
         }
         return query
-            // W1-4: extend FilterText to span PanelNumber + RequestConfirmationNumber
-            // + Patient first/last name + booker IdentityUser name/surname so a single
-            // free-text input on the office's queue page finds appointments by any
-            // common identifier the office staff might recall.
-            .WhereIf(!string.IsNullOrWhiteSpace(ft), e =>
-                (e.Appointment.PanelNumber != null && e.Appointment.PanelNumber.Contains(ft!)) ||
-                (e.Appointment.RequestConfirmationNumber != null && e.Appointment.RequestConfirmationNumber.Contains(ft!)) ||
-                (e.Patient != null && e.Patient.FirstName != null && e.Patient.FirstName.Contains(ft!)) ||
-                (e.Patient != null && e.Patient.LastName != null && e.Patient.LastName.Contains(ft!)) ||
-                (e.IdentityUser != null && e.IdentityUser.Name != null && e.IdentityUser.Name.Contains(ft!)) ||
-                (e.IdentityUser != null && e.IdentityUser.Surname != null && e.IdentityUser.Surname.Contains(ft!)))
+            .WhereIf(!string.IsNullOrWhiteSpace(ft), MatchesFilterText(ft ?? string.Empty))
             .WhereIf(!string.IsNullOrWhiteSpace(panelNumber), e => e.Appointment.PanelNumber!.Contains(panelNumber!))
             .WhereIf(appointmentDateMin.HasValue, e => e.Appointment.AppointmentDate >= appointmentDateMin!.Value)
             .WhereIf(appointmentDateMax.HasValue, e => e.Appointment.AppointmentDate <= appointmentDateMax!.Value)
-            .WhereIf(identityUserId != null && identityUserId != Guid.Empty && (accessorIdentityUserId == null || accessorIdentityUserId == Guid.Empty), e =>
+            .WhereIf(filterByBooker, e =>
                 (e.IdentityUser != null && e.IdentityUser.Id == identityUserId) ||
                 (e.Patient != null && e.Patient.IdentityUserId == identityUserId))
-            .WhereIf(accessorIdentityUserId != null && accessorIdentityUserId != Guid.Empty, e =>
+            .WhereIf(filterByAccessor, e =>
                 (e.Appointment.CreatorId != null && e.Appointment.CreatorId == accessorUserId) ||
                 dbContext.Set<AppointmentAccessor>().Any(aa => aa.AppointmentId == e.Appointment.Id && aa.IdentityUserId == accessorUserId))
-            .WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.AppointmentType != null && e.AppointmentType.Id == appointmentTypeId)
-            .WhereIf(locationId != null && locationId != Guid.Empty, e => e.Location != null && e.Location.Id == locationId)
+            .WhereIf(IsSet(appointmentTypeId), e => e.AppointmentType != null && e.AppointmentType.Id == appointmentTypeId)
+            .WhereIf(IsSet(locationId), e => e.Location != null && e.Location.Id == locationId)
             // W2-6: dashboard cards deep-link to /appointments?appointmentStatus=N.
             .WhereIf(appointmentStatus.HasValue, e => e.Appointment.AppointmentStatus == appointmentStatus!.Value)
             // Prompt 10 (2026-06-14): pill chips on the internal list filter by a
@@ -362,8 +356,25 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             // to the single-status filter above so both can coexist.
             .WhereIf(appointmentStatuses != null && appointmentStatuses.Count > 0, e => appointmentStatuses!.Contains(e.Appointment.AppointmentStatus))
             // Prompt 15 (2026-06-15): patient-detail appointments table filters to one patient.
-            .WhereIf(patientId.HasValue && patientId.Value != Guid.Empty, e => e.Appointment.PatientId == patientId!.Value);
+            .WhereIf(IsSet(patientId), e => e.Appointment.PatientId == patientId!.Value);
     }
+
+    /// <summary>A filter id counts only when it is present and not the empty Guid.</summary>
+    private static bool IsSet(Guid? id) => id.HasValue && id.Value != Guid.Empty;
+
+    /// <summary>
+    /// W1-4: FilterText spans PanelNumber + RequestConfirmationNumber + Patient first/last name +
+    /// booker IdentityUser name/surname, so a single free-text input on the office's queue page
+    /// finds appointments by any common identifier the office staff might recall.
+    /// </summary>
+    private static Expression<Func<AppointmentWithNavigationProperties, bool>> MatchesFilterText(string ft) =>
+        e =>
+            (e.Appointment.PanelNumber != null && e.Appointment.PanelNumber.Contains(ft)) ||
+            (e.Appointment.RequestConfirmationNumber != null && e.Appointment.RequestConfirmationNumber.Contains(ft)) ||
+            (e.Patient != null && e.Patient.FirstName != null && e.Patient.FirstName.Contains(ft)) ||
+            (e.Patient != null && e.Patient.LastName != null && e.Patient.LastName.Contains(ft)) ||
+            (e.IdentityUser != null && e.IdentityUser.Name != null && e.IdentityUser.Name.Contains(ft)) ||
+            (e.IdentityUser != null && e.IdentityUser.Surname != null && e.IdentityUser.Surname.Contains(ft));
 
     protected virtual IQueryable<Appointment> ApplyFilter(IQueryable<Appointment> query, string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null)
     {

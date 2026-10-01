@@ -14,7 +14,7 @@ public abstract class CaseEvaluationDbContextFactoryBase<TDbContext> : IDesignTi
 
     protected string ConnectionStringName { get; }
 
-    public CaseEvaluationDbContextFactoryBase(string connectionStringName = "Default")
+    protected CaseEvaluationDbContextFactoryBase(string connectionStringName = "Default")
     {
         ConnectionStringName = connectionStringName;
     }
