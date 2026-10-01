@@ -162,96 +162,6 @@ resource gatewayIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   tags: tags
 }
 
-// ---------------------------------------------------------------- modules
-
-module network 'modules/network.bicep' = {
-  name: 'network'
-  params: {
-    location: location
-    envName: envName
-    tags: tags
-  }
-}
-
-module platform 'modules/platform.bicep' = {
-  name: 'platform'
-  params: {
-    location: location
-    envName: envName
-    uniqueSuffix: uniqueSuffix
-    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
-    keyVaultPrivateDnsZoneId: network.outputs.keyVaultPrivateDnsZoneId
-    registrySku: registrySku
-    keyVaultName: keyVaultName
-    registryName: registryName
-    dataProtectionKeyName: dataProtectionKeyName
-    tags: tags
-  }
-}
-
-module data 'modules/data.bicep' = {
-  name: 'data'
-  params: {
-    location: location
-    envName: envName
-    uniqueSuffix: uniqueSuffix
-    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
-    sqlPrivateDnsZoneId: network.outputs.sqlPrivateDnsZoneId
-    redisPrivateDnsZoneId: network.outputs.redisPrivateDnsZoneId
-    blobPrivateDnsZoneId: network.outputs.blobPrivateDnsZoneId
-    sqlAdminLogin: sqlAdminLogin
-    sqlAdminPassword: sqlAdminPassword
-    sqlEntraAdminObjectId: sqlEntraAdminObjectId
-    sqlEntraAdminName: sqlEntraAdminName
-    elasticPoolCapacity: elasticPoolCapacity
-    documentsAccountName: documentsAccountName
-    backupsAccountName: backupsAccountName
-    redisName: redisName
-    redisSkuName: redisSkuName
-    tags: tags
-  }
-}
-
-module host 'modules/host.bicep' = {
-  name: 'host'
-  params: {
-    location: location
-    envName: envName
-    appSubnetId: network.outputs.appSubnetId
-    vmSize: vmSize
-    adminSshPublicKey: adminSshPublicKey
-    workspaceId: platform.outputs.workspaceId
-    tags: tags
-  }
-}
-
-module edge 'modules/edge.bicep' = {
-  name: 'edge'
-  params: {
-    location: location
-    envName: envName
-    gatewaySubnetId: network.outputs.gatewaySubnetId
-    backendPrivateIp: host.outputs.privateIpAddress
-    baseDomain: baseDomain
-    deployGateway: deployGateway
-    tlsCertificateSecretId: tlsCertificateSecretId
-    gatewayIdentityId: gatewayIdentity.id
-    probeHostName: probeHostName
-    createDnsZone: createDnsZone
-    wafMode: wafMode
-    workspaceId: platform.outputs.workspaceId
-    enableDdosIpProtection: enableDdosIpProtection
-    tags: tags
-  }
-  // Nothing references these grants, so without this the gateway could be created before
-  // its identity can read the certificate, and fail. RBAC propagation can still lag
-  // behind a completed assignment; phase 2 of the first deployment absorbs that.
-  dependsOn: [
-    gatewayReadsSecrets
-    gatewayReadsCertificates
-  ]
-}
-
 // ---------------------------------------------------------------- access
 //
 // Every one of these replaces a stored credential. The host pulls images, reads secrets,
@@ -384,6 +294,96 @@ resource gatewayReadsCertificates 'Microsoft.Authorization/roleAssignments@2022-
     principalId: gatewayIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
+}
+
+// ---------------------------------------------------------------- modules
+
+module network 'modules/network.bicep' = {
+  name: 'network'
+  params: {
+    location: location
+    envName: envName
+    tags: tags
+  }
+}
+
+module platform 'modules/platform.bicep' = {
+  name: 'platform'
+  params: {
+    location: location
+    envName: envName
+    uniqueSuffix: uniqueSuffix
+    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
+    keyVaultPrivateDnsZoneId: network.outputs.keyVaultPrivateDnsZoneId
+    registrySku: registrySku
+    keyVaultName: keyVaultName
+    registryName: registryName
+    dataProtectionKeyName: dataProtectionKeyName
+    tags: tags
+  }
+}
+
+module data 'modules/data.bicep' = {
+  name: 'data'
+  params: {
+    location: location
+    envName: envName
+    uniqueSuffix: uniqueSuffix
+    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
+    sqlPrivateDnsZoneId: network.outputs.sqlPrivateDnsZoneId
+    redisPrivateDnsZoneId: network.outputs.redisPrivateDnsZoneId
+    blobPrivateDnsZoneId: network.outputs.blobPrivateDnsZoneId
+    sqlAdminLogin: sqlAdminLogin
+    sqlAdminPassword: sqlAdminPassword
+    sqlEntraAdminObjectId: sqlEntraAdminObjectId
+    sqlEntraAdminName: sqlEntraAdminName
+    elasticPoolCapacity: elasticPoolCapacity
+    documentsAccountName: documentsAccountName
+    backupsAccountName: backupsAccountName
+    redisName: redisName
+    redisSkuName: redisSkuName
+    tags: tags
+  }
+}
+
+module host 'modules/host.bicep' = {
+  name: 'host'
+  params: {
+    location: location
+    envName: envName
+    appSubnetId: network.outputs.appSubnetId
+    vmSize: vmSize
+    adminSshPublicKey: adminSshPublicKey
+    workspaceId: platform.outputs.workspaceId
+    tags: tags
+  }
+}
+
+module edge 'modules/edge.bicep' = {
+  name: 'edge'
+  params: {
+    location: location
+    envName: envName
+    gatewaySubnetId: network.outputs.gatewaySubnetId
+    backendPrivateIp: host.outputs.privateIpAddress
+    baseDomain: baseDomain
+    deployGateway: deployGateway
+    tlsCertificateSecretId: tlsCertificateSecretId
+    gatewayIdentityId: gatewayIdentity.id
+    probeHostName: probeHostName
+    createDnsZone: createDnsZone
+    wafMode: wafMode
+    workspaceId: platform.outputs.workspaceId
+    enableDdosIpProtection: enableDdosIpProtection
+    tags: tags
+  }
+  // Nothing references these grants, so without this the gateway could be created before
+  // its identity can read the certificate, and fail. RBAC propagation can still lag
+  // behind a completed assignment; phase 2 of the first deployment absorbs that.
+  dependsOn: [
+    gatewayReadsSecrets
+    gatewayReadsCertificates
+  ]
 }
 
 // ---------------------------------------------------------------- outputs
