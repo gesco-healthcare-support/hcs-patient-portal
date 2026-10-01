@@ -357,7 +357,7 @@ describe('ExternalHomeComponent surfaces', () => {
 
     it('shows everything on the all segment', () => {
       const c = seeded();
-      expect(c.filtered().length).toBe(2);
+      expect(c.filtered()).toHaveSize(2);
     });
 
     it('narrows to one segment', () => {
@@ -387,7 +387,7 @@ describe('ExternalHomeComponent surfaces', () => {
     it('ignores surrounding whitespace in the search', () => {
       const c = seeded();
       c.q.set('   hopper   ');
-      expect(c.filtered().length).toBe(1);
+      expect(c.filtered()).toHaveSize(1);
     });
 
     it('matches type and location exactly, not by substring', () => {
@@ -404,7 +404,7 @@ describe('ExternalHomeComponent surfaces', () => {
     it('matches the reference numbers on a case-insensitive substring', () => {
       const c = seeded();
       c.filters.set({ conf: 'c000' });
-      expect(c.filtered().length).toBe(2);
+      expect(c.filtered()).toHaveSize(2);
 
       c.filters.set({ claim: 'clm-2' });
       expect(c.filtered().map((r: { id: string }) => r.id)).toEqual(['2']);

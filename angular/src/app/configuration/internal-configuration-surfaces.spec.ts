@@ -184,7 +184,7 @@ describe('InternalConfigurationComponent surfaces', () => {
       const c = create();
       gateway['list'].and.returnValue(of([row()]));
       enter('types');
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
       expect(c.loading()).toBeFalse();
     });
 

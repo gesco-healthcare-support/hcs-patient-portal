@@ -32,10 +32,10 @@ No layout renders the ABP menu registrations any more -- the LeptonX layout is g
    `canMatch: [internalUserOnlyMatchGuard]` and `authGuard`, with every staff page as a child.
 6. **`**`** -- the branded `NotFoundComponent`. It must stay last.
 
-Re-derive the counts below with `grep -c "path:" angular/src/app/app.routes.ts` (62 on 2026-09-28) and
+Re-derive the counts below with `grep -c "path:" angular/src/app/app.routes.ts` (62 on 2026-09-30) and
 `grep -oE "(canMatch|canActivate|canDeactivate): \[[^]]*\]" angular/src/app/app.routes.ts | sort | uniq -c`.
 
-## Route reference (as of 2026-09-28)
+## Route reference (as of 2026-09-30)
 
 "Policy" is the route's `data.requiredPolicy`. Where the route has none, the policy shown in brackets
 comes from the menu registration (see below).
@@ -64,26 +64,26 @@ Unless noted, a child carries `authGuard` + `permissionGuard`.
 | Path | Loads | Policy |
 |------|-------|--------|
 | `/dashboard` | `InternalDashboardComponent` | [`CaseEvaluation.Dashboard.Host \|\| CaseEvaluation.Dashboard.Tenant`] |
-| `/appointments` | `APPOINTMENT_ROUTES`: the staff list, and `view/:id` (staff detail; `authGuard` only) | [`CaseEvaluation.Appointments`] |
+| `/appointments` | `APPOINTMENT_ROUTES`: `InternalAppointmentsComponent` (the staff queue), and `view/:id` loading `InternalAppointmentDetailComponent` (staff detail; `authGuard` only) | [`CaseEvaluation.Appointments`] |
 | `/appointments/change-requests` | `CHANGE_REQUEST_ROUTES`: one tabbed inbox; `reschedules` and `cancellations` redirect to it | `CaseEvaluation.AppointmentChangeRequests` |
 | `/appointments/request` (staff copy) | `AppointmentWizardComponent`, plus `canDeactivate: appointmentWizardCanDeactivateGuard` | `CaseEvaluation.Appointments.Create` |
 | `/appointments/view/:id/change-log` | `AppointmentChangeLogsComponent` | `CaseEvaluation.AppointmentChangeLogs` |
 | `/appointment-change-logs` | `AppointmentChangeLogListComponent` | `CaseEvaluation.AppointmentChangeLogs` |
 | `/reports` | `AppointmentReportComponent` | `CaseEvaluation.Reports` |
-| `/doctor-management/doctor-availabilities` | `DOCTOR_AVAILABILITY_ROUTES`: the list; `generate` and `add` load the generate form | [`CaseEvaluation.DoctorAvailabilities`] |
+| `/doctor-management/doctor-availabilities` | `DOCTOR_AVAILABILITY_ROUTES`: `InternalAvailabilitiesComponent` (the list); `generate` and `add` load `InternalGenerateSlotsComponent`. The shell also declares `generate` and `add` directly, and those copies match first | [`CaseEvaluation.DoctorAvailabilities`] |
 | `/doctor-management/schedule` | `InternalScheduleComponent` | `CaseEvaluation.DoctorAvailabilities` |
-| `/doctor-management/locations` | `LOCATION_ROUTES` | [`CaseEvaluation.Locations`] |
-| `/doctor-management/wcab-offices` | `WCAB_OFFICE_ROUTES` | [`CaseEvaluation.WcabOffices`] |
-| `/doctor-management/doctors` | `DOCTOR_ROUTES` -- dormant feature, no menu entry | -- |
-| `/configurations/states` | `STATE_ROUTES` | `CaseEvaluation.States` |
-| `/appointment-management/appointment-types` | `APPOINTMENT_TYPE_ROUTES` | `CaseEvaluation.AppointmentTypes` |
-| `/appointment-management/appointment-statuses` | `APPOINTMENT_STATUS_ROUTES` | `CaseEvaluation.AppointmentStatuses` |
-| `/appointment-management/document-types` | `APPOINTMENT_DOCUMENT_TYPE_ROUTES` | `CaseEvaluation.AppointmentDocumentTypes` |
-| `/appointment-management/appointment-languages` | `APPOINTMENT_LANGUAGE_ROUTES` | `CaseEvaluation.AppointmentLanguages` |
-| `/user-management/patients` | `PATIENT_ROUTES` | `CaseEvaluation.Patients` |
-| `/applicant-attorneys` | `APPLICANT_ATTORNEY_ROUTES` | `CaseEvaluation.ApplicantAttorneys` |
-| `/defense-attorneys` | `DEFENSE_ATTORNEY_ROUTES` | `CaseEvaluation.DefenseAttorneys` |
-| `/claim-examiners` | `CLAIM_EXAMINER_ROUTES` | `CaseEvaluation.ClaimExaminers` |
+| `/doctor-management/locations` | `LOCATION_ROUTES`: `InternalLocationsComponent` | [`CaseEvaluation.Locations`] |
+| `/doctor-management/wcab-offices` | `WCAB_OFFICE_ROUTES`: `InternalWcabOfficesComponent` | [`CaseEvaluation.WcabOffices`] |
+| `/doctor-management/doctors` | `DOCTOR_ROUTES`: `DoctorComponent` -- dormant feature, no menu entry | -- |
+| `/configurations/states` | `STATE_ROUTES`: `InternalConfigurationComponent`, section `states` | `CaseEvaluation.States` |
+| `/appointment-management/appointment-types` | `APPOINTMENT_TYPE_ROUTES`: `InternalConfigurationComponent`, section `types` | `CaseEvaluation.AppointmentTypes` |
+| `/appointment-management/appointment-statuses` | `APPOINTMENT_STATUS_ROUTES`: `InternalConfigurationComponent`, section `statuses` | `CaseEvaluation.AppointmentStatuses` |
+| `/appointment-management/document-types` | `APPOINTMENT_DOCUMENT_TYPE_ROUTES`: `InternalConfigurationComponent`, section `doctypes` | `CaseEvaluation.AppointmentDocumentTypes` |
+| `/appointment-management/appointment-languages` | `APPOINTMENT_LANGUAGE_ROUTES`: `InternalConfigurationComponent`, section `languages` | `CaseEvaluation.AppointmentLanguages` |
+| `/user-management/patients` | `PATIENT_ROUTES`: `InternalPeopleComponent`, section `patients` | `CaseEvaluation.Patients` |
+| `/applicant-attorneys` | `APPLICANT_ATTORNEY_ROUTES`: `InternalPeopleComponent`, section `aa` | `CaseEvaluation.ApplicantAttorneys` |
+| `/defense-attorneys` | `DEFENSE_ATTORNEY_ROUTES`: `InternalPeopleComponent`, section `da` | `CaseEvaluation.DefenseAttorneys` |
+| `/claim-examiners` | `CLAIM_EXAMINER_ROUTES`: `InternalPeopleComponent`, section `ce` | `CaseEvaluation.ClaimExaminers` |
 | `/users` | redirects to `/users/invite` | -- |
 | `/users/invite`, `/users/pending` | `InternalUsersHubComponent` (one hub, one section per route) | `CaseEvaluation.UserManagement.InviteExternalUser` |
 | `/users/internal` | `InternalUsersHubComponent` | `CaseEvaluation.InternalUsers.Create` |
@@ -141,8 +141,9 @@ So:
 - **`resolveNavGroups`** picks `IN_NAV_HOST` when the user is at host scope and is an IT Admin, the built-in
   admin, a Staff Supervisor or Intake Staff; everyone else, including staff who have switched into an office,
   gets `IN_NAV`.
-- **`filterNavGroups`** keeps an item only when the user's role key is listed on it and its `requiredPolicy`
-  (the same string the route checks) is granted, so a visible item never leads to a 403.
+- **`filterNavGroups`** keeps an item only when the user's role key is listed on it (the built-in `admin` key
+  passes every item) and its `requiredPolicy` (the same string the route checks) is granted, so a visible item
+  never leads to a 403. A group left with no items is dropped.
 
 External users never get the shell; their pages render their own navbar. See [Role-Based UI](ROLE-BASED-UI.md).
 

@@ -126,7 +126,7 @@ describe('InternalLocationsComponent surfaces', () => {
       const c = create();
       service['getList'].and.returnValue(of({ items: [row()] }));
       c.ngOnInit();
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
       expect(c.loading()).toBeFalse();
     });
 

@@ -26,6 +26,11 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
     // QuestPDF's Material Green 500 == the legacy header (#4CAF50).
     private static readonly Color HeaderColor = Colors.Green.Medium;
 
+    // Row labels shared by several sections.
+    private const string EmailLabel = "Email";
+    private const string PhoneLabel = "Phone";
+    private const string AddressLabel = "Address";
+
     private readonly AppointmentWithNavigationPropertiesDto _appointment;
 
     public AppointmentDemographicsPdfDocument(AppointmentWithNavigationPropertiesDto appointment)
@@ -87,10 +92,10 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
             ("Name", ComposePatientName(patient)),
             ("Date of Birth", DobVisibility.ToYearOnly(patient?.DateOfBirth)),
             ("Social Security Number", patient?.SocialSecurityNumber),
-            ("Email", patient?.Email ?? appointment?.PatientEmail),
-            ("Phone", patient?.PhoneNumber),
+            (EmailLabel, patient?.Email ?? appointment?.PatientEmail),
+            (PhoneLabel, patient?.PhoneNumber),
             ("Cell Phone", patient?.CellPhoneNumber),
-            ("Address", ComposeAddress(patient?.Street ?? patient?.Address, patient?.City, patient?.ZipCode)),
+            (AddressLabel, ComposeAddress(patient?.Street ?? patient?.Address, patient?.City, patient?.ZipCode)),
             ("Other Language", patient?.OthersLanguageName),
             ("Interpreter Vendor", patient?.InterpreterVendorName),
             ("Referred By", appointment?.RefferedBy));
@@ -101,8 +106,8 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
             Section(body, "Employer Details",
                 ("Employer", employer.EmployerName),
                 ("Occupation", employer.Occupation),
-                ("Phone", employer.PhoneNumber),
-                ("Address", ComposeAddress(employer.Street, employer.City, employer.ZipCode)));
+                (PhoneLabel, employer.PhoneNumber),
+                (AddressLabel, ComposeAddress(employer.Street, employer.City, employer.ZipCode)));
         }
 
         ComposeInjuries(body);
@@ -114,9 +119,9 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
         {
             Section(body, "Insurance",
                 ("Company", insurance.Name),
-                ("Phone", insurance.PhoneNumber),
+                (PhoneLabel, insurance.PhoneNumber),
                 ("Fax", insurance.FaxNumber),
-                ("Address", ComposeAddress(insurance.Street, insurance.City, insurance.Zip)));
+                (AddressLabel, ComposeAddress(insurance.Street, insurance.City, insurance.Zip)));
         }
 
         var examiner = _appointment.ClaimExaminer;
@@ -124,10 +129,10 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
         {
             Section(body, "Claim Examiner",
                 ("Name", examiner.Name),
-                ("Email", examiner.Email),
-                ("Phone", examiner.PhoneNumber),
+                (EmailLabel, examiner.Email),
+                (PhoneLabel, examiner.PhoneNumber),
                 ("Fax", examiner.Fax),
-                ("Address", ComposeAddress(examiner.Street, examiner.City, examiner.Zip)));
+                (AddressLabel, ComposeAddress(examiner.Street, examiner.City, examiner.Zip)));
         }
 
         var applicant = _appointment.AppointmentApplicantAttorney?.ApplicantAttorney;
@@ -136,11 +141,11 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
             Section(body, "Applicant Attorney",
                 ("Name", ComposeName(applicant.FirstName, applicant.LastName)),
                 ("Firm", applicant.FirmName),
-                ("Email", appointment?.ApplicantAttorneyEmail),
-                ("Phone", applicant.PhoneNumber),
+                (EmailLabel, appointment?.ApplicantAttorneyEmail),
+                (PhoneLabel, applicant.PhoneNumber),
                 ("Fax", applicant.FaxNumber),
                 ("Web", applicant.WebAddress),
-                ("Address", applicant.FirmAddress ?? ComposeAddress(applicant.Street, applicant.City, applicant.ZipCode)));
+                (AddressLabel, applicant.FirmAddress ?? ComposeAddress(applicant.Street, applicant.City, applicant.ZipCode)));
         }
 
         var defense = _appointment.AppointmentDefenseAttorney?.DefenseAttorney;
@@ -149,11 +154,11 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
             Section(body, "Defense Attorney",
                 ("Name", ComposeName(defense.FirstName, defense.LastName)),
                 ("Firm", defense.FirmName),
-                ("Email", appointment?.DefenseAttorneyEmail),
-                ("Phone", defense.PhoneNumber),
+                (EmailLabel, appointment?.DefenseAttorneyEmail),
+                (PhoneLabel, defense.PhoneNumber),
                 ("Fax", defense.FaxNumber),
                 ("Web", defense.WebAddress),
-                ("Address", defense.FirmAddress ?? ComposeAddress(defense.Street, defense.City, defense.ZipCode)));
+                (AddressLabel, defense.FirmAddress ?? ComposeAddress(defense.Street, defense.City, defense.ZipCode)));
         }
     }
 
@@ -170,7 +175,7 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
                 : injury?.BodyPartsSummary;
 
             Section(body, $"Injury {index}",
-                ("Cumulative Trauma", injury == null ? null : (injury.IsCumulativeInjury ? "Yes" : "No")),
+                ("Cumulative Trauma", YesNo(injury?.IsCumulativeInjury)),
                 ("WCAB / ADJ", injury?.WcabAdj),
                 ("Date of Injury", Format(injury?.DateOfInjury)),
                 ("To Date of Injury", Format(injury?.ToDateOfInjury)),
@@ -232,6 +237,15 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
         var parts = new[] { street, city, zip }.Where(p => !string.IsNullOrWhiteSpace(p));
         var address = string.Join(", ", parts);
         return string.IsNullOrWhiteSpace(address) ? null : address;
+    }
+
+    private static string? YesNo(bool? value)
+    {
+        if (value == null)
+        {
+            return null;
+        }
+        return value.Value ? "Yes" : "No";
     }
 
     private static string? Format(System.DateTime? value)

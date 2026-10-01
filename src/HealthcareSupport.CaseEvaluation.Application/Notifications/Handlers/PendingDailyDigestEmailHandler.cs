@@ -116,6 +116,9 @@ public class PendingDailyDigestEmailHandler :
         }
     }
 
+    private const string CellOpen = "<td style=\"padding:6px;border:1px solid #d1d5db;\">";
+    private const string CellClose = "</td>";
+
     /// <summary>
     /// Renders the digest table. The "Decision due" column = request date +
     /// <paramref name="decisionDueDays"/>. Rows whose deadline has passed
@@ -128,14 +131,7 @@ public class PendingDailyDigestEmailHandler :
     /// </summary>
     internal static string BuildDigestHtml(List<PendingDailyDigestRow> rows, int decisionDueDays, DateTime nowForOverdue)
     {
-        var overdueCount = 0;
-        foreach (var row in rows)
-        {
-            if (DecisionSlaPolicy.IsDecisionOverdue(row.RequestedAt, nowForOverdue, decisionDueDays))
-            {
-                overdueCount++;
-            }
-        }
+        var overdueCount = rows.Count(row => DecisionSlaPolicy.IsDecisionOverdue(row.RequestedAt, nowForOverdue, decisionDueDays));
 
         var sb = new StringBuilder();
 
@@ -162,16 +158,16 @@ public class PendingDailyDigestEmailHandler :
             var rowStyle = isOverdue ? " style=\"background:#fef2f2;\"" : string.Empty;
 
             sb.Append("<tr").Append(rowStyle).Append('>');
-            sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(System.Net.WebUtility.HtmlEncode(row.RequestConfirmationNumber ?? string.Empty)).Append("</td>");
-            sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(System.Net.WebUtility.HtmlEncode(row.PatientName ?? string.Empty)).Append("</td>");
-            sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(row.AppointmentDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture)).Append("</td>");
-            sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(row.DueDate.HasValue ? row.DueDate.Value.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture) : "&mdash;").Append("</td>");
-            sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(decisionDue.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture));
+            sb.Append(CellOpen).Append(System.Net.WebUtility.HtmlEncode(row.RequestConfirmationNumber ?? string.Empty)).Append(CellClose);
+            sb.Append(CellOpen).Append(System.Net.WebUtility.HtmlEncode(row.PatientName ?? string.Empty)).Append(CellClose);
+            sb.Append(CellOpen).Append(row.AppointmentDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture)).Append(CellClose);
+            sb.Append(CellOpen).Append(row.DueDate.HasValue ? row.DueDate.Value.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture) : "&mdash;").Append(CellClose);
+            sb.Append(CellOpen).Append(decisionDue.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture));
             if (isOverdue)
             {
                 sb.Append(" <strong style=\"color:#b91c1c;\">(OVERDUE)</strong>");
             }
-            sb.Append("</td>");
+            sb.Append(CellClose);
             sb.Append("</tr>");
         }
         sb.Append("</tbody></table>");

@@ -289,12 +289,9 @@ public class AppointmentInfoRequestsAppService
             var fields = JsonSerializer.Deserialize<List<FlaggedFieldDto>>(entity.RequestedFields);
             if (fields != null)
             {
-                foreach (var field in fields)
+                foreach (var field in fields.Where(f => !string.IsNullOrWhiteSpace(f.Key)))
                 {
-                    if (!string.IsNullOrWhiteSpace(field.Key))
-                    {
-                        keys.Add(field.Key);
-                    }
+                    keys.Add(field.Key);
                 }
             }
         }
@@ -352,7 +349,7 @@ public class AppointmentInfoRequestsAppService
     /// unknown or not-yet-fixed field blocks the resubmit rather than passing silently.
     /// The "documents" key requires at least one uploaded document.
     /// </summary>
-    private async Task<List<string>> GetUnresolvedFlaggedKeysAsync(Appointment appointment, ISet<string> flaggedKeys)
+    private async Task<List<string>> GetUnresolvedFlaggedKeysAsync(Appointment appointment, HashSet<string> flaggedKeys)
     {
         var unresolved = new List<string>();
         if (flaggedKeys.Count == 0)
@@ -456,7 +453,7 @@ public class AppointmentInfoRequestsAppService
     /// route through the permission-gated per-entity app services (external roles lack
     /// their grants). New linked rows are inserted; existing rows updated.
     /// </summary>
-    private async Task SaveBundleAsync(CorrectionBundle bundle, ISet<InfoRequestFieldOwner> touchedOwners)
+    private async Task SaveBundleAsync(CorrectionBundle bundle, HashSet<InfoRequestFieldOwner> touchedOwners)
     {
         if (touchedOwners.Contains(InfoRequestFieldOwner.Patient) && bundle.Patient != null)
         {
@@ -542,7 +539,7 @@ public class AppointmentInfoRequestsAppService
     }
 
     /// <summary>Resolves an identity user id to a display name, caching within the call.</summary>
-    private async Task<string?> ResolveNameAsync(Guid? userId, IDictionary<Guid, string?> cache)
+    private async Task<string?> ResolveNameAsync(Guid? userId, Dictionary<Guid, string?> cache)
     {
         if (userId is not Guid id)
         {

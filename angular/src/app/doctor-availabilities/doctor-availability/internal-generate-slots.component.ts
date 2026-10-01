@@ -249,8 +249,10 @@ export class InternalGenerateSlotsComponent implements OnInit {
   protected setRange(i: number, field: keyof GenTimeRange, value: string): void {
     // durationOverride is the one numeric field, and blank means "inherit the default"
     // rather than zero -- hence null and not Number('').
-    const next =
-      field === 'durationOverride' ? (value ? Number(value) : null) : (value as string | null);
+    let next: number | string | null = value;
+    if (field === 'durationOverride') {
+      next = value ? Number(value) : null;
+    }
     this.timeRanges.set(this.timeRanges().map((r, j) => (j === i ? { ...r, [field]: next } : r)));
   }
   protected addRange(): void {
