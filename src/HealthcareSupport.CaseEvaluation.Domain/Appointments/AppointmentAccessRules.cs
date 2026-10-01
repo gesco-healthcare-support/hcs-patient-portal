@@ -66,30 +66,12 @@ public static class AppointmentAccessRules
         IEnumerable<string>? claimExaminerEmails,
         IEnumerable<AccessorEntry>? accessorEntries)
     {
-        if (callerIsInternalUser)
-        {
-            return (true, AccessPathway.InternalUser);
-        }
-        if (!callerUserId.HasValue)
-        {
-            return (false, null);
-        }
-
-        var userId = callerUserId.Value;
-
-        var namedParty = MatchNamedParty(
-            userId, callerEmail, appointmentCreatorId, patientIdentityUserId,
-            applicantAttorneyIdentityUserIds, defenseAttorneyIdentityUserIds, claimExaminerEmails);
-        if (namedParty.HasValue)
-        {
-            return (true, namedParty.Value);
-        }
-        if (accessorEntries != null
-            && accessorEntries.Any(a => a.IdentityUserId == userId))
-        {
-            return (true, AccessPathway.AppointmentAccessor);
-        }
-        return (false, null);
+        return Evaluate(
+            callerUserId, callerEmail, callerIsInternalUser,
+            appointmentCreatorId, patientIdentityUserId,
+            applicantAttorneyIdentityUserIds, defenseAttorneyIdentityUserIds,
+            claimExaminerEmails, accessorEntries,
+            requiredAccessorAccessType: null);
     }
 
     /// <summary>
@@ -137,6 +119,41 @@ public static class AppointmentAccessRules
         IEnumerable<string>? claimExaminerEmails,
         IEnumerable<AccessorEntry>? accessorEntries)
     {
+        return Evaluate(
+            callerUserId, callerEmail, callerIsInternalUser,
+            appointmentCreatorId, patientIdentityUserId,
+            applicantAttorneyIdentityUserIds, defenseAttorneyIdentityUserIds,
+            claimExaminerEmails, accessorEntries,
+            requiredAccessorAccessType: AccessType.Edit);
+    }
+
+
+    /// <summary>
+    /// The seven pathways, evaluated once. <see cref="CanRead"/> and <see cref="CanEdit"/> differ in
+    /// exactly one respect -- whether an accessor entry must carry
+    /// <see cref="AccessType.Edit"/> -- so they share this body and pass that difference in.
+    ///
+    /// <para>They were two 29-line copies. The hazard that matters is not the duplication itself:
+    /// an eighth pathway added to one copy and not the other would split read access from edit
+    /// access silently, and no test that checks each predicate on its own would see it. Keeping one
+    /// body means a new pathway cannot be added to read alone.</para>
+    ///
+    /// <para><paramref name="requiredAccessorAccessType"/> is null for read, which accepts an
+    /// accessor entry of any access type, and <see cref="AccessType.Edit"/> for edit, which is what
+    /// makes a View-only accessor fail the edit gate. Order is unchanged and first match still wins.</para>
+    /// </summary>
+    private static (bool allowed, AccessPathway? pathway) Evaluate(
+        Guid? callerUserId,
+        string? callerEmail,
+        bool callerIsInternalUser,
+        Guid? appointmentCreatorId,
+        Guid? patientIdentityUserId,
+        IEnumerable<Guid>? applicantAttorneyIdentityUserIds,
+        IEnumerable<Guid>? defenseAttorneyIdentityUserIds,
+        IEnumerable<string>? claimExaminerEmails,
+        IEnumerable<AccessorEntry>? accessorEntries,
+        AccessType? requiredAccessorAccessType)
+    {
         if (callerIsInternalUser)
         {
             return (true, AccessPathway.InternalUser);
@@ -157,7 +174,8 @@ public static class AppointmentAccessRules
         }
         if (accessorEntries != null
             && accessorEntries.Any(a => a.IdentityUserId == userId
-                                        && a.AccessType == AccessType.Edit))
+                                        && (requiredAccessorAccessType == null
+                                            || a.AccessType == requiredAccessorAccessType.Value)))
         {
             return (true, AccessPathway.AppointmentAccessor);
         }
