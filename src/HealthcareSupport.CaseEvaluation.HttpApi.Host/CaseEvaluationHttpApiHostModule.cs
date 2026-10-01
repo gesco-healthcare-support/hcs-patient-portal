@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -96,11 +96,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             context.Services, configuration, hostingEnvironment.IsDevelopment());
 
         // Development only, decided in code: see IdentityModelPiiLogging for why a setting is not enough.
-        if (Hosting.IdentityModelPiiLogging.ShouldEnable(hostingEnvironment, configuration))
-        {
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
-        }
+        Hosting.IdentityModelPiiLogging.Apply(hostingEnvironment, configuration);
 
         ConfigureStudio(hostingEnvironment);
         ConfigureUrls(configuration);

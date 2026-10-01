@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using Localization.Resources.AbpUi;
@@ -227,11 +227,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
         }
 
         // Development only, decided in code: see IdentityModelPiiLogging for why a setting is not enough.
-        if (Hosting.IdentityModelPiiLogging.ShouldEnable(hostingEnvironment, configuration))
-        {
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
-        }
+        Hosting.IdentityModelPiiLogging.Apply(hostingEnvironment, configuration);
 
         // In-house hosting (2026-07-09, G7): always honor the reverse proxy's
         // X-Forwarded-Proto so the app sees the original https scheme behind

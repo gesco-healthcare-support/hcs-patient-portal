@@ -1,5 +1,6 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Logging;
 
 namespace HealthcareSupport.CaseEvaluation.Hosting;
 
@@ -24,5 +25,30 @@ public static class IdentityModelPiiLogging
     public static bool ShouldEnable(IHostEnvironment environment, IConfiguration configuration)
     {
         return environment.IsDevelopment() && !configuration.GetValue<bool>(DisableKey);
+    }
+
+    /// <summary>
+    /// Applies the decision to the two <c>IdentityModelEventSource</c> switches.
+    ///
+    /// <para>Each host calls this instead of branching at its own call site, so the decision and the
+    /// act of applying it are one tested unit. A host module cannot be exercised by a test, so a
+    /// branch written there is a branch nothing can check.</para>
+    /// </summary>
+    public static void Apply(IHostEnvironment environment, IConfiguration configuration)
+    {
+        Apply(ShouldEnable(environment, configuration));
+    }
+
+    /// <summary>
+    /// Writes both switches unconditionally rather than only turning them on.
+    ///
+    /// <para>The switches are process-wide statics that default to off, so the old
+    /// <c>if (enable) { on }</c> shape and this one behave alike on a fresh host. This shape also
+    /// states the off case, so a host that has already had them set cannot inherit it.</para>
+    /// </summary>
+    internal static void Apply(bool enable)
+    {
+        IdentityModelEventSource.ShowPII = enable;
+        IdentityModelEventSource.LogCompleteSecurityArtifact = enable;
     }
 }
