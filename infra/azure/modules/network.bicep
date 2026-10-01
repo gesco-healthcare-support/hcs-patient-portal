@@ -34,6 +34,18 @@ var gatewaySubnetName = 'snet-gateway'
 var appSubnetName = 'snet-app'
 var privateEndpointSubnetName = 'snet-private-endpoints'
 
+// No zone for the container registry on purpose: private endpoints are a PREMIUM ACR
+// feature, and this design uses Basic or Standard. The host pulls images over the
+// public registry endpoint authenticated by its managed identity, which is acceptable
+// because images are not PHI. If the registry is ever moved to Premium, add
+// 'privatelink${environment().suffixes.acrLoginServer}' here and an endpoint alongside it.
+var privateZoneNames = [
+  'privatelink${environment().suffixes.sqlServerHostname}'
+  'privatelink.redis.azure.net' // Azure Managed Redis (sub-resource redisEnterprise)
+  'privatelink.blob.${environment().suffixes.storage}'
+  'privatelink.vaultcore.azure.net'
+]
+
 // ---------------------------------------------------------------- security groups
 
 // The gateway subnet NSG must allow the Application Gateway control-plane ports or
@@ -183,11 +195,11 @@ resource privateEndpointNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01'
 resource natPublicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: 'pip-nat-${envName}'
   location: location
-  tags: tags
   sku: {
     name: 'Standard'
     tier: 'Regional'
   }
+  tags: tags
   properties: {
     publicIPAllocationMethod: 'Static'
     publicIPAddressVersion: 'IPv4'
@@ -197,10 +209,10 @@ resource natPublicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
 resource natGateway 'Microsoft.Network/natGateways@2023-11-01' = {
   name: 'nat-portal-${envName}'
   location: location
-  tags: tags
   sku: {
     name: 'Standard'
   }
+  tags: tags
   properties: {
     idleTimeoutInMinutes: 4
     publicIpAddresses: [
@@ -266,18 +278,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
 // private address from inside the network. These zones are what make that true; the
 // A records are created by the privateDnsZoneGroup on each endpoint.
 
-// No zone for the container registry on purpose: private endpoints are a PREMIUM ACR
-// feature, and this design uses Basic or Standard. The host pulls images over the
-// public registry endpoint authenticated by its managed identity, which is acceptable
-// because images are not PHI. If the registry is ever moved to Premium, add
-// 'privatelink${environment().suffixes.acrLoginServer}' here and an endpoint alongside it.
-var privateZoneNames = [
-  'privatelink${environment().suffixes.sqlServerHostname}'
-  'privatelink.redis.azure.net' // Azure Managed Redis (sub-resource redisEnterprise)
-  'privatelink.blob.${environment().suffixes.storage}'
-  'privatelink.vaultcore.azure.net'
-]
-
 resource privateZones 'Microsoft.Network/privateDnsZones@2020-06-01' = [
   for zoneName in privateZoneNames: {
     name: zoneName
@@ -290,6 +290,9 @@ resource privateZoneLinks 'Microsoft.Network/privateDnsZones/virtualNetworkLinks
   for (zoneName, i) in privateZoneNames: {
     name: '${zoneName}/link-${vnetName}'
     location: 'global'
+    dependsOn: [
+      privateZones[i]
+    ]
     tags: tags
     properties: {
       registrationEnabled: false
@@ -297,9 +300,6 @@ resource privateZoneLinks 'Microsoft.Network/privateDnsZones/virtualNetworkLinks
         id: vnet.id
       }
     }
-    dependsOn: [
-      privateZones[i]
-    ]
   }
 ]
 

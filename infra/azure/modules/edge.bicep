@@ -97,14 +97,16 @@ var mainListenerHostNames = [
 // priority number than the main rule: the lower number is evaluated first.
 var minioHostName = 'minio.${baseDomain}'
 
+var gatewayId = resourceId('Microsoft.Network/applicationGateways', gatewayName)
+
 resource publicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: publicIpName
   location: location
-  tags: tags
   sku: {
     name: 'Standard'
     tier: 'Regional'
   }
+  tags: tags
   properties: {
     publicIPAllocationMethod: 'Static'
     publicIPAddressVersion: 'IPv4'
@@ -178,8 +180,6 @@ resource authWildcardRecord 'Microsoft.Network/dnsZones/A@2018-05-01' = if (crea
   }
 }
 
-var gatewayId = resourceId('Microsoft.Network/applicationGateways', gatewayName)
-
 // ---------------------------------------------------------------- WAF policies
 //
 // Policy RESOURCES, not the gateway's inline WAF configuration: new inline configurations
@@ -247,13 +247,13 @@ resource minioWafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirew
 resource gateway 'Microsoft.Network/applicationGateways@2023-11-01' = if (deployGateway) {
   name: gatewayName
   location: location
-  tags: tags
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
       '${gatewayIdentityId}': {}
     }
   }
+  tags: tags
   properties: {
     sku: {
       name: 'WAF_v2'
