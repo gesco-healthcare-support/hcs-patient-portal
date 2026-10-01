@@ -148,16 +148,18 @@ against the existing databases (idempotent; existing rows are left alone):
 docker compose run --rm db-migrator
 ```
 
-In Development it creates, for each office the seed provides:
+In Development, the only external demo login it creates is **`patient@<slug>.test`**, per office,
+with a linked Patient record so My Profile resolves. It comes from
+`DemoPatientDataSeedContributor`.
 
-- one demo user per external role, from `DemoExternalUsersDataSeedContributor`:
-  `patient@<slug>.test`, `adjuster@<slug>.test` (Claim Examiner),
-  `applicant.attorney@<slug>.test` and `defense.attorney@<slug>.test`;
-- the patient login with a linked Patient record, from `DemoPatientDataSeedContributor`, so My
-  Profile resolves.
+It does **not** create Claim Examiner, Applicant Attorney or Defense Attorney logins. Since the
+2026-06-09 demo reset, `DemoExternalUsersDataSeedContributor` seeds nothing (its `seedPlan` is
+empty). Create those accounts through the real registration and invite flows during a demo, which
+is also what makes the verification and invite emails fire.
 
-Both live in `src/HealthcareSupport.CaseEvaluation.Domain/Identity/`; read them for the exact
-behaviour and password source rather than relying on this page.
+Do not trust that contributor's class docstring: it still lists all four addresses as seeded. Read
+the code (`seedPlan`), not the docstring. Both files live in
+`src/HealthcareSupport.CaseEvaluation.Domain/Identity/`.
 
 To wipe the whole database: `docker compose down -v && docker compose up -d --build`. The next
 `db-migrator` run then reseeds from scratch.
