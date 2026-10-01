@@ -32,7 +32,7 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 ///
 /// <para>Confirmed against their implementation on 2026-09-25.</para>
 /// </summary>
-public sealed class CaseTrackerWireContractTests
+public sealed partial class CaseTrackerWireContractTests
 {
     /// <summary>
     /// The feed's own credential, deliberately NOT the integration token: the feed is read-only, high volume and
@@ -164,11 +164,15 @@ public sealed class CaseTrackerWireContractTests
     /// is not forbidden. It requires telling them first, because it is the single change on this side that
     /// their end cannot be made safe against in advance, however well either of us pins things.</para>
     /// </summary>
+    /// <summary>An error code as the feed controller writes it: a Status constant, then the quoted code.</summary>
+    [GeneratedRegex(@"Status\d{3}\w+,\s*""([a-z_]+)""")]
+    private static partial Regex EmittedErrorCode();
+
     [Fact]
     public void TheFeedEmitsExactlyTheSevenAgreedCodes()
     {
-        var emitted = Regex
-            .Matches(ControllerSourceOf(typeof(CaseTrackerFeedController)), @"Status\d{3}\w+,\s*""([a-z_]+)""")
+        var emitted = EmittedErrorCode()
+            .Matches(ControllerSourceOf(typeof(CaseTrackerFeedController)))
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(c => c, StringComparer.Ordinal)

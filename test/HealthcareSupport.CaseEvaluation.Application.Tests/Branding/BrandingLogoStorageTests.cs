@@ -56,7 +56,7 @@ public abstract class BrandingLogoStorageTests<TStartupModule>
     protected override void AfterAddApplication(IServiceCollection services)
     {
         _logos = Substitute.For<IBlobContainer<OfficeLogosContainer>>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBlobContainer<OfficeLogosContainer>), _logos));
+        services.Replace(ServiceDescriptor.Singleton<IBlobContainer<OfficeLogosContainer>>(_logos));
     }
 
     // ------------------------------------------------------------------ harness

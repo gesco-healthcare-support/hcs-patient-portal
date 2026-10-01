@@ -32,11 +32,11 @@ public class NotificationTemplateRendererOfficeNameTests : CaseEvaluationEntityF
 {
     private const string JdfCode = NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal;
 
-    public static IEnumerable<object[]> Offices()
+    public static TheoryData<Guid, string, string> Offices() => new()
     {
-        yield return new object[] { TenantsTestData.TenantARef, TenantsTestData.TenantAName, TenantsTestData.TenantBName };
-        yield return new object[] { TenantsTestData.TenantBRef, TenantsTestData.TenantBName, TenantsTestData.TenantAName };
-    }
+        { TenantsTestData.TenantARef, TenantsTestData.TenantAName, TenantsTestData.TenantBName },
+        { TenantsTestData.TenantBRef, TenantsTestData.TenantBName, TenantsTestData.TenantAName },
+    };
 
     [Theory]
     [MemberData(nameof(Offices))]
