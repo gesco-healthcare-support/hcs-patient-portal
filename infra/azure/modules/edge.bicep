@@ -99,6 +99,21 @@ var minioHostName = 'minio.${baseDomain}'
 
 var gatewayId = resourceId('Microsoft.Network/applicationGateways', gatewayName)
 
+// Size limits, and why there are three numbers:
+// - maxRequestBodySizeInKb / requestBodyInspectLimitInKB: 2000 KB, the ceiling for CRS 3.2
+//   on a policy. The old 128 KB ceiling belonged to the retired inline form.
+// - fileUploadLimitInMb: 15, matching nginx's `client_max_body_size 15m` and above the
+//   10 MB per-file cap in AppointmentDocumentConsts. It applies to multipart/form-data
+//   uploads only. If one of these three changes, change all three.
+var managedRules = {
+  managedRuleSets: [
+    {
+      ruleSetType: 'OWASP'
+      ruleSetVersion: '3.2'
+    }
+  ]
+}
+
 resource publicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: publicIpName
   location: location
@@ -184,21 +199,6 @@ resource authWildcardRecord 'Microsoft.Network/dnsZones/A@2018-05-01' = if (crea
 //
 // Policy RESOURCES, not the gateway's inline WAF configuration: new inline configurations
 // have been refused since 2025-03-15 and the form retires on 2027-03-15.
-//
-// Size limits, and why there are three numbers:
-// - maxRequestBodySizeInKb / requestBodyInspectLimitInKB: 2000 KB, the ceiling for CRS 3.2
-//   on a policy. The old 128 KB ceiling belonged to the retired inline form.
-// - fileUploadLimitInMb: 15, matching nginx's `client_max_body_size 15m` and above the
-//   10 MB per-file cap in AppointmentDocumentConsts. It applies to multipart/form-data
-//   uploads only. If one of these three changes, change all three.
-var managedRules = {
-  managedRuleSets: [
-    {
-      ruleSetType: 'OWASP'
-      ruleSetVersion: '3.2'
-    }
-  ]
-}
 
 resource mainWafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2023-11-01' = if (deployGateway) {
   name: 'waf-portal-${envName}'

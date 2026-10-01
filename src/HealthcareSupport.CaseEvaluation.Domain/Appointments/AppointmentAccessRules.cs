@@ -129,6 +129,29 @@ public static class AppointmentAccessRules
 
 
     /// <summary>
+    /// Backward-compatible overload for the legacy 2-pathway CanEdit
+    /// (creator + accessor.Edit). Kept so existing tests + callers
+    /// compile unchanged; new callers should prefer the 7-pathway form.
+    /// </summary>
+    public static bool CanEdit(
+        Guid? callerUserId,
+        bool callerIsInternalUser,
+        Guid? appointmentCreatorId,
+        IEnumerable<AccessorEntry>? accessorEntries)
+    {
+        return CanEdit(
+            callerUserId: callerUserId,
+            callerEmail: null,
+            callerIsInternalUser: callerIsInternalUser,
+            appointmentCreatorId: appointmentCreatorId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: accessorEntries).allowed;
+    }
+
+    /// <summary>
     /// The seven pathways, evaluated once. <see cref="CanRead"/> and <see cref="CanEdit"/> differ in
     /// exactly one respect -- whether an accessor entry must carry
     /// <see cref="AccessType.Edit"/> -- so they share this body and pass that difference in.
@@ -225,29 +248,6 @@ public static class AppointmentAccessRules
             return AccessPathway.ClaimExaminer;
         }
         return null;
-    }
-
-    /// <summary>
-    /// Backward-compatible overload for the legacy 2-pathway CanEdit
-    /// (creator + accessor.Edit). Kept so existing tests + callers
-    /// compile unchanged; new callers should prefer the 7-pathway form.
-    /// </summary>
-    public static bool CanEdit(
-        Guid? callerUserId,
-        bool callerIsInternalUser,
-        Guid? appointmentCreatorId,
-        IEnumerable<AccessorEntry>? accessorEntries)
-    {
-        return CanEdit(
-            callerUserId: callerUserId,
-            callerEmail: null,
-            callerIsInternalUser: callerIsInternalUser,
-            appointmentCreatorId: appointmentCreatorId,
-            patientIdentityUserId: null,
-            applicantAttorneyIdentityUserIds: null,
-            defenseAttorneyIdentityUserIds: null,
-            claimExaminerEmails: null,
-            accessorEntries: accessorEntries).allowed;
     }
 
     /// <summary>
