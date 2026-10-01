@@ -167,7 +167,7 @@ public class AppointmentAccessorManager : DomainService
                 break;
 
             default:
-                throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unknown AccessorLinkOutcome.");
+                throw new InvalidOperationException($"Unknown AccessorLinkOutcome '{outcome}'.");
         }
 
         if (linkedExistingAccount)
@@ -216,6 +216,6 @@ public class AppointmentAccessorManager : DomainService
         // digit, and symbol. Random suffix so concurrent invitations
         // do not collide. Cite ABP Identity password options:
         // https://abp.io/docs/latest/modules/identity#identity-options
-        return "Acc!" + Guid.NewGuid().ToString("N").Substring(0, 12);
+        return string.Concat("Acc!", Guid.NewGuid().ToString("N").AsSpan(0, 12));
     }
 }
