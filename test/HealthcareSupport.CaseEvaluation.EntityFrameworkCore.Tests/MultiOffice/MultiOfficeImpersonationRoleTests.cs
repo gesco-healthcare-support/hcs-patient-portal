@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Logging;
 using Microsoft.Extensions.Logging;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
@@ -261,6 +262,121 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
         // id is where to look for it.
         warning!.Message.ShouldContain(operatorId.ToString());
         warning.Message.ShouldContain(officeA.OfficeId.ToString());
+    }
+
+    /// <summary>
+    /// The decoy is the point: an office account that is NOT a shadow but carries the operator's
+    /// address, holding an external role. Before the guard, the provisioner found it by username,
+    /// added Staff Supervisor to it and returned its id, so the office-access grant would have
+    /// signed the operator in as a patient account that had just gained staff rights.
+    /// </summary>
+    [Fact]
+    public async Task EnsureShadowUser_WhenTheAddressBelongsToAPatientAccount_RefusesAndGrantsNothing()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        await SeedTenantRolesAsync(officeA.OfficeId);
+
+        var operatorEmail = "patient.decoy.ensure.test@hcs.test";
+        var operatorId = await EnsureHostOperatorAsync(operatorEmail);
+        var patientId = await SeedOfficeAccountAsync(officeA.OfficeId, operatorEmail, PatientRoleName);
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => WithUnitOfWorkAsync(
+                () => _shadowProvisioner.EnsureShadowUserAsync(
+                    officeA.OfficeId, operatorId, InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
+                requiresNew: true));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail);
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var patient = await _userManager.FindByIdAsync(patientId.ToString());
+                (await _userManager.GetRolesAsync(patient!)).ShouldBe(
+                    new[] { PatientRoleName },
+                    "a non-shadow account must not gain a staff role from an operator assignment");
+            }
+        }, requiresNew: true);
+    }
+
+    [Fact]
+    public async Task DisableShadowUser_WhenTheAddressBelongsToAPatientAccount_LeavesItActive()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        await SeedTenantRolesAsync(officeA.OfficeId);
+
+        var operatorEmail = "patient.decoy.revoke.test@hcs.test";
+        var operatorId = await EnsureHostOperatorAsync(operatorEmail);
+        var patientId = await SeedOfficeAccountAsync(officeA.OfficeId, operatorEmail, PatientRoleName);
+
+        await WithUnitOfWorkAsync(
+            () => _shadowProvisioner.DisableShadowUserAsync(officeA.OfficeId, operatorId),
+            requiresNew: true);
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var patient = await _userManager.FindByIdAsync(patientId.ToString());
+                patient!.IsActive.ShouldBeTrue(
+                    "unassigning an operator must not lock out a different person who shares the address");
+            }
+        }, requiresNew: true);
+    }
+
+    /// <summary>
+    /// The other side of the guard: a real shadow holding a role the provisioner grants is still
+    /// adopted and given the new one, so the allowlist does not refuse legitimate re-entry.
+    /// </summary>
+    [Fact]
+    public async Task EnsureShadowUser_WhenTheShadowAlreadyHoldsIntakeStaff_AdoptsItAndAddsTheRequestedRole()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        await SeedTenantRolesAsync(officeA.OfficeId);
+
+        var operatorEmail = "existing.shadow.test@hcs.test";
+        var operatorId = await EnsureHostOperatorAsync(operatorEmail);
+        var shadowId = await SeedOfficeAccountAsync(
+            officeA.OfficeId, operatorEmail, InternalUserRoleDataSeedContributor.IntakeStaffRoleName);
+
+        var resolvedId = Guid.Empty;
+        await WithUnitOfWorkAsync(
+            async () => resolvedId = await _shadowProvisioner.EnsureShadowUserAsync(
+                officeA.OfficeId, operatorId, InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
+            requiresNew: true);
+
+        resolvedId.ShouldBe(shadowId);
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var shadow = await _userManager.FindByIdAsync(shadowId.ToString());
+                (await _userManager.IsInRoleAsync(
+                    shadow!, InternalUserRoleDataSeedContributor.StaffSupervisorRoleName)).ShouldBeTrue();
+            }
+        }, requiresNew: true);
+    }
+
+    private const string PatientRoleName = "Patient";
+
+    private async Task<Guid> SeedOfficeAccountAsync(Guid officeId, string email, string roleName)
+    {
+        var id = Guid.NewGuid();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeId))
+            {
+                if (await _roleManager.FindByNameAsync(roleName) == null)
+                {
+                    (await _roleManager.CreateAsync(new IdentityRole(Guid.NewGuid(), roleName, officeId)))
+                        .Succeeded.ShouldBeTrue();
+                }
+                var account = new IdentityUser(id, userName: email, email: email, tenantId: officeId);
+                (await _userManager.CreateAsync(account, "1q2w3E*r")).Succeeded.ShouldBeTrue();
+                (await _userManager.AddToRoleAsync(account, roleName)).Succeeded.ShouldBeTrue();
+            }
+        }, requiresNew: true);
+        return id;
     }
 
     private Task SeedTenantRolesAsync(Guid officeId) =>
