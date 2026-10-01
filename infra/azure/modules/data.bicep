@@ -102,10 +102,10 @@ var elasticPoolName = 'pool-portal-${envName}'
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: sqlServerName
   location: location
-  tags: tags
   identity: {
     type: 'SystemAssigned'
   }
+  tags: tags
   properties: {
     administratorLogin: sqlAdminLogin
     administratorLoginPassword: sqlAdminPassword
@@ -139,12 +139,12 @@ resource elasticPool 'Microsoft.Sql/servers/elasticPools@2023-08-01-preview' = {
   parent: sqlServer
   name: elasticPoolName
   location: location
-  tags: tags
   sku: {
     name: 'StandardPool'
     tier: 'Standard'
     capacity: elasticPoolCapacity
   }
+  tags: tags
   properties: {
     perDatabaseSettings: {
       minCapacity: 0
@@ -236,10 +236,10 @@ resource sqlEndpointDns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups
 resource redis 'Microsoft.Cache/redisEnterprise@2025-07-01' = {
   name: redisName
   location: location
-  tags: tags
   sku: {
     name: redisSkuName
   }
+  tags: tags
   properties: {
     highAvailability: 'Enabled'
     minimumTlsVersion: '1.2'
@@ -310,11 +310,11 @@ resource redisEndpointDns 'Microsoft.Network/privateEndpoints/privateDnsZoneGrou
 resource documentsAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: documentsAccountName
   location: location
-  tags: tags
   sku: {
     name: 'Standard_GZRS'
   }
   kind: 'StorageV2'
+  tags: tags
   properties: {
     accessTier: 'Hot'
     supportsHttpsTrafficOnly: true
@@ -356,11 +356,11 @@ resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/cont
 resource backupsAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: backupsAccountName
   location: location
-  tags: tags
   sku: {
     name: 'Standard_GZRS'
   }
   kind: 'StorageV2'
+  tags: tags
   properties: {
     accessTier: 'Cool'
     supportsHttpsTrafficOnly: true

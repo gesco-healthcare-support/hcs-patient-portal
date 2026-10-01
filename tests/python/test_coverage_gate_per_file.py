@@ -322,9 +322,8 @@ class TheOutputPathIsValidated(unittest.TestCase):
         # one was expected to throw -- if patterns() ever raised, this would
         # pass for the wrong reason.
         pats = patterns()
-        with contextlib.redirect_stdout(buf):
-            with self.assertRaises(SystemExit) as caught:
-                gate.write_per_file(destination, {}, pats)
+        with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as caught:
+            gate.write_per_file(destination, {}, pats)
         return caught.exception.code, buf.getvalue()
 
     def test_a_missing_parent_directory_is_explained_not_a_traceback(self):
@@ -374,12 +373,12 @@ class TheOutputPathIsValidated(unittest.TestCase):
             destination = str(Path(tmp) / "per-file.json")
             pats = patterns()
             buf = io.StringIO()
-            with unittest.mock.patch.object(
-                Path, "write_text", side_effect=OSError("disk full")
+            with (
+                unittest.mock.patch.object(Path, "write_text", side_effect=OSError("disk full")),
+                contextlib.redirect_stdout(buf),
+                self.assertRaises(SystemExit) as caught,
             ):
-                with contextlib.redirect_stdout(buf):
-                    with self.assertRaises(SystemExit) as caught:
-                        gate.write_per_file(destination, {}, pats)
+                gate.write_per_file(destination, {}, pats)
 
         self.assertEqual(caught.exception.code, 1)
         self.assertIn("could not write the per-file breakdown", buf.getvalue())

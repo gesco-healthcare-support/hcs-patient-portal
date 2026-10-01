@@ -320,6 +320,34 @@ def find_documents(root):
     return sorted(docs)
 
 
+def _find_close(lines, index):
+    """Index of the END marker for the region opened at `index`, or None if it is unterminated."""
+    for lookahead in range(index + 1, len(lines)):
+        if BEGIN.match(lines[lookahead]):
+            return None  # nested BEGIN: unterminated region
+        if END.match(lines[lookahead]):
+            return lookahead
+    return None
+
+
+def _region_problems(name, close_line, snapshots, rel):
+    """Problems with one terminated region. A name mismatch is reported but does not stop
+    the render; a missing snapshot or converter does."""
+    problems = []
+    close_match = END.match(close_line)
+    if close_match is not None and close_match.group("name") != name:
+        problems.append((rel, "MISMATCHED", "region `%s` closes with a different name" % name))
+    if name not in snapshots:
+        problems.append(
+            (rel, "NO SNAPSHOT", "region `%s` names a fact with no *.approved.txt" % name)
+        )
+    elif name not in CONVERTERS:
+        problems.append(
+            (rel, "NO CONVERTER", "region `%s` has a snapshot but no converter" % name)
+        )
+    return problems
+
+
 def rewrite(text, newline, snapshots, problems, rel):
     """Replace each region's body. Returns the new text; appends any problems."""
     lines = text.split(newline)
@@ -334,58 +362,27 @@ def rewrite(text, newline, snapshots, problems, rel):
             continue
 
         name = match.group("name")
-        close = None
-        for lookahead in range(index + 1, len(lines)):
-            if BEGIN.match(lines[lookahead]):
-                break  # nested BEGIN: unterminated region
-            if END.match(lines[lookahead]):
-                close = lookahead
-                break
+        close = _find_close(lines, index)
         if close is None:
             problems.append((rel, "UNTERMINATED", "region `%s` has no END marker" % name))
             out.append(line)
             index += 1
             continue
-        close_match = END.match(lines[close])
-        if close_match is not None and close_match.group("name") != name:
-            problems.append(
-                (rel, "MISMATCHED", "region `%s` closes with a different name" % name)
-            )
 
-        if name not in snapshots:
-            problems.append(
-                (rel, "NO SNAPSHOT", "region `%s` names a fact with no *.approved.txt" % name)
-            )
-        elif name not in CONVERTERS:
-            problems.append(
-                (rel, "NO CONVERTER", "region `%s` has a snapshot but no converter" % name)
-            )
-        else:
+        problems.extend(_region_problems(name, lines[close], snapshots, rel))
+        if name in snapshots and name in CONVERTERS:
             render, _parse = CONVERTERS[name]
             out.append(line)
             out.extend(to_markdown(render(snapshot_rows(snapshots[name]))))
             out.append(lines[close])
-            index = close + 1
-            continue
-
-        out.extend(lines[index : close + 1])
+        else:
+            out.extend(lines[index : close + 1])
         index = close + 1
     return newline.join(out)
 
 
-def main(argv):
-    args = [a for a in argv[1:] if not a.startswith("--")]
-    check_only = "--check" in argv
-    root = os.path.abspath(args[0]) if args else os.getcwd()
-    if not os.path.isdir(root):
-        print("FAIL: not a directory: %s" % root)
-        return 2
-
-    snapshots, duplicates = discover_snapshots(root)
-    problems = []
-    for stem, paths in sorted(duplicates.items()):
-        problems.append(("-", "DUPLICATE", "`%s` is claimed by: %s" % (stem, ", ".join(paths))))
-
+def _rewrite_documents(root, snapshots, problems, check_only):
+    """Rewrite every document carrying a GENERATED region; returns the ones that changed."""
     changed = []
     for path in find_documents(root):
         raw = read_bytes(path)
@@ -402,9 +399,13 @@ def main(argv):
             if not check_only:
                 with open(path, "wb") as handle:
                     handle.write(updated.encode("utf-8"))
+    return changed
 
+
+def _report(snapshot_count, changed, problems):
+    """Print the outcome and return the exit code."""
     print("Scanned %d snapshot(s); %d converter(s) registered."
-          % (len(snapshots), len(CONVERTERS)))
+          % (snapshot_count, len(CONVERTERS)))
     if changed:
         print("")
         print("%d document(s) out of date with their snapshot:" % len(changed))
@@ -419,6 +420,23 @@ def main(argv):
         print("OK: every GENERATED region matches its snapshot.")
         return 0
     return 1
+
+
+def main(argv):
+    args = [a for a in argv[1:] if not a.startswith("--")]
+    check_only = "--check" in argv
+    root = os.path.abspath(args[0]) if args else os.getcwd()
+    if not os.path.isdir(root):
+        print("FAIL: not a directory: %s" % root)
+        return 2
+
+    snapshots, duplicates = discover_snapshots(root)
+    problems = []
+    for stem, paths in sorted(duplicates.items()):
+        problems.append(("-", "DUPLICATE", "`%s` is claimed by: %s" % (stem, ", ".join(paths))))
+
+    changed = _rewrite_documents(root, snapshots, problems, check_only)
+    return _report(len(snapshots), changed, problems)
 
 
 if __name__ == "__main__":
