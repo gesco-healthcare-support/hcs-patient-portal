@@ -6,6 +6,8 @@
  * tested without DI.
  */
 
+import { neutraliseCsvCell } from '../shared/csv-cell.util';
+
 /** The sections of the Admin hub, in rail order. */
 export type AdminSectionKey =
   | 'templates'
@@ -259,10 +261,19 @@ const AUDIT_CSV_HEADER = [
   'Tenant',
 ];
 
-/** RFC-4180-ish CSV (quote fields containing comma, quote, or newline). */
+/**
+ * RFC-4180-ish CSV (quote fields containing comma, quote, or newline), with formula
+ * triggers neutralised first.
+ *
+ * The neutralisation is not optional here and this is the export where it matters most:
+ * `Client` is the request's User-Agent and `URL` is the request URL, both set by
+ * whoever sent the request, **including an anonymous caller**. Without it, anyone can
+ * put `=HYPERLINK(...)` in a User-Agent header and have it run when an IT admin opens
+ * audit-logs.csv. Quoting alone does not stop that -- the quotes come off on import.
+ */
 export function buildAuditCsv(rows: AuditCsvRow[]): string {
   const escape = (value: string | number | null | undefined): string => {
-    const text = String(value ?? '');
+    const text = neutraliseCsvCell(value);
     return /[",\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
   };
   const lines = [AUDIT_CSV_HEADER.join(',')];

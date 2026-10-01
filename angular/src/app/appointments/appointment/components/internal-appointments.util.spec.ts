@@ -139,5 +139,34 @@ describe('internal-appointments.util', () => {
       const csv = toCsvContent(['Confirmation', 'Patient'], [['A00001', 'Smith, "Sam"']]);
       expect(csv).toBe('"Confirmation","Patient"\r\n"A00001","Smith, ""Sam"""');
     });
+
+    /**
+     * The patient name comes from the patient record, which external users populate
+     * during anonymous self-registration. The caller's asciiOnly does not help: it
+     * strips everything outside \x20-\x7E and =, +, - and @ are all inside that range.
+     */
+    it('neutralises a formula in the patient name', () => {
+      const csv = toCsvContent(
+        ['Confirmation', 'Patient'],
+        [['A00001', '=HYPERLINK("http://x.test","click")']],
+      );
+
+      expect(csv).toBe(
+        '"Confirmation","Patient"\r\n"A00001","\'=HYPERLINK(""http://x.test"",""click"")"',
+      );
+    });
+
+    it('neutralises inside the quotes, so a hostile cell with a comma still cannot split columns', () => {
+      const csv = toCsvContent(['A', 'B'], [['=A1,B1', 'plain']]);
+
+      // One comma separates the two fields; the one inside the payload stays quoted.
+      expect(csv.split('\r\n')[1]).toBe('"\'=A1,B1","plain"');
+    });
+
+    it('leaves an ordinary patient name untouched', () => {
+      const csv = toCsvContent(['Patient'], [['DOE JANE']]);
+
+      expect(csv).toBe('"Patient"\r\n"DOE JANE"');
+    });
   });
 });
