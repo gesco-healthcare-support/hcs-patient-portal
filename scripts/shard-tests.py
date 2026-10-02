@@ -48,10 +48,6 @@ from xml.sax.saxutils import escape
 LISTING_MARKER = "The following Tests are available:"
 TRX_NS = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
 
-# Collections whose classes may be split across shards: they exist only to run one at a time and
-# share no state. Matched against the attribute's argument text as written in the source.
-SPLITTABLE_COLLECTIONS = frozenset({"CaseEvaluationTestConsts.CollectionDefinitionName"})
-
 NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][\w.]*)", re.MULTILINE)
 # `[Collection(X)]`, optionally other attributes, then modifiers, then `class Name`.
 COLLECTION_CLASS_RE = re.compile(
@@ -102,8 +98,9 @@ def class_of(test_name: str) -> str:
 def collection_members(sources: dict[str, str]) -> dict[str, str]:
     """Return {fully qualified class: collection} for classes that must stay with their collection.
 
-    `sources` maps a file name to its C# text. Classes in a SPLITTABLE collection are left out,
-    as are classes with no `[Collection]` at all; both may go to any shard.
+    `sources` maps a file name to its C# text. Every named collection is kept whole, because a
+    collection exists to share a fixture. Classes with no `[Collection]` are left out and may go
+    to any shard.
     """
     members: dict[str, str] = {}
     for path, text in sources.items():
@@ -114,8 +111,7 @@ def collection_members(sources: dict[str, str]) -> dict[str, str]:
         if namespace is None:
             raise ValueError(f"{path} declares a collection member but no namespace")
         for collection, name in found:
-            if collection not in SPLITTABLE_COLLECTIONS:
-                members[f"{namespace.group(1)}.{name}"] = collection
+            members[f"{namespace.group(1)}.{name}"] = collection
     return members
 
 

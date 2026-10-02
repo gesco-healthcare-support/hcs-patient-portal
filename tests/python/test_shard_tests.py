@@ -140,7 +140,6 @@ public sealed partial class Beta : SharedBase
 {
 }
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class Gamma
 {
 }
@@ -153,11 +152,19 @@ class TestCollectionMembers(_TempDirCase):
 
         self.assertEqual(members, {"Ns.Alpha": "SharedDb.Name", "Ns.Beta": "SharedDb.Name"})
 
-    def test_the_serial_only_default_collection_may_be_split(self):
-        """Gamma is in the default collection, which shares no state, so it is not a member."""
+    def test_a_class_with_no_collection_is_not_a_member(self):
+        """Gamma names no collection, so it may go to any shard."""
         members = shard.collection_members({"Shared.cs": SHARED_ALPHA_BETA})
 
         self.assertNotIn("Ns.Gamma", members)
+
+    def test_the_retired_default_collection_is_kept_whole_like_any_other(self):
+        """No collection is exempt any more, so one brought back cannot be split by name."""
+        text = "namespace Ns;\n[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]\npublic class Old { }\n"
+
+        members = shard.collection_members({"Old.cs": text})
+
+        self.assertEqual(members, {"Ns.Old": "CaseEvaluationTestConsts.CollectionDefinitionName"})
 
     def test_a_block_scoped_namespace_is_read_too(self):
         text = "namespace Ns.Block\n{\n    [Collection(SharedDb.Name)]\n    public class Baz { }\n}\n"
