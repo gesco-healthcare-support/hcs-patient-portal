@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
-import { LocalizationPipe, AutofocusDirective } from '@abp/ng.core';
+import { LocalizationPipe } from '@abp/ng.core';
 import {
   DateAdapter,
   TimeAdapter,
@@ -32,7 +32,6 @@ import { DoctorDetailViewService } from '../services/doctor-detail.service';
     NgbTimepickerModule,
     NgbNavModule,
     NgxValidateCoreModule,
-    AutofocusDirective,
     ModalCloseDirective,
     LocalizationPipe,
     ModalComponent,

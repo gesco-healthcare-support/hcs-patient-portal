@@ -66,8 +66,8 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
     {
         _dispatcher = Substitute.For<INotificationDispatcher>();
         _events = Substitute.For<ILocalEventBus>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(INotificationDispatcher), _dispatcher));
-        services.Replace(ServiceDescriptor.Singleton(typeof(ILocalEventBus), _events));
+        services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_dispatcher));
+        services.Replace(ServiceDescriptor.Singleton<ILocalEventBus>(_events));
     }
 
     // ------------------------------------------------------------------ harness
