@@ -2,7 +2,13 @@
 
 > Purpose: Copy-paste credential cheat sheet for manual testing and demos. Audience: Developer.
 
-Copy-paste cheat sheet for manual testing and demos. All users below were created by `scripts/Master-Seed.ps1` in the current local Docker environment.
+Copy-paste cheat sheet for manual testing and demos.
+
+> **STALE TENANT TABLES (2026-10-01).** The per-tenant tables below (Nakamura, Flores, Manukyan,
+> Tanaka, Wu) were produced by the retired PowerShell harness (`scripts/Master-Seed.ps1`), which can
+> no longer run. They do NOT describe what a fresh environment contains. For the current demo
+> accounts, see [Regenerating / resetting](#regenerating--resetting). Treat the tables as historical
+> until this page is rewritten.
 
 > **DEV-ONLY.** Do NOT use these credentials or this password in any deployed/staging/production environment. Rotate `TEST_PASSWORD` in `.env.local` before any deployment. Source of truth for the password: `.env.local` -> `TEST_PASSWORD`.
 
@@ -24,7 +30,9 @@ Copy-paste cheat sheet for manual testing and demos. All users below were create
 3. Enter the tenant name from the headers below (e.g. `Dr Nakamura 1`) -> Save
 4. Enter email + `1q2w3E*` -> Login
 
-For Swagger: use the **Authorize** button, pick `CaseEvaluation_App`, add header `__tenant: <tenant-guid>`.
+For Swagger: use the **Authorize** button and pick `CaseEvaluation_App`. Do NOT add a `__tenant`
+header: the API ignores it on purpose. The office comes from the signed-in user, or, for an anonymous
+request, from the host name (`<office>.localhost`).
 
 ---
 
@@ -127,34 +135,41 @@ Has: 0 appointments, no role users (tenant admin only). Empty-tenant smoke test.
 
 ## Regenerating / resetting
 
-If the seeded data drifts or you want a clean slate:
+**Do not use `scripts/Master-Seed.ps1` or `scripts/Remove-SeedData.ps1`.** They belong to a retired
+PowerShell harness that cannot run against the current app: it signs in with the OAuth password
+grant, removed on 2026-05-19, and selects offices with a `__tenant` header the API ignores. Both
+scripts now stop at the start and say so.
+
+Local demo data comes from the `db-migrator` seed. The local Docker stack runs it with
+`DOTNET_ENVIRONMENT=Development`, which is what enables the demo seed contributors. To re-run it
+against the existing databases (idempotent; existing rows are left alone):
 
 ```bash
-# From Git Bash, repo root
-export TEST_PASSWORD=$(grep '^TEST_PASSWORD=' .env.local | cut -d'=' -f2-)
-rm -f scripts/seed-state.json       # clear prior completion markers
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts\Master-Seed.ps1" \
-  -ApiBaseUrl "http://localhost:44327" \
-  -AuthServerUrl "http://localhost:44368" \
-  -SkipPrerequisites
+docker compose run --rm db-migrator
 ```
 
-After re-running, the emails above may change (names are random). Re-check:
+In Development, the only external demo login it creates is **`patient@<slug>.test`**, per office,
+with a linked Patient record so My Profile resolves. It comes from
+`DemoPatientDataSeedContributor`.
 
-```bash
-cat scripts/seed-state.json | python -c "import json,sys; d=json.load(sys.stdin); print(d['_tenantEmails']); print(d['_userEmails'])"
-```
+It does **not** create Claim Examiner, Applicant Attorney or Defense Attorney logins. Since the
+2026-06-09 demo reset, `DemoExternalUsersDataSeedContributor` seeds nothing (its `seedPlan` is
+empty). Create those accounts through the real registration and invite flows during a demo, which
+is also what makes the verification and invite emails fire.
 
-To wipe seeded data entirely: `powershell.exe -File scripts\Remove-SeedData.ps1 -ApiBaseUrl http://localhost:44327 -AuthServerUrl http://localhost:44368 -SkipPrerequisites`.
+Do not trust that contributor's class docstring: it still lists all four addresses as seeded. Read
+the code (`seedPlan`), not the docstring. Both files live in
+`src/HealthcareSupport.CaseEvaluation.Domain/Identity/`.
 
-To wipe the whole database (nuclear): `docker compose down -v && docker compose up -d --build`. This also clears the ABP-seeded host admin and all tenants, and the next `db-migrator` run will reseed only the ABP defaults (not this file's users).
+To wipe the whole database: `docker compose down -v && docker compose up -d --build`. The next
+`db-migrator` run then reseeds from scratch.
 
 ---
 
 ## Source of truth
 
 - Tenants: `GET http://localhost:44327/api/saas/tenants` (host admin token)
-- User emails per tenant: `scripts/seed-state.json` -> `_tenantEmails` (tenant admins) and `_userEmails` (role users)
+- Demo user emails: the seed contributors named under [Regenerating / resetting](#regenerating--resetting)
 - Password: `.env.local` -> `TEST_PASSWORD`
 
 If any login fails after a re-seed, regenerate this file from those sources.
