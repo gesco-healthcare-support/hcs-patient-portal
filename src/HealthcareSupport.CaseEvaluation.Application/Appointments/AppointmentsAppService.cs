@@ -534,13 +534,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return new List<Guid>();
         }
 
-        var userId = CurrentUser.Id.Value;
-        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
-        var attorneyLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
-
-        return await appointmentQuery
-            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
-                        || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
+        // The party rule is shared with the by-id patient read; see BookingPartyAppointments.
+        return await Patients.BookingPartyAppointments.ForApplicantAttorney(
+                await _appointmentRepository.GetQueryableAsync(),
+                await _appointmentApplicantAttorneyRepository.GetQueryableAsync(),
+                CurrentUser.Id.Value)
             .Select(a => a.PatientId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -553,13 +551,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return new List<Guid>();
         }
 
-        var userId = CurrentUser.Id.Value;
-        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
-        var attorneyLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
-
-        return await appointmentQuery
-            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
-                        || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
+        // The party rule is shared with the by-id patient read; see BookingPartyAppointments.
+        return await Patients.BookingPartyAppointments.ForApplicantAttorney(
+                await _appointmentRepository.GetQueryableAsync(),
+                await _appointmentApplicantAttorneyRepository.GetQueryableAsync(),
+                CurrentUser.Id.Value)
             .Select(a => a.IdentityUserId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -572,13 +568,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return new List<Guid>();
         }
 
-        var userId = CurrentUser.Id.Value;
-        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
-        var defenseLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
-
-        return await appointmentQuery
-            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
-                        || defenseLinkQuery.Any(ada => ada.AppointmentId == a.Id && ada.IdentityUserId == userId))
+        // The party rule is shared with the by-id patient read; see BookingPartyAppointments.
+        return await Patients.BookingPartyAppointments.ForDefenseAttorney(
+                await _appointmentRepository.GetQueryableAsync(),
+                await _appointmentDefenseAttorneyRepository.GetQueryableAsync(),
+                CurrentUser.Id.Value)
             .Select(a => a.PatientId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -591,13 +585,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return new List<Guid>();
         }
 
-        var userId = CurrentUser.Id.Value;
-        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
-        var defenseLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
-
-        return await appointmentQuery
-            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
-                        || defenseLinkQuery.Any(ada => ada.AppointmentId == a.Id && ada.IdentityUserId == userId))
+        // The party rule is shared with the by-id patient read; see BookingPartyAppointments.
+        return await Patients.BookingPartyAppointments.ForDefenseAttorney(
+                await _appointmentRepository.GetQueryableAsync(),
+                await _appointmentDefenseAttorneyRepository.GetQueryableAsync(),
+                CurrentUser.Id.Value)
             .Select(a => a.IdentityUserId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -605,22 +597,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     private async Task<List<Guid>> GetClaimExaminerVisiblePatientIdsAsync()
     {
-        // CE has no IdentityUser link table (unlike AA/DA). The only linkage
-        // is the denormalized Appointment.ClaimExaminerEmail column, matched
-        // case-insensitively against the caller's email -- the same rule
-        // EnsureCanReadAsync uses for CE read-scope. A CE with no email on
-        // their account sees nothing (cannot be matched to any appointment).
-        var email = CurrentUser.Email;
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return new List<Guid>();
-        }
-
-        var emailLower = email.Trim().ToLower();
-        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
-
-        return await appointmentQuery
-            .Where(a => a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == emailLower)
+        // CE has no IdentityUser link table (unlike AA/DA). The only linkage is the denormalized
+        // Appointment.ClaimExaminerEmail column, matched case-insensitively against the caller's
+        // email -- the same rule EnsureCanReadAsync uses for CE read-scope. The party rule is shared
+        // with the by-id patient read; see BookingPartyAppointments.
+        return await Patients.BookingPartyAppointments.ForClaimExaminer(
+                await _appointmentRepository.GetQueryableAsync(),
+                CurrentUser.Email)
             .Select(a => a.PatientId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
