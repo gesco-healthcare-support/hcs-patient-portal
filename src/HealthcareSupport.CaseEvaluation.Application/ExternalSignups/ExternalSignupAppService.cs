@@ -267,7 +267,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
         }
-        if (IsExternalOnly(CurrentUser.Roles ?? Array.Empty<string>()))
+        // Deny by default: only a recognised internal role gets the tenant-wide search.
+        // This used to be the inverse -- "not exclusively external roles" -- which sent a
+        // caller with NO roles, or an unrecognised role, down the internal-staff branch
+        // below and let it search every external user in the office. A zero-role account
+        // is reachable through ABP's stock self-registration. Mirrors
+        // AppointmentVisibilityService, which this lookup must agree with.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
         {
             // HIPAA-scoped: an external caller may look up ONLY the co-parties named
             // on appointments they can already see. Leak-equivalent -- the caller
@@ -349,13 +355,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
         items = items.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ToList();
         return new ListResultDto<ExternalUserLookupDto>(items);
-    }
-
-    private static bool IsExternalOnly(string[] callerRoles)
-    {
-        var externalRoleNames = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
-        return callerRoles.Length > 0
-            && callerRoles.All(r => externalRoleNames.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
     }
 
     private async Task<Dictionary<Guid, string>> ReadFirmNamesAsync(IQueryable<IdentityUser> userQuery, List<Guid> matchedIds)
