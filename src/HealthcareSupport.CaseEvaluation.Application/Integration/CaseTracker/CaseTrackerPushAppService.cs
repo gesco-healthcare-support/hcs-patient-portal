@@ -17,6 +17,10 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// <see cref="CaseTrackerIntakeQueue"/> path as the automatic approval trigger, so a manual retry
 /// cannot diverge from what the automatic push would have sent.
 /// </summary>
+// Not auto-exposed. The hand-written CaseTrackerPushController is this service's only HTTP surface, so the
+// guards written on that surface (input validation, binding) cannot be bypassed through a
+// second, auto-generated route.
+[RemoteService(IsEnabled = false)]
 [Authorize]
 public class CaseTrackerPushAppService : CaseEvaluationAppService, ICaseTrackerPushAppService
 {
