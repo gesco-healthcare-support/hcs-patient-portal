@@ -60,11 +60,7 @@ public sealed class DataProtectionKeyRingTests : IDisposable
         File.Delete(_certificatePath);
     }
 
-    public static IEnumerable<object[]> BothProcesses()
-    {
-        yield return new object[] { "HttpApi.Host" };
-        yield return new object[] { "AuthServer" };
-    }
+    public static TheoryData<string> BothProcesses() => new() { "HttpApi.Host", "AuthServer" };
 
     [Theory]
     [MemberData(nameof(BothProcesses))]

@@ -62,7 +62,7 @@ public abstract class UserSignatureStorageTests<TStartupModule>
     protected override void AfterAddApplication(IServiceCollection services)
     {
         _blobs = Substitute.For<IBlobContainer<UserSignaturesContainer>>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBlobContainer<UserSignaturesContainer>), _blobs));
+        services.Replace(ServiceDescriptor.Singleton<IBlobContainer<UserSignaturesContainer>>(_blobs));
     }
 
     // ------------------------------------------------------------------ harness
