@@ -84,8 +84,15 @@ public class ControllerDelegationTests
 
     private sealed record PassThrough(Type Controller, MethodInfo Action, Type Service, MethodInfo ServiceMethod);
 
-    public static IEnumerable<object[]> PassThroughCases() =>
-        Discover().PassThroughs.Select(p => new object[] { Key(p.Controller, p.Action) });
+    public static TheoryData<string> PassThroughCases()
+    {
+        var cases = new TheoryData<string>();
+        foreach (var p in Discover().PassThroughs)
+        {
+            cases.Add(Key(p.Controller, p.Action));
+        }
+        return cases;
+    }
 
     [Theory]
     [MemberData(nameof(PassThroughCases))]

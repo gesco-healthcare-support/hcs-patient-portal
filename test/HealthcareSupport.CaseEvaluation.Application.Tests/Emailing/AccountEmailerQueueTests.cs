@@ -39,7 +39,7 @@ public abstract class AccountEmailerQueueTests<TStartupModule>
     protected override void AfterAddApplication(IServiceCollection services)
     {
         _jobs = Substitute.For<IBackgroundJobManager>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBackgroundJobManager), _jobs));
+        services.Replace(ServiceDescriptor.Singleton<IBackgroundJobManager>(_jobs));
     }
 
     private SendAppointmentEmailArgs[] Queued() =>
