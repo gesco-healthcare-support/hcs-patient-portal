@@ -3,11 +3,13 @@ using Asp.Versioning;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Application.Dtos;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Permissions;
 
 namespace HealthcareSupport.CaseEvaluation.Controllers.Patients;
 
@@ -51,6 +53,14 @@ public class PatientController : AbpController, IPatientsAppService
         return _patientsAppService.GetPatientByEmailForAppointmentBookingAsync(email);
     }
 
+    /// <summary>
+    /// Over HTTP, staff who may create patients only. The app service method stays a bare
+    /// <c>[Authorize]</c> because booking calls it IN-PROCESS (<c>AppointmentsAppService</c>, resolving
+    /// the submit's patient) for external bookers too; that call does not pass through this action.
+    /// This route itself has no browser caller since the wizard stopped posting the patient separately,
+    /// and left open it turned any signed-in caller's typed email into that patient's whole record.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.Patients.Create)]
     [HttpPost]
     [Route("for-appointment-booking/get-or-create")]
     public virtual Task<PatientWithNavigationPropertiesDto> GetOrCreatePatientForAppointmentBookingAsync(CreatePatientForAppointmentBookingInput input)
