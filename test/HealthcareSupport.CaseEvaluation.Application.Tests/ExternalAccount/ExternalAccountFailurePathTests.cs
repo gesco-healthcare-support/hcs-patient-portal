@@ -76,8 +76,8 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
     {
         _dispatcher = Substitute.For<INotificationDispatcher>();
         _cache = new FaultInjectingCache();
-        services.Replace(ServiceDescriptor.Singleton(typeof(INotificationDispatcher), _dispatcher));
-        services.Replace(ServiceDescriptor.Singleton(typeof(IDistributedCache), _cache));
+        services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_dispatcher));
+        services.Replace(ServiceDescriptor.Singleton<IDistributedCache>(_cache));
         services.AddTransient<IssuedTokensOnlyProvider>();
         services.Configure<IdentityOptions>(options =>
             options.Tokens.ProviderMap["Default"] = new TokenProviderDescriptor(typeof(IssuedTokensOnlyProvider)));
