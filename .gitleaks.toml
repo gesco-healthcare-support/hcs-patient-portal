@@ -20,7 +20,7 @@ useDefault = true
 # audits stay quiet about known-safe paths.
 # -------------------------------------------------------------------
 
-[allowlist]
+[[allowlists]]
 description = "Known safe patterns"
 # NOTE: gitleaks reports file paths with the native OS separator (backslash
 # on Windows, forward slash on Linux/macOS). Patterns below use the character
@@ -97,3 +97,31 @@ regexes = [
   '''4633458b-17de-408a-b874-0445c86b69e6''',
   '''db79e9a7-68ee-4b58-9aeb-b90e7c24fcba''',
 ]
+
+# -------------------------------------------------------------------
+# Narrow, rule- and path-scoped exceptions. Every condition must match
+# (condition = "AND"), so each entry covers one token in one file for one
+# rule, and nothing else. Prefer this form over the global regexes above.
+# -------------------------------------------------------------------
+
+# docs/security/SESSION-KEY-ENCRYPTION.md section 4.1, the verification table row
+# "Baseline ring | 1 key, `07f9d340-...`". The value is an ASP.NET Core Data Protection
+# KEY ID: the identifier of a key in a throwaway local key ring, not key material, not a
+# password and not usable for anything. generic-api-key flags it because the row contains
+# "key" next to a 36-character GUID.
+#
+# Checked 2026-10-01 against the real secret stores before allowlisting, because this
+# project DOES use GUIDs as passphrases (CERT_PASSPHRASE and CERT_PASSWORD are GUIDs): it
+# appears in none of the secrets/ archive taken off the production server, env.prod, the
+# OpenIddict pfx, admin-passwords or the credential notes.
+#
+# Which scans see it (measured 2026-10-01, gitleaks 8.30.1): `gitleaks dir` and a staged
+# commit that changes that table row. `gitleaks detect` over history does not. Scoped to
+# this rule, this path and this exact value, so a real GUID passphrase committed anywhere,
+# including elsewhere in this file, still fails.
+[[allowlists]]
+description = "Data Protection key id in the session-key verification table"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''docs[\\/]security[\\/]SESSION-KEY-ENCRYPTION\.md$''']
+regexes = ['''07f9d340-73a1-4a70-bfd6-e5c79b3277c4''']
