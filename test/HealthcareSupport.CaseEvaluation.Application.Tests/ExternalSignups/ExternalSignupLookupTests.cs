@@ -287,6 +287,8 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
             var staffAccount = await _userManager.GetByIdAsync(
                 IdentityUsersTestData.TenantAdmin1UserId);
             var roles = await _userManager.GetRolesAsync(staffAccount);
+            // The role the seeded account STORES, which is still TenantAdmin. Not the caller role
+            // below, which uses InternalStaffRole -- the two read alike but are different things.
             roles.ShouldContain(IdentityUsersTestData.TenantAdminRoleName);
 
             using (WithCurrentUser.Run(
