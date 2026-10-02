@@ -10,10 +10,13 @@
 #      it root-owned, the migrator's first password write fails and api never starts.
 #   3. #1152: build-docs-site.sh fills docker/nginx-proxy/docs-site as the deploy user; if compose ran first, Docker
 #      would create that mount source as root and the script could no longer write into it.
-# Usage (on the box): nohup bash /tmp/deploy-release.sh <expected_sha> "<services to build>" > /tmp/deploy-release.log 2>&1 < /dev/null &
+# Usage (on the box): nohup bash /tmp/deploy-release.sh <expected_sha> "<services to build>" <rollback_sha> > /tmp/deploy-release.log 2>&1 < /dev/null &
+# Both shas are FULL 40-character ids, and the rollback sha is the release running NOW. Copy the scripts to /tmp
+# first and run that copy: this checkout moves under a script run from inside it.
 set -u
-EXPECTED=${1:?expected development sha}
+EXPECTED=${1:?expected development sha (full 40 characters)}
 SERVICES=${2:-db-migrator api authserver angular}
+PREV=${3:?rollback sha (full 40 characters): the release running now}
 cd ~/hcs-patient-portal || { echo "STOP: no checkout"; exit 1; }
 C="docker compose --env-file secrets/env.prod -f docker-compose.prod.yml"
 ts() { date -u +%H:%M:%SZ; }
@@ -24,11 +27,17 @@ BASE=$(grep -E '^[[:space:]]*BASE_DOMAIN=' secrets/env.prod 2>/dev/null | tail -
   | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/")
 [ -n "$BASE" ] || stop "BASE_DOMAIN missing or empty in secrets/env.prod"
 code() { curl -sk -o /dev/null -w '%{http_code}' --max-time 20 --resolve "$1:443:127.0.0.1" "https://$1$2"; }
+# 2026-10-02: a short sha passed the backup and the fast-forward, then stopped at the HEAD comparison below, with HEAD
+# already moved. A relaunch that let the rollback target default to HEAD would then have rolled back to the release
+# being deployed. So both shas are full ids, checked before anything runs, and the rollback target is never inferred.
+[[ "$EXPECTED" =~ ^[0-9a-f]{40}$ ]] || stop "expected sha must be the full 40-character id, got [$EXPECTED]"
+[[ "$PREV" =~ ^[0-9a-f]{40}$ ]] || stop "rollback sha must be the full 40-character id, got [$PREV]"
+git cat-file -e "$PREV^{commit}" 2>/dev/null || stop "rollback target $PREV is not in this clone"
+[ "$PREV" = "$(git rev-parse HEAD)" ] || echo "$(ts) NOTE: rollback target $PREV is not the current HEAD $(git rev-parse HEAD)"
 
 echo "$(ts) start: HEAD $(git rev-parse HEAD) on $(git rev-parse --abbrev-ref HEAD); build [$SERVICES]"
 dirty=$(git status --porcelain --untracked-files=no)
 [ -z "$dirty" ] || stop "tracked changes on the box: $dirty"
-PREV=${3:-$(git rev-parse HEAD)}   # rollback target = the RUNNING release, captured before any checkout; 3rd arg overrides
 # After the 09-30 rollback the box sits DETACHED at the rollback target (rollback-release.sh); return to the branch.
 if [ "$(git rev-parse --abbrev-ref HEAD)" = HEAD ]; then
   git checkout -q development || stop "could not return from detached HEAD to development"
