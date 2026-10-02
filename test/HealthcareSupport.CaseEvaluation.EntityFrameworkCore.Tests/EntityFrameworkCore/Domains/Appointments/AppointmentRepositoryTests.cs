@@ -86,4 +86,45 @@ public class AppointmentRepositoryTests : CaseEvaluationEntityFrameworkCoreTestB
 
         count.ShouldBe(1);
     }
+
+    // ApplyFilter's booker and accessor filters never combine: when an accessor filter is supplied
+    // the booker filter stands down. The discriminating case is a booker filter that matches
+    // nothing beside an accessor filter that does match. Correct code returns the appointment; if
+    // the two filters were ever ANDed, it would return nothing.
+    [Fact]
+    public async Task GetListWithNavigationProperties_AccessorFilterTakesPrecedenceOverTheBookerFilter()
+    {
+        var ids = await ListAppointmentIdsAsync(
+            identityUserId: AppointmentsTestData.NonExistentIdentityUserId,
+            accessorIdentityUserId: IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        ids.ShouldContain(AppointmentsTestData.Appointment1Id,
+            "Accessor1 gives ApplicantAttorney1 access to Appointment1; the unmatched booker filter must not narrow that away");
+    }
+
+    [Fact]
+    public async Task GetListWithNavigationProperties_FreeTextMatchesThePatientsLastName()
+    {
+        var ids = await ListAppointmentIdsAsync(filterText: PatientsTestData.Patient1LastName);
+
+        ids.ShouldContain(AppointmentsTestData.Appointment1Id);
+    }
+
+    private async Task<System.Collections.Generic.List<Guid>> ListAppointmentIdsAsync(
+        string? filterText = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null)
+    {
+        var ids = new System.Collections.Generic.List<Guid>();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var rows = await _appointmentRepository.GetListWithNavigationPropertiesAsync(
+                    filterText: filterText,
+                    identityUserId: identityUserId,
+                    accessorIdentityUserId: accessorIdentityUserId);
+                ids.AddRange(System.Linq.Enumerable.Select(rows, row => row.Appointment.Id));
+            }
+        });
+        return ids;
+    }
 }

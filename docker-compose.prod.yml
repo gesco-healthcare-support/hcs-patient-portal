@@ -283,6 +283,10 @@ services:
       App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       # G1: per-service host template so the resolver reads the office from the Host.
       App__TenantDomainFormat: "{0}.auth.${BASE_DOMAIN}"
+      # B4: the Host names this process answers; anything else gets 400 before app code runs.
+      # `localhost` = the container health checks; `authserver` = the API's metadata fetch
+      # (AuthServer__MetaAddress below). A bare "*" here is refused at startup (HostingConfigValidator).
+      AllowedHosts: "${BASE_DOMAIN};*.${BASE_DOMAIN};localhost;authserver"
       # OpenIddict wildcard redirect/logout URIs for every office subdomain.
       App__WildcardDomainsFormat__0: "https://{0}.${BASE_DOMAIN}"
       App__WildcardDomainsFormat__1: "https://{0}.auth.${BASE_DOMAIN}"
@@ -360,6 +364,9 @@ services:
       App__CorsOrigins: "https://*.${BASE_DOMAIN}"
       App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       App__TenantDomainFormat: "{0}.api.${BASE_DOMAIN}"
+      # B4: the Host names this process answers; anything else gets 400 before app code runs.
+      # `localhost` = the container health checks. A bare "*" is refused at startup.
+      AllowedHosts: "${BASE_DOMAIN};*.${BASE_DOMAIN};localhost"
       AuthServer__Authority: "https://auth.${BASE_DOMAIN}"
       # Split-horizon: reach the AuthServer for OIDC discovery over the internal
       # network, but validate tokens against the public issuer (see IssuerValidator).

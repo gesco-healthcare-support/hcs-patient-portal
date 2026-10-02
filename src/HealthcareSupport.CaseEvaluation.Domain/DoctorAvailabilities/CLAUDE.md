@@ -19,7 +19,7 @@ appointment booking, and surfaced in Angular grouped by location + date with con
 | Application | `Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` | CRUD + preview + three delete modes; `[RemoteService(IsEnabled=false)]` |
 | EF Core | `EntityFrameworkCore/DoctorAvailabilities/EfCoreDoctorAvailabilityRepository.cs` | LEFT JOIN Location + AppointmentType; `filterText` arm is a no-op (`e => true`) |
 | HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 15 HTTP routes, counted with `grep -cE "\[Http(Get\|Post\|Put\|Delete\|Patch)" <that file>` |
-| Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | Active facts + 2 Skip gap-encoders (see Gotchas #2/#3) |
+| Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | Active facts + 2 Skip gap-encoders (see Gotcha #3, and `CreateRangeAsync_AnyInsertFails_RollsBack`) |
 | Angular | `angular/src/app/doctor-availabilities/` | List + detail modal + bulk-generate + abstract/concrete view-services |
 
 ## Capacity model
@@ -32,14 +32,13 @@ the new model ignores it for capacity purposes.
 
 ## BookingStatus write paths
 
-- `Available -> Booked`: `AppointmentsAppService` sets it when an appointment is created
-  (legacy path; new model uses capacity count instead).
+- `Available -> Booked`: nothing sets it any more (measured 2026-10-01: `BookingStatus.Booked`
+  is only ever READ in `src/`). Rows carrying it are legacy data.
 - `Available -> Reserved`: `AppointmentChangeRequestManager.SubmitRescheduleAsync` sets
   `newSlot.BookingStatusId = BookingStatus.Reserved` as an interim hold on the new slot
   pending supervisor approval.
-- `UpdateAsync` can overwrite `BookingStatusId` to any value with no guard -- including
-  flipping `Booked -> Available` while an active `Appointment` still references the slot
-  (tracked as a Skip-tagged gap test; see Gotchas #2).
+- `UpdateAsync` can overwrite `BookingStatusId` to any value. That alone breaks nothing: capacity
+  counts an appointment whatever its slot's status says.
 - No automated path releases a slot back to `Available` when an appointment is deleted.
 
 ## Bulk-preview and conflict detection
@@ -62,6 +61,15 @@ Three modes, all requiring `DoctorAvailabilities.Delete`:
 1. `DeleteAsync` -- single id.
 2. `DeleteBySlotAsync` -- location + date + exact `FromTime`/`ToTime`.
 3. `DeleteByDateAsync` -- location + date, all slots that day.
+
+**A slot something still points at is never deleted or moved** (#1204). "Points at" means any
+appointment or change request referencing it, the rule `DeleteAsync` has applied since Phase 7
+(`IsSlotReferencedAsync`). `DeleteAsync` and `DeleteBySlotAsync` refuse such a slot;
+`DeleteByDateAsync` skips it and reports it in `SkippedSlotIds`; `UpdateAsync` refuses an edit that
+would change its location, date or time, and still accepts one that moves nothing (capacity,
+accepted types). The older `Booked`/`Reserved` status checks remain for legacy rows, but they no
+longer identify a booked slot on their own -- under the capacity model a booked slot stays
+`Available`, which is how all three paths came to be unguarded.
 
 ## CreateRangeAsync transactional bulk-create
 
@@ -90,9 +98,10 @@ true, so `filterText` does nothing even though it flows through DTO / AppService
 ## Gotchas
 
 1. `filterText` is a no-op in the EF repo (see Conventions above).
-2. `UpdateAsync` can flip `Booked -> Available` with no guard while an Appointment still
-   references the slot. Pinned as
-   `UpdateAsync_ChangeBookedStatusBackToAvailable_WhenSlotStillBooked_ShouldThrow` (Skip).
+2. Never identify a booked slot by its status: under the capacity model it stays `Available`.
+   Check for references instead (see "Bulk-delete modes"). Not yet guarded: cutting `Capacity`
+   below the active appointment count, and removing an accepted appointment type an active
+   appointment uses.
 3. Preview + create is not atomic; two concurrent callers can both see no conflict and both
    persist duplicate overlapping slots. Pinned as
    `GeneratePreviewAsync_ConcurrentCalls_PreventDuplicateSlotCreation` (Skip).
