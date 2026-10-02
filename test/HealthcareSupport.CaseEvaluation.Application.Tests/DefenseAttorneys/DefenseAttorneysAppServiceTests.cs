@@ -248,7 +248,7 @@ public abstract class DefenseAttorneysAppServiceTests<TStartupModule>
             all.Items.ShouldNotBeEmpty("States are seeded; an empty lookup means the query is "
                 + "being tenant-filtered and the caller gets an empty dropdown.");
 
-            var seeded = all.Items.First();
+            var seeded = all.Items[0];
             var filtered = await _defenseAttorneys.GetStateLookupAsync(new LookupRequestDto
             {
                 Filter = seeded.DisplayName,
