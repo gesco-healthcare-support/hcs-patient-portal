@@ -426,6 +426,43 @@ public class AppointmentAccessRulesUnitTests
         pathway.ShouldBe(AppointmentAccessRules.AccessPathway.ApplicantAttorney);
     }
 
+    // CanRead and CanEdit share one body for the named-party pathways, but each gate must still be
+    // pinned on its own: the read tests cannot see an edit gate that stops admitting a party.
+
+    [Fact]
+    public void CanEdit_Expanded_DefenseAttorney_True()
+    {
+        var (allowed, pathway) = AppointmentAccessRules.CanEdit(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: OtherUserId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: new[] { CallerId },
+            claimExaminerEmails: null,
+            accessorEntries: null);
+        allowed.ShouldBeTrue();
+        pathway.ShouldBe(AppointmentAccessRules.AccessPathway.DefenseAttorney);
+    }
+
+    [Fact]
+    public void CanEdit_Expanded_ClaimExaminer_True()
+    {
+        var (allowed, pathway) = AppointmentAccessRules.CanEdit(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: OtherUserId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: new[] { CallerEmail },
+            accessorEntries: null);
+        allowed.ShouldBeTrue();
+        pathway.ShouldBe(AppointmentAccessRules.AccessPathway.ClaimExaminer);
+    }
+
     [Fact]
     public void CanEdit_Expanded_ViewOnlyAccessor_FallsThroughToFalse()
     {

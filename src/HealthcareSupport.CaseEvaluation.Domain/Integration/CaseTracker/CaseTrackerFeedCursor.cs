@@ -35,12 +35,9 @@ public static class CaseTrackerFeedCursor
             return false;
         }
 
-        foreach (var c in value)
+        if (value.Any(c => !char.IsAsciiHexDigit(c)))
         {
-            if (!char.IsAsciiHexDigit(c))
-            {
-                return false; // long.TryParse(AllowHexSpecifier) would also accept surrounding whitespace
-            }
+            return false; // long.TryParse(AllowHexSpecifier) would also accept surrounding whitespace
         }
 
         if (!ulong.TryParse(value, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var raw)

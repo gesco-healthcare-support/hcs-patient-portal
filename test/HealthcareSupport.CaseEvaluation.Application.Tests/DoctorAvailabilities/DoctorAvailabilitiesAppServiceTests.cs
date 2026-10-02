@@ -801,17 +801,119 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "KNOWN GAP: UpdateAsync allows flipping BookingStatus from Booked to Available without checking whether an Appointment.DoctorAvailabilityId still references this slot. The slot/appointment invariant can be silently broken. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/DoctorAvailabilities/CLAUDE.md under 'Business Rules' #5.")]
-    public Task UpdateAsync_ChangeBookedStatusBackToAvailable_WhenSlotStillBooked_ShouldThrow()
+    // A booked slot stays Available under the capacity model, and nothing sets Booked any more, so
+    // the status checks on update and on delete-by-date stopped protecting booked slots. These pin
+    // the rule that replaced them: a slot something still points at may not be MOVED or deleted.
+    //
+    // They replace a Skip-tagged gap test, "flipping Booked back to Available should throw". Its
+    // premise is superseded -- capacity counts an appointment whatever the slot's status says, so the
+    // flip itself breaks nothing. Moving or deleting the slot is what does, and that was unguarded.
+    //
+    // Each test first puts seeded Slot1 into the capacity-model state: still referenced by
+    // Appointment1, status Available. That is the state the old guard could not see. Every EF test
+    // gets its own database (guard G5), so changing the seed here leaks into no other test.
+
+    [Fact]
+    public async Task UpdateAsync_MovingAReferencedSlot_IsRefused_EvenWhileItsStatusIsAvailable()
     {
-        // Expected behaviour (not yet implemented):
-        // 1. Seed DoctorAvailability slot with BookingStatusId=Booked
-        // 2. Seed Appointment that references that slot
-        // 3. Invoke UpdateAsync on the slot setting BookingStatusId=Available
-        // 4. Assert: UserFriendlyException or domain-level exception is thrown
-        // Current behaviour: UpdateAsync succeeds silently, orphaning the appointment's slot reference.
-        return Task.CompletedTask;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+            var update = UpdateFrom(slot);
+            update.FromTime = slot.FromTime.AddHours(2);
+            update.ToTime = slot.ToTime.AddHours(2);
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.UpdateAsync(slot.Id, update));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotUpdateBookedOrReserved);
+            var persisted = await _slotRepository.GetAsync(slot.Id);
+            persisted.FromTime.ShouldBe(DoctorAvailabilitiesTestData.Slot1FromTime,
+                "the appointment would have been moved to a different time without anyone being told");
+        }
     }
+
+    [Fact]
+    public async Task UpdateAsync_RaisingCapacityOnAReferencedSlot_IsStillAllowed()
+    {
+        // The boundary: the guard refuses a MOVE, not every edit. A supervisor adding capacity to a
+        // slot that already has a booking is ordinary, and must keep working.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+            var update = UpdateFrom(slot);
+            update.Capacity = slot.Capacity + 2;
+
+            var result = await _appService.UpdateAsync(slot.Id, update);
+
+            result.Capacity.ShouldBe(slot.Capacity + 2);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteBySlotAsync_WhenTheSlotIsReferenced_IsRefused_AndTheSlotSurvives()
+    {
+        // This path had no guard of any kind: it deleted whatever slot matched the date and times.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.DeleteBySlotAsync(
+                new DoctorAvailabilityDeleteBySlotInputDto
+                {
+                    LocationId = slot.LocationId,
+                    AvailableDate = slot.AvailableDate,
+                    FromTime = slot.FromTime,
+                    ToTime = slot.ToTime,
+                }));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotDeleteReferenced);
+            (await _slotRepository.FindAsync(slot.Id)).ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task DeleteByDateAsync_SkipsAReferencedSlot_EvenWhileItsStatusIsAvailable()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+
+            var result = await _appService.DeleteByDateAsync(new DoctorAvailabilityDeleteByDateInputDto
+            {
+                LocationId = slot.LocationId,
+                AvailableDate = slot.AvailableDate,
+            });
+
+            result.SkippedSlotIds.ShouldContain(slot.Id);
+            (await _slotRepository.FindAsync(slot.Id)).ShouldNotBeNull(
+                "a booked slot was deleted out from under its appointment");
+        }
+    }
+
+    /// <summary>
+    /// Seeded Slot1, still referenced by Appointment1, with its status set to Available -- what a
+    /// booked slot looks like under the capacity model. Returns it re-read, so the concurrency stamp
+    /// is current.
+    /// </summary>
+    private async Task<DoctorAvailability> MakeSlot1AvailableWhileStillBookedAsync()
+    {
+        var slot = await _slotRepository.GetAsync(DoctorAvailabilitiesTestData.Slot1Id);
+        slot.BookingStatusId = BookingStatus.Available;
+        await _slotRepository.UpdateAsync(slot, autoSave: true);
+        return await _slotRepository.GetAsync(DoctorAvailabilitiesTestData.Slot1Id);
+    }
+
+    private static DoctorAvailabilityUpdateDto UpdateFrom(DoctorAvailability slot) => new()
+    {
+        LocationId = slot.LocationId,
+        AppointmentTypeIds = slot.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList(),
+        AvailableDate = slot.AvailableDate,
+        FromTime = slot.FromTime,
+        ToTime = slot.ToTime,
+        BookingStatusId = slot.BookingStatusId,
+        Capacity = slot.Capacity,
+        ConcurrencyStamp = slot.ConcurrencyStamp,
+    };
 
     // =====================================================================
     // Helpers.

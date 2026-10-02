@@ -85,7 +85,7 @@ describe('DoctorComponent', () => {
 
     component.checkActionButtonVisibility();
 
-    expect(calls.filter((c) => c.startsWith('policy:')).length).toBe(policyChecks);
+    expect(calls.filter((c) => c.startsWith('policy:'))).toHaveSize(policyChecks);
   });
 
   it('opens an empty form for create, clearing the previously selected doctor', () => {

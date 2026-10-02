@@ -147,7 +147,6 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         var applicantLinks = applicantLinkQueryable.Where(x => x.AppointmentId == appointmentId).Take(10).ToList();
         foreach (var link in applicantLinks)
         {
-            var aa = await _applicantAttorneyRepository.FindAsync(link.ApplicantAttorneyId);
             if (link.IdentityUserId is null)
             {
                 continue;
@@ -161,7 +160,6 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         var defenseLinks = defenseLinkQueryable.Where(x => x.AppointmentId == appointmentId).Take(10).ToList();
         foreach (var link in defenseLinks)
         {
-            var da = await _defenseAttorneyRepository.FindAsync(link.DefenseAttorneyId);
             if (link.IdentityUserId is null)
             {
                 continue;

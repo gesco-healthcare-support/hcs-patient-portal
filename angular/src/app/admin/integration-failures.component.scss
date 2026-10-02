@@ -62,7 +62,7 @@
 }
 .if-err {
   max-width: 40ch;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   color: #a11;
 }
 .if-toolbar {

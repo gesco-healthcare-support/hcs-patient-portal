@@ -104,8 +104,8 @@ describe('IntakeAssignmentsComponent', () => {
         operators: [{ id: 'u-1', displayName: 'Ada Lovelace' }],
         offices: [{ id: 'o-1', displayName: 'Encino' }],
       });
-      expect(c.operators().length).toBe(1);
-      expect(c.offices().length).toBe(1);
+      expect(c.operators()).toHaveSize(1);
+      expect(c.offices()).toHaveSize(1);
     });
 
     it('treats a lookup with no items as empty', () => {
@@ -138,7 +138,7 @@ describe('IntakeAssignmentsComponent', () => {
         row({ officeId: 'o-2', officeName: 'Glendale' }),
       ]);
 
-      expect(c.staff().length).toBe(1);
+      expect(c.staff()).toHaveSize(1);
       expect(c.staff()[0].practices.map((p: { officeId: string }) => p.officeId)).toEqual([
         'o-1',
         'o-2',
@@ -150,7 +150,7 @@ describe('IntakeAssignmentsComponent', () => {
         row({ operatorUserId: 'u-1', operatorName: 'Ada Lovelace' }),
         row({ operatorUserId: 'u-2', operatorName: 'Grace Hopper' }),
       ]);
-      expect(c.staff().length).toBe(2);
+      expect(c.staff()).toHaveSize(2);
     });
 
     it('DROPS a row with no staff id rather than inventing a group for it', () => {
@@ -160,7 +160,7 @@ describe('IntakeAssignmentsComponent', () => {
        */
       const c = withRows([row({ operatorUserId: null }), row({ operatorUserId: 'u-1' })]);
 
-      expect(c.staff().length).toBe(1);
+      expect(c.staff()).toHaveSize(1);
       expect(c.staff()[0].operatorUserId).toBe('u-1');
     });
 
@@ -210,7 +210,7 @@ describe('IntakeAssignmentsComponent', () => {
 
     it('returns everyone when nothing is typed', () => {
       const c = seeded();
-      expect(c.staff().length).toBe(2);
+      expect(c.staff()).toHaveSize(2);
     });
 
     it('matches on the staff name', () => {
@@ -429,7 +429,7 @@ describe('IntakeAssignmentsComponent', () => {
 
       expect(unhandled).not.toHaveBeenCalled();
       expect(c.operators()).toEqual([]);
-      expect(c.offices().length).toBe(1);
+      expect(c.offices()).toHaveSize(1);
       expect(service['getList']).toHaveBeenCalled();
     }));
 
@@ -439,7 +439,7 @@ describe('IntakeAssignmentsComponent', () => {
 
       expect(unhandled).not.toHaveBeenCalled();
       expect(c.offices()).toEqual([]);
-      expect(c.operators().length).toBe(1);
+      expect(c.operators()).toHaveSize(1);
       expect(service['getList']).toHaveBeenCalled();
     }));
   });

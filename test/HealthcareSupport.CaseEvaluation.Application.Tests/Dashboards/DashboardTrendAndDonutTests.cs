@@ -131,13 +131,28 @@ public abstract class DashboardTrendAndDonutTests<TStartupModule> : DashboardTes
     }
 
     /// <summary>
-    /// The Month range starts the trend at the first of the month and spaces the
-    /// buckets seven days apart, labelling them in order.
+    /// The Month range starts the trend at the first of the month, spaces the buckets seven days
+    /// apart, labels them in order, and produces one bucket per started week.
     ///
-    /// <para>Honest label: the spacing loop below is exercised only once a month is
-    /// more than seven days old. On the first through the seventh there is a single
-    /// bucket and the loop body never runs, so on those days this test pins the
-    /// window ORIGIN and the label only.</para>
+    /// <para>The bucket COUNT is derived rather than asserted as "more than one".
+    /// <c>BuildTrendAsync</c> steps seven days at a time from the window start while the bucket
+    /// start is still before now, so the count on any given day is arithmetic, not luck:
+    /// <c>((now - monthStart).Days / 7) + 1</c>. That is assertable on every day of the month.</para>
+    ///
+    /// <para>IT STILL DOES NOT PIN BUCKET WIDTH ON THE 1st TO THE 7th, and saying otherwise would
+    /// be the hollow pass the previous version refused. Measured on 2026-10-01: widening the
+    /// service's buckets from seven days to six left this test green, because with one bucket the
+    /// loop below only checks that it starts at the origin, which is true at any width.</para>
+    ///
+    /// <para>What changed is the failure mode, not the coverage. It previously required two or more
+    /// buckets and failed outright on those seven days -- honest, but it took CI down for a week of
+    /// every month, and on 2026-10-01 it blocked every open pull request. Now it asserts everything
+    /// today can actually settle and nothing it cannot.</para>
+    ///
+    /// <para>The real fix is a clock seam. The service reads <c>DateTime.UtcNow</c> directly in five
+    /// places; with ABP's <c>IClock</c> substituted -- as <c>BookingPolicyValidator</c> and the Case
+    /// Tracker services already do -- this could pin the 20th of a fixed month and check spacing
+    /// every day of the year. Tracked separately.</para>
     /// </summary>
     [Fact]
     public async Task GetDashboardAsync_MonthRangeStartsAtTheFirstOfTheMonthAndSpacesBucketsWeekly()
@@ -147,33 +162,22 @@ public abstract class DashboardTrendAndDonutTests<TStartupModule> : DashboardTes
 
         var dto = await GetDashboardAsync(TenantsTestData.TenantARef, DashboardRange.Month);
 
-        dto.Trend.ShouldNotBeEmpty();
-        dto.Trend[0].WeekStart.ShouldBe(monthStartUtc);
-        dto.Trend[0].Label.ShouldBe("Wk 1");
+        // One bucket per started week. A 31-day month yields 5, well under the service's cap of
+        // 14, so the cap cannot be what this assertion trips over.
+        var expectedBuckets = ((nowUtc - monthStartUtc).Days / 7) + 1;
+        dto.Trend.Count.ShouldBe(
+            expectedBuckets,
+            $"Today is day {nowUtc.Day} of the month, so the month range should produce "
+            + $"{expectedBuckets} bucket(s): one per seven-day step from the first that starts "
+            + "before now.");
 
-        // THE LOOP BELOW IS THE POINT OF THIS TEST, AND IT DOES NOT ALWAYS RUN. Before the 8th of
-        // the month there is a single bucket, `index` starts at 1, and the body never executes --
-        // so the spacing rule this Fact is named for goes unasserted on seven days in every month,
-        // silently. The docstring admitted that; admitting it is not the same as detecting it.
-        //
-        // Asserting the precondition converts a silent no-op into a named failure. On those seven
-        // days this now FAILS rather than passing hollowly, which is the honest outcome: a test
-        // that cannot check its guarantee today should say so, not report success.
-        //
-        // The remedy if that proves annoying is to seed a month-old appointment so a second bucket
-        // always exists -- deliberately NOT done here, because it would change what the Fact
-        // measures from "the real window the product produces" to "a window I manufactured".
-        dto.Trend.Count.ShouldBeGreaterThan(
-            1,
-            $"Only {dto.Trend.Count} bucket(s) exist, so the weekly-spacing loop below cannot run "
-            + "and this Fact would pin nothing but the window origin. Today is day "
-            + $"{nowUtc.Day} of the month; the month range produces a second bucket from the 8th.");
-
-        for (var index = 1; index < dto.Trend.Count; index++)
+        for (var index = 0; index < dto.Trend.Count; index++)
         {
             dto.Trend[index].WeekStart.ShouldBe(monthStartUtc.AddDays(7 * index));
             dto.Trend[index].Label.ShouldBe($"Wk {index + 1}");
         }
+
+        dto.Trend[0].WeekStart.TimeOfDay.ShouldBe(TimeSpan.Zero);
     }
 
     /// <summary>

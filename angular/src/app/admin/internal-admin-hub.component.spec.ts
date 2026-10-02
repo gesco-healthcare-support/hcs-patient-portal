@@ -243,7 +243,7 @@ describe('InternalAdminHubComponent', () => {
 
     it('lists the templates and selects the first', () => {
       const c = withTemplates([ntRow(), ntRow({ id: 'nt-2', code: 'AppointmentApproved' })]);
-      expect(c.ntRows().length).toBe(2);
+      expect(c.ntRows()).toHaveSize(2);
       expect(c.ntSelectedId()).toBe('nt-1');
       expect(c.loading()).toBeFalse();
     });
@@ -317,7 +317,7 @@ describe('InternalAdminHubComponent', () => {
         of([{ token: 'Patient.FirstName', label: 'First name' }]),
       );
       c.selectTemplate(c.ntRows()[0]);
-      expect(c.ntVariables().length).toBe(1);
+      expect(c.ntVariables()).toHaveSize(1);
       expect(gateway['getTemplateVariables']).toHaveBeenCalledWith('AppointmentRequested');
     });
 
@@ -347,7 +347,7 @@ describe('InternalAdminHubComponent', () => {
     it('shows everything when no type filter is set', () => {
       const c = withTemplates([ntRow({ id: 'nt-1' }), ntRow({ id: 'nt-2' })]);
       c.setNtTypeFilter('');
-      expect(c.ntShown().length).toBe(2);
+      expect(c.ntShown()).toHaveSize(2);
     });
 
     it('filters the list by search query', () => {
@@ -648,7 +648,7 @@ describe('InternalAdminHubComponent', () => {
 
     it('loads the roles and selects the first editable one', () => {
       const c = ready([roleRow({ name: 'IT Admin' }), roleRow({ name: 'Staff Supervisor' })]);
-      expect(c.roles().length).toBe(2);
+      expect(c.roles()).toHaveSize(2);
       expect(c.roleSelected()).toBe('Staff Supervisor');
     });
 
@@ -703,7 +703,7 @@ describe('InternalAdminHubComponent', () => {
 
       c.selectRole('Staff Supervisor');
 
-      expect(c.permGroups().length).toBe(1);
+      expect(c.permGroups()).toHaveSize(1);
       expect(c.isGranted('CaseEvaluation.Appointments')).toBeTrue();
       expect(c.isGranted('CaseEvaluation.Appointments.Create')).toBeFalse();
       expect(c.grantedCount()).toBe(1);
@@ -821,9 +821,9 @@ describe('InternalAdminHubComponent', () => {
 
       const matrix = c.permMatrix();
 
-      expect(matrix.length).toBe(1);
-      expect(matrix[0].parents.length).toBe(1);
-      expect(matrix[0].parents[0].children.length).toBe(1);
+      expect(matrix).toHaveSize(1);
+      expect(matrix[0].parents).toHaveSize(1);
+      expect(matrix[0].parents[0].children).toHaveSize(1);
     });
 
     it('drops a group whose permissions all fail the search', () => {
@@ -841,7 +841,7 @@ describe('InternalAdminHubComponent', () => {
         { name: 'G', displayName: 'G', permissions: [{ name: 'A', displayName: 'Appointments' }] },
       ]);
       c.permSearch.set('  APPOINT  ');
-      expect(c.permMatrix().length).toBe(1);
+      expect(c.permMatrix()).toHaveSize(1);
     });
   });
 
@@ -871,7 +871,7 @@ describe('InternalAdminHubComponent', () => {
 
     it('loads the audit rows', () => {
       const c = ready();
-      expect(c.auditRows().length).toBe(1);
+      expect(c.auditRows()).toHaveSize(1);
       expect(c.loading()).toBeFalse();
     });
 
@@ -910,7 +910,7 @@ describe('InternalAdminHubComponent', () => {
     it('returns every row for a blank query', () => {
       const c = ready([log({ id: 'a1' }), log({ id: 'a2' })]);
       c.auditQuery.set('   ');
-      expect(c.auditShown().length).toBe(2);
+      expect(c.auditShown()).toHaveSize(2);
     });
 
     it('leaves the rows in server order until a sort is chosen', () => {

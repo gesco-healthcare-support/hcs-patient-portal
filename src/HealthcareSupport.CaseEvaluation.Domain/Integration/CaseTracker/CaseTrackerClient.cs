@@ -76,6 +76,7 @@ public class CaseTrackerClient : ICaseTrackerClient, ITransientDependency
             // side being unreachable says nothing about whether the message is valid. The exception
             // message is safe to keep -- it describes the transport, not the payload.
             _logger.LogWarning(
+                ex,
                 "CaseTrackerClient: POST {TargetPath} failed in transport ({ExceptionType}).",
                 targetPath, ex.GetType().Name);
 

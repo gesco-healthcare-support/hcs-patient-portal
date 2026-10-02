@@ -85,7 +85,7 @@ public class RequestConfirmationNumberGenerator : ITransientDependency
 
             var nextValue = 1;
             if (!string.IsNullOrWhiteSpace(latestNumber)
-                && int.TryParse(latestNumber.Substring(Prefix.Length), out var currentValue))
+                && int.TryParse(latestNumber.AsSpan(Prefix.Length), out var currentValue))
             {
                 nextValue = currentValue + 1;
             }

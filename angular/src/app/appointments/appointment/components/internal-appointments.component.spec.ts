@@ -133,7 +133,7 @@ describe('InternalAppointmentsComponent', () => {
       const c = create();
       service['getList'].and.returnValue(of({ items: [row()], totalCount: 42 }));
       started(c);
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
       expect(c.totalCount()).toBe(42);
       expect(c.loading()).toBeFalse();
     });
@@ -157,7 +157,7 @@ describe('InternalAppointmentsComponent', () => {
       const c = create();
       service['getList'].and.returnValue(of({ items: [row()], totalCount: 1 }));
       started(c);
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
 
       service['getList'].and.returnValue(throwError(() => ({ status: 500 })));
       c.retry();
@@ -179,7 +179,7 @@ describe('InternalAppointmentsComponent', () => {
       c.retry();
 
       expect(c.loadError()).toBeFalse();
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
     });
 
     it('keeps a counts failure quiet so one outage does not double-toast', () => {
@@ -500,7 +500,7 @@ describe('InternalAppointmentsComponent', () => {
       tick(300);
 
       expect(service['getIdentityUserLookup']).toHaveBeenCalled();
-      expect(c.bookerResults().length).toBe(1);
+      expect(c.bookerResults()).toHaveSize(1);
     }));
 
     it('clears the resolved id while the operator retypes', () => {
@@ -539,7 +539,7 @@ describe('InternalAppointmentsComponent', () => {
       c.totalCount.set(42);
       c.pageSize.set(10);
       expect(c.totalPages()).toBe(5);
-      expect(c.pages().length).toBe(5);
+      expect(c.pages()).toHaveSize(5);
     });
 
     it('never reports fewer than one page', () => {

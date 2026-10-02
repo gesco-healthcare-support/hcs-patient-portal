@@ -33,7 +33,7 @@ namespace HealthcareSupport.CaseEvaluation.Repository;
 /// - the appointment statuses and the roles, which the appointment-transition and
 ///   authorization snapshots own.
 /// </summary>
-public static class RepositoryCountsSurface
+public static partial class RepositoryCountsSurface
 {
     private const string SolutionFileName = "HealthcareSupport.CaseEvaluation.slnx";
 
@@ -41,10 +41,12 @@ public static class RepositoryCountsSurface
     private static readonly string[] ComposeFiles = ["docker-compose.yml", "docker-compose.prod.yml"];
 
     /// <summary>A service key: exactly two spaces of indent, a name, then a colon.</summary>
-    private static readonly Regex ServiceKey = new(@"^  ([A-Za-z0-9_.-]+):", RegexOptions.CultureInvariant);
+    [GeneratedRegex(@"^  ([A-Za-z0-9_.-]+):", RegexOptions.CultureInvariant)]
+    private static partial Regex ServiceKey();
 
     /// <summary>A top-level key, which ends the services block. Comments start with '#'.</summary>
-    private static readonly Regex TopLevelKey = new(@"^[A-Za-z0-9_.-]", RegexOptions.CultureInvariant);
+    [GeneratedRegex(@"^[A-Za-z0-9_.-]", RegexOptions.CultureInvariant)]
+    private static partial Regex TopLevelKey();
 
     /// <summary>
     /// The repository root: the nearest directory above this source file that holds the
@@ -119,12 +121,12 @@ public static class RepositoryCountsSurface
                 continue;
             }
 
-            if (TopLevelKey.IsMatch(line))
+            if (TopLevelKey().IsMatch(line))
             {
                 break;
             }
 
-            var match = ServiceKey.Match(line);
+            var match = ServiceKey().Match(line);
             if (match.Success)
             {
                 services.Add(match.Groups[1].Value);

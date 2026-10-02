@@ -22,6 +22,7 @@ using Volo.Saas;
 using Volo.Saas.Editions;
 using Volo.Saas.Tenants;
 using HealthcareSupport.CaseEvaluation.Timing;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Dashboards;
 
@@ -42,6 +43,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IRepository<Edition, Guid> _editionRepository;
 
+    // The ONE source of "now" for every window this service computes. It used to read
+    // DateTime.UtcNow directly -- five times in the body and once more inside the Monday helper,
+    // which has four call sites -- so a test could not pin the date, and a test asserting on a
+    // calendar window took its own independent reading and hoped the two agreed. On 2026-10-01 they
+    // did not: a Month-range assertion that only holds from the 8th failed every open pull request
+    // (#1194). AbpClockOptions.Kind is pinned to Utc, so Now here IS the UTC instant.
+    private readonly IClock _clock;
+
     public DashboardAppService(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
@@ -54,7 +63,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         ITenantWorkRunner tenantWorkRunner,
         IAuthorizationService authorizationService,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        IRepository<Edition, Guid> editionRepository)
+        IRepository<Edition, Guid> editionRepository,
+        IClock clock)
     {
         _appointmentRepository = appointmentRepository;
         _changeRequestRepository = changeRequestRepository;
@@ -68,6 +78,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         _authorizationService = authorizationService;
         _identityUserRepository = identityUserRepository;
         _editionRepository = editionRepository;
+        _clock = clock;
     }
 
     [Authorize]
@@ -137,9 +148,9 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     private async Task<DashboardCountersDto> BuildAsync(bool scopedToTenant)
     {
-        var lastMondayUtc = GetLastMondayUtc();
-        var monthStartUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var legalDeadlineThresholdUtc = DateTime.UtcNow.AddDays(-60);
+        var nowUtc = _clock.Now;
+        var lastMondayUtc = GetLastMondayUtc(nowUtc);
+        var legalDeadlineThresholdUtc = nowUtc.AddDays(-60);
 
         var pendingRequests = await _appointmentRepository.CountAsync(
             a => a.AppointmentStatus == AppointmentStatusType.Pending);
@@ -167,7 +178,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
         var decisionDueDays = systemParameter?.PendingAppointmentOverDueNotificationDays
             ?? SystemParameterConsts.DefaultPendingAppointmentOverDueNotificationDays;
-        var decisionOverdueCutoffUtc = DecisionSlaPolicy.OverdueCreationCutoff(DateTime.UtcNow, decisionDueDays);
+        var decisionOverdueCutoffUtc = DecisionSlaPolicy.OverdueCreationCutoff(nowUtc, decisionDueDays);
         var decisionOverdue = await _appointmentRepository.CountAsync(
             a => a.AppointmentStatus == AppointmentStatusType.Pending
                  && a.CreationTime < decisionOverdueCutoffUtc);
@@ -347,7 +358,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     {
         Check.NotNull(input, nameof(input));
 
-        var lastMondayUtc = GetLastMondayUtc();
+        var lastMondayUtc = GetLastMondayUtc(_clock.Now);
         var tenants = await _tenantRepository.GetListAsync();
         var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
 
@@ -413,9 +424,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         var hasSort = parts.Length > 0;
         var field = hasSort ? parts[0].ToLowerInvariant() : "appointments";
         // No client sort -> most-active office first (mirrors the dashboard's own order).
-        var descending = hasSort
-            ? parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase)
-            : true;
+        var descending = !hasSort
+            || (parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase));
 
         IOrderedEnumerable<DashboardTenantRowDto> ordered = field switch
         {
@@ -432,13 +442,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     private async Task<DashboardDto> BuildHostDashboardAsync(DashboardRange range)
     {
-        var lastMondayUtc = GetLastMondayUtc();
+        var nowUtc = _clock.Now;
+        var lastMondayUtc = GetLastMondayUtc(nowUtc);
         // QA item 6 (D1): the host hero's Approved/Rejected tiles are period-windowed with a
         // prior-period comparison (same date fields + window math as the tenant hero). The
         // structural (Practices/Locations/Doctors), volume (all-time Appointments), and live
         // (Pending) tiles stay point-in-time -- a date range is meaningless for them (mirrors
         // item G's rule that only period metrics follow the switcher).
-        var (currentStart, previousStart) = GetRangeWindows(range, DateTime.UtcNow);
+        var (currentStart, previousStart) = GetRangeWindows(range, nowUtc);
         var tenants = await _tenantRepository.GetListAsync();
         var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
 
@@ -518,7 +529,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     private async Task<DashboardDto> BuildTenantDashboardAsync(DashboardRange range)
     {
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _clock.Now;
         var (currentStart, previousStart) = GetRangeWindows(range, nowUtc);
         var dto = new DashboardDto { IsHost = false };
 
@@ -788,7 +799,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             case DashboardRange.Week:
             default:
                 {
-                    var weekStart = GetLastMondayUtc();
+                    var weekStart = GetLastMondayUtc(nowUtc);
                     return (weekStart, weekStart.AddDays(-7));
                 }
         }
@@ -796,11 +807,13 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     /// <summary>
     /// "This week" boundary is Monday 00:00 UTC. When today is Monday the
-    /// returned value equals today's date; the count includes today.
+    /// returned value equals today's date; the count includes today. Takes the caller's
+    /// <paramref name="nowUtc"/> rather than reading the clock, so the week a method computes
+    /// cannot differ from the "now" the rest of that method uses.
     /// </summary>
-    private static DateTime GetLastMondayUtc()
+    private static DateTime GetLastMondayUtc(DateTime nowUtc)
     {
-        var today = DateTime.UtcNow;
+        var today = nowUtc;
         var daysToMonday = (int)today.DayOfWeek - (int)DayOfWeek.Monday;
         if (daysToMonday < 0)
         {

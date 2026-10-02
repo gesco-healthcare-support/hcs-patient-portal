@@ -79,7 +79,7 @@ public class HostIntakeImpersonationExtensionGrantTests
         public Guid? OfficeId { get; }
     }
 
-    private TestableGrant Grant(
+    private static TestableGrant Grant(
         bool saasImpersonation, bool intakeImpersonation, Guid? operatorId, string? email, ICurrentTenant? tenant = null)
     {
         var permissions = Substitute.For<IPermissionChecker>();

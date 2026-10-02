@@ -47,7 +47,7 @@ public abstract class DocumentsStorageTests<TStartupModule>
     protected override void AfterAddApplication(IServiceCollection services)
     {
         _blobs = Substitute.For<IBlobContainer<MasterDocumentsContainer>>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBlobContainer<MasterDocumentsContainer>), _blobs));
+        services.Replace(ServiceDescriptor.Singleton<IBlobContainer<MasterDocumentsContainer>>(_blobs));
     }
 
     private async Task<T> InOffice<T>(Guid? officeId, Func<Task<T>> call)

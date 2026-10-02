@@ -2,12 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Injector, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import {
-  AutofocusDirective,
-  ConfigStateService,
-  LocalizationPipe,
-  RestService,
-} from '@abp/ng.core';
+import { ConfigStateService, LocalizationPipe, RestService } from '@abp/ng.core';
 import { PageComponent } from '@abp/ng.components/page';
 import { DateAdapter, TimeAdapter, ButtonComponent } from '@abp/ng.theme.shared';
 import { TopHeaderNavbarComponent } from '../../../shared/components/top-header-navbar/top-header-navbar.component';
@@ -47,7 +42,6 @@ import {
     TopHeaderNavbarComponent,
     ButtonComponent,
     NgxValidateCoreModule,
-    AutofocusDirective,
     NgbDatepickerModule,
     NgbNavModule,
     SsnInputComponent,

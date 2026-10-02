@@ -34,11 +34,17 @@ public class EfCoreCaseTrackerFeedStore : ICaseTrackerFeedStore, ITransientDepen
     private const string PendingInOffice =
         " FROM " + Outbox + " WHERE [TenantId] = @office AND [IsDeleted] = 0 AND [Status] = @pending";
 
+    /// <summary>Opens a predicate on the change version; each statement below completes it.</summary>
+    private const string AndVersion = " AND " + Version;
+
+    /// <summary>Rows strictly past the caller's position.</summary>
+    private const string AfterPosition = AndVersion + " > CAST(@after AS binary(8))";
+
     private const string ReadPageSql =
         "SELECT TOP (@take) CAST(" + Version + " AS bigint) AS [Position], [MessageType], [AppointmentId], [Payload]"
         + PendingInOffice
-        + " AND " + Version + " > CAST(@after AS binary(8))"
-        + " AND " + Version + " < MIN_ACTIVE_ROWVERSION()"
+        + AfterPosition
+        + AndVersion + " < MIN_ACTIVE_ROWVERSION()"
         + " ORDER BY " + Version;
 
     private const string StartFloorSql =
@@ -46,16 +52,16 @@ public class EfCoreCaseTrackerFeedStore : ICaseTrackerFeedStore, ITransientDepen
         + " (SELECT MIN(CAST(" + Version + " AS bigint))" + PendingInOffice + ") AS [OldestPending]";
 
     private const string OutstandingSql =
-        "SELECT COUNT(*) AS [Value]" + PendingInOffice + " AND " + Version + " > CAST(@after AS binary(8))";
+        "SELECT COUNT(*) AS [Value]" + PendingInOffice + AfterPosition;
 
     private const string OutstandingCreatedBeforeSql =
         "SELECT COUNT(*) AS [Value]" + PendingInOffice
-        + " AND " + Version + " > CAST(@after AS binary(8)) AND [CreationTime] < @createdBefore";
+        + AfterPosition + " AND [CreationTime] < @createdBefore";
 
     private const string FindRowSql =
         "SELECT CAST(" + Version + " AS bigint) AS [Position], [MessageType], [AppointmentId], [Payload]"
         + PendingInOffice
-        + " AND " + Version + " = CAST(@after AS binary(8))";
+        + AndVersion + " = CAST(@after AS binary(8))";
 
     private readonly IDbContextProvider<CaseEvaluationDbContext> _dbContextProvider;
 
@@ -163,24 +169,11 @@ public class EfCoreCaseTrackerFeedStore : ICaseTrackerFeedStore, ITransientDepen
         new("@take", SqlDbType.Int) { Value = take };
 
     /// <summary>The raw shape of a feed row; the message type arrives as its stored int.</summary>
-    private sealed class FeedRowRecord
+    private sealed record FeedRowRecord(long Position, int MessageType, Guid AppointmentId, string Payload)
     {
-        public long Position { get; set; }
-
-        public int MessageType { get; set; }
-
-        public Guid AppointmentId { get; set; }
-
-        public string Payload { get; set; } = null!;
-
         public CaseTrackerFeedRow ToRow() =>
             new(Position, (IntegrationMessageType)MessageType, AppointmentId, Payload);
     }
 
-    private sealed class FloorRecord
-    {
-        public long Horizon { get; set; }
-
-        public long? OldestPending { get; set; }
-    }
+    private sealed record FloorRecord(long Horizon, long? OldestPending);
 }

@@ -100,12 +100,9 @@ public class AppointmentChangedHandler :
             // appointment needs the correction -- not just the most recent one.
             var appointments = await _appointmentRepository.GetListAsync(a => a.PatientId == patient.Id);
 
-            foreach (var appointment in appointments)
+            foreach (var appointment in appointments.Where(a => CaseTrackerPublishPolicy.ShouldPublish(a.AppointmentStatus)))
             {
-                if (CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
-                {
-                    await RePushAsync(appointment.Id, appointment.TenantId, nameof(Patient));
-                }
+                await RePushAsync(appointment.Id, appointment.TenantId, nameof(Patient));
             }
         }
         catch (Exception ex)

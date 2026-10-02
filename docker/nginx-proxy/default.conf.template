@@ -80,13 +80,51 @@ ${TRUSTED_PROXY_SET_REAL_IP_FROM}
 ${TRUSTED_PROXY_REAL_IP_RECURSIVE}
 
 # WebSocket upgrade passthrough (ABP SignalR notification hub).
+# Access log WITHOUT the query string or the referer (B10).
+#
+# The stock nginx.conf logs format `main`, whose $request carries the query string and whose
+# $http_referer carries the previous page's full URL. Query strings here carry patient search fields,
+# the booking lookup's email and the one-time tokens in emailed links. $uri is the path alone.
+#
+# EVERY server block below repeats `access_log ... portal_noquery;` on purpose. The stock nginx.conf
+# declares `access_log ... main` at http level; a second http-level directive would ADD a log rather
+# than replace it, and a server block with no access_log of its own silently inherits `main`.
+# tests/python/test_nginx_access_log.py fails if a block is added without the line.
+log_format portal_noquery '$remote_addr - $remote_user [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent "$http_user_agent" "$http_x_forwarded_for" $host $request_time';
+
 map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
 }
 
+# ---------------------------------------------------------------- B5: limits and TLS
+#
+# Per-client flood ceilings (B5, D2). Coarse on purpose: nothing has measured real traffic yet
+# (docs/devops/RUNTIME-AND-DATA-PROFILE.md), and a whole clinic shares one public IP, so its staff
+# share one bucket. The app's own per-endpoint limiters stay the fine-grained control. Separate
+# zones, so a burst of API calls from a busy office never blocks sign-in. 10 MB holds about
+# 160,000 client states. $binary_remote_addr is the REAL client only once real_ip above trusts the
+# gateway; on the LAN it is the direct peer.
+limit_req_zone $binary_remote_addr zone=api_per_ip:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=auth_per_ip:10m rate=10r/s;
+# 429 rather than nginx's default 503, so a refusal reads as "slow down", not "server broken".
+# Every refusal is logged at warn, so the ceilings can be tuned from real traffic after the pilot.
+limit_req_status 429;
+limit_req_log_level warn;
+
+# No nginx version in the Server header or on error pages.
+server_tokens off;
+
+# TLS (B5, D1): Mozilla "intermediate" v6.0. It keeps the ECDSA suites because acme.sh issues an
+# ECDSA (ec-256) certificate by default, and an RSA-only list shares no TLS 1.2 suite with one, so
+# every TLS 1.2 handshake would fail. TLS 1.3 suites are not governed by ssl_ciphers.
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+ssl_prefer_server_ciphers off;
+
 # HTTP -> HTTPS redirect for every host.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 80 default_server;
     server_name _;
     return 301 https://$host$request_uri;
@@ -115,6 +153,7 @@ server {
 # is read, so this block serves the certificate whenever SNI is absent or unmatched. Without
 # them the handshake cannot complete.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl default_server;
     http2 on;
     server_name _;
@@ -127,9 +166,12 @@ server {
 
 # {office}.auth.<domain> -> AuthServer (OpenIddict + Razor identity UI).
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name *.auth.${BASE_DOMAIN};
+    # B5: per-client ceiling on sign-in traffic (zone defined at the top).
+    limit_req zone=auth_per_ip burst=50 nodelay;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -152,9 +194,12 @@ server {
 
 # {office}.api.<domain> -> HttpApi.Host.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name *.api.${BASE_DOMAIN};
+    # B5: per-client ceiling on API traffic (zone defined at the top).
+    limit_req zone=api_per_ip burst=200 nodelay;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -208,6 +253,7 @@ server {
 #
 # SIDE EFFECT, exactly as for minio: `api` and `auth` become RESERVED office slugs.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN};
@@ -232,6 +278,7 @@ server {
 # Every other path gets a JSON 404 whose `health_probe_only` code a check can grep for, the same
 # reasoning as `missing_office_label` above. `health` becomes a RESERVED office slug.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name health.${BASE_DOMAIN};
@@ -260,6 +307,7 @@ server {
 # A separate block rather than an `if ($host ...)` inside the apex block: `if` in nginx
 # server/location context has well-known surprises. `www` becomes a RESERVED office slug.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name www.${BASE_DOMAIN};
@@ -276,6 +324,7 @@ server {
 # falls to the 421 catch-all. The page names no office and makes no upstream request. The file is
 # mounted read-only from docker/nginx-proxy/apex/ by docker-compose.prod.yml.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name ${BASE_DOMAIN};
@@ -337,6 +386,7 @@ server {
 # the bucket in the hostname, and the wildcard certificate covers a single label
 # only, so `case-tracker-documents.minio.<domain>` would fail TLS.
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name minio.${BASE_DOMAIN};
@@ -381,6 +431,7 @@ server {
 
 # {office}.<domain> -> Angular SPA (least specific; api/auth win by specificity).
 server {
+    access_log /var/log/nginx/access.log portal_noquery;
     listen 443 ssl;
     http2 on;
     server_name *.${BASE_DOMAIN};

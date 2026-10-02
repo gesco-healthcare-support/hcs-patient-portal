@@ -139,40 +139,7 @@ public class ChangeRequestApprovedEmailHandler :
 
             if (eventData.ChangeRequestType == ChangeRequestType.Reschedule)
             {
-                // OLD :721-722 uses newDoctorsAvailability for the rendered date/time.
-                // Phase 4b (2026-08-04): resolve AdminOverrideSlotId FIRST and fall back to
-                // NewDoctorAvailabilityId, independent of IsAdminOverride. Since 4b the
-                // requestor proposes no date, so on the external path NewDoctorAvailabilityId
-                // is null while IsAdminOverride is (correctly) false -- the old override-gated
-                // selection therefore resolved null, and ResolveNewSlotAsync returns empty
-                // strings for null, which would send an approval email with a BLANK date. The
-                // slot staff scheduled onto is always the right one to render; IsAdminOverride
-                // only decides the WORDING below.
-                var slotId = ChangeRequestApprovalValidator.ResolveScheduledSlotId(
-                    changeRequest.AdminOverrideSlotId,
-                    changeRequest.NewDoctorAvailabilityId);
-                var (newDate, newTime) = await ResolveNewSlotAsync(slotId);
-                variables["NewAppointmentDate"] = newDate;
-                variables["NewAppointmentFromTime"] = newTime;
-
-                // Adrian Decision 2026-05-10: single template; variables
-                // carry the OLD-parity wording fork.
-                if (eventData.IsAdminOverride)
-                {
-                    variables["ApprovedSubjectQualifier"] = "Reschedule request has been changed by our team";
-                    variables["ApprovedHeadline"] = "Our clinic staff has changed your appointment to the date and time below.";
-                    variables["ReasonBlock"] = string.IsNullOrWhiteSpace(changeRequest.AdminReScheduleReason)
-                        ? string.Empty
-                        : $"<strong>Reason for change:</strong> {System.Net.WebUtility.HtmlEncode(changeRequest.AdminReScheduleReason)}";
-                }
-                else
-                {
-                    variables["ApprovedSubjectQualifier"] = "Your reschedule request has been approved";
-                    variables["ApprovedHeadline"] = $"Your reschedule request for appointment <b style=\"font-size:17px\">{System.Net.WebUtility.HtmlEncode(ctx.RequestConfirmationNumber ?? string.Empty)}</b> has been approved.";
-                    variables["ReasonBlock"] = string.IsNullOrWhiteSpace(changeRequest.ReScheduleReason)
-                        ? string.Empty
-                        : $"<strong>Your reason:</strong> {System.Net.WebUtility.HtmlEncode(changeRequest.ReScheduleReason)}";
-                }
+                await AddRescheduleVariablesAsync(variables, eventData, changeRequest, ctx);
             }
 
             await _dispatcher.DispatchAsync(
@@ -180,6 +147,48 @@ public class ChangeRequestApprovedEmailHandler :
                 recipients: recipients,
                 variables: variables,
                 contextTag: $"ChangeRequestApproved/{eventData.ChangeRequestType}/{(eventData.IsAdminOverride ? "AdminOverride" : "UserRequested")}/{eventData.ChangeRequestId}");
+        }
+    }
+
+    private async Task AddRescheduleVariablesAsync(
+        Dictionary<string, object?> variables,
+        AppointmentChangeRequestApprovedEto eventData,
+        AppointmentChangeRequest changeRequest,
+        DocumentEmailContext ctx)
+    {
+        // OLD :721-722 uses newDoctorsAvailability for the rendered date/time.
+        // Phase 4b (2026-08-04): resolve AdminOverrideSlotId FIRST and fall back to
+        // NewDoctorAvailabilityId, independent of IsAdminOverride. Since 4b the
+        // requestor proposes no date, so on the external path NewDoctorAvailabilityId
+        // is null while IsAdminOverride is (correctly) false -- the old override-gated
+        // selection therefore resolved null, and ResolveNewSlotAsync returns empty
+        // strings for null, which would send an approval email with a BLANK date. The
+        // slot staff scheduled onto is always the right one to render; IsAdminOverride
+        // only decides the WORDING below.
+        var slotId = ChangeRequestApprovalValidator.ResolveScheduledSlotId(
+            changeRequest.AdminOverrideSlotId,
+            changeRequest.NewDoctorAvailabilityId);
+        var (newDate, newTime) = await ResolveNewSlotAsync(slotId);
+        variables["NewAppointmentDate"] = newDate;
+        variables["NewAppointmentFromTime"] = newTime;
+
+        // Adrian Decision 2026-05-10: single template; variables
+        // carry the OLD-parity wording fork.
+        if (eventData.IsAdminOverride)
+        {
+            variables["ApprovedSubjectQualifier"] = "Reschedule request has been changed by our team";
+            variables["ApprovedHeadline"] = "Our clinic staff has changed your appointment to the date and time below.";
+            variables["ReasonBlock"] = string.IsNullOrWhiteSpace(changeRequest.AdminReScheduleReason)
+                ? string.Empty
+                : $"<strong>Reason for change:</strong> {System.Net.WebUtility.HtmlEncode(changeRequest.AdminReScheduleReason)}";
+        }
+        else
+        {
+            variables["ApprovedSubjectQualifier"] = "Your reschedule request has been approved";
+            variables["ApprovedHeadline"] = $"Your reschedule request for appointment <b style=\"font-size:17px\">{System.Net.WebUtility.HtmlEncode(ctx.RequestConfirmationNumber ?? string.Empty)}</b> has been approved.";
+            variables["ReasonBlock"] = string.IsNullOrWhiteSpace(changeRequest.ReScheduleReason)
+                ? string.Empty
+                : $"<strong>Your reason:</strong> {System.Net.WebUtility.HtmlEncode(changeRequest.ReScheduleReason)}";
         }
     }
 
@@ -195,8 +204,7 @@ public class ChangeRequestApprovedEmailHandler :
             return (string.Empty, string.Empty);
         }
         var date = slot.AvailableDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
-        var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second)
-            .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
+        var time = slot.FromTime.ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
         return (date, time);
     }
 }

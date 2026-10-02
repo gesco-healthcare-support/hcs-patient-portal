@@ -109,4 +109,33 @@ public class PatientRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
             }
         });
     }
+
+    [Fact]
+    public async Task FindBestMatchAsync_ReturnsTheNumberOfKeysThatMatched()
+    {
+        // Four of the six keys match Patient1 -- first name, last name, date of birth and ZIP -- and
+        // the other two are not supplied. The count is asserted exactly, not as "at least three": the
+        // caller ranks candidates by it, so a count that is wrong but still clears the threshold
+        // would pick the wrong patient without failing anything else. Names are passed already
+        // normalised, as PatientManager.FindOrCreateAsync passes them.
+        PatientMatchCandidate? match = null;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable())
+            {
+                match = await _patientRepository.FindBestMatchAsync(
+                    TenantsTestData.TenantARef,
+                    PatientMatching.Normalise(PatientsTestData.Patient1FirstName)!,
+                    PatientMatching.Normalise(PatientsTestData.Patient1LastName)!,
+                    PatientsTestData.FixedDateOfBirth,
+                    ssn: null,
+                    phone: null,
+                    zip: PatientMatching.Normalise(PatientsTestData.Patient1ZipCode));
+            }
+        });
+
+        match.ShouldNotBeNull();
+        match.Id.ShouldBe(PatientsTestData.Patient1Id);
+        match.MatchCount.ShouldBe(4);
+    }
 }

@@ -1,7 +1,9 @@
 # Session key encryption at rest
 
-**Status:** finding recorded. **Design decided (section 6). Session-survival question settled by
-measurement (section 4). No code change applied yet** -- that is a separate step, on Adrian's go.
+**Status:** **implemented on 2026-09-29** as designed in section 6: both processes encrypt new keys
+with a dedicated X.509 certificate. **The deploy has one extra step** that retires the key already
+stored unencrypted, and it signs everyone out once. Section 9 is the rollout, verification, rollback
+and reset procedure. Sections 1 to 8 are the original finding and design, kept as written.
 **Raised:** 2026-09-01, during the production-hardening epic (phase 1 item 1.6).
 **Moved out of that epic by Adrian's decision on 2026-09-01**, to be designed and handled separately
 on `main`. The epic's phase-1 file now points here.
@@ -493,7 +495,7 @@ Every claim above can be verified without redoing the investigation:
 sed -n '1103,1131p' src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs
 sed -n '382,401p'   src/HealthcareSupport.CaseEvaluation.AuthServer/CaseEvaluationAuthServerModule.cs
 
-# No key protection configured anywhere
+# Key protection: since 2026-09-29, ONE match, in the shared key ring (section 9)
 grep -rn "ProtectKeysWith\|UnprotectKeysWithAnyCertificate\|XmlEncryptor" --include=*.cs src/
 
 # Redis posture in production
@@ -528,3 +530,107 @@ Microsoft references:
 
 Related in this repository: `docs/security/SECRETS-MANAGEMENT.md`,
 `docs/security/SESSION-AND-TOKENS.md`.
+
+---
+
+## 9. As implemented, 2026-09-29: rollout, verification, rollback, reset
+
+### 9.1 What the code does now
+
+- `src/HealthcareSupport.CaseEvaluation.HttpApi/DataProtection/CaseEvaluationKeyRing.cs` configures
+  the key ring ONCE for both processes. It sets the shared application name, encrypts each new key
+  with the certificate at `DataProtection:CertificatePath` (passphrase
+  `DataProtection:CertificatePassPhrase`), and holds the Redis key name.
+- Both modules' `ConfigureDataProtection` call it, then persist to Redis under that key. The two
+  methods are identical, and `DataProtectionKeyRingTests` checks the end state of each:
+  - the stored key XML is encrypted with the configured certificate;
+  - a payload protected by one process is read by the other, in both directions;
+  - both persist under the same Redis key and application name.
+- `HostingConfigValidator` refuses to start either process outside Development without both
+  settings. Development runs without a certificate, and its keys stay unencrypted, as before.
+- `KeyRingAtRestCheck` logs a WARNING at every start, in both processes, while the ring still
+  holds a key stored unencrypted.
+- The certificate is `dataprotection.pfx`, separate from `openiddict.pfx` (6.5). Generate it with
+  `scripts/hosting/gen-dataprotection-cert.sh`. `docker-compose.prod.yml` mounts it read-only into
+  BOTH containers, and `env.prod.example` lists the two variables.
+
+### 9.2 Why the deploy signs everyone out once
+
+Section 4 measured that enabling encryption does NOT invalidate existing keys: the key already in
+Redis stays readable and in use. That is also the problem. The existing key was written in plain
+text, so until it is retired:
+
+- it stays readable in Redis, and anyone who has read it can still forge a session;
+- it stays the default key until it expires (the framework default lifetime is 90 days);
+- it stays in Redis after that too, because the framework never deletes keys.
+
+So the rollout retires it deliberately, which signs everyone out once and stops outstanding
+email-confirmation and password-reset links (6.4 lists the complete cost; nothing durable or
+clinical is lost). **On the deployed server this looks like an outage. It is not; it is this
+step.** There are no real users today, so the cost is nil now and grows later.
+
+### 9.3 Rollout on the on-prem server
+
+Every Compose command below goes through `scripts/hosting/dc.sh`, which supplies
+`--env-file secrets/env.prod`.
+
+1. **Generate the certificate** on the box, into the secrets folder:
+   `DATAPROTECTION_CERT_PASSPHRASE=<new passphrase> scripts/hosting/gen-dataprotection-cert.sh secrets/dataprotection.pfx`,
+   then `sudo chgrp 1654 secrets/dataprotection.pfx && sudo chmod 640 secrets/dataprotection.pfx`
+   if the script prints that command. Both containers run as the non-root `app` user (1654) and
+   cannot start without reading it.
+2. **Add both variables to `secrets/env.prod`:** `DATAPROTECTION_PFX_PATH=./secrets/dataprotection.pfx`
+   and `DATAPROTECTION_CERT_PASSPHRASE=<the same passphrase>`.
+3. **Back up the certificate and passphrase with the rest of `secrets/`**, to the holders in 6.3,
+   before going further. Losing them later costs a reset (9.6).
+4. **Deploy as usual**: back up, pull, build, `up -d`, force-recreate the reverse proxy. Both
+   `authserver` and `api` are rebuilt, so both come up with the certificate together.
+5. **Retire the unencrypted key**:
+   `scripts/hosting/dc.sh stop authserver api`, then
+   `scripts/hosting/dc.sh exec redis redis-cli DEL CaseEvaluation-Protection-Keys`, then
+   `scripts/hosting/dc.sh start authserver api`, then force-recreate the reverse proxy.
+   Stopping BOTH first matters: a process left running keeps using the old key from memory.
+   The first of the two to need a key writes a new, encrypted one, and the other reads it.
+
+### 9.4 Verification
+
+- `scripts/hosting/dc.sh exec redis redis-cli LRANGE CaseEvaluation-Protection-Keys 0 -1`:
+  - the output contains `EncryptedData`;
+  - it does NOT contain `masterKey`;
+  - the list has one entry.
+- Neither the `authserver` nor the `api` log contains `stored unencrypted`.
+- Sign in, open an authenticated page (200), and repeat without the cookie (302). Keep that
+  no-cookie control (4.2).
+- A confirm-email link issued by the API opens at the AuthServer. That is the cross-process
+  path a split key ring breaks.
+
+### 9.5 Rollback
+
+A build without this change cannot decrypt the new key, so it writes a fresh unencrypted one.
+Rolling back therefore signs everyone out a second time and puts the key ring back in plain text.
+Roll back only for a real fault, and plan to repeat 9.3 step 5 when rolling forward again.
+
+### 9.6 Reset, rotation, and loss of the certificate
+
+- **Lost certificate:** follow 6.4, prevention first. Restore it from escrow if at all possible.
+  Only if it is genuinely unrecoverable:
+  1. generate a new one (9.3 steps 1 to 3);
+  2. run 9.3 step 5;
+  3. record who reset it and why.
+- **Planned rotation:** not yet supported without a sign-out. Keeping the old certificate able to
+  decrypt needs `UnprotectKeysWithAnyCertificate` (6.0, first row), which is not wired yet. Until
+  it is, rotating means a new certificate plus 9.3 step 5, which is one sign-out. Data Protection
+  ignores certificate validity dates (6.8), so expiry forces nothing.
+
+### 9.7 On Azure
+
+The certificate is the on-prem answer. On Azure the same `DataProtection:` section gains
+`DataProtection:KeyVaultKeyId` (plan C2): a Key Vault key, reached through the VM's system-assigned
+managed identity, wraps each key. The key never leaves the vault and no certificate file or
+passphrase sits on the host. This follows the managed-identity precedent in d13. It becomes a
+second branch in `CaseEvaluationKeyRing.ProtectKeysAtRest`, preferred when set, and
+`HostingConfigValidator` then accepts either setting.
+
+This supersedes C2's decision 3a for on-prem: an on-prem host WITHOUT Key Vault keeps the
+certificate rather than falling back to unencrypted keys. C2 also moves the ring from Redis into
+the host database, and its one-time sign-out (d29) makes copying these keys across unnecessary.

@@ -221,7 +221,7 @@ describe('AppointmentWizardComponent shell', () => {
   describe('step geometry', () => {
     it('exposes nine steps ending at Review', () => {
       const c = create();
-      expect(c.steps.length).toBe(9);
+      expect(c.steps).toHaveSize(9);
       expect(c.steps[STEP.review].key).toBe('review');
     });
 
