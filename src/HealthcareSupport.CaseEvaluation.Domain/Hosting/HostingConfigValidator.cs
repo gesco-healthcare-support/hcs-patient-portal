@@ -56,6 +56,12 @@ public static class HostingConfigValidator
             // plain XML in Redis.
             ("DataProtection:CertificatePath", IsBlankOrPlaceholder),
             ("DataProtection:CertificatePassPhrase", IsBlankOrPlaceholder),
+
+            // B4 (2026-09-25): ASP.NET Core answers EVERY Host when this key is missing -- the default
+            // builder falls back to "*" (aspnetcore v10.0.0 src/DefaultBuilder/src/WebHost.cs:258-272).
+            // A bare "*" anywhere in the list, e.g. "*;localhost", disables the filter just the same.
+            // Subdomain wildcards such as "*.portal.example.com" are what production needs and stay allowed.
+            ("AllowedHosts", v => IsBlankOrPlaceholder(v) || AllowsEveryHost(v!)),
         };
 
         if (requireSigningCertificate)
@@ -83,6 +89,15 @@ public static class HostingConfigValidator
         // mis-scheduled reminder hours later, far from its cause. Touching Zone runs the resolver.
         _ = Timing.PacificTime.Zone;
     }
+
+    /// <summary>
+    /// True when a semicolon-separated <c>AllowedHosts</c> list contains a bare <c>*</c> entry, which
+    /// turns host filtering off whatever else the list holds.
+    /// </summary>
+    private static bool AllowsEveryHost(string allowedHosts) =>
+        allowedHosts
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(host => host == "*");
 
     private static bool IsBlankOrPlaceholder(string? value)
     {
