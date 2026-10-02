@@ -23,6 +23,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# INERT HARNESS (recorded 2026-10-01). This PowerShell E2E harness cannot run against the current
+# app, so it stops here instead of failing later with an unrelated-looking error:
+#   - It signs in with the OAuth password grant (scripts/helpers/Get-AuthToken.ps1). That grant was
+#     removed on 2026-05-19 (audit D-14); both OpenIddict clients are public and use the
+#     authorization code flow with PKCE, so no script can obtain a user token.
+#   - It selects an office with a `__tenant` header. The API ignores that header on purpose: the
+#     office comes from the signed-in user, or from the host name for anonymous requests.
+#   - Its prerequisite check looks for LocalDB; the stack runs SQL Server in Docker.
+# Local demo data now comes from the db-migrator seed: `docker compose run --rm db-migrator`
+# (see docs/runbooks/DEMO-LOGINS.md). HCS_RUN_RETIRED_HARNESS=1 skips this stop, for whoever
+# ports the harness to a working sign-in.
+if ($env:HCS_RUN_RETIRED_HARNESS -ne "1") {
+    throw ("$($MyInvocation.MyCommand.Name) is part of the retired PowerShell E2E harness and cannot run " +
+        "against the current app (password grant removed 2026-05-19; __tenant header ignored). " +
+        "Use 'docker compose run --rm db-migrator' for local demo data. See the comment at the top of this file.")
+}
+
 $scriptRoot = $PSScriptRoot
 $helpersDir = Join-Path $scriptRoot "helpers"
 $testsDir = Join-Path $scriptRoot "tests"
