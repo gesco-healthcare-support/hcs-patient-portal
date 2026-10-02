@@ -57,7 +57,7 @@ public abstract class InternalUsersFailurePathTests<TStartupModule>
     protected override void AfterAddApplication(IServiceCollection services)
     {
         _dispatcher = Substitute.For<INotificationDispatcher>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(INotificationDispatcher), _dispatcher));
+        services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_dispatcher));
     }
 
     // ------------------------------------------------------------------ harness

@@ -1042,9 +1042,10 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     /// <summary>
     /// Seeds one patient in TenantA whose email embeds <paramref name="token"/>, so a lookup
     /// filtered on that token reaches this row and no other -- including rows left behind by
-    /// earlier tests in the shared collection.
+    /// earlier tests in the shared collection. <paramref name="identityUserId"/> links the record to
+    /// a login, which is what makes it the caller's OWN record for a Patient-role lookup.
     /// </summary>
-    private async Task<Guid> SeedLookupPatientAsync(string token, string suffix)
+    private async Task<Guid> SeedLookupPatientAsync(string token, string suffix, Guid? identityUserId = null)
     {
         var patientId = Guid.NewGuid();
         await _patientRepository.InsertAsync(
@@ -1052,7 +1053,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                 id: patientId,
                 stateId: null,
                 appointmentLanguageId: null,
-                identityUserId: null,
+                identityUserId: identityUserId,
                 tenantId: TenantsTestData.TenantARef,
                 firstName: "TEST-Lookup",
                 lastName: "Synthetic",
@@ -1402,6 +1403,143 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                         + "neither the creator of nor linked to. Both patients match the filter "
                         + "and neither appointment was created by this attorney, so the defense "
                         + "join-table scoping is the only thing separating them.");
+                }
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // DENY BY DEFAULT. Only internal staff search the whole office; every other caller sees what
+    // its roles admit, and a caller whose roles admit nothing sees nothing. Before this the
+    // narrowing was opt-in per role, so a Patient-role caller -- or any role nobody had listed --
+    // was not narrowed at all and could search every patient in the office by email substring.
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsPatient_SeesOnlyTheirOwnRecord()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        // A seeded login: Patient.IdentityUserId is a foreign key to the users table.
+        var callerId = IdentityUsersTestData.Patient1UserId;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // Both match the filter: only the ownership link can separate them.
+                var ownPatientId = await SeedLookupPatientAsync(token, "pt-own", callerId);
+                var otherPatientId = await SeedLookupPatientAsync(token, "pt-other");
+
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, callerId, IdentityUsersTestData.PatientRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(x => x.Id == ownPatientId,
+                        "A Patient must still find their own record. If this fails the exclusion below is vacuous.");
+                    result.Items.ShouldNotContain(x => x.Id == otherPatientId,
+                        "A Patient must NOT find another patient in the office by searching on part of their email.");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_WithNoRoles_ReturnsNothing()
+    {
+        await AssertLookupIsEmptyForRolesAsync();
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_WithARoleTheLookupDoesNotKnow_ReturnsNothing()
+    {
+        await AssertLookupIsEmptyForRolesAsync("TEST-Unlisted-Role");
+    }
+
+    /// <summary>
+    /// The fail-closed arm. A patient that matches the filter exists, and a caller holding
+    /// <paramref name="roles"/> must still get an empty page and a zero count. The companion
+    /// <c>WithASufficientFilter</c> Fact proves the same kind of seed IS reachable by office staff,
+    /// so an empty page here is a refusal, not a search that found nothing.
+    /// </summary>
+    private async Task AssertLookupIsEmptyForRolesAsync(params string[] roles)
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await SeedLookupPatientAsync(token, "deny");
+
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, Guid.NewGuid(), roles))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldBeEmpty(
+                        "A caller whose roles admit no patient must get nothing, not the whole office.");
+                    result.TotalCount.ShouldBe(0);
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GetPatientLookupAsync_AsAttorneyWhoIsAlsoAPatient_SeesWhatEitherRoleAdmits()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var callerId = IdentityUsersTestData.ApplicantAttorney1UserId;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var ownPatientId = await SeedLookupPatientAsync(token, "dual-own", callerId);
+                var linkedPatientId = await SeedLookupPatientAsync(token, "dual-linked");
+                var otherPatientId = await SeedLookupPatientAsync(token, "dual-other");
+
+                Guid linkedAppointmentId;
+                // Created as somebody else, so the attorney link is the only thing admitting it.
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    linkedAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "dual-linked", linkedPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                    await SeedLookupAppointmentAsync(
+                        token, "dual-other", otherPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                }
+
+                await _appointmentApplicantAttorneyRepository.InsertAsync(
+                    new AppointmentApplicantAttorney(
+                        id: Guid.NewGuid(),
+                        appointmentId: linkedAppointmentId,
+                        applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                        identityUserId: callerId)
+                    {
+                        TenantId = TenantsTestData.TenantARef,
+                    },
+                    autoSave: true);
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           callerId,
+                           IdentityUsersTestData.ApplicantAttorneyRoleName,
+                           IdentityUsersTestData.PatientRoleName))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    // The UNION. Applying one role's narrowing after another, as the lookup used
+                    // to, intersects them and loses the caller's own record here.
+                    result.Items.ShouldContain(x => x.Id == ownPatientId,
+                        "The Patient role admits the caller's own record.");
+                    result.Items.ShouldContain(x => x.Id == linkedPatientId,
+                        "The Applicant Attorney role admits the patient on the linked appointment.");
+                    result.Items.ShouldNotContain(x => x.Id == otherPatientId,
+                        "Neither role admits a patient on an unlinked appointment.");
                 }
             }
         });

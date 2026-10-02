@@ -44,12 +44,22 @@ public sealed class SqlAppLockTests
         return new SqlAppLock(_sql.FeedDatabase, timeoutMilliseconds);
     }
 
+    /// <summary>
+    /// The lock is really held in SQL Server while the handle lives, under the prefixed name, and
+    /// really released when it is disposed. Asserted from a separate session, because "acquire
+    /// returned" proves nothing on its own: an acquire that never reached sp_getapplock, or a
+    /// dispose that released nothing, would both still return.
+    /// </summary>
     [Fact]
-    public async Task AnUncontendedLock_IsGranted()
+    public async Task AnUncontendedLock_IsHeldInSqlServerUntilTheHandleIsDisposed()
     {
         var handle = await Lock().AcquireAsync(AResource);
 
+        (await ProbeAsync(Prefixed(AResource))).ShouldBe(LockRefused, "the handle is still alive");
+
         await handle.DisposeAsync();
+
+        (await ProbeAsync(Prefixed(AResource))).ShouldBe(LockGranted, "the handle was disposed");
     }
 
     /// <summary>
@@ -109,8 +119,22 @@ public sealed class SqlAppLockTests
         var held = await Lock().AcquireAsync(AResource);
         try
         {
+            // A 1000 ms lock timeout: had it queued behind the held lock, this would throw.
             var other = await Lock(timeoutMilliseconds: 1000).AcquireAsync(ADifferentResource);
-            await other.DisposeAsync();
+            try
+            {
+                // Both held at once, each under its own name: the two did not share one resource.
+                (await ProbeAsync(Prefixed(AResource))).ShouldBe(LockRefused);
+                (await ProbeAsync(Prefixed(ADifferentResource))).ShouldBe(LockRefused);
+            }
+            finally
+            {
+                await other.DisposeAsync();
+            }
+
+            // Releasing one leaves the other held.
+            (await ProbeAsync(Prefixed(ADifferentResource))).ShouldBe(LockGranted);
+            (await ProbeAsync(Prefixed(AResource))).ShouldBe(LockRefused);
         }
         finally
         {
@@ -149,6 +173,33 @@ public sealed class SqlAppLockTests
         {
             await next.OpenAsync();
             (await GetAppLockAsync(next, resource, timeoutMilliseconds: 2000)).ShouldBeOneOf(0, 1);
+        }
+    }
+
+    /// <summary>sp_getapplock's return codes the probes compare against.</summary>
+    private const int LockGranted = 0;
+    private const int LockRefused = -1;
+
+    /// <summary>
+    /// The production lock prefixes every name. Spelled out here rather than read from
+    /// <see cref="SqlAppLock"/>, so a change to the prefix fails these tests instead of moving with
+    /// them: callers on both processes must agree on the exact resource string.
+    /// </summary>
+    private static string Prefixed(string name) => "admin-password:" + name;
+
+    /// <summary>
+    /// Asks SQL Server, from a fresh session that waits for nothing, whether the resource is free.
+    /// The connection is unpooled and disposed straight away, so a probe that IS granted releases
+    /// its own lock at logout and never blocks the code under test.
+    /// </summary>
+    private async Task<int> ProbeAsync(string resource)
+    {
+        var unpooled = new SqlConnectionStringBuilder(_sql.FeedDatabase) { Pooling = false }.ConnectionString;
+        var probe = new SqlConnection(unpooled);
+        await using (probe.ConfigureAwait(false))
+        {
+            await probe.OpenAsync();
+            return await GetAppLockAsync(probe, resource, timeoutMilliseconds: 0);
         }
     }
 
