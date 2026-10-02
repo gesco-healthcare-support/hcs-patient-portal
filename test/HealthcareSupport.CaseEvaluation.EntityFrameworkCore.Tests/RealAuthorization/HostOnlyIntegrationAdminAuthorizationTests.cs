@@ -373,7 +373,7 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         }
     }
 
-    private static Task InsertGrantAsync(
+    private static Task<PermissionGrant> InsertGrantAsync(
         IPermissionGrantRepository grants, string permission, string roleName, Guid? tenantId)
         => grants.InsertAsync(
             new PermissionGrant(Guid.NewGuid(), permission, RoleProviderName, roleName, tenantId),

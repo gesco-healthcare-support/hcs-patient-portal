@@ -32,7 +32,7 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 ///
 /// <para>Confirmed against their implementation on 2026-09-25.</para>
 /// </summary>
-public sealed class CaseTrackerWireContractTests
+public sealed partial class CaseTrackerWireContractTests
 {
     /// <summary>
     /// The feed's own credential, deliberately NOT the integration token: the feed is read-only, high volume and
@@ -144,6 +144,10 @@ public sealed class CaseTrackerWireContractTests
             + "demotes a halt to a warning every tick against an office that still reads as RUNNING.");
     }
 
+    /// <summary>An error code as the feed controller writes it: a Status constant, then the quoted code.</summary>
+    [GeneratedRegex(@"Status\d{3}\w+,\s*""([a-z_]+)""")]
+    private static partial Regex EmittedErrorCode();
+
     /// <summary>
     /// The COMPLETE set of codes the feed emits. Pinning each code individually closes a rename; it cannot
     /// close an ADDITION, and an addition is the more dangerous of the two.
@@ -167,8 +171,8 @@ public sealed class CaseTrackerWireContractTests
     [Fact]
     public void TheFeedEmitsExactlyTheSevenAgreedCodes()
     {
-        var emitted = Regex
-            .Matches(ControllerSourceOf(typeof(CaseTrackerFeedController)), @"Status\d{3}\w+,\s*""([a-z_]+)""")
+        var emitted = EmittedErrorCode()
+            .Matches(ControllerSourceOf(typeof(CaseTrackerFeedController)))
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(c => c, StringComparer.Ordinal)
