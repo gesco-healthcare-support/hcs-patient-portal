@@ -60,11 +60,37 @@ x-logging: &default-logging
 # plain `docker compose pull`. Dropping minio-init from the deploy would have
 # hidden that rather than fixed it.
 #
-# Both EXACT pinned tags are public on quay.io, verified by digest:
+# UPDATE 2026-09-30: THESE TWO TAGS CAN NO LONGER BE PULLED FROM ANYWHERE.
+# On 2026-09-13 (#866) both were public on quay.io. Re-checked on 2026-09-30
+# with direct manifest requests: quay.io AND Docker Hub now both answer 401 to an
+# anonymous pull of each pinned tag. The MinIO release carrying the next
+# security fix was published as source only, with no images. So:
+#
+#   - A failed pull of these two images is NOT a registry having a bad day.
+#     Retrying will not help.
+#   - The ONLY copies are the image cache on the on-prem portal server and an
+#     81 MB export of both images (`minio-pinned-images.tar`), which the owner
+#     keeps outside this repository. Restore a host with
+#     `docker load -i minio-pinned-images.tar`.
+#   - NEVER `docker image prune` / `docker system prune` a host that holds them.
+#     Clear the build cache instead (`docker builder prune`).
+#   - Do NOT "fix" a failed pull by bumping or changing these tags. A different
+#     MinIO version is an unreviewed change to the store holding every
+#     document. The lasting fix is moving documents off MinIO (C3, deferred
+#     under decision 16), which is the owner's call.
+#   - First Azure deploy: infra/azure/README.md, "After the template, before
+#     the application", has the load step.
+#
+# Digests of the pinned images. Use them to confirm a host or a restored export
+# holds the right images: `docker image inspect --format '{{.Id}}' <tag>` must
+# print the manifest-list digest (containerd image store, the Docker Desktop
+# and newer-engine default) or the config digest (classic image store).
 #   quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-#     sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+#     manifest list  sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+#     config         sha256:c2ad77420d33bb4ad8694457d3edf7188076428582bd24e3dd4d09d6a1d52872
 #   quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-#     sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+#     manifest list  sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+#     config         sha256:69b2ec208575b69597784255eec6fa6a2985ee9e1a47f4411a51f7f5fdd193a9
 #
 # The digests are recorded HERE rather than pinned into the image reference, to
 # keep the decision above -- version tags, not digests -- rather than quietly
@@ -123,6 +149,7 @@ services:
       retries: 10
 
   minio:
+    # NOT pullable from any registry since 2026-09-30; see the MinIO note at the top of this file.
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     mem_limit: 1g
@@ -145,6 +172,7 @@ services:
       start_period: 10s
 
   minio-init:
+    # NOT pullable from any registry since 2026-09-30; see the MinIO note at the top of this file.
     image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
@@ -263,6 +291,11 @@ services:
       AuthServer__RequireHttpsMetadata: "true"
       # G6: passphrase for the openiddict.pfx mounted below. NEVER hardcode.
       AuthServer__CertificatePassPhrase: "${AUTHSERVER_CERT_PASSPHRASE}"
+      # The certificate that encrypts the Data Protection key ring (SESSION-KEY-ENCRYPTION.md).
+      # IDENTICAL in authserver and api: the two share one key ring, and a process that cannot
+      # decrypt it reads the other's cookies and tokens as invalid. NEVER hardcode the passphrase.
+      DataProtection__CertificatePath: /app/dataprotection.pfx
+      DataProtection__CertificatePassPhrase: "${DATAPROTECTION_CERT_PASSPHRASE}"
       ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       Redis__IsEnabled: "true"
@@ -289,6 +322,9 @@ services:
       # G6: OpenIddict token-signing cert mounted read-only at the content root. NEVER
       # baked into the image. Generate with scripts/hosting/gen-openiddict-cert.sh.
       - "${OPENIDDICT_PFX_PATH}:/app/openiddict.pfx:ro"
+      # The key-ring certificate, read-only, the SAME file in authserver and api. Generate with
+      # scripts/hosting/gen-dataprotection-cert.sh; it must be readable by the api's non-root user.
+      - "${DATAPROTECTION_PFX_PATH}:/app/dataprotection.pfx:ro"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
@@ -330,6 +366,11 @@ services:
       AuthServer__MetaAddress: "http://authserver:8080"
       AuthServer__RequireHttpsMetadata: "true"
       PacketRenderer__Url: "http://packet-renderer:3001"
+      # The certificate that encrypts the Data Protection key ring (SESSION-KEY-ENCRYPTION.md).
+      # IDENTICAL in authserver and api: the two share one key ring, and a process that cannot
+      # decrypt it reads the other's cookies and tokens as invalid. NEVER hardcode the passphrase.
+      DataProtection__CertificatePath: /app/dataprotection.pfx
+      DataProtection__CertificatePassPhrase: "${DATAPROTECTION_CERT_PASSPHRASE}"
       ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       Redis__IsEnabled: "true"
@@ -384,6 +425,9 @@ services:
       # because either process may be the one that first creates a database. Harmless on Azure,
       # where the directory key is left empty and the vault is used instead.
       - "./secrets/admin-passwords:/run/admin-passwords"
+      # The key-ring certificate, read-only, the SAME file in authserver and api. Generate with
+      # scripts/hosting/gen-dataprotection-cert.sh; it must be readable by the api's non-root user.
+      - "${DATAPROTECTION_PFX_PATH}:/app/dataprotection.pfx:ro"
     depends_on:
       db-migrator:
         condition: service_completed_successfully

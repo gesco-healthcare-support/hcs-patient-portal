@@ -20,30 +20,30 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDbContext>
     where TDbContext : DbContext
 {
-    public CaseEvaluationDbContextBase(DbContextOptions<TDbContext> options)
+    protected CaseEvaluationDbContextBase(DbContextOptions<TDbContext> options)
         : base(options)
     {
 
     }
 
-    protected override void OnModelCreating(ModelBuilder builder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(builder);
+        base.OnModelCreating(modelBuilder);
 
         /* Include modules to your migration db context */
 
-        builder.ConfigurePermissionManagement();
-        builder.ConfigureSettingManagement();
-        builder.ConfigureBackgroundJobs();
-        builder.ConfigureAuditLogging();
-        builder.ConfigureIdentityPro();
-        builder.ConfigureOpenIddictPro();
-        builder.ConfigureFeatureManagement();
-        builder.ConfigureLanguageManagement();
-        builder.ConfigureFileManagement();
-        builder.ConfigureSaas();
-        builder.ConfigureTextTemplateManagement();
-        builder.ConfigureBlobStoring();
-        builder.ConfigureGdpr();
+        modelBuilder.ConfigurePermissionManagement();
+        modelBuilder.ConfigureSettingManagement();
+        modelBuilder.ConfigureBackgroundJobs();
+        modelBuilder.ConfigureAuditLogging();
+        modelBuilder.ConfigureIdentityPro();
+        modelBuilder.ConfigureOpenIddictPro();
+        modelBuilder.ConfigureFeatureManagement();
+        modelBuilder.ConfigureLanguageManagement();
+        modelBuilder.ConfigureFileManagement();
+        modelBuilder.ConfigureSaas();
+        modelBuilder.ConfigureTextTemplateManagement();
+        modelBuilder.ConfigureBlobStoring();
+        modelBuilder.ConfigureGdpr();
     }
 }

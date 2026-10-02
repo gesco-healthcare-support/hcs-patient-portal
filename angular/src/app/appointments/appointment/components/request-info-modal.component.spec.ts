@@ -327,7 +327,7 @@ describe('RequestInfoModalComponent', () => {
       c.close();
 
       expect(c.selected.size).toBe(0);
-      expect(Object.keys(c.hints).length).toBe(0);
+      expect(Object.keys(c.hints)).toHaveSize(0);
       expect(c.note).toBe('');
       expect(c.isBusy).toBeFalse();
       expect(c.expandedGroups.size).toBe(0);

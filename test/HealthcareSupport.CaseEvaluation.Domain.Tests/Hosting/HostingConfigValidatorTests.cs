@@ -23,6 +23,8 @@ public class HostingConfigValidatorTests
         ["AuthServer:Authority"] = "https://auth.portal.example.com",
         ["App:SelfUrl"] = "https://auth.portal.example.com",
         ["AuthServer:CertificatePassPhrase"] = "real-pfx-passphrase",
+        ["DataProtection:CertificatePath"] = "/app/dataprotection.pfx",
+        ["DataProtection:CertificatePassPhrase"] = "real-key-ring-passphrase",
     };
 
     private static IConfiguration Build(Dictionary<string, string?> values) =>
@@ -110,5 +112,28 @@ public class HostingConfigValidatorTests
         ex.Message.ShouldContain("AuthServer:Authority");
         ex.Message.ShouldContain("App:SelfUrl");
         ex.Message.ShouldContain("AuthServer:CertificatePassPhrase");
+        ex.Message.ShouldContain("DataProtection:CertificatePath");
+        ex.Message.ShouldContain("DataProtection:CertificatePassPhrase");
+    }
+
+    /// <summary>
+    /// Both processes share one key ring, so BOTH need the certificate that encrypts it: the API
+    /// (requireSigningCertificate false) as well as the AuthServer.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "DataProtection:CertificatePath")]
+    [InlineData(true, "DataProtection:CertificatePassPhrase")]
+    [InlineData(false, "DataProtection:CertificatePath")]
+    [InlineData(false, "DataProtection:CertificatePassPhrase")]
+    public void Production_without_the_key_ring_certificate_throws_in_either_process(
+        bool requireSigningCertificate, string missingKey)
+    {
+        var values = ValidProd();
+        values.Remove(missingKey);
+
+        var ex = Should.Throw<AbpException>(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate));
+
+        ex.Message.ShouldContain(missingKey);
     }
 }

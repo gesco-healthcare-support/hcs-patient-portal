@@ -107,14 +107,8 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
 
-        foreach (var dto in dtos)
+        foreach (var slot in dtos.Select(dto => dto.DoctorAvailability).Where(slot => slot != null))
         {
-            var slot = dto.DoctorAvailability;
-            if (slot == null)
-            {
-                continue;
-            }
-
             var active = activeCounts.TryGetValue(slot.Id, out var count) ? count : 0;
             slot.RemainingCapacity = (int)Math.Max(0, slot.Capacity - active);
         }

@@ -49,15 +49,19 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // context (without an OAuth-resolved tenant) working without any
     // production-correctness compromise.
     private readonly IDataFilter<IMultiTenant> _dataFilter;
+    private readonly PatientBookingReadAccess _bookingReadAccess;
 
     // #598: one message for every external refusal of the booking edit, whether the record belongs to
     // someone else or does not exist, so the two cannot be told apart.
     private const string NotAuthorizedToEditPatientMessage = "Not authorized to edit this patient.";
 
+    // The same idea for the booking read: one message whether the record is someone else's or missing.
+    private const string NotAuthorizedToReadPatientMessage = "Not authorized to view this patient.";
+
     // 2026-08-17: renders the *.InUse delete guards as their real message. Without it the
     // raw BusinessException reaches the SPA with no message and the toast falls back to
     // ABP's generic "An internal error occurred during your request!".
-    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IRepository<Appointment, Guid> appointmentRepository, IDataFilter<IMultiTenant> dataFilter)
+    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IRepository<Appointment, Guid> appointmentRepository, IDataFilter<IMultiTenant> dataFilter, PatientBookingReadAccess bookingReadAccess)
     {
         _patientRepository = patientRepository;
         _patientManager = patientManager;
@@ -67,6 +71,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         _tenantRepository = tenantRepository;
         _appointmentRepository = appointmentRepository;
         _dataFilter = dataFilter;
+        _bookingReadAccess = bookingReadAccess;
     }
 
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
@@ -88,31 +93,75 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     }
 
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
-    public virtual async Task<PatientWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
+    public virtual Task<PatientWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
+        return GetMaskedPatientAsync(id);
+    }
+
+    // Not a named permission, because the booking wizard fetches a selected patient's profile from
+    // this route while serving an external booker who does not hold CaseEvaluation.Patients: a
+    // permission here returns 403 and "book for an existing patient" stops working for attorneys and
+    // claim examiners. But a session alone is not enough either -- that let any signed-in caller read
+    // any patient in their office. So the check is per record (PatientBookingReadAccess): staff with
+    // the permission, the patient's own login, or a party under the typeahead's own rule.
+    //
+    // THE CALL IS BY RAW URL, NOT THROUGH THE GENERATED PROXY, so searching for the proxy method
+    // name finds nothing and the route looks unused. It is reached through RestService from
+    // onPatientSelected in appointment-add.component.ts, behind the demographics typeahead that
+    // renders only for isExternalUserNonPatient. Search this route's callers with the URL instead:
+    //
+    //     git grep -n "for-appointment-booking" -- angular/src/app ':!*.spec.ts'
+    //
+    // A refusal is a 403 (AbpAuthorizationException), and an EXTERNAL caller gets that same refusal
+    // for an id that does not exist, so a 404 cannot tell them which ids are real. Staff keep the
+    // not-found: they may see every patient in the office, so there is nothing for them to learn.
+    [Authorize]
+    public virtual async Task<PatientWithNavigationPropertiesDto> GetPatientForAppointmentBookingAsync(Guid id)
+    {
+        await EnsureInternalCallerMayReadPatientsAsync();
+
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
+            var patientWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(id);
+            if (patientWithNav?.Patient == null && BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+            {
+                throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), id);
+            }
+
+            if (patientWithNav?.Patient == null || !await _bookingReadAccess.CanReadAsync(patientWithNav.Patient))
+            {
+                throw new AbpAuthorizationException(NotAuthorizedToReadPatientMessage);
+            }
+
+            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(patientWithNav);
             ApplySsnVisibility(dto);
             return dto;
         }
     }
 
-    // Bare [Authorize], and it has to stay that way: the booking wizard fetches a selected
-    // patient's profile from this route while serving an external booker who does not hold
-    // CaseEvaluation.Patients, so a named permission here returns 403 and "book for an existing
-    // patient" stops working for attorneys and claim examiners.
-    //
-    // THE CALL IS BY RAW URL, NOT THROUGH THE GENERATED PROXY, so searching for the proxy method
-    // name finds nothing and the route looks unused. It is reached through RestService at
-    // appointment-add.component.ts:3002, from onPatientSelected, behind the demographics
-    // typeahead that renders only for isExternalUserNonPatient. Search this route's callers with
-    // the URL instead:
-    //
-    //     git grep -n "for-appointment-booking" -- angular/src/app ':!*.spec.ts'
-    [Authorize]
-    public virtual async Task<PatientWithNavigationPropertiesDto> GetPatientForAppointmentBookingAsync(Guid id)
+    /// <summary>
+    /// Staff may read any patient in the office through the booking route, so hold them to the
+    /// permission the regular read uses (<c>GetWithNavigationPropertiesAsync</c>). External callers
+    /// are not asked for it; the per-record rule that follows admits only records they are entitled
+    /// to. Runs before the lookup, so a refused caller learns nothing about the id.
+    /// </summary>
+    private async Task EnsureInternalCallerMayReadPatientsAsync()
+    {
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            return;
+        }
+
+        if (!await AuthorizationService.IsGrantedAsync(CaseEvaluationPermissions.Patients.Default))
+        {
+            throw new AbpAuthorizationException("Not authorized to view patients.");
+        }
+    }
+
+    // The permission-gated read's body. The booking read above no longer shares it, because it adds a
+    // per-record check this one does not need. The authorization lives on the public method, never here.
+    private async Task<PatientWithNavigationPropertiesDto> GetMaskedPatientAsync(Guid id)
     {
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
@@ -151,6 +200,52 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             ApplySsnVisibility(dto);
             return dto;
         }
+    }
+
+    // Returns the first de-duplication candidate the 3-of-6 rule matches, mapped and masked
+    // for the caller, or null when none does.
+    private async Task<PatientWithNavigationPropertiesDto?> FindDedupMatchAsync(
+        CreatePatientForAppointmentBookingInput input,
+        string? email,
+        List<Patient> dedupCandidates)
+    {
+        var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+        {
+            LastName = input.LastName,
+            DateOfBirth = input.DateOfBirth,
+            PhoneNumber = input.PhoneNumber,
+            Email = email ?? string.Empty,
+            SocialSecurityNumber = input.SocialSecurityNumber,
+            ClaimNumber = null,
+        };
+
+        foreach (var candidate in dedupCandidates)
+        {
+            var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+            {
+                LastName = candidate.LastName,
+                DateOfBirth = candidate.DateOfBirth,
+                PhoneNumber = candidate.PhoneNumber,
+                Email = candidate.Email,
+                SocialSecurityNumber = candidate.SocialSecurityNumber,
+                ClaimNumber = null,
+            };
+
+            if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
+                .IsPatientDuplicate(incoming, candidateBag))
+            {
+                var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
+                if (matchedWithNav != null)
+                {
+                    // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
+                    var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
+                    dtoMatched.IsExisting = true;
+                    ApplySsnVisibility(dtoMatched);
+                    return dtoMatched;
+                }
+            }
+        }
+        return null;
     }
 
     [Authorize]
@@ -214,44 +309,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 // the predicate counts the remaining 5 fields.
                 claimNumbers: null);
 
-            if (dedupCandidates.Count > 0)
+            var dedupMatch = await FindDedupMatchAsync(input, email, dedupCandidates);
+            if (dedupMatch != null)
             {
-                var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
-                {
-                    LastName = input.LastName,
-                    DateOfBirth = input.DateOfBirth,
-                    PhoneNumber = input.PhoneNumber,
-                    Email = email ?? string.Empty,
-                    SocialSecurityNumber = input.SocialSecurityNumber,
-                    ClaimNumber = null,
-                };
-
-                foreach (var candidate in dedupCandidates)
-                {
-                    var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
-                    {
-                        LastName = candidate.LastName,
-                        DateOfBirth = candidate.DateOfBirth,
-                        PhoneNumber = candidate.PhoneNumber,
-                        Email = candidate.Email,
-                        SocialSecurityNumber = candidate.SocialSecurityNumber,
-                        ClaimNumber = null,
-                    };
-
-                    if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
-                        .IsPatientDuplicate(incoming, candidateBag))
-                    {
-                        var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
-                        if (matchedWithNav != null)
-                        {
-                            // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
-                            var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
-                            dtoMatched.IsExisting = true;
-                            ApplySsnVisibility(dtoMatched);
-                            return dtoMatched;
-                        }
-                    }
-                }
+                return dedupMatch;
             }
 
             // IP6 (2026-06-05): record-only model. Booking inserts a Patient

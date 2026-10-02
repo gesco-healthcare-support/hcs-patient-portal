@@ -70,9 +70,9 @@ internal static class ConfirmationNumberRetryPolicy
             }
 
             var msg = cur.Message ?? string.Empty;
-            if (msg.IndexOf("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) >= 0
-                || msg.IndexOf("duplicate key", StringComparison.OrdinalIgnoreCase) >= 0
-                || msg.IndexOf("violation of UNIQUE KEY constraint", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (msg.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("duplicate key", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("violation of UNIQUE KEY constraint", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

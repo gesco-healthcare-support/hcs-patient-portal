@@ -253,7 +253,27 @@ The template stops short of running anything. These steps are deliberately human
    managed identity already has Key Vault Secrets User.
 5. **Point the application at the managed services**: the cache on the `redisHostName` output, port 10000, TLS, signing
    in as the host's identity (access keys are off); the data-protection key at the `dataProtectionKeyUri` output.
-6. **Bring the stack up** with the compose file, minus `sql-server` and `redis`.
+   Because access keys are off, there is no Redis connection string to fall back on. Until the application signs in
+   with managed identity (lane C, item C7), it cannot reach the cache at all, and the symptom is "the app does not
+   start", with nothing pointing at the cache.
+6. **Load the two MinIO images onto the host before step 7. They CANNOT be pulled.** `docker-compose.prod.yml` pins
+   `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (server) and `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z`
+   (`minio-init`). Neither tag can be pulled any more: quay.io and Docker Hub both answer 401 to anonymous pulls of
+   them (checked 2026-09-30). The MinIO release that carries the next security fix was published as source only,
+   with no images. On a fresh host, step 7 therefore fails on these two images, and document storage never starts.
+   - **The only copies** are the image cache on the on-prem portal server, and an export of both images,
+     `minio-pinned-images.tar` (81 MB), which the owner keeps outside this repository.
+   - **Restore:** copy the tar to the host, run `docker load -i minio-pinned-images.tar`, then confirm both tags with
+     `docker image ls 'quay.io/minio/*'`.
+   - **Better, and durable:** push both images into this deployment's container registry once, and have the Azure
+     compose override reference the registry copies. The host then never depends on a single file.
+   - **Never** run `docker image prune` or `docker system prune` on a host that holds these images. Clear the build
+     cache instead (`docker builder prune`).
+   - **Do not "fix" this step by deleting it, or by changing the tags to something that pulls.** No published tag of
+     this release can be pulled anonymously, and a different MinIO version is an unreviewed change to the store that
+     holds every document. The lasting fix is moving the documents off MinIO (lane C, item C3, deferred under
+     decision 16), which is the owner's decision, not a deploy-time workaround.
+7. **Bring the stack up** with the compose file, minus `sql-server` and `redis`.
 
 ## Things this template does NOT do, and why
 

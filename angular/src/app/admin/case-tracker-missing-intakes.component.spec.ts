@@ -145,7 +145,7 @@ describe('CaseTrackerMissingIntakesComponent', () => {
     const buttons = Array.from(el.querySelectorAll('button')).map(
       (b) => b.textContent?.trim() ?? '',
     );
-    expect(buttons.length).toBe(2);
+    expect(buttons).toHaveSize(2);
     expect(buttons[0]).toContain('Check for missing intakes');
     expect(buttons[1]).toContain("Before this office's integration: 250");
   });

@@ -95,7 +95,7 @@ export class ApproveConfirmationModalComponent implements OnChanges {
     // visible. Resetting visibility false -> true (reopen) re-fetches in
     // case the staff list changed since the prior open.
     if (changes['visible'] && this.visible && !this.isLoadingUsers) {
-      this.loadResponsibleUsers();
+      void this.loadResponsibleUsers();
     }
     if (changes['visible'] && !this.visible) {
       this.form.reset();

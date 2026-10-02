@@ -240,6 +240,7 @@ public class StatusChangeEmailHandler :
                 // return so the in-process event bus does not surface the
                 // exception back to the dispatching UoW.
                 _logger.LogWarning(
+                    ex,
                     "StatusChangeEmailHandler: template missing for appointment {AppointmentId} status {Status}; email skipped. Detail: {Detail}",
                     eventData.AppointmentId,
                     eventData.ToStatus,
@@ -740,7 +741,7 @@ public class StatusChangeEmailHandler :
     /// <c>RejectionNotes</c>) plus brand-token placeholders that the
     /// templates reference but per-tenant branding does not yet populate.
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildVariables(
+    private static Dictionary<string, object?> BuildVariables(
         DocumentEmailContext ctx,
         Appointment appointment,
         string appointmentDate,
@@ -765,11 +766,19 @@ public class StatusChangeEmailHandler :
         // otherwise greet the booker, falling back to the patient name. The
         // template token stays "BookerFullName" -- only the value it carries
         // changes for the promoted (attorney-booker) case.
-        var bookerName = !string.IsNullOrWhiteSpace(ctx.GreetingName)
-            ? ctx.GreetingName
-            : (!string.IsNullOrWhiteSpace(ctx.BookerFullName)
-                ? ctx.BookerFullName
-                : JoinName(ctx.PatientFirstName, ctx.PatientLastName));
+        string bookerName;
+        if (!string.IsNullOrWhiteSpace(ctx.GreetingName))
+        {
+            bookerName = ctx.GreetingName;
+        }
+        else if (!string.IsNullOrWhiteSpace(ctx.BookerFullName))
+        {
+            bookerName = ctx.BookerFullName;
+        }
+        else
+        {
+            bookerName = JoinName(ctx.PatientFirstName, ctx.PatientLastName);
+        }
 
         var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
         {

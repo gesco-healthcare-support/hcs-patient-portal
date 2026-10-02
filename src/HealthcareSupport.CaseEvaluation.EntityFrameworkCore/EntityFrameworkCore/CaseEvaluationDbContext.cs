@@ -107,30 +107,30 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     {
     }
 
-    protected override void OnModelCreating(ModelBuilder builder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        builder.SetMultiTenancySide(MultiTenancySides.Both);
-        base.OnModelCreating(builder);
+        modelBuilder.SetMultiTenancySide(MultiTenancySides.Both);
+        base.OnModelCreating(modelBuilder);
 
         // Shared with CaseEvaluationTenantDbContext -- see
         // CaseEvaluationSharedModelConfiguration for why it is declared once.
-        builder.ConfigureCaseEvaluationShared();
+        modelBuilder.ConfigureCaseEvaluationShared();
 
-        if (builder.IsHostDatabase())
+        if (modelBuilder.IsHostDatabase())
         {
-            builder.ConfigureDoctor();
+            modelBuilder.ConfigureDoctor();
 
             // The Saas Tenant table exists only in the host database, so these two
             // foreign keys cannot live in the shared configuration.
-            builder.Entity<Doctor>(b =>
+            modelBuilder.Entity<Doctor>(b =>
             {
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
             });
 
-            builder.ConfigureDoctorJoinEntities();
+            modelBuilder.ConfigureDoctorJoinEntities();
 
-            builder.ConfigurePatient();
-            builder.Entity<Patient>(b =>
+            modelBuilder.ConfigurePatient();
+            modelBuilder.Entity<Patient>(b =>
             {
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
             });
@@ -141,7 +141,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             // navigation: the app service validates the operator + office exist
             // before inserting; the (OperatorUserId, OfficeId) unique index backs
             // idempotent assign / unassign.
-            builder.Entity<IntakeOfficeAssignment>(b =>
+            modelBuilder.Entity<IntakeOfficeAssignment>(b =>
             {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "IntakeOfficeAssignments", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
@@ -158,7 +158,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             // page + the host-side central manager resolve an office's brand
             // without an office-DB hop. One row per office; the unique index on
             // OfficeId backs upsert-by-office.
-            builder.Entity<OfficeBranding>(b =>
+            modelBuilder.Entity<OfficeBranding>(b =>
             {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "OfficeBrandings", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();

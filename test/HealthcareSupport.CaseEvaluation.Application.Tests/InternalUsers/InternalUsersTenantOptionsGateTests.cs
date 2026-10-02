@@ -58,7 +58,7 @@ namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 /// <para>A refusal cannot be seen in the UI: the switcher's error handler shows an empty office list
 /// with no message. That is why the in-office caller is asserted here.</para>
 /// </summary>
-public sealed class InternalUsersTenantOptionsGateTests : IAsyncLifetime
+public sealed partial class InternalUsersTenantOptionsGateTests : IAsyncLifetime
 {
     private static readonly Guid Office = Guid.Parse("00000000-0000-0000-0000-00000000a001");
     private static readonly Guid HostOperator = Guid.Parse("00000000-0000-0000-0000-00000000b001");
@@ -213,7 +213,7 @@ public sealed class InternalUsersTenantOptionsGateTests : IAsyncLifetime
     /// no current office, the office column inside one. Grants to anything other than a role are
     /// undefined, as they are for these callers after seeding.
     /// </summary>
-    public sealed class SeededRoleGrantStore : IPermissionStore
+    public sealed partial class SeededRoleGrantStore : IPermissionStore
     {
         private static readonly Lazy<Dictionary<string, (HashSet<string> Host, HashSet<string> Office)>> Grants =
             new(Load);
@@ -255,10 +255,13 @@ public sealed class InternalUsersTenantOptionsGateTests : IAsyncLifetime
             return (_currentTenant.Id == null ? roles.Host : roles.Office).Contains(providerKey);
         }
 
+        [GeneratedRegex("^(?<name>\\S+) side=\\S+ host=(?<host>.*) office=(?<office>.*)$")]
+        private static partial Regex SurfaceLine();
+
         private static Dictionary<string, (HashSet<string> Host, HashSet<string> Office)> Load()
         {
             var path = Path.Combine(ThisDirectory(), "..", "Authorization", "role-permission-surface.approved.txt");
-            var line = new Regex("^(?<name>\\S+) side=\\S+ host=(?<host>.*) office=(?<office>.*)$");
+            var line = SurfaceLine();
             var grants = new Dictionary<string, (HashSet<string>, HashSet<string>)>(StringComparer.Ordinal);
             foreach (var text in File.ReadAllLines(path))
             {

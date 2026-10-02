@@ -177,13 +177,13 @@ describe('ABP route providers', () => {
   it('covers every feature route provider in the application', () => {
     // Guards the table itself: a provider added later must be added here too, or this fails
     // rather than the new provider quietly going untested.
-    expect(FEATURE_PROVIDERS.length).toBe(16);
+    expect(FEATURE_PROVIDERS).toHaveSize(16);
   });
 
   FEATURE_PROVIDERS.forEach(({ label, provider, expected }) => {
     describe(`${label} route provider`, () => {
       it('registers its routes exactly once at startup', () => {
-        expect(addedRoutesFor(provider).length).toBe(1);
+        expect(addedRoutesFor(provider)).toHaveSize(1);
       });
 
       it('registers its OWN feature base routes', () => {
@@ -194,7 +194,7 @@ describe('ABP route providers', () => {
 
   describe('APP_ROUTE_PROVIDER (the top-level menu)', () => {
     it('registers the top-level menu exactly once at startup', () => {
-      expect(addedRoutesFor(APP_ROUTE_PROVIDER).length).toBe(1);
+      expect(addedRoutesFor(APP_ROUTE_PROVIDER)).toHaveSize(1);
     });
 
     it('registers the seven top-level entries with their real permission names', () => {

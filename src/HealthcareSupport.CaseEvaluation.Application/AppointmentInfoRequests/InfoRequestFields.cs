@@ -100,8 +100,8 @@ internal static class InfoRequestFields
         specs.Add(P("firstName", InfoRequestFieldKind.Text, p => p.FirstName, (p, v) => p.FirstName = v ?? string.Empty));
         specs.Add(P("middleName", InfoRequestFieldKind.Text, p => p.MiddleName, (p, v) => p.MiddleName = v));
         specs.Add(P("lastName", InfoRequestFieldKind.Text, p => p.LastName, (p, v) => p.LastName = v ?? string.Empty));
-        specs.Add(P("genderId", InfoRequestFieldKind.Gender, p => p.GenderId.ToString(), (p, v) => { if (Enum.TryParse<Gender>(v, out var g)) p.GenderId = g; }));
-        specs.Add(P("dateOfBirth", InfoRequestFieldKind.Date, p => FmtDate(p.DateOfBirth), (p, v) => { if (ParseDate(v, out var d)) p.DateOfBirth = d; }));
+        specs.Add(P("genderId", InfoRequestFieldKind.Gender, p => p.GenderId.ToString(), (p, v) => WhenGender(v, g => p.GenderId = g)));
+        specs.Add(P("dateOfBirth", InfoRequestFieldKind.Date, p => FmtDate(p.DateOfBirth), (p, v) => WhenDate(v, d => p.DateOfBirth = d)));
         specs.Add(P("email", InfoRequestFieldKind.Email, p => p.Email, (p, v) => p.Email = v ?? string.Empty));
         specs.Add(P("cellPhoneNumber", InfoRequestFieldKind.Phone, p => p.CellPhoneNumber, (p, v) => p.CellPhoneNumber = v));
         specs.Add(P("phoneNumber", InfoRequestFieldKind.Phone, p => p.PhoneNumber, (p, v) => p.PhoneNumber = v));
@@ -119,9 +119,9 @@ internal static class InfoRequestFields
             p => p.ApptNumber ?? p.Address,
             (p, v) => p.ApptNumber = v));
         specs.Add(P("city", InfoRequestFieldKind.Text, p => p.City, (p, v) => p.City = v));
-        specs.Add(P("stateId", InfoRequestFieldKind.StateId, p => p.StateId?.ToString(), (p, v) => { if (ParseGuid(v) is Guid g) p.StateId = g; }));
+        specs.Add(P("stateId", InfoRequestFieldKind.StateId, p => p.StateId?.ToString(), (p, v) => WhenGuid(v, g => p.StateId = g)));
         specs.Add(P("zipCode", InfoRequestFieldKind.Zip, p => p.ZipCode, (p, v) => p.ZipCode = v));
-        specs.Add(P("appointmentLanguageId", InfoRequestFieldKind.LanguageId, p => p.AppointmentLanguageId?.ToString(), (p, v) => { if (ParseGuid(v) is Guid g) p.AppointmentLanguageId = g; }));
+        specs.Add(P("appointmentLanguageId", InfoRequestFieldKind.LanguageId, p => p.AppointmentLanguageId?.ToString(), (p, v) => WhenGuid(v, g => p.AppointmentLanguageId = g)));
         specs.Add(P("interpreterVendorName", InfoRequestFieldKind.Text, p => p.InterpreterVendorName, (p, v) => p.InterpreterVendorName = v));
 
         // ---- Appointment-level: Referred By + attorney snapshot columns ----
@@ -137,7 +137,7 @@ internal static class InfoRequestFields
         specs.Add(A("applicantAttorneyFaxNumber", InfoRequestFieldKind.Phone, a => a.ApplicantAttorneyFaxNumber, (a, v) => a.ApplicantAttorneyFaxNumber = v));
         specs.Add(A("applicantAttorneyStreet", InfoRequestFieldKind.Text, a => a.ApplicantAttorneyStreet, (a, v) => a.ApplicantAttorneyStreet = v));
         specs.Add(A("applicantAttorneyCity", InfoRequestFieldKind.Text, a => a.ApplicantAttorneyCity, (a, v) => a.ApplicantAttorneyCity = v));
-        specs.Add(A("applicantAttorneyStateId", InfoRequestFieldKind.StateId, a => a.ApplicantAttorneyStateId?.ToString(), (a, v) => { if (ParseGuid(v) is Guid g) a.ApplicantAttorneyStateId = g; }));
+        specs.Add(A("applicantAttorneyStateId", InfoRequestFieldKind.StateId, a => a.ApplicantAttorneyStateId?.ToString(), (a, v) => WhenGuid(v, g => a.ApplicantAttorneyStateId = g)));
         specs.Add(A("applicantAttorneyZipCode", InfoRequestFieldKind.Zip, a => a.ApplicantAttorneyZipCode, (a, v) => a.ApplicantAttorneyZipCode = v));
 
         // Defense Attorney (11) -- snapshot columns on Appointment.
@@ -150,7 +150,7 @@ internal static class InfoRequestFields
         specs.Add(A("defenseAttorneyFaxNumber", InfoRequestFieldKind.Phone, a => a.DefenseAttorneyFaxNumber, (a, v) => a.DefenseAttorneyFaxNumber = v));
         specs.Add(A("defenseAttorneyStreet", InfoRequestFieldKind.Text, a => a.DefenseAttorneyStreet, (a, v) => a.DefenseAttorneyStreet = v));
         specs.Add(A("defenseAttorneyCity", InfoRequestFieldKind.Text, a => a.DefenseAttorneyCity, (a, v) => a.DefenseAttorneyCity = v));
-        specs.Add(A("defenseAttorneyStateId", InfoRequestFieldKind.StateId, a => a.DefenseAttorneyStateId?.ToString(), (a, v) => { if (ParseGuid(v) is Guid g) a.DefenseAttorneyStateId = g; }));
+        specs.Add(A("defenseAttorneyStateId", InfoRequestFieldKind.StateId, a => a.DefenseAttorneyStateId?.ToString(), (a, v) => WhenGuid(v, g => a.DefenseAttorneyStateId = g)));
         specs.Add(A("defenseAttorneyZipCode", InfoRequestFieldKind.Zip, a => a.DefenseAttorneyZipCode, (a, v) => a.DefenseAttorneyZipCode = v));
 
         // ---- Employer Details (7) -- AppointmentEmployerDetail ----
@@ -159,7 +159,7 @@ internal static class InfoRequestFields
         specs.Add(E("employerPhoneNumber", InfoRequestFieldKind.Phone, e => e.PhoneNumber, (e, v) => e.PhoneNumber = v));
         specs.Add(E("employerStreet", InfoRequestFieldKind.Text, e => e.Street, (e, v) => e.Street = v));
         specs.Add(E("employerCity", InfoRequestFieldKind.Text, e => e.City, (e, v) => e.City = v));
-        specs.Add(E("employerStateId", InfoRequestFieldKind.StateId, e => e.StateId?.ToString(), (e, v) => { if (ParseGuid(v) is Guid g) e.StateId = g; }));
+        specs.Add(E("employerStateId", InfoRequestFieldKind.StateId, e => e.StateId?.ToString(), (e, v) => WhenGuid(v, g => e.StateId = g)));
         specs.Add(E("employerZipCode", InfoRequestFieldKind.Zip, e => e.ZipCode, (e, v) => e.ZipCode = v));
 
         // ---- Insurance Carrier (8) -- AppointmentPrimaryInsurance ----
@@ -169,7 +169,7 @@ internal static class InfoRequestFields
         specs.Add(I("appointmentInsurancePhoneNumber", InfoRequestFieldKind.Phone, x => x.PhoneNumber, (x, v) => x.PhoneNumber = v));
         specs.Add(I("appointmentInsuranceFaxNumber", InfoRequestFieldKind.Phone, x => x.FaxNumber, (x, v) => x.FaxNumber = v));
         specs.Add(I("appointmentInsuranceCity", InfoRequestFieldKind.Text, x => x.City, (x, v) => x.City = v));
-        specs.Add(I("appointmentInsuranceStateId", InfoRequestFieldKind.StateId, x => x.StateId?.ToString(), (x, v) => { if (ParseGuid(v) is Guid g) x.StateId = g; }));
+        specs.Add(I("appointmentInsuranceStateId", InfoRequestFieldKind.StateId, x => x.StateId?.ToString(), (x, v) => WhenGuid(v, g => x.StateId = g)));
         specs.Add(I("appointmentInsuranceZip", InfoRequestFieldKind.Zip, x => x.Zip, (x, v) => x.Zip = v));
 
         // ---- Claim Examiner (9) -- AppointmentClaimExaminer ----
@@ -180,7 +180,7 @@ internal static class InfoRequestFields
         specs.Add(C("appointmentClaimExaminerPhoneNumber", InfoRequestFieldKind.Phone, c => c.PhoneNumber, (c, v) => c.PhoneNumber = v));
         specs.Add(C("appointmentClaimExaminerFax", InfoRequestFieldKind.Phone, c => c.Fax, (c, v) => c.Fax = v));
         specs.Add(C("appointmentClaimExaminerCity", InfoRequestFieldKind.Text, c => c.City, (c, v) => c.City = v));
-        specs.Add(C("appointmentClaimExaminerStateId", InfoRequestFieldKind.StateId, c => c.StateId?.ToString(), (c, v) => { if (ParseGuid(v) is Guid g) c.StateId = g; }));
+        specs.Add(C("appointmentClaimExaminerStateId", InfoRequestFieldKind.StateId, c => c.StateId?.ToString(), (c, v) => WhenGuid(v, g => c.StateId = g)));
         specs.Add(C("appointmentClaimExaminerZip", InfoRequestFieldKind.Zip, c => c.Zip, (c, v) => c.Zip = v));
 
         return specs;
@@ -235,6 +235,32 @@ internal static class InfoRequestFields
             Read = b => b.ClaimExaminer == null ? null : read(b.ClaimExaminer),
             Write = (b, v) => { if (b.ClaimExaminer != null) { write(b.ClaimExaminer, v); } },
         };
+
+    // Conditional setters for the registry above: assign only when the incoming value parses,
+    // so an unparseable correction leaves the stored value untouched.
+    private static void WhenGuid(string? raw, Action<Guid> assign)
+    {
+        if (ParseGuid(raw) is Guid g)
+        {
+            assign(g);
+        }
+    }
+
+    private static void WhenDate(string? raw, Action<DateTime> assign)
+    {
+        if (ParseDate(raw, out var d))
+        {
+            assign(d);
+        }
+    }
+
+    private static void WhenGender(string? raw, Action<Gender> assign)
+    {
+        if (Enum.TryParse<Gender>(raw, out var g))
+        {
+            assign(g);
+        }
+    }
 
     private static string? FmtDate(DateTime value)
         => value == default ? null : value.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);

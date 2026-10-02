@@ -1208,28 +1208,30 @@ def page7():
 
     o = ['<div class="dwc">']
     # --- header: logo + centered titles ---
-    o.append('<div class="dwc-hdr"><img class="dwc-logo" src="DWC_Logo.jpg">'
-             '<div class="dwc-title">Physician&#39;s Return-to-Work &amp; Voucher Report</div>'
-             '<div class="dwc-sub">For injuries occurring on or after January 1, 2013</div></div>')
-    # --- P&S statement ---
-    o.append(f'<div class="row">{cb("ps_permanent", "The Employee is P&amp;S from all conditions and the injury has caused permanent partial disability")}</div>')
-    # --- info tables (T36-T39) ---
-    # MI widened from First Name: the original (LibreOffice auto-layout) sizes MI to fit its
-    # token; our fixed layout must do so explicitly or ##Patients.MiddleName## overflows.
-    o.append(_rtw_info([3955, 2300, 2527, 2928], [
-        ("Employee Last Name", tok("##Patients.LastName##")), ("Employee First Name", tok("##Patients.FirstName##")),
-        ("MI", tok("##Patients.MiddleName##")), ("Date of Injury", tok("##InjuryDetails.DateOfInjury##"))]))
-    o.append(_rtw_info([5855, 5855], [
-        ("Claims Administrator:", tok("##InjuryDetails.PrimaryInsuranceName##")),
-        ("Claims Representative", tok("##InjuryDetails.ClaimExaminerName##"))]))
-    o.append(_rtw_info([5855, 5855], [
-        ("Employer name:", tok("##EmployerDetails.EmployerName##")),
-        ("Employer Street Address:", tok("##EmployerDetails.Street##"))]))
-    o.append(_rtw_info([2591, 2712, 2526, 235, 3136], [
-        ("Employer City:", tok("##EmployerDetails.City##")), ("State", tok("##EmployerDetails.State##")),
-        ("ZipCode", tok("##EmployerDetails.Zip##")), ("", ""), ("Claim No:", tok("##InjuryDetails.ClaimNumber##"))]))
-    # --- return to regular work ---
-    o.append(f'<div class="row">{cb("regular_work", "The Employee can return to regular work")}</div>')
+    o.extend([
+        '<div class="dwc-hdr"><img class="dwc-logo" src="DWC_Logo.jpg">'
+        '<div class="dwc-title">Physician&#39;s Return-to-Work &amp; Voucher Report</div>'
+        '<div class="dwc-sub">For injuries occurring on or after January 1, 2013</div></div>',
+        # --- P&S statement ---
+        f'<div class="row">{cb("ps_permanent", "The Employee is P&amp;S from all conditions and the injury has caused permanent partial disability")}</div>',
+        # --- info tables (T36-T39) ---
+        # MI widened from First Name: the original (LibreOffice auto-layout) sizes MI to fit its
+        # token; our fixed layout must do so explicitly or ##Patients.MiddleName## overflows.
+        _rtw_info([3955, 2300, 2527, 2928], [
+            ("Employee Last Name", tok("##Patients.LastName##")), ("Employee First Name", tok("##Patients.FirstName##")),
+            ("MI", tok("##Patients.MiddleName##")), ("Date of Injury", tok("##InjuryDetails.DateOfInjury##"))]),
+        _rtw_info([5855, 5855], [
+            ("Claims Administrator:", tok("##InjuryDetails.PrimaryInsuranceName##")),
+            ("Claims Representative", tok("##InjuryDetails.ClaimExaminerName##"))]),
+        _rtw_info([5855, 5855], [
+            ("Employer name:", tok("##EmployerDetails.EmployerName##")),
+            ("Employer Street Address:", tok("##EmployerDetails.Street##"))]),
+        _rtw_info([2591, 2712, 2526, 235, 3136], [
+            ("Employer City:", tok("##EmployerDetails.City##")), ("State", tok("##EmployerDetails.State##")),
+            ("ZipCode", tok("##EmployerDetails.Zip##")), ("", ""), ("Claim No:", tok("##InjuryDetails.ClaimNumber##"))]),
+        # --- return to regular work ---
+        f'<div class="row">{cb("regular_work", "The Employee can return to regular work")}</div>',
+    ])
     # --- restrictions grid (activity x frequency) ---
     g = [f'<table class="grid">{_colgroup([40, 12, 12, 12, 12, 12])}']
     g.append(f'<tr><td class="act">{cb("work_with_restrictions", "The Employee can work with restrictions:")}</td>'
@@ -1243,35 +1245,37 @@ def page7():
         cells = "".join(f'<td class="bx">{box_(hk + "." + fk)}</td>' for _, fk in _RTW_FREQ)
         g.append(f'<tr><td class="act">{rl} Hand(s) (circle): {hl}</td>{cells}</tr>')
     g.append('</table>')
-    o.append("".join(g))
-    # --- lift/carry (inline fillable blanks) ---
-    o.append('<div class="row">Lift/Carry Restrictions: May not lift/carry at a height of '
-             + uin("lift.height", "1.1in") + ' more than ' + uin("lift.lbs", "0.7in")
-             + ' lbs. for more than ' + uin("lift.hours", "0.7in") + ' hours per day</div>')
-    # --- other restrictions box (label left, large write-in area right) ---
-    o.append('<table class="obox"><tr><td class="olbl">Other Restrictions</td>'
-             f'<td><textarea name="{RTW}.other_restrictions" style="height:84px"></textarea></td></tr></table>')
-    # --- job description section ---
-    o.append('<div class="row it">If a job Description has been provided, please complete: Job Description provided of: '
-             + cb("job_provided.regular", "Regular") + cb("job_provided.modified", "Modified")
-             + cb("job_provided.alternative", "Alternative Work") + '</div>')
-    o.append('<div class="row"><div class="oline">'
-             f'<span class="olbl">Job Title:</span><span class="ofill">{fill("job_title")}</span>'
-             f'<span class="olbl">Work Location:</span><span class="ofill">{fill("work_location")}</span></div></div>')
-    o.append('<div class="row it">Are the Work Duties compatible with the activity restrictions set forth in the provided job description? '
-             + cb("compatible.yes", "Yes") + cb("compatible.no", "No,") + ' Explain below</div>')
-    o.append(f'<div class="box"><textarea name="{RTW}.explain" style="height:56px"></textarea></div>')
-    # --- signature block ---
-    o.append('<div class="row" style="margin-top:12px"><div class="oline">'
-             '<span class="olbl">Physician&#39;s Name: Yuri Falkinstein, M.D.</span>'
-             '<span class="ofill"></span>'
-             f'<span class="olbl">Role of Doctor (PTP,QME,AME):</span><span class="ofill">{fill("role")}</span></div></div>')
-    # Date label + token kept as one right-side cell so the signature fill takes the rest of the line.
-    o.append('<div class="row" style="margin-top:12px"><div class="oline">'
-             '<span class="olbl">Physician&#39;s Signature:</span>'
-             f'<span class="ofill" style="width:55%">{fill("signature")}</span>'
-             f'<span class="olbl">Date: {tok("##Appointments.AvailableDate##")}</span></div></div>')
-    o.append('</div>')
+    o.extend([
+        "".join(g),
+        # --- lift/carry (inline fillable blanks) ---
+        '<div class="row">Lift/Carry Restrictions: May not lift/carry at a height of '
+        + uin("lift.height", "1.1in") + ' more than ' + uin("lift.lbs", "0.7in")
+        + ' lbs. for more than ' + uin("lift.hours", "0.7in") + ' hours per day</div>',
+        # --- other restrictions box (label left, large write-in area right) ---
+        '<table class="obox"><tr><td class="olbl">Other Restrictions</td>'
+        f'<td><textarea name="{RTW}.other_restrictions" style="height:84px"></textarea></td></tr></table>',
+        # --- job description section ---
+        '<div class="row it">If a job Description has been provided, please complete: Job Description provided of: '
+        + cb("job_provided.regular", "Regular") + cb("job_provided.modified", "Modified")
+        + cb("job_provided.alternative", "Alternative Work") + '</div>',
+        '<div class="row"><div class="oline">'
+        f'<span class="olbl">Job Title:</span><span class="ofill">{fill("job_title")}</span>'
+        f'<span class="olbl">Work Location:</span><span class="ofill">{fill("work_location")}</span></div></div>',
+        '<div class="row it">Are the Work Duties compatible with the activity restrictions set forth in the provided job description? '
+        + cb("compatible.yes", "Yes") + cb("compatible.no", "No,") + ' Explain below</div>',
+        f'<div class="box"><textarea name="{RTW}.explain" style="height:56px"></textarea></div>',
+        # --- signature block ---
+        '<div class="row" style="margin-top:12px"><div class="oline">'
+        '<span class="olbl">Physician&#39;s Name: Yuri Falkinstein, M.D.</span>'
+        '<span class="ofill"></span>'
+        f'<span class="olbl">Role of Doctor (PTP,QME,AME):</span><span class="ofill">{fill("role")}</span></div></div>',
+        # Date label + token kept as one right-side cell so the signature fill takes the rest of the line.
+        '<div class="row" style="margin-top:12px"><div class="oline">'
+        '<span class="olbl">Physician&#39;s Signature:</span>'
+        f'<span class="ofill" style="width:55%">{fill("signature")}</span>'
+        f'<span class="olbl">Date: {tok("##Appointments.AvailableDate##")}</span></div></div>',
+        '</div>',
+    ])
     return "".join(o)
 
 

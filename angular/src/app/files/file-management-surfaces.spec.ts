@@ -98,7 +98,7 @@ describe('FileManagementComponent surfaces', () => {
       const c = create();
       expect(directories['getContent']).toHaveBeenCalled();
       expect(directories['getContent'].calls.mostRecent().args[0].id).toBeUndefined();
-      expect(c.path().length).toBe(1);
+      expect(c.path()).toHaveSize(1);
     });
 
     it('stores the rows and clears the loading flag', () => {
@@ -106,7 +106,7 @@ describe('FileManagementComponent surfaces', () => {
       directories['getContent'].and.returnValue(of({ items: [row()] }));
       // goTo re-enters load() with the stubbed response; the constructor already ran.
       c.goTo(0);
-      expect(c.content().length).toBe(1);
+      expect(c.content()).toHaveSize(1);
       expect(c.loading()).toBeFalse();
     });
 
@@ -145,7 +145,7 @@ describe('FileManagementComponent surfaces', () => {
       const c = create();
       const before = c.path().length;
       c.open(row({ isDirectory: false }));
-      expect(c.path().length).toBe(before);
+      expect(c.path()).toHaveSize(before);
     });
 
     it('substitutes empty values for a folder row missing its id or name', () => {
@@ -168,7 +168,7 @@ describe('FileManagementComponent surfaces', () => {
       const c = create();
       c.open(row({ id: 'd-1', name: 'a', isDirectory: true }));
       c.open(row({ id: 'd-2', name: 'b', isDirectory: true }));
-      expect(c.path().length).toBe(3);
+      expect(c.path()).toHaveSize(3);
 
       c.goTo(1);
 
@@ -198,7 +198,7 @@ describe('FileManagementComponent surfaces', () => {
 
     it('returns everything when nothing is typed', () => {
       const c = seeded();
-      expect(c.shown().length).toBe(3);
+      expect(c.shown()).toHaveSize(3);
     });
 
     it('matches on a case-insensitive substring', () => {

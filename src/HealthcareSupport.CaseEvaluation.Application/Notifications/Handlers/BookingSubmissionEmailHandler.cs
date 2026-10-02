@@ -161,8 +161,7 @@ public class BookingSubmissionEmailHandler :
             // communication.
             try
             {
-                await DispatchAppointmentRequestedAsync(
-                    eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+                await DispatchAppointmentRequestedAsync(eventData, ctx, appointment);
 
                 // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
                 // when the booker is an external user, also fan out
@@ -182,6 +181,7 @@ public class BookingSubmissionEmailHandler :
                 // already committed. Log Warning so monitoring surfaces the
                 // gap.
                 _logger.LogWarning(
+                    ex,
                     "BookingSubmissionEmailHandler: template missing for appointment {AppointmentId}; email skipped. Detail: {Detail}",
                     eventData.AppointmentId,
                     ex.Data.Contains("templateCode") ? ex.Data["templateCode"] : "(unspecified)");
@@ -210,9 +210,7 @@ public class BookingSubmissionEmailHandler :
     private async Task DispatchAppointmentRequestedAsync(
         AppointmentSubmittedEto eventData,
         DocumentEmailContext ctx,
-        Appointment appointment,
-        string appointmentDate,
-        string appointmentFromTime)
+        Appointment appointment)
     {
         var resolverOutput = await _recipientResolver.ResolveAsync(
             eventData.AppointmentId, NotificationKind.Submitted);
@@ -389,7 +387,7 @@ public class BookingSubmissionEmailHandler :
     /// + role display + per-recipient login or register URL. Brand
     /// placeholders stay empty until per-tenant branding ships.
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildAppointmentRequestedVariables(
+    private static Dictionary<string, object?> BuildAppointmentRequestedVariables(
         AppointmentSubmittedEto eventData,
         DocumentEmailContext ctx,
         SendAppointmentEmailArgs args,
@@ -681,7 +679,7 @@ public class BookingSubmissionEmailHandler :
     /// <c>AppointmentToTime</c> (the ApproveReject template prints both
     /// FromTime and ToTime per OLD :944 and the seeded HTML).
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildVariables(
+    private static Dictionary<string, object?> BuildVariables(
         DocumentEmailContext ctx,
         Appointment appointment,
         string appointmentDate,

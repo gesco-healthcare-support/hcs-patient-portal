@@ -1345,7 +1345,7 @@ hard rules, not suggestions.
 11. **Always use synthetic emails ending `@gesco.com`,
     `@example.test`, `@falkinstein.test`, or `@evaluators.com`.**
     Never `@gmail.com`, `@protonmail.com`, etc. The HIPAA rule
-    (`.claude/rules/hipaa-data.md`) and PHI scanner enforce this.
+    (`.claude/rules/hipaa-data.md`) requires this.
 
 12. **Never invent real-looking SSN, MRN, or DOB.** Use the
     documented dictionary in Part 5.

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
@@ -37,6 +39,8 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
             var existing = await FindShadowAsync(email);
             if (existing != null)
             {
+                await EnsureAdoptableAsync(existing, officeId, operatorUserId);
+
                 // Idempotent: re-activate (a prior unassign may have disabled it)
                 // and guarantee the requested per-office role, then return.
                 var changed = false;
@@ -120,6 +124,21 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
             {
                 return;
             }
+
+            // The address matched an account that is not a shadow (see EnsureAdoptableAsync), so it
+            // belongs to somebody else. Deactivating it would lock that person out of the office.
+            var foreignRoles = await GetNonShadowRolesAsync(shadow);
+            if (foreignRoles.Count > 0)
+            {
+                Logger.LogWarning(
+                    "IntakeShadowUserProvisioner: left account {AccountId} in office {OfficeId} active "
+                    + "on revoke for operator {OperatorUserId}; it holds non-shadow roles {Roles}.",
+                    shadow.Id,
+                    officeId,
+                    operatorUserId,
+                    foreignRoles);
+                return;
+            }
             shadow.SetIsActive(false);
             (await _userManager.UpdateAsync(shadow)).CheckErrors();
         }
@@ -150,6 +169,54 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
     private async Task<IdentityUser?> FindShadowAsync(string email) =>
         await _userManager.FindByNameAsync(email)
         ?? await _userManager.FindByEmailAsync(email);
+
+    /// <summary>
+    /// The only roles this provisioner ever grants a shadow: Intake Staff on assignment, and Staff
+    /// Supervisor or the office admin role from the office-access grant.
+    /// </summary>
+    private static readonly string[] ShadowRoleNames =
+    {
+        InternalUserRoleDataSeedContributor.IntakeStaffRoleName,
+        InternalUserRoleDataSeedContributor.StaffSupervisorRoleName,
+        CaseEvaluationIdentityDataSeedContributor.AdminRoleName,
+    };
+
+    /// <summary>
+    /// Refuses to adopt an office account that is not a shadow.
+    ///
+    /// <para>The lookup matches on the operator's address alone, and an office can hold an
+    /// unrelated account carrying that address (#593 lets one address exist in the host and in an
+    /// office). Adopting it would ADD a staff or admin role to, say, a patient or attorney account,
+    /// and the office-access grant would then sign the operator in as that account. So an existing
+    /// account is reused only when every role it holds is one this provisioner grants. An account
+    /// with no roles is still adopted: that is the legacy shape the username lookup exists for.</para>
+    ///
+    /// <para>Thrown, not logged and skipped: the alternative is creating a second account under a
+    /// username Identity already holds, which fails anyway. The message is the generic duplicate
+    /// one and names no address.</para>
+    /// </summary>
+    private async Task EnsureAdoptableAsync(IdentityUser existing, Guid officeId, Guid operatorUserId)
+    {
+        var foreignRoles = await GetNonShadowRolesAsync(existing);
+        if (foreignRoles.Count == 0)
+        {
+            return;
+        }
+
+        Logger.LogWarning(
+            "IntakeShadowUserProvisioner: refused to adopt account {AccountId} in office {OfficeId} "
+            + "as the shadow of operator {OperatorUserId}; it holds non-shadow roles {Roles}.",
+            existing.Id,
+            officeId,
+            operatorUserId,
+            foreignRoles);
+        throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail);
+    }
+
+    private async Task<List<string>> GetNonShadowRolesAsync(IdentityUser user) =>
+        (await _userManager.GetRolesAsync(user))
+            .Where(role => !ShadowRoleNames.Contains(role, StringComparer.OrdinalIgnoreCase))
+            .ToList();
 
     private async Task<(string Email, string? Name, string? Surname)> ResolveOperatorAsync(Guid operatorUserId)
     {

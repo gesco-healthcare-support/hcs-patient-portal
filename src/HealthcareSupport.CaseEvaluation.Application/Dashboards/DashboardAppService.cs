@@ -138,7 +138,6 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     private async Task<DashboardCountersDto> BuildAsync(bool scopedToTenant)
     {
         var lastMondayUtc = GetLastMondayUtc();
-        var monthStartUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var legalDeadlineThresholdUtc = DateTime.UtcNow.AddDays(-60);
 
         var pendingRequests = await _appointmentRepository.CountAsync(
@@ -413,9 +412,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         var hasSort = parts.Length > 0;
         var field = hasSort ? parts[0].ToLowerInvariant() : "appointments";
         // No client sort -> most-active office first (mirrors the dashboard's own order).
-        var descending = hasSort
-            ? parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase)
-            : true;
+        var descending = !hasSort
+            || (parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase));
 
         IOrderedEnumerable<DashboardTenantRowDto> ordered = field switch
         {

@@ -153,12 +153,9 @@ public class SendAppointmentEmailJob :
                     IsBodyHtml = args.IsBodyHtml,
                 };
                 mail.To.Add(args.To);
-                foreach (var cc in args.Cc)
+                foreach (var cc in args.Cc.Where(c => !string.IsNullOrWhiteSpace(c)))
                 {
-                    if (!string.IsNullOrWhiteSpace(cc))
-                    {
-                        mail.CC.Add(cc);
-                    }
+                    mail.CC.Add(cc);
                 }
                 await _emailSender.SendAsync(mail);
             }
@@ -214,12 +211,9 @@ public class SendAppointmentEmailJob :
             };
             mail.To.Add(args.To);
             // E1 (2026-06-03): CC the other parties on the single notice.
-            foreach (var cc in args.Cc ?? new System.Collections.Generic.List<string>())
+            foreach (var cc in (args.Cc ?? new System.Collections.Generic.List<string>()).Where(c => !string.IsNullOrWhiteSpace(c)))
             {
-                if (!string.IsNullOrWhiteSpace(cc))
-                {
-                    mail.CC.Add(cc);
-                }
+                mail.CC.Add(cc);
             }
 
             using var ms = new System.IO.MemoryStream(attachment.Bytes);

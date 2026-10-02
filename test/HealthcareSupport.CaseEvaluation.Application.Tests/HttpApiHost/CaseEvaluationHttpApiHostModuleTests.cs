@@ -643,7 +643,7 @@ public class CaseEvaluationHttpApiHostModuleTests
 
     private const string SampleFeedToken = "sample-feed-token-value";
 
-    private static IServiceProvider FeedServices()
+    private static ServiceProvider FeedServices()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
