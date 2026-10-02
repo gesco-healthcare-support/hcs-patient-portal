@@ -245,7 +245,7 @@ See `.claude/rules/dotnet-env.md`, which is scoped to exclude `dotnet test` for 
 
 ---
 
-## Problem 7: an EMPTY `appsettings.Local.json` stops a host from starting
+## Problem 7: a MALFORMED `appsettings.Local.json` stops a host from starting
 
 **Symptom.** AuthServer, HttpApi.Host or DbMigrator refuses to start:
 
@@ -254,19 +254,25 @@ System.InvalidDataException: Failed to load configuration from file
 '.../appsettings.Local.json'.
 ```
 
-**Cause.** All three load it with `optional: true`
-(`Program.cs:24`, and `:37` in DbMigrator). **`optional` covers ABSENT, not EMPTY.** A
-zero-byte file -- exactly what `touch appsettings.Local.json` produces, or an editor that
-saves nothing -- is still parsed, and empty is not valid JSON. Measured:
+**Cause.** The file has content and the content is not valid JSON: a missing brace, a
+trailing comma, a half-finished edit. All three processes load it through
+`LocalSettingsFile.AddLocalSettingsJson()` (`Domain.Shared/Hosting/LocalSettingsFile.cs`),
+called from `HttpApi/Hosting/CaseEvaluationHost.cs` for both web hosts and from
+`DbMigrator/Program.cs`. Malformed content still fails loudly, on purpose. A
+misconfiguration should stop the host, not be ignored.
+
+An EMPTY file no longer does this (#595). A zero-byte or whitespace-only file -- what
+`touch appsettings.Local.json` produces -- is treated exactly as an absent one:
 
 | file state | result |
 | --- | --- |
 | absent | OK |
-| empty (0 bytes) | **InvalidDataException** |
-| whitespace only | **InvalidDataException** |
+| empty (0 bytes) | OK, skipped |
+| whitespace only | OK, skipped |
 | `{}` | OK |
+| malformed | **InvalidDataException** |
 
-**Fix.** Either delete the file, or put `{}` in it. Copy the checked-in template instead of
+**Fix.** Correct the JSON, or delete the file. Copy the checked-in template instead of
 creating the file by hand:
 
 ```bash
