@@ -144,6 +144,10 @@ public sealed partial class CaseTrackerWireContractTests
             + "demotes a halt to a warning every tick against an office that still reads as RUNNING.");
     }
 
+    /// <summary>An error code as the feed controller writes it: a Status constant, then the quoted code.</summary>
+    [GeneratedRegex(@"Status\d{3}\w+,\s*""([a-z_]+)""")]
+    private static partial Regex EmittedErrorCode();
+
     /// <summary>
     /// The COMPLETE set of codes the feed emits. Pinning each code individually closes a rename; it cannot
     /// close an ADDITION, and an addition is the more dangerous of the two.
@@ -164,10 +168,6 @@ public sealed partial class CaseTrackerWireContractTests
     /// is not forbidden. It requires telling them first, because it is the single change on this side that
     /// their end cannot be made safe against in advance, however well either of us pins things.</para>
     /// </summary>
-    /// <summary>An error code as the feed controller writes it: a Status constant, then the quoted code.</summary>
-    [GeneratedRegex(@"Status\d{3}\w+,\s*""([a-z_]+)""")]
-    private static partial Regex EmittedErrorCode();
-
     [Fact]
     public void TheFeedEmitsExactlyTheSevenAgreedCodes()
     {
