@@ -38,6 +38,10 @@ using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
+// Not auto-exposed. The hand-written ExternalSignupController (public routes) and
+// ExternalSignupStaffController (signed-in routes the generated Angular client calls) are this
+// service's only HTTP surface, so there is exactly one route per method.
+[RemoteService(IsEnabled = false)]
 public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignupAppService
 {
     private readonly IdentityUserManager _userManager;
