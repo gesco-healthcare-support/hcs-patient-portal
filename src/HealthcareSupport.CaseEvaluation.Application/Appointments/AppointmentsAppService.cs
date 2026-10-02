@@ -439,27 +439,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .Where(x => x.TenantId == CurrentTenant.Id)
             .Where(x => x.Email != null && x.Email.Contains(input.Filter!));
 
-        if (await IsApplicantAttorneyAsync())
+        // DENY BY DEFAULT. Only internal office staff search the whole office. Every other
+        // caller is narrowed to the patients its roles admit it to, and a caller whose roles
+        // admit nothing -- a Patient with no record of their own, a role this method does not
+        // know, no role at all -- gets an empty page. The narrowing used to be opt-in, per
+        // role: a caller holding none of the three narrowed roles (a Patient, for one) was not
+        // narrowed at all and could search every patient in the office by email substring,
+        // and the next role anyone added would have been unnarrowed the same way.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
         {
-            var visiblePatientIds = await GetApplicantAttorneyVisiblePatientIdsAsync();
-            query = query.Where(p => visiblePatientIds.Contains(p.Id));
-        }
-
-        if (await IsDefenseAttorneyAsync())
-        {
-            var visiblePatientIds = await GetDefenseAttorneyVisiblePatientIdsAsync();
-            query = query.Where(p => visiblePatientIds.Contains(p.Id));
-        }
-
-        // CE scoping (2026-06-11): a Claim Examiner sees only patients on
-        // appointments where they are the named CE. Mirrors the email-match
-        // read-scope used by EnsureCanReadAsync (Appointment.ClaimExaminerEmail
-        // == caller email) -- CE has no IdentityUser link table, so the
-        // denormalized email column is the only linkage. Without this, a CE
-        // could search every patient in the tenant (the gap Adrian flagged).
-        if (await IsClaimExaminerAsync())
-        {
-            var visiblePatientIds = await GetClaimExaminerVisiblePatientIdsAsync();
+            var visiblePatientIds = await GetLookupVisiblePatientIdsAsync();
             query = query.Where(p => visiblePatientIds.Contains(p.Id));
         }
 
@@ -470,6 +459,40 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             TotalCount = totalCount,
             Items = ObjectMapper.Map<List<HealthcareSupport.CaseEvaluation.Patients.Patient>, List<LookupDto<Guid>>>(lookupData)
         };
+    }
+
+    /// <summary>
+    /// The patients a non-staff caller may find through <see cref="GetPatientLookupAsync"/>: the
+    /// UNION of what each of its roles admits. Any one role that admits a patient is enough, so a
+    /// caller holding two roles sees what either would. (The narrowing used to be applied one role
+    /// after another as successive filters, which gave a dual-role caller the INTERSECTION -- fewer
+    /// patients than either role on its own.) A Patient admits only patient records linked to its
+    /// own account. A Claim Examiner is matched by email, as <see cref="GetClaimExaminerVisiblePatientIdsAsync"/>
+    /// documents. Roles this method does not name admit nothing.
+    /// </summary>
+    private async Task<List<Guid>> GetLookupVisiblePatientIdsAsync()
+    {
+        var visible = new HashSet<Guid>();
+        if (await IsApplicantAttorneyAsync())
+        {
+            visible.UnionWith(await GetApplicantAttorneyVisiblePatientIdsAsync());
+        }
+        if (await IsDefenseAttorneyAsync())
+        {
+            visible.UnionWith(await GetDefenseAttorneyVisiblePatientIdsAsync());
+        }
+        if (await IsClaimExaminerAsync())
+        {
+            visible.UnionWith(await GetClaimExaminerVisiblePatientIdsAsync());
+        }
+        if (CurrentUser.IsInRole("Patient") && CurrentUser.Id is Guid userId)
+        {
+            var ownPatientIds = (await _patientRepository.GetQueryableAsync())
+                .Where(p => p.IdentityUserId == userId)
+                .Select(p => p.Id);
+            visible.UnionWith(await AsyncExecuter.ToListAsync(ownPatientIds));
+        }
+        return visible.ToList();
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
