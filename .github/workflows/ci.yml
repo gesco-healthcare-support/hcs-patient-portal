@@ -701,14 +701,17 @@ jobs:
       # dotnet-coverage 18.11.0: a pin locks in the toolchain that produced the
       # verified figure rather than whatever the index serves next.
       #
-      # NOT hash-pinned, and that is item 2.14's decision rather than an oversight
-      # (#700). Scorecard's PinnedDependenciesID wants --require-hashes against a
-      # requirements file carrying a hash for every transitive dependency. Declined
-      # for the same reason docker/packet-renderer/Dockerfile records: PyPI does not
-      # permit a published version to be re-uploaded with different content, so the
-      # residual risk a hash closes is a registry compromise, against which the cost
-      # is a lock file regenerated in full on every bump. The reason is repeated here
-      # because this is where a reader lands, not that Dockerfile.
+      # NOT hash-pinned, and that is a decision rather than an oversight (#700; kept
+      # by decision d36). Scorecard's PinnedDependenciesID wants --require-hashes
+      # against a requirements file carrying a hash for every transitive dependency.
+      # Declined HERE: PyPI does not permit a published version to be re-uploaded with
+      # different content, so the residual risk a hash closes is a registry
+      # compromise, and this job only measures coverage -- it ships nothing.
+      #
+      # The packet-renderer IMAGE went the other way in B8 (decision 18, reversing
+      # item 2.14): it renders documents carrying patient data, so its
+      # requirements.txt is hashed and installed with --require-hashes. Do not read
+      # the two as contradicting each other; they answer different risks.
       #
       # `--only-binary :all:` is ORTHOGONAL to that decision, and is what B9 adds here
       # (2026-09-25) instead of hashes. It refuses source distributions, so no sdist
@@ -1956,14 +1959,17 @@ jobs:
       # different things and that should be loud here rather than discovered as
       # a disagreement in figures months later.
       #
-      # NOT hash-pinned, and that is item 2.14's decision rather than an oversight
-      # (#700). Scorecard's PinnedDependenciesID wants --require-hashes against a
-      # requirements file carrying a hash for every transitive dependency. Declined
-      # for the same reason docker/packet-renderer/Dockerfile records: PyPI does not
-      # permit a published version to be re-uploaded with different content, so the
-      # residual risk a hash closes is a registry compromise, against which the cost
-      # is a lock file regenerated in full on every bump. The reason is repeated here
-      # because this is where a reader lands, not that Dockerfile.
+      # NOT hash-pinned, and that is a decision rather than an oversight (#700; kept
+      # by decision d36). Scorecard's PinnedDependenciesID wants --require-hashes
+      # against a requirements file carrying a hash for every transitive dependency.
+      # Declined HERE: PyPI does not permit a published version to be re-uploaded with
+      # different content, so the residual risk a hash closes is a registry
+      # compromise, and this job only measures coverage -- it ships nothing.
+      #
+      # The packet-renderer IMAGE went the other way in B8 (decision 18, reversing
+      # item 2.14): it renders documents carrying patient data, so its
+      # requirements.txt is hashed and installed with --require-hashes. Do not read
+      # the two as contradicting each other; they answer different risks.
       # Each report is fetched only when its test job succeeded; a skipped stack has none.
       - name: Download backend coverage (VS XML)
         if: needs.backend-test.result == 'success'
