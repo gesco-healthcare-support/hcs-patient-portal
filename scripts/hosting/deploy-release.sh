@@ -58,8 +58,11 @@ newbak=$(find backups -maxdepth 1 -name '*.bak' -newermt "@$T0" 2>/dev/null | wc
 echo "$(ts) backup OK: $newbak new dumps; ${done_line##*]: }"
 
 git fetch -q origin development || stop "fetch"
-[ "$(git rev-parse origin/development)" = "$EXPECTED" ] || stop "origin/development is $(git rev-parse origin/development)"
-git merge --ff-only -q origin/development || stop "ff-only merge refused (untracked file collision?)"
+# The expected sha must be ON development, but need not be its tip: development keeps moving while a deploy is
+# prepared, and the release is the commit that was chosen and checked, not whatever landed since (2026-10-02).
+git merge-base --is-ancestor "$EXPECTED" origin/development \
+  || stop "$EXPECTED is not on origin/development ($(git rev-parse origin/development))"
+git merge --ff-only -q "$EXPECTED" || stop "ff-only merge to $EXPECTED refused (not a fast-forward, or an untracked file collision?)"
 [ "$(git rev-parse HEAD)" = "$EXPECTED" ] || stop "HEAD is $(git rev-parse HEAD) after the merge"
 echo "$(ts) checkout $PREV -> $EXPECTED (rollback target: $PREV)"
 
