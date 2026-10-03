@@ -1022,12 +1022,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             master.IdentityUserId = identityUserId;
             await _applicantAttorneyRepository.UpdateAsync(master);
         }
-        if (unlinkedMasters.Count > 0)
         {
-            // Patch any existing link rows that point at these masters so
-            // the attorney's "My Appointments" list surfaces them via the
-            // visibility filter on AppointmentApplicantAttorney.IdentityUserId.
-            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            // Patch link rows that point at any master this user now OWNS, not only
+            // the ones claimed just above: RegisterAsync's adopt-by-email step has
+            // usually claimed the master already, so the loop above finds none and
+            // a pre-booked link would stay unclaimed (invisible to the attorney via
+            // the AppointmentApplicantAttorney.IdentityUserId visibility filter).
+            var ownedMasterQuery = await _applicantAttorneyRepository.GetQueryableAsync();
+            var masterIds = (await AsyncExecuter.ToListAsync(
+                    ownedMasterQuery.Where(a => a.IdentityUserId == identityUserId).Select(a => a.Id)))
+                .Concat(unlinkedMasters.Select(m => m.Id))
+                .ToHashSet();
             var unlinkedLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
             var unlinkedLinks = await AsyncExecuter.ToListAsync(
                 unlinkedLinkQuery.Where(l =>
@@ -1088,9 +1093,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             master.IdentityUserId = identityUserId;
             await _defenseAttorneyRepository.UpdateAsync(master);
         }
-        if (unlinkedMasters.Count > 0)
         {
-            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            // Same as the applicant path: patch links of every master this user owns,
+            // since RegisterAsync has typically claimed the master already.
+            var ownedMasterQuery = await _defenseAttorneyRepository.GetQueryableAsync();
+            var masterIds = (await AsyncExecuter.ToListAsync(
+                    ownedMasterQuery.Where(a => a.IdentityUserId == identityUserId).Select(a => a.Id)))
+                .Concat(unlinkedMasters.Select(m => m.Id))
+                .ToHashSet();
             var unlinkedLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
             var unlinkedLinks = await AsyncExecuter.ToListAsync(
                 unlinkedLinkQuery.Where(l =>
