@@ -41,6 +41,14 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
 {
     private const string Password = "Test1234!";
 
+    /// <summary>
+    /// The staff caller holds a role production actually recognises as internal. These tests
+    /// previously used <c>IdentityUsersTestData.TenantAdminRoleName</c> ("TenantAdmin"), which no
+    /// production code defines; the lookup admitted it to the staff search only because it then
+    /// treated ANY role it did not recognise as internal. That fall-through is now closed.
+    /// </summary>
+    private const string InternalStaffRole = "Intake Staff";
+
     private readonly IExternalSignupAppService _appService;
     private readonly IdentityUserManager _userManager;
     private readonly IRepository<Patient, Guid> _patientRepository;
@@ -84,14 +92,6 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
     /// office-scoped: the same search term that returns a patient to internal staff must return
     /// nothing to an external user who shares no appointment with that patient.
     /// </summary>
-    /// <summary>
-    /// The staff caller holds a role production actually recognises as internal. These tests
-    /// previously used <c>IdentityUsersTestData.TenantAdminRoleName</c> ("TenantAdmin"), which no
-    /// production code defines; the lookup admitted it to the staff search only because it then
-    /// treated ANY role it did not recognise as internal. That fall-through is now closed.
-    /// </summary>
-    private const string InternalStaffRole = "Intake Staff";
-
     [Fact]
     public async Task GetExternalUserLookupAsync_ExternalOnlyCaller_DoesNotGetTheTenantSearch()
     {
