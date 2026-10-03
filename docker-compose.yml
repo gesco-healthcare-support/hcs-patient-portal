@@ -158,6 +158,8 @@ services:
       - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: Development alone no longer seeds the demo accounts; this says so explicitly.
+      ALLOW_DEMO_SEED: "true"
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:${NG_PORT:-4200}"
@@ -222,6 +224,8 @@ services:
       - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: Development alone no longer seeds the demo accounts; this says so explicitly.
+      ALLOW_DEMO_SEED: "true"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
@@ -319,6 +323,8 @@ services:
       - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: Development alone no longer seeds the demo accounts; this says so explicitly.
+      ALLOW_DEMO_SEED: "true"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
