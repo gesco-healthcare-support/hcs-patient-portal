@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { ConfigStateService, ListService, RestService } from '@abp/ng.core';
 
 import { ExternalHomeComponent } from './external-home.component';
@@ -83,6 +83,7 @@ describe('ExternalHomeComponent surfaces', () => {
     const listStub = {
       maxResultCount: 10,
       hookToQuery: (fn: (q: Record<string, unknown>) => unknown) => fn({}),
+      requestStatus$: NEVER,
     };
 
     TestBed.configureTestingModule({
