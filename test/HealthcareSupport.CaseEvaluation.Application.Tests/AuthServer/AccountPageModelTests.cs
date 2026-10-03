@@ -194,8 +194,16 @@ public class AccountPageModelTests
 
     // ---------------------------------------------------------------- reset password
 
-    private static ResetPasswordModel ResetModel(IExternalAccountAppService account, string? returnUrl = null) =>
-        WithContext(new ResetPasswordModel(account, NullLogger<ResetPasswordModel>.Instance)
+    private static IResetLinkChecker Checker(bool usable)
+    {
+        var checker = Substitute.For<IResetLinkChecker>();
+        checker.IsUsableAsync(Arg.Any<Guid>(), Arg.Any<string?>()).Returns(usable);
+        return checker;
+    }
+
+    private static ResetPasswordModel ResetModel(
+        IExternalAccountAppService account, string? returnUrl = null, bool linkUsable = true) =>
+        WithContext(new ResetPasswordModel(account, Checker(linkUsable), NullLogger<ResetPasswordModel>.Instance)
         {
             UserId = UserId,
             ResetToken = "TEST-reset-token",
@@ -205,21 +213,17 @@ public class AccountPageModelTests
         });
 
     [Fact]
-    public void Reset_password_without_a_user_or_token_sends_the_user_back_to_forgot_password()
+    public async Task Reset_password_with_a_dead_link_sends_the_user_back_to_forgot_password_before_the_form()
     {
         var account = Substitute.For<IExternalAccountAppService>();
-        var noToken = ResetModel(account);
-        noToken.ResetToken = " ";
-        var noUser = ResetModel(account);
-        noUser.UserId = Guid.Empty;
+        // A used, expired, tampered or unknown-user link all arrive here as "not usable", so the
+        // page gives the same answer for every one of them.
+        var model = ResetModel(account, linkUsable: false);
 
-        foreach (var model in new[] { noToken, noUser })
-        {
-            model.OnGet().ShouldBeOfType<RedirectToPageResult>().PageName.ShouldBe("./ForgotPassword");
-            model.TempData["ErrorMessage"].ShouldBe("That reset link doesn't work anymore. Request a new one below.");
-        }
+        (await model.OnGetAsync()).ShouldBeOfType<RedirectToPageResult>().PageName.ShouldBe("./ForgotPassword");
+        model.TempData["ErrorMessage"].ShouldBe("That reset link doesn't work anymore. Request a new one below.");
 
-        ResetModel(account).OnGet().ShouldBeOfType<PageResult>();
+        (await ResetModel(account, linkUsable: true).OnGetAsync()).ShouldBeOfType<PageResult>();
     }
 
     [Fact]
