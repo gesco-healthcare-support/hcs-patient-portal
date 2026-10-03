@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Linq;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -560,6 +563,98 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
                 result.FirmName.ShouldBe("Shield Defense Group");
                 result.IdentityUserId.ShouldBe(Guid.Empty);
             }
+        });
+    }
+
+    [Fact]
+    public async Task UpsertApplicantAttorney_RefusesACallerWhoIsNotAPartyAndWritesNoLink()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        var outsider = Guid.NewGuid();
+        Guid appointmentId = Guid.Empty;
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId))
+            {
+                var date = TestToday.AddDays(31);
+                var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
+                appointmentId = (await _appointmentsAppService.CreateAsync(
+                    BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15)))).Id;
+            }
+        });
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            using (WithCurrentUser.Run(_principalAccessor, outsider))
+            {
+                // The outsider nominates their OWN user id: if this were accepted, the link row would
+                // admit them to the appointment through the attorney access pathway.
+                var refusal = await Should.ThrowAsync<BusinessException>(() =>
+                    _appointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(appointmentId,
+                        new ApplicantAttorneyDetailsDto
+                        {
+                            IdentityUserId = outsider,
+                            FirstName = "Out",
+                            LastName = "Sider",
+                            Email = "outsider.synthetic@test.local",
+                            FirmName = "TEST Firm",
+                        }));
+                refusal.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+            }
+        });
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            var links = await GetRequiredService<IAppointmentApplicantAttorneyRepository>().GetQueryableAsync();
+            links.Where(l => l.AppointmentId == appointmentId && l.IdentityUserId == outsider)
+                .Count().ShouldBe(0, "a refused caller must leave no link row behind");
+        });
+    }
+
+    [Fact]
+    public async Task UpsertDefenseAttorney_RefusesACallerWhoIsNotAPartyAndWritesNoLink()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        var outsider = Guid.NewGuid();
+        Guid appointmentId = Guid.Empty;
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId))
+            {
+                var date = TestToday.AddDays(32);
+                var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(10, 0), new TimeOnly(11, 0));
+                appointmentId = (await _appointmentsAppService.CreateAsync(
+                    BuildCreateDto(officeA, slotId, date.AddHours(10).AddMinutes(15)))).Id;
+            }
+        });
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            using (WithCurrentUser.Run(_principalAccessor, outsider))
+            {
+                // The outsider nominates their OWN user id: if this were accepted, the link row would
+                // admit them to the appointment through the attorney access pathway.
+                var refusal = await Should.ThrowAsync<BusinessException>(() =>
+                    _appointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync(appointmentId,
+                        new DefenseAttorneyDetailsDto
+                        {
+                            IdentityUserId = outsider,
+                            FirstName = "Out",
+                            LastName = "Sider",
+                            Email = "outsider.synthetic@test.local",
+                            FirmName = "TEST Firm",
+                        }));
+                refusal.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+            }
+        });
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            var links = await GetRequiredService<IAppointmentDefenseAttorneyRepository>().GetQueryableAsync();
+            links.Where(l => l.AppointmentId == appointmentId && l.IdentityUserId == outsider)
+                .Count().ShouldBe(0, "a refused caller must leave no link row behind");
         });
     }
 
