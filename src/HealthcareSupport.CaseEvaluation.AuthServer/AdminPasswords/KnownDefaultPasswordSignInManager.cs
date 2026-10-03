@@ -48,7 +48,11 @@ public class KnownDefaultPasswordSignInManager : AbpSignInManager
         IHttpContextAccessor contextAccessor,
         IUserClaimsPrincipalFactory<IdentityUser> claimsFactory,
         IOptions<IdentityOptions> optionsAccessor,
-        ILogger<SignInManager<IdentityUser>> logger,
+        // S6672. ILogger<out TCategoryName> is covariant, so this converts to the
+        // ILogger<SignInManager<IdentityUser>> the base constructor takes. It matters here more
+        // than most: this is the type that REFUSES a sign-in on a known default password, and
+        // that refusal is exactly what an operator searches the log for after a deploy.
+        ILogger<KnownDefaultPasswordSignInManager> logger,
         IAuthenticationSchemeProvider schemes,
         IUserConfirmation<IdentityUser> confirmation,
         IOptions<AbpIdentityOptions> options,
