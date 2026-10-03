@@ -1,3 +1,5 @@
+using Volo.Abp;
+using NSubstitute.ExceptionExtensions;
 using System;
 using System.IO;
 using System.Linq;
@@ -131,5 +133,45 @@ public abstract class DocumentsStorageTests<TStartupModule>
         (await Names("creationtime")).ShouldBe(new[] { "Synthetic B", "Synthetic A", "Synthetic C" });
         (await Names("creationtime desc")).ShouldBe(new[] { "Synthetic C", "Synthetic A", "Synthetic B" });
         (await Names("an unknown order")).ShouldBe(new[] { "Synthetic A", "Synthetic B", "Synthetic C" });
+    }
+
+    // ------------------------------------------------------------------ malware scan (B11)
+    //
+    // The refusal comes from the container's SaveAsync, which runs BEFORE the record is written
+    // (DocumentsAppService.CreateAsync and ReplaceFileAsync). The create and replace facts above
+    // are the clean counterparts: in this same rig a clean file IS stored and recorded.
+
+    private void RefuseEverySave(string code) =>
+        _blobs.SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new BusinessException(code));
+
+    [Theory]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadRefused)]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadScanUnavailable)]
+    public async Task A_document_the_scan_refuses_reaches_the_caller_and_saves_no_record(string code)
+    {
+        var name = $"Synthetic Refused Form {Guid.NewGuid().ToString("N")[..8]}";
+        RefuseEverySave(code);
+
+        (await Should.ThrowAsync<BusinessException>(() => CreateAsync(TenantsTestData.TenantARef, name, "refused.pdf")))
+            .Code.ShouldBe(code);
+
+        (await InOffice(TenantsTestData.TenantARef, () => _repository.GetListAsync(d => d.Name == name))).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadRefused)]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadScanUnavailable)]
+    public async Task A_replacement_the_scan_refuses_keeps_the_previous_file(string code)
+    {
+        var created = await CreateAsync(TenantsTestData.TenantARef, $"Synthetic Kept Form {Guid.NewGuid().ToString("N")[..8]}", "kept.pdf");
+        var original = (await InOffice(TenantsTestData.TenantARef, () => _repository.GetAsync(created.Id))).BlobName;
+        RefuseEverySave(code);
+
+        (await Should.ThrowAsync<BusinessException>(() => InOffice(TenantsTestData.TenantARef, () => _documents.ReplaceFileAsync(
+                created.Id, new MemoryStream("%PDF-1.7 v2"u8.ToArray()), "kept-v2.pdf", contentType: null))))
+            .Code.ShouldBe(code);
+
+        (await InOffice(TenantsTestData.TenantARef, () => _repository.GetAsync(created.Id))).BlobName.ShouldBe(original);
     }
 }

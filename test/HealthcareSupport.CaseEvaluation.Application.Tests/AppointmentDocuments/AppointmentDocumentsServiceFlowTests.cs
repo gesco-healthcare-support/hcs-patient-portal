@@ -871,4 +871,77 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
 
         forClaimExaminer.ShouldBeNull();
     }
+
+    // ------------------------------------------------------------------ malware scan (B11)
+    //
+    // The scan runs inside the blob provider's save, so from this service it looks like the
+    // container's SaveAsync throwing. Each refusal fact has a clean counterpart in this class: a
+    // refusal test that never reached the save would pass whether or not anything refused.
+
+    private void RefuseEverySave(string code) =>
+        _blobs.SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new BusinessException(code));
+
+    private async Task<int> CountAppointmentDocumentsAsync()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            return await WithUnitOfWorkAsync(async () =>
+                (await _documentRepository.GetListAsync(d => d.AppointmentId == AppointmentId)).Count);
+        }
+    }
+
+    [Theory]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadRefused)]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadScanUnavailable)]
+    public async Task An_upload_the_scan_refuses_reaches_the_caller_and_leaves_no_document(string code)
+    {
+        RefuseEverySave(code);
+        var before = await CountAppointmentDocumentsAsync();
+
+        await AsStaff(async () =>
+            (await Should.ThrowAsync<BusinessException>(() => Upload(Pdf()))).Code.ShouldBe(code));
+
+        (await CountAppointmentDocumentsAsync()).ShouldBe(before);
+        Published<AppointmentDocumentUploadedEto>().ShouldBeEmpty();
+        // Nothing was stored, so nothing is left for the compensating delete to remove.
+        await _blobs.DidNotReceive().DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_clean_upload_in_the_same_rig_is_stored_and_recorded()
+    {
+        var before = await CountAppointmentDocumentsAsync();
+
+        await AsStaff(async () => await Upload(Pdf()));
+
+        (await CountAppointmentDocumentsAsync()).ShouldBe(before + 1);
+        SavedBlobNames().ShouldHaveSingleItem();
+        Published<AppointmentDocumentUploadedEto>().ShouldHaveSingleItem();
+    }
+
+    [Theory]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadRefused)]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadScanUnavailable)]
+    public async Task A_code_upload_the_scan_refuses_leaves_the_document_waiting_for_its_file(string code)
+    {
+        // The anonymous upload-by-code path. The document row exists before the upload, so it is
+        // inserted in its own unit of work: the refused upload must leave it exactly as it was.
+        var verification = new Guid("7d3f1e2a-0000-4000-9000-000000000003");
+        AppointmentDocument document = null!;
+        await AsStaff(async () => document = await InsertDocumentAsync(d =>
+        {
+            d.VerificationCode = verification;
+            d.BlobName = "(pending-upload)";
+        }));
+        RefuseEverySave(code);
+
+        await AsStaff(async () =>
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.UploadByVerificationCodeAsync(document.Id, verification, "form.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(code));
+
+        (await ReloadAsync(document.Id)).BlobName.ShouldBe("(pending-upload)");
+        Published<AppointmentDocumentUploadedEto>().ShouldBeEmpty();
+    }
 }
