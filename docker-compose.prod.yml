@@ -318,6 +318,21 @@ services:
       Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
       Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
     volumes:
+      # #908: the Serilog file sink writes to Logs/ relative to the content root, which is
+      # container-local -- so a deploy, which recreates the container, erased the very log
+      # that would explain whatever prompted the deploy. Measured rather than assumed: after
+      # `up -d --force-recreate` the container id changes and `docker logs` returns only the
+      # new container's output, so the json-file driver does NOT cover this; a named volume
+      # kept both runs.
+      #
+      # NAMED volume, not a bind mount. This process runs as uid 1654, and Docker initialises
+      # a named volume from the image path WITH its ownership, which the Dockerfile already
+      # sets (`mkdir -p /app/Logs && chown app:app /app/Logs`). A bind-mount source that
+      # Docker creates is root-owned, and Serilog does not throw on a failed sink -- it drops
+      # the line -- so that variant yields a container that runs perfectly and silently writes
+      # nothing. That trap already costs this deploy two host-side prerequisites (#1152
+      # docs-site, #1127 admin-passwords); a named volume adds no third thing to forget.
+      - "authserverlogs:/app/Logs"
       # G6: OpenIddict token-signing cert mounted read-only at the content root. NEVER
       # baked into the image. Generate with scripts/hosting/gen-openiddict-cert.sh.
       - "${OPENIDDICT_PFX_PATH}:/app/openiddict.pfx:ro"
@@ -423,6 +438,21 @@ services:
       AdminPasswords__Directory: "${ADMIN_PASSWORD_DIRECTORY:-/run/admin-passwords}"
       AdminPasswords__VaultUri: "${ADMIN_PASSWORD_VAULT_URI:-}"
     volumes:
+      # #908: the Serilog file sink writes to Logs/ relative to the content root, which is
+      # container-local -- so a deploy, which recreates the container, erased the very log
+      # that would explain whatever prompted the deploy. Measured rather than assumed: after
+      # `up -d --force-recreate` the container id changes and `docker logs` returns only the
+      # new container's output, so the json-file driver does NOT cover this; a named volume
+      # kept both runs.
+      #
+      # NAMED volume, not a bind mount. This process runs as uid 1654, and Docker initialises
+      # a named volume from the image path WITH its ownership, which the Dockerfile already
+      # sets (`mkdir -p /app/Logs && chown app:app /app/Logs`). A bind-mount source that
+      # Docker creates is root-owned, and Serilog does not throw on a failed sink -- it drops
+      # the line -- so that variant yields a container that runs perfectly and silently writes
+      # nothing. That trap already costs this deploy two host-side prerequisites (#1152
+      # docs-site, #1127 admin-passwords); a named volume adds no third thing to forget.
+      - "apilogs:/app/Logs"
       # B12: the generated admin passwords, one file per database, owner-read-only. Read-WRITE
       # because either process may be the one that first creates a database. Harmless on Azure,
       # where the directory key is left empty and the vault is used instead.
@@ -526,6 +556,14 @@ volumes:
   sqldata:
   redisdata:
   miniodata:
+  # #908: host log directories, so a deploy stops erasing the record of what preceded it.
+  # Bounded by LogFileConsts (50 MB x 31 files = 1.55 GB worst case each, about 280 MB in
+  # practice at the measured 9.1 MB/day). They now persist instead of resetting every deploy,
+  # so that worst case is a real steady state rather than a ceiling nothing ever reached.
+  # Read on the box with `scripts/hosting/dc.sh exec api cat Logs/logs.txt`, or from the host
+  # under /var/lib/docker/volumes/<project>_apilogs/_data (root).
+  apilogs:
+  authserverlogs:
 
 secrets:
   # The ABP Commercial feed key (#703). It used to be a build ARG, and Docker records
