@@ -1,6 +1,8 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp.Data;
@@ -137,5 +139,96 @@ public class PatientRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
         match.ShouldNotBeNull();
         match.Id.ShouldBe(PatientsTestData.Patient1Id);
         match.MatchCount.ShouldBe(4);
+    }
+
+    // #1202: a row stored with separators must still match digits-only input. Synthetic values only;
+    // the date of birth is unique to these rows so nothing seeded can contribute a key.
+    private static readonly DateTime PunctuatedDob = new DateTime(1971, 3, 9, 0, 0, 0, DateTimeKind.Utc);
+
+    private async Task SeedPunctuatedPatientAsync(string phone, string ssn)
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable())
+            {
+                await _patientRepository.InsertAsync(
+                    new Patient(
+                        id: Guid.NewGuid(),
+                        stateId: null,
+                        appointmentLanguageId: null,
+                        identityUserId: null,
+                        tenantId: TenantsTestData.TenantARef,
+                        firstName: "TEST-Punct",
+                        lastName: "Synthetic",
+                        email: $"TEST-p-{Guid.NewGuid().ToString("N")[..12]}@test.local",
+                        genderId: Gender.Unspecified,
+                        dateOfBirth: PunctuatedDob,
+                        phoneNumberTypeId: PhoneNumberType.Work,
+                        phoneNumber: phone,
+                        socialSecurityNumber: ssn),
+                    autoSave: true);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task FindBestMatchAsync_MatchesPhoneAndSsnStoredWithSeparators()
+    {
+        await SeedPunctuatedPatientAsync("(555) 010-4567", "900-12-3456");
+        PatientMatchCandidate? match = null;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable())
+            {
+                // Names differ, so DOB + SSN + phone are the only three keys that can match.
+                match = await _patientRepository.FindBestMatchAsync(
+                    TenantsTestData.TenantARef, "other", "person", PunctuatedDob,
+                    ssn: "900123456", phone: "5550104567", zip: null);
+            }
+        });
+
+        match.ShouldNotBeNull();
+        match.MatchCount.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task FindBestMatchAsync_AnInputThatNormalisesToNothingMatchesNothing()
+    {
+        await SeedPunctuatedPatientAsync("", "");
+        PatientMatchCandidate? match = null;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable())
+            {
+                // DOB is the only real key; "---" must not count as matching the empty stored values.
+                match = await _patientRepository.FindBestMatchAsync(
+                    TenantsTestData.TenantARef, "other", "person", PunctuatedDob,
+                    ssn: "---", phone: "---", zip: null);
+            }
+        });
+
+        match.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetDeduplicationCandidatesAsync_MatchesPhoneAndSsnStoredWithSeparatorsFromFormattedInput()
+    {
+        await SeedPunctuatedPatientAsync("555.010.4568", "900-12-3457");
+        System.Collections.Generic.List<Patient> byPhone = null!;
+        System.Collections.Generic.List<Patient> bySsn = null!;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable())
+            {
+                // Different separators on each side: only digit-level comparison can match.
+                byPhone = await _patientRepository.GetDeduplicationCandidatesAsync(
+                    TenantsTestData.TenantARef, null, null, "(555) 010-4568", null, null, null);
+                bySsn = await _patientRepository.GetDeduplicationCandidatesAsync(
+                    TenantsTestData.TenantARef, null, null, null, null, "900 12 3457", null);
+            }
+        });
+
+        byPhone.Count.ShouldBe(1);
+        bySsn.Count.ShouldBe(1);
     }
 }
