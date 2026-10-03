@@ -49,6 +49,7 @@ import {
   buildSubmitPatient,
   buildSubmitPrimaryInsurance,
 } from './shared/submit-payload.mapper';
+import { storedPatientDetailsAreFinal } from './shared/patient-edit-notice.util';
 import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
   AddressValidationProvider,
@@ -1455,6 +1456,14 @@ export class AppointmentAddComponent {
     'defense attorney',
     'claim examiner',
   ];
+
+  /** #1107: an external booker with an existing patient loaded; their edits to it are not applied. */
+  get storedPatientDetailsAreFinal(): boolean {
+    return storedPatientDetailsAreFinal(
+      this.currentUser?.roles,
+      !!this.currentPatientProfile?.patient?.id,
+    );
+  }
 
   get isInternalBooker(): boolean {
     const roles = this.currentUser?.roles ?? [];
