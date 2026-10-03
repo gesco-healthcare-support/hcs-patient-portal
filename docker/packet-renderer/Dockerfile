@@ -43,31 +43,35 @@ RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# Pinned for reproducibility. weasyprint + pikepdf match the verified template toolchain;
-# Flask + gunicorn serve the HTTP surface.
+# weasyprint + pikepdf match the verified template toolchain; Flask + gunicorn serve
+# the HTTP surface. The four top-level pins live in requirements.in; requirements.txt
+# is compiled from it by pip-compile and carries every transitive package with a hash.
 #
-# VERSION-pinned, not HASH-pinned, and that is a decision rather than an oversight
-# (item 2.14, 2026-09-04). OpenSSF Scorecard's pinned-dependencies check wants
-# `--require-hashes` against a requirements.txt carrying a hash for every transitive
-# dependency. Declined: PyPI does not permit an existing version to be re-published
-# with different content, so the residual risk hashes close here is a registry
-# compromise -- against which the cost is a generated lock file that must be
-# regenerated, in full, on every bump of any of the four. Revisit if the service
-# grows a real dependency tree or if PyPI's immutability guarantee changes.
+# HASH-pinned since decision 18 (B8), which reverses item 2.14 (2026-09-04). 2.14
+# declined hashes because PyPI will not re-publish a version with different content.
+# That still leaves a registry or mirror compromise, and this image renders documents
+# carrying patient data, so it now verifies every wheel against a recorded hash. The
+# cost 2.14 named -- regenerating the whole file on every bump -- is what Dependabot's
+# pip entry now does. CI's own pip installs stay hash-free (decision d36); only this
+# image carries hashes.
+#
+# --require-hashes: a wheel whose hash is not in the file fails the build, and so
+# does any package the file does not list.
 #
 # --only-binary :all: (S8541, 2026-09-14): refuse source distributions. An sdist
 # runs its own setup.py at install time -- arbitrary code executing during the
 # image build with the build context present, the same class as the yarn lifecycle
-# scripts disabled in #723. All four publish wheels, so this costs nothing and
-# closes that path. If a future bump ever lacks a wheel the build fails loudly
-# rather than quietly running someone's setup.py.
+# scripts disabled in #870. Every package here publishes wheels, so this costs
+# nothing and closes that path. If a future bump ever lacks a wheel the build fails
+# loudly rather than quietly running someone's setup.py.
 #
-# Sorted (S7018) so a bump is a one-line diff rather than a reshuffle.
-RUN pip install --no-cache-dir --only-binary :all: \
-      Flask==3.1.0 \
-      gunicorn==23.0.0 \
-      pikepdf==10.7.2 \
-      weasyprint==69.0
+# To change a version: edit requirements.in, then recompile INSIDE this image (the
+# digest on the FROM line above), so the resolver sees the same Python and platform:
+#   docker run --rm -v "<repo>/docker/packet-renderer:/w" -w /w python:3.12-slim-trixie@<digest> \
+#     sh -c "pip install pip-tools==7.5.3 && pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in"
+COPY docker/packet-renderer/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r /tmp/requirements.txt \
+ && rm /tmp/requirements.txt
 
 WORKDIR /app
 

@@ -57,4 +57,6 @@ cat > "$DIST/dynamic-env.json" <<EOF
 EOF
 
 echo "[dev] serving $DIST on :80"
-exec serve -s "$DIST" -l 80
+# serve is a pinned devDependency (B8), installed and checksum-verified by the
+# `yarn install --immutable` above; there is no global install in the image.
+exec node_modules/.bin/serve -s "$DIST" -l 80
