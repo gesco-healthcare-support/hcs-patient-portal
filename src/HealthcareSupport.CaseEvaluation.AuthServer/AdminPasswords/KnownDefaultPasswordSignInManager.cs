@@ -48,7 +48,7 @@ public class KnownDefaultPasswordSignInManager : AbpSignInManager
         IHttpContextAccessor contextAccessor,
         IUserClaimsPrincipalFactory<IdentityUser> claimsFactory,
         IOptions<IdentityOptions> optionsAccessor,
-        ILogger<SignInManager<IdentityUser>> logger,
+        ILogger<KnownDefaultPasswordSignInManager> logger,
         IAuthenticationSchemeProvider schemes,
         IUserConfirmation<IdentityUser> confirmation,
         IOptions<AbpIdentityOptions> options,

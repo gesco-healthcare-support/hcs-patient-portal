@@ -65,11 +65,9 @@ public class CaseEvaluationIdentityUserManager : IdentityUserManager
         ILookupNormalizer keyNormalizer,
         IdentityErrorDescriber errors,
         IServiceProvider services,
-        // Category is IdentityUserManager, not this subclass, and cannot be otherwise: the base
-        // constructor takes ILogger<IdentityUserManager> and ILogger<T> is invariant in T, so a
-        // subclass-categorised logger will not pass. Sonar flags this (S6672); it is a false
-        // positive here. Log lines from this type therefore appear under the base category.
-        ILogger<IdentityUserManager> logger,
+        // Categorised by this subclass. The base takes ILogger<IdentityUserManager>, and ILogger<T> is
+        // covariant (ILogger<out TCategoryName>), so a subclass-categorised logger converts to it.
+        ILogger<CaseEvaluationIdentityUserManager> logger,
         ICancellationTokenProvider cancellationTokenProvider,
         IOrganizationUnitRepository organizationUnitRepository,
         ISettingProvider settingProvider,
