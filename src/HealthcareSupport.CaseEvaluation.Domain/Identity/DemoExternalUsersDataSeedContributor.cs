@@ -59,27 +59,31 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
     private readonly ICurrentTenant _currentTenant;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly ILogger<DemoExternalUsersDataSeedContributor> _logger;
+    private readonly IDemoSeedEnvironment _demoSeedEnvironment;
 
     public DemoExternalUsersDataSeedContributor(
         IdentityUserManager userManager,
         IdentityRoleManager roleManager,
         ICurrentTenant currentTenant,
         IRepository<Tenant, Guid> tenantRepository,
-        ILogger<DemoExternalUsersDataSeedContributor> logger)
+        ILogger<DemoExternalUsersDataSeedContributor> logger,
+        IDemoSeedEnvironment demoSeedEnvironment)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _currentTenant = currentTenant;
         _tenantRepository = tenantRepository;
         _logger = logger;
+        _demoSeedEnvironment = demoSeedEnvironment;
     }
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (!IsDevelopment())
+        if (!DemoSeedGate.IsAllowed(_demoSeedEnvironment))
         {
             _logger.LogInformation(
-                "DemoExternalUsersDataSeedContributor: skipping (not Development environment).");
+                "DemoExternalUsersDataSeedContributor: skipping ({Reason}).",
+                DemoSeedGate.ClosedReason(_demoSeedEnvironment));
             return;
         }
 
@@ -177,8 +181,8 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
-            _logger.LogInformation(
-                "DemoExternalUsersDataSeedContributor: created user {Email} (tenant {TenantId}).",
+            _logger.LogWarning(
+                "DemoExternalUsersDataSeedContributor: DEMO SEED created {Email} (tenant {TenantId}) with the published default password.",
                 email, tenantId);
         }
         else
@@ -227,13 +231,6 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
         {
             return await _tenantRepository.FindAsync(tenantId);
         }
-    }
-
-    private static bool IsDevelopment()
-    {
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-        return string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
