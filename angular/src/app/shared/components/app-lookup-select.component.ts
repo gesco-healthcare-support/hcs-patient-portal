@@ -65,13 +65,17 @@ import { LocalizationPipe } from '@abp/ng.core';
 })
 export class AppLookupSelectComponent extends LookupSelectComponent {
   override get() {
-    this.getFn(this.pageQuery).subscribe(({ items }) => {
-      this.datas = items ?? [];
-      // `cdRef` is inherited from AbstractNgModelComponent. Without
-      // markForCheck the @for never re-evaluates when this component
-      // sits under an OnPush parent that hasn't been marked dirty by
-      // an input change.
-      this.cdRef.markForCheck();
+    this.getFn(this.pageQuery).subscribe({
+      next: ({ items }) => {
+        this.datas = items ?? [];
+        // `cdRef` is inherited from AbstractNgModelComponent. Without
+        // markForCheck the @for never re-evaluates when this component
+        // sits under an OnPush parent that hasn't been marked dirty by
+        // an input change.
+        this.cdRef.markForCheck();
+      },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 }
