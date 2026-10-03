@@ -408,6 +408,31 @@ public class AppointmentManager : DomainService
         => TransitionAsync(id, AppointmentTransitionTrigger.RejectReschedule, reason, actingUserId);
 
     /// <summary>
+    /// #926 -- finalizes an approved cancellation: Approved or Pending -> CancelledNoBill / CancelledLate.
+    /// Nothing moves an appointment to CancellationRequested when a cancel request is filed (the
+    /// request lives on the change-request row), so the source here is the status it held when filed:
+    /// Approved, or Pending for an internal-staff cancel (B1). Takes the OUTCOME and maps it to a
+    /// trigger in one throwing switch, so a caller cannot drive an arbitrary transition through it.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="outcome"/> is not a cancellation outcome.</exception>
+    public virtual Task<Appointment> ConfirmCancellationAsync(
+        Guid id,
+        AppointmentStatusType outcome,
+        string? reason,
+        Guid? actingUserId)
+        => TransitionAsync(id, ToCancellationTrigger(outcome), reason, actingUserId);
+
+    private static AppointmentTransitionTrigger ToCancellationTrigger(AppointmentStatusType outcome) => outcome switch
+    {
+        AppointmentStatusType.CancelledNoBill => AppointmentTransitionTrigger.ConfirmCancellation,
+        AppointmentStatusType.CancelledLate => AppointmentTransitionTrigger.ConfirmCancellationLate,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(outcome),
+            outcome,
+            "Only CancelledNoBill and CancelledLate are cancellation outcomes."),
+    };
+
+    /// <summary>
     /// Phase 5 (2026-08-07) -- Approved -> NoShow / NotSeen. Records that an
     /// appointment produced no evaluation, as reported by the Case Tracker.
     ///
@@ -609,7 +634,10 @@ public class AppointmentManager : DomainService
             // these two, finalizing that reschedule throws an invalid transition and the whole
             // Pending-source path is dead.
             .Permit(AppointmentTransitionTrigger.ConfirmReschedule, AppointmentStatusType.RescheduledNoBill)
-            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate);
+            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate)
+            // #926: an internal-staff cancel of a not-yet-approved appointment (B1) finalizes from Pending.
+            .Permit(AppointmentTransitionTrigger.ConfirmCancellation, AppointmentStatusType.CancelledNoBill)
+            .Permit(AppointmentTransitionTrigger.ConfirmCancellationLate, AppointmentStatusType.CancelledLate);
 
         // Info Requested is transient: the external user resubmits their fixes
         // and the appointment returns to Pending for staff review. The slot
@@ -620,6 +648,9 @@ public class AppointmentManager : DomainService
         machine.Configure(AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.RequestCancellation, AppointmentStatusType.CancellationRequested)
             .Permit(AppointmentTransitionTrigger.RequestReschedule, AppointmentStatusType.RescheduleRequested)
+            // #926: finalizing a cancellation straight from Approved (no CancellationRequested hop exists).
+            .Permit(AppointmentTransitionTrigger.ConfirmCancellation, AppointmentStatusType.CancelledNoBill)
+            .Permit(AppointmentTransitionTrigger.ConfirmCancellationLate, AppointmentStatusType.CancelledLate)
             .Permit(AppointmentTransitionTrigger.MarkNoShow, AppointmentStatusType.NoShow)
             // Phase 5 (2026-08-07): the not-seen companion to MarkNoShow. Approved is
             // the ONLY source for both, and deliberately so -- filing a change request
