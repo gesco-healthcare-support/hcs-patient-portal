@@ -20,9 +20,11 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// must scope its results to the caller's co-parties, which are exactly the
 /// parties named on these appointments).
 ///
-/// <para>Returns <c>null</c> for an internal-role caller (no narrowing -- they
-/// see the whole tenant) or the set of visible appointment ids for an
-/// external-only caller. The set is the union of four pathways: booker
+/// <para>Returns <c>null</c> for a caller holding a recognised internal role
+/// (<see cref="BookingFlowRoles.InternalUserRoles"/>; no narrowing -- they see the
+/// whole tenant) and otherwise the set of visible appointment ids. "Otherwise"
+/// includes a caller with no roles or an unrecognised role: the default is the
+/// narrow answer, not the wide one. The set is the union of four pathways: booker
 /// (<c>CreatorId ?? BookedByUserId</c>), patient identity, explicit accessor
 /// grants, and the leak-free email+role rule
 /// (<see cref="AppointmentAccessRules.IsAppointmentEmailRoleVisible"/>). The
@@ -55,8 +57,8 @@ public class AppointmentVisibilityService : ITransientDependency
     }
 
     /// <summary>
-    /// Null = internal caller (no narrowing). Otherwise the union of appointment
-    /// ids the external-only caller is a party to. See class docs for pathways.
+    /// Null = recognised internal caller (no narrowing). Otherwise the union of
+    /// appointment ids the caller is a party to. See class docs for pathways.
     /// </summary>
     public async Task<IReadOnlyCollection<Guid>?> GetVisibleAppointmentIdsAsync()
     {
@@ -65,14 +67,17 @@ public class AppointmentVisibilityService : ITransientDependency
             return Array.Empty<Guid>();
         }
 
-        // Internal-role check: anyone with a non-external role bypasses the
-        // narrowing. Use the canonical role names from
-        // ExternalUserRoleDataSeedContributor.
+        // Deny by default: only a caller holding a RECOGNISED internal role skips the
+        // narrowing. This used to be the inverse -- "not exclusively external roles"
+        // -- which put a caller with NO roles, or with any role it did not recognise,
+        // on the internal side, and an internal caller sees the whole office. A
+        // zero-role account is reachable anonymously (ABP's stock self-registration
+        // assigns only IsDefault roles, and no role is default), so every such caller
+        // now gets the party pathways below and sees only appointments it is a party
+        // to. A multi-role user with one internal role is still internal.
         var roles = _currentUser.Roles ?? Array.Empty<string>();
-        if (!HasOnlyExternalRoles(roles))
+        if (BookingFlowRoles.IsInternalUserCaller(roles))
         {
-            // Internal user (admin / Intake Staff / Staff Supervisor / Doctor)
-            // OR a multi-role user with at least one internal role.
             return null;
         }
 
@@ -130,13 +135,6 @@ public class AppointmentVisibilityService : ITransientDependency
         union.UnionWith(accessorAppointmentIds);
         union.UnionWith(emailRoleAppointmentIds);
         return union.ToList();
-    }
-
-    private static bool HasOnlyExternalRoles(string[] roles)
-    {
-        var externalRoles = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
-        return roles.Length > 0
-            && roles.All(r => externalRoles.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
     }
 
     private async Task<List<Guid>> GetEmailRoleAppointmentIdsAsync(
