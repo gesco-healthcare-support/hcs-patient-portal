@@ -70,9 +70,13 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   update(record: DoctorWithNavigationPropertiesDto) {
-    this.proxyService.getWithNavigationProperties(record.doctor!.id!).subscribe((data) => {
-      this.selected = data;
-      this.showForm();
+    this.proxyService.getWithNavigationProperties(record.doctor!.id!).subscribe({
+      next: (data) => {
+        this.selected = data;
+        this.showForm();
+      },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 
@@ -90,7 +94,11 @@ export abstract class AbstractDoctorDetailViewService {
       tap(() => this.hideForm()),
     );
 
-    request.subscribe(this.list.get);
+    request.subscribe({
+      next: this.list.get,
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
   }
 
   changeVisible($event: boolean) {
