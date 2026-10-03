@@ -100,8 +100,10 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
         Check.NotNullOrWhiteSpace(fileName, nameof(fileName));
 
         var blobName = ComposeBlobName(fileName);
-        await _blobContainer.SaveAsync(blobName, fileStream, overrideExisting: false);
 
+        // Construct BEFORE storing. The constructor validates Name, BlobName and ContentType, and
+        // ComposeBlobName needs nothing from the store -- so building the entity first means a
+        // rejected name cannot leave an orphaned blob behind. #976
         var entity = new Document(
             id: _guidGenerator.Create(),
             tenantId: CurrentTenant.Id,
@@ -110,6 +112,7 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
             contentType: input.ContentType,
             isActive: input.IsActive);
 
+        await _blobContainer.SaveAsync(blobName, fileStream, overrideExisting: false);
         await _documentRepository.InsertAsync(entity, autoSave: true);
         return ObjectMapper.Map<Document, DocumentDto>(entity);
     }
@@ -137,13 +140,21 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
         var entity = await _documentRepository.GetAsync(id);
 
         var newBlobName = ComposeBlobName(fileName);
-        await _blobContainer.SaveAsync(newBlobName, fileStream, overrideExisting: false);
+
+        // Same ordering as CreateAsync: validate before storing, so a rejected content type cannot
+        // leave an orphaned blob. The length check is EXPLICIT here because Document's setters are
+        // plain auto-properties -- only its constructor validates, and this path does not call it.
+        // Without this line the reorder would buy nothing and the value would fail later, at the
+        // database, with the blob already written. #976
+        Check.Length(contentType, nameof(contentType), DocumentConsts.ContentTypeMaxLength);
 
         entity.BlobName = newBlobName;
         if (!string.IsNullOrWhiteSpace(contentType))
         {
             entity.ContentType = contentType;
         }
+
+        await _blobContainer.SaveAsync(newBlobName, fileStream, overrideExisting: false);
         await _documentRepository.UpdateAsync(entity, autoSave: true);
 
         return ObjectMapper.Map<Document, DocumentDto>(entity);
