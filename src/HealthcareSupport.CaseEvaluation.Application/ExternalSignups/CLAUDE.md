@@ -45,6 +45,29 @@ Applicant Attorney + Defense Attorney register as **firm accounts**, not individ
   so cross-role join rows are intentionally never created.
 - Patient / Claim Examiner registration is unchanged (First/Last shown).
 
+## `StockSelfRegistrationRefusal` -- ABP's own register method is refused (#1226)
+
+`StockSelfRegistrationRefusal` is an `AbpInterceptor` attached to every implementation of
+`IAccountAppService`, registered from `PreConfigureServices` so it is in place before the
+Account module registers its service.
+
+**Why it exists.** The portal registers people through `ExternalSignupAppService.RegisterAsync`,
+which assigns the role the person signed up as. ABP's stock `IAccountAppService.RegisterAsync`
+assigns only roles flagged as DEFAULT, and no role here is -- so a stock registration creates an
+account holding **no role at all**.
+
+**Why an interceptor rather than the `Abp.Account.IsSelfRegistrationEnabled` setting.** Two stock
+write paths reach that method: `POST api/account/register`, published on both the API host and the
+AuthServer, and the POST handler of the stock `/Account/Register` page. The portal's own sign-up UI
+IS that stock page -- `global-scripts.js` intercepts its submit and posts to the portal route
+instead -- so the page's GET must keep working. ABP's open-source `RegisterModel` refuses to render
+when that setting is false; the Pro page is obfuscated and **that behaviour was not verified for
+it**, which is why the setting is left alone. Refusing at the single method both write paths call
+closes both and leaves the page, and the portal route, untouched.
+
+**It cannot reach the portal route.** `RegisterAsync` here does not call `IAccountAppService`; it
+creates the user through `IdentityUserManager` directly.
+
 ## Known Gotchas
 
 1. **Missing `[RemoteService(IsEnabled = false)]`** -- Deviation from project convention

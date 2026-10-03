@@ -547,7 +547,23 @@ jobs:
     name: "Docs: Structure Check"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.shared == 'true'
+    # #908 follow-up / 2026-10-03: ALSO on backend and frontend, not shared alone.
+    #
+    # `check-claude-md.py` compares each per-folder CLAUDE.md against THE CODE BESIDE IT, so
+    # adding or renaming a source file is precisely what breaks it -- and a backend-only pull
+    # request classifies as `backend`, never `shared`. This job therefore SKIPPED on the one
+    # kind of change that can break it, the change merged, and every later pull request failed
+    # here for a drift none of them introduced. That happened on #1226, which added
+    # StockSelfRegistrationRefusal.cs with no mention in its folder's CLAUDE.md.
+    #
+    # The classifier's deny-by-default `*)` arm does not help: `src/**` is RECOGNISED, and
+    # correctly, as backend. The miscategorisation is here -- this reads as a docs job but is a
+    # code-versus-docs consistency job, so it must run whenever either side moves.
+    if: >-
+      needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.unclassified == 'true'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
