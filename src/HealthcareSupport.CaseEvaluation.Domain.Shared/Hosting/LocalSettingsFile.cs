@@ -5,8 +5,12 @@ using Microsoft.Extensions.FileProviders;
 namespace HealthcareSupport.CaseEvaluation.Hosting;
 
 /// <summary>
-/// #595: loads the gitignored <c>appsettings.Local.json</c> override, treating an EMPTY or whitespace-only file
-/// exactly as an absent one.
+/// #595: loads the gitignored <c>appsettings.Local.json</c> override, skipping an EMPTY or whitespace-only
+/// file so it cannot stop the host starting.
+///
+/// <para>NOT quite "the same as absent": a skipped file is never registered, so <c>reloadOnChange</c> does not
+/// watch it, and filling one in later needs a restart. An absent file IS watched and picks up content when it
+/// appears. The difference only matters to a developer who creates the file blank and then edits it.</para>
 ///
 /// <para><c>AddJsonFile(..., optional: true)</c> covers a file that is absent, not one that is present and empty.
 /// A zero-byte file -- what <c>touch</c> produces -- is still parsed, empty is not JSON, and the host stopped at
