@@ -1627,5 +1627,30 @@ describe('AppointmentViewComponent engine', () => {
       c.goBack();
       expect(router.navigateByUrl).toHaveBeenCalledWith('/');
     });
+
+    it('scrolls to the documents anchor when present', () => {
+      /**
+       * #805: this lookup silently returned null for the whole external audience, because only
+       * the INTERNAL template carried the id -- the `?.` swallowed it and a button wired here
+       * would have scrolled nowhere with no error.
+       */
+      const c = create();
+      const anchor = document.createElement('div');
+      anchor.id = 'appointment-documents-anchor';
+      const scroll = spyOn(anchor, 'scrollIntoView');
+      document.body.appendChild(anchor);
+
+      try {
+        c.openUploadDocuments();
+        expect(scroll).toHaveBeenCalled();
+      } finally {
+        anchor.remove();
+      }
+    });
+
+    it('does not throw when the documents anchor is absent', () => {
+      const c = create();
+      expect(() => c.openUploadDocuments()).not.toThrow();
+    });
   });
 });
