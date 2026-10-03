@@ -1214,30 +1214,6 @@ export class AppointmentViewComponent implements OnInit {
     });
   }
 
-  openUploadDocuments(): void {
-    // Scrolls the embedded documents block into view so the booker can reach the
-    // upload input. The earlier '/file-management' target hit Volo's tenant-wide
-    // explorer, which external roles cannot access (403). The per-appointment
-    // upload path (AppointmentDocumentsAppService.UploadStreamAsync) is already
-    // permission-granted to the four external roles via BookingBaselineGrants.
-    //
-    // #805: this comment used to assert that the documents block on this view
-    // already carried `id="appointment-documents-anchor"`. IT DID NOT. Only the
-    // INTERNAL template declared it; the external one rendered
-    // <app-appointment-documents> with no id, so this lookup returned null, the
-    // `?.` swallowed it, and a button wired here would have scrolled nowhere with
-    // no error at all. The id is now on both templates and a spec asserts it.
-    //
-    // STILL NOT CALLED FROM ANYWHERE. Nothing on the external page offers a
-    // jump-to-documents control yet -- where that control lives and what it is
-    // called is a design decision, deliberately left open on #805. So this is
-    // ready rather than live; do not read the working lookup as a working
-    // feature.
-    document
-      .getElementById('appointment-documents-anchor')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   openAddAuthorizedUserModal(): void {
     this.authorizedUserModalMode = 'create';
     this.editingAuthorizedUserId = null;
