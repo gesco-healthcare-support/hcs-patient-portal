@@ -132,4 +132,43 @@ public abstract class DocumentsStorageTests<TStartupModule>
         (await Names("creationtime desc")).ShouldBe(new[] { "Synthetic C", "Synthetic A", "Synthetic B" });
         (await Names("an unknown order")).ShouldBe(new[] { "Synthetic A", "Synthetic B", "Synthetic C" });
     }
+
+    /// <summary>
+    /// A rejected field must not leave a file behind. The entity constructor validates Name, so a
+    /// blank one throws -- and the store must not already have been written when it does. The
+    /// create path used to save the blob first, so every rejected upload orphaned a file nothing
+    /// referenced. #976
+    /// </summary>
+    [Fact]
+    public async Task Creating_with_a_rejected_name_stores_nothing()
+    {
+        await Should.ThrowAsync<Exception>(() =>
+            CreateAsync(TenantsTestData.TenantARef, "   ", "intake.pdf"));
+
+        SavedBlobNames().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The same guarantee on replace. Document's setters are plain auto-properties, so only its
+    /// constructor validates and this path never calls it -- the length check is explicit in the
+    /// service. Without it an over-long content type reached the database AFTER the blob was
+    /// written. #976
+    /// </summary>
+    [Fact]
+    public async Task Replacing_with_a_rejected_content_type_stores_no_new_blob()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var created = await CreateAsync(TenantsTestData.TenantARef, $"Synthetic Replace {token}", "orig.pdf");
+        _blobs.ClearReceivedCalls();
+
+        await Should.ThrowAsync<Exception>(() => InOffice(TenantsTestData.TenantARef, () =>
+            _documents.ReplaceFileAsync(
+                created.Id,
+                new MemoryStream("%PDF-1.7 synthetic"u8.ToArray()),
+                "replacement.pdf",
+                new string('x', DocumentConsts.ContentTypeMaxLength + 1))));
+
+        SavedBlobNames().ShouldBeEmpty();
+    }
+
 }

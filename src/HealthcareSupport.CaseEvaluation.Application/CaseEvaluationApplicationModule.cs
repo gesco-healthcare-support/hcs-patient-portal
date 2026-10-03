@@ -37,5 +37,8 @@ namespace HealthcareSupport.CaseEvaluation;
     )]
 public class CaseEvaluationApplicationModule : AbpModule
 {
-
+    public override void PreConfigureServices(ServiceConfigurationContext context)
+    {
+        context.Services.OnRegistered(ExternalSignups.StockSelfRegistrationRefusal.RegisterIfAccountAppService);
+    }
 }
