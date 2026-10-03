@@ -99,9 +99,9 @@ true, so `filterText` does nothing even though it flows through DTO / AppService
 
 1. `filterText` is a no-op in the EF repo (see Conventions above).
 2. Never identify a booked slot by its status: under the capacity model it stays `Available`.
-   Check for references instead (see "Bulk-delete modes"). Not yet guarded: cutting `Capacity`
-   below the active appointment count, and removing an accepted appointment type an active
-   appointment uses.
+   Check for references instead (see "Bulk-delete modes"). `UpdateAsync` also refuses cutting
+   `Capacity` below the active appointment count and removing an accepted appointment type an
+   active appointment uses.
 3. Preview + create is not atomic; two concurrent callers can both see no conflict and both
    persist duplicate overlapping slots. Pinned as
    `GeneratePreviewAsync_ConcurrentCalls_PreventDuplicateSlotCreation` (Skip).

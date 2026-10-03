@@ -89,7 +89,7 @@ public class CaseTrackerAttendanceController : AbpController
     /// </summary>
     /// <response code="200">Applied, or already applied -- a retry is a no-op.</response>
     /// <response code="400">Missing or unrecognised <c>outcome</c>.</response>
-    /// <response code="401">Missing or incorrect <c>X-Integration-Token</c>.</response>
+    /// <response code="403">Missing or incorrect <c>X-Integration-Token</c>.</response>
     /// <response code="404">Unknown office or appointment, or an office with the integration off.</response>
     /// <response code="409">Cannot take this outcome now; body carries the status and a retryable flag.</response>
     [HttpPost]
@@ -105,7 +105,7 @@ public class CaseTrackerAttendanceController : AbpController
         {
             // Rejected before ANY database work, so an unauthenticated caller cannot make us open an
             // office connection or probe which appointment ids exist.
-            return Unauthorized();
+            return CaseTrackerTokenRefusal.Forbidden();
         }
 
         // Parsed before the office is opened, for the same reason: a malformed body must not cost a

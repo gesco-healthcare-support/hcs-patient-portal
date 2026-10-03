@@ -117,8 +117,8 @@ FIRST if you built against an earlier version):
   side offered (section I).
 - **Refusals the portal returns** (new section I3): an allowlist or edge refusal must be `403`, never `401`,
   preferably not `429`, and must answer rather than drop. The feed uses `403` and `409` only. Reconcile
-  and attendance still answer a bad token with `401` and their shared limit with `429`; moving them to
-  `403` is issue #1068, not agreed yet.
+  and attendance answer a bad token with `403` (the Gesco envelope, `errors[0].code` `forbidden`) since
+  #1068; their shared limit still answers `429`, which is unchanged.
 - **Pausing an office** (new section I4): under 96 hours without notice; longer needs telling your side first.
 - **The volume guard binds the push only** (section H). Under the feed your consumer sets the pace; whether the
   portal should also cap the feed is issue #1069, not decided.
@@ -688,13 +688,13 @@ Answers to the receiver's reconcile questions (2026-07-28):
   of their `X-Intake-Token`. Chosen over OpenIddict client-credentials (which the portal already
   supports) because it is symmetric with their inbound design and needs no token-fetch/refresh cycle
   on their side. Portal issues the token out of band.
-- Response codes (FINAL): `200` with the payload; `401` when `X-Integration-Token` is missing, empty or
-  wrong -- rejected before any office database is opened; `404` for an unknown appointment. `404` ALSO
+- Response codes (FINAL): `200` with the payload; `403` when `X-Integration-Token` is missing, empty or
+  wrong (Gesco envelope, `errors[0].code` `forbidden`) -- rejected before any office database is opened; `404` for an unknown appointment. `404` ALSO
   covers an office whose integration is switched off, and the two are deliberately indistinguishable so
   the endpoint cannot be used to discover which appointments or offices exist. Treat `404` as terminal
   and stop sweeping that id, exactly as previously agreed.
-  NOTE 2026-09-24: the `401` is unchanged, although your client latches on it; see section I3 and
-  issue #1068 for the proposal to move it to `403`.
+  NOTE: this was `401` until #1068. It is `403` because your deployed client latches on a `401`; see
+  section I3.
 - The token is compared in constant time and is never logged. If the portal has no token configured the
   endpoint rejects EVERY request rather than allowing them through, so a misconfigured deploy fails
   closed rather than serving PHI.
@@ -934,15 +934,15 @@ What each inbound endpoint returns today:
 | Endpoint            | Bad or missing token | Over its allowance                                           | Office or item not available |
 | ------------------- | -------------------- | ------------------------------------------------------------ | ---------------------------- |
 | Changes feed (L)    | `403` `forbidden`    | `403` `allowance_exceeded` (240 an hour per office)          | `403` `feed_not_enabled`     |
-| Reconcile GET (F)   | `401`                | `429`, `Retry-After: 3600` (300 an hour per address, shared) | `404`                        |
-| Attendance POST (K) | `401`                | `429`, `Retry-After: 3600` (the same shared 300)             | `404`                        |
+| Reconcile GET (F)   | `403` `forbidden`    | `429`, `Retry-After: 3600` (300 an hour per address, shared) | `404`                        |
+| Attendance POST (K) | `403` `forbidden`    | `429`, `Retry-After: 3600` (the same shared 300)             | `404`                        |
 
 A feed request WITHOUT a valid token is also capped at 60 an hour per address, and refused with `403`
 `forbidden`.
 
-Reconcile and attendance keep `401` and `429` for now. Moving them to `403` is issue #1068, and it is NOT
-agreed: on a wrong token your client would then retry quietly instead of stopping. Until it changes, a
-`401` from either means a token mismatch that needs an operator.
+Reconcile and attendance answer a bad token with `403` since #1068, so on a wrong token your client retries
+quietly instead of latching; a persistent `403` from either means a token mismatch that needs an operator.
+Their shared limit still answers `429`; that is unchanged.
 
 ---
 
@@ -1081,14 +1081,13 @@ setter. Anything else is a 400.
 | ----- | --------------------------------------------------------------------------------------------------------- |
 | `200` | Applied. ALSO returned when the appointment already carried this outcome -- see idempotency below.        |
 | `400` | `outcome` missing or not one of the two accepted values.                                                  |
-| `401` | Missing or incorrect `X-Integration-Token`.                                                               |
+| `403` | Missing or incorrect `X-Integration-Token` (Gesco envelope, `errors[0].code` `forbidden`).                |
 | `404` | Unknown office, unknown appointment, or an office with the integration switched off -- indistinguishable. |
 | `409` | The appointment exists but cannot take this outcome from its current status.                              |
 
 No response body on success.
 
-NOTE 2026-09-24: the `401` is unchanged, although your client latches on it; see section I3 and
-issue #1068.
+NOTE: this was `401` until #1068; see section I3.
 
 ### Idempotency
 
@@ -1419,7 +1418,7 @@ Agreed in the September thread (2026-09-15/16), ADDED 2026-09-24:
     minutes, an early-warning and a dead-letter email, and a per-office bulk retry (#917; sections I, I2).
     A planned pause spends no attempts; the 24 hours covers an unplanned outage.
 13. Refusals: an allowlist or edge refusal is `403`, never `401`, preferably not `429`, and answers
-    rather than drops (section I3). Moving reconcile and attendance to `403` is #1068, not agreed.
+    rather than drops (section I3). Reconcile and attendance answer a bad token with `403` since #1068.
 14. Your proxy answers `5xx`, not `4xx`, while your backend boots (8-15 seconds); the portal retries a
     `403` anyway (section I).
 15. Pausing an office: under 96 hours without notice; longer needs telling your side first (section I4).

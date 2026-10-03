@@ -284,6 +284,11 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotUpdateBookedOrReserved);
         }
 
+        // Residue of the guard above: edits that move nothing can still leave a booked appointment
+        // pointing at a slot that no longer admits it -- capacity cut below the active count, or an
+        // accepted type removed while an active appointment uses it.
+        await EnsureEditKeepsActiveAppointmentsAdmittedAsync(existing, input);
+
         var doctorAvailability = await _doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity, input.ConcurrencyStamp);
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
     }
@@ -792,6 +797,49 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     {
         return await _appointmentRepository.AnyAsync(a => a.DoctorAvailabilityId == slotId)
             || await _appointmentChangeRequestRepository.AnyAsync(c => c.NewDoctorAvailabilityId == slotId);
+    }
+
+    private static readonly AppointmentStatusType[] CapacityFreeingStatuses =
+    {
+        AppointmentStatusType.Rejected,
+        AppointmentStatusType.CancelledNoBill,
+        AppointmentStatusType.CancelledLate,
+        AppointmentStatusType.RescheduledNoBill,
+        AppointmentStatusType.RescheduledLate,
+    };
+
+    /// <summary>
+    /// Refuses an edit that would leave an ACTIVE appointment on the slot that the slot no longer
+    /// admits: capacity below the active count, or an accepted-type set (non-empty; empty means any
+    /// type) that omits a type an active appointment uses. "Active" is the capacity model's own
+    /// predicate, the same five terminal statuses <c>GetActiveCountForSlotAsync</c> excludes.
+    /// </summary>
+    protected virtual async Task EnsureEditKeepsActiveAppointmentsAdmittedAsync(
+        DoctorAvailability existing, DoctorAvailabilityUpdateDto input)
+    {
+        if (input.Capacity < existing.Capacity)
+        {
+            var activeCount = await _appointmentRepository.GetActiveCountForSlotAsync(existing.Id);
+            if (input.Capacity < activeCount)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked)
+                    .WithData("activeCount", activeCount)
+                    .WithData("capacity", input.Capacity);
+            }
+        }
+
+        var acceptedTypeIds = input.AppointmentTypeIds?.Distinct().ToList() ?? new List<Guid>();
+        if (acceptedTypeIds.Count > 0)
+        {
+            var activeQuery = (await _appointmentRepository.GetQueryableAsync())
+                .Where(a => a.DoctorAvailabilityId == existing.Id
+                    && !CapacityFreeingStatuses.Contains(a.AppointmentStatus)
+                    && !acceptedTypeIds.Contains(a.AppointmentTypeId));
+            if (await AsyncExecuter.AnyAsync(activeQuery))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotRemoveTypeInUse);
+            }
+        }
     }
 
     /// <summary>
