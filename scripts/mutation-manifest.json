@@ -1,0 +1,103 @@
+{
+  "_comment": "Named guard mutations for scripts/mutation-harness.py (#1005). Test classes named *AppServiceTests are ABSTRACT in Application.Tests; the concrete Efcore* subclasses live in EntityFrameworkCore.Tests, so the filter must name those. See docs/testing/mutation-harness.md before editing.",
+  "mutants": [
+    {
+      "id": "read-guard-never-refuses",
+      "file": "src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentReadAccessGuard.cs",
+      "find": "if (!await CanReadAsync(appointment))",
+      "replace": "if (false && !await CanReadAsync(appointment))",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj",
+      "filter": "FullyQualifiedName~MultiOfficeDocumentDownloadAccessTests|FullyQualifiedName~PacketPartyAccessTests",
+      "killed_by": [
+        "MultiOfficeDocumentDownloadAccessTests",
+        "PacketPartyAccessTests"
+      ],
+      "note": "The per-appointment read gate every appointment-scoped service composes.",
+      "watch": [
+        "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/MultiOffice/MultiOfficeDocumentDownloadAccessTests.cs",
+        "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/MultiOffice/PacketPartyAccessTests.cs"
+      ]
+    },
+    {
+      "id": "canary-read-guard-refusal-guard-class-only",
+      "file": "src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentReadAccessGuard.cs",
+      "find": "if (!await CanReadAsync(appointment))",
+      "replace": "if (false && !await CanReadAsync(appointment))",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj",
+      "filter": "FullyQualifiedName~EfCoreAppointmentReadAccessGuardTests",
+      "note": "The per-appointment read gate every appointment-scoped service composes.",
+      "expect": "survive",
+      "reason": "FINDING from the first real run: EfCoreAppointmentReadAccessGuardTests exercises CanEditAsync and CanRequestChangeAsync only. The refusal in EnsureCanReadAsync, the one every appointment-scoped service composes, is pinned by the multi-office document and packet tests, not by the class named for the guard. Kept as a canary: when a test on the guard itself pins the refusal this turns into STALE_EXPECTATION and should become expect=killed."
+    },
+    {
+      "id": "same-parent-never-refuses",
+      "file": "src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentChildOwnershipGuard.cs",
+      "find": "if (suppliedParentId != existingParentId)",
+      "replace": "if (suppliedParentId != existingParentId && false)",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.Application.Tests/HealthcareSupport.CaseEvaluation.Application.Tests.csproj",
+      "filter": "FullyQualifiedName~AppointmentChildOwnership|FullyQualifiedName~AppointmentChildCreateOwnership",
+      "killed_by": [
+        "AppointmentChildOwnership",
+        "AppointmentChildCreateOwnership"
+      ],
+      "note": "Re-parenting a child row to another appointment's parent (#1116).",
+      "watch": [
+        "test/HealthcareSupport.CaseEvaluation.Application.Tests/Appointments/AppointmentChildOwnershipTests.cs",
+        "test/HealthcareSupport.CaseEvaluation.Application.Tests/Appointments/AppointmentChildOwnershipPerServiceTests.cs",
+        "test/HealthcareSupport.CaseEvaluation.Application.Tests/Appointments/AppointmentChildCreateOwnershipTests.cs"
+      ]
+    },
+    {
+      "id": "canary-same-parent-body-parts-service-tests",
+      "file": "src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentChildOwnershipGuard.cs",
+      "find": "if (suppliedParentId != existingParentId)",
+      "replace": "if (suppliedParentId != existingParentId && false)",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj",
+      "filter": "FullyQualifiedName~EfCoreAppointmentBodyPartsAppServiceTests",
+      "note": "Re-parenting a child row to another appointment's parent (#1116).",
+      "expect": "survive",
+      "reason": "Known gap, #1116: AppointmentBodyPartsAppService.UpdateAsync makes two guard calls and the service-level tests pin only the party check. Kept as a canary on the real suite."
+    },
+    {
+      "id": "creator-pathway-disabled",
+      "file": "src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentAccessRules.cs",
+      "find": "if (appointmentCreatorId.HasValue && appointmentCreatorId.Value == userId)",
+      "replace": "if (false && appointmentCreatorId.HasValue && appointmentCreatorId.Value == userId)",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.Application.Tests/HealthcareSupport.CaseEvaluation.Application.Tests.csproj",
+      "filter": "FullyQualifiedName~AppointmentAccessRulesUnitTests",
+      "killed_by": [
+        "AppointmentAccessRules"
+      ],
+      "note": "Pathway 2 of the seven access pathways: the booker keeps access to their own booking."
+    },
+    {
+      "id": "authorize-removed-surface-snapshot",
+      "file": "src/HealthcareSupport.CaseEvaluation.Application/AppointmentBodyParts/AppointmentBodyPartsAppService.cs",
+      "find": "[Authorize(CaseEvaluationPermissions.AppointmentBodyParts.Edit)]",
+      "replace": "",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.Application.Tests/HealthcareSupport.CaseEvaluation.Application.Tests.csproj",
+      "filter": "FullyQualifiedName~AuthorizationSurface",
+      "killed_by": [
+        "AuthorizationSurface"
+      ],
+      "note": "Deleting a permission check must fail the build: this is the net #901 added."
+    },
+    {
+      "id": "canary-authorize-removed-appservice-tests-only",
+      "file": "src/HealthcareSupport.CaseEvaluation.Application/AppointmentBodyParts/AppointmentBodyPartsAppService.cs",
+      "find": "[Authorize(CaseEvaluationPermissions.AppointmentBodyParts.Edit)]",
+      "replace": "",
+      "runner": "dotnet",
+      "project": "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj",
+      "filter": "FullyQualifiedName~EfCoreAppointmentBodyPartsAppServiceTests",
+      "expect": "survive",
+      "reason": "Known gap, tracked as #707 layer 3: the test module calls AddAlwaysAllowAuthorization(), so the AppService tests cannot observe a missing [Authorize]. Kept as a CANARY: it proves the harness reports a survivor on the real suite, and it turns into STALE_EXPECTATION the day a real-authorization harness lands, which is the signal to flip it to expect=killed."
+    }
+  ]
+}
