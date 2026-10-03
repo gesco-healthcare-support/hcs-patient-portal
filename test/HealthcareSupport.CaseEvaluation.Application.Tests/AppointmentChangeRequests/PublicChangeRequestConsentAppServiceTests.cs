@@ -60,13 +60,19 @@ public abstract class PublicChangeRequestConsentAppServiceTests<TStartupModule>
     /// Builds a CANCELLATION change request against the seeded appointment, issues a real consent
     /// token for one side, persists, and hands back the raw token.
     ///
+    /// <para><c>reScheduleReasonOnTheSameRow</c> exists so a Fact can put a DISTINCT, non-null value
+    /// in the column a cancellation must never surface. The default is null, which is the shape the
+    /// domain's creation paths produce; a negative guarantee ("the reschedule reason is not shown")
+    /// cannot be proven against that, because there is nothing there to leak.</para>
+    ///
     /// <para>The raw token is returned ONCE by the manager and never stored, so it has to be
     /// captured here -- there is no way to recover it from the row afterwards. That is the
     /// production contract, not a test limitation.</para>
     /// </summary>
     private async Task<string> SeedCancelConsentAsync(
         string reason,
-        ChangeRequestSide side = ChangeRequestSide.SideA)
+        ChangeRequestSide side = ChangeRequestSide.SideA,
+        string? reScheduleReasonOnTheSameRow = null)
     {
         var request = new AppointmentChangeRequest(
             id: Guid.NewGuid(),
@@ -74,7 +80,7 @@ public abstract class PublicChangeRequestConsentAppServiceTests<TStartupModule>
             appointmentId: AppointmentsTestData.Appointment1Id,
             changeRequestType: ChangeRequestType.Cancel,
             cancellationReason: reason,
-            reScheduleReason: null,
+            reScheduleReason: reScheduleReasonOnTheSameRow,
             newDoctorAvailabilityId: null);
 
         var rawToken = _consentManager.IssueSideConsent(request, side);
@@ -143,18 +149,31 @@ public abstract class PublicChangeRequestConsentAppServiceTests<TStartupModule>
         // PINS THE TERNARY AT :106-108. Both reason columns exist on the same row, so a service
         // reading the wrong one still returns a populated, plausible page. The reschedule column is
         // null on a cancellation, so the failure would show as a BLANK reason on a live page.
+        //
+        // THE ROW CARRIES BOTH REASONS, DISTINCT AND NON-NULL, so the NEGATIVE half is real: a
+        // service that reads (or falls through to) the reschedule column returns the other string
+        // and the second assertion fails. With the reschedule column null there was nothing to leak
+        // and that half could never fail. The domain's creation paths do not produce this row
+        // today; the Fact guards the service against a data fix, import or new path that does.
         var reason = Token("why-cancelled");
+        var leakedReason = Token("must-not-leak");
 
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            var rawToken = await SeedCancelConsentAsync(reason);
+            var rawToken = await SeedCancelConsentAsync(
+                reason,
+                reScheduleReasonOnTheSameRow: leakedReason);
 
             var info = await _consent.GetConsentInfoAsync(rawToken);
 
             info.Reason.ShouldBe(
                 reason,
-                "A Cancel request must surface CancellationReason. Swapping the ternary yields null "
-                + "here and a consent page with no reason on it.");
+                "A Cancel request must surface CancellationReason. Swapping the ternary yields the "
+                + "reschedule reason here and a consent page showing the wrong text.");
+            info.Reason.ShouldNotBe(
+                leakedReason,
+                "The reschedule reason sits on the same row and must never be shown on a "
+                + "cancellation page.");
         }
     }
 
@@ -253,6 +272,34 @@ public abstract class PublicChangeRequestConsentAppServiceTests<TStartupModule>
     // SubmitDecisionAsync.
     // ------------------------------------------------------------------------
 
+    /// <summary>
+    /// Submits a decision and, if a <see cref="BusinessException"/> escapes, fails with its
+    /// <c>Code</c> in the message. A bare BusinessException prints as "Exception of type
+    /// 'BusinessException' was thrown." and names nothing, so a replay Fact failing because the
+    /// idempotent catch stopped matching was indistinguishable from any other refusal.
+    /// </summary>
+    private async Task<ChangeRequestConsentInfoDto> SubmitNamingAnyRefusalAsync(
+        string rawToken,
+        bool approved,
+        string step)
+    {
+        try
+        {
+            return await _consent.SubmitDecisionAsync(
+                rawToken,
+                new SubmitChangeRequestConsentDto { Approved = approved });
+        }
+        catch (BusinessException ex)
+        {
+            throw new ShouldAssertException(
+                $"{step}: SubmitDecisionAsync threw BusinessException with Code '{ex.Code}' "
+                + "instead of returning. For a replay this means the idempotent catch filter no "
+                + "longer matches that code (expected ChangeRequestConsentAlreadyResponded or "
+                + $"ChangeRequestConsentExpired). Message: {ex.Message}",
+                ex);
+        }
+    }
+
     [Fact]
     public async Task SubmitDecisionAsync_WithApproval_RecordsTheDecisionAndReturnsTheNewState()
     {
@@ -306,17 +353,12 @@ public abstract class PublicChangeRequestConsentAppServiceTests<TStartupModule>
         {
             var rawToken = await SeedCancelConsentAsync(Token("replay"));
 
-            var first = await _consent.SubmitDecisionAsync(
-                rawToken,
-                new SubmitChangeRequestConsentDto { Approved = true });
+            var first = await SubmitNamingAnyRefusalAsync(rawToken, approved: true, step: "first submission");
 
-            // Called directly rather than through Should.NotThrowAsync: that helper's
-            // Task-returning overload yields void, so it cannot hand back the DTO this Fact has to
-            // inspect. An escaping exception fails the Fact just as loudly, and the assertion below
-            // is the part that actually discriminates.
-            var replay = await _consent.SubmitDecisionAsync(
-                rawToken,
-                new SubmitChangeRequestConsentDto { Approved = true });
+            // Routed through the helper rather than Should.NotThrowAsync: that overload yields void,
+            // so it cannot hand back the DTO this Fact inspects, and a bare escape would name no
+            // code. The helper fails WITH the code, and the assertion below still discriminates.
+            var replay = await SubmitNamingAnyRefusalAsync(rawToken, approved: true, step: "replay");
 
             replay.ConsentStatus.ShouldBe(
                 first.ConsentStatus,
@@ -335,13 +377,9 @@ public abstract class PublicChangeRequestConsentAppServiceTests<TStartupModule>
         {
             var rawToken = await SeedCancelConsentAsync(Token("no-flip"));
 
-            var declined = await _consent.SubmitDecisionAsync(
-                rawToken,
-                new SubmitChangeRequestConsentDto { Approved = false });
+            var declined = await SubmitNamingAnyRefusalAsync(rawToken, approved: false, step: "first submission (decline)");
 
-            var afterApprovalAttempt = await _consent.SubmitDecisionAsync(
-                rawToken,
-                new SubmitChangeRequestConsentDto { Approved = true });
+            var afterApprovalAttempt = await SubmitNamingAnyRefusalAsync(rawToken, approved: true, step: "replay with the opposite answer");
 
             afterApprovalAttempt.ConsentStatus.ShouldBe(
                 declined.ConsentStatus,

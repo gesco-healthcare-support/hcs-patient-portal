@@ -7,7 +7,7 @@
 #                   on Windows drops events (OBS-22; GH #8694/#15171).
 
 # ---- build (sdk): restore + publish; feeds the prod stage ----
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:83e0db97c45d2e39b80123fe42940a23c423405a17f80b608a4b8768033d6392 AS build
 WORKDIR /src
 
 # The ABP Commercial feed key reaches the restore step below as a BuildKit
@@ -19,6 +19,7 @@ COPY NuGet.Config.template .
 COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
+COPY global.json .
 COPY BannedSymbols.txt .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
@@ -44,7 +45,7 @@ RUN dotnet publish src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareS
     -c Release -o /app/publish --no-restore
 
 # ---- dev (sdk): bind-mounted source, restore + run on container start ----
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:83e0db97c45d2e39b80123fe42940a23c423405a17f80b608a4b8768033d6392 AS dev
 WORKDIR /app
 
 # Redirect ALL build output (obj/bin) to a container-local path via .NET's
@@ -64,6 +65,7 @@ COPY NuGet.Config.template .
 COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
+COPY global.json .
 COPY BannedSymbols.txt .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
@@ -108,8 +110,8 @@ ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEval
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
-# that pair is the form Dependabot updates; see .github/dependabot.yml for why
-# the sdk build/dev stages above are deliberately left on tags.
+# that pair is the form Dependabot updates; see .github/dependabot.yml. Since
+# 2026-09-25 (decision 17) the sdk build/dev stages above are pinned the same way.
 # SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
 # argument for keeping them is with the docker ecosystem entry in that file.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod

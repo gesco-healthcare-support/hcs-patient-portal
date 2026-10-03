@@ -9,8 +9,14 @@
 # is gitignored, so in dev (where source is bind-mounted) the entrypoint must
 # regenerate it -- otherwise the login UI loses its theme.
 
+# ---- node-runtime: the Node binaries the build and dev stages copy ----
+# A named stage rather than `COPY --from=<image>` (decision 17): Dependabot's
+# docker parser reads only `FROM` lines, so a digest behind a COPY could never
+# be refreshed. Nothing from this stage ships; see the note on the build stage.
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS node-runtime
+
 # ---- build (sdk): restore + install-libs + publish; feeds prod ----
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:83e0db97c45d2e39b80123fe42940a23c423405a17f80b608a4b8768033d6392 AS build
 WORKDIR /src
 
 # The ABP Commercial feed key reaches the restore step below as a BuildKit
@@ -22,6 +28,7 @@ COPY NuGet.Config.template .
 COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
+COPY global.json .
 COPY BannedSymbols.txt .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
@@ -60,8 +67,8 @@ RUN --mount=type=secret,id=abp_nuget_key \
 #
 # Verified before shipping: this produces node v22.23.2 / npm 10.9.8, byte-identical
 # to what the setup script installed, so `abp install-libs` sees the same toolchain.
-COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
@@ -74,7 +81,7 @@ RUN dotnet publish src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSup
     -c Release -o /app/publish --no-restore
 
 # ---- dev (sdk): bind-mounted source; install-libs + restore + run on start ----
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:83e0db97c45d2e39b80123fe42940a23c423405a17f80b608a4b8768033d6392 AS dev
 WORKDIR /app
 
 # Redirect ALL build output (obj/bin) to a container-local path via .NET's
@@ -93,6 +100,7 @@ COPY NuGet.Config.template .
 COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
 
 COPY Directory.Build.props .
+COPY global.json .
 COPY BannedSymbols.txt .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
@@ -124,8 +132,8 @@ RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSuppo
 #
 # Node by COPY rather than a piped setup script -- see the note on the build
 # stage for the reasoning and the glibc constraint.
-COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
@@ -154,8 +162,8 @@ ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEval
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
-# that pair is the form Dependabot updates; see .github/dependabot.yml for why
-# the sdk build/dev stages above are deliberately left on tags.
+# that pair is the form Dependabot updates; see .github/dependabot.yml. Since
+# 2026-09-25 (decision 17) the sdk build/dev stages above are pinned the same way.
 # SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
 # argument for keeping them is with the docker ecosystem entry in that file.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS prod

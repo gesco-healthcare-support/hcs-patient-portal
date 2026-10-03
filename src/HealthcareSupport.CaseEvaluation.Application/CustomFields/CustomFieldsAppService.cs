@@ -98,7 +98,13 @@ public class CustomFieldsAppService : CaseEvaluationAppService, ICustomFieldsApp
         Check.NotNull(input, nameof(input));
         Check.NotNull(input.AppointmentTypeId, nameof(input.AppointmentTypeId));
 
-        await EnsureUnderActiveCapAsync(input.AppointmentTypeId.Value);
+        // The cap counts ACTIVE rows only, so it constrains an ACTIVE new field only, matching
+        // UpdateAsync. An inactive field adds nothing to the count.
+        if (input.IsActive)
+        {
+            await EnsureUnderActiveCapAsync(input.AppointmentTypeId.Value);
+        }
+
         await EnsureNoDuplicateLabelAndTypeAsync(input.FieldLabel, input.FieldType, excludingId: null);
 
         var displayOrder = await ComputeNextDisplayOrderAsync();

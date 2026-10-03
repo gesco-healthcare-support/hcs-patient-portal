@@ -32,4 +32,11 @@ public enum AppointmentTransitionTrigger
     /// reach the portal only through the inbound attendance endpoint.
     /// </summary>
     MarkNotSeen = 15,
+
+    /// <summary>
+    /// #926 -- a reschedule request was rejected: RescheduleRequested -> Approved. Appended as 16 so
+    /// no stored or approved value is renumbered. A Pending source never left Pending when its
+    /// reschedule was filed, so rejecting it needs NO transition and must not reach the machine.
+    /// </summary>
+    RejectReschedule = 16,
 }

@@ -94,6 +94,8 @@ export class AppointmentAddPatientDemographicsComponent {
 
   @Input({ required: true }) isExternalUserNonPatient = false;
   @Input({ required: true }) isItAdmin = false;
+  /** #1107: an external booker loaded an existing patient; edits to it are not applied. */
+  @Input() storedPatientNotice = false;
   /**
    * 2026-06-11 (PII): NgbTypeahead source for the "find existing patient"
    * email search. Owned by the parent (where the HTTP roundtrip + debounce

@@ -1319,7 +1319,7 @@ def page8():
         '<div class="ins-title">Physician&#39;s Return-to-Work &amp; Voucher Report Instructions</div>'
         '<div class="ins-sub">For injuries on or after January 1, 2013  DWC - AD 10133.36</div>'
         + body
-        + '<div class="ins-foot">DWC AD Form 10133.36 (Effective 1/13)</div>'
+        + '<div class="ins-foot">DWC AD Form 10133.36&nbsp;  (SJDB) Eff: 1/1/14</div>'
         '</div>')
 
 

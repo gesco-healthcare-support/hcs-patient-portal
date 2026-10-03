@@ -84,6 +84,22 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced";
 
     /// <summary>
+    /// Raised when an edit would cut a slot's capacity below the number of active appointments
+    /// already booked against it, leaving a booked appointment that the slot no longer admits.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotReduceCapacityBelowBooked</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotReduceCapacityBelowBooked =
+        "CaseEvaluation:DoctorAvailability.CannotReduceCapacityBelowBooked";
+
+    /// <summary>
+    /// Raised when an edit would remove an accepted appointment type that an active appointment on
+    /// the slot is using.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotRemoveTypeInUse</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotRemoveTypeInUse =
+        "CaseEvaluation:DoctorAvailability.CannotRemoveTypeInUse";
+
+    /// <summary>
     /// 2026-09-11 -- raised by <c>DoctorAvailabilityManager.CreateAsync</c> when the slot being
     /// created overlaps an existing slot at the same location on the same day.
     ///

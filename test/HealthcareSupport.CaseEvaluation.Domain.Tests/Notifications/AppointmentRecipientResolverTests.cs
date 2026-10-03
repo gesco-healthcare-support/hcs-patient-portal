@@ -180,4 +180,120 @@ public class AppointmentRecipientResolverTests
         Assert.Single(recipients);
         Assert.DoesNotContain(recipients, r => r.Role == RecipientRole.OfficeAdmin);
     }
+
+    // ---- #1196: attorney linked with no IdentityUser, appointment email column blank ----
+
+    private static async Task<List<SendAppointmentEmailArgs>> ResolveAttorneyLinkAsync(
+        Guid? linkUserId,
+        string? masterEmail,
+        string? userEmail,
+        bool applicant)
+    {
+        var appointmentId = Guid.NewGuid();
+        var attorneyId = Guid.NewGuid();
+        var appointment = new Appointment(
+            id: appointmentId,
+            patientId: Guid.NewGuid(),
+            identityUserId: null,
+            appointmentTypeId: Guid.NewGuid(),
+            locationId: Guid.NewGuid(),
+            doctorAvailabilityId: Guid.NewGuid(),
+            appointmentDate: FutureAppointmentDate,
+            requestConfirmationNumber: "TEST-RESOLVER-ATTY",
+            appointmentStatus: AppointmentStatusType.Approved)
+        {
+            TenantId = OfficeTenantId,
+        };
+        var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
+        appointmentRepo.FindAsync(appointmentId).Returns(appointment);
+
+        var identityUserRepo = Substitute.For<IRepository<IdentityUser, Guid>>();
+        if (linkUserId.HasValue)
+        {
+            identityUserRepo.FindAsync(linkUserId.Value)
+                .Returns(new IdentityUser(linkUserId.Value, "atty", userEmail ?? "x@falkinstein.test", OfficeTenantId));
+        }
+
+        var applicantLinkRepo = Substitute.For<IAppointmentApplicantAttorneyRepository>();
+        var defenseLinkRepo = Substitute.For<IAppointmentDefenseAttorneyRepository>();
+        var applicantMasterRepo = Substitute.For<IRepository<ApplicantAttorney, Guid>>();
+        var defenseMasterRepo = Substitute.For<IRepository<DefenseAttorney, Guid>>();
+        applicantLinkRepo.GetQueryableAsync().Returns(
+            (applicant
+                ? new List<AppointmentApplicantAttorney> { new(Guid.NewGuid(), appointmentId, attorneyId, linkUserId) { TenantId = OfficeTenantId } }
+                : new List<AppointmentApplicantAttorney>()).AsQueryable());
+        defenseLinkRepo.GetQueryableAsync().Returns(
+            (!applicant
+                ? new List<AppointmentDefenseAttorney> { new(Guid.NewGuid(), appointmentId, attorneyId, linkUserId) { TenantId = OfficeTenantId } }
+                : new List<AppointmentDefenseAttorney>()).AsQueryable());
+        applicantMasterRepo.FindAsync(attorneyId)
+            .Returns(new ApplicantAttorney(attorneyId, null, null, email: masterEmail));
+        defenseMasterRepo.FindAsync(attorneyId)
+            .Returns(new DefenseAttorney(attorneyId, null, null, email: masterEmail));
+
+        var roleResolver = Substitute.For<IRecipientRoleResolver>();
+        roleResolver.ClassifyAsync(Arg.Any<string>(), Arg.Any<RecipientRole>())
+            .Returns(new RecipientRoleClassification(false, false, null));
+
+        var settingProvider = Substitute.For<ISettingProvider>();
+        var currentTenant = Substitute.For<ICurrentTenant>();
+        currentTenant.Id.Returns(OfficeTenantId);
+        currentTenant.Name.Returns(OfficeTenantName);
+
+        var resolver = new AppointmentRecipientResolver(
+            appointmentRepo,
+            Substitute.For<IRepository<Patient, Guid>>(),
+            identityUserRepo,
+            applicantLinkRepo,
+            applicantMasterRepo,
+            defenseLinkRepo,
+            defenseMasterRepo,
+            Substitute.For<IRepository<AppointmentEmployerDetail, Guid>>(),
+            settingProvider,
+            currentTenant,
+            roleResolver,
+            NullLogger<AppointmentRecipientResolver>.Instance);
+
+        return await resolver.ResolveAsync(appointmentId, NotificationKind.AppointmentDayReminder);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ApplicantAttorneyLinkedWithoutUser_FallsBackToMasterEmail()
+    {
+        var recipients = await ResolveAttorneyLinkAsync(null, "aa-master@falkinstein.test", null, applicant: true);
+
+        var r = Assert.Single(recipients);
+        Assert.Equal("aa-master@falkinstein.test", r.To);
+        Assert.Equal(RecipientRole.ApplicantAttorney, r.Role);
+        Assert.False(r.IsRegistered);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_DefenseAttorneyLinkedWithoutUser_FallsBackToMasterEmail()
+    {
+        var recipients = await ResolveAttorneyLinkAsync(null, "da-master@falkinstein.test", null, applicant: false);
+
+        var r = Assert.Single(recipients);
+        Assert.Equal("da-master@falkinstein.test", r.To);
+        Assert.Equal(RecipientRole.DefenseAttorney, r.Role);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AttorneyWithUser_UsesTheUserEmailNotTheMaster()
+    {
+        var userId = Guid.NewGuid();
+        var recipients = await ResolveAttorneyLinkAsync(userId, "master@falkinstein.test", "login@falkinstein.test", applicant: true);
+
+        var r = Assert.Single(recipients);
+        Assert.Equal("login@falkinstein.test", r.To);
+        Assert.True(r.IsRegistered);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AttorneyLinkedWithoutUserAndBlankMaster_YieldsNoRecipient()
+    {
+        var recipients = await ResolveAttorneyLinkAsync(null, null, null, applicant: true);
+
+        Assert.Empty(recipients);
+    }
 }
