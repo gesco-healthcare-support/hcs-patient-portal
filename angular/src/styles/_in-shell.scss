@@ -9,6 +9,7 @@
 //     omitted -- the account menu lives in the topbar and there is no search in
 //     the MVP; their selectors are dropped rather than left as dead styles.
 //   - The mobile off-canvas sidebar (<=860px) is deferred (plan "out of scope");
+//     below 860px the sidebar is instead forced to the 72px icon rail (see the end of this file);
 //     shipping it without an open toggle would hide the sidebar with no way back.
 
 .in {
@@ -617,5 +618,95 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+// ---------------- Narrow viewports (#609) ----------------
+// Below 860px the 256px sidebar left the content ~560px, and the topbar (crumb + office chip +
+// account button) no longer fit: measured 825px of scroll width at 820px. Not a redesign -- the
+// sidebar is forced to the existing 72px icon rail (tooltips and all), the toggle is hidden because
+// it would otherwise do nothing, the account button shows only its avatar, and the breadcrumb is the one
+// thing in the bar allowed to shrink. The rail rules repeat the `.in--collapsed` ones above on
+// purpose: those are keyed to a class, this is keyed to the viewport.
+@media (max-width: 860px) {
+  .in .in-side {
+    width: 72px;
+  }
+  .in .in-side__brand .tt {
+    display: none;
+  }
+  .in .in-sect {
+    justify-content: center;
+    padding: 14px 0 6px;
+    color: #3f5f80;
+    cursor: default;
+  }
+  .in .in-sect span,
+  .in .in-sect__chev {
+    display: none;
+  }
+  .in .in-sect::after {
+    content: '\00b7';
+  }
+  .in .in-link {
+    justify-content: center;
+    padding: 10px;
+  }
+  .in .in-link .lbl,
+  .in .in-link .badge {
+    display: none;
+  }
+  .in .in-link.has-badge .pip {
+    display: block;
+  }
+  .in .in-link[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--n-900);
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 80;
+    box-shadow: var(--sh-md);
+  }
+  .in .ra-foot {
+    left: 72px;
+  }
+  .in .in-collapse {
+    display: none;
+  }
+  .in .in-top {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .in .in-crumb {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .in .in-crumb b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  // Visually hidden, not display:none, so the button keeps its accessible name (the user's name
+  // and role) once only the avatar is drawn.
+  .in .in-acct .who {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .in .in-acct .cv {
+    display: none;
+  }
+  .in .in-acct {
+    padding: 5px;
   }
 }
