@@ -357,7 +357,11 @@ describe('Wizard section label association, remaining sections (#806)', () => {
   });
 
   describe('patient-demographics section', () => {
-    function render(isExternalUserNonPatient: boolean, needsInterpreter = false): HTMLElement {
+    function render(
+      isExternalUserNonPatient: boolean,
+      needsInterpreter = false,
+      storedPatientNotice = false,
+    ): HTMLElement {
       TestBed.configureTestingModule({
         providers: [
           FormBuilder,
@@ -386,6 +390,7 @@ describe('Wizard section label association, remaining sections (#806)', () => {
       c.form.get('needsInterpreter')!.setValue(needsInterpreter);
       c.isExternalUserNonPatient = isExternalUserNonPatient;
       c.isItAdmin = false;
+      c.storedPatientNotice = storedPatientNotice;
       c.patientLoadMessage = '';
       c.searchPatientByEmail = () => of([]);
       c.dobMinDate = { year: 1900, month: 1, day: 1 };
@@ -398,6 +403,18 @@ describe('Wizard section label association, remaining sections (#806)', () => {
 
     it('names every control for an internal booker', () => {
       assertAllNamed(render(false));
+    });
+
+    /** #1107: the notice is what stops the form implying an edit to a stored patient is accepted. */
+    it('tells an external booker the stored patient details will be used', () => {
+      const host = render(true, false, true);
+      const notice = host.querySelector('#stored-patient-notice');
+      expect(notice).not.toBeNull();
+      expect(notice!.textContent).toContain('stored details will be used as they are');
+    });
+
+    it('shows no stored-patient notice when the flag is off', () => {
+      expect(render(true, false, false).querySelector('#stored-patient-notice')).toBeNull();
     });
 
     /**
