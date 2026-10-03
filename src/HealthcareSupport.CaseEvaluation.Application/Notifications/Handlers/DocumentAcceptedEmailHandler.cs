@@ -195,7 +195,10 @@ public class DocumentAcceptedEmailHandler :
         var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(_currentTenant.Id);
         var url = $"{portalUrl.TrimEnd('/')}/appointments/view/{appointmentId:N}";
         // 2026-06-09: list the outstanding required documents by name.
-        var listHtml = string.Concat(missing.Select(m => $"<li>{m.Name}</li>"));
+        // HtmlEncode: the name is the uploaded file's, so it is caller-supplied and reaches an
+        // email body as raw HTML. Every other list-building handler here already encodes. #1010
+        var listHtml = string.Concat(
+            missing.Select(m => $"<li>{System.Net.WebUtility.HtmlEncode(m.Name ?? string.Empty)}</li>"));
         return new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
         {
             ["RemainingDocumentCount"] = missing.Count,

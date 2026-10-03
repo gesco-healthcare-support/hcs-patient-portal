@@ -408,4 +408,28 @@ public class DocumentAcceptedEmailHandlerTests
         sent.ContextTag.ShouldBe(
             $"DocumentAccepted/{NotificationTemplateConsts.Codes.PatientDocumentAccepted}/{evt.AppointmentDocumentId}");
     }
+
+    /// <summary>
+    /// The outstanding-document list is HTML, and the names in it are the uploaded files' own, so
+    /// they are caller-supplied. They must be encoded before they reach an email body: without it a
+    /// document named with a tag would inject markup into every recipient's mail. #1010
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_AMissingDocumentNameWithMarkup_IsEncodedIntoTheList()
+    {
+        var rig = new Rig();
+        rig.MissingResolver.ResolveAsync(Arg.Any<Guid>()).Returns(new MissingRequiredDocumentsResult(
+            RequiredCount: 2,
+            Missing: new[]
+            {
+                new MissingRequiredDocument(Guid.NewGuid(), "<b>TEST-Bold</b>", RequiredDocumentState.NotUploaded),
+                new MissingRequiredDocument(Guid.NewGuid(), "TEST & \"quoted\"", RequiredDocumentState.Rejected),
+            }));
+
+        await rig.Build().HandleEventAsync(AcceptedEvent());
+
+        SingleSend(rig.Dispatcher).Variables["RemainingDocumentList"]
+            .ShouldBe("<li>&lt;b&gt;TEST-Bold&lt;/b&gt;</li><li>TEST &amp; &quot;quoted&quot;</li>");
+    }
+
 }
