@@ -52,6 +52,7 @@
         </label>
         <input
           id="appointment-patient-last-name"
+          autocomplete="off"
           class="form-control"
           formControlName="lastName"
           maxlength="50"
@@ -67,6 +68,7 @@
         </label>
         <input
           id="appointment-patient-first-name"
+          autocomplete="off"
           class="form-control"
           formControlName="firstName"
           maxlength="50"
@@ -82,6 +84,7 @@
         </label>
         <input
           id="appointment-patient-middle-name"
+          autocomplete="off"
           class="form-control"
           formControlName="middleName"
           maxlength="50"
@@ -118,6 +121,7 @@
                via the ngbDate control error, which the wizard step gate blocks on. -->
           <input
             id="appointment-patient-date-of-birth"
+            autocomplete="off"
             formControlName="dateOfBirth"
             class="form-control"
             placeholder="MM/DD/YYYY"
@@ -184,6 +188,7 @@
              on the happy path). -->
         <input
           id="appointment-patient-email"
+          autocomplete="off"
           type="email"
           class="form-control"
           formControlName="email"
@@ -205,6 +210,7 @@
         </label>
         <input
           id="appointment-patient-cell-phone-number"
+          autocomplete="off"
           appPhoneNumber
           class="form-control"
           formControlName="cellPhoneNumber"
@@ -222,6 +228,7 @@
         </label>
         <input
           id="appointment-patient-phone-number"
+          autocomplete="off"
           appPhoneNumber
           class="form-control"
           formControlName="phoneNumber"
@@ -254,6 +261,7 @@
         <label for="appointment-patient-address" class="form-label fw-semibold">Unit #</label>
         <input
           id="appointment-patient-address"
+          autocomplete="off"
           class="form-control"
           formControlName="address"
           maxlength="100"
@@ -265,6 +273,7 @@
         </label>
         <input
           id="appointment-patient-city"
+          autocomplete="off"
           class="form-control"
           formControlName="city"
           maxlength="50"
@@ -288,6 +297,7 @@
         </label>
         <input
           id="appointment-patient-zip-code"
+          autocomplete="off"
           class="form-control"
           formControlName="zipCode"
           maxlength="15"
@@ -343,6 +353,7 @@
         @if (form.get('needsInterpreter')?.value) {
           <input
             id="appointment-patient-interpreter-vendor-name"
+            autocomplete="off"
             aria-label="Interpreter vendor / language details"
             class="form-control mt-2"
             formControlName="interpreterVendorName"
@@ -356,6 +367,7 @@
         </label>
         <input
           id="appointment-patient-reffered-by"
+          autocomplete="off"
           class="form-control"
           formControlName="refferedBy"
           maxlength="50"

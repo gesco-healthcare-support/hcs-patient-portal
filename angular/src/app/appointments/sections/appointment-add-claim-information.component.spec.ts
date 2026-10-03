@@ -47,6 +47,36 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
     component.injuryForm.get('injuryWcabAdj')!.setValue('ADJ-CI3'); // CI3: ADJ# now required
   }
 
+  /**
+   * The injury's identifying fields stay out of the browser's form-autofill history, for the same
+   * reason as the patient's own (see section-label-association.spec.ts). Each id must be found
+   * before its attribute is checked, so a selector that matched nothing cannot pass vacuously.
+   */
+  it("keeps the injury's identifying inputs out of browser autofill history", () => {
+    const fixture = TestBed.createComponent(AppointmentAddClaimInformationComponent);
+    fixture.componentInstance.injuryDrafts = [];
+    fixture.componentInstance.openAddInjuryModal();
+    // A cumulative injury renders the second ("to") date too, so every field is on the page.
+    fixture.componentInstance.injuryForm.get('injuryCumulative')!.setValue(true);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const ids = [
+      'appointment-injury-date-of-injury',
+      'appointment-injury-to-date-of-injury',
+      'appointment-injury-claim-number',
+      'appointment-injury-wcab-adj',
+      'appointment-injury-body-part-0',
+    ];
+    const missing = ids.filter((id) => !host.querySelector(`#${id}`));
+    expect(missing).withContext('every injury field should render').toEqual([]);
+
+    const remembered = ids.filter(
+      (id) => host.querySelector(`#${id}`)!.getAttribute('autocomplete') !== 'off',
+    );
+    expect(remembered).toEqual([]);
+  });
+
   it('seeds exactly one required body-part row when the modal opens', () => {
     component.openAddInjuryModal();
     expect(component.bodyPartsArray).toHaveSize(1);
