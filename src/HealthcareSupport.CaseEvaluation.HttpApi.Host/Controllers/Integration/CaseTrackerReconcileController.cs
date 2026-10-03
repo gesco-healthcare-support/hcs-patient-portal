@@ -62,7 +62,7 @@ public class CaseTrackerReconcileController : AbpController
     /// would silently inherit whatever global JSON options happen to be configured.</para>
     /// </summary>
     /// <response code="200">The payload, identical in shape to a push body.</response>
-    /// <response code="401">Missing or incorrect <c>X-Integration-Token</c>.</response>
+    /// <response code="403">Missing or incorrect <c>X-Integration-Token</c>.</response>
     /// <response code="404">Unknown appointment, or an office with the integration switched off.</response>
     [HttpGet]
     [Route("offices/{tenantId}/appointments/{appointmentId}")]
@@ -77,7 +77,7 @@ public class CaseTrackerReconcileController : AbpController
         {
             // Rejected before ANY database work, so an unauthenticated caller cannot make us open an
             // office connection or probe which appointment ids exist.
-            return Unauthorized();
+            return CaseTrackerTokenRefusal.Forbidden();
         }
 
         var envelope = await _reconcileService.GetAsync(tenantId, appointmentId, cancellationToken);
