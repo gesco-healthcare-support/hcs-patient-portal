@@ -798,6 +798,26 @@ def load_changed_diff(path_arg: str) -> dict[str, set[int]]:
         die(f"changed-lines diff at {diff_path} could not be parsed: {exc}")
 
 
+TEST_PATH_RE = re.compile(r"(^|/)(test|tests)/|\.spec\.ts$")
+
+
+def tests_only_files(changed: dict[str, set[int]],
+                     per_file: dict[str, dict[int, int]]) -> list[str]:
+    """The changed source files, IF every one of them is test code; else [].
+
+    "Source file" means a suffix the coverage reports themselves use (.cs, .ts,
+    .py), so markdown and YAML in the same diff do not stop a tests-only
+    submission being recognised as one. Empty when any changed source file is
+    NOT test code, or when there is none -- in both cases the ordinary
+    "nothing to enforce" wording is the accurate one.
+    """
+    extensions = {Path(p).suffix for p in per_file if Path(p).suffix}
+    source = [p for p in sorted(changed) if Path(p).suffix in extensions]
+    if source and all(TEST_PATH_RE.search(p) for p in source):
+        return source
+    return []
+
+
 def enforce_changed_lines(args: argparse.Namespace,
                           coverage_by_file: dict[str, dict[int, int]],
                           patterns: list[re.Pattern[str]]) -> bool:
@@ -825,6 +845,22 @@ def enforce_changed_lines(args: argparse.Namespace,
         # reports were read and genuinely contain no coverable line this
         # submission changed -- a docs-only or config-only PR. Failing those
         # would make the gate impossible to satisfy honestly.
+        tests_only = tests_only_files(changed, coverage_by_file)
+        if tests_only:
+            # A DIFFERENT zero from the one above, and worth saying so. A docs-only
+            # PR has no code to cover. A tests-only PR is the epic's normal shape
+            # (every phase-8 tranche), and since C# test files left the coverage
+            # report it also lands here -- so the floor that ci.yml calls the
+            # sensitive control measured nothing for it, and only the absolute
+            # backstop floors apply. Passing is still right (there is no production
+            # line to cover), but the log must not read like a docs-only PR. (#970)
+            print(f"changed-lines: VACUOUS -- every changed source file "
+                  f"({len(tests_only)}) is test code, which is excluded from coverage "
+                  "by design, so this floor measured nothing. Only the absolute "
+                  "floors guard this submission.")
+            print("::notice::changed-lines floor is vacuous for this tests-only "
+                  "submission; the absolute floors are the only coverage control.")
+            return True
         print("changed-lines: no coverable changed lines in this submission "
               "-> nothing to enforce")
         return True

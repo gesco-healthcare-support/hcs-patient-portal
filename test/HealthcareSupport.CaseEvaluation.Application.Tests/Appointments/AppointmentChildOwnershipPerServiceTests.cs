@@ -231,6 +231,10 @@ public sealed class AppointmentChildOwnershipPerServiceTests
         // Party is asked about the GRANDPARENT appointment, resolved through the stored injury
         // detail -- not about either injury-detail id.
         await guard.Received(1).EnsureIsPartyAsync(OtherId);
+        // The service writes through the REPOSITORY, not the manager, so the manager assertion
+        // below holds whether or not the write happened. This is the one that can fail.
+        await repo.DidNotReceive().UpdateAsync(
+            Arg.Any<AppointmentBodyPart>(), Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>());
         manager.ReceivedCalls().ShouldBeEmpty();
     }
 
@@ -274,6 +278,11 @@ public sealed class AppointmentChildOwnershipPerServiceTests
         var repo = Substitute.For<IRepository<AppointmentBodyPart, Guid>>();
         repo.GetAsync(RowId, Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>())
             .Returns(new AppointmentBodyPart(RowId, StoredParent, "a1b2c3d4"));
+        // Stub the write so that, if it DOES happen, the call completes and the service reaches its
+        // guard. Unstubbed, NSubstitute hands back a null result and the service dies on a
+        // NullReferenceException first, which would fail this test for the wrong reason.
+        repo.UpdateAsync(Arg.Any<AppointmentBodyPart>(), Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>())
+            .Returns(ci => ci.Arg<AppointmentBodyPart>());
 
         var injuryRepo = Substitute.For<IAppointmentInjuryDetailRepository>();
         injuryRepo.GetAsync(StoredParent, Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>())
@@ -306,6 +315,10 @@ public sealed class AppointmentChildOwnershipPerServiceTests
                 new AppointmentBodyPartUpdateDto { AppointmentInjuryDetailId = ClaimedParent }));
 
         thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        // The service writes through the REPOSITORY, not the manager, so the manager assertion
+        // below holds whether or not the write happened. This is the one that can fail.
+        await repo.DidNotReceive().UpdateAsync(
+            Arg.Any<AppointmentBodyPart>(), Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>());
         manager.ReceivedCalls().ShouldBeEmpty();
     }
 }
