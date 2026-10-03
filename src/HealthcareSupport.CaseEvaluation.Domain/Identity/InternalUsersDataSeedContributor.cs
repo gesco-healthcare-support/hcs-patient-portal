@@ -74,27 +74,31 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     private readonly ICurrentTenant _currentTenant;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly ILogger<InternalUsersDataSeedContributor> _logger;
+    private readonly IDemoSeedEnvironment _demoSeedEnvironment;
 
     public InternalUsersDataSeedContributor(
         IdentityUserManager userManager,
         IdentityRoleManager roleManager,
         ICurrentTenant currentTenant,
         IRepository<Tenant, Guid> tenantRepository,
-        ILogger<InternalUsersDataSeedContributor> logger)
+        ILogger<InternalUsersDataSeedContributor> logger,
+        IDemoSeedEnvironment demoSeedEnvironment)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _currentTenant = currentTenant;
         _tenantRepository = tenantRepository;
         _logger = logger;
+        _demoSeedEnvironment = demoSeedEnvironment;
     }
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (!IsDevelopment())
+        if (!DemoSeedGate.IsAllowed(_demoSeedEnvironment))
         {
             _logger.LogInformation(
-                "InternalUsersDataSeedContributor: skipping (not Development environment).");
+                "InternalUsersDataSeedContributor: skipping ({Reason}).",
+                DemoSeedGate.ClosedReason(_demoSeedEnvironment));
             return;
         }
 
@@ -106,13 +110,6 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         {
             await SeedTenantUsersAsync(context.TenantId.Value);
         }
-    }
-
-    private static bool IsDevelopment()
-    {
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-        return string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SeedHostUsersAsync()
@@ -235,9 +232,10 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
-            _logger.LogInformation(
-                "InternalUsersDataSeedContributor: created internal user (tenant {TenantId}).",
-                tenantId);
+            // Names the role, not the address: this seeder also creates real staff logins.
+            _logger.LogWarning(
+                "InternalUsersDataSeedContributor: DEMO SEED created a {Role} login (tenant {TenantId}) with the published default password.",
+                roleName, tenantId);
 
             // Real accounts force a password change on first login (the shared dev
             // default is well-known); synthetic test accounts skip this so they stay

@@ -15,8 +15,6 @@
 # Secrets come ONLY from the git-ignored secrets/env.prod (see env.prod.example); nothing
 # secret is committed or baked into an image. Bring up with:
 #   docker compose -f docker-compose.prod.yml --env-file secrets/env.prod up -d --build
-# For the CHECKPOINT 1 local-seed run (Option A), add the override:
-#   -f docker-compose.prod.yml -f docker-compose.prod.localseed.yml
 
 x-logging: &default-logging
   driver: json-file
@@ -222,10 +220,7 @@ services:
       # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
       secrets:
         - abp_nuget_key
-    # One-shot: applies EF migrations + runs seed contributors, then exits. Production
-    # by default (no test-data seeding). The local-seed override flips
-    # DBMIGRATOR_ENVIRONMENT=Development to seed the sample offices + it.admin@hcs.test
-    # into the volume for the CHECKPOINT 1 fast path (Option A).
+    # One-shot: applies EF migrations + runs seed contributors, then exits. Production.
     environment:
       DOTNET_ENVIRONMENT: "${DBMIGRATOR_ENVIRONMENT:-Production}"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
