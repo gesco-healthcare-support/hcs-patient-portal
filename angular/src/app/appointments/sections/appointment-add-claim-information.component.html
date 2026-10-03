@@ -133,6 +133,7 @@
               <div class="input-group">
                 <input
                   id="appointment-injury-date-of-injury"
+                  autocomplete="off"
                   class="form-control"
                   placeholder="MM/DD/YYYY"
                   [class.is-invalid]="
@@ -166,6 +167,7 @@
                 <div class="input-group">
                   <input
                     id="appointment-injury-to-date-of-injury"
+                    autocomplete="off"
                     class="form-control"
                     placeholder="MM/DD/YYYY"
                     formControlName="injuryToDateOfInjury"
@@ -194,6 +196,7 @@
               </label>
               <input
                 id="appointment-injury-claim-number"
+                autocomplete="off"
                 type="text"
                 class="form-control"
                 [class.is-invalid]="
@@ -225,6 +228,7 @@
               <label for="appointment-injury-wcab-adj" class="form-label fw-semibold">ADJ# *</label>
               <input
                 id="appointment-injury-wcab-adj"
+                autocomplete="off"
                 type="text"
                 class="form-control"
                 [class.is-invalid]="
@@ -246,6 +250,7 @@
                 <div class="input-group mb-2">
                   <input
                     [id]="'appointment-injury-body-part-' + $index"
+                    autocomplete="off"
                     [attr.aria-label]="'Body part ' + ($index + 1)"
                     type="text"
                     class="form-control"

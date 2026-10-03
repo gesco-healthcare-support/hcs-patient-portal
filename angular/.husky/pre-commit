@@ -22,7 +22,17 @@ fi
 # 2. ANGULAR LINT + FORMAT (only staged files matching lint-staged config)
 if [ -d "$REPO_ROOT/angular/node_modules" ]; then
   echo "  Linting staged Angular files..."
-  ( cd "$REPO_ROOT/angular" && npx --no -- lint-staged )
+  # --no-stash is load-bearing; do not remove it as an odd flag.
+  # Without it, lint-staged pushes an "automatic backup" onto `git stash` before
+  # running its tasks and pops it afterwards. refs/stash is ONE stack per
+  # repository, shared by every worktree, so two Angular commits in different
+  # worktrees at once can pop each other's backup -- uncommitted work then lands
+  # in the wrong worktree, silently. That happened on 2026-10-02.
+  # The cost: no automatic restore if a task fails part-way, and the linters see
+  # the whole working tree rather than only the staged hunks. So commit whole
+  # files, not partial hunks: a --fix can otherwise touch the unstaged part.
+  # tests/python/test_husky_hooks.py keeps this flag in place.
+  ( cd "$REPO_ROOT/angular" && npx --no -- lint-staged --no-stash )
   LINT_EXIT=$?
   if [ $LINT_EXIT -ne 0 ]; then
     echo "Angular lint/format failed. Fix before committing."

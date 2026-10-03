@@ -311,6 +311,9 @@ class TestMain(_TempDirCase):
             try:
                 code: object = shard.main(list(argv))
             except SystemExit as stop:
+                # python:S5754 says to re-raise. Not here: main() reports failure by EXITING, so
+                # capturing the code is the only way to assert on it. Same reasoning as the
+                # helper in test_coverage_gate_tracked_discovery.py.
                 code = stop.code
         return code, out.getvalue(), err.getvalue()
 
