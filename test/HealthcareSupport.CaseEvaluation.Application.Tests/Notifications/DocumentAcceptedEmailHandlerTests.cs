@@ -408,4 +408,24 @@ public class DocumentAcceptedEmailHandlerTests
         sent.ContextTag.ShouldBe(
             $"DocumentAccepted/{NotificationTemplateConsts.Codes.PatientDocumentAccepted}/{evt.AppointmentDocumentId}");
     }
+
+    /// <summary>
+    /// Document names are the uploaded files' own, so they are caller-supplied, and the
+    /// outstanding-documents list is HTML. They must be encoded before reaching an email body.
+    /// The fixture is shared with the sibling handler, which builds the list identically. #1010
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_AMissingDocumentNameWithMarkup_IsEncodedIntoTheList()
+    {
+        var rig = new Rig();
+        rig.MissingResolver.ResolveAsync(Arg.Any<Guid>()).Returns(new MissingRequiredDocumentsResult(
+            RequiredCount: 2,
+            Missing: OutstandingDocumentListFixture.NamesWithMarkup()));
+
+        await rig.Build().HandleEventAsync(AcceptedEvent());
+
+        SingleSend(rig.Dispatcher).Variables["RemainingDocumentList"]
+            .ShouldBe(OutstandingDocumentListFixture.EncodedList);
+    }
+
 }
