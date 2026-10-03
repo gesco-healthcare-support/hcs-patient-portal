@@ -68,7 +68,6 @@ closes both and leaves the page, and the portal route, untouched.
 **It cannot reach the portal route.** `RegisterAsync` here does not call `IAccountAppService`; it
 creates the user through `IdentityUserManager` directly.
 
-
 ## Known Gotchas
 
 1. **Missing `[RemoteService(IsEnabled = false)]`** -- Deviation from project convention
