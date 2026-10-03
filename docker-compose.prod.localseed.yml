@@ -19,6 +19,8 @@ services:
   db-migrator:
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: the second, explicit signal the demo seeders require beside Development.
+      ALLOW_DEMO_SEED: "true"
       # B12: blank so the migrator has NO admin-password store and seeds the documented
       # local credentials, which is the whole point of this override -- CHECKPOINT 1 needs an
       # office it can log into. Explicit configuration otherwise wins over the environment,
