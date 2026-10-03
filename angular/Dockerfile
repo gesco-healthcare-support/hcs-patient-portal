@@ -12,7 +12,7 @@
 # Build a specific target with: `docker build --target dev .` (compose sets it).
 
 # ---- base: yarn 4 toolchain + manifests (cacheable) ----
-FROM node:20-alpine AS base
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
 WORKDIR /app
 RUN corepack enable
 COPY .yarnrc.yml package.json yarn.lock ./
@@ -20,7 +20,10 @@ COPY .yarn/releases ./.yarn/releases
 
 # ---- deps: immutable install; layer cached unless the manifests change ----
 FROM base AS deps
-RUN yarn install --immutable
+# --mode=skip-build: no package build script runs at install time. .yarnrc.yml's
+# enableScripts: false already stops dependency scripts (#870); this also skips the
+# workspace's own `prepare` (husky), which has nothing to do inside an image.
+RUN yarn install --immutable --mode=skip-build
 
 # ---- build: compile the SPA ----
 FROM deps AS build
@@ -30,8 +33,9 @@ RUN yarn ng build --configuration "${NG_CONFIG}"
 
 # ---- prod (DEFAULT): static nginx image ----
 # Digest-pinned because this image SHIPS. The tag stays alongside the digest --
-# that pair is the form Dependabot updates; see .github/dependabot.yml for why
-# the base/deps/build/dev stages above are deliberately left on tags.
+# that pair is the form Dependabot updates; see .github/dependabot.yml. Since
+# 2026-09-25 (decision 17) the base stage above -- and so deps/build/dev, which
+# derive from it -- is pinned the same way.
 # SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
 # argument for keeping them is with the docker ecosystem entry in that file.
 FROM nginx:alpine@sha256:72ba65eb42c10344912a84ff42408db7d34f2feb642204570ab8fc5ffd29f1d3 AS prod
@@ -80,23 +84,13 @@ USER nginx
 # ---- dev: build + serve at runtime via dev-entrypoint.sh ----
 # No node_modules or source baked in -- they come from the compose bind-mount and
 # the named volume. `serve` provides a static SPA server (index.html fallback).
-FROM base AS dev
-# Version-pinned for the same reason the CI tool installs are (item 2.2): an
-# unpinned global install resolves to whatever is current at build time, so two
-# builds of the same commit can differ. Dev-only -- prod is the nginx stage.
 #
-# `--ignore-scripts` for the OTHER half of that item, which pinning alone does
-# not cover (docker:S6505): a lifecycle script in the package or any of its
-# dependencies runs as root at build time, so pinning decides WHICH code runs
-# while this decides WHETHER arbitrary install-time code runs at all. Item 2.2
-# made exactly this change to the markdownlint install in lint-meta.yml; the
-# first version of this line pinned the version and left the hole open.
-# NOT hash-pinned (#700). Same narrower argument as the markdownlint install in
-# lint-meta.yml: npm permits unpublishing a version within 72 hours, so a version pin
-# here is a weaker guarantee than the PyPI ones recorded elsewhere, and a hash would
-# close that window. Accepted because `serve` is the dev container's static file server
-# and reaches no shipped artefact -- the prod Angular image is nginx, not this stage.
-RUN npm install -g --ignore-scripts serve@14.2.6
+# `serve` is NOT installed here. It is an Angular devDependency (B8, decision D2),
+# so yarn.lock carries its checksum, `yarn install --immutable` in the entrypoint
+# verifies it, and the /angular Dependabot entry refreshes it. It replaced a global
+# `npm install -g serve@14.2.6`, which was version-pinned but carried no hash.
+# Dev-only either way: the prod Angular image is the nginx stage above.
+FROM base AS dev
 ENV NG_CONFIG=docker
 COPY dev-entrypoint.sh /app/dev-entrypoint.sh
 RUN chmod +x /app/dev-entrypoint.sh
