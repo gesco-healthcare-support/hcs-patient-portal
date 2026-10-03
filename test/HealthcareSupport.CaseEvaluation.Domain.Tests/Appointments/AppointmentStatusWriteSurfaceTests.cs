@@ -13,9 +13,9 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <c>AppointmentManager.ApplyTransitionAsync</c> is opt-in. This pins WHO writes it, as a ratchet:
 /// a new direct write anywhere in <c>src/</c> fails here by file name.
 ///
-/// <para>The allowlist is the only place a direct write is legitimate or known-debt. Narrowing the
-/// setter itself needs the two Application-layer sites (debt below) moved onto the manager first;
-/// when they are, delete their entries and narrow the setter, and this test then guards the rest.</para>
+/// <para>The setter is now <c>internal</c> to the Domain assembly, so the compiler refuses a write from
+/// Application; this scan stays as the ratchet on writes inside Domain. The allowlist is empty of
+/// debt: only the state machine's own store accessor writes the status.</para>
 /// </summary>
 public class AppointmentStatusWriteSurfaceTests
 {
@@ -29,8 +29,6 @@ public class AppointmentStatusWriteSurfaceTests
     {
         // the state machine's own store accessor: THIS is the guarded write
         ["Domain/Appointments/AppointmentManager.cs"] = 1,
-        // KNOWN DEBT (#926): cancellation finalize writes the outcome without the guard
-        ["Application/AppointmentChangeRequests/AppointmentChangeRequestsAppService.Approval.cs"] = 2,
     };
 
     [Fact]

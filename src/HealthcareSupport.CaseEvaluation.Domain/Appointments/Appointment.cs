@@ -47,7 +47,11 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual DateTime? AppointmentApproveDate { get; set; }
 
-    public virtual AppointmentStatusType AppointmentStatus { get; set; }
+    /// <summary>
+    /// #926: writable only inside the Domain assembly (the constructor and the state machine's store
+    /// accessor in <c>AppointmentManager</c>), so a status change cannot bypass the transition guard.
+    /// </summary>
+    public virtual AppointmentStatusType AppointmentStatus { get; internal set; }
 
     public Guid PatientId { get; set; }
 

@@ -426,6 +426,44 @@ public abstract class AppointmentManagerTests<TStartupModule> : CaseEvaluationDo
     }
 
     [Theory]
+    [InlineData(AppointmentStatusType.CancelledNoBill)]
+    [InlineData(AppointmentStatusType.CancelledLate)]
+    public async Task Manager_ConfirmCancellationAsync_FromPending_ClosesWithTheOutcome(
+        AppointmentStatusType outcome)
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                try
+                {
+                    var updated = await _appointmentManager.ConfirmCancellationAsync(
+                        AppointmentsTestData.Appointment1Id, outcome, reason: null, actingUserId: null);
+
+                    updated.AppointmentStatus.ShouldBe(outcome);
+                }
+                finally
+                {
+                    await RestoreAppointmentStatusAsync(
+                        AppointmentsTestData.Appointment1Id, AppointmentsTestData.Appointment1Status);
+                }
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Approved)]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    public async Task Manager_ConfirmCancellationAsync_WhenOutcomeIsNotACancellation_Throws(
+        AppointmentStatusType outcome)
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() =>
+            _appointmentManager.ConfirmCancellationAsync(
+                AppointmentsTestData.Appointment1Id, outcome, reason: null, actingUserId: null));
+    }
+
+    [Theory]
     [InlineData(AppointmentStatusType.Approved)]
     [InlineData(AppointmentStatusType.Billed)]
     [InlineData(AppointmentStatusType.CancelledLate)]
