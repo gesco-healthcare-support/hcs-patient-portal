@@ -47,11 +47,14 @@ version: 2
 # release they are looking at, which `@sha256:a4556ed0...` does not. THE DIGEST
 # IS WHAT RESOLVES; if you change one, change both.
 #
-# The seven build- and dev-stage images stay on floating tags by Adrian's
-# decision: they never reach a shipped artefact (each prod stage is a separate
-# FROM that copies only the publish output), so they keep receiving upstream
-# patches automatically and cost no review. The `ignore` list below is what
-# keeps this entry from proposing bumps for exactly those seven.
+# EVERY stage is pinned since 2026-09-25 (decision 17), build and dev stages
+# included. They never ship, but they PRODUCE what ships: a floating build image
+# means two builds of one commit can differ, and a compromised tag reaches the
+# publish output. The `ignore` entries that exempted `dotnet/sdk` and `node` were
+# removed so this entry now refreshes those pins too. The AuthServer's Node
+# binaries come from a named `node-runtime` stage for the same reason: this
+# ecosystem reads `FROM` lines only, so a digest behind `COPY --from=<image>`
+# could never be refreshed.
 
 updates:
   - package-ecosystem: "nuget"
@@ -111,25 +114,59 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "docker"]
     target-branch: "chore/dependency-updates"
+
+  # .NET SDK pin in global.json (B8, 2026-09-25). CI installs exactly this SDK
+  # (setup-dotnet `global-json-file`) and the images pin the matching
+  # `sdk:<version>` tag, so a bump here and the docker entry's sdk bump belong
+  # together: rollForward latestPatch lets either land first within one feature
+  # band, but a new band needs both. Version updates are ON for the same reason
+  # as github-actions: an exact pin with no refresh path freezes.
+  - package-ecosystem: "dotnet-sdk"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "backend"]
+    target-branch: "chore/dependency-updates"
+
+  # The packet renderer's hash-pinned requirements.txt, compiled by pip-compile
+  # from requirements.in (decision 18; B8, 2026-09-25). Dependabot recompiles the
+  # whole file, hashes included. Version updates ON: the ABP/Angular constraint
+  # that keeps nuget and npm at 0 says nothing about this service.
+  - package-ecosystem: "pip"
+    directory: "/docker/packet-renderer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "backend"]
+    target-branch: "chore/dependency-updates"
+
+  # The images the compose files run directly (SQL Server, Redis, MinIO, nginx,
+  # and clamd once uploads are scanned). The `docker` entry above reads only
+  # Dockerfiles, so without this nothing ever proposed moving a compose image.
+  # One directory covers both files: the fetcher matches
+  # /(docker-)?compose(-[\w]+)?(?>\.[\w-]+)?\.ya?ml/i (dependabot-core,
+  # docker/lib/dependabot/docker_compose/file_fetcher.rb), i.e. docker-compose.yml
+  # and docker-compose.prod.yml. Added 2026-09-25 (B8).
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "docker"]
+    target-branch: "chore/dependency-updates"
     ignore:
-      # The build- and dev-stage images, left on floating tags deliberately.
-      #
-      # THESE NAMES ARE UNQUALIFIED ON PURPOSE. DO NOT ADD THE REGISTRY.
-      # Dependabot parses a FROM line into separate `registry` and `image`
-      # captures and names the dependency from the image ALONE, putting the
-      # registry in the requirement source (dependabot-core,
-      # docker/lib/dependabot/shared/shared_file_parser.rb: `name:
-      # details.fetch("image")`). So `mcr.microsoft.com/dotnet/sdk` matches
-      # NOTHING: the config would still parse, this list would still read as
-      # though it excluded the sdk stages, and Dependabot would open bumps for
-      # them anyway. GitHub's own options reference says to match Docker
-      # dependencies by "the full name of the repository", which is what leads
-      # to writing the registry-qualified form. It is wrong here.
-      - dependency-name: "dotnet/sdk"
-      # Only angular/Dockerfile's `base` stage today. The four
-      # `COPY --from=node:22-bookworm-slim` lines in the AuthServer image are
-      # invisible to Dependabot regardless -- its FROM regex is anchored at
-      # `^FROM` and never matches a COPY -- so that Node reference has no
-      # automated refresh path and moving it is a human's job. This entry stays
-      # so the exclusion is still correct if a `FROM node:` is ever added.
-      - dependency-name: "node"
+      # MinIO stays where it is. The release that fixes its open advisory was
+      # published as source only, and both registries now refuse anonymous
+      # pulls of these images (measured 2026-09-30), so a bump would name a tag
+      # the server cannot pull and the deploy would fail. Moving the documents
+      # off MinIO is the real fix, not a version bump here.
+      # NAMES ARE UNQUALIFIED ON PURPOSE. Dependabot names a docker dependency
+      # from the image alone and keeps the registry in the requirement source
+      # (dependabot-core shared_file_parser.rb), so `quay.io/minio/minio`
+      # would match nothing and the bumps would arrive anyway.
+      - dependency-name: "minio/minio"
+      - dependency-name: "minio/mc"
