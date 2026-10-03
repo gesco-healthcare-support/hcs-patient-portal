@@ -248,4 +248,67 @@ public abstract class ExternalSignupAttorneyAutoLinkTests<TStartupModule>
             return true;
         });
     }
+
+    // Two unclaimed records under one email: RegisterAsync adopts one, and the auto-link step's own
+    // claim loop picks up the other. Neither claim is saved yet when the link patch runs, so a link
+    // under the loop-claimed record is found only through the claimed list, not the owned query.
+    // The unique email index would normally forbid two such rows; the test model does not carry it,
+    // and the step is defensive about exactly that.
+    [Fact]
+    public async Task An_applicant_attorney_registering_claims_links_under_every_unclaimed_record_with_their_email()
+    {
+        var token = NewToken();
+        var email = $"twin-app-{token}@example.test";
+        var firstAppointment = await InsertAppointmentAsync(token, "A6", a => a.ApplicantAttorneyEmail = email);
+        var secondAppointment = await InsertAppointmentAsync(token, "A7", a => a.ApplicantAttorneyEmail = email);
+        await InOfficeA(async () =>
+        {
+            var first = new ApplicantAttorney(Guid.NewGuid(), null, null, "Synthetic Firm", null, null) { Email = email };
+            await _applicants.InsertAsync(first, autoSave: true);
+            var second = new ApplicantAttorney(Guid.NewGuid(), null, null, "Synthetic Firm", null, null) { Email = email.ToUpperInvariant() };
+            await _applicants.InsertAsync(second, autoSave: true);
+            await _applicantLinks.InsertAsync(new AppointmentApplicantAttorney(Guid.NewGuid(), firstAppointment.Id, first.Id, null), autoSave: true);
+            await _applicantLinks.InsertAsync(new AppointmentApplicantAttorney(Guid.NewGuid(), secondAppointment.Id, second.Id, null), autoSave: true);
+            return true;
+        });
+
+        var accountId = await RegisterAsync(ExternalUserType.ApplicantAttorney, email);
+
+        await InOfficeA(async () =>
+        {
+            (await _applicantLinks.GetListAsync(l => l.AppointmentId == firstAppointment.Id)).ShouldHaveSingleItem()
+                .IdentityUserId.ShouldBe(accountId);
+            (await _applicantLinks.GetListAsync(l => l.AppointmentId == secondAppointment.Id)).ShouldHaveSingleItem()
+                .IdentityUserId.ShouldBe(accountId);
+            return true;
+        });
+    }
+
+    [Fact]
+    public async Task A_defense_attorney_registering_claims_links_under_every_unclaimed_record_with_their_email()
+    {
+        var token = NewToken();
+        var email = $"twin-def-{token}@example.test";
+        var firstAppointment = await InsertAppointmentAsync(token, "D6", a => a.DefenseAttorneyEmail = email);
+        var secondAppointment = await InsertAppointmentAsync(token, "D7", a => a.DefenseAttorneyEmail = email);
+        await InOfficeA(async () =>
+        {
+            var first = await _defenses.InsertAsync(new DefenseAttorney(Guid.NewGuid(), null, null, email: email), autoSave: true);
+            var second = await _defenses.InsertAsync(new DefenseAttorney(Guid.NewGuid(), null, null, email: email.ToUpperInvariant()), autoSave: true);
+            await _defenseLinks.InsertAsync(new AppointmentDefenseAttorney(Guid.NewGuid(), firstAppointment.Id, first.Id, null), autoSave: true);
+            await _defenseLinks.InsertAsync(new AppointmentDefenseAttorney(Guid.NewGuid(), secondAppointment.Id, second.Id, null), autoSave: true);
+            return true;
+        });
+
+        var accountId = await RegisterAsync(ExternalUserType.DefenseAttorney, email);
+
+        await InOfficeA(async () =>
+        {
+            (await _defenseLinks.GetListAsync(l => l.AppointmentId == firstAppointment.Id)).ShouldHaveSingleItem()
+                .IdentityUserId.ShouldBe(accountId);
+            (await _defenseLinks.GetListAsync(l => l.AppointmentId == secondAppointment.Id)).ShouldHaveSingleItem()
+                .IdentityUserId.ShouldBe(accountId);
+            return true;
+        });
+    }
 }
