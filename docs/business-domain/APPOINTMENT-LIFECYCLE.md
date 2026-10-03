@@ -119,6 +119,7 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | CheckedOut(10) | Bill(14) | Billed(11) |
 | RescheduleRequested(12) | ConfirmReschedule(9) | RescheduledNoBill(7) |
 | RescheduleRequested(12) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| RescheduleRequested(12) | RejectReschedule(16) | Approved(2) |
 | CancellationRequested(13) | ConfirmCancellation(7) | CancelledNoBill(5) |
 | CancellationRequested(13) | ConfirmCancellationLate(8) | CancelledLate(6) |
 | InfoRequested(14) | SaveAndResubmit(4) | Pending(1) |
@@ -138,7 +139,7 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | CheckedIn(9) | 1 |
 | CheckedOut(10) | 1 |
 | Billed(11) | 0 |
-| RescheduleRequested(12) | 2 |
+| RescheduleRequested(12) | 3 |
 | CancellationRequested(13) | 2 |
 | InfoRequested(14) | 1 |
 | NotSeen(15) | 0 |
@@ -162,6 +163,7 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | CheckOut(13) | 1 |
 | Bill(14) | 1 |
 | MarkNotSeen(15) | 1 |
+| RejectReschedule(16) | 1 |
 <!-- GENERATED: appointment-transitions END -->
 
 ```mermaid
@@ -186,6 +188,7 @@ stateDiagram-v2
 
     RescheduleRequested --> RescheduledNoBill : ConfirmReschedule
     RescheduleRequested --> RescheduledLate : ConfirmRescheduleLate
+    RescheduleRequested --> Approved : RejectReschedule
 
     Rejected --> [*]
     NoShow --> [*]

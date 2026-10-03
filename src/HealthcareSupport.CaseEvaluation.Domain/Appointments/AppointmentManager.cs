@@ -399,6 +399,15 @@ public class AppointmentManager : DomainService
         => TransitionAsync(id, trigger, reason, actingUserId);
 
     /// <summary>
+    /// #926 -- RescheduleRequested -> Approved, when a reschedule request is rejected. Permitted from
+    /// RescheduleRequested only. Callers whose source appointment is still Pending (internal staff
+    /// may file a reschedule against one) must NOT call this: that appointment never left Pending,
+    /// so there is nothing to revert and no transition to make.
+    /// </summary>
+    public virtual Task<Appointment> RejectRescheduleAsync(Guid id, string? reason, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.RejectReschedule, reason, actingUserId);
+
+    /// <summary>
     /// Phase 5 (2026-08-07) -- Approved -> NoShow / NotSeen. Records that an
     /// appointment produced no evaluation, as reported by the Case Tracker.
     ///
@@ -628,7 +637,10 @@ public class AppointmentManager : DomainService
 
         machine.Configure(AppointmentStatusType.RescheduleRequested)
             .Permit(AppointmentTransitionTrigger.ConfirmReschedule, AppointmentStatusType.RescheduledNoBill)
-            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate);
+            .Permit(AppointmentTransitionTrigger.ConfirmRescheduleLate, AppointmentStatusType.RescheduledLate)
+            // #926: a rejected reschedule reverts to Approved (the only status that can enter
+            // RescheduleRequested). A Pending source is not here on purpose: it never left Pending.
+            .Permit(AppointmentTransitionTrigger.RejectReschedule, AppointmentStatusType.Approved);
 
         // DEAD CODE -- CheckedIn / CheckedOut / Billed are unreachable.
         // These three transitions (CheckIn -> CheckedIn -> CheckedOut -> Billed) are OLD's
