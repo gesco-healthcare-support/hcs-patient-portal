@@ -795,17 +795,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@angular/router@npm:~20.3.19":
-  version: 20.3.19
-  resolution: "@angular/router@npm:20.3.19"
+"@angular/router@npm:~20.3.32":
+  version: 20.3.32
+  resolution: "@angular/router@npm:20.3.32"
   dependencies:
     tslib: "npm:^2.3.0"
   peerDependencies:
-    "@angular/common": 20.3.19
-    "@angular/core": 20.3.19
-    "@angular/platform-browser": 20.3.19
+    "@angular/common": 20.3.32
+    "@angular/core": 20.3.32
+    "@angular/platform-browser": 20.3.32
     rxjs: ^6.5.3 || ^7.4.0
-  checksum: 10c0/102da4904edeeab92ed033eb84c3f7dae5ef3206036581ec3a39a6cf39f4dc646f80c677ffe269b14924d573f648c96ac75617ca445619e46ae4e96a818eab3e
+  checksum: 10c0/8e89b73ae471179b47fcb53c72d313e036f85454bcb73fe04c9a59e6e1497bf38f4560bffd0e603e97bf0b6e30e78e383c91625a7ef899811d28f8217c0d3038
   languageName: node
   linkType: hard
 
@@ -3950,7 +3950,7 @@ __metadata:
     "@angular/localize": "npm:~20.3.19"
     "@angular/platform-browser": "npm:~20.3.19"
     "@angular/platform-browser-dynamic": "npm:~20.3.19"
-    "@angular/router": "npm:~20.3.19"
+    "@angular/router": "npm:~20.3.32"
     "@commitlint/cli": "npm:^19.5.0"
     "@commitlint/config-conventional": "npm:^19.5.0"
     "@fontsource/roboto": "npm:^5.2.10"
