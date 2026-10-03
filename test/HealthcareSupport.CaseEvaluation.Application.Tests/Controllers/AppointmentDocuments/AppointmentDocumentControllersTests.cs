@@ -101,6 +101,24 @@ public class AppointmentDocumentControllersTests
     }
 
     [Fact]
+    public async Task Upload_treats_an_absent_strike_list_flag_as_not_a_strike_list()
+    {
+        // IsPanelStrikeList is nullable so the form can tell an omitted flag from a false one
+        // (S6964). Absent must still reach the service as false: an unchecked box sends nothing,
+        // and tagging a document as the PQME panel strike list is what staff verify the venue
+        // against, so defaulting the other way would mislabel every upload that omits it.
+        var form = new UploadAppointmentDocumentForm { File = FormFiles.WithContent(out _) };
+        form.IsPanelStrikeList.ShouldBeNull();
+
+        await Documents().UploadAsync(AppointmentId, form);
+
+        await _documents.Received(1).UploadStreamAsync(
+            AppointmentId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<long>(),
+            Arg.Any<Stream>(), null, null, false);
+    }
+
+
+    [Fact]
     public async Task List_reads_the_appointments_documents()
     {
         var rows = new System.Collections.Generic.List<AppointmentDocumentDto>();

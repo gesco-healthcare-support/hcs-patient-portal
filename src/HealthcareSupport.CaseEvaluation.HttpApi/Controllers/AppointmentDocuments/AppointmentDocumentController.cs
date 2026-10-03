@@ -71,7 +71,7 @@ public class AppointmentDocumentController : AbpController
             stream,
             form.AppointmentDocumentTypeId,
             form.OtherDocumentTypeName,
-            form.IsPanelStrikeList);
+            form.IsPanelStrikeList ?? false);
     }
 
     [HttpGet("{id}/download")]
@@ -184,5 +184,13 @@ public class UploadAppointmentDocumentForm
     /// <c>AppointmentDocument.IsPanelStrikeList</c> (AF5) for staff venue
     /// verification.
     /// </summary>
-    public bool IsPanelStrikeList { get; set; }
+    /// <para>NULLABLE deliberately (S6964). A non-nullable value type on a bound input cannot
+    /// tell an omitted field from a false one, which is what the rule calls under-posting. The
+    /// generated proxy already declares this optional (<c>isPanelStrikeList?: boolean</c>), so
+    /// nullable here is the C# side finally agreeing with the contract the client was given.</para>
+    ///
+    /// <para>Absent still means false, which is correct for an unchecked box and is what the
+    /// booking form has always sent -- it appends the flag unconditionally. Making it REQUIRED
+    /// instead would refuse every caller that legitimately omits it.</para>
+    public bool? IsPanelStrikeList { get; set; }
 }
