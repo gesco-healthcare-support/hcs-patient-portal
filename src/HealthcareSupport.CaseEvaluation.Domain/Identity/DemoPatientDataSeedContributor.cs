@@ -40,6 +40,7 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
     private readonly PatientManager _patientManager;
     private readonly IPatientRepository _patientRepository;
     private readonly ILogger<DemoPatientDataSeedContributor> _logger;
+    private readonly IDemoSeedEnvironment _demoSeedEnvironment;
 
     public DemoPatientDataSeedContributor(
         IdentityUserManager userManager,
@@ -48,7 +49,8 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
         IRepository<Tenant, Guid> tenantRepository,
         PatientManager patientManager,
         IPatientRepository patientRepository,
-        ILogger<DemoPatientDataSeedContributor> logger)
+        ILogger<DemoPatientDataSeedContributor> logger,
+        IDemoSeedEnvironment demoSeedEnvironment)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -57,12 +59,16 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
         _patientManager = patientManager;
         _patientRepository = patientRepository;
         _logger = logger;
+        _demoSeedEnvironment = demoSeedEnvironment;
     }
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (!IsDevelopment())
+        if (!DemoSeedGate.IsAllowed(_demoSeedEnvironment))
         {
+            _logger.LogInformation(
+                "DemoPatientDataSeedContributor: skipping ({Reason}).",
+                DemoSeedGate.ClosedReason(_demoSeedEnvironment));
             return;
         }
 
@@ -158,6 +164,9 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
+            _logger.LogWarning(
+                "DemoPatientDataSeedContributor: DEMO SEED created {Email} (tenant {TenantId}) with the published default password.",
+                email, tenantId);
         }
 
         // Seeded demo accounts never receive a verification email; mark confirmed
@@ -212,13 +221,6 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
         {
             return await _tenantRepository.FindAsync(tenantId);
         }
-    }
-
-    private static bool IsDevelopment()
-    {
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-        return string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

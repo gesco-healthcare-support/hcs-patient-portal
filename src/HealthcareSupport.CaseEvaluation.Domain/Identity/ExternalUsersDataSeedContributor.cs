@@ -50,6 +50,7 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     private readonly ApplicantAttorneyManager _applicantAttorneyManager;
     private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
     private readonly ILogger<ExternalUsersDataSeedContributor> _logger;
+    private readonly IDemoSeedEnvironment _demoSeedEnvironment;
 
     public ExternalUsersDataSeedContributor(
         IdentityUserManager userManager,
@@ -60,7 +61,8 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         IRepository<Patient, Guid> patientRepository,
         ApplicantAttorneyManager applicantAttorneyManager,
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
-        ILogger<ExternalUsersDataSeedContributor> logger)
+        ILogger<ExternalUsersDataSeedContributor> logger,
+        IDemoSeedEnvironment demoSeedEnvironment)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -71,14 +73,16 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         _applicantAttorneyManager = applicantAttorneyManager;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _logger = logger;
+        _demoSeedEnvironment = demoSeedEnvironment;
     }
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (!IsDevelopment())
+        if (!DemoSeedGate.IsAllowed(_demoSeedEnvironment))
         {
             _logger.LogInformation(
-                "ExternalUsersDataSeedContributor: skipping (not Development environment).");
+                "ExternalUsersDataSeedContributor: skipping ({Reason}).",
+                DemoSeedGate.ClosedReason(_demoSeedEnvironment));
             return;
         }
 
@@ -88,13 +92,6 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         }
 
         await SeedTenantUsersAsync(context.TenantId.Value);
-    }
-
-    private static bool IsDevelopment()
-    {
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-        return string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SeedTenantUsersAsync(Guid tenantId)
@@ -177,8 +174,8 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
-            _logger.LogInformation(
-                "ExternalUsersDataSeedContributor: created user {Email} (tenant {TenantId}).",
+            _logger.LogWarning(
+                "ExternalUsersDataSeedContributor: DEMO SEED created {Email} (tenant {TenantId}) with the published default password.",
                 email, tenantId);
         }
 
