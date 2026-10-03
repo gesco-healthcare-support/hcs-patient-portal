@@ -12,6 +12,7 @@ transition CheckedIn(9) --CheckOut(13)--> CheckedOut(10)
 transition CheckedOut(10) --Bill(14)--> Billed(11)
 transition RescheduleRequested(12) --ConfirmReschedule(9)--> RescheduledNoBill(7)
 transition RescheduleRequested(12) --ConfirmRescheduleLate(10)--> RescheduledLate(8)
+transition RescheduleRequested(12) --RejectReschedule(16)--> Approved(2)
 transition CancellationRequested(13) --ConfirmCancellation(7)--> CancelledNoBill(5)
 transition CancellationRequested(13) --ConfirmCancellationLate(8)--> CancelledLate(6)
 transition InfoRequested(14) --SaveAndResubmit(4)--> Pending(1)
@@ -26,7 +27,7 @@ state RescheduledLate(8): 0 outgoing
 state CheckedIn(9): 1 outgoing
 state CheckedOut(10): 1 outgoing
 state Billed(11): 0 outgoing
-state RescheduleRequested(12): 2 outgoing
+state RescheduleRequested(12): 3 outgoing
 state CancellationRequested(13): 2 outgoing
 state InfoRequested(14): 1 outgoing
 state NotSeen(15): 0 outgoing
@@ -45,3 +46,4 @@ trigger CheckIn(12): 1 transition(s)
 trigger CheckOut(13): 1 transition(s)
 trigger Bill(14): 1 transition(s)
 trigger MarkNotSeen(15): 1 transition(s)
+trigger RejectReschedule(16): 1 transition(s)
