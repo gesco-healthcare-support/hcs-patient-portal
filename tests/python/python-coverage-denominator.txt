@@ -16,6 +16,7 @@ docker/packet-renderer/app.py
 scripts/coverage-gate.py
 scripts/infra-ci.py
 scripts/maintenance/import-issues.py
+scripts/mutation-harness.py
 scripts/shard-tests.py
 tools/packet-templates/attorney/build_attorney.py
 tools/packet-templates/doctor/build_doctor.py
