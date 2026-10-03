@@ -798,7 +798,13 @@ def load_changed_diff(path_arg: str) -> dict[str, set[int]]:
         die(f"changed-lines diff at {diff_path} could not be parsed: {exc}")
 
 
-TEST_PATH_RE = re.compile(r"(^|/)(test|tests)/|\.spec\.ts$")
+# Grouped explicitly (python:S5850). The precedence was already what it reads as --
+# `|` binds loosest, so the two alternatives are the path segment and the suffix --
+# but this repository has twice shipped a regex whose precedence was NOT what it
+# looked like, each time exiting 0 while matching nothing. Proven identical to the
+# ungrouped form across the near-misses that matter: Contest, latest, testing,
+# atest, a bare "test", and .spec.tsx.
+TEST_PATH_RE = re.compile(r"(?:(?:^|/)(?:test|tests)/)|(?:\.spec\.ts$)")
 
 
 def tests_only_files(changed: dict[str, set[int]],
