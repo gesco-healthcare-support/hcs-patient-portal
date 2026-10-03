@@ -16,6 +16,7 @@ using Volo.Abp.BlobStoring.Database;
 using Volo.Abp.BlobStoring.Minio;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
+using HealthcareSupport.CaseEvaluation.Uploads;
 using Volo.Abp.Caching;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.PermissionManagement.OpenIddict;
@@ -195,9 +196,15 @@ public class CaseEvaluationDomainModule : AbpModule
         var withSsl = bool.TryParse(minioSection["WithSsl"], out var sslFlag) && sslFlag;
         var createBucketIfNotExists = !bool.TryParse(minioSection["CreateBucketIfNotExists"], out var createFlag) || createFlag;
 
+        // B11: where clamd listens. No default host on purpose -- unset, every scan fails closed.
+        Configure<ClamdOptions>(configuration.GetSection(ClamdOptions.SectionName));
+
         Configure<AbpBlobStoringOptions>(options =>
         {
-            void UseMinio<TContainer>()
+            // `scan` routes the container through ScanningMinioBlobProvider, which checks each file
+            // with clamd before it is stored (B11, decision D2). It is set for every container that
+            // holds a user-supplied file, and NOT for appointment-packets, which the app generates.
+            void UseMinio<TContainer>(bool scan)
             {
                 options.Containers.Configure<TContainer>(container =>
                 {
@@ -210,17 +217,21 @@ public class CaseEvaluationDomainModule : AbpModule
                         minio.WithSSL = withSsl;
                         minio.CreateBucketIfNotExists = createBucketIfNotExists;
                     });
+                    if (scan)
+                    {
+                        container.ProviderType = typeof(ScanningMinioBlobProvider);
+                    }
                 });
             }
 
-            UseMinio<AppointmentDocumentsContainer>();
-            UseMinio<AnonymousUploadsContainer>();
-            UseMinio<DocumentPackagesContainer>();
-            UseMinio<MasterDocumentsContainer>();
-            UseMinio<JointDeclarationsContainer>();
-            UseMinio<AppointmentPacketsContainer>();
-            UseMinio<UserSignaturesContainer>();
-            UseMinio<OfficeLogosContainer>();
+            UseMinio<AppointmentDocumentsContainer>(scan: true);
+            UseMinio<AnonymousUploadsContainer>(scan: true);
+            UseMinio<DocumentPackagesContainer>(scan: true);
+            UseMinio<MasterDocumentsContainer>(scan: true);
+            UseMinio<JointDeclarationsContainer>(scan: true);
+            UseMinio<AppointmentPacketsContainer>(scan: false);
+            UseMinio<UserSignaturesContainer>(scan: true);
+            UseMinio<OfficeLogosContainer>(scan: true);
         });
     }
 

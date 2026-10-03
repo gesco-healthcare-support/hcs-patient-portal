@@ -146,6 +146,27 @@ services:
       timeout: 3s
       retries: 10
 
+  # B11: clamd scans every user-supplied file before it is stored. The API streams each
+  # upload to it over the internal network (Clamd__Host on the api service below) and
+  # refuses the upload when it finds a signature (422) or cannot answer (503) -- it fails
+  # CLOSED, so while this container is starting or down, uploads are refused, not stored
+  # unscanned. No published port: only the api talks to it.
+  #
+  # The api does NOT depend_on this service: the app starts without it, and signature
+  # loading takes about a minute on a cold start. freshclam inside the image refreshes the
+  # signatures and needs outbound HTTPS to database.clamav.net. The named volume keeps them
+  # across restarts so a restart is not a full download.
+  clamav:
+    image: clamav/clamav:1.5@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0
+    restart: unless-stopped
+    # ClamAV's own guidance: 3 GiB minimum, 4 GiB preferred, and double the signature
+    # memory briefly during a reload.
+    mem_limit: ${CLAMAV_MEM_LIMIT:-4g}
+    volumes:
+      - clamavdb:/var/lib/clamav
+    logging: *default-logging
+    # The image's own HEALTHCHECK (clamdcheck.sh) reports healthy once clamd answers.
+
   minio:
     # NOT pullable from any registry since 2026-09-30; see the MinIO note at the top of this file.
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -403,6 +424,8 @@ services:
       # B4: the Host names this process answers; anything else gets 400 before app code runs.
       # `localhost` = the container health checks. A bare "*" is refused at startup.
       AllowedHosts: "${BASE_DOMAIN};*.${BASE_DOMAIN};localhost"
+      # B11: the malware scanner. Required outside Development (HostingConfigValidator).
+      Clamd__Host: clamav
       AuthServer__Authority: "https://auth.${BASE_DOMAIN}"
       # Split-horizon: reach the AuthServer for OIDC discovery over the internal
       # network, but validate tokens against the public issuer (see IssuerValidator).
@@ -601,6 +624,7 @@ volumes:
   # under /var/lib/docker/volumes/<project>_apilogs/_data (root).
   apilogs:
   authserverlogs:
+  clamavdb:
 
 secrets:
   # The ABP Commercial feed key (#703). It used to be a build ARG, and Docker records

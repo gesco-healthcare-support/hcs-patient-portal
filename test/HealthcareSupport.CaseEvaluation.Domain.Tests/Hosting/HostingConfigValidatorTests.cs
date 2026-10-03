@@ -101,6 +101,39 @@ public class HostingConfigValidatorTests
         ex.Message.ShouldContain("AuthServer:CertificatePassPhrase");
     }
 
+    /// <summary>
+    /// B11: the API scans every upload with clamd and refuses all of them without it, so it will not
+    /// start without a clamd host. The AuthServer stores no uploads and is not asked for one.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("REPLACE_ME")]
+    public void Requires_a_clamd_host_only_for_the_api(string? host)
+    {
+        var values = ValidProd();
+        values["Clamd:Host"] = host;
+
+        // AuthServer (no upload scanner): fine without it.
+        Should.NotThrow(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate: true));
+
+        // API: must have it.
+        var ex = Should.Throw<AbpException>(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate: false, requireUploadScanner: true));
+        ex.Message.ShouldContain("Clamd:Host");
+    }
+
+    [Fact]
+    public void Passes_the_api_when_a_clamd_host_is_set()
+    {
+        var values = ValidProd();
+        values["Clamd:Host"] = "clamav";
+
+        Should.NotThrow(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate: false, requireUploadScanner: true));
+    }
+
     [Fact]
     public void Lists_every_offending_key_at_once()
     {

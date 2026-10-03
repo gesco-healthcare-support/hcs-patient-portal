@@ -76,6 +76,23 @@ services:
   # do not change the tags. See the MinIO note at the top of
   # docker-compose.prod.yml for the why and for the digests that verify a
   # loaded image.
+  # B11: clamd scans every user-supplied file before it is stored. The API streams each
+  # upload to it over the internal network (Clamd__Host on the api service below) and
+  # refuses the upload when it finds a signature (422) or cannot answer (503) -- it fails
+  # CLOSED, so while this container is starting or down, uploads are refused, not stored
+  # unscanned. No published port: only the api talks to it.
+  #
+  # The api does NOT depend_on this service: the app starts without it, and signature
+  # loading takes about a minute on a cold start. freshclam inside the image refreshes the
+  # signatures and needs outbound HTTPS to database.clamav.net. The named volume keeps them
+  # across restarts so a restart is not a full download.
+  clamav:
+    image: clamav/clamav:1.5@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0
+    restart: unless-stopped
+    volumes:
+      - clamavdb:/var/lib/clamav
+    # The image's own HEALTHCHECK (clamdcheck.sh) reports healthy once clamd answers.
+
   minio:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
@@ -329,6 +346,9 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${API_PORT:-44327}"
+      # B11: the malware scanner. Dev runs the same scan as production; there is no
+      # switch that turns it off (decision D3).
+      Clamd__Host: clamav
       # ADR-006 (2026-05-05) -- subdomain tenant routing. See AuthServer block.
       App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368},http://*.localhost:${NG_PORT:-4200},http://*.localhost:${AUTH_PORT:-44368}"
       App__HealthUiCheckUrl: "http://localhost:8080/health-status"
@@ -473,6 +493,7 @@ services:
 volumes:
   sqldata:
   miniodata:
+  clamavdb:
   angular_node_modules:
   nuget_packages:
 
