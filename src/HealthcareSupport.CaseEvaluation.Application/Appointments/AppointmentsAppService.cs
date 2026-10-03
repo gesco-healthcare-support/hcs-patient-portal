@@ -780,13 +780,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // they are called rather than reimplemented, exactly like the child groups.
             if (input.ApplicantAttorney != null)
             {
-                await UpsertApplicantAttorneyForAppointmentAsync(created.Id, input.ApplicantAttorney);
+                await UpsertApplicantAttorneyInternalAsync(created.Id, input.ApplicantAttorney);
                 result.ApplicantAttorneys = 1;
             }
 
             if (input.DefenseAttorney != null)
             {
-                await UpsertDefenseAttorneyForAppointmentAsync(created.Id, input.DefenseAttorney);
+                await UpsertDefenseAttorneyInternalAsync(created.Id, input.DefenseAttorney);
                 result.DefenseAttorneys = 1;
             }
 
@@ -1745,6 +1745,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
     {
+        // The caller must be a party to THIS appointment. Writing a link row with the caller's own user id
+        // is what the access rules read to admit them, so an unguarded upsert would let any signed-in
+        // user admit themselves to any appointment. Booking calls the Internal variant below: it has
+        // just created the appointment and authorised the booker, so it must not re-run the guard.
+        await EnsureCanReadAsync(appointmentId);
+        await UpsertApplicantAttorneyInternalAsync(appointmentId, input);
+    }
+
+    private async Task UpsertApplicantAttorneyInternalAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
+    {
         // 2026-05-07 (Bonus issue): drop the IdentityUserId == Guid.Empty
         // early-return so a brand-new attorney typed by the booker (no
         // IdentityUser yet) is still persisted. The master ApplicantAttorney
@@ -1993,6 +2003,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     [Authorize]
     public virtual async Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
+    {
+        // The caller must be a party to THIS appointment. Writing a link row with the caller's own user id
+        // is what the access rules read to admit them, so an unguarded upsert would let any signed-in
+        // user admit themselves to any appointment. Booking calls the Internal variant below: it has
+        // just created the appointment and authorised the booker, so it must not re-run the guard.
+        await EnsureCanReadAsync(appointmentId);
+        await UpsertDefenseAttorneyInternalAsync(appointmentId, input);
+    }
+
+    private async Task UpsertDefenseAttorneyInternalAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
     {
         // 2026-05-07 (Bonus issue): mirror the AA upsert above. Drop the
         // IdentityUserId == Guid.Empty early-return; resolve via email when
