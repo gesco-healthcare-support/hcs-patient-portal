@@ -27,6 +27,10 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// (<c>InternalUserRoleDataSeedContributor</c>), which matters because the IT Admin role cannot be
 /// re-permissioned through the UI.</para>
 /// </summary>
+// Not auto-exposed. The hand-written CaseTrackerOfficesController is this service's only HTTP surface, so the
+// guards written on that surface (input validation, binding) cannot be bypassed through a
+// second, auto-generated route.
+[RemoteService(IsEnabled = false)]
 [Authorize]
 public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICaseTrackerPushSettingsAppService
 {
