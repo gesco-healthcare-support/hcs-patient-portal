@@ -17,6 +17,7 @@
   },
   "private": true,
   "dependencies": {
+    "pm2": "7.0.4",
     "@abp/ng.components": "~10.0.2",
     "@abp/ng.core": "~10.0.2",
     "@abp/ng.feature-management": "~10.0.2",
