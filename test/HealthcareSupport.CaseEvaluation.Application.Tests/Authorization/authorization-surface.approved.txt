@@ -221,6 +221,7 @@ HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocatio
 HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocationsAppService.ToggleAsync(ToggleDoctorPreferredLocationInput) -> class=(authenticated) method=CaseEvaluation.DoctorPreferredLocations.Toggle
 HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.CreateAsync(SaasTenantCreateDto) -> class=Saas.Tenants method=Saas.Tenants.Create
 HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.CreatePracticeAsync(CreatePracticeInput) -> class=Saas.Tenants method=Saas.Tenants.Create
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.UpdateAsync(Guid, SaasTenantUpdateDto) -> class=Saas.Tenants method=Saas.Tenants.Update
 HealthcareSupport.CaseEvaluation.Doctors.DoctorsAppService.CreateAsync(DoctorCreateDto) -> class=CaseEvaluation.Doctors method=CaseEvaluation.Doctors.Create
 HealthcareSupport.CaseEvaluation.Doctors.DoctorsAppService.DeleteAsync(Guid) -> class=CaseEvaluation.Doctors method=CaseEvaluation.Doctors.Delete
 HealthcareSupport.CaseEvaluation.Doctors.DoctorsAppService.GetAppointmentTypeLookupAsync(LookupRequestDto) -> class=CaseEvaluation.Doctors method=-

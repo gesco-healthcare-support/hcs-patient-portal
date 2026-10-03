@@ -1,18 +1,22 @@
+using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Modularity;
+using Volo.Saas.Host;
 using Volo.Saas.Host.Dtos;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Doctors;
 
 /// <summary>
-/// Seam: <see cref="DoctorTenantAppService"/> -- the office (tenant) creation surface.
-/// Two public entry points share one naming guard: the New Practice form
-/// (<c>CreatePracticeAsync</c>) and the inherited Volo SaaS create
-/// (<c>CreateAsync</c>, POST /api/app/doctor-tenant). Because an office name IS its
+/// Seam: <see cref="DoctorTenantAppService"/> -- the office (tenant) naming surface.
+/// Three public entry points share one naming guard: the New Practice form
+/// (<c>CreatePracticeAsync</c>), the inherited Volo SaaS create
+/// (<c>CreateAsync</c>, POST /api/app/doctor-tenant), and the inherited Volo SaaS
+/// update that renames an office (<c>UpdateAsync</c>, #1023). Because an office name IS its
 /// subdomain and its "CaseEvaluation_{slug}" database token, both must reject the
 /// reserved host slug and anything that is not a DNS label. These tests pin that
 /// guard, its case-insensitive trimmed comparison, and the translation of the
@@ -261,6 +265,80 @@ public abstract class DoctorTenantAppServiceTests<TStartupModule>
         ex.Message.ShouldContain("DNS-safe");
     }
 
+    // --- Rename (#1023): the update path carries the same guard as create ---
+
+    /// <summary>
+    /// The SPA renames an office through the STOCK update, PUT /api/saas/tenants/{id}, whose
+    /// controller resolves <see cref="ITenantAppService"/> rather than this concrete type. The rename
+    /// guard protects that route only if the interface resolves to this class, so this pins the
+    /// resolution rather than trusting registration order (see the note on <c>_service</c>).
+    /// </summary>
+    [Fact]
+    public void ITenantAppService_ResolvesToThisService_SoTheStockRenameRouteIsGuarded()
+    {
+        GetRequiredService<ITenantAppService>().ShouldBeAssignableTo<DoctorTenantAppService>();
+    }
+
+    /// <summary>
+    /// Every name the reverse proxy answers itself. Read from the set rather than spelled out, so a
+    /// slug reserved later is refused on rename without anyone remembering this test.
+    /// </summary>
+    public static TheoryData<string> ProxyReservedNames()
+    {
+        var names = new TheoryData<string>();
+        foreach (var slug in TenantNaming.ProxyReservedSlugs)
+        {
+            names.Add(slug);
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// The failure this issue describes: an office renamed to a name the proxy answers itself is saved
+    /// successfully and then has no reachable address. With the guard removed the name reaches the
+    /// stock update, which fails on the random office id with a not-found error instead.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ProxyReservedNames))]
+    public async Task UpdateAsync_WhenRenamedToANameTheProxyAnswers_IsRefused(string name)
+    {
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            async () => await _service.UpdateAsync(Guid.NewGuid(), BuildUpdateInput(name)));
+
+        ex.Message.ShouldContain("reverse proxy");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenRenamedToTheHostSlug_IsRefused_EvenPaddedAndMixedCase()
+    {
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            async () => await _service.UpdateAsync(Guid.NewGuid(), BuildUpdateInput("  Admin  ")));
+
+        ex.Message.ShouldContain("cannot be used");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenRenamedToANameThatIsNotDnsSafe_IsRefused()
+    {
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            async () => await _service.UpdateAsync(Guid.NewGuid(), BuildUpdateInput("TEST Practice")));
+
+        ex.Message.ShouldContain("DNS-safe");
+    }
+
+    /// <summary>
+    /// CONTROL for the refusals above: a valid name passes the guard and reaches the stock update,
+    /// which then fails on the random office id. Without it, a guard that refused every rename would
+    /// pass all of them. Like the rest of this file, it writes nothing.
+    /// </summary>
+    [Fact]
+    public async Task UpdateAsync_WithAValidName_PassesTheGuardAndReachesTheStockUpdate()
+    {
+        await Should.ThrowAsync<EntityNotFoundException>(
+            async () => await _service.UpdateAsync(Guid.NewGuid(), BuildUpdateInput("test-renamed")));
+    }
+
     // --- Builders. Every field is DataAnnotations-valid so that DTO validation,
     // whether or not the interceptor runs it, can never be what fails a test. ---
 
@@ -286,6 +364,15 @@ public abstract class DoctorTenantAppServiceTests<TStartupModule>
             Name = name,
             AdminEmailAddress = SyntheticDoctorEmail,
             AdminPassword = SyntheticAdminPassword,
+        };
+    }
+
+    private static SaasTenantUpdateDto BuildUpdateInput(string name)
+    {
+        return new SaasTenantUpdateDto
+        {
+            Name = name,
+            ConcurrencyStamp = "TEST-stamp",
         };
     }
 }

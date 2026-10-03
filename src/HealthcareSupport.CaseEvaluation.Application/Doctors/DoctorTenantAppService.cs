@@ -69,6 +69,21 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             return await CreateTenantWithOfficeDatabaseAsync(input, slug, null, null, null);
         }
 
+        // #1023: a rename sets the office's subdomain exactly as creation does, so it gets the same
+        // guard. The stock Volo update (PUT /api/saas/tenants/{id}, which the SPA's office editor
+        // calls) accepts any non-empty name, so an office could be renamed to "api" or "admin" and
+        // lose its front door with no error: the proxy, or the host surface, answers that hostname.
+        // Validates only -- the name passes on unchanged, as on create, because the resolver matches
+        // the host back to the stored Name. The office database is unaffected: its connection string
+        // was stored at creation and does not follow the name.
+        public override async Task<SaasTenantDto> UpdateAsync(Guid id, SaasTenantUpdateDto input)
+        {
+            Check.NotNull(input, nameof(input));
+
+            DeriveSlugOrThrow(input.Name!);
+            return await base.UpdateAsync(id, input);
+        }
+
         /// <summary>
         /// Creates a COMPLETE practice: the SaaS tenant + its provisioned office database
         /// (catalogs + admin + the real owner doctor entered on the form) + host-side
