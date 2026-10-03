@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -59,7 +60,7 @@ public class PacketsCompleteHandlerGuardTests
                 .Returns(_ => PacketSetPolicy.AllKinds
                     .Select(kind => new AppointmentPacket(Guid.NewGuid(), null, Appointment?.Id ?? Guid.Empty, kind, "TEST-blob", PacketGenerationStatus.Generated))
                     .ToList());
-            return new PacketsCompleteHandler(appointments, packets, Publisher, NullLogger<PacketsCompleteHandler>.Instance);
+            return new PacketsCompleteHandler(appointments, packets, Publisher, Substitute.For<ICurrentTenant>(), NullLogger<PacketsCompleteHandler>.Instance);
         }
 
         public int PublishCount() =>
@@ -84,6 +85,38 @@ public class PacketsCompleteHandlerGuardTests
         await rig.Build().HandleEventAsync(Generated(rig.Appointment!.Id));
 
         rig.PublishCount().ShouldBe(1);
+    }
+
+    /// <summary>
+    /// #614. The event fires from UoW.OnCompleted, after the generating job's tenant scope has
+    /// exited, so the handler starts at HOST scope. Under database-per-office a host-scope lookup of
+    /// an office's appointment finds nothing. Modelled here with a REAL <see cref="CurrentTenant"/>
+    /// and a repository that only answers inside the office's scope.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_StartingAtHostScope_FindsTheOfficeAppointmentAndPublishes()
+    {
+        var rig = new Rig();
+        var officeId = Guid.NewGuid();
+        var tenant = new CurrentTenant(AsyncLocalCurrentTenantAccessor.Instance);
+
+        var appointments = Substitute.For<IRepository<Appointment, Guid>>();
+        appointments.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(_ => tenant.Id == officeId ? rig.Appointment : null);
+        var packets = Substitute.For<IRepository<AppointmentPacket, Guid>>();
+        packets.GetListAsync(Arg.Any<Expression<Func<AppointmentPacket, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(_ => PacketSetPolicy.AllKinds
+                .Select(kind => new AppointmentPacket(Guid.NewGuid(), null, rig.Appointment!.Id, kind, "TEST-blob", PacketGenerationStatus.Generated))
+                .ToList());
+        var handler = new PacketsCompleteHandler(appointments, packets, rig.Publisher, tenant, NullLogger<PacketsCompleteHandler>.Instance);
+
+        tenant.Id.ShouldBeNull();
+        var eto = Generated(rig.Appointment!.Id);
+        eto.TenantId = officeId;
+        await handler.HandleEventAsync(eto);
+
+        rig.PublishCount().ShouldBe(1);
+        tenant.Id.ShouldBeNull();
     }
 
     [Fact]
