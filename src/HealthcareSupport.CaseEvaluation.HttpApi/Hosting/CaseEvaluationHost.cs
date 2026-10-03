@@ -82,7 +82,7 @@ public static class CaseEvaluationHost
         {
             Log.Information("Starting {AppName}.", appName);
             var builder = WebApplication.CreateBuilder(args);
-            builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+            builder.Configuration.AddLocalSettingsJson();
             builder.Host
                 .AddAppSettingsSecretsJson()
                 .UseAutofac()
