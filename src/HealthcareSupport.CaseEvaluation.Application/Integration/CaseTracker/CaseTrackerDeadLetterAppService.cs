@@ -26,6 +26,10 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// occasionally by a handful of staff, and the alternative -- a screen per office -- puts the work on the
 /// human instead.</para>
 /// </summary>
+// Not auto-exposed. The hand-written CaseTrackerDeadLetterController is this service's only HTTP surface, so the
+// guards written on that surface (input validation, binding) cannot be bypassed through a
+// second, auto-generated route.
+[RemoteService(IsEnabled = false)]
 [Authorize]
 public class CaseTrackerDeadLetterAppService : CaseEvaluationAppService, ICaseTrackerDeadLetterAppService
 {
