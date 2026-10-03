@@ -74,14 +74,17 @@ class NginxLimitsAndTls(unittest.TestCase):
                 self.assertRegex(body, r"limit_req\s+zone=" + zone + r"\b")
 
     def test_only_tls_1_2_and_1_3(self):
-        match = re.search(r"(?m)^\s*ssl_protocols\s+([^;]+);", self.http)
+        # [ \t]* rather than \s* so a match cannot start by crossing blank lines, and one \s then [^;]*
+        # rather than \s+([^;]+), which overlap on whitespace: both forms backtracked quadratically
+        # (python:S8786). strip() keeps the captured value the same as the old form gave.
+        match = re.search(r"(?m)^[ \t]*ssl_protocols\s([^;]*);", self.http)
         self.assertIsNotNone(match, "no http-level ssl_protocols")
-        self.assertEqual(set(match.group(1).split()), {"TLSv1.2", "TLSv1.3"})
+        self.assertEqual(set(match.group(1).strip().split()), {"TLSv1.2", "TLSv1.3"})
 
     def test_the_cipher_list_keeps_ecdsa_suites_for_tls_1_2(self):
-        match = re.search(r"(?m)^\s*ssl_ciphers\s+([^;]+);", self.http)
+        match = re.search(r"(?m)^[ \t]*ssl_ciphers\s([^;]*);", self.http)
         self.assertIsNotNone(match, "no http-level ssl_ciphers")
-        suites = match.group(1).split(":")
+        suites = match.group(1).strip().split(":")
         self.assertTrue(any(s.startswith("ECDHE-ECDSA-") for s in suites), suites)
         self.assertTrue(any(s.startswith("ECDHE-RSA-") for s in suites), suites)
 
