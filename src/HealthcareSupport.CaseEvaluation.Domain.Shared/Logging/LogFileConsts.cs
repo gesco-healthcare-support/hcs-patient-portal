@@ -30,13 +30,24 @@ namespace HealthcareSupport.CaseEvaluation.Logging;
 /// that balance changes; the arithmetic is here so the next person does not
 /// have to redo the measurement to move them.</para>
 ///
-/// <para>WHAT THIS DOES NOT FIX, and the more valuable half: nothing mounts
-/// <c>Logs/</c>. The production compose declares only <c>sqldata</c>,
-/// <c>redisdata</c> and <c>miniodata</c>, so the directory is container-local
-/// and is destroyed every time a container is recreated -- which is every
-/// deploy. At 9.1 MB/day no container has ever lived close to the ceiling, so
-/// this bound protects a long-lived container rather than today's one. Log
-/// durability across a deploy is a separate change.</para>
+/// <para>WHAT THIS BOUND DOES NOT DO, and for a long time the more valuable
+/// half: it does not make the logs OUTLIVE the container. Until #908 nothing
+/// mounted <c>Logs/</c>, so the directory was container-local and was destroyed
+/// every time a container was recreated -- which is every deploy. At 9.1 MB/day
+/// no container had ever lived close to the ceiling, so in practice the logs
+/// were lost to deploys long before they could be lost to this bound.</para>
+///
+/// <para>FIXED in #908: <c>docker-compose.prod.yml</c> mounts a NAMED volume at
+/// <c>/app/Logs</c> for both <c>api</c> and <c>authserver</c>. That changes what
+/// the numbers above mean -- they now describe a real steady state rather than
+/// a ceiling nothing reached, because the directory stops resetting on each
+/// deploy. Measured while fixing it, and worth keeping: the <c>json-file</c>
+/// logging driver does not cover this either. After <c>up -d --force-recreate</c>
+/// the container id changes and <c>docker logs</c> returns only the new
+/// container's output, so <c>docker logs</c> and the file sink were failing the
+/// same way for the same reason. <c>ProductionComposeLogPersistenceTests</c>
+/// guards the mount, the Dockerfile ownership it is initialised from, and that
+/// it stays a named volume rather than a bind mount.</para>
 ///
 /// <para>Lives in Domain.Shared, alongside <c>ExternalRoleConsts</c> and for
 /// the same reason: two hosts need the same numbers and neither owns them more
