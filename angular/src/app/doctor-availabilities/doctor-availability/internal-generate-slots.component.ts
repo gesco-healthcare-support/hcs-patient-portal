@@ -139,10 +139,11 @@ export class InternalGenerateSlotsComponent implements OnInit {
   // Non-empty when any date this form would generate falls inside the lead-time
   // window (i.e. before earliestBookableIso). Such slots can never be booked.
   protected readonly leadTimeWarning = computed<string>(() => {
+    // earliestBookableIso() is '' while the lead time is unknown (0). No explicit
+    // check for that case: every ISO date string compares >= '', so the test below
+    // already yields no warning. An early return here was an equivalent mutant (#943);
+    // 'says nothing while the lead time is unknown' in the surfaces spec pins the result.
     const earliestBookable = this.earliestBookableIso();
-    if (!earliestBookable) {
-      return '';
-    }
     const earliestGenerated = this.earliestGeneratedIso();
     if (!earliestGenerated || earliestGenerated >= earliestBookable) {
       return '';
