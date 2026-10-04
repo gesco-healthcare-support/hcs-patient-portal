@@ -517,14 +517,14 @@ describe('ExternalHomeComponent surfaces', () => {
       expect(router.navigate).toHaveBeenCalledWith(['/appointments/view', 'a-1']);
     });
 
-    it('opens the profile for both the profile and the documents entries', () => {
+    it('opens the profile for the profile entry and the My Documents page for documents', () => {
       const c = create();
       c.openProfile();
       expect(router.navigateByUrl).toHaveBeenCalledWith('/user-management/patients/my-profile');
 
       router.navigateByUrl.calls.reset();
       c.openMyDocuments();
-      expect(router.navigateByUrl).toHaveBeenCalledWith('/user-management/patients/my-profile');
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/my-documents');
     });
 
     it('opens the query modal', () => {
