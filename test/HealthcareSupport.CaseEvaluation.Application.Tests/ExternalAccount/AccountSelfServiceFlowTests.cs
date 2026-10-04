@@ -194,7 +194,10 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
         await WithUnitOfWorkAsync(() => GetRequiredService<IExternalAccountAppService>().ResetPasswordAsync(
             new ResetPasswordInput
             {
-                UserId = userId, ResetToken = token, Password = NewPassword, ConfirmPassword = NewPassword,
+                UserId = userId,
+                ResetToken = token,
+                Password = NewPassword,
+                ConfirmPassword = NewPassword,
             }));
 
         (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(userId, token))).ShouldBeFalse();
