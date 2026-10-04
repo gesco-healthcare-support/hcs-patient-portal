@@ -12,39 +12,30 @@ using Volo.Saas.Tenants;
 namespace HealthcareSupport.CaseEvaluation.Identity;
 
 /// <summary>
-/// Seeds one demo user per external role per tenant. Mirrors
-/// <see cref="InternalUsersDataSeedContributor"/> for the external side.
+/// Seeds NO external demo users. The seed plan below is an empty array, so the loop never runs
+/// and this contributor currently creates nothing. Patient, Claim Examiner, Applicant Attorney
+/// and Defense Attorney accounts come from the real registration and invite flows, so the
+/// verification and invite emails actually fire (Adrian, 2026-06-09).
 ///
-/// Per OLD role taxonomy (verified at
-/// <c>P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs</c>) and
-/// the role-naming reconciliation captured in
-/// <see cref="ExternalUserRoleDataSeedContributor"/>:
-///   patient@&lt;slug&gt;.test            -> Patient
-///   adjuster@&lt;slug&gt;.test           -> Claim Examiner   (OLD "Adjuster" renamed)
-///   applicant.attorney@&lt;slug&gt;.test -> Applicant Attorney
-///   defense.attorney@&lt;slug&gt;.test   -> Defense Attorney
+/// The <c>patient@&lt;slug&gt;.test</c> login seen on a fresh dev stack is NOT from here: it is
+/// created by <see cref="DemoPatientDataSeedContributor"/>.
 ///
-/// Default password matches <see cref="InternalUsersDataSeedContributor.DefaultPassword"/>
-/// so a single env-var or doc reference covers every dev login.
-///
-/// Gated on Development environment to keep production free of demo logins.
-/// Idempotent: existing users by email are left alone; the role assignment
-/// is re-applied only when missing.
+/// Kept as the place a demo external user would be added again. If it is, it stays gated on the
+/// Development environment so production never gets demo logins, and it stays idempotent
+/// (existing users by email are left alone; the role is re-applied only when missing).
 /// </summary>
 public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
     /// <summary>
-    /// Issue #119 (2026-05-13) -- 4 real-inbox external users for E2E
-    /// testing. Each is mapped to one of the 4 external roles so a
-    /// human tester can walk every external-side flow and read the
-    /// corresponding emails in a real Gmail mailbox. These were
-    /// previously seeded by hand via API in dev; codifying them keeps
-    /// a fresh stack reproducible (e.g. the main worktree session that
-    /// boots a fresh DB for userflow testing).
+    /// Issue #119 (2026-05-13) -- the four real-inbox external identities, one per external role,
+    /// for end-to-end testing. NOT seeded: they are registered self-service so the verification
+    /// email lands in the real inbox (see the comments in <c>SeedAsync</c>). Nothing in
+    /// <c>src/</c> or <c>test/</c> reads this array today; it survives only as the canonical
+    /// email-to-role mapping, and is a removal candidate.
     ///
-    /// Mailbox-side notes captured during the demo-readiness pass live
-    /// in docs/demo-readiness/2026-05-11-pre-demo.md (item B) -- the
-    /// SoftwareFour inbox routes some mail to Junk; not a code issue.
+    /// Mailbox-side notes from the demo-readiness pass live in
+    /// docs/demo-readiness/2026-05-11-pre-demo.md (item B) -- the SoftwareFour inbox routes some
+    /// mail to Junk; not a code issue.
     /// </summary>
     public static readonly (string Email, string RoleName, string First, string Last, string Phone)[] InboxedExternalUsers =
     {
@@ -118,7 +109,7 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             // Patient / Claim Examiner / Applicant + Defense Attorney accounts are
             // created via the real registration + invite flows during the demo so
             // the verification/invite emails actually fire. The InboxedExternalUsers
-            // constant above is preserved for tests/docs.
+            // constant above is unreferenced and kept only as the email-to-role mapping.
             var seedPlan = Array.Empty<(string EmailPrefix, string RoleName, string First, string Last, string Phone)>();
 
             foreach (var (prefix, roleName, first, last, phone) in seedPlan)
@@ -140,8 +131,8 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             // tester registers them self-service from the form so the
             // verification email actually fires and lands in the real
             // inbox). The InboxedExternalUsers array constant (above)
-            // is preserved as the canonical email->role mapping for
-            // tests and docs that need it; only the seed-side loop has
+            // is kept as the canonical email->role mapping (nothing
+            // references it today); only the seed-side loop has
             // been removed. Issue #119 reverted on the seeding side;
             // the constant itself is kept for self-service tests.
         }

@@ -43,7 +43,43 @@ jobs:
       - name: Install commitlint dependencies
         working-directory: angular
         run: yarn install --immutable
+      # PROMOTION PULL REQUESTS CANNOT PASS THIS, AND IT IS A REQUIRED CHECK ON development.
+      #
+      # A promotion (main -> development -> staging -> production) carries only commits that are
+      # ALREADY on its head branch, each linted when it landed. Re-linting them decides nothing,
+      # and it cannot be acted on: the messages are merged history, and the one that fails here
+      # was composed by GITHUB, not by a person -- a squash merge concatenates the branch's commit
+      # messages into the body, and commitlint reads the trailing block as a footer subject to
+      # footer-max-line-length. #1223 was blocked by exactly that on 183deb24.
+      #
+      # The job still RUNS on a promotion and reports, rather than being skipped by a job-level
+      # `if:`. A skipped required check reports success, and this repository's rule is that a
+      # required check which skips is a bug in the gate, not a free pass -- so the pass is made
+      # explicit and logged instead of being silent.
+      # The head ref reaches the script through `env:`, never through `${{ }}` interpolation
+      # into the `run:` body. A branch name is attacker-controllable, so inlining it is a script
+      # injection into a runner that holds repository access (githubactions:S7630, BLOCKER).
+      # GitHub sets an `env:` value as an environment variable rather than splicing it into the
+      # shell text, so quoting it here is enough.
+      - name: Classify the pull request
+        id: kind
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          case "$HEAD_REF" in
+            main|development|staging) echo "promotion=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "promotion=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - name: Promotion carries only already-linted commits
+        if: steps.kind.outputs.promotion == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          echo "Head is '$HEAD_REF', so this is a promotion."
+          echo "Every commit here was linted when it landed on that branch; nothing new to check."
+          echo "Commit messages on a feature branch are still gated, by this same job, before merge."
       - uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed  # v6.2.1
+        if: steps.kind.outputs.promotion != 'true'
         with:
           configFile: angular/commitlint.config.mjs
           failOnWarnings: false
