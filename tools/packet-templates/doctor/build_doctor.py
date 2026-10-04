@@ -1345,19 +1345,51 @@ def _inline_images(html):
     return re.sub(r'src="([^"]+)"', repl, html)
 
 
-def build():
-    body = "\n".join(f'<div class="page">\n{fn()}\n</div>' for fn in PAGES)
+# ----------------------------------------------------------------------------- variants
+# A VARIANT is a doctor packet whose body is the standard one with a few presentation
+# differences, emitted as its own HTML file and exposed by the renderer under its own
+# template name. Per-office customisation is DATA here (this table), never a branch on an
+# office's name inside a page function: the pages are shared, a variant only says how they
+# are presented. Adding the next office's variant is one entry plus its golden hash.
+#
+# landscape_pages: 1-based indexes into PAGES that print in landscape. Everything else stays
+# portrait. The standard packet has none, and its output must stay byte-identical (golden.sha256).
+VARIANTS = {
+    "doctor": {"output": "doctor.html", "landscape_pages": ()},
+    "doctor-landscape": {"output": "doctor_landscape.html", "landscape_pages": (1, 2, 3, 4, 5)},
+}
+
+# Named page: the pages keep the standard margins, only the orientation changes.
+LANDSCAPE_CSS = """
+  @page land { size: Letter landscape; margin: 0.35in 0.30in 0.20in 0.42in; }
+  .page.land { page: land; }
+"""
+
+
+def build_variant(variant):
+    """Return the complete HTML for one entry of VARIANTS."""
+    landscape = set(variant["landscape_pages"])
+    pages = []
+    for number, fn in enumerate(PAGES, start=1):
+        cls = "page land" if number in landscape else "page"
+        pages.append(f'<div class="{cls}">\n{fn()}\n</div>')
+    css = CSS + (LANDSCAPE_CSS if landscape else "")
     html = ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
-            '<title>Doctor Packet</title>\n<style>' + CSS + '</style></head>\n<body>\n'
-            + body + '\n</body></html>')
-    html = _inline_images(html)
-    # newline="\n" so the document is byte-identical on every platform.
-    # Without it Python's text mode emits CRLF on Windows and LF on Linux --
-    # same content, different bytes, different hash. The packet-renderer image
-    # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
-    with open("doctor.html", "w", encoding="utf-8", newline="\n") as f:
-        f.write(html)
-    print(f"wrote doctor.html ({len(PAGES)} page(s))")
+            '<title>Doctor Packet</title>\n<style>' + css + '</style></head>\n<body>\n'
+            + "\n".join(pages) + '\n</body></html>')
+    return _inline_images(html)
+
+
+def build():
+    for name, variant in VARIANTS.items():
+        html = build_variant(variant)
+        # newline="\n" so the document is byte-identical on every platform.
+        # Without it Python's text mode emits CRLF on Windows and LF on Linux --
+        # same content, different bytes, different hash. The packet-renderer image
+        # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
+        with open(variant["output"], "w", encoding="utf-8", newline="\n") as f:
+            f.write(html)
+        print(f"wrote {variant['output']} ({len(PAGES)} page(s), template {name})")
 
 if __name__ == "__main__":
     build()

@@ -6,5 +6,6 @@
 # A change here must ship with the template edit that caused it.
 f7a915057e9b636b6dfd5dd5180e38dafddf1564c8ae393b25bfbeaf15ba2aee  ame_ime.html
 cdfd722d2205d917ce23faf5f282639a90364e96e4dead3b40b4822bfaee232d  doctor.html
+2d023b46af7075c30bd8090ee07ccfffd777125ee3ecc3b89322f8347b28b53b  doctor_landscape.html
 cb92b642596bd40f7f693adca42f3d2dfb5b51fd6b0dfb7e38d7dc7a596c0272  patient.html
 2f0640f6c71369e1f21b9fda247ce4300e9df79daedd64f5717dd02c9a002b3f  pqme.html
