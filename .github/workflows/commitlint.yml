@@ -56,18 +56,26 @@ jobs:
       # `if:`. A skipped required check reports success, and this repository's rule is that a
       # required check which skips is a bug in the gate, not a free pass -- so the pass is made
       # explicit and logged instead of being silent.
+      # The head ref reaches the script through `env:`, never through `${{ }}` interpolation
+      # into the `run:` body. A branch name is attacker-controllable, so inlining it is a script
+      # injection into a runner that holds repository access (githubactions:S7630, BLOCKER).
+      # GitHub sets an `env:` value as an environment variable rather than splicing it into the
+      # shell text, so quoting it here is enough.
       - name: Classify the pull request
         id: kind
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          head='${{ github.event.pull_request.head.ref }}'
-          case "$head" in
+          case "$HEAD_REF" in
             main|development|staging) echo "promotion=true" >> "$GITHUB_OUTPUT" ;;
             *) echo "promotion=false" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Promotion carries only already-linted commits
         if: steps.kind.outputs.promotion == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          echo "Head is '${{ github.event.pull_request.head.ref }}', so this is a promotion."
+          echo "Head is '$HEAD_REF', so this is a promotion."
           echo "Every commit here was linted when it landed on that branch; nothing new to check."
           echo "Commit messages on a feature branch are still gated, by this same job, before merge."
       - uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed  # v6.2.1
