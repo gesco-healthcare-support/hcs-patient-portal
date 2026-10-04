@@ -369,17 +369,14 @@ export class ExternalHomeComponent implements OnInit {
     this.router.navigate(['/appointments/view', id]);
   }
   protected viewDocuments(id: string): void {
-    // The appointment detail page hosts the Document Manager (OLD parity); the
-    // standalone My Documents page is a later redesign slice.
+    // The appointment detail page hosts the Document Manager (OLD parity).
     this.router.navigate(['/appointments/view', id]);
   }
   protected openProfile(): void {
     this.router.navigateByUrl('/user-management/patients/my-profile');
   }
   protected openMyDocuments(): void {
-    // The dedicated My Documents page is a later redesign slice, tracked in #729;
-    // until it exists this opens the profile, which is where documents are reachable.
-    this.router.navigateByUrl('/user-management/patients/my-profile');
+    this.router.navigateByUrl('/my-documents');
   }
   protected openQuery(): void {
     this.submitQueryVisible = true;

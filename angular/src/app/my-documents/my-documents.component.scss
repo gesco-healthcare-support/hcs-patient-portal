@@ -1,0 +1,83 @@
+:host {
+  display: block;
+  background: var(--surface-app);
+  min-height: 100%;
+  color: var(--n-800);
+}
+.md {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 28px 26px 48px;
+}
+.md__sub {
+  color: var(--n-500);
+  margin-bottom: 18px;
+}
+.md__filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  input {
+    flex: 1;
+  }
+  input,
+  select {
+    padding: 9px 12px;
+    border: 1px solid var(--n-200);
+    border-radius: 8px;
+  }
+}
+.md__apt {
+  background: #fff;
+  border: 1px solid var(--n-200);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+.md__head {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.md__body {
+  padding: 0 16px 16px;
+}
+.md__doc {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--n-100);
+}
+.md__subline,
+.md__note {
+  color: var(--n-500);
+  font-size: 13px;
+}
+.md__note--err,
+.md__rej {
+  color: #b42318;
+  font-size: 13px;
+}
+.md__badge {
+  margin-left: 8px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--n-100);
+}
+.md__dl,
+.md__open {
+  background: none;
+  border: 1px solid var(--n-200);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.md__open {
+  margin-top: 12px;
+}
