@@ -55,6 +55,30 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public Guid PatientId { get; set; }
 
+    /// <summary>
+    /// THE BOOKER, not the patient (#616). It is the login that CREATED the appointment, which is
+    /// the patient only when a patient booked for themselves. On most appointments it is staff or
+    /// an attorney.
+    /// </summary>
+    /// <remarks>
+    /// <para>The name reads like the patient's user because it sits beside
+    /// <see cref="PatientId"/>, and that reading is wrong. The code already relies on the correct
+    /// meaning in several places -- <c>AppointmentsAppService</c> passes it as <c>bookerUserId</c>,
+    /// <c>DocumentEmailContextResolver</c> resolves it into <c>bookerUser</c>, and
+    /// <c>ExternalSignupAppService</c> notes that visibility keys off <c>Patient.IdentityUserId</c>
+    /// instead. Only this declaration was silent.</para>
+    ///
+    /// <para><b>It is load-bearing, which is why the ambiguity matters.</b>
+    /// <c>DocumentUploadGate</c> compares it against the current user to decide whether an upload
+    /// is allowed, so reading it as "the patient" would mean reasoning about that gate wrongly. For
+    /// patient identity use <see cref="PatientId"/>, or <c>Patient.IdentityUserId</c> for the
+    /// patient's login.</para>
+    ///
+    /// <para>NOT renamed deliberately: it is an EF-mapped column on an entity in BOTH DbContexts,
+    /// so a rename needs a migration in <c>Migrations/</c> AND <c>TenantMigrations/</c>, and the
+    /// generated Angular proxy carries the name too. A comment fixes the misreading at no risk;
+    /// a rename trades that for a two-migration change to patient data.</para>
+    /// </remarks>
     public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
