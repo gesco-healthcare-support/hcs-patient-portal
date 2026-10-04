@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import contextlib
 import hashlib
 import json
 import os
@@ -73,9 +74,10 @@ NO_RESULT = "NO_RESULT"
 BASELINE_RED = "BASELINE_RED"
 INAPPLICABLE = "INAPPLICABLE"
 TIMEOUT = "TIMEOUT"
+ESCAPES_ROOT = "ESCAPES_ROOT"
 
 EXIT_OK, EXIT_PROBLEM, EXIT_INVALID, EXIT_RESTORE, EXIT_JOURNAL = 0, 1, 2, 3, 4
-INVALID_STATUSES = {BUILD_ERROR, NO_TESTS, NO_RESULT, BASELINE_RED, INAPPLICABLE, TIMEOUT}
+INVALID_STATUSES = {BUILD_ERROR, NO_TESTS, NO_RESULT, BASELINE_RED, INAPPLICABLE, TIMEOUT, ESCAPES_ROOT}
 
 
 class RestoreError(RuntimeError):
@@ -120,7 +122,9 @@ class Mutant:
 
 
 def load_manifest(path: Path) -> list[Mutant]:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    # main() refuses a manifest that resolves outside the repository root (within_root) before this
+    # is reached, and the default is the committed manifest.
+    data = json.loads(Path(path).read_text(encoding="utf-8"))  # NOSONAR python:S8707
     mutants, seen = [], set()
     for raw in data["mutants"]:
         m = Mutant(
@@ -144,8 +148,39 @@ def load_manifest(path: Path) -> list[Mutant]:
     return mutants
 
 
+def within_root(root: Path, candidate: str | Path) -> bool:
+    """True when `candidate`, resolved against `root` (symlinks followed, `..` collapsed), stays
+    inside it. An absolute candidate replaces the root in a join, so it is caught here too."""
+    base = Path(root).resolve()
+    try:
+        (base / candidate).resolve().relative_to(base)
+    except ValueError:
+        return False
+    return True
+
+
+def escapes_root(root: Path, m: Mutant) -> str | None:
+    """Why a mutant would touch something outside the repository, else None.
+
+    The harness WRITES to `m.file` and journals the write, so a typo or a stray `..` in a manifest
+    entry would mutate a file outside the intended set and the restore journal would faithfully
+    follow it there. Refuse before anything is touched."""
+    for label, value in (("file", m.file), ("project", m.project)):
+        if value and not within_root(root, value):
+            return f"{label} {value!r} resolves outside the repository root"
+    return None
+
+
+def safe_git_ref(ref: str) -> bool:
+    """A ref is never an option: a leading dash would be read by git as a flag."""
+    return bool(re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._/~^@{}-]*", ref))
+
+
 def applicability(root: Path, m: Mutant) -> str | None:
     """None when `find` occurs exactly once in the file; otherwise why it does not."""
+    outside = escapes_root(root, m)
+    if outside:
+        return outside
     target = root / m.file
     if not target.is_file():
         return f"{m.file} does not exist"
@@ -175,10 +210,8 @@ def kill_tree(proc: subprocess.Popen) -> None:
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
                        capture_output=True, check=False)
     else:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
 
 
 def run_process(cmd: list[str], cwd: Path, env: dict[str, str], timeout: float) -> tuple[str, bool]:
@@ -258,7 +291,7 @@ def parse_unittest(text: str) -> RunResult:
         if verdict and current:
             word = verdict.group(1)
             if word.startswith("skipped"):
-                pass
+                current = None  # a skip is neither a pass nor a failure
             elif "_FailedTest" in current or "ModuleImportFailure" in current:
                 res.build_error = True
             elif word in ("ok", "expected failure"):
@@ -298,7 +331,10 @@ class Journal:
 
     def __init__(self, state_dir: Path):
         self.dir = Path(state_dir)
-        self.dir.mkdir(parents=True, exist_ok=True)
+        # The state dir is OUTSIDE the repository on purpose: it holds the originals and the journal,
+        # which must survive anything that happens to the checkout. It only ever receives files this
+        # harness names itself (hash-named .orig copies and journal.json).
+        self.dir.mkdir(parents=True, exist_ok=True)  # NOSONAR python:S8707
         self.path = self.dir / "journal.json"
 
     def entries(self) -> list[dict]:
@@ -416,6 +452,9 @@ class Harness:
         return out
 
     def _run_one(self, m: Mutant) -> Outcome:
+        outside = escapes_root(self.root, m)
+        if outside:
+            return Outcome(m.id, ESCAPES_ROOT, "INVALID", outside)
         why = applicability(self.root, m)
         if why:
             return Outcome(m.id, INAPPLICABLE, "INVALID", why)
@@ -457,8 +496,11 @@ class Harness:
             self.journal.close_entry(entry)
 
 
-class Interrupted(BaseException):
-    """Raised from a signal handler so `finally` blocks run and the file is restored."""
+class Interrupted(BaseException):  # NOSONAR python:S5709
+    """Raised from a signal handler so `finally` blocks run and the file is restored.
+
+    Deliberately NOT an Exception: an ordinary `except Exception:` must not be able to swallow it,
+    or the file stays mutated. That stranded mutation is the failure this harness exists to prevent."""
 
 
 def install_signal_handlers(harness: Harness) -> None:
@@ -506,7 +548,11 @@ def render(outcomes: list[Outcome]) -> str:
 
 
 def changed_files(root: Path, ref: str) -> set[str]:
-    out = subprocess.run(["git", "diff", "--name-only", f"{ref}...HEAD"], cwd=root,
+    if not safe_git_ref(ref):
+        raise ValueError(f"refusing git ref {ref!r}")
+    # `ref` passed safe_git_ref above (never starts with a dash, so git cannot read it as an option)
+    # and the argument vector is a list, never a shell string.
+    out = subprocess.run(["git", "diff", "--name-only", f"{ref}...HEAD"], cwd=root,  # NOSONAR python:S8705
                          capture_output=True, text=True, check=True).stdout
     return {line.strip() for line in out.splitlines() if line.strip()}
 
@@ -562,6 +608,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "recover":
             recover(journal)
             return EXIT_OK
+        if not within_root(args.root, args.manifest):
+            raise ValueError(f"manifest {str(args.manifest)!r} resolves outside the repository root")
+        if args.report and not within_root(args.root, args.report):
+            raise ValueError(f"report path {str(args.report)!r} resolves outside the repository root")
         mutants = select(load_manifest(args.manifest), args.only,
                          changed_files(args.root, args.changed) if args.changed else None)
         if args.command == "list":
@@ -575,12 +625,21 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"STALE {i}: {w}")
             print(f"{len(mutants) - len(bad)}/{len(mutants)} mutants still apply")
             return EXIT_INVALID if bad else EXIT_OK
+        escaping = [(m.id, escapes_root(args.root, m)) for m in mutants]
+        escaping = [(i, w) for i, w in escaping if w]
+        for i, w in escaping:
+            print(f"ESCAPES_ROOT {i}: {w}", file=sys.stderr)
+        if escaping:
+            return EXIT_INVALID
         journal.require_empty()
         if not args.allow_dirty:
             ensure_clean(args.root, mutants)
         harness = Harness(args.root, journal, args.timeout)
         install_signal_handlers(harness)
         outcomes = run_all(harness, mutants, args.max_seconds)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_INVALID
     except JournalError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_JOURNAL
@@ -590,7 +649,8 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_RESTORE
     print(render(outcomes))
     if args.report:
-        with open(args.report, "w", encoding="utf-8", newline="\n") as fh:
+        # Contained: within_root was checked before the run started.
+        with open(Path(args.root) / args.report, "w", encoding="utf-8", newline="\n") as fh:  # NOSONAR python:S8707
             json.dump([o.__dict__ for o in outcomes], fh, indent=2)
             fh.write("\n")
     return exit_code(outcomes)

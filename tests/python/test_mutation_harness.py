@@ -50,7 +50,7 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-class Rig(unittest.TestCase):
+class RigMixin:
     """A throwaway repo, a state dir outside it, and a mutant factory."""
 
     def setUp(self):
@@ -91,7 +91,7 @@ class Rig(unittest.TestCase):
         self.assertEqual(self.journal.entries(), [])
 
 
-class TestItCanReportASurvivorAndAKill(Rig):
+class TestItCanReportASurvivorAndAKill(RigMixin, unittest.TestCase):
     def test_sound_test_is_killed_by_name(self):
         out = self.run_one(filter="test_sound", killed_by=["test_stranger_is_refused"])
         self.assertEqual((out.status, out.verdict), (H.KILLED, "OK"))
@@ -124,7 +124,7 @@ class TestItCanReportASurvivorAndAKill(Rig):
             self.assertEqual(out.status, H.KILLED)
 
 
-class TestNoRouteToASilentPass(Rig):
+class TestNoRouteToASilentPass(RigMixin, unittest.TestCase):
     def test_mutant_that_does_not_compile_is_never_a_kill(self):
         out = self.run_one(find="if user != owner:", replace="if user !=:")
         self.assertEqual((out.status, out.verdict), (H.BUILD_ERROR, "INVALID"))
@@ -170,12 +170,13 @@ class TestNoRouteToASilentPass(Rig):
 
     def test_mutation_that_changes_nothing_is_refused_and_still_restored(self):
         same = self.mutant(find="if user != owner:", replace="if user != owner:")
+        harness = self.harness()
         with self.assertRaisesRegex(RuntimeError, "did not change"):
-            self.harness().run_one(same)
+            harness.run_one(same)
         self.assertRestored()
 
 
-class TestSafeRestore(Rig):
+class TestSafeRestore(RigMixin, unittest.TestCase):
     def test_interrupt_mid_run_restores_the_file_and_proves_it_by_hash(self):
         seen = {}
         calls = []
@@ -188,9 +189,9 @@ class TestSafeRestore(Rig):
             raise H.Interrupted("signal 15")
 
         before = sha(self.guard)
-        with mock.patch.dict(H.RUNNERS, {"unittest": fake}):
-            with self.assertRaises(H.Interrupted):
-                self.harness().run_one(self.mutant())
+        harness, mutant = self.harness(), self.mutant()
+        with mock.patch.dict(H.RUNNERS, {"unittest": fake}), self.assertRaises(H.Interrupted):
+            harness.run_one(mutant)
         self.assertIn("if False:", seen["mutated"])  # the mutation WAS live when it was cut
         self.assertEqual(sha(self.guard), before)
         self.assertRestored()
@@ -199,8 +200,9 @@ class TestSafeRestore(Rig):
         original = self.guard.read_bytes()
         self.journal.open_entry(self.guard, original)
         self.guard.write_bytes(original.replace(b"!=", b"=="))  # killed here, no finally ran
+        harness, mutants = self.harness(), [self.mutant()]
         with self.assertRaises(H.JournalError):
-            H.run_all(self.harness(), [self.mutant()])
+            H.run_all(harness, mutants)
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(H.main(["run", "--root", str(self.root), "--state-dir", str(self.state),
                                      "--manifest", str(self.manifest([self.mutant()]))]), H.EXIT_JOURNAL)
@@ -214,7 +216,7 @@ class TestSafeRestore(Rig):
     def manifest(self, mutants):
         path = self.root / "manifest.json"
         path.write_text(json.dumps({"mutants": [
-            {k: v for k, v in m.__dict__.items()} for m in mutants]}), encoding="utf-8")
+            dict(m.__dict__) for m in mutants]}), encoding="utf-8")
         return path
 
     def test_restore_refuses_a_missing_or_tampered_backup(self):
@@ -259,8 +261,9 @@ class TestSafeRestore(Rig):
             with mock.patch.object(H.atexit, "register") as reg:
                 H.install_signal_handlers(harness)
             reg.assert_called_once_with(harness.emergency_restore)
+            handler = signal.getsignal(signal.SIGINT)
             with self.assertRaises(H.Interrupted):
-                signal.getsignal(signal.SIGINT)(signal.SIGINT, None)
+                handler(signal.SIGINT, None)
         finally:
             for n, h in saved.items():
                 signal.signal(getattr(signal, n), h)
@@ -335,10 +338,10 @@ class TestDotnetRunner(unittest.TestCase):
         self.assertFalse(res.build_error)
 
 
-class TestProcessAndSelection(Rig):
+class TestProcessAndSelection(RigMixin, unittest.TestCase):
     def test_run_process_kills_a_hung_tree_and_reports_the_timeout(self):
         code = "import time; print('up', flush=True); time.sleep(60)"
-        out, timed_out = H.run_process([sys.executable, "-c", code], self.root, dict(os.environ), 2)
+        _, timed_out = H.run_process([sys.executable, "-c", code], self.root, dict(os.environ), 2)
         self.assertTrue(timed_out)
 
     def test_kill_tree_tolerates_an_already_dead_process(self):
@@ -366,8 +369,9 @@ class TestProcessAndSelection(Rig):
         H.ensure_clean(self.root, [])
         self.assertEqual(H.changed_files(self.root, "HEAD"), set())
         self.guard.write_bytes(GUARD.encode() + b"# edit\n")
+        mutants = [self.mutant()]
         with self.assertRaisesRegex(H.JournalError, "uncommitted"):
-            H.ensure_clean(self.root, [self.mutant()])
+            H.ensure_clean(self.root, mutants)
 
     def test_state_dir_is_stable_per_checkout_and_distinct_between_them(self):
         a = H.default_state_dir(Path("/x/one"))
@@ -375,7 +379,7 @@ class TestProcessAndSelection(Rig):
         self.assertNotEqual(a, H.default_state_dir(Path("/x/two")))
 
 
-class TestManifestAndCli(Rig):
+class TestManifestAndCli(RigMixin, unittest.TestCase):
     def manifest_text(self, **over):
         raw = dict(id="m", file="guard.py", runner="unittest", filter="test_sound", **BREAK_REFUSAL)
         raw.update(over)
@@ -391,11 +395,12 @@ class TestManifestAndCli(Rig):
                           ({"expect": "survive"}, "needs a reason"),
                           ({"runner": "nunit"}, "unknown runner"),
                           ({"replace": BREAK_REFUSAL["find"]}, "mutates nothing")):
+            text = self.manifest_text(**over)
             with self.assertRaisesRegex(ValueError, msg):
-                self.load(self.manifest_text(**over))
-        dup = json.loads(self.manifest_text())["mutants"] * 2
+                self.load(text)
+        dup = json.dumps({"mutants": json.loads(self.manifest_text())["mutants"] * 2})
         with self.assertRaisesRegex(ValueError, "duplicate"):
-            self.load(json.dumps({"mutants": dup}))
+            self.load(dup)
 
     def test_the_committed_manifest_is_valid_and_every_find_text_still_applies(self):
         mutants = H.load_manifest(H.DEFAULT_MANIFEST)
@@ -453,6 +458,69 @@ class TestManifestAndCli(Rig):
         self.assertIn("1/2 killed", text)
         self.assertIn("1/2 as expected", text)
         self.assertIn("    why", text)
+
+
+class TestContainment(RigMixin, unittest.TestCase):
+    """A manifest entry that names a file outside the repository must be refused, not followed.
+
+    The harness writes to the file it is told to mutate and journals the write, so a stray `..`
+    would otherwise mutate something outside the intended set and then faithfully restore it."""
+
+    def setUp(self):
+        super().setUp()
+        self.outside = self.root.parent / "outside.py"
+        self.outside.write_bytes(GUARD.encode("utf-8"))
+
+    def test_a_dotdot_file_is_refused_and_the_outside_file_is_never_touched(self):
+        before = sha(self.outside)
+        out = self.run_one(file="../outside.py")
+        self.assertEqual((out.status, out.verdict), (H.ESCAPES_ROOT, "INVALID"))
+        self.assertEqual(sha(self.outside), before)
+        self.assertEqual(self.journal.entries(), [])
+        self.assertEqual(H.exit_code([out]), H.EXIT_INVALID)
+
+    def test_traversal_to_a_system_path_and_an_absolute_path_are_refused(self):
+        for target in ("../../etc/passwd", str(self.outside)):
+            self.assertIn("outside the repository", H.escapes_root(self.root, self.mutant(file=target)))
+        self.assertIn("project", H.escapes_root(self.root, self.mutant(project="../elsewhere")))
+        self.assertIsNone(H.escapes_root(self.root, self.mutant()))
+
+    def test_within_root_follows_dotdot_that_comes_back_in(self):
+        self.assertTrue(H.within_root(self.root, "sub/../guard.py"))
+        self.assertFalse(H.within_root(self.root, "sub/../../outside.py"))
+
+    def test_check_manifest_and_run_refuse_an_escaping_entry_before_touching_anything(self):
+        (self.root / "m.json").write_text(json.dumps({"mutants": [dict(self.mutant(file="../outside.py").__dict__)]}),
+                                          encoding="utf-8")
+        before = sha(self.outside)
+        for command in ("check-manifest", "run"):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf),                     mock.patch.object(H, "install_signal_handlers"):
+                code = H.main([command, "--allow-dirty", "--root", str(self.root), "--state-dir", str(self.state),
+                               "--manifest", str(self.root / "m.json")])
+            self.assertEqual(code, H.EXIT_INVALID, command)
+            self.assertIn("outside the repository", buf.getvalue())
+        self.assertEqual(sha(self.outside), before)
+
+    def test_report_path_and_manifest_path_outside_the_root_are_refused(self):
+        (self.root / "m.json").write_text(json.dumps({"mutants": [dict(self.mutant().__dict__)]}), encoding="utf-8")
+        elsewhere = self.root.parent / "report.json"
+        outside_manifest = self.root.parent / "m.json"
+        outside_manifest.write_text((self.root / "m.json").read_text(encoding="utf-8"), encoding="utf-8")
+        for extra in (["--report", str(elsewhere)], ["--manifest", str(outside_manifest)]):
+            args = ["run", "--allow-dirty", "--root", str(self.root), "--state-dir", str(self.state),
+                    "--manifest", str(self.root / "m.json")] + extra
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(H.main(args), H.EXIT_INVALID)
+        self.assertFalse(elsewhere.exists())
+        self.assertRestored()
+
+    def test_a_git_ref_that_is_an_option_is_refused(self):
+        self.assertFalse(H.safe_git_ref("--upload-pack=evil"))
+        self.assertFalse(H.safe_git_ref("origin/main; rm -rf x"))
+        self.assertTrue(H.safe_git_ref("origin/main"))
+        with self.assertRaisesRegex(ValueError, "refusing git ref"):
+            H.changed_files(self.root, "--output=x")
 
 
 if __name__ == "__main__":
