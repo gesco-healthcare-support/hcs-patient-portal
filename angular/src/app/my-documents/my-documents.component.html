@@ -1,0 +1,107 @@
+<app-external-navbar
+  [clinicName]="clinicName"
+  [userEmail]="userEmail"
+  [userName]="userEmail"
+  (profileClick)="openProfile()"
+  (documentsClick)="goHome()"
+  (helpClick)="goHome()"
+  (logoutClick)="signOut()"
+/>
+
+<main class="md" role="main">
+  <h1>My documents</h1>
+  <p class="md__sub">Every document across your appointments, in one place.</p>
+
+  @if (loading()) {
+    <app-skeleton />
+  } @else if (loadFailed()) {
+    <app-empty-state
+      icon="alert"
+      title="Could not load your appointments"
+      body="Please refresh the page and try again."
+    />
+  } @else if (appointments().length === 0) {
+    <app-empty-state
+      icon="doc"
+      title="No appointments yet"
+      body="Documents appear here once you have an appointment."
+      ctaLabel="Back to home"
+      (ctaClick)="goHome()"
+    />
+  } @else {
+    <div class="md__filters">
+      <input
+        type="search"
+        id="md-search"
+        aria-label="Search documents by name"
+        placeholder="Search documents by name"
+        [ngModel]="query()"
+        (ngModelChange)="query.set($event)"
+      />
+      <select
+        id="md-status"
+        aria-label="Filter by status"
+        [ngModel]="statusFilter()"
+        (ngModelChange)="statusFilter.set(+$event)"
+      >
+        <option [ngValue]="0">All statuses</option>
+        <option [ngValue]="Status.Accepted">Accepted</option>
+        <option [ngValue]="Status.Pending">Pending review</option>
+        <option [ngValue]="Status.Rejected">Rejected</option>
+      </select>
+    </div>
+
+    @for (apt of appointments(); track apt.id) {
+      <section class="md__apt">
+        <button
+          type="button"
+          class="md__head"
+          [attr.aria-expanded]="apt.open"
+          (click)="toggle(apt)"
+        >
+          <b>{{ apt.title }}{{ apt.confirmation ? ' - ' + apt.confirmation : '' }}</b>
+          @if (apt.appointmentDate) {
+            <span>{{ apt.appointmentDate | calendarDate }}</span>
+          }
+        </button>
+        @if (apt.open) {
+          <div class="md__body">
+            @if (apt.state === 'loading') {
+              <p class="md__note">Loading documents...</p>
+            } @else if (apt.state === 'error') {
+              <p class="md__note md__note--err">Could not load documents for this appointment.</p>
+            } @else {
+              @for (doc of visibleDocs(apt); track doc.id) {
+                <div class="md__doc">
+                  <div class="md__meta">
+                    <b>{{ doc.documentName || doc.fileName }}</b>
+                    <span class="md__badge">{{ statusLabel(doc.status) }}</span>
+                    <div class="md__subline">
+                      {{ doc.fileName }} - {{ doc.creationTime | pacificDate }}
+                    </div>
+                    @if (doc.status === Status.Rejected && doc.rejectionReason) {
+                      <div class="md__rej">Reason: {{ doc.rejectionReason }}</div>
+                    }
+                  </div>
+                  <button
+                    type="button"
+                    class="md__dl"
+                    [attr.aria-label]="'Download ' + (doc.fileName || 'document')"
+                    (click)="download(apt, doc)"
+                  >
+                    <app-icon name="download" [size]="16" />
+                  </button>
+                </div>
+              } @empty {
+                <p class="md__note">No documents match.</p>
+              }
+              <button type="button" class="md__open" (click)="openAppointment(apt.id)">
+                Open appointment to upload
+              </button>
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</main>
