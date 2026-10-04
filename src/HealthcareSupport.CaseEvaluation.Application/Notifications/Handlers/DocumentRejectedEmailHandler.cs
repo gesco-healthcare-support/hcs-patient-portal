@@ -1,18 +1,13 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
-using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
-using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
 using Volo.Abp.MultiTenancy;
-using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
@@ -41,14 +36,7 @@ public class DocumentRejectedEmailHandler :
     ILocalEventHandler<AppointmentDocumentRejectedEto>,
     ITransientDependency
 {
-    private readonly INotificationDispatcher _dispatcher;
-    private readonly DocumentEmailContextResolver _contextResolver;
-    private readonly IAppointmentRecipientResolver _recipientResolver;
-    private readonly MissingRequiredDocumentsResolver _missingRequiredDocumentsResolver;
-    private readonly ICurrentTenant _currentTenant;
-    private readonly ILogger<DocumentRejectedEmailHandler> _logger;
-    // BUG-029 v3 fix (2026-05-21).
-    private readonly IAccountUrlBuilder _accountUrlBuilder;
+    private readonly DocumentEmailFlow _flow;
 
     public DocumentRejectedEmailHandler(
         INotificationDispatcher dispatcher,
@@ -59,13 +47,14 @@ public class DocumentRejectedEmailHandler :
         ILogger<DocumentRejectedEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder)
     {
-        _dispatcher = dispatcher;
-        _contextResolver = contextResolver;
-        _recipientResolver = recipientResolver;
-        _missingRequiredDocumentsResolver = missingRequiredDocumentsResolver;
-        _currentTenant = currentTenant;
-        _logger = logger;
-        _accountUrlBuilder = accountUrlBuilder;
+        _flow = new DocumentEmailFlow(
+            dispatcher,
+            contextResolver,
+            recipientResolver,
+            missingRequiredDocumentsResolver,
+            currentTenant,
+            logger,
+            accountUrlBuilder);
     }
 
     [UnitOfWork]
@@ -76,103 +65,19 @@ public class DocumentRejectedEmailHandler :
             return;
         }
 
-        using (_currentTenant.Change(eventData.TenantId))
+        await _flow.SendAsync(new DocumentEmailSpec
         {
-            var ctx = await _contextResolver.ResolveAsync(eventData.AppointmentId, eventData.AppointmentDocumentId);
-            if (ctx == null)
-            {
-                _logger.LogWarning(
-                    "DocumentRejectedEmailHandler: appointment {AppointmentId} not found; skipping.",
-                    eventData.AppointmentId);
-                return;
-            }
-
-            var uploaderEmail = await _contextResolver.ResolveUploaderEmailAsync(
-                ctx.DocumentUploadedByUserId,
-                ctx.PatientEmail ?? ctx.BookerEmail);
-
-            if (string.IsNullOrWhiteSpace(uploaderEmail))
-            {
-                _logger.LogInformation(
-                    "DocumentRejectedEmailHandler: no uploader email resolved for document {DocumentId} on appointment {AppointmentId}; skipping.",
-                    eventData.AppointmentDocumentId,
-                    eventData.AppointmentId);
-                return;
-            }
-
-            // E3 (2026-06-04): single To+CC message -- To the uploader, CC the
-            // other appointment parties. REJECTION excludes the office mailbox
-            // (office staff performed the reject). The dispatcher dedups the To
-            // address out of the CC list.
-            var parties = await _recipientResolver.ResolveAsync(
-                eventData.AppointmentId, NotificationKind.DocumentRejected);
-            var to = new NotificationRecipient(
-                email: uploaderEmail,
-                role: RecipientRole.Patient,
-                isRegistered: ctx.DocumentUploadedByUserId.HasValue);
-            var cc = parties
-                .Where(p => p.Role != RecipientRole.OfficeAdmin)
-                .Select(p => new NotificationRecipient(
-                    email: p.To,
-                    role: p.Role ?? RecipientRole.Patient,
-                    isRegistered: p.IsRegistered))
-                .ToList();
-
-            var variables = DocumentNotificationContext.BuildVariables(
-                patientFirstName: ctx.PatientFirstName,
-                patientLastName: ctx.PatientLastName,
-                patientEmail: ctx.PatientEmail,
-                requestConfirmationNumber: ctx.RequestConfirmationNumber,
-                appointmentDate: ctx.AppointmentDate,
-                claimNumber: ctx.ClaimNumber,
-                wcabAdj: ctx.WcabAdj,
-                documentName: ctx.DocumentName,
-                rejectionNotes: eventData.RejectionNotes,
-                // Filled by NotificationTemplateRenderer from the tenant store (#1014):
-                // ICurrentTenant.Name is null inside Change(TenantId).
-                clinicName: null,
-                portalUrl: ctx.PortalBaseUrl);
-
-            // Phase 6.B (Adrian Decision 6.1, 2026-05-08): pick template
-            // by (IsAdHoc, IsJointDeclaration) -- 3 OLD-parity paths.
-            var templateCode = DocumentNotificationContext.ClassifyDocumentTemplateCode(
-                DocumentEmailKind.Rejected,
-                ctx.IsAdHoc,
-                ctx.IsJointDeclaration);
-
-            // Phase 5 (Category 5, 2026-05-10): for package docs, swap to
-            // *RemainingDocs variant when the appointment still has Pending
-            // package docs awaiting upload.
-            var finalVariables = variables;
-            if (!ctx.IsAdHoc && !ctx.IsJointDeclaration)
-            {
-                var missing = await _missingRequiredDocumentsResolver.ResolveAsync(eventData.AppointmentId);
-                if (missing.Missing.Count > 0)
-                {
-                    templateCode = NotificationTemplateConsts.Codes.PatientDocumentRejectedRemainingDocs;
-                    finalVariables = await DocumentEmailLinkAndListBuilder.BuildVariablesWithRemainingAsync(
-                        _accountUrlBuilder, _currentTenant.Id, variables, eventData.AppointmentId, missing.Missing);
-                }
-            }
-
-            // E3: shared "log in or register to view" CTA -- tenant login link
-            // (register reachable from the login page), consistent with E2.
-            var loginUrl = await DocumentEmailLinkAndListBuilder.BuildLoginUrlAsync(
-                _accountUrlBuilder, eventData.TenantId, parties.Count > 0 ? parties[0].TenantName : _currentTenant.Name);
-            var dispatchVariables = new Dictionary<string, object?>(finalVariables, StringComparer.Ordinal)
-            {
-                ["LoginUrl"] = loginUrl,
-                ["UploaderFullName"] = ctx.UploaderFullName,
-                ["DocumentLabel"] = ctx.DocumentLabel,
-            };
-
-            await _dispatcher.DispatchToWithCcAsync(
-                templateCode: templateCode,
-                to: to,
-                cc: cc,
-                variables: dispatchVariables,
-                contextTag: $"DocumentRejected/{templateCode}/{eventData.AppointmentDocumentId}");
-        }
+            HandlerName = nameof(DocumentRejectedEmailHandler),
+            ContextTagPrefix = "DocumentRejected",
+            TenantId = eventData.TenantId,
+            AppointmentId = eventData.AppointmentId,
+            AppointmentDocumentId = eventData.AppointmentDocumentId,
+            Kind = NotificationKind.DocumentRejected,
+            EmailKind = DocumentEmailKind.Rejected,
+            ExcludeOfficeFromCc = true,
+            RejectionNotes = eventData.RejectionNotes,
+            Uploader = ctx => (ctx.DocumentUploadedByUserId, ctx.DocumentUploadedByUserId.HasValue),
+            RemainingDocsTemplateCode = NotificationTemplateConsts.Codes.PatientDocumentRejectedRemainingDocs,
+        });
     }
-
 }
