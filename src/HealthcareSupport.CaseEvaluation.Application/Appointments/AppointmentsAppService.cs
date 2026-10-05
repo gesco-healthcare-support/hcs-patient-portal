@@ -503,14 +503,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // IdentityUser is auto-tenant-filtered by ABP. For Applicant or Defense
         // Attorney callers, restrict to (a) self plus (b) bookers on appointments
         // where the attorney is named on the appointment's attorney-side join table.
+        // Any other caller who is not internal staff -- a patient, a claim examiner,
+        // an account with no role -- sees only their own account.
         var query = (await _identityUserRepository.GetQueryableAsync())
             .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+        var narrowedForAttorney = false;
 
         if (await IsApplicantAttorneyAsync() && CurrentUser.Id.HasValue)
         {
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetApplicantAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+            narrowedForAttorney = true;
         }
 
         if (await IsDefenseAttorneyAsync() && CurrentUser.Id.HasValue)
@@ -518,6 +522,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetDefenseAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+            narrowedForAttorney = true;
+        }
+
+        if (!narrowedForAttorney)
+        {
+            query = IdentityUserLookupScope.ForCaller(query, CurrentUser);
         }
 
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
