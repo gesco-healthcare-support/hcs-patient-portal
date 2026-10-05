@@ -18,6 +18,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 /// purge (CreationAudited base, no soft-delete) so the PHI payload truly leaves.
 /// </summary>
 [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+[RemoteService(IsEnabled = false)]
 public class AppointmentDraftAppService : CaseEvaluationAppService, IAppointmentDraftAppService
 {
     private readonly IRepository<AppointmentDraft, Guid> _draftRepository;
