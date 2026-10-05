@@ -53,7 +53,7 @@ public sealed class AppointmentChildOwnershipPerServiceTests
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
-        var guard = Substitute.For<AppointmentChildOwnershipGuard>(readGuard);
+        var guard = Substitute.For<AppointmentChildOwnershipGuard>(readGuard, null!);
 
         // The real gate throws this. An earlier version of these tests stubbed
         // AbpAuthorizationException -- the type this class used to throw -- so the tests agreed with
@@ -253,7 +253,7 @@ public sealed class AppointmentChildOwnershipPerServiceTests
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
         // A real guard whose party check passes, so only the same-parent rule can refuse.
-        var guard = new AppointmentChildOwnershipGuard(readGuard);
+        var guard = new AppointmentChildOwnershipGuard(readGuard, null!);
 
         Should.Throw<BusinessException>(() => guard.EnsureSameParent(StoredParent, ClaimedParent));
         Should.NotThrow(() => guard.EnsureSameParent(StoredParent, StoredParent));
@@ -303,7 +303,7 @@ public sealed class AppointmentChildOwnershipPerServiceTests
             Substitute.For<IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid>>(),
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
-        var guard = new AppointmentChildOwnershipGuard(readGuard);
+        var guard = new AppointmentChildOwnershipGuard(readGuard, null!);
 
         var manager = Substitute.For<AppointmentBodyPartManager>(repo);
 
