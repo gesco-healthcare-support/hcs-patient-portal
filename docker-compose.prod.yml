@@ -182,6 +182,11 @@ services:
       # artifact nobody can reproduce. The Case Tracker bucket (2026-08-13) holds
       # what THEIR staff upload against a case; ours holds packets and uploads.
       BUCKET_NAMES: "${MINIO_BUCKET_NAME:-case-evaluation-documents} ${MINIO_CASE_TRACKER_BUCKET_NAME:-case-tracker-documents}"
+      # The application's own credential: a plain MinIO user bound to a policy that reaches ONE
+      # bucket. Root stays here because this service is the administrator; the app never gets it.
+      APP_BUCKET: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      MINIO_APP_ACCESS_KEY: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod}"
+      MINIO_APP_SECRET_KEY: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod}"
     entrypoint:
       - /bin/sh
       - -c
@@ -196,6 +201,27 @@ services:
             echo "Bucket exists: $$bucket"
           fi
         done
+        # Scoped application credential. Safe to repeat on every `up`:
+        #   policy create     overwrites the policy of that name with identical JSON
+        #   user add          upserts the user and re-sets the same secret
+        #   policy attach     only when `user info` does not already list the policy
+        if [ "$$MINIO_APP_ACCESS_KEY" = "$$MINIO_ROOT_USER" ]; then
+          echo "REFUSING: MINIO_APP_ACCESS_KEY equals the root user" >&2
+          exit 1
+        fi
+        cat > /tmp/app-policy.json <<POLICY
+        {"Version":"2012-10-17","Statement":[
+          {"Effect":"Allow","Action":["s3:ListBucket","s3:GetBucketLocation","s3:ListBucketMultipartUploads"],"Resource":["arn:aws:s3:::$$APP_BUCKET"]},
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],"Resource":["arn:aws:s3:::$$APP_BUCKET/*"]}
+        ]}
+        POLICY
+        mc admin policy create local portal-app-rw /tmp/app-policy.json
+        mc admin user add local "$$MINIO_APP_ACCESS_KEY" "$$MINIO_APP_SECRET_KEY"
+        case "$$(mc admin user info local "$$MINIO_APP_ACCESS_KEY")" in
+          *portal-app-rw*) echo "Policy already attached: portal-app-rw" ;;
+          *) mc admin policy attach local portal-app-rw --user "$$MINIO_APP_ACCESS_KEY"
+             echo "Attached policy portal-app-rw" ;;
+        esac
     restart: "no"
 
   packet-renderer:
@@ -231,8 +257,8 @@ services:
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "https://api.${BASE_DOMAIN}"
       OpenIddict__Applications__CaseEvaluation_Swagger__ClientId: "CaseEvaluation_Swagger"
       BlobStoring__Minio__Endpoint: "minio:9000"
-      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
-      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__AccessKey: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
+      BlobStoring__Minio__SecretKey: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
@@ -300,8 +326,8 @@ services:
       Redis__IsEnabled: "true"
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
       BlobStoring__Minio__Endpoint: "minio:9000"
-      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
-      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__AccessKey: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
+      BlobStoring__Minio__SecretKey: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
@@ -393,8 +419,8 @@ services:
       Redis__IsEnabled: "true"
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
       BlobStoring__Minio__Endpoint: "minio:9000"
-      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
-      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__AccessKey: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
+      BlobStoring__Minio__SecretKey: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
