@@ -26,6 +26,7 @@ WORKDIR /src
 # The template itself carries only a placeholder and is safe to COPY.
 COPY NuGet.Config.template .
 COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
+COPY --chmod=0755 docker/scrub-nuget-key.sh /usr/local/bin/scrub-nuget-key.sh
 
 COPY Directory.Build.props .
 COPY global.json .
@@ -48,7 +49,8 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 # package: `dotnet restore --force-evaluate`, then commit the lock files.
 RUN --mount=type=secret,id=abp_nuget_key \
     sh /usr/local/bin/write-nuget-config.sh \
- && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; exit $rc; }
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; \
+     [ "$rc" -ne 0 ] || sh /usr/local/bin/scrub-nuget-key.sh || rc=$?; exit $rc; }
 
 # Node + ABP CLI to restore client-side libraries (wwwroot/libs is gitignored).
 #
@@ -98,6 +100,7 @@ ENV ArtifactsPath=/artifacts
 # The template itself carries only a placeholder and is safe to COPY.
 COPY NuGet.Config.template .
 COPY --chmod=0755 docker/write-nuget-config.sh /usr/local/bin/write-nuget-config.sh
+COPY --chmod=0755 docker/scrub-nuget-key.sh /usr/local/bin/scrub-nuget-key.sh
 
 COPY Directory.Build.props .
 COPY global.json .
@@ -120,7 +123,8 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
 # package: `dotnet restore --force-evaluate`, then commit the lock files.
 RUN --mount=type=secret,id=abp_nuget_key \
     sh /usr/local/bin/write-nuget-config.sh \
- && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; exit $rc; }
+ && { dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode; rc=$?; rm -f NuGet.Config; \
+     [ "$rc" -ne 0 ] || sh /usr/local/bin/scrub-nuget-key.sh || rc=$?; exit $rc; }
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \
     -c Debug --no-restore
 
