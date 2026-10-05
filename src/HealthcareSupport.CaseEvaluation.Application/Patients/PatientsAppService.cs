@@ -546,7 +546,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
+        var query = IdentityUserLookupScope.ForCaller((await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name), CurrentUser);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
