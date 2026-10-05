@@ -46,6 +46,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IAppointmentRepository _appointmentRepository;
     protected AppointmentManager _appointmentManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> _patientRepository;
+    private readonly HealthcareSupport.CaseEvaluation.Patients.PatientBookingReadAccess _patientBookingReadAccess;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> _appointmentTypeRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> _locationRepository;
@@ -94,9 +95,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // Item B (2026-08-21): writes the child groups by delegating to their existing app services.
     protected AppointmentChildGroupWriter _childGroupWriter;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter, HealthcareSupport.CaseEvaluation.Patients.PatientBookingReadAccess patientBookingReadAccess)
     {
         _rescheduleChainResolver = rescheduleChainResolver;
+        _patientBookingReadAccess = patientBookingReadAccess;
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _patientRepository = patientRepository;
@@ -841,6 +843,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         if (input.PatientId.HasValue && input.PatientId.Value != Guid.Empty)
         {
+            // A supplied id is not entitlement: the caller must be allowed to read this patient
+            // (staff, the patient's own login, or a party under the typeahead rule). Runs before
+            // anything is written, so a refused id changes nothing.
+            await _patientBookingReadAccess.EnsureCanBookForAsync(input.PatientId.Value);
+
             result.PatientId = input.PatientId.Value;
             result.PatientAlreadyExisted = true;
             return;

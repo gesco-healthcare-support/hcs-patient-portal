@@ -188,47 +188,29 @@ mutants for the manifest. StrykerJS for the Angular specs is untouched by this a
 5. Prefer ONE-line mutations: `if (false && <original>)` rather than deleting a block, so the mutant
    compiles.
 
-## Wiring it into CI (deliberate follow-up, not part of the PR that added it)
+## Wiring it into CI
 
-Not wired here because `.github/workflows/ci.yml` and `scripts/coverage-gate.py` have open pull requests
-against them. Add the job once those merge:
+Wired in `.github/workflows/mutation-guards.yml`, its own file so it stays out of the pull request path.
 
-1. **Always, in the existing Python job:** `tests/python/test_mutation_harness.py` already runs under
+1. **Always, in the existing Python job:** `tests/python/test_mutation_harness.py` runs under
    `unittest discover`, so the harness's own proof (survivor reported, kill reported, every silent route
-   refused, restore verified) is gated with no workflow change. This includes a check that every
-   committed manifest `find` text still occurs exactly once in `HEAD`.
-2. **A new job `Mutation: Guards`**, `runs-on: ubuntu-latest`, `needs: [backend-test]`, nightly
-   (`schedule`) plus `workflow_dispatch`, NOT a required check on pull requests (about 3 minutes per mutant):
-
-   ```yaml
-   mutation-guards:
-     runs-on: ubuntu-latest
-     timeout-minutes: 120
-     steps:
-       - uses: actions/checkout@<sha>
-       - uses: actions/setup-dotnet@<sha>
-         with: { global-json-file: global.json }
-       - run: python scripts/mutation-harness.py check-manifest
-       - run: python scripts/mutation-harness.py run --max-seconds 6000 --report mutation-report.json
-       - if: always()
-         run: python scripts/mutation-harness.py recover
-       - if: always()
-         uses: actions/upload-artifact@<sha>
-         with: { name: mutation-report, path: mutation-report.json }
-   ```
-
-   Pin the action SHAs as the other jobs do, and copy the NuGet/ABP restore steps from `Backend: Test`.
-   The `recover` step is belt and braces for a cancelled job (a runner VM is discarded, but a self-hosted
-   runner is not).
-3. **On a pull request, optionally**, a path-scoped variant:
+   refused, restore verified) is gated on every pull request. This includes a check that every committed
+   manifest `find` text still occurs exactly once in `HEAD`.
+2. **Job `Mutation: Guards`**: nightly (`schedule`, 09:30 UTC) plus `workflow_dispatch`. It is NOT a
+   required check and is not in branch protection. It restores with the same NuGet/ABP steps as
+   `Backend: Test`, then runs `check-manifest`, `run --max-seconds 6000 --report mutation-report.json`,
+   then `recover` under `if: always()` and uploads `mutation-report` under `if: always()`.
+   The job timeout is 150 minutes: 100 for the budget, plus one more mutant and the restore and build.
+3. **It gates on the harness's own exit codes:** 1 (a survivor, a stale `expect: survive`, a wrong killer)
+   and 2 (the harness could not test a guard) both fail the job.
+4. **A `concurrency` group queues runs and never cancels one**, so a scheduled run and a manual dispatch
+   cannot mutate one checkout at once, and a run is not killed mid-mutant.
+5. **On a pull request, optionally**, a path-scoped variant:
    `python scripts/mutation-harness.py run --changed origin/main` selects only mutants whose file or
-   `watch` paths the PR touched. Make it a required check only after measuring that it stays short.
-4. **It should GATE, not only report**: exit 1 or 2 fails the job. A survivor is a finding, and an INVALID
-   outcome means the harness could not check a guard, which is the failure mode it exists to prevent.
-   Equivalent mutants are not a concern here because every mutant is hand-written to change behaviour;
-   if one is later found equivalent, delete it from the manifest with the reason in the commit.
-5. Needs Docker for the `EntityFrameworkCore.Tests` mutants; `ubuntu-latest` has it. Do not run two
-   harness jobs against one checkout.
+   `watch` paths the PR touched. Not wired; make it a required check only after measuring that it stays short.
+
+Equivalent mutants are not a concern here because every mutant is hand-written to change behaviour;
+if one is later found equivalent, delete it from the manifest with the reason in the commit.
 
 ## Known limits
 
