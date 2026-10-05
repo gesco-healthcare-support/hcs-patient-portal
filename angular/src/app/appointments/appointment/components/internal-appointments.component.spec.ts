@@ -1,6 +1,6 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { Subject, config, of, throwError } from 'rxjs';
 import { LocalizationService, PermissionService, RestService } from '@abp/ng.core';
 import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 
@@ -133,7 +133,7 @@ describe('InternalAppointmentsComponent', () => {
       const c = create();
       service['getList'].and.returnValue(of({ items: [row()], totalCount: 42 }));
       started(c);
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
       expect(c.totalCount()).toBe(42);
       expect(c.loading()).toBeFalse();
     });
@@ -157,7 +157,7 @@ describe('InternalAppointmentsComponent', () => {
       const c = create();
       service['getList'].and.returnValue(of({ items: [row()], totalCount: 1 }));
       started(c);
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
 
       service['getList'].and.returnValue(throwError(() => ({ status: 500 })));
       c.retry();
@@ -179,7 +179,7 @@ describe('InternalAppointmentsComponent', () => {
       c.retry();
 
       expect(c.loadError()).toBeFalse();
-      expect(c.rows().length).toBe(1);
+      expect(c.rows()).toHaveSize(1);
     });
 
     it('keeps a counts failure quiet so one outage does not double-toast', () => {
@@ -500,7 +500,7 @@ describe('InternalAppointmentsComponent', () => {
       tick(300);
 
       expect(service['getIdentityUserLookup']).toHaveBeenCalled();
-      expect(c.bookerResults().length).toBe(1);
+      expect(c.bookerResults()).toHaveSize(1);
     }));
 
     it('clears the resolved id while the operator retypes', () => {
@@ -539,7 +539,7 @@ describe('InternalAppointmentsComponent', () => {
       c.totalCount.set(42);
       c.pageSize.set(10);
       expect(c.totalPages()).toBe(5);
-      expect(c.pages().length).toBe(5);
+      expect(c.pages()).toHaveSize(5);
     });
 
     it('never reports fewer than one page', () => {
@@ -1028,5 +1028,81 @@ describe('InternalAppointmentsComponent', () => {
       started(c);
       expect(typeof c.actionable(row())).toBe('boolean');
     });
+  });
+
+  describe('failed requests that used to have no error branch (#1113)', () => {
+    /**
+     * ABP's RestService reports a failure and then rethrows it; a subscriber with no error branch
+     * sends that copy to RxJS's unhandled-error path. The hook is global, so it is replaced only
+     * inside this block and the previous value is restored.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+    const failure = () => throwError(() => ({ status: 500 }));
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('can see an unhandled error at all (detector self-check)', fakeAsync(() => {
+      throwError(() => new Error('probe')).subscribe({ next: () => undefined });
+      tick();
+      expect(unhandled).toHaveBeenCalled();
+    }));
+
+    it('leaves the filter dropdowns empty when a lookup fails', fakeAsync(() => {
+      const c = create();
+      service['getAppointmentTypeLookup'].and.returnValue(failure());
+      service['getLocationLookup'].and.returnValue(failure());
+      started(c);
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.types()).toEqual([]);
+      expect(c.locations()).toEqual([]);
+    }));
+
+    it('shows no booker suggestions when the booker search fails', fakeAsync(() => {
+      const c = create();
+      started(c);
+      service['getIdentityUserLookup'].and.returnValue(failure());
+      c.onBookerInput('ada');
+      tick(300);
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.bookerResults()).toEqual([]);
+    }));
+
+    it('keeps the row selected when a single delete fails', fakeAsync(() => {
+      const c = create();
+      started(c);
+      c.toggleSelect(row());
+      service['delete'].and.returnValue(failure());
+      c.deleteRow(row());
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.selectedCount()).toBe(1);
+    }));
+
+    it('reloads the list when a bulk delete fails, since part of it may have gone', fakeAsync(() => {
+      const c = create({ policies: ['CaseEvaluation.Appointments.Delete'] });
+      service['getList'].and.returnValue(
+        of({ items: [row({ id: 'a1' }), row({ id: 'a2' })], totalCount: 2 }),
+      );
+      started(c);
+      c.toggleSelectAll();
+      service['delete'].and.returnValue(failure());
+      service['getList'].calls.reset();
+
+      c.bulkDelete();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(service['getList']).toHaveBeenCalled();
+    }));
   });
 });

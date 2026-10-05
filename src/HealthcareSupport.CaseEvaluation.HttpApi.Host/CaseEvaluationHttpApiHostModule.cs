@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
+using HealthcareSupport.CaseEvaluation.DataProtection;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Volo.Abp.PermissionManagement;
@@ -19,6 +20,7 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using HealthcareSupport.CaseEvaluation.ApiDocumentation;
 using HealthcareSupport.CaseEvaluation.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
@@ -59,6 +61,7 @@ using Volo.Abp.AspNetCore.Authentication.JwtBearer;
 using Localization.Resources.AbpUi;
 using Volo.Abp.Account.Localization;
 using Volo.Abp.Localization;
+using Serilog;
 
 namespace HealthcareSupport.CaseEvaluation;
 
@@ -93,11 +96,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         EntityFrameworkCore.AdminPasswords.AdminPasswordStoreRegistrar.Register(
             context.Services, configuration, hostingEnvironment.IsDevelopment());
 
-        if (!configuration.GetValue<bool>("App:DisablePII"))
-        {
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
-            Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
-        }
+        // Development only, decided in code: see IdentityModelPiiLogging for why a setting is not enough.
+        Hosting.IdentityModelPiiLogging.Apply(hostingEnvironment, configuration);
 
         ConfigureStudio(hostingEnvironment);
         ConfigureUrls(configuration);
@@ -106,7 +106,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureSwagger(context, configuration);
         ConfigureCache();
         ConfigureVirtualFileSystem(context);
-        ConfigureDataProtection(context, configuration);
+        if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
+        {
+            ConfigureDataProtection(context, configuration);
+        }
         ConfigureDistributedLocking(context, configuration);
         ConfigureCors(context, configuration);
         ConfigureExternalProviders(context);
@@ -1377,32 +1380,27 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             });
     }
 
-    private static void ConfigureDataProtection(
+    /// <summary>
+    /// Data Protection for this process: the shared key ring from
+    /// <see cref="CaseEvaluationKeyRing"/> (application name, protection at rest), persisted to
+    /// Redis whenever a Redis connection is configured, in BOTH dev and prod. The AuthServer and the
+    /// API run as separate containers with separate filesystems, so a per-container key store would
+    /// leave a token minted by one unreadable at the other (a confirm-email link from the API
+    /// returned 403 "Volo.Abp.Identity:InvalidToken" at the AuthServer). The other process's copy of
+    /// this method must stay identical; <c>DataProtectionKeyRingTests</c> checks that each reads what
+    /// the other protects. <c>internal</c> for those tests, like <c>ConfigureMultiTenancy</c>.
+    /// </summary>
+    internal static void ConfigureDataProtection(
         ServiceConfigurationContext context,
         IConfiguration configuration)
     {
-        if (AbpStudioAnalyzeHelper.IsInAnalyzeMode)
-        {
-            return;
-        }
+        var dataProtectionBuilder = CaseEvaluationKeyRing.AddCaseEvaluationDataProtection(context.Services, configuration);
 
-        var dataProtectionBuilder = context.Services.AddDataProtection().SetApplicationName("CaseEvaluation");
-
-        // Persist DataProtection keys to Redis whenever a Redis connection is
-        // configured, in BOTH dev and prod. Reason: AuthServer + HttpApi.Host
-        // run as separate Docker containers (separate filesystems), so the
-        // default key store at /root/.aspnet/DataProtection-Keys is per-
-        // container. ABP-Identity tokens (e.g. EmailConfirmation) generated
-        // by the API host fail validation when the AuthServer's confirm-email
-        // endpoint tries to decrypt them with a different key ring -- the
-        // request returns 403 with "Volo.Abp.Identity:InvalidToken".
-        // Redis-backed shared keys + matching SetApplicationName above make
-        // both processes interchangeable validators.
         var redisConfig = configuration["Redis:Configuration"];
         if (!string.IsNullOrWhiteSpace(redisConfig))
         {
             var redis = ConnectionMultiplexer.Connect(redisConfig);
-            dataProtectionBuilder.PersistKeysToStackExchangeRedis(redis, "CaseEvaluation-Protection-Keys");
+            dataProtectionBuilder.PersistKeysToStackExchangeRedis(redis, CaseEvaluationKeyRing.RedisKey);
         }
     }
 
@@ -1558,6 +1556,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         }
 
         app.UseAbpRequestLocalization();
+        // One line per request, path only; see CaseEvaluationHost.ConfigureLevels.
+        app.UseSerilogRequestLogging();
         app.UseRouting();
         app.MapAbpStaticAssets();
         app.UseAbpStudioLink();
@@ -1587,14 +1587,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // callers' JWT sub claim is available to the partitioner.
         app.UseRateLimiter();
 
-        app.UseSwagger();
-        app.UseAbpSwaggerUI(options =>
-        {
-            options.SwaggerEndpoint("/swagger/v1/swagger.json", "CaseEvaluation API");
-
-            var configuration = context.GetConfiguration();
-            options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
-        });
+        // Development only; the decision and the act of applying it are ApiDocumentationPipeline's.
+        ApiDocumentationPipeline.Apply(app, env, context.GetConfiguration()["AuthServer:SwaggerClientId"]);
 
         // Hangfire dashboard at /hangfire; CreateHangfireDashboardOptions decides who may open it.
         // Hangfire server starts automatically via AbpBackgroundJobsHangFireModule.

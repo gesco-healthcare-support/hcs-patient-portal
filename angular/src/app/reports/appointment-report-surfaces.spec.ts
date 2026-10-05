@@ -1,7 +1,7 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 import { EnvironmentService } from '@abp/ng.core';
 
 import { AppointmentReportComponent } from './appointment-report.component';
@@ -316,7 +316,7 @@ describe('AppointmentReportComponent surfaces', () => {
         of({ items: [{ appointmentId: 'a-1' }], totalCount: 31 }),
       );
       c.load();
-      expect(c.rows.length).toBe(1);
+      expect(c.rows).toHaveSize(1);
       expect(c.totalCount).toBe(31);
       expect(c.isLoading).toBeFalse();
       expect(c.hasSearched).toBeTrue();
@@ -605,5 +605,53 @@ describe('AppointmentReportComponent surfaces', () => {
       c.openAppointment('');
       expect(router.navigate).not.toHaveBeenCalled();
     });
+  });
+
+  describe('lookup failures (#1113)', () => {
+    /**
+     * Both advanced-search lookups subscribed with no error branch, so ABP's rethrown copy of a
+     * failed request reached RxJS's unhandled-error path. The page must still open: the
+     * dropdowns stay empty and the other lookup is unaffected.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('leaves the type options empty and still loads the locations', fakeAsync(() => {
+      const c = create();
+      typeService['getList'].and.returnValue(throwError(() => ({ status: 500 })));
+      locationService['getList'].and.returnValue(
+        of({ items: [{ location: { id: 'l1', name: 'Encino' } }] }),
+      );
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.typeOptions).toEqual([]);
+      expect(c.locationOptions).toEqual([{ id: 'l1', name: 'Encino' }]);
+    }));
+
+    it('leaves the location options empty and still loads the types', fakeAsync(() => {
+      const c = create();
+      locationService['getList'].and.returnValue(throwError(() => ({ status: 500 })));
+      typeService['getList'].and.returnValue(of({ items: [{ id: 't1', name: 'AME' }] }));
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.locationOptions).toEqual([]);
+      expect(c.typeOptions).toEqual([{ id: 't1', name: 'AME' }]);
+    }));
   });
 });

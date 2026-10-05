@@ -147,13 +147,23 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         var applicantLinks = applicantLinkQueryable.Where(x => x.AppointmentId == appointmentId).Take(10).ToList();
         foreach (var link in applicantLinks)
         {
-            var aa = await _applicantAttorneyRepository.FindAsync(link.ApplicantAttorneyId);
-            if (link.IdentityUserId is null)
+            // #1196: a link with no IdentityUser (an attorney who has not registered) used to be
+            // skipped here, and the appointment's own email column is not written for that path, so
+            // the attorney was never emailed at all. Fall back to the attorney MASTER record's email.
+            // This decides WHO TO EMAIL only. It is never copied onto the appointment: the
+            // appointment's party-email columns drive AppointmentAccessRules, so writing a
+            // caller-editable master email there would let a caller grant themselves access.
+            var aaEmail = link.IdentityUserId is { } aaUserId
+                ? (await _identityUserRepository.FindAsync(aaUserId))?.Email
+                : null;
+            if (!string.IsNullOrWhiteSpace(aaEmail))
             {
+                AddIfPresent(aaEmail, RecipientRole.ApplicantAttorney, $"aa/{link.Id}");
                 continue;
             }
-            var aaUser = await _identityUserRepository.FindAsync(link.IdentityUserId.Value);
-            AddIfPresent(aaUser?.Email, RecipientRole.ApplicantAttorney, $"aa/{link.Id}");
+            var aaMaster = await _applicantAttorneyRepository.FindAsync(link.ApplicantAttorneyId);
+            await AddPartyEmailIfNotKnownAsync(
+                byEmail, AddIfPresent, aaMaster?.Email, RecipientRole.ApplicantAttorney, $"aa-master/{link.Id}");
         }
 
         // 4. Defense Attorney -- via the AppointmentDefenseAttorney join (W2-7).
@@ -161,13 +171,23 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         var defenseLinks = defenseLinkQueryable.Where(x => x.AppointmentId == appointmentId).Take(10).ToList();
         foreach (var link in defenseLinks)
         {
-            var da = await _defenseAttorneyRepository.FindAsync(link.DefenseAttorneyId);
-            if (link.IdentityUserId is null)
+            // #1196: a link with no IdentityUser (an attorney who has not registered) used to be
+            // skipped here, and the appointment's own email column is not written for that path, so
+            // the attorney was never emailed at all. Fall back to the attorney MASTER record's email.
+            // This decides WHO TO EMAIL only. It is never copied onto the appointment: the
+            // appointment's party-email columns drive AppointmentAccessRules, so writing a
+            // caller-editable master email there would let a caller grant themselves access.
+            var daEmail = link.IdentityUserId is { } daUserId
+                ? (await _identityUserRepository.FindAsync(daUserId))?.Email
+                : null;
+            if (!string.IsNullOrWhiteSpace(daEmail))
             {
+                AddIfPresent(daEmail, RecipientRole.DefenseAttorney, $"da/{link.Id}");
                 continue;
             }
-            var daUser = await _identityUserRepository.FindAsync(link.IdentityUserId.Value);
-            AddIfPresent(daUser?.Email, RecipientRole.DefenseAttorney, $"da/{link.Id}");
+            var daMaster = await _defenseAttorneyRepository.FindAsync(link.DefenseAttorneyId);
+            await AddPartyEmailIfNotKnownAsync(
+                byEmail, AddIfPresent, daMaster?.Email, RecipientRole.DefenseAttorney, $"da-master/{link.Id}");
         }
 
         // 5. Claim Examiner: CI1 (2026-06-05) moved CE to a single

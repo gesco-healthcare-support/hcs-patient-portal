@@ -178,7 +178,11 @@ export class AppointmentAddClaimInformationComponent {
           },
           { apiName: 'Default' },
         )
-        .subscribe({ next: (r) => (this.wcabOfficeOptions = r?.items ?? []) });
+        .subscribe({
+          next: (r) => (this.wcabOfficeOptions = r?.items ?? []),
+          // ABP's RestService already reported this failure; settle the rethrown copy.
+          error: () => undefined,
+        });
     }
     if (this.injuryStateOptions.length === 0) {
       this.restService
@@ -190,7 +194,11 @@ export class AppointmentAddClaimInformationComponent {
           },
           { apiName: 'Default' },
         )
-        .subscribe({ next: (r) => (this.injuryStateOptions = r?.items ?? []) });
+        .subscribe({
+          next: (r) => (this.injuryStateOptions = r?.items ?? []),
+          // ABP's RestService already reported this failure; settle the rethrown copy.
+          error: () => undefined,
+        });
     }
   }
 

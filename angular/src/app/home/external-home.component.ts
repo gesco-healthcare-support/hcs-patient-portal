@@ -6,10 +6,13 @@ import {
   computed,
   inject,
   signal,
+  DestroyRef,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ConfigStateService, ListService, RestService } from '@abp/ng.core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
 import { AppointmentWithNavigationPropertiesDto } from '../proxy/appointments/models';
@@ -162,6 +165,7 @@ export class ExternalHomeComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   protected readonly list = inject(ListService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly segments = EXTERNAL_STATUS_SEGMENTS;
 
@@ -251,6 +255,15 @@ export class ExternalHomeComponent implements OnInit {
     // Load the caller's appointments (server applies the external involvement
     // filter); a high page size lets us do segments/search/filters client-side.
     this.list.maxResultCount = 500;
+    // ListService swallows a failed load (ABP toasts it) and emits nothing, so
+    // without this the skeleton would spin forever. Stop it and fall through to
+    // the normal empty state; rows from an earlier successful load are kept.
+    this.list.requestStatus$
+      .pipe(
+        filter((s) => s === 'error'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.loading.set(false));
     this.list
       .hookToQuery((query) => this.appointmentService.getList({ ...query, maxResultCount: 500 }))
       .subscribe((res) => {
@@ -369,17 +382,14 @@ export class ExternalHomeComponent implements OnInit {
     this.router.navigate(['/appointments/view', id]);
   }
   protected viewDocuments(id: string): void {
-    // The appointment detail page hosts the Document Manager (OLD parity); the
-    // standalone My Documents page is a later redesign slice.
+    // The appointment detail page hosts the Document Manager (OLD parity).
     this.router.navigate(['/appointments/view', id]);
   }
   protected openProfile(): void {
     this.router.navigateByUrl('/user-management/patients/my-profile');
   }
   protected openMyDocuments(): void {
-    // The dedicated My Documents page is a later redesign slice, tracked in #729;
-    // until it exists this opens the profile, which is where documents are reachable.
-    this.router.navigateByUrl('/user-management/patients/my-profile');
+    this.router.navigateByUrl('/my-documents');
   }
   protected openQuery(): void {
     this.submitQueryVisible = true;

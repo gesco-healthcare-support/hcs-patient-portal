@@ -23,6 +23,9 @@ public class HostingConfigValidatorTests
         ["AuthServer:Authority"] = "https://auth.portal.example.com",
         ["App:SelfUrl"] = "https://auth.portal.example.com",
         ["AuthServer:CertificatePassPhrase"] = "real-pfx-passphrase",
+        ["DataProtection:CertificatePath"] = "/app/dataprotection.pfx",
+        ["DataProtection:CertificatePassPhrase"] = "real-key-ring-passphrase",
+        ["AllowedHosts"] = "portal.example.com;*.portal.example.com;localhost;authserver",
     };
 
     private static IConfiguration Build(Dictionary<string, string?> values) =>
@@ -110,5 +113,82 @@ public class HostingConfigValidatorTests
         ex.Message.ShouldContain("AuthServer:Authority");
         ex.Message.ShouldContain("App:SelfUrl");
         ex.Message.ShouldContain("AuthServer:CertificatePassPhrase");
+        ex.Message.ShouldContain("DataProtection:CertificatePath");
+        ex.Message.ShouldContain("DataProtection:CertificatePassPhrase");
+        ex.Message.ShouldContain("AllowedHosts");
+    }
+
+    /// <summary>
+    /// Both processes share one key ring, so BOTH need the certificate that encrypts it: the API
+    /// (requireSigningCertificate false) as well as the AuthServer.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "DataProtection:CertificatePath")]
+    [InlineData(true, "DataProtection:CertificatePassPhrase")]
+    [InlineData(false, "DataProtection:CertificatePath")]
+    [InlineData(false, "DataProtection:CertificatePassPhrase")]
+    public void Production_without_the_key_ring_certificate_throws_in_either_process(
+        bool requireSigningCertificate, string missingKey)
+    {
+        var values = ValidProd();
+        values.Remove(missingKey);
+
+        var ex = Should.Throw<AbpException>(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate));
+
+        ex.Message.ShouldContain(missingKey);
+    }
+
+    // ---- B4 (2026-09-25): AllowedHosts ----
+    //
+    // ASP.NET Core answers every Host when AllowedHosts is missing: the default builder falls back to
+    // "*" (aspnetcore v10.0.0 WebHost.cs:258-272). A bare "*" entry anywhere in the list does the same.
+
+    [Theory]
+    [InlineData("*")]
+    [InlineData("*;localhost")]                      // the bare wildcard hidden among valid entries
+    [InlineData("portal.example.com; * ;localhost")] // spaced, still a bare wildcard
+    public void Throws_when_AllowedHosts_lets_every_host_in(string allowedHosts)
+    {
+        var values = ValidProd();
+        values["AllowedHosts"] = allowedHosts;
+
+        var ex = Should.Throw<AbpException>(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate: true));
+
+        ex.Message.ShouldContain("AllowedHosts");
+    }
+
+    [Fact]
+    public void Throws_when_AllowedHosts_is_missing()
+    {
+        var values = ValidProd();
+        values.Remove("AllowedHosts");
+
+        var ex = Should.Throw<AbpException>(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate: false));
+
+        ex.Message.ShouldContain("AllowedHosts");
+    }
+
+    [Fact]
+    public void Accepts_subdomain_wildcards_in_AllowedHosts()
+    {
+        // "*.portal.example.com" is what production needs; only a BARE "*" is refused.
+        var values = ValidProd();
+        values["AllowedHosts"] = "portal.example.com;*.portal.example.com;localhost";
+
+        Should.NotThrow(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: false, requireSigningCertificate: false));
+    }
+
+    [Fact]
+    public void Skips_the_AllowedHosts_check_in_development()
+    {
+        var values = ValidProd();
+        values["AllowedHosts"] = "*";
+
+        Should.NotThrow(() => HostingConfigValidator.ValidateOrThrow(
+            Build(values), isDevelopment: true, requireSigningCertificate: true));
     }
 }

@@ -41,6 +41,14 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
 {
     private const string Password = "Test1234!";
 
+    /// <summary>
+    /// The staff caller holds a role production actually recognises as internal. These tests
+    /// previously used <c>IdentityUsersTestData.TenantAdminRoleName</c> ("TenantAdmin"), which no
+    /// production code defines; the lookup admitted it to the staff search only because it then
+    /// treated ANY role it did not recognise as internal. That fall-through is now closed.
+    /// </summary>
+    private const string InternalStaffRole = "Intake Staff";
+
     private readonly IExternalSignupAppService _appService;
     private readonly IdentityUserManager _userManager;
     private readonly IRepository<Patient, Guid> _patientRepository;
@@ -114,7 +122,7 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
             using (WithCurrentUser.Run(
                        _principal,
                        IdentityUsersTestData.TenantAdmin1UserId,
-                       IdentityUsersTestData.TenantAdminRoleName))
+                       InternalStaffRole))
             {
                 var staffResult = await _appService.GetExternalUserLookupAsync(
                     IdentityUsersTestData.Patient1Email);
@@ -149,7 +157,7 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
             using (WithCurrentUser.Run(
                        _principal,
                        IdentityUsersTestData.TenantAdmin1UserId,
-                       IdentityUsersTestData.TenantAdminRoleName))
+                       InternalStaffRole))
             {
                 var seenByAnother = await _appService.GetExternalUserLookupAsync(
                     IdentityUsersTestData.Patient1Email);
@@ -162,7 +170,7 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
             using (WithCurrentUser.Run(
                        _principal,
                        IdentityUsersTestData.Patient1UserId,
-                       IdentityUsersTestData.TenantAdminRoleName,
+                       InternalStaffRole,
                        IdentityUsersTestData.PatientRoleName))
             {
                 var seenByThemselves = await _appService.GetExternalUserLookupAsync(
@@ -279,12 +287,14 @@ public abstract class ExternalSignupLookupTests<TStartupModule>
             var staffAccount = await _userManager.GetByIdAsync(
                 IdentityUsersTestData.TenantAdmin1UserId);
             var roles = await _userManager.GetRolesAsync(staffAccount);
+            // The role the seeded account STORES, which is still TenantAdmin. Not the caller role
+            // below, which uses InternalStaffRole -- the two read alike but are different things.
             roles.ShouldContain(IdentityUsersTestData.TenantAdminRoleName);
 
             using (WithCurrentUser.Run(
                        _principal,
                        IdentityUsersTestData.TenantAdmin1UserId,
-                       IdentityUsersTestData.TenantAdminRoleName))
+                       InternalStaffRole))
             {
                 var profile = await _appService.GetMyProfileAsync();
                 profile.IdentityUserId.ShouldBe(IdentityUsersTestData.TenantAdmin1UserId);

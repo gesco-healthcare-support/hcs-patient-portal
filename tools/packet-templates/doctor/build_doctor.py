@@ -1208,28 +1208,30 @@ def page7():
 
     o = ['<div class="dwc">']
     # --- header: logo + centered titles ---
-    o.append('<div class="dwc-hdr"><img class="dwc-logo" src="DWC_Logo.jpg">'
-             '<div class="dwc-title">Physician&#39;s Return-to-Work &amp; Voucher Report</div>'
-             '<div class="dwc-sub">For injuries occurring on or after January 1, 2013</div></div>')
-    # --- P&S statement ---
-    o.append(f'<div class="row">{cb("ps_permanent", "The Employee is P&amp;S from all conditions and the injury has caused permanent partial disability")}</div>')
-    # --- info tables (T36-T39) ---
-    # MI widened from First Name: the original (LibreOffice auto-layout) sizes MI to fit its
-    # token; our fixed layout must do so explicitly or ##Patients.MiddleName## overflows.
-    o.append(_rtw_info([3955, 2300, 2527, 2928], [
-        ("Employee Last Name", tok("##Patients.LastName##")), ("Employee First Name", tok("##Patients.FirstName##")),
-        ("MI", tok("##Patients.MiddleName##")), ("Date of Injury", tok("##InjuryDetails.DateOfInjury##"))]))
-    o.append(_rtw_info([5855, 5855], [
-        ("Claims Administrator:", tok("##InjuryDetails.PrimaryInsuranceName##")),
-        ("Claims Representative", tok("##InjuryDetails.ClaimExaminerName##"))]))
-    o.append(_rtw_info([5855, 5855], [
-        ("Employer name:", tok("##EmployerDetails.EmployerName##")),
-        ("Employer Street Address:", tok("##EmployerDetails.Street##"))]))
-    o.append(_rtw_info([2591, 2712, 2526, 235, 3136], [
-        ("Employer City:", tok("##EmployerDetails.City##")), ("State", tok("##EmployerDetails.State##")),
-        ("ZipCode", tok("##EmployerDetails.Zip##")), ("", ""), ("Claim No:", tok("##InjuryDetails.ClaimNumber##"))]))
-    # --- return to regular work ---
-    o.append(f'<div class="row">{cb("regular_work", "The Employee can return to regular work")}</div>')
+    o.extend([
+        '<div class="dwc-hdr"><img class="dwc-logo" src="DWC_Logo.jpg">'
+        '<div class="dwc-title">Physician&#39;s Return-to-Work &amp; Voucher Report</div>'
+        '<div class="dwc-sub">For injuries occurring on or after January 1, 2013</div></div>',
+        # --- P&S statement ---
+        f'<div class="row">{cb("ps_permanent", "The Employee is P&amp;S from all conditions and the injury has caused permanent partial disability")}</div>',
+        # --- info tables (T36-T39) ---
+        # MI widened from First Name: the original (LibreOffice auto-layout) sizes MI to fit its
+        # token; our fixed layout must do so explicitly or ##Patients.MiddleName## overflows.
+        _rtw_info([3955, 2300, 2527, 2928], [
+            ("Employee Last Name", tok("##Patients.LastName##")), ("Employee First Name", tok("##Patients.FirstName##")),
+            ("MI", tok("##Patients.MiddleName##")), ("Date of Injury", tok("##InjuryDetails.DateOfInjury##"))]),
+        _rtw_info([5855, 5855], [
+            ("Claims Administrator:", tok("##InjuryDetails.PrimaryInsuranceName##")),
+            ("Claims Representative", tok("##InjuryDetails.ClaimExaminerName##"))]),
+        _rtw_info([5855, 5855], [
+            ("Employer name:", tok("##EmployerDetails.EmployerName##")),
+            ("Employer Street Address:", tok("##EmployerDetails.Street##"))]),
+        _rtw_info([2591, 2712, 2526, 235, 3136], [
+            ("Employer City:", tok("##EmployerDetails.City##")), ("State", tok("##EmployerDetails.State##")),
+            ("ZipCode", tok("##EmployerDetails.Zip##")), ("", ""), ("Claim No:", tok("##InjuryDetails.ClaimNumber##"))]),
+        # --- return to regular work ---
+        f'<div class="row">{cb("regular_work", "The Employee can return to regular work")}</div>',
+    ])
     # --- restrictions grid (activity x frequency) ---
     g = [f'<table class="grid">{_colgroup([40, 12, 12, 12, 12, 12])}']
     g.append(f'<tr><td class="act">{cb("work_with_restrictions", "The Employee can work with restrictions:")}</td>'
@@ -1243,35 +1245,37 @@ def page7():
         cells = "".join(f'<td class="bx">{box_(hk + "." + fk)}</td>' for _, fk in _RTW_FREQ)
         g.append(f'<tr><td class="act">{rl} Hand(s) (circle): {hl}</td>{cells}</tr>')
     g.append('</table>')
-    o.append("".join(g))
-    # --- lift/carry (inline fillable blanks) ---
-    o.append('<div class="row">Lift/Carry Restrictions: May not lift/carry at a height of '
-             + uin("lift.height", "1.1in") + ' more than ' + uin("lift.lbs", "0.7in")
-             + ' lbs. for more than ' + uin("lift.hours", "0.7in") + ' hours per day</div>')
-    # --- other restrictions box (label left, large write-in area right) ---
-    o.append('<table class="obox"><tr><td class="olbl">Other Restrictions</td>'
-             f'<td><textarea name="{RTW}.other_restrictions" style="height:84px"></textarea></td></tr></table>')
-    # --- job description section ---
-    o.append('<div class="row it">If a job Description has been provided, please complete: Job Description provided of: '
-             + cb("job_provided.regular", "Regular") + cb("job_provided.modified", "Modified")
-             + cb("job_provided.alternative", "Alternative Work") + '</div>')
-    o.append('<div class="row"><div class="oline">'
-             f'<span class="olbl">Job Title:</span><span class="ofill">{fill("job_title")}</span>'
-             f'<span class="olbl">Work Location:</span><span class="ofill">{fill("work_location")}</span></div></div>')
-    o.append('<div class="row it">Are the Work Duties compatible with the activity restrictions set forth in the provided job description? '
-             + cb("compatible.yes", "Yes") + cb("compatible.no", "No,") + ' Explain below</div>')
-    o.append(f'<div class="box"><textarea name="{RTW}.explain" style="height:56px"></textarea></div>')
-    # --- signature block ---
-    o.append('<div class="row" style="margin-top:12px"><div class="oline">'
-             '<span class="olbl">Physician&#39;s Name: Yuri Falkinstein, M.D.</span>'
-             '<span class="ofill"></span>'
-             f'<span class="olbl">Role of Doctor (PTP,QME,AME):</span><span class="ofill">{fill("role")}</span></div></div>')
-    # Date label + token kept as one right-side cell so the signature fill takes the rest of the line.
-    o.append('<div class="row" style="margin-top:12px"><div class="oline">'
-             '<span class="olbl">Physician&#39;s Signature:</span>'
-             f'<span class="ofill" style="width:55%">{fill("signature")}</span>'
-             f'<span class="olbl">Date: {tok("##Appointments.AvailableDate##")}</span></div></div>')
-    o.append('</div>')
+    o.extend([
+        "".join(g),
+        # --- lift/carry (inline fillable blanks) ---
+        '<div class="row">Lift/Carry Restrictions: May not lift/carry at a height of '
+        + uin("lift.height", "1.1in") + ' more than ' + uin("lift.lbs", "0.7in")
+        + ' lbs. for more than ' + uin("lift.hours", "0.7in") + ' hours per day</div>',
+        # --- other restrictions box (label left, large write-in area right) ---
+        '<table class="obox"><tr><td class="olbl">Other Restrictions</td>'
+        f'<td><textarea name="{RTW}.other_restrictions" style="height:84px"></textarea></td></tr></table>',
+        # --- job description section ---
+        '<div class="row it">If a job Description has been provided, please complete: Job Description provided of: '
+        + cb("job_provided.regular", "Regular") + cb("job_provided.modified", "Modified")
+        + cb("job_provided.alternative", "Alternative Work") + '</div>',
+        '<div class="row"><div class="oline">'
+        f'<span class="olbl">Job Title:</span><span class="ofill">{fill("job_title")}</span>'
+        f'<span class="olbl">Work Location:</span><span class="ofill">{fill("work_location")}</span></div></div>',
+        '<div class="row it">Are the Work Duties compatible with the activity restrictions set forth in the provided job description? '
+        + cb("compatible.yes", "Yes") + cb("compatible.no", "No,") + ' Explain below</div>',
+        f'<div class="box"><textarea name="{RTW}.explain" style="height:56px"></textarea></div>',
+        # --- signature block ---
+        '<div class="row" style="margin-top:12px"><div class="oline">'
+        '<span class="olbl">Physician&#39;s Name: Yuri Falkinstein, M.D.</span>'
+        '<span class="ofill"></span>'
+        f'<span class="olbl">Role of Doctor (PTP,QME,AME):</span><span class="ofill">{fill("role")}</span></div></div>',
+        # Date label + token kept as one right-side cell so the signature fill takes the rest of the line.
+        '<div class="row" style="margin-top:12px"><div class="oline">'
+        '<span class="olbl">Physician&#39;s Signature:</span>'
+        f'<span class="ofill" style="width:55%">{fill("signature")}</span>'
+        f'<span class="olbl">Date: {tok("##Appointments.AvailableDate##")}</span></div></div>',
+        '</div>',
+    ])
     return "".join(o)
 
 
@@ -1315,7 +1319,7 @@ def page8():
         '<div class="ins-title">Physician&#39;s Return-to-Work &amp; Voucher Report Instructions</div>'
         '<div class="ins-sub">For injuries on or after January 1, 2013  DWC - AD 10133.36</div>'
         + body
-        + '<div class="ins-foot">DWC AD Form 10133.36 (Effective 1/13)</div>'
+        + '<div class="ins-foot">DWC AD Form 10133.36&nbsp;  (SJDB) Eff: 1/1/14</div>'
         '</div>')
 
 
@@ -1341,19 +1345,51 @@ def _inline_images(html):
     return re.sub(r'src="([^"]+)"', repl, html)
 
 
-def build():
-    body = "\n".join(f'<div class="page">\n{fn()}\n</div>' for fn in PAGES)
+# ----------------------------------------------------------------------------- variants
+# A VARIANT is a doctor packet whose body is the standard one with a few presentation
+# differences, emitted as its own HTML file and exposed by the renderer under its own
+# template name. Per-office customisation is DATA here (this table), never a branch on an
+# office's name inside a page function: the pages are shared, a variant only says how they
+# are presented. Adding the next office's variant is one entry plus its golden hash.
+#
+# landscape_pages: 1-based indexes into PAGES that print in landscape. Everything else stays
+# portrait. The standard packet has none, and its output must stay byte-identical (golden.sha256).
+VARIANTS = {
+    "doctor": {"output": "doctor.html", "landscape_pages": ()},
+    "doctor-landscape": {"output": "doctor_landscape.html", "landscape_pages": (1, 2, 3, 4, 5)},
+}
+
+# Named page: the pages keep the standard margins, only the orientation changes.
+LANDSCAPE_CSS = """
+  @page land { size: Letter landscape; margin: 0.35in 0.30in 0.20in 0.42in; }
+  .page.land { page: land; }
+"""
+
+
+def build_variant(variant):
+    """Return the complete HTML for one entry of VARIANTS."""
+    landscape = set(variant["landscape_pages"])
+    pages = []
+    for number, fn in enumerate(PAGES, start=1):
+        cls = "page land" if number in landscape else "page"
+        pages.append(f'<div class="{cls}">\n{fn()}\n</div>')
+    css = CSS + (LANDSCAPE_CSS if landscape else "")
     html = ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
-            '<title>Doctor Packet</title>\n<style>' + CSS + '</style></head>\n<body>\n'
-            + body + '\n</body></html>')
-    html = _inline_images(html)
-    # newline="\n" so the document is byte-identical on every platform.
-    # Without it Python's text mode emits CRLF on Windows and LF on Linux --
-    # same content, different bytes, different hash. The packet-renderer image
-    # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
-    with open("doctor.html", "w", encoding="utf-8", newline="\n") as f:
-        f.write(html)
-    print(f"wrote doctor.html ({len(PAGES)} page(s))")
+            '<title>Doctor Packet</title>\n<style>' + css + '</style></head>\n<body>\n'
+            + "\n".join(pages) + '\n</body></html>')
+    return _inline_images(html)
+
+
+def build():
+    for name, variant in VARIANTS.items():
+        html = build_variant(variant)
+        # newline="\n" so the document is byte-identical on every platform.
+        # Without it Python's text mode emits CRLF on Windows and LF on Linux --
+        # same content, different bytes, different hash. The packet-renderer image
+        # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
+        with open(variant["output"], "w", encoding="utf-8", newline="\n") as f:
+            f.write(html)
+        print(f"wrote {variant['output']} ({len(PAGES)} page(s), template {name})")
 
 if __name__ == "__main__":
     build()

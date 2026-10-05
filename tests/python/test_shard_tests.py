@@ -140,7 +140,6 @@ public sealed partial class Beta : SharedBase
 {
 }
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class Gamma
 {
 }
@@ -153,11 +152,19 @@ class TestCollectionMembers(_TempDirCase):
 
         self.assertEqual(members, {"Ns.Alpha": "SharedDb.Name", "Ns.Beta": "SharedDb.Name"})
 
-    def test_the_serial_only_default_collection_may_be_split(self):
-        """Gamma is in the default collection, which shares no state, so it is not a member."""
+    def test_a_class_with_no_collection_is_not_a_member(self):
+        """Gamma names no collection, so it may go to any shard."""
         members = shard.collection_members({"Shared.cs": SHARED_ALPHA_BETA})
 
         self.assertNotIn("Ns.Gamma", members)
+
+    def test_the_retired_default_collection_is_kept_whole_like_any_other(self):
+        """No collection is exempt any more, so one brought back cannot be split by name."""
+        text = "namespace Ns;\n[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]\npublic class Old { }\n"
+
+        members = shard.collection_members({"Old.cs": text})
+
+        self.assertEqual(members, {"Ns.Old": "CaseEvaluationTestConsts.CollectionDefinitionName"})
 
     def test_a_block_scoped_namespace_is_read_too(self):
         text = "namespace Ns.Block\n{\n    [Collection(SharedDb.Name)]\n    public class Baz { }\n}\n"
@@ -188,7 +195,7 @@ class TestPartitionWithCollections(unittest.TestCase):
 
         holders = [i for i, bucket in enumerate(shards) if set(self.GROUP) & set(bucket)]
         self.assertEqual(len(holders), 1)
-        self.assertTrue(set(self.GROUP) <= set(shards[holders[0]]))
+        self.assertLessEqual(set(self.GROUP), set(shards[holders[0]]))
 
     def test_grouping_still_places_every_class_exactly_once(self):
         flat = [cls for bucket in shard.partition(self.COUNTS, 4, self.GROUP) for cls in bucket]
@@ -304,6 +311,9 @@ class TestMain(_TempDirCase):
             try:
                 code: object = shard.main(list(argv))
             except SystemExit as stop:
+                # python:S5754 says to re-raise. Not here: main() reports failure by EXITING, so
+                # capturing the code is the only way to assert on it. Same reasoning as the
+                # helper in test_coverage_gate_tracked_discovery.py.
                 code = stop.code
         return code, out.getvalue(), err.getvalue()
 

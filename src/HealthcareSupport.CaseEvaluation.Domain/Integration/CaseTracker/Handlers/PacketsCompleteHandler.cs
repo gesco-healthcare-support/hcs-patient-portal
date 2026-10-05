@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
@@ -35,17 +36,20 @@ public class PacketsCompleteHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly CaseTrackerPacketPublishService _packetPublishService;
+    private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<PacketsCompleteHandler> _logger;
 
     public PacketsCompleteHandler(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentPacket, Guid> packetRepository,
         CaseTrackerPacketPublishService packetPublishService,
+        ICurrentTenant currentTenant,
         ILogger<PacketsCompleteHandler> logger)
     {
         _appointmentRepository = appointmentRepository;
         _packetRepository = packetRepository;
         _packetPublishService = packetPublishService;
+        _currentTenant = currentTenant;
         _logger = logger;
     }
 
@@ -59,39 +63,51 @@ public class PacketsCompleteHandler :
 
         try
         {
-            var appointment = await _appointmentRepository.FindAsync(eventData.AppointmentId);
-            if (appointment == null)
+            // The event is published from UoW.OnCompleted, which fires AFTER the job's own
+            // tenant scope has exited, so at this point CurrentTenant is the HOST. Database-per-
+            // office makes that a different connection string, not a filtered view: a host-scope
+            // lookup of an office's appointment finds nothing (the 'appointment not found; packets
+            // not published' warning). Re-enter the originating office, as the sibling packet
+            // email handlers do.
+            using (_currentTenant.Change(eventData.TenantId))
             {
-                _logger.LogWarning(
-                    "PacketsCompleteHandler: appointment {AppointmentId} not found; packets not published.",
-                    eventData.AppointmentId);
-                return;
+                var appointment = await _appointmentRepository.FindAsync(eventData.AppointmentId);
+                if (appointment == null)
+                {
+                    _logger.LogWarning(
+                        "PacketsCompleteHandler: appointment {AppointmentId} not found; packets not published.",
+                        eventData.AppointmentId);
+                    return;
+                }
+
+                if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
+                {
+                    _logger.LogDebug(
+                        "PacketsCompleteHandler: appointment {AppointmentId} is {Status}; packets not published.",
+                        eventData.AppointmentId, appointment.AppointmentStatus);
+                    return;
+                }
+
+                var packets = await _packetRepository.GetListAsync(p => p.AppointmentId == eventData.AppointmentId);
+                if (!PacketSetPolicy.IsComplete(packets))
+                {
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "PacketsCompleteHandler: appointment {AppointmentId} has {Generated} of {Expected} packets generated; waiting for the rest.",
+                            eventData.AppointmentId,
+                            packets.Count(p => p.Status == PacketGenerationStatus.Generated),
+                            PacketSetPolicy.AllKinds.Count);
+                    }
+                    return;
+                }
+
+                var published = await _packetPublishService.PublishSettledPacketsAsync(appointment);
+
+                _logger.LogInformation(
+                    "PacketsCompleteHandler: appointment {AppointmentId} packet set is complete; published = {Published}.",
+                    eventData.AppointmentId, published);
             }
-
-            if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
-            {
-                _logger.LogDebug(
-                    "PacketsCompleteHandler: appointment {AppointmentId} is {Status}; packets not published.",
-                    eventData.AppointmentId, appointment.AppointmentStatus);
-                return;
-            }
-
-            var packets = await _packetRepository.GetListAsync(p => p.AppointmentId == eventData.AppointmentId);
-            if (!PacketSetPolicy.IsComplete(packets))
-            {
-                _logger.LogDebug(
-                    "PacketsCompleteHandler: appointment {AppointmentId} has {Generated} of {Expected} packets generated; waiting for the rest.",
-                    eventData.AppointmentId,
-                    packets.Count(p => p.Status == PacketGenerationStatus.Generated),
-                    PacketSetPolicy.AllKinds.Count);
-                return;
-            }
-
-            var published = await _packetPublishService.PublishSettledPacketsAsync(appointment);
-
-            _logger.LogInformation(
-                "PacketsCompleteHandler: appointment {AppointmentId} packet set is complete; published = {Published}.",
-                eventData.AppointmentId, published);
         }
         catch (Exception ex)
         {

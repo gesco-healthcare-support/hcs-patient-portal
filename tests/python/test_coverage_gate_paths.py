@@ -386,9 +386,11 @@ class TestAssertTracked(unittest.TestCase):
             "src/App/Foo.cs": {1: 1},
             "_/src/FluentValidation/AbstractValidator.cs": {1: 0},
         }
-        with contextlib.redirect_stdout(io.StringIO()) as buf:
-            with self.assertRaises(SystemExit) as ctx:
-                gate.assert_tracked(per_file, self.patterns, self.tracked)
+        with (
+            contextlib.redirect_stdout(io.StringIO()) as buf,
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            gate.assert_tracked(per_file, self.patterns, self.tracked)
         self.assertEqual(ctx.exception.code, 1)
         self.assertIn("AbstractValidator.cs", buf.getvalue())
 
@@ -405,18 +407,19 @@ class TestLoadTracked(unittest.TestCase):
     """Both failure modes, because either would make the check pass blindly."""
 
     def test_a_missing_list_fails(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with contextlib.redirect_stdout(io.StringIO()):
-                with self.assertRaises(SystemExit):
-                    gate.load_tracked(Path(tmp) / "absent.txt")
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            contextlib.redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            gate.load_tracked(Path(tmp) / "absent.txt")
 
     def test_a_list_with_no_entries_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "empty.txt"
             p.write_text(NEWLINE.join(["# only a comment", "", ""]), encoding="utf-8")
-            with contextlib.redirect_stdout(io.StringIO()):
-                with self.assertRaises(SystemExit):
-                    gate.load_tracked(p)
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+                gate.load_tracked(p)
 
     def test_comments_and_blanks_are_ignored(self):
         with tempfile.TemporaryDirectory() as tmp:

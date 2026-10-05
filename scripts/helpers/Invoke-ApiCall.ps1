@@ -7,6 +7,8 @@
     Uses Invoke-RestMethod (PS 5.x compatible) instead of Invoke-WebRequest.
 #>
 
+. "$PSScriptRoot\Http-Common.ps1"
+
 function Invoke-ApiCall {
     param(
         [Parameter(Mandatory)]
@@ -27,52 +29,22 @@ function Invoke-ApiCall {
         [switch]$RawResponse
     )
 
-    $headers = @{}
-
-    if ($Token) {
-        $headers["Authorization"] = "Bearer $Token"
-    }
-
-    if ($TenantId) {
-        $headers["__tenant"] = $TenantId
-    }
-
-    $params = @{
-        Uri        = $Url
-        Method     = $Method
-        Headers    = $headers
-        TimeoutSec = $TimeoutSec
-    }
-
-    if ($Body -and $Method -in @("POST", "PUT")) {
-        if ($Body -is [string]) {
-            $params["Body"] = $Body
-        } else {
-            $params["Body"] = $Body | ConvertTo-Json -Depth 10 -Compress
-        }
-        $params["ContentType"] = "application/json"
-    }
+    $params = Get-ApiRequest -Method $Method -Url $Url -Body $Body -Token $Token `
+        -TenantId $TenantId -TimeoutSec $TimeoutSec
 
     try {
         $response = Invoke-RestMethod @params -ErrorAction Stop
         return $response
 
     } catch {
-        $statusCode = "Unknown"
-        $errorBody = ""
+        $failure = $_
+        $statusCode = Get-ErrorStatusCode -ErrorRecord $failure
+        if ($null -eq $statusCode) { $statusCode = "Unknown" }
 
-        if ($_.Exception.Response) {
-            $statusCode = [int]$_.Exception.Response.StatusCode
-            try {
-                $stream = $_.Exception.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($stream)
-                $errorBody = $reader.ReadToEnd()
-                $reader.Close()
-            } catch { Write-Verbose "could not read the error response body; leaving it empty: $_" }
-        }
-
-        if ($_.ErrorDetails.Message) {
-            $errorBody = $_.ErrorDetails.Message
+        # ErrorDetails wins over the raw stream here; Invoke-TestApiCall prefers the stream.
+        $errorBody = Read-ErrorResponseStream -ErrorRecord $failure
+        if ($failure.ErrorDetails.Message) {
+            $errorBody = $failure.ErrorDetails.Message
         }
 
         # For 404 on DELETE, caller may want to handle gracefully

@@ -32,12 +32,9 @@ public static class ClaimIdentifierNormalizer
         }
 
         var builder = new StringBuilder(value.Length);
-        foreach (var character in value)
+        foreach (var character in value.Where(char.IsLetterOrDigit))
         {
-            if (char.IsLetterOrDigit(character))
-            {
-                builder.Append(char.ToUpperInvariant(character));
-            }
+            builder.Append(char.ToUpperInvariant(character));
         }
 
         return builder.Length == 0 ? null : builder.ToString();

@@ -115,14 +115,14 @@ public class ApprovalReconciliationJob : ITransientDependency
 
         var now = DateTime.UtcNow;
         var reEnqueued = 0;
-        foreach (var appointment in approved)
+        foreach (var appointmentId in approved.Select(appointment => appointment.Id))
         {
-            var forAppointment = allPackets.Where(p => p.AppointmentId == appointment.Id);
+            var forAppointment = allPackets.Where(p => p.AppointmentId == appointmentId);
             foreach (var kind in PacketReconciliation.IncompleteKinds(forAppointment, now, PacketStaleAfter))
             {
                 await _backgroundJobManager.EnqueueAsync(new GenerateAppointmentPacketArgs
                 {
-                    AppointmentId = appointment.Id,
+                    AppointmentId = appointmentId,
                     TenantId = officeId,
                     Kind = kind,
                 });

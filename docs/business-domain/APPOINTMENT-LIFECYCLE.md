@@ -96,9 +96,9 @@ Values are persisted as integers, so **renumbering would silently relabel stored
 ## The transitions, exactly as configured
 
 Every transition made through the state machine; the machine refuses anything not in this table with an
-invalid-transition error. One path sets the status directly instead of going through the machine: approving a
-cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) writes `CancelledNoBill` or
-`CancelledLate` onto the appointment, the same two outcomes this table lists from `CancellationRequested`.
+invalid-transition error. Since #926 no path sets the status directly: `Appointment.AppointmentStatus` has an
+`internal` setter, and approving a cancellation request and rejecting a reschedule both go through
+`AppointmentManager`. A Pending source of a rejected reschedule makes no transition (it never left Pending).
 
 <!-- GENERATED: appointment-transitions BEGIN - do not edit by hand -->
 **Transitions the machine permits**
@@ -108,10 +108,14 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | Pending(1) | Approve(1) | Approved(2) |
 | Pending(1) | Reject(2) | Rejected(3) |
 | Pending(1) | SendBack(3) | InfoRequested(14) |
+| Pending(1) | ConfirmCancellation(7) | CancelledNoBill(5) |
+| Pending(1) | ConfirmCancellationLate(8) | CancelledLate(6) |
 | Pending(1) | ConfirmReschedule(9) | RescheduledNoBill(7) |
 | Pending(1) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
 | Approved(2) | RequestCancellation(5) | CancellationRequested(13) |
 | Approved(2) | RequestReschedule(6) | RescheduleRequested(12) |
+| Approved(2) | ConfirmCancellation(7) | CancelledNoBill(5) |
+| Approved(2) | ConfirmCancellationLate(8) | CancelledLate(6) |
 | Approved(2) | MarkNoShow(11) | NoShow(4) |
 | Approved(2) | CheckIn(12) | CheckedIn(9) |
 | Approved(2) | MarkNotSeen(15) | NotSeen(15) |
@@ -119,6 +123,7 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | CheckedOut(10) | Bill(14) | Billed(11) |
 | RescheduleRequested(12) | ConfirmReschedule(9) | RescheduledNoBill(7) |
 | RescheduleRequested(12) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
+| RescheduleRequested(12) | RejectReschedule(16) | Approved(2) |
 | CancellationRequested(13) | ConfirmCancellation(7) | CancelledNoBill(5) |
 | CancellationRequested(13) | ConfirmCancellationLate(8) | CancelledLate(6) |
 | InfoRequested(14) | SaveAndResubmit(4) | Pending(1) |
@@ -127,8 +132,8 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 
 | Status | Outgoing |
 | --- | --- |
-| Pending(1) | 5 |
-| Approved(2) | 5 |
+| Pending(1) | 7 |
+| Approved(2) | 7 |
 | Rejected(3) | 0 |
 | NoShow(4) | 0 |
 | CancelledNoBill(5) | 0 |
@@ -138,7 +143,7 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | CheckedIn(9) | 1 |
 | CheckedOut(10) | 1 |
 | Billed(11) | 0 |
-| RescheduleRequested(12) | 2 |
+| RescheduleRequested(12) | 3 |
 | CancellationRequested(13) | 2 |
 | InfoRequested(14) | 1 |
 | NotSeen(15) | 0 |
@@ -153,8 +158,8 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | SaveAndResubmit(4) | 1 |
 | RequestCancellation(5) | 1 |
 | RequestReschedule(6) | 1 |
-| ConfirmCancellation(7) | 1 |
-| ConfirmCancellationLate(8) | 1 |
+| ConfirmCancellation(7) | 3 |
+| ConfirmCancellationLate(8) | 3 |
 | ConfirmReschedule(9) | 2 |
 | ConfirmRescheduleLate(10) | 2 |
 | MarkNoShow(11) | 1 |
@@ -162,6 +167,7 @@ cancellation request (`AppointmentChangeRequestsAppService.Approval.cs:133`) wri
 | CheckOut(13) | 1 |
 | Bill(14) | 1 |
 | MarkNotSeen(15) | 1 |
+| RejectReschedule(16) | 1 |
 <!-- GENERATED: appointment-transitions END -->
 
 ```mermaid
@@ -186,6 +192,7 @@ stateDiagram-v2
 
     RescheduleRequested --> RescheduledNoBill : ConfirmReschedule
     RescheduleRequested --> RescheduledLate : ConfirmRescheduleLate
+    RescheduleRequested --> Approved : RejectReschedule
 
     Rejected --> [*]
     NoShow --> [*]

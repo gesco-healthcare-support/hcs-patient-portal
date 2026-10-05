@@ -32,17 +32,29 @@ public class NotificationTemplateRendererOfficeNameTests : CaseEvaluationEntityF
 {
     private const string JdfCode = NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal;
 
-    public static IEnumerable<object[]> Offices()
+    /// <summary>
+    /// Rows are office NAMES only, mapped to the id inside the test: xUnit cannot serialise a
+    /// <see cref="Guid"/> theory argument (xUnit1044), so passing the id would cost each row its own
+    /// entry in the test explorer.
+    /// </summary>
+    public static TheoryData<string, string> Offices() => new()
     {
-        yield return new object[] { TenantsTestData.TenantARef, TenantsTestData.TenantAName, TenantsTestData.TenantBName };
-        yield return new object[] { TenantsTestData.TenantBRef, TenantsTestData.TenantBName, TenantsTestData.TenantAName };
-    }
+        { TenantsTestData.TenantAName, TenantsTestData.TenantBName },
+        { TenantsTestData.TenantBName, TenantsTestData.TenantAName },
+    };
+
+    private static readonly Dictionary<string, Guid> OfficeIdsByName = new(StringComparer.Ordinal)
+    {
+        [TenantsTestData.TenantAName] = TenantsTestData.TenantARef,
+        [TenantsTestData.TenantBName] = TenantsTestData.TenantBRef,
+    };
 
     [Theory]
     [MemberData(nameof(Offices))]
     public async Task TheJdfNotice_NamesTheOfficeItIsRenderedFor_AtBothPositions(
-        Guid officeId, string officeName, string otherOfficeName)
+        string officeName, string otherOfficeName)
     {
+        var officeId = OfficeIdsByName[officeName];
         RenderedNotification? rendered = null;
 
         await WithUnitOfWorkAsync(async () =>

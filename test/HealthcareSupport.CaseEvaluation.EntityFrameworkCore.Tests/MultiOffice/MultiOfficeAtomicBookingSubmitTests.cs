@@ -423,6 +423,9 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         await InOfficeAsync(office, async () =>
             seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
 
+        // A party, so the supplied id is one they may book for; this test is about edits, not entitlement.
+        await MakePartyToPatientAsync(office, seeded!.Id, externalBooker, date.AddDays(-20), 8);
+
         await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
         {
             var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
@@ -466,6 +469,9 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
 
         await InOfficeAsync(office, async () =>
             seeded = await InsertPatientAsync(office, office.BookerUserId, suffix));
+
+        // A party, so the supplied id is one they may book for; this test is about edits, not entitlement.
+        await MakePartyToPatientAsync(office, seeded!.Id, externalBooker, date.AddDays(-20), 8);
 
         // Step 1: book with the claimed patient's id and no edits. This succeeds.
         await InOfficeAsAsync(office, externalBooker, "Applicant Attorney", async () =>
@@ -1033,6 +1039,35 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             using (WithCurrentUser.Run(_principalAccessor, userId, role))
             {
                 await body();
+            }
+        }, requiresNew: true);
+
+    /// <summary>
+    /// Makes <paramref name="booker"/> a PARTY to <paramref name="patientId"/> the way production does:
+    /// a prior appointment they booked. Booking against a supplied patient id now requires this (or
+    /// being staff, or the patient), so a test that books "for an existing patient" as an external
+    /// attorney must first stand in the relationship that makes the booking legitimate. Inserted with
+    /// no current user so the creator stamp stays empty and the booker field decides, which is the
+    /// shape of the party rule.
+    /// </summary>
+    private Task MakePartyToPatientAsync(SeededOffice office, Guid patientId, Guid booker, DateTime date, int hour) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(office.OfficeId))
+            {
+                var slotId = await InsertSlotAsync(office, date, new TimeOnly(hour, 0), new TimeOnly(hour + 1, 0));
+                var prior = new Appointment(
+                    id: Guid.NewGuid(),
+                    patientId: patientId,
+                    identityUserId: null,
+                    appointmentTypeId: office.AppointmentTypeId,
+                    locationId: office.LocationId,
+                    doctorAvailabilityId: slotId,
+                    appointmentDate: date.AddHours(hour),
+                    requestConfirmationNumber: "PRIOR-" + Guid.NewGuid().ToString("N")[..8],
+                    appointmentStatus: AppointmentStatusType.Pending);
+                prior.RecordBookedBy(booker);
+                await _appointmentRepository.InsertAsync(prior, autoSave: true);
             }
         }, requiresNew: true);
 

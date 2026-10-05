@@ -7,7 +7,50 @@
     and a report generator (Write-TestReport) that produces Test-Report.md.
 #>
 
+. "$PSScriptRoot\Http-Common.ps1"
+
 # ---- Invoke-TestApiCall: HTTP wrapper that captures status codes instead of throwing ----
+
+function ConvertFrom-ErrorBody {
+    <# Parse an error body as JSON; $null when it is empty or not JSON. #>
+    param([string]$Text)
+
+    if (-not $Text) { return $null }
+    try {
+        # The leading comma keeps a JSON array whole across the function boundary.
+        return , ($Text | ConvertFrom-Json)
+    } catch {
+        return $null
+    }
+}
+
+function ConvertTo-FailedTestResult {
+    <#
+    .SYNOPSIS
+        The test result for a failed call. The raw response stream wins over ErrorDetails
+        here (Invoke-ApiCall prefers ErrorDetails), and a failure with no response at all is
+        reported as 500 carrying the exception message.
+    #>
+    param([Parameter(Mandatory)]$ErrorRecord)
+
+    $statusCode = Get-ErrorStatusCode -ErrorRecord $ErrorRecord
+    $errorBody = Read-ErrorResponseStream -ErrorRecord $ErrorRecord
+    if (-not $errorBody -and $ErrorRecord.ErrorDetails.Message) {
+        $errorBody = $ErrorRecord.ErrorDetails.Message
+    }
+    if (-not $statusCode) {
+        $statusCode = 500
+        $errorBody = $ErrorRecord.Exception.Message
+    }
+
+    return @{
+        StatusCode = $statusCode
+        Body       = (ConvertFrom-ErrorBody -Text $errorBody)
+        RawBody    = $errorBody
+        Success    = ($statusCode -ge 200 -and $statusCode -lt 300)
+        Error      = $errorBody
+    }
+}
 
 function Invoke-TestApiCall {
     <#
@@ -31,25 +74,8 @@ function Invoke-TestApiCall {
         [int]$TimeoutSec = 30
     )
 
-    $headers = @{}
-    if ($Token) { $headers["Authorization"] = "Bearer $Token" }
-    if ($TenantId) { $headers["__tenant"] = $TenantId }
-
-    $params = @{
-        Uri        = $Url
-        Method     = $Method
-        Headers    = $headers
-        TimeoutSec = $TimeoutSec
-    }
-
-    if ($Body -and $Method -in @("POST", "PUT")) {
-        if ($Body -is [string]) {
-            $params["Body"] = $Body
-        } else {
-            $params["Body"] = $Body | ConvertTo-Json -Depth 10 -Compress
-        }
-        $params["ContentType"] = "application/json"
-    }
+    $params = Get-ApiRequest -Method $Method -Url $Url -Body $Body -Token $Token `
+        -TenantId $TenantId -TimeoutSec $TimeoutSec
 
     $result = @{
         StatusCode = 0
@@ -67,43 +93,7 @@ function Invoke-TestApiCall {
         return $result
 
     } catch {
-        $statusCode = 0
-        $errorBody = ""
-
-        if ($_.Exception.Response) {
-            $statusCode = [int]$_.Exception.Response.StatusCode
-            try {
-                $stream = $_.Exception.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($stream)
-                $errorBody = $reader.ReadToEnd()
-                $reader.Close()
-            } catch { Write-Verbose "could not read the error response body; leaving it empty: $_" }
-        }
-
-        if (-not $errorBody -and $_.ErrorDetails.Message) {
-            $errorBody = $_.ErrorDetails.Message
-        }
-
-        if ($statusCode -eq 0) {
-            $statusCode = 500
-            $errorBody = $_.Exception.Message
-        }
-
-        $result.StatusCode = $statusCode
-        $result.RawBody = $errorBody
-        $result.Error = $errorBody
-        $result.Success = ($statusCode -ge 200 -and $statusCode -lt 300)
-
-        # Try to parse error body as JSON
-        if ($errorBody) {
-            try {
-                $result.Body = $errorBody | ConvertFrom-Json
-            } catch {
-                $result.Body = $null
-            }
-        }
-
-        return $result
+        return (ConvertTo-FailedTestResult -ErrorRecord $_)
     }
 }
 

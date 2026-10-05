@@ -30,6 +30,7 @@ namespace HealthcareSupport.CaseEvaluation.HostOperators;
 /// grant enforces is <see cref="IIntakeAssignmentChecker"/> reading these rows.
 /// </summary>
 [Authorize]
+[RemoteService(IsEnabled = false)]
 public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssignmentsAppService
 {
     private readonly IRepository<IntakeOfficeAssignment, Guid> _assignmentRepository;
@@ -303,18 +304,18 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         var todayEnd = todayStart.AddDays(1);
 
         var metrics = new List<IntakeOfficeMetricsDto>(assignments.Count);
-        foreach (var assignment in assignments)
+        foreach (var officeId in assignments.Select(assignment => assignment.OfficeId))
         {
-            if (!officeNameById.TryGetValue(assignment.OfficeId, out var officeName))
+            if (!officeNameById.TryGetValue(officeId, out var officeName))
             {
                 continue; // office no longer in the registry
             }
 
-            using (CurrentTenant.Change(assignment.OfficeId))
+            using (CurrentTenant.Change(officeId))
             {
                 metrics.Add(new IntakeOfficeMetricsDto
                 {
-                    OfficeId = assignment.OfficeId,
+                    OfficeId = officeId,
                     OfficeName = officeName,
                     PendingRequests = await _appointmentRepository.CountAsync(
                         x => x.AppointmentStatus == AppointmentStatusType.Pending),

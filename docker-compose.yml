@@ -65,9 +65,17 @@ services:
   # quay.io, NOT Docker Hub: MinIO removed anonymous pull from Docker Hub
   # for both `minio/minio` and `minio/mc`, which broke the 2026-09-11
   # deploy (#866). Kept in step with docker-compose.prod.yml, where the
-  # measurement and the verified digests are recorded. Dev is pinned to
-  # the same tags on purpose -- a dev box that pulls a different object
-  # store than production is a difference nobody sees until it matters.
+  # measurement and the digests are recorded. Dev is pinned to the same
+  # tags on purpose -- a dev box that pulls a different object store than
+  # production is a difference nobody sees until it matters.
+  #
+  # SINCE 2026-09-30 NEITHER TAG CAN BE PULLED FROM ANY REGISTRY (quay.io
+  # and Docker Hub both answer 401). A machine that does not already have
+  # them cached fails here on its first `docker compose up`. Load them
+  # from the owner's export (`docker load -i minio-pinned-images.tar`);
+  # do not change the tags. See the MinIO note at the top of
+  # docker-compose.prod.yml for the why and for the digests that verify a
+  # loaded image.
   minio:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
@@ -92,6 +100,7 @@ services:
   # bucket exists before any upload regardless of which service runs
   # first. Exits as soon as the bucket is present.
   minio-init:
+    # NOT pullable since 2026-09-30; see the MinIO note on the minio service above.
     image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
@@ -149,6 +158,8 @@ services:
       - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: Development alone no longer seeds the demo accounts; this says so explicitly.
+      ALLOW_DEMO_SEED: "true"
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:${NG_PORT:-4200}"
@@ -213,6 +224,8 @@ services:
       - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: Development alone no longer seeds the demo accounts; this says so explicitly.
+      ALLOW_DEMO_SEED: "true"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
@@ -310,6 +323,8 @@ services:
       - abp_nuget_key
     environment:
       DOTNET_ENVIRONMENT: Development
+      # #726: Development alone no longer seeds the demo accounts; this says so explicitly.
+      ALLOW_DEMO_SEED: "true"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"

@@ -107,10 +107,10 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         _packetBlobs = Substitute.For<IBlobContainer<AppointmentPacketsContainer>>();
         _jobs = Substitute.For<IBackgroundJobManager>();
         _events = Substitute.For<ILocalEventBus>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBlobContainer<AppointmentDocumentsContainer>), _blobs));
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBlobContainer<AppointmentPacketsContainer>), _packetBlobs));
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBackgroundJobManager), _jobs));
-        services.Replace(ServiceDescriptor.Singleton(typeof(ILocalEventBus), _events));
+        services.Replace(ServiceDescriptor.Singleton<IBlobContainer<AppointmentDocumentsContainer>>(_blobs));
+        services.Replace(ServiceDescriptor.Singleton<IBlobContainer<AppointmentPacketsContainer>>(_packetBlobs));
+        services.Replace(ServiceDescriptor.Singleton<IBackgroundJobManager>(_jobs));
+        services.Replace(ServiceDescriptor.Singleton<ILocalEventBus>(_events));
     }
 
     // ------------------------------------------------------------------ harness

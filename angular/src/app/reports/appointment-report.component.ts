@@ -176,16 +176,27 @@ export class AppointmentReportComponent implements OnInit {
 
   ngOnInit(): void {
     // Populate the advanced-search dropdowns. Lookups are small; pull all.
-    this.appointmentTypeService.getList({ maxResultCount: 1000 }).subscribe((result) => {
-      this.typeOptions = (result?.items ?? []).map((t) => ({ id: t.id ?? '', name: t.name ?? '' }));
-      this.cdr.markForCheck();
+    this.appointmentTypeService.getList({ maxResultCount: 1000 }).subscribe({
+      next: (result) => {
+        this.typeOptions = (result?.items ?? []).map((t) => ({
+          id: t.id ?? '',
+          name: t.name ?? '',
+        }));
+        this.cdr.markForCheck();
+      },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
-    this.locationService.getList({ maxResultCount: 1000 }).subscribe((result) => {
-      this.locationOptions = (result?.items ?? []).map((l) => ({
-        id: l.location?.id ?? '',
-        name: l.location?.name ?? '',
-      }));
-      this.cdr.markForCheck();
+    this.locationService.getList({ maxResultCount: 1000 }).subscribe({
+      next: (result) => {
+        this.locationOptions = (result?.items ?? []).map((l) => ({
+          id: l.location?.id ?? '',
+          name: l.location?.name ?? '',
+        }));
+        this.cdr.markForCheck();
+      },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 

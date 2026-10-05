@@ -107,14 +107,8 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
 
-        foreach (var dto in dtos)
+        foreach (var slot in dtos.Select(dto => dto.DoctorAvailability).Where(slot => slot != null))
         {
-            var slot = dto.DoctorAvailability;
-            if (slot == null)
-            {
-                continue;
-            }
-
             var active = activeCounts.TryGetValue(slot.Id, out var count) ? count : 0;
             slot.RemainingCapacity = (int)Math.Max(0, slot.Capacity - active);
         }
@@ -166,9 +160,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         // manual fix), refuse single-row delete if any Appointment or
         // AppointmentChangeRequest still references it -- preserves FK
         // integrity for historical rows.
-        var appointmentRefExists = await _appointmentRepository.AnyAsync(a => a.DoctorAvailabilityId == id);
-        var changeRequestRefExists = await _appointmentChangeRequestRepository.AnyAsync(c => c.NewDoctorAvailabilityId == id);
-        if (appointmentRefExists || changeRequestRefExists)
+        if (await IsSlotReferencedAsync(id))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotDeleteReferenced);
         }
@@ -194,6 +186,12 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         var matches = await AsyncExecuter.ToListAsync(query);
         foreach (var item in matches)
         {
+            // Same rule as DeleteAsync. This path previously deleted the slot whatever pointed at it.
+            if (await IsSlotReferencedAsync(item.Id))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotDeleteReferenced);
+            }
+
             await _doctorAvailabilityRepository.DeleteAsync(item);
         }
     }
@@ -223,7 +221,9 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         var result = new DoctorAvailabilityBulkDeleteResultDto();
         foreach (var item in matches)
         {
-            if (HasInFlightStatus(item.BookingStatusId))
+            // The status check alone stopped protecting booked slots when the capacity model kept
+            // them Available after booking, so a referenced slot is skipped as well.
+            if (HasInFlightStatus(item.BookingStatusId) || await IsSlotReferencedAsync(item.Id))
             {
                 result.SkippedSlotIds.Add(item.Id);
                 continue;
@@ -270,11 +270,24 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         // The supervisor cannot edit a slot once it is Reserved or Booked --
         // doing so would silently move an in-flight appointment to a different
         // time. Force cancellation / reschedule of the linked appointment first.
+        //
+        // The status check alone no longer catches that. Under the capacity model a slot stays
+        // Available after it is booked and nothing sets Booked any more, so the status check only
+        // ever fires for legacy rows. A referenced slot is therefore also refused when the edit
+        // would MOVE it -- a different location, date or time is exactly the silent move this
+        // guard exists to prevent. Edits that move nothing (capacity, accepted types) still go
+        // through, as they do for any Available slot.
         var existing = await _doctorAvailabilityRepository.GetAsync(id);
-        if (HasInFlightStatus(existing.BookingStatusId))
+        if (HasInFlightStatus(existing.BookingStatusId)
+            || (MovesTheSlot(existing, input) && await IsSlotReferencedAsync(id)))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotUpdateBookedOrReserved);
         }
+
+        // Residue of the guard above: edits that move nothing can still leave a booked appointment
+        // pointing at a slot that no longer admits it -- capacity cut below the active count, or an
+        // accepted type removed while an active appointment uses it.
+        await EnsureEditKeepsActiveAppointmentsAdmittedAsync(existing, input);
 
         var doctorAvailability = await _doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity, input.ConcurrencyStamp);
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
@@ -772,6 +785,73 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     internal static bool HasInFlightStatus(BookingStatus status)
     {
         return status == BookingStatus.Reserved || status == BookingStatus.Booked;
+    }
+
+    /// <summary>
+    /// Whether any appointment or change request still points at the slot -- the rule the
+    /// single-row delete has applied since Phase 7, and the one that still identifies a booked slot
+    /// now that a booked slot keeps its Available status. Historical references count too, for the
+    /// reason that delete gives: the slot is part of those rows' record.
+    /// </summary>
+    protected virtual async Task<bool> IsSlotReferencedAsync(Guid slotId)
+    {
+        return await _appointmentRepository.AnyAsync(a => a.DoctorAvailabilityId == slotId)
+            || await _appointmentChangeRequestRepository.AnyAsync(c => c.NewDoctorAvailabilityId == slotId);
+    }
+
+    private static readonly AppointmentStatusType[] CapacityFreeingStatuses =
+    {
+        AppointmentStatusType.Rejected,
+        AppointmentStatusType.CancelledNoBill,
+        AppointmentStatusType.CancelledLate,
+        AppointmentStatusType.RescheduledNoBill,
+        AppointmentStatusType.RescheduledLate,
+    };
+
+    /// <summary>
+    /// Refuses an edit that would leave an ACTIVE appointment on the slot that the slot no longer
+    /// admits: capacity below the active count, or an accepted-type set (non-empty; empty means any
+    /// type) that omits a type an active appointment uses. "Active" is the capacity model's own
+    /// predicate, the same five terminal statuses <c>GetActiveCountForSlotAsync</c> excludes.
+    /// </summary>
+    protected virtual async Task EnsureEditKeepsActiveAppointmentsAdmittedAsync(
+        DoctorAvailability existing, DoctorAvailabilityUpdateDto input)
+    {
+        if (input.Capacity < existing.Capacity)
+        {
+            var activeCount = await _appointmentRepository.GetActiveCountForSlotAsync(existing.Id);
+            if (input.Capacity < activeCount)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked)
+                    .WithData("activeCount", activeCount)
+                    .WithData("capacity", input.Capacity);
+            }
+        }
+
+        var acceptedTypeIds = input.AppointmentTypeIds?.Distinct().ToList() ?? new List<Guid>();
+        if (acceptedTypeIds.Count > 0)
+        {
+            var activeQuery = (await _appointmentRepository.GetQueryableAsync())
+                .Where(a => a.DoctorAvailabilityId == existing.Id
+                    && !CapacityFreeingStatuses.Contains(a.AppointmentStatus)
+                    && !acceptedTypeIds.Contains(a.AppointmentTypeId));
+            if (await AsyncExecuter.AnyAsync(activeQuery))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotRemoveTypeInUse);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether an update would put the slot somewhere else: another location, date or time. The
+    /// date is compared on its date part, because that is all the manager stores.
+    /// </summary>
+    internal static bool MovesTheSlot(DoctorAvailability existing, DoctorAvailabilityUpdateDto input)
+    {
+        return existing.LocationId != input.LocationId
+            || existing.AvailableDate.Date != input.AvailableDate.Date
+            || existing.FromTime != input.FromTime
+            || existing.ToTime != input.ToTime;
     }
 
     /// <summary>

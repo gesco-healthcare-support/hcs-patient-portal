@@ -14,6 +14,7 @@ mapping, JWT issuer validation, CORS, data-protection).
 | `Program.cs` | Host bootstrap; loads `appsettings.Local.json` + `appsettings.secrets.json` |
 | `appsettings.json` | Baseline config (LocalDB, Redis disabled, AuthServer 44368) |
 | `appsettings.secrets.json` | ABP license + SMTP creds (sensitive; treat as secret even if not gitignored) |
+| `ApiDocumentation/ApiDocumentationPipeline.cs` | Serves Swagger and its UI in Development ONLY; the module makes one call to it |
 | `BackgroundJobs/DevelopmentHangfireDashboardAuthorizationFilter.cs` | Opens `/hangfire` in Development only |
 | `RateLimiting/PasswordResetEmailPeekMiddleware.cs` | Peeks JSON body `email` field for password-reset rate partitioning |
 | `HealthChecks/` | Health-check registrations wired via `AddCaseEvaluationHealthChecks()` |

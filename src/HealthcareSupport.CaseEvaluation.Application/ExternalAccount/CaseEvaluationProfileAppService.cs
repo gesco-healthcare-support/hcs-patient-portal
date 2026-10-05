@@ -113,7 +113,7 @@ public class CaseEvaluationProfileAppService : ProfileAppService
     /// <c>ExternalAccountAppService.BuildPasswordTokenVariables</c> so any
     /// IT-Admin body edit that adds the standard tokens still substitutes.
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildReceiptVariables(IdentityUser user)
+    private static Dictionary<string, object?> BuildReceiptVariables(IdentityUser user)
     {
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {

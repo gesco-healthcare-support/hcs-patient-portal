@@ -1,6 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 import { PermissionService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
@@ -115,7 +115,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
       const c = create();
       service['getList'].and.returnValue(of([doc()]));
       c.refresh();
-      expect(c.documents.length).toBe(1);
+      expect(c.documents).toHaveSize(1);
       expect(c.isLoading).toBeFalse();
     });
 
@@ -196,7 +196,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
         missing: [{ documentTypeName: 'Medical Report' }],
       } as never;
       expect(c.allRequiredReceived).toBeFalse();
-      expect(c.missingRequired.length).toBe(1);
+      expect(c.missingRequired).toHaveSize(1);
     });
 
     it('names each state a missing document can be in', () => {
@@ -212,7 +212,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
       const c = create();
       rest.request.and.returnValue(of([{ id: 't-1', displayName: 'Medical Report' }]));
       c.loadDocumentTypeOptions();
-      expect(c.documentTypes.length).toBe(1);
+      expect(c.documentTypes).toHaveSize(1);
     });
 
     it('treats a null payload as no options', () => {
@@ -272,7 +272,7 @@ describe('AppointmentDocumentsComponent surfaces', () => {
 
     it('shows everything by default', () => {
       const c = seeded();
-      expect(c.filteredDocuments.length).toBe(4);
+      expect(c.filteredDocuments).toHaveSize(4);
     });
 
     it('narrows to one category', () => {
@@ -649,5 +649,54 @@ describe('AppointmentDocumentsComponent surfaces', () => {
       expect(service['reject']).not.toHaveBeenCalled();
       expect(c.isSubmittingReject).toBeFalse();
     });
+  });
+
+  describe('failed delete and approve requests (#1113)', () => {
+    /**
+     * Both used to subscribe with no error branch, so ABP's rethrown copy of a failed request
+     * reached RxJS's unhandled-error path. A failure must announce nothing and refresh nothing:
+     * the success toast and the parent's change event describe a state that did not happen.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('does not report success or refresh when a delete fails', fakeAsync(() => {
+      const c = create();
+      spyOn(window, 'confirm').and.returnValue(true);
+      service['delete'].and.returnValue(throwError(() => ({ status: 500 })));
+      service['getList'].calls.reset();
+
+      c.delete(doc());
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(service['getList']).not.toHaveBeenCalled();
+      expect(changed).toBe(0);
+    }));
+
+    it('does not report success or refresh when an approve fails', fakeAsync(() => {
+      const c = create({ canApprove: true });
+      service['approve'].and.returnValue(throwError(() => ({ status: 500 })));
+      service['getList'].calls.reset();
+
+      c.approve(doc());
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(service['getList']).not.toHaveBeenCalled();
+      expect(changed).toBe(0);
+    }));
   });
 });

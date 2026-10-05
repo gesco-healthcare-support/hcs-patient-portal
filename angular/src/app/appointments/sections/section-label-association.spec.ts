@@ -357,7 +357,11 @@ describe('Wizard section label association, remaining sections (#806)', () => {
   });
 
   describe('patient-demographics section', () => {
-    function render(isExternalUserNonPatient: boolean): HTMLElement {
+    function render(
+      isExternalUserNonPatient: boolean,
+      needsInterpreter = false,
+      storedPatientNotice = false,
+    ): HTMLElement {
       TestBed.configureTestingModule({
         providers: [
           FormBuilder,
@@ -382,8 +386,11 @@ describe('Wizard section label association, remaining sections (#806)', () => {
       const fixture = TestBed.createComponent(AppointmentAddPatientDemographicsComponent);
       const c = fixture.componentInstance;
       c.form = groupOf(DEMOGRAPHICS_CONTROLS);
+      // The interpreter vendor input renders only once an interpreter is needed.
+      c.form.get('needsInterpreter')!.setValue(needsInterpreter);
       c.isExternalUserNonPatient = isExternalUserNonPatient;
       c.isItAdmin = false;
+      c.storedPatientNotice = storedPatientNotice;
       c.patientLoadMessage = '';
       c.searchPatientByEmail = () => of([]);
       c.dobMinDate = { year: 1900, month: 1, day: 1 };
@@ -396,6 +403,18 @@ describe('Wizard section label association, remaining sections (#806)', () => {
 
     it('names every control for an internal booker', () => {
       assertAllNamed(render(false));
+    });
+
+    /** #1107: the notice is what stops the form implying an edit to a stored patient is accepted. */
+    it('tells an external booker the stored patient details will be used', () => {
+      const host = render(true, false, true);
+      const notice = host.querySelector('#stored-patient-notice');
+      expect(notice).not.toBeNull();
+      expect(notice!.textContent).toContain('stored details will be used as they are');
+    });
+
+    it('shows no stored-patient notice when the flag is off', () => {
+      expect(render(true, false, false).querySelector('#stored-patient-notice')).toBeNull();
     });
 
     /**
@@ -420,6 +439,42 @@ describe('Wizard section label association, remaining sections (#806)', () => {
       const ssn = host.querySelector('app-ssn-input input');
       expect(ssn).withContext('SSN input should render').not.toBeNull();
       expect(accessibleName(ssn!, host)).toBe('::SocialSecurityNumber');
+    });
+
+    /**
+     * The patient's own identifying fields stay out of the browser's form-autofill history. A
+     * clinic computer is shared, and a value the browser remembers is offered to whoever types
+     * into that field next, after sign-out. The SSN input already opted out; these did not.
+     *
+     * Asserted per id rather than "every input": a selector that matched nothing would make an
+     * every-input check pass vacuously, so each expected control must be found first.
+     */
+    it('keeps every patient-identifying input out of browser autofill history', () => {
+      const host = render(false, true);
+      const ids = [
+        'appointment-patient-last-name',
+        'appointment-patient-first-name',
+        'appointment-patient-middle-name',
+        'appointment-patient-date-of-birth',
+        'appointment-patient-email',
+        'appointment-patient-cell-phone-number',
+        'appointment-patient-phone-number',
+        'appointment-patient-address',
+        'appointment-patient-city',
+        'appointment-patient-zip-code',
+        'appointment-patient-interpreter-vendor-name',
+        'appointment-patient-reffered-by',
+      ];
+      const missing = ids.filter((id) => !host.querySelector(`#${id}`));
+      expect(missing).withContext('every patient field should render').toEqual([]);
+
+      const remembered = ids.filter(
+        (id) => host.querySelector(`#${id}`)!.getAttribute('autocomplete') !== 'off',
+      );
+      expect(remembered).toEqual([]);
+
+      const ssn = host.querySelector('app-ssn-input input');
+      expect(ssn?.getAttribute('autocomplete')).toBe('off');
     });
   });
 });

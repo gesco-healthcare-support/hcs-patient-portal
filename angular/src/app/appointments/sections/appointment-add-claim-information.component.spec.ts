@@ -1,8 +1,8 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { RestService } from '@abp/ng.core';
 import { DateAdapter } from '@abp/ng.theme.shared';
 import { NgbDateAdapter } from '@ng-bootstrap/ng-bootstrap';
-import { of } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 
 import {
   AppointmentAddClaimInformationComponent,
@@ -46,6 +46,36 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
     component.injuryForm.get('injuryClaimNumber')!.setValue(claimNumber);
     component.injuryForm.get('injuryWcabAdj')!.setValue('ADJ-CI3'); // CI3: ADJ# now required
   }
+
+  /**
+   * The injury's identifying fields stay out of the browser's form-autofill history, for the same
+   * reason as the patient's own (see section-label-association.spec.ts). Each id must be found
+   * before its attribute is checked, so a selector that matched nothing cannot pass vacuously.
+   */
+  it("keeps the injury's identifying inputs out of browser autofill history", () => {
+    const fixture = TestBed.createComponent(AppointmentAddClaimInformationComponent);
+    fixture.componentInstance.injuryDrafts = [];
+    fixture.componentInstance.openAddInjuryModal();
+    // A cumulative injury renders the second ("to") date too, so every field is on the page.
+    fixture.componentInstance.injuryForm.get('injuryCumulative')!.setValue(true);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const ids = [
+      'appointment-injury-date-of-injury',
+      'appointment-injury-to-date-of-injury',
+      'appointment-injury-claim-number',
+      'appointment-injury-wcab-adj',
+      'appointment-injury-body-part-0',
+    ];
+    const missing = ids.filter((id) => !host.querySelector(`#${id}`));
+    expect(missing).withContext('every injury field should render').toEqual([]);
+
+    const remembered = ids.filter(
+      (id) => host.querySelector(`#${id}`)!.getAttribute('autocomplete') !== 'off',
+    );
+    expect(remembered).toEqual([]);
+  });
 
   it('seeds exactly one required body-part row when the modal opens', () => {
     component.openAddInjuryModal();
@@ -524,4 +554,51 @@ describe('AppointmentAddClaimInformationComponent refusals and row helpers', () 
     expect(component.injuryWcabOfficeName('wcab-9')).withContext('unknown id').toBe('');
     expect(component.injuryWcabOfficeName(null)).withContext('no office').toBe('');
   });
+});
+
+describe('AppointmentAddClaimInformationComponent lookup failures (#1113)', () => {
+  /**
+   * The WCAB-office and state lookups behind the injury modal subscribed with no error branch, so
+   * ABP's rethrown copy of a failed request reached RxJS's unhandled-error path. The modal must
+   * still open with empty dropdowns, and a later open must retry rather than treat the failure as
+   * a loaded-but-empty list.
+   */
+  let unhandled: jasmine.Spy;
+  let previous: typeof config.onUnhandledError;
+  let request: jasmine.Spy;
+
+  beforeEach(() => {
+    previous = config.onUnhandledError;
+    unhandled = jasmine.createSpy('onUnhandledError');
+    config.onUnhandledError = unhandled;
+    request = jasmine.createSpy('request').and.callFake(() => throwError(() => ({ status: 500 })));
+    TestBed.configureTestingModule({
+      imports: [AppointmentAddClaimInformationComponent],
+      providers: [{ provide: RestService, useValue: { request } }],
+    });
+  });
+
+  afterEach(() => {
+    config.onUnhandledError = previous;
+    TestBed.resetTestingModule();
+  });
+
+  it('leaves both dropdowns empty and retries on the next open', fakeAsync(() => {
+    const component = TestBed.createComponent(
+      AppointmentAddClaimInformationComponent,
+    ).componentInstance;
+    component.injuryDrafts = [];
+
+    component.loadInjuryLookups();
+    tick();
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(component.wcabOfficeOptions).toEqual([]);
+    expect(component.injuryStateOptions).toEqual([]);
+
+    component.loadInjuryLookups();
+    tick();
+    expect(request).toHaveBeenCalledTimes(4);
+  }));
 });

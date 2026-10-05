@@ -134,10 +134,9 @@ public class JointDeclarationOverdueJob : ITransientDependency
                 continue;
             }
             var hasJdf = documentQueryable
-                .Where(d => d.AppointmentId == candidate.Id &&
-                            d.IsJointDeclaration &&
-                            d.Status != DocumentStatus.Rejected)
-                .Any();
+                .Any(d => d.AppointmentId == candidate.Id &&
+                          d.IsJointDeclaration &&
+                          d.Status != DocumentStatus.Rejected);
             if (hasJdf)
             {
                 continue;

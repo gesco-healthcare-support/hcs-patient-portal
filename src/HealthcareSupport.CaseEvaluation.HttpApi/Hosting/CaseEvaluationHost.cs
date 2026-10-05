@@ -82,20 +82,13 @@ public static class CaseEvaluationHost
         {
             Log.Information("Starting {AppName}.", appName);
             var builder = WebApplication.CreateBuilder(args);
-            builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+            builder.Configuration.AddLocalSettingsJson();
             builder.Host
                 .AddAppSettingsSecretsJson()
                 .UseAutofac()
                 .UseSerilog((context, services, loggerConfiguration) =>
                 {
-                    loggerConfiguration
-#if DEBUG
-                        .MinimumLevel.Debug()
-#else
-                        .MinimumLevel.Information()
-#endif
-                        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-                        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+                    ConfigureLevels(loggerConfiguration)
                         .Enrich.FromLogContext()
                         .WriteTo.Async(c => c.File(
                             LogFilePath,
@@ -126,5 +119,27 @@ public static class CaseEvaluationHost
         {
             await Log.CloseAndFlushAsync();
         }
+    }
+
+    /// <summary>
+    /// The hosts' minimum log levels, separate from their sinks so a test can check them.
+    ///
+    /// <para><c>Microsoft.AspNetCore.Hosting.Diagnostics</c> is held at Warning. Its two Information lines
+    /// per request, "Request starting" and "Request finished", include the query string, and query
+    /// strings here carry patient search fields, the booking lookup's email and the one-time tokens in
+    /// emailed links. <c>UseSerilogRequestLogging</c> in each pipeline replaces them with one line per
+    /// request that logs the path, the status and the elapsed time, never the query.</para>
+    /// </summary>
+    public static LoggerConfiguration ConfigureLevels(LoggerConfiguration loggerConfiguration)
+    {
+        return loggerConfiguration
+#if DEBUG
+            .MinimumLevel.Debug()
+#else
+            .MinimumLevel.Information()
+#endif
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning);
     }
 }

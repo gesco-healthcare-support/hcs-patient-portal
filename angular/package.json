@@ -31,7 +31,7 @@
     "@angular/localize": "~20.3.19",
     "@angular/platform-browser": "~20.3.19",
     "@angular/platform-browser-dynamic": "~20.3.19",
-    "@angular/router": "~20.3.19",
+    "@angular/router": "~20.3.32",
     "@fontsource/roboto": "^5.2.10",
     "@fullcalendar/angular": "^7.0.2",
     "@rxweb/reactive-form-validators": "^13",
@@ -60,13 +60,21 @@
     "rollup": ">=4.59.0",
     "tar": ">=7.5.11",
     "lodash": ">=4.18.0",
-    "minimatch": "5.1.6",
+    "minimatch": "5.1.9",
     "picomatch": ">=4.0.4",
     "nanoid": ">=5.0.9",
-    "qs": ">=6.14.2",
+    "qs": "^6.16.0",
     "immutable": ">=5.1.5",
     "flatted": ">=3.4.2",
-    "brace-expansion": "1.1.13"
+    "brace-expansion": "1.1.21",
+    "@babel/core": "^7.29.6",
+    "@hono/node-server": "^1.19.15",
+    "@sigstore/core": "^3.2.1",
+    "sigstore": "^4.1.1",
+    "esbuild": "^0.28.1",
+    "ip-address": "^10.7.2",
+    "piscina": "^5.3.2",
+    "ws": "^8.21.3"
   },
   "lint-staged": {
     "*.ts": [
@@ -108,6 +116,7 @@
     "karma-jasmine-html-reporter": "^1.0.0",
     "lint-staged": "^15.2.10",
     "prettier": "^3.8.0",
+    "serve": "14.2.6",
     "typescript": "~5.8.0"
   },
   "packageManager": "yarn@4.16.0"

@@ -49,11 +49,13 @@ import {
   buildSubmitPatient,
   buildSubmitPrimaryInsurance,
 } from './shared/submit-payload.mapper';
+import { storedPatientDetailsAreFinal } from './shared/patient-edit-notice.util';
 import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
   AddressValidationProvider,
   AddressInput,
   StandardizedAddress,
+  ValidationResult,
 } from '../shared/address/address-validation.provider';
 import { AddressFieldMap } from '../shared/address/address-autocomplete.component';
 import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
@@ -123,6 +125,14 @@ type AppointmentTypeFieldConfigDto = {
  */
 type CustomFieldRawValue = string | number | boolean | readonly string[] | null;
 
+/** One address section of the booking form that the pre-submit standardization check covers. */
+type AddressStandardizationGroup = {
+  key: string;
+  label: string;
+  fields: AddressFieldMap;
+  isEnabled: () => boolean;
+};
+
 /**
  * Base class for the booking form. NOT a rendered component -- it has no selector and no
  * template, and nothing routes to it. `AppointmentWizardComponent` extends it and supplies
@@ -173,12 +183,7 @@ export class AppointmentAddComponent {
   // addresses are standardized at autocomplete-pick time (see plan T3 note).
   addressDialogItems: AddressDiffItem[] | null = null;
   private addressDialogResolve?: (choices: Record<string, AddressChoice>) => void;
-  private readonly addressGroupsForStandardization: {
-    key: string;
-    label: string;
-    fields: AddressFieldMap;
-    isEnabled: () => boolean;
-  }[] = [
+  private readonly addressGroupsForStandardization: AddressStandardizationGroup[] = [
     {
       key: 'patient',
       label: 'Patient address',
@@ -1225,6 +1230,8 @@ export class AppointmentAddComponent {
             }
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1449,6 +1456,14 @@ export class AppointmentAddComponent {
     'defense attorney',
     'claim examiner',
   ];
+
+  /** #1107: an external booker with an existing patient loaded; their edits to it are not applied. */
+  get storedPatientDetailsAreFinal(): boolean {
+    return storedPatientDetailsAreFinal(
+      this.currentUser?.roles,
+      !!this.currentPatientProfile?.patient?.id,
+    );
+  }
 
   get isInternalBooker(): boolean {
     const roles = this.currentUser?.roles ?? [];
@@ -2013,50 +2028,60 @@ export class AppointmentAddComponent {
     if (!appointmentId || this.stagedDocuments.length === 0) {
       return true;
     }
-    let allUploaded = true;
-    for (const staged of this.stagedDocuments) {
-      if (staged.status === 'uploaded') {
-        continue;
-      }
-      staged.status = 'uploading';
-      staged.error = undefined;
-      try {
-        const form = new FormData();
-        form.append('file', staged.file, staged.file.name);
-        form.append('documentName', staged.file.name);
-        // AF6: tag the marked strike-list file so the server sets IsPanelStrikeList.
-        form.append('isPanelStrikeList', String(staged.isStrikeList));
-        // I15: send the chosen document-type label so it is stored, and (for the
-        // "Panel Strike List" label) the server also sets IsPanelStrikeList.
-        // "Other" sends the free-text name instead -- the two are mutually
-        // exclusive on the backend (ResolveDocumentTypeSelectionAsync).
-        if (staged.isOtherType) {
-          const otherName = staged.otherDocumentTypeName?.trim();
-          if (otherName) {
-            form.append('otherDocumentTypeName', otherName);
-          }
-        } else if (staged.documentTypeId) {
-          form.append('appointmentDocumentTypeId', staged.documentTypeId);
+    // typescript:S9382 -- each file is its own POST creating its own document row, so they are sent
+    // together rather than one after another. Every file still settles on its own: one failing
+    // marks only that file, and the rest are uploaded regardless.
+    const outcomes = await Promise.all(
+      this.stagedDocuments
+        .filter((staged) => staged.status !== 'uploaded')
+        .map((staged) => this.uploadStagedDocument(appointmentId, staged)),
+    );
+    return outcomes.every(Boolean);
+  }
+
+  /** Uploads one staged file, recording its status; true when it reached the server. */
+  private async uploadStagedDocument(
+    appointmentId: string,
+    staged: StagedDocumentUpload,
+  ): Promise<boolean> {
+    staged.status = 'uploading';
+    staged.error = undefined;
+    try {
+      const form = new FormData();
+      form.append('file', staged.file, staged.file.name);
+      form.append('documentName', staged.file.name);
+      // AF6: tag the marked strike-list file so the server sets IsPanelStrikeList.
+      form.append('isPanelStrikeList', String(staged.isStrikeList));
+      // I15: send the chosen document-type label so it is stored, and (for the
+      // "Panel Strike List" label) the server also sets IsPanelStrikeList.
+      // "Other" sends the free-text name instead -- the two are mutually
+      // exclusive on the backend (ResolveDocumentTypeSelectionAsync).
+      if (staged.isOtherType) {
+        const otherName = staged.otherDocumentTypeName?.trim();
+        if (otherName) {
+          form.append('otherDocumentTypeName', otherName);
         }
-        await firstValueFrom(
-          this.restService.request<FormData, unknown>(
-            {
-              method: 'POST',
-              url: `/api/app/appointments/${appointmentId}/documents`,
-              body: form,
-            },
-            { apiName: 'Default' },
-          ),
-        );
-        staged.status = 'uploaded';
-      } catch (err: unknown) {
-        staged.status = 'failed';
-        const httpErr = err as { error?: { error?: { message?: string } } };
-        staged.error = httpErr?.error?.error?.message ?? 'Upload failed.';
-        allUploaded = false;
+      } else if (staged.documentTypeId) {
+        form.append('appointmentDocumentTypeId', staged.documentTypeId);
       }
+      await firstValueFrom(
+        this.restService.request<FormData, unknown>(
+          {
+            method: 'POST',
+            url: `/api/app/appointments/${appointmentId}/documents`,
+            body: form,
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      staged.status = 'uploaded';
+      return true;
+    } catch (err: unknown) {
+      staged.status = 'failed';
+      const httpErr = err as { error?: { error?: { message?: string } } };
+      staged.error = httpErr?.error?.error?.message ?? 'Upload failed.';
+      return false;
     }
-    return allUploaded;
   }
 
   async onSubmit(): Promise<void> {
@@ -2069,89 +2094,19 @@ export class AppointmentAddComponent {
     if (this.isSaving) {
       return;
     }
-    const raw = this.form.getRawValue();
-    // G-01-07: reval + re-request must be anchored to a loaded source (the
-    // server endpoints take the source confirmation # in the route). Block
-    // submit until one is loaded so we never silently fall through to a plain
-    // create for a re-eval/re-request.
-    if (this.bookingMode !== 'new' && !this.sourceConfirmationNumber) {
-      if (this.bookingMode === 'reval') {
-        this.sourceLoadMessage =
-          'Look up the prior approved appointment by confirmation number before submitting.';
-      } else if (this.bookingMode === 'reBook') {
-        this.sourceLoadMessage =
-          'Look up the appointment you want to book again by confirmation number before submitting.';
-      } else {
-        this.sourceLoadMessage =
-          'The prior appointment could not be loaded, so this re-request cannot be submitted.';
-      }
+    // typescript:S3776 -- the pre-submit gates, the payload and the failure handling each live in
+    // their own method below; this one keeps only the order they run in.
+    const missingSource = this.missingSourceMessage();
+    if (missingSource) {
+      this.sourceLoadMessage = missingSource;
       return;
     }
-    if (this.isExternalUserNonPatient && !raw.patientId) {
-      // 2026-06-11: within this branch the booker is always a non-patient, so
-      // patient email is required here ONLY when self-represented (no AA). With
-      // an AA present, email is optional -- patient mail falls back to the AA
-      // server-side. Mirrors applyConditionalPatientEmailValidator.
-      const emailRequiredForNew = !raw.applicantAttorneyEnabled;
-      const requiredForNew =
-        raw.firstName && raw.lastName && raw.dateOfBirth && (!emailRequiredForNew || raw.email);
-      if (!requiredForNew) {
-        this.patientLoadMessage = emailRequiredForNew
-          ? 'To create a new patient, First Name, Last Name, Email and Date of Birth are required.'
-          : 'To create a new patient, First Name, Last Name and Date of Birth are required.';
-        this.form.get('firstName')?.markAsTouched();
-        this.form.get('lastName')?.markAsTouched();
-        this.form.get('email')?.markAsTouched();
-        this.form.get('dateOfBirth')?.markAsTouched();
-        this.form.markAllAsTouched();
-        return;
-      }
-    } else if (!this.isExternalUserNonPatient && !raw.patientId) {
-      this.form.get('patientId')?.setErrors({ required: true });
-      this.form.markAllAsTouched();
+    if (this.isSubmitBlockedByPatient(this.form.getRawValue())) {
       return;
     }
-
-    if (this.form.invalid) {
-      this.patientLoadMessage = 'Please complete all required fields before saving.';
-      Object.keys(this.form.controls).forEach((key) => {
-        this.form.get(key)?.markAsTouched();
-      });
+    if (this.isSubmitBlockedByBookingGates()) {
       return;
     }
-
-    // BUG-043: Claim Information is required for all appointment types
-    // (OLD parity -- OLD blocked submit when no injury detail existed).
-    // The per-claim modal validates each entry; this guards that at least
-    // one claim was added before the appointment can be booked.
-    if (this.injuryDrafts.length === 0) {
-      this.claimInformationMissing = true;
-      this.patientLoadMessage = 'Please add at least one Claim Information entry before saving.';
-      return;
-    }
-    this.claimInformationMissing = false;
-
-    // AF6: PQME panel-strike-list gate. When the booker opted in
-    // (hasPanelStrikeList), block submit until one staged document is marked as
-    // the strike list. Client-side only (locked decision); mirrors the BUG-043
-    // flag/message/return shape above so an invalid PQME booking never persists.
-    if (isStrikeListGateBlocked(this.isPqmeType, this.hasPanelStrikeList, this.stagedDocuments)) {
-      this.panelStrikeListMissing = true;
-      this.patientLoadMessage =
-        'Please mark which uploaded document is the panel strike list before saving.';
-      return;
-    }
-    this.panelStrikeListMissing = false;
-
-    // 2026-06-09: a document labeled "Other" needs its free-text name. A blank
-    // custom label is not a usable category, so block submit (mirrors the
-    // flag/message/return shape of the gates above).
-    if (this.stagedDocuments.some((d) => d.isOtherType && !d.otherDocumentTypeName?.trim())) {
-      this.otherLabelMissing = true;
-      this.patientLoadMessage = 'Enter a name for each document labeled "Other" before saving.';
-      return;
-    }
-    this.otherLabelMissing = false;
 
     // Set the in-flight guard SYNCHRONOUSLY here -- after all the synchronous
     // validation early-returns above, but before the first await -- so the
@@ -2168,76 +2123,7 @@ export class AppointmentAddComponent {
       // fails afterwards cannot leave an orphan patient or an applied profile edit behind. That is
       // the whole reason they were folded in: Patient is soft-deleted and tenant-filtered, so an
       // orphan row is precisely what the next duplicate search finds.
-      const rawAfter = this.form.getRawValue();
-      const payload: AppointmentSubmitDto = {
-        // Which flow this is, and what it chains from. The server runs that flow's eligibility gate
-        // against the source before writing anything, so this is not merely a label.
-        mode: this.resolveSubmitMode(),
-        sourceConfirmationNumber: this.sourceConfirmationNumber ?? undefined,
-
-        // The patient, resolved or created inside the same transaction. See buildSubmitPatient for
-        // why an id and a create-input are mutually exclusive here.
-        ...buildSubmitPatient(rawAfter, this.currentPatientProfile?.patient),
-
-        panelNumber: rawAfter.panelNumber ?? undefined,
-        appointmentDate:
-          this.combineAppointmentDateAndTime(rawAfter.appointmentDate, rawAfter.appointmentTime) ??
-          undefined,
-        // requestConfirmationNumber and isPatientAlreadyExist are deliberately NOT sent: the server
-        // allocates the number and derives the returning-patient flag from what deduplication
-        // actually decided. A client value could disagree with what happened.
-        dueDate: rawAfter.dueDate ?? undefined,
-        appointmentStatus: AppointmentStatusType.Pending,
-        identityUserId: rawAfter.identityUserId ?? null,
-        appointmentTypeId: rawAfter.appointmentTypeId ?? '',
-        locationId: rawAfter.locationId ?? '',
-        doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
-        // 2026-06-09: per-appointment Referred By (optional; blank by default, never
-        // prefilled from the patient or prior appointments).
-        refferedBy: rawAfter.refferedBy?.trim() || undefined,
-        // S-5.1: party emails captured at booking time so email fan-out (step 6.1)
-        // and auto-link on registration (step 5.2) have the addresses immediately.
-        patientEmail: rawAfter.email ?? undefined,
-        applicantAttorneyEmail: rawAfter.applicantAttorneyEnabled
-          ? (rawAfter.applicantAttorneyEmail ?? undefined)
-          : undefined,
-        defenseAttorneyEmail: rawAfter.defenseAttorneyEnabled
-          ? (rawAfter.defenseAttorneyEmail ?? undefined)
-          : undefined,
-        // 2026-05-11 (Bug C fix): the top-level claimExaminerEmail field is
-        // vestigial (see comment on form definition); the real CE email is
-        // typed into the per-injury modal (`injuryDrafts[i].claimExaminer.email`).
-        // The first injury's CE email is the canonical AppointmentRequested fan-out
-        // address -- mirrors how the resolver's `Appointment.ClaimExaminerEmail`
-        // column gets read for the CE-email-col walk. Without this sync, the column
-        // saves NULL for non-CE bookers and the CE leg of the fan-out silently drops.
-        // CI1 (2026-06-05): the canonical CE email is now the appointment-level
-        // Claim Examiner section (required), not the per-injury modal. The
-        // resolver reads Appointment.ClaimExaminerEmail for the CE-email-col walk.
-        claimExaminerEmail: (rawAfter.appointmentClaimExaminerEmail ?? '').trim() || undefined,
-        // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
-        // Empty / whitespace values are dropped to match OLD's "no answer"
-        // semantics; the backend AppService also drops them defensively.
-        customFieldValues: this.serializeCustomFieldValues(),
-
-        // Every child group the seven POSTs used to carry. One builder per group, each returning
-        // undefined when the group is absent, so a group that stops being sent shows up as an
-        // obviously missing line rather than a silently dropped property -- which is how Bug F18
-        // hid a cascade dropping 2 of 8 groups while reporting success.
-        employerDetail: buildSubmitEmployerDetail(rawAfter),
-        applicantAttorney: buildSubmitApplicantAttorney(rawAfter, {
-          id: this.applicantAttorneyId,
-          concurrencyStamp: this.applicantAttorneyConcurrencyStamp,
-        }),
-        defenseAttorney: buildSubmitDefenseAttorney(rawAfter, {
-          id: this.defenseAttorneyId,
-          concurrencyStamp: this.defenseAttorneyConcurrencyStamp,
-        }),
-        primaryInsurance: buildSubmitPrimaryInsurance(rawAfter),
-        claimExaminer: buildSubmitClaimExaminer(rawAfter),
-        injuryDetails: buildSubmitInjuryDetails(this.injuryDrafts),
-        accessors: buildSubmitAccessors(this.appointmentAuthorizedUsers),
-      };
+      const payload = this.buildSubmitPayload();
 
       // ONE call, for all four booking modes.
       //
@@ -2268,33 +2154,205 @@ export class AppointmentAddComponent {
 
       this.navigateAfterBooking();
     } catch (err: unknown) {
-      // Slot rework plan 5: surface the 3 new booking error codes inline
-      // and refetch the picker so subsequent attempts see current state.
-      // Other errors fall through to a generic toast. ABP screens only
-      // [401,403,404,500] in withHttpErrorConfig, so a 400 reaches here.
-      const httpErr = err as { error?: { error?: { code?: string; message?: string } } };
-      const code = httpErr?.error?.error?.code;
-      const message = httpErr?.error?.error?.message;
-      if (
-        code === 'CaseEvaluation:Appointment.BookingSlotFull' ||
-        code === 'CaseEvaluation:Appointment.BookingSlotClosed' ||
-        code === 'CaseEvaluation:Appointment.BookingSlotTypeMismatch'
-      ) {
-        this.toaster.warn(message ?? 'This slot is no longer available.');
-        this.form.patchValue(
-          { appointmentTime: null, doctorAvailabilityId: null },
-          { emitEvent: false },
-        );
-        return;
-      }
-      this.toaster.error(message ?? 'Booking failed.');
+      this.handleSubmitFailure(err);
     } finally {
       this.isSaving = false;
     }
   }
 
+  /** Why a re-evaluation, re-request or re-book cannot be submitted yet, or null when it can. */
+  private missingSourceMessage(): string | null {
+    // G-01-07: reval + re-request must be anchored to a loaded source (the
+    // server endpoints take the source confirmation # in the route). Block
+    // submit until one is loaded so we never silently fall through to a plain
+    // create for a re-eval/re-request.
+    if (this.bookingMode === 'new' || this.sourceConfirmationNumber) {
+      return null;
+    }
+    if (this.bookingMode === 'reval') {
+      return 'Look up the prior approved appointment by confirmation number before submitting.';
+    }
+    if (this.bookingMode === 'reBook') {
+      return 'Look up the appointment you want to book again by confirmation number before submitting.';
+    }
+    return 'The prior appointment could not be loaded, so this re-request cannot be submitted.';
+  }
+
+  /** True when the patient half of the form cannot be submitted; marks the fields as it goes. */
+  private isSubmitBlockedByPatient(
+    raw: ReturnType<AppointmentAddComponent['form']['getRawValue']>,
+  ): boolean {
+    if (this.isExternalUserNonPatient && !raw.patientId) {
+      // 2026-06-11: within this branch the booker is always a non-patient, so
+      // patient email is required here ONLY when self-represented (no AA). With
+      // an AA present, email is optional -- patient mail falls back to the AA
+      // server-side. Mirrors applyConditionalPatientEmailValidator.
+      const emailRequiredForNew = !raw.applicantAttorneyEnabled;
+      const requiredForNew =
+        raw.firstName && raw.lastName && raw.dateOfBirth && (!emailRequiredForNew || raw.email);
+      if (!requiredForNew) {
+        this.patientLoadMessage = emailRequiredForNew
+          ? 'To create a new patient, First Name, Last Name, Email and Date of Birth are required.'
+          : 'To create a new patient, First Name, Last Name and Date of Birth are required.';
+        this.form.get('firstName')?.markAsTouched();
+        this.form.get('lastName')?.markAsTouched();
+        this.form.get('email')?.markAsTouched();
+        this.form.get('dateOfBirth')?.markAsTouched();
+        this.form.markAllAsTouched();
+        return true;
+      }
+    } else if (!this.isExternalUserNonPatient && !raw.patientId) {
+      this.form.get('patientId')?.setErrors({ required: true });
+      this.form.markAllAsTouched();
+      return true;
+    }
+    return false;
+  }
+
+  /** True when a booking-level gate refuses the submit; sets the flag and message it names. */
+  private isSubmitBlockedByBookingGates(): boolean {
+    if (this.form.invalid) {
+      this.patientLoadMessage = 'Please complete all required fields before saving.';
+      Object.keys(this.form.controls).forEach((key) => {
+        this.form.get(key)?.markAsTouched();
+      });
+      return true;
+    }
+
+    // BUG-043: Claim Information is required for all appointment types
+    // (OLD parity -- OLD blocked submit when no injury detail existed).
+    // The per-claim modal validates each entry; this guards that at least
+    // one claim was added before the appointment can be booked.
+    if (this.injuryDrafts.length === 0) {
+      this.claimInformationMissing = true;
+      this.patientLoadMessage = 'Please add at least one Claim Information entry before saving.';
+      return true;
+    }
+    this.claimInformationMissing = false;
+
+    // AF6: PQME panel-strike-list gate. When the booker opted in
+    // (hasPanelStrikeList), block submit until one staged document is marked as
+    // the strike list. Client-side only (locked decision); mirrors the BUG-043
+    // flag/message/return shape above so an invalid PQME booking never persists.
+    if (isStrikeListGateBlocked(this.isPqmeType, this.hasPanelStrikeList, this.stagedDocuments)) {
+      this.panelStrikeListMissing = true;
+      this.patientLoadMessage =
+        'Please mark which uploaded document is the panel strike list before saving.';
+      return true;
+    }
+    this.panelStrikeListMissing = false;
+
+    // 2026-06-09: a document labeled "Other" needs its free-text name. A blank
+    // custom label is not a usable category, so block submit (mirrors the
+    // flag/message/return shape of the gates above).
+    if (this.stagedDocuments.some((d) => d.isOtherType && !d.otherDocumentTypeName?.trim())) {
+      this.otherLabelMissing = true;
+      this.patientLoadMessage = 'Enter a name for each document labeled "Other" before saving.';
+      return true;
+    }
+    this.otherLabelMissing = false;
+    return false;
+  }
+
+  /** The single submit payload, read from the form as it stands after address standardization. */
+  private buildSubmitPayload(): AppointmentSubmitDto {
+    const rawAfter = this.form.getRawValue();
+    return {
+      // Which flow this is, and what it chains from. The server runs that flow's eligibility gate
+      // against the source before writing anything, so this is not merely a label.
+      mode: this.resolveSubmitMode(),
+      sourceConfirmationNumber: this.sourceConfirmationNumber ?? undefined,
+
+      // The patient, resolved or created inside the same transaction. See buildSubmitPatient for
+      // why an id and a create-input are mutually exclusive here.
+      ...buildSubmitPatient(rawAfter, this.currentPatientProfile?.patient),
+
+      panelNumber: rawAfter.panelNumber ?? undefined,
+      appointmentDate:
+        this.combineAppointmentDateAndTime(rawAfter.appointmentDate, rawAfter.appointmentTime) ??
+        undefined,
+      // requestConfirmationNumber and isPatientAlreadyExist are deliberately NOT sent: the server
+      // allocates the number and derives the returning-patient flag from what deduplication
+      // actually decided. A client value could disagree with what happened.
+      dueDate: rawAfter.dueDate ?? undefined,
+      appointmentStatus: AppointmentStatusType.Pending,
+      identityUserId: rawAfter.identityUserId ?? null,
+      appointmentTypeId: rawAfter.appointmentTypeId ?? '',
+      locationId: rawAfter.locationId ?? '',
+      doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
+      // 2026-06-09: per-appointment Referred By (optional; blank by default, never
+      // prefilled from the patient or prior appointments).
+      refferedBy: rawAfter.refferedBy?.trim() || undefined,
+      // S-5.1: party emails captured at booking time so email fan-out (step 6.1)
+      // and auto-link on registration (step 5.2) have the addresses immediately.
+      patientEmail: rawAfter.email ?? undefined,
+      applicantAttorneyEmail: rawAfter.applicantAttorneyEnabled
+        ? (rawAfter.applicantAttorneyEmail ?? undefined)
+        : undefined,
+      defenseAttorneyEmail: rawAfter.defenseAttorneyEnabled
+        ? (rawAfter.defenseAttorneyEmail ?? undefined)
+        : undefined,
+      // 2026-05-11 (Bug C fix): the top-level claimExaminerEmail field is
+      // vestigial (see comment on form definition); the real CE email is
+      // typed into the per-injury modal (`injuryDrafts[i].claimExaminer.email`).
+      // The first injury's CE email is the canonical AppointmentRequested fan-out
+      // address -- mirrors how the resolver's `Appointment.ClaimExaminerEmail`
+      // column gets read for the CE-email-col walk. Without this sync, the column
+      // saves NULL for non-CE bookers and the CE leg of the fan-out silently drops.
+      // CI1 (2026-06-05): the canonical CE email is now the appointment-level
+      // Claim Examiner section (required), not the per-injury modal. The
+      // resolver reads Appointment.ClaimExaminerEmail for the CE-email-col walk.
+      claimExaminerEmail: (rawAfter.appointmentClaimExaminerEmail ?? '').trim() || undefined,
+      // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
+      // Empty / whitespace values are dropped to match OLD's "no answer"
+      // semantics; the backend AppService also drops them defensively.
+      customFieldValues: this.serializeCustomFieldValues(),
+
+      // Every child group the seven POSTs used to carry. One builder per group, each returning
+      // undefined when the group is absent, so a group that stops being sent shows up as an
+      // obviously missing line rather than a silently dropped property -- which is how Bug F18
+      // hid a cascade dropping 2 of 8 groups while reporting success.
+      employerDetail: buildSubmitEmployerDetail(rawAfter),
+      applicantAttorney: buildSubmitApplicantAttorney(rawAfter, {
+        id: this.applicantAttorneyId,
+        concurrencyStamp: this.applicantAttorneyConcurrencyStamp,
+      }),
+      defenseAttorney: buildSubmitDefenseAttorney(rawAfter, {
+        id: this.defenseAttorneyId,
+        concurrencyStamp: this.defenseAttorneyConcurrencyStamp,
+      }),
+      primaryInsurance: buildSubmitPrimaryInsurance(rawAfter),
+      claimExaminer: buildSubmitClaimExaminer(rawAfter),
+      injuryDetails: buildSubmitInjuryDetails(this.injuryDrafts),
+      accessors: buildSubmitAccessors(this.appointmentAuthorizedUsers),
+    };
+  }
+
+  private handleSubmitFailure(err: unknown): void {
+    // Slot rework plan 5: surface the 3 new booking error codes inline
+    // and refetch the picker so subsequent attempts see current state.
+    // Other errors fall through to a generic toast. ABP screens only
+    // [401,403,404,500] in withHttpErrorConfig, so a 400 reaches here.
+    const httpErr = err as { error?: { error?: { code?: string; message?: string } } };
+    const code = httpErr?.error?.error?.code;
+    const message = httpErr?.error?.error?.message;
+    if (
+      code === 'CaseEvaluation:Appointment.BookingSlotFull' ||
+      code === 'CaseEvaluation:Appointment.BookingSlotClosed' ||
+      code === 'CaseEvaluation:Appointment.BookingSlotTypeMismatch'
+    ) {
+      this.toaster.warn(message ?? 'This slot is no longer available.');
+      this.form.patchValue(
+        { appointmentTime: null, doctorAvailabilityId: null },
+        { emitEvent: false },
+      );
+      return;
+    }
+    this.toaster.error(message ?? 'Booking failed.');
+  }
+
   save(): void {
-    this.onSubmit();
+    void this.onSubmit();
   }
 
   /**
@@ -2370,66 +2428,38 @@ export class AppointmentAddComponent {
   // the booking POSTs. Any failure (state lookup, provider) is swallowed so the
   // booking is never blocked by the address service.
   private async standardizeAddressesBeforeSubmit(): Promise<void> {
-    let stateOptions: StateLookupOption[];
-    try {
-      // skipHandleError (#604): this runs during submit. ABP's full-screen error card would
-      // abandon a booking the user has already filled in, over a lookup that only feeds an
-      // optional formatting check.
-      const res = await firstValueFrom(
-        this.getStateLookup(
-          { maxResultCount: 1000, skipCount: 0, filter: '' },
-          { skipHandleError: true },
-        ),
-      );
-      stateOptions = (res?.items ?? []).map((i) => ({
-        id: String(i.id),
-        name: i.displayName ?? '',
-      }));
-    } catch {
-      // Handled, not swallowed: skip standardization and say so. Blocking the booking over a
-      // formatting convenience would be the worse outcome, but the booker must not be left
-      // assuming their address was checked.
-      this.toaster.warn(ADDRESS_CHECK_SKIPPED_MESSAGE);
+    const stateOptions = await this.loadStateOptionsForStandardization();
+    if (!stateOptions) {
       return;
     }
 
     // typescript:S6551 -- `unknown` was wider than the truth and made String()
     // look like it might be stringifying an object. Both call sites pass a string
     // or nothing: resolveStateId returns `string | null`, and a state form control
-    // is `[null as string | null]`. stateOptions ids are built with String(i.id)
-    // just above, so the comparison stays string-to-string and the String() around
-    // a value now typed string was a no-op.
+    // is `[null as string | null]`. stateOptions ids are built with String(i.id),
+    // so the comparison stays string-to-string and the String() around a value
+    // now typed string was a no-op.
     const stateName = (id: string | null | undefined): string =>
       stateOptions.find((o) => o.id === (id ?? ''))?.name ?? '';
 
+    const candidates = this.collectAddressesForStandardization(stateName);
+    // typescript:S9382 -- the groups are independent of one another, so they are checked together
+    // rather than one round trip after another. Promise.all keeps the results in group order, which
+    // is the order the dialog lists them in.
+    const results = await Promise.all(candidates.map((c) => this.tryValidateAddress(c.input)));
+    if (results.includes(null)) {
+      // One address failing must not abandon the rest; the single warning here reports the whole
+      // batch once rather than one toast per group (#604).
+      this.toaster.warn(ADDRESS_CHECK_SKIPPED_MESSAGE);
+    }
+
     const items: AddressDiffItem[] = [];
     const pending: { key: string; fields: AddressFieldMap; std: StandardizedAddress }[] = [];
-    let addressCheckFailed = false;
-
-    for (const grp of this.addressGroupsForStandardization) {
-      if (!grp.isEnabled()) continue;
-      const street = (this.form.get(grp.fields.street)?.value ?? '').toString().trim();
-      if (!street) continue;
-
-      const input: AddressInput = {
-        street,
-        suite: grp.fields.suite ? (this.form.get(grp.fields.suite)?.value ?? null) : null,
-        city: this.form.get(grp.fields.city)?.value ?? null,
-        state: stateName(this.form.get(grp.fields.state)?.value),
-        zip: this.form.get(grp.fields.zip)?.value ?? null,
-      };
-
-      let result;
-      try {
-        result = await firstValueFrom(this.addressProvider.validate(input));
-      } catch {
-        // One address failing must not abandon the rest; the single warning after the loop
-        // reports the whole batch once rather than one toast per group (#604).
-        addressCheckFailed = true;
-        continue;
+    candidates.forEach(({ grp, input }, idx) => {
+      const result = results[idx];
+      if (!result || result.status === 'error' || !result.standardized || result.matchesInput) {
+        return;
       }
-      if (result.status === 'error' || !result.standardized || result.matchesInput) continue;
-
       const std = result.standardized;
       const suggestedState = stateName(resolveStateId(std.state, stateOptions)) || std.state;
       items.push({
@@ -2451,11 +2481,7 @@ export class AppointmentAddComponent {
         ),
       });
       pending.push({ key: grp.key, fields: grp.fields, std });
-    }
-
-    if (addressCheckFailed) {
-      this.toaster.warn(ADDRESS_CHECK_SKIPPED_MESSAGE);
-    }
+    });
 
     if (items.length === 0) return;
 
@@ -2477,6 +2503,68 @@ export class AppointmentAddComponent {
       const stateId = resolveStateId(p.std.state, stateOptions);
       if (stateId) patch[p.fields.state] = stateId;
       this.form.patchValue(patch);
+    }
+  }
+
+  /**
+   * The state list the standardization check compares against, or null when it could not be
+   * loaded. Null is handled, not swallowed: the check is skipped and the booker is told, because
+   * blocking the booking over a formatting convenience would be the worse outcome but they must not
+   * be left assuming their address was checked.
+   */
+  private async loadStateOptionsForStandardization(): Promise<StateLookupOption[] | null> {
+    try {
+      // skipHandleError (#604): this runs during submit. ABP's full-screen error card would
+      // abandon a booking the user has already filled in, over a lookup that only feeds an
+      // optional formatting check.
+      const res = await firstValueFrom(
+        this.getStateLookup(
+          { maxResultCount: 1000, skipCount: 0, filter: '' },
+          { skipHandleError: true },
+        ),
+      );
+      return (res?.items ?? []).map((i) => ({
+        id: String(i.id),
+        name: i.displayName ?? '',
+      }));
+    } catch {
+      this.toaster.warn(ADDRESS_CHECK_SKIPPED_MESSAGE);
+      return null;
+    }
+  }
+
+  /** Every enabled address group with a street filled in, as the provider's input shape. */
+  private collectAddressesForStandardization(
+    stateName: (id: string | null | undefined) => string,
+  ): { grp: AddressStandardizationGroup; input: AddressInput }[] {
+    const out: { grp: AddressStandardizationGroup; input: AddressInput }[] = [];
+    for (const grp of this.addressGroupsForStandardization) {
+      if (!grp.isEnabled()) continue;
+      const street = (this.form.get(grp.fields.street)?.value ?? '').toString().trim();
+      if (!street) continue;
+      out.push({
+        grp,
+        input: {
+          street,
+          suite: grp.fields.suite ? (this.form.get(grp.fields.suite)?.value ?? null) : null,
+          city: this.form.get(grp.fields.city)?.value ?? null,
+          state: stateName(this.form.get(grp.fields.state)?.value),
+          zip: this.form.get(grp.fields.zip)?.value ?? null,
+        },
+      });
+    }
+    return out;
+  }
+
+  /**
+   * One provider call, with a failure reported as null so the caller can warn once for the batch.
+   * The try also covers a provider that throws synchronously, which a .catch on the promise would not.
+   */
+  private async tryValidateAddress(input: AddressInput): Promise<ValidationResult | null> {
+    try {
+      return await firstValueFrom(this.addressProvider.validate(input));
+    } catch {
+      return null;
     }
   }
 
@@ -2732,90 +2820,97 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe((profile) => {
-        if (!profile?.identityUserId) {
-          return;
-        }
-        this.patientLabel = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
-        // 2026-05-07 (#14): the email control is no longer disabled by
-        // default (see form-build site), so an explicit enable() here is
-        // redundant. The HTML applies [readonly] for Patient bookers to
-        // gate editing without skipping validators.
-        this.form.get('patientId')?.clearValidators();
-        this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
-        this.form.patchValue({
-          identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
-          patientId: null,
-          firstName: null,
-          lastName: null,
-          middleName: null,
-          email: null,
-          genderId: null,
-          dateOfBirth: null,
-          cellPhoneNumber: null,
-          phoneNumber: null,
-          phoneNumberTypeId: null,
-          socialSecurityNumber: null,
-          street: null,
-          address: null,
-          city: null,
-          stateId: null,
-          zipCode: null,
-          appointmentLanguageId: null,
-          interpreterVendorName: null,
-          needsInterpreter: null,
-          refferedBy: null,
-          employerName: null,
-          employerOccupation: null,
-          employerPhoneNumber: null,
-          employerStreet: null,
-          employerCity: null,
-          employerStateId: null,
-          employerZipCode: null,
-        });
-        // Firm-model (D7 / C4): never auto-seed the attorney sections from the
-        // booker's own identity. A firm/paralegal AA or DA books on behalf of a
-        // DISTINCT attorney, so both sections start blank + editable. The former
-        // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
-        // because the *-details-for-booking endpoint returns the firm's OWN
-        // email + registration firm name for a firm account, which would re-seed
-        // the very identity we want kept out of the on-behalf section.
-        // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
-        // for self) now TYPES the attorney details each booking -- the add form
-        // has no AA lookup UI (the email-search box + picker live only on the
-        // appointment VIEW page). Submit still persists what they type to a
-        // master row keyed by the form email. "Solo attorney retypes" is the
-        // accepted trade-off (see the plan's Risks note).
-        this.form.patchValue({
-          applicantAttorneyIdentityUserId: null,
-          applicantAttorneyFirstName: null,
-          applicantAttorneyLastName: null,
-          applicantAttorneyEmail: null,
-          applicantAttorneyFirmName: null,
-          applicantAttorneyWebAddress: null,
-          applicantAttorneyPhoneNumber: null,
-          applicantAttorneyFaxNumber: null,
-          applicantAttorneyStreet: null,
-          applicantAttorneyCity: null,
-          applicantAttorneyStateId: null,
-          applicantAttorneyZipCode: null,
-          defenseAttorneyIdentityUserId: null,
-          defenseAttorneyFirstName: null,
-          defenseAttorneyLastName: null,
-          defenseAttorneyEmail: null,
-          defenseAttorneyFirmName: null,
-          defenseAttorneyWebAddress: null,
-          defenseAttorneyPhoneNumber: null,
-          defenseAttorneyFaxNumber: null,
-          defenseAttorneyStreet: null,
-          defenseAttorneyCity: null,
-          defenseAttorneyStateId: null,
-          defenseAttorneyZipCode: null,
-        });
-        this.applicantAttorneyId = null;
-        this.applicantAttorneyConcurrencyStamp = null;
-        this.defenseAttorneyId = null;
-        this.defenseAttorneyConcurrencyStamp = null;
+      .subscribe({
+        next: (profile) => {
+          if (!profile?.identityUserId) {
+            return;
+          }
+          this.patientLabel = [profile.firstName, profile.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          // 2026-05-07 (#14): the email control is no longer disabled by
+          // default (see form-build site), so an explicit enable() here is
+          // redundant. The HTML applies [readonly] for Patient bookers to
+          // gate editing without skipping validators.
+          this.form.get('patientId')?.clearValidators();
+          this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
+          this.form.patchValue({
+            identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
+            patientId: null,
+            firstName: null,
+            lastName: null,
+            middleName: null,
+            email: null,
+            genderId: null,
+            dateOfBirth: null,
+            cellPhoneNumber: null,
+            phoneNumber: null,
+            phoneNumberTypeId: null,
+            socialSecurityNumber: null,
+            street: null,
+            address: null,
+            city: null,
+            stateId: null,
+            zipCode: null,
+            appointmentLanguageId: null,
+            interpreterVendorName: null,
+            needsInterpreter: null,
+            refferedBy: null,
+            employerName: null,
+            employerOccupation: null,
+            employerPhoneNumber: null,
+            employerStreet: null,
+            employerCity: null,
+            employerStateId: null,
+            employerZipCode: null,
+          });
+          // Firm-model (D7 / C4): never auto-seed the attorney sections from the
+          // booker's own identity. A firm/paralegal AA or DA books on behalf of a
+          // DISTINCT attorney, so both sections start blank + editable. The former
+          // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
+          // because the *-details-for-booking endpoint returns the firm's OWN
+          // email + registration firm name for a firm account, which would re-seed
+          // the very identity we want kept out of the on-behalf section.
+          // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
+          // for self) now TYPES the attorney details each booking -- the add form
+          // has no AA lookup UI (the email-search box + picker live only on the
+          // appointment VIEW page). Submit still persists what they type to a
+          // master row keyed by the form email. "Solo attorney retypes" is the
+          // accepted trade-off (see the plan's Risks note).
+          this.form.patchValue({
+            applicantAttorneyIdentityUserId: null,
+            applicantAttorneyFirstName: null,
+            applicantAttorneyLastName: null,
+            applicantAttorneyEmail: null,
+            applicantAttorneyFirmName: null,
+            applicantAttorneyWebAddress: null,
+            applicantAttorneyPhoneNumber: null,
+            applicantAttorneyFaxNumber: null,
+            applicantAttorneyStreet: null,
+            applicantAttorneyCity: null,
+            applicantAttorneyStateId: null,
+            applicantAttorneyZipCode: null,
+            defenseAttorneyIdentityUserId: null,
+            defenseAttorneyFirstName: null,
+            defenseAttorneyLastName: null,
+            defenseAttorneyEmail: null,
+            defenseAttorneyFirmName: null,
+            defenseAttorneyWebAddress: null,
+            defenseAttorneyPhoneNumber: null,
+            defenseAttorneyFaxNumber: null,
+            defenseAttorneyStreet: null,
+            defenseAttorneyCity: null,
+            defenseAttorneyStateId: null,
+            defenseAttorneyZipCode: null,
+          });
+          this.applicantAttorneyId = null;
+          this.applicantAttorneyConcurrencyStamp = null;
+          this.defenseAttorneyId = null;
+          this.defenseAttorneyConcurrencyStamp = null;
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -2829,45 +2924,52 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe((profile) => {
-        const patient = profile?.patient;
-        if (!patient?.id) {
-          return;
-        }
+      .subscribe({
+        next: (profile) => {
+          const patient = profile?.patient;
+          if (!patient?.id) {
+            return;
+          }
 
-        this.currentPatientProfile = profile;
-        this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
-        this.form.patchValue({
-          patientId: patient.id,
-          identityUserId: patient.identityUserId ?? null,
-          firstName: patient.firstName ?? null,
-          lastName: patient.lastName ?? null,
-          middleName: patient.middleName ?? null,
-          email: patient.email ?? null,
-          genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
-          cellPhoneNumber: patient.cellPhoneNumber ?? null,
-          phoneNumber: patient.phoneNumber ?? null,
-          phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
-          street: patient.street ?? null,
-          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
-          address: unitForForm(patient),
-          city: patient.city ?? null,
-          stateId: patient.stateId ?? null,
-          zipCode: patient.zipCode ?? null,
-          appointmentLanguageId: patient.appointmentLanguageId ?? null,
-          interpreterVendorName: patient.interpreterVendorName ?? null,
-          needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
-          employerName: null,
-          employerOccupation: null,
-          employerPhoneNumber: null,
-          employerStreet: null,
-          employerCity: null,
-          employerStateId: null,
-          employerZipCode: null,
-        });
+          this.currentPatientProfile = profile;
+          this.patientLabel = [patient.firstName, patient.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          this.form.patchValue({
+            patientId: patient.id,
+            identityUserId: patient.identityUserId ?? null,
+            firstName: patient.firstName ?? null,
+            lastName: patient.lastName ?? null,
+            middleName: patient.middleName ?? null,
+            email: patient.email ?? null,
+            genderId: this.normalizePatientGender(patient.genderId),
+            dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+            cellPhoneNumber: patient.cellPhoneNumber ?? null,
+            phoneNumber: patient.phoneNumber ?? null,
+            phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+            socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+            street: patient.street ?? null,
+            // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+            address: unitForForm(patient),
+            city: patient.city ?? null,
+            stateId: patient.stateId ?? null,
+            zipCode: patient.zipCode ?? null,
+            appointmentLanguageId: patient.appointmentLanguageId ?? null,
+            interpreterVendorName: patient.interpreterVendorName ?? null,
+            needsInterpreter: !!patient.interpreterVendorName,
+            refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
+            employerName: null,
+            employerOccupation: null,
+            employerPhoneNumber: null,
+            employerStreet: null,
+            employerCity: null,
+            employerStateId: null,
+            employerZipCode: null,
+          });
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3097,6 +3199,8 @@ export class AppointmentAddComponent {
           // the role once the options arrive (mirrors the view page).
           this.backfillAuthorizedUserRoles();
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3173,6 +3277,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3245,6 +3351,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3308,6 +3416,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3380,6 +3490,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 

@@ -201,6 +201,57 @@ describe('admin-hub.util', () => {
       expect(lines[1]).toContain('"Chrome, macOS"');
       expect(lines[1]).toContain('/api/app/x');
     });
+
+    /**
+     * The Client column is the request's User-Agent and URL is the request URL. Both are
+     * set by whoever sent the request, including an anonymous one, so this export is
+     * reachable without an account. The assertion is on the rendered cell, not on a
+     * helper having been called.
+     */
+    it('neutralises a formula an anonymous caller put in the User-Agent', () => {
+      const csv = buildAuditCsv([
+        {
+          time: 'Jun 11 10:42',
+          user: '',
+          method: 'GET',
+          url: '=HYPERLINK("http://x.test","click")',
+          status: 404,
+          durationMs: 3,
+          ip: '1.2.3.4',
+          client: "=cmd|'/c calc'!A1",
+          tenant: '',
+        },
+      ]);
+      const row = csv.split('\n')[1];
+
+      // The trigger is preceded by the apostrophe...
+      expect(row).toContain("'=cmd");
+      expect(row).toContain("'=HYPERLINK");
+      // ...and never sits against a delimiter, which is where a spreadsheet would read
+      // it as the start of a formula.
+      expect(row).not.toContain(',=');
+    });
+
+    it('leaves an ordinary User-Agent and URL untouched', () => {
+      const csv = buildAuditCsv([
+        {
+          time: 'Jun 11 10:42',
+          user: 'a@b.com',
+          method: 'GET',
+          url: '/api/app/appointments',
+          status: 200,
+          durationMs: 12,
+          ip: '1.2.3.4',
+          client: 'Mozilla/5.0',
+          tenant: 'Falkinstein',
+        },
+      ]);
+      const row = csv.split('\n')[1];
+
+      expect(row).toContain(',Mozilla/5.0,');
+      expect(row).toContain(',/api/app/appointments,');
+      expect(row).not.toContain("'");
+    });
   });
 
   describe('SP_GROUPS', () => {

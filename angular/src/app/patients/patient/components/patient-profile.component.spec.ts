@@ -1,6 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { Observable, config, of, throwError } from 'rxjs';
 import { ConfigStateService, RestService } from '@abp/ng.core';
 
 import { PatientProfileComponent } from './patient-profile.component';
@@ -126,4 +126,105 @@ describe('PatientProfileComponent date-of-birth wiring (#620)', () => {
     c.component.save();
     expect(c.requests.some((r) => r.method === 'PUT')).toBeFalse();
   });
+});
+
+describe('PatientProfileComponent failed requests (#1113)', () => {
+  /**
+   * The profile load and the save each subscribed with no error branch, so ABP's rethrown copy of
+   * a failed request reached RxJS's unhandled-error path. The busy and loading flags are reset by
+   * `finalize`, which only runs if the stream settles; what must NOT change is the profile the
+   * patient is looking at.
+   */
+  let unhandled: jasmine.Spy;
+  let previous: typeof config.onUnhandledError;
+
+  function build(
+    roles: string[],
+    failMethods: string[],
+  ): { component: PatientProfileComponent; methods: string[] } {
+    const methods: string[] = [];
+    const rest = {
+      request: (req: { method: string }): Observable<unknown> => {
+        methods.push(req.method);
+        return failMethods.includes(req.method)
+          ? throwError(() => ({ status: 500 }))
+          : of({
+              patient: { id: 'p1', dateOfBirth: '1990-05-15T00:00:00', concurrencyStamp: 's' },
+            });
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: RestService, useValue: rest },
+        {
+          provide: ConfigStateService,
+          useValue: {
+            getOne: (key: string) =>
+              key === 'currentUser' ? { roles, userName: 'p' } : { name: 'Office' },
+            getDeep: () => null,
+            getDeep$: () => of(null),
+            getOne$: () => of(null),
+            getAll$: () => of({}),
+          },
+        },
+        { provide: Router, useValue: { navigateByUrl: () => undefined } },
+      ],
+    });
+    return {
+      component: TestBed.createComponent(PatientProfileComponent).componentInstance,
+      methods,
+    };
+  }
+
+  beforeEach(() => {
+    previous = config.onUnhandledError;
+    unhandled = jasmine.createSpy('onUnhandledError');
+    config.onUnhandledError = unhandled;
+  });
+
+  afterEach(() => {
+    config.onUnhandledError = previous;
+    TestBed.resetTestingModule();
+  });
+
+  it('stops loading and shows no profile when a patient load fails', fakeAsync(() => {
+    const { component } = build(['Patient'], ['GET']);
+    component.ngOnInit();
+    tick();
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(component.isLoading).toBeFalse();
+    expect(component.selected).toBeUndefined();
+  }));
+
+  it('stops loading and shows no profile when an external-user load fails', fakeAsync(() => {
+    const { component } = build(['Applicant Attorney'], ['GET']);
+    component.ngOnInit();
+    tick();
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(component.isLoading).toBeFalse();
+    expect(component.selected).toBeUndefined();
+  }));
+
+  it('clears the busy flag and keeps the loaded profile when a save fails', fakeAsync(() => {
+    const { component, methods } = build(['Patient'], ['PUT']);
+    component.ngOnInit();
+    tick();
+    const loaded = component.selected;
+    component.form.patchValue({
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.test',
+      genderId: 1,
+      phoneNumberTypeId: 1,
+      identityUserId: '11111111-1111-1111-1111-111111111111',
+    });
+
+    component.save();
+    tick();
+
+    expect(methods).toContain('PUT');
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(component.isBusy).toBeFalse();
+    expect(component.selected).toBe(loaded);
+  }));
 });

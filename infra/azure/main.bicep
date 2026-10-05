@@ -149,6 +149,7 @@ var roleKeyVaultSecretsUser = '4633458b-17de-408a-b874-0445c86b69e6'
 var roleKeyVaultCertificateUser = 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
 var roleKeyVaultCryptoServiceEncryptionUser = 'e147488a-f6f5-4113-8e2d-b22465e65bf6'
 var roleStorageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+var roleDefinitionType = 'Microsoft.Authorization/roleDefinitions'
 
 // ---------------------------------------------------------------- identity
 //
@@ -159,6 +160,140 @@ resource gatewayIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   name: 'id-gateway-${envName}'
   location: location
   tags: tags
+}
+
+// ---------------------------------------------------------------- access
+//
+// Every one of these replaces a stored credential. The host pulls images, reads secrets,
+// wraps keys, uses the cache and writes documents as itself; nothing here needs a
+// password in a file.
+
+resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' existing = {
+  name: registryName
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+resource dataProtectionKey 'Microsoft.KeyVault/vaults/keys@2023-07-01' existing = {
+  parent: keyVault
+  name: dataProtectionKeyName
+}
+
+resource documentsAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: documentsAccountName
+}
+
+resource redis 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = {
+  name: redisName
+}
+
+resource redisDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' existing = {
+  parent: redis
+  name: 'default'
+}
+
+// Assignment names are derived from the scope and a fixed purpose string, NOT from the
+// principal id: a principal id comes from a module output and so is not known before
+// the deployment starts, which a role assignment name has to be.
+//
+// Every scope below is an `existing` reference BY NAME, which creates no dependency on the
+// module that creates it. Each assignment that does not already follow that module through
+// `host` therefore names it in dependsOn; without it the assignment can run first and fail
+// with NotFound.
+resource hostPullsImages 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: registry
+  name: guid(registry.id, 'host-acr-pull')
+  properties: {
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleAcrPull)
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource hostReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: keyVault
+  name: guid(keyVault.id, 'host-kv-secrets-user')
+  properties: {
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleKeyVaultSecretsUser)
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource hostWritesDocuments 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: documentsAccount
+  name: guid(documentsAccount.id, 'host-blob-contributor')
+  dependsOn: [
+    data
+  ]
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      roleDefinitionType,
+      roleStorageBlobDataContributor
+    )
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Wrap and unwrap with the data-protection key, and nothing else: scoped to THAT KEY, not
+// the vault. The application reads the key id from DataProtection:KeyVaultKeyId.
+resource hostWrapsWithDataProtectionKey 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: dataProtectionKey
+  name: guid(dataProtectionKey.id, 'host-kv-crypto-service-encryption-user')
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      roleDefinitionType,
+      roleKeyVaultCryptoServiceEncryptionUser
+    )
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// The host signs in to the cache with its managed identity (decision 20); the database has
+// access keys switched off. 'default' is the built-in access policy.
+resource hostUsesCache 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = {
+  parent: redisDatabase
+  name: 'hostvm'
+  dependsOn: [
+    data
+  ]
+  properties: {
+    accessPolicyName: 'default'
+    user: {
+      objectId: host.outputs.principalId
+    }
+  }
+}
+
+// The gateway needs BOTH: the certificate object and the secret behind it.
+resource gatewayReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: keyVault
+  name: guid(keyVault.id, 'gateway-kv-secrets-user')
+  dependsOn: [
+    platform
+  ]
+  properties: {
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleKeyVaultSecretsUser)
+    principalId: gatewayIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource gatewayReadsCertificates 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: keyVault
+  name: guid(keyVault.id, 'gateway-kv-cert-user')
+  dependsOn: [
+    platform
+  ]
+  properties: {
+    roleDefinitionId: subscriptionResourceId(roleDefinitionType, roleKeyVaultCertificateUser)
+    principalId: gatewayIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 // ---------------------------------------------------------------- modules
@@ -248,140 +383,6 @@ module edge 'modules/edge.bicep' = {
   dependsOn: [
     gatewayReadsSecrets
     gatewayReadsCertificates
-  ]
-}
-
-// ---------------------------------------------------------------- access
-//
-// Every one of these replaces a stored credential. The host pulls images, reads secrets,
-// wraps keys, uses the cache and writes documents as itself; nothing here needs a
-// password in a file.
-
-resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' existing = {
-  name: registryName
-}
-
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: keyVaultName
-}
-
-resource dataProtectionKey 'Microsoft.KeyVault/vaults/keys@2023-07-01' existing = {
-  parent: keyVault
-  name: dataProtectionKeyName
-}
-
-resource documentsAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
-  name: documentsAccountName
-}
-
-resource redis 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = {
-  name: redisName
-}
-
-resource redisDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' existing = {
-  parent: redis
-  name: 'default'
-}
-
-// Assignment names are derived from the scope and a fixed purpose string, NOT from the
-// principal id: a principal id comes from a module output and so is not known before
-// the deployment starts, which a role assignment name has to be.
-//
-// Every scope below is an `existing` reference BY NAME, which creates no dependency on the
-// module that creates it. Each assignment that does not already follow that module through
-// `host` therefore names it in dependsOn; without it the assignment can run first and fail
-// with NotFound.
-resource hostPullsImages 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: registry
-  name: guid(registry.id, 'host-acr-pull')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleAcrPull)
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource hostReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: keyVault
-  name: guid(keyVault.id, 'host-kv-secrets-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleKeyVaultSecretsUser)
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource hostWritesDocuments 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: documentsAccount
-  name: guid(documentsAccount.id, 'host-blob-contributor')
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roleStorageBlobDataContributor
-    )
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    data
-  ]
-}
-
-// Wrap and unwrap with the data-protection key, and nothing else: scoped to THAT KEY, not
-// the vault. The application reads the key id from DataProtection:KeyVaultKeyId.
-resource hostWrapsWithDataProtectionKey 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: dataProtectionKey
-  name: guid(dataProtectionKey.id, 'host-kv-crypto-service-encryption-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roleKeyVaultCryptoServiceEncryptionUser
-    )
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// The host signs in to the cache with its managed identity (decision 20); the database has
-// access keys switched off. 'default' is the built-in access policy.
-resource hostUsesCache 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = {
-  parent: redisDatabase
-  name: 'hostvm'
-  properties: {
-    accessPolicyName: 'default'
-    user: {
-      objectId: host.outputs.principalId
-    }
-  }
-  dependsOn: [
-    data
-  ]
-}
-
-// The gateway needs BOTH: the certificate object and the secret behind it.
-resource gatewayReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: keyVault
-  name: guid(keyVault.id, 'gateway-kv-secrets-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleKeyVaultSecretsUser)
-    principalId: gatewayIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    platform
-  ]
-}
-
-resource gatewayReadsCertificates 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: keyVault
-  name: guid(keyVault.id, 'gateway-kv-cert-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleKeyVaultCertificateUser)
-    principalId: gatewayIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    platform
   ]
 }
 

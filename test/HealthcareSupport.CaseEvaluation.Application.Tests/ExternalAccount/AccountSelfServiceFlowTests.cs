@@ -66,8 +66,18 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
     {
         _dispatcher = Substitute.For<INotificationDispatcher>();
         _events = Substitute.For<ILocalEventBus>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(INotificationDispatcher), _dispatcher));
-        services.Replace(ServiceDescriptor.Singleton(typeof(ILocalEventBus), _events));
+        services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_dispatcher));
+        services.Replace(ServiceDescriptor.Singleton<ILocalEventBus>(_events));
+
+        // The shared test module wires a "Default" token provider that accepts ANY token, because
+        // most tests only need generation to succeed. The reset-link tests assert that a used or
+        // garbled token is REFUSED, which a validate-everything provider can never show, so this
+        // class puts the real data-protection provider back (the one production uses).
+        services.AddDataProtection();
+        services.AddTransient<Microsoft.AspNetCore.Identity.DataProtectorTokenProvider<IdentityUser>>();
+        services.Configure<Microsoft.AspNetCore.Identity.IdentityOptions>(options =>
+            options.Tokens.ProviderMap["Default"] = new Microsoft.AspNetCore.Identity.TokenProviderDescriptor(
+                typeof(Microsoft.AspNetCore.Identity.DataProtectorTokenProvider<IdentityUser>)));
     }
 
     // ------------------------------------------------------------------ harness
@@ -165,6 +175,46 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
 
         (await _userManager.CheckPasswordAsync(await ReloadAsync(userId), NewPassword)).ShouldBeTrue();
         Dispatches().Count.ShouldBe(1);
+    }
+
+    // ------------------------------------------------------------------ reset link (OBS-34)
+
+    [Fact]
+    public async Task A_reset_link_works_until_it_is_used_and_then_reports_dead()
+    {
+        var userId = await CreateUserAsync();
+        var checker = GetRequiredService<IResetLinkChecker>();
+        var token = await WithUnitOfWorkAsync(async () =>
+            await _userManager.GeneratePasswordResetTokenAsync(await _userManager.GetByIdAsync(userId)));
+
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(userId, token))).ShouldBeTrue();
+        // Checking is not consuming: a second look still passes.
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(userId, token))).ShouldBeTrue();
+
+        await WithUnitOfWorkAsync(() => GetRequiredService<IExternalAccountAppService>().ResetPasswordAsync(
+            new ResetPasswordInput
+            {
+                UserId = userId,
+                ResetToken = token,
+                Password = NewPassword,
+                ConfirmPassword = NewPassword,
+            }));
+
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(userId, token))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_garbled_token_a_blank_token_and_an_unknown_user_all_report_dead()
+    {
+        var userId = await CreateUserAsync();
+        var checker = GetRequiredService<IResetLinkChecker>();
+        var token = await WithUnitOfWorkAsync(async () =>
+            await _userManager.GeneratePasswordResetTokenAsync(await _userManager.GetByIdAsync(userId)));
+
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(userId, "TEST-not-a-token"))).ShouldBeFalse();
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(userId, " "))).ShouldBeFalse();
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(Guid.NewGuid(), token))).ShouldBeFalse();
+        (await WithUnitOfWorkAsync(() => checker.IsUsableAsync(Guid.Empty, token))).ShouldBeFalse();
     }
 
     // ------------------------------------------------------------------ lockout

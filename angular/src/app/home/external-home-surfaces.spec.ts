@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { ConfigStateService, ListService, RestService } from '@abp/ng.core';
 
 import { ExternalHomeComponent } from './external-home.component';
@@ -83,6 +83,7 @@ describe('ExternalHomeComponent surfaces', () => {
     const listStub = {
       maxResultCount: 10,
       hookToQuery: (fn: (q: Record<string, unknown>) => unknown) => fn({}),
+      requestStatus$: NEVER,
     };
 
     TestBed.configureTestingModule({
@@ -357,7 +358,7 @@ describe('ExternalHomeComponent surfaces', () => {
 
     it('shows everything on the all segment', () => {
       const c = seeded();
-      expect(c.filtered().length).toBe(2);
+      expect(c.filtered()).toHaveSize(2);
     });
 
     it('narrows to one segment', () => {
@@ -387,7 +388,7 @@ describe('ExternalHomeComponent surfaces', () => {
     it('ignores surrounding whitespace in the search', () => {
       const c = seeded();
       c.q.set('   hopper   ');
-      expect(c.filtered().length).toBe(1);
+      expect(c.filtered()).toHaveSize(1);
     });
 
     it('matches type and location exactly, not by substring', () => {
@@ -404,7 +405,7 @@ describe('ExternalHomeComponent surfaces', () => {
     it('matches the reference numbers on a case-insensitive substring', () => {
       const c = seeded();
       c.filters.set({ conf: 'c000' });
-      expect(c.filtered().length).toBe(2);
+      expect(c.filtered()).toHaveSize(2);
 
       c.filters.set({ claim: 'clm-2' });
       expect(c.filtered().map((r: { id: string }) => r.id)).toEqual(['2']);
@@ -516,14 +517,14 @@ describe('ExternalHomeComponent surfaces', () => {
       expect(router.navigate).toHaveBeenCalledWith(['/appointments/view', 'a-1']);
     });
 
-    it('opens the profile for both the profile and the documents entries', () => {
+    it('opens the profile for the profile entry and the My Documents page for documents', () => {
       const c = create();
       c.openProfile();
       expect(router.navigateByUrl).toHaveBeenCalledWith('/user-management/patients/my-profile');
 
       router.navigateByUrl.calls.reset();
       c.openMyDocuments();
-      expect(router.navigateByUrl).toHaveBeenCalledWith('/user-management/patients/my-profile');
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/my-documents');
     });
 
     it('opens the query modal', () => {

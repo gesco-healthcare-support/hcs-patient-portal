@@ -46,7 +46,7 @@ public abstract class KnownDefaultPasswordSignInManagerTests<TStartupModule>
             new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
             GetRequiredService<IUserClaimsPrincipalFactory<IdentityUser>>(),
             GetRequiredService<IOptions<IdentityOptions>>(),
-            NullLogger<SignInManager<IdentityUser>>.Instance,
+            NullLogger<KnownDefaultPasswordSignInManager>.Instance,
             Substitute.For<IAuthenticationSchemeProvider>(),
             GetRequiredService<IUserConfirmation<IdentityUser>>(),
             GetRequiredService<IOptions<AbpIdentityOptions>>(),

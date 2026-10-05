@@ -62,7 +62,7 @@ public abstract class UserSignatureStorageTests<TStartupModule>
     protected override void AfterAddApplication(IServiceCollection services)
     {
         _blobs = Substitute.For<IBlobContainer<UserSignaturesContainer>>();
-        services.Replace(ServiceDescriptor.Singleton(typeof(IBlobContainer<UserSignaturesContainer>), _blobs));
+        services.Replace(ServiceDescriptor.Singleton<IBlobContainer<UserSignaturesContainer>>(_blobs));
     }
 
     // ------------------------------------------------------------------ harness
@@ -108,10 +108,13 @@ public abstract class UserSignatureStorageTests<TStartupModule>
         await Should.ThrowAsync<UserFriendlyException>(() =>
             UploadAsync(userId, "sig.png", PngBytes, size: UserSignatureAppService.MaxFileSizeBytes + 1));
         await Should.ThrowAsync<UserFriendlyException>(() => UploadAsync(userId, "sig.gif", PngBytes));
+        // The LOCALIZED sentence, not the key. These two previously asserted the bare key, which is
+        // what the magic-byte guard really threw -- so the test documented the defect rather than
+        // the behaviour, and a user saw "UserSignature:UnsupportedFormat" on screen. See #966.
         (await Should.ThrowAsync<UserFriendlyException>(() => UploadAsync(userId, "sig.png", "GIF89a-x"u8.ToArray())))
-            .Message.ShouldBe("UserSignature:UnsupportedFormat");
+            .Message.ShouldBe("Only PNG, JPG, and JPEG signature images are accepted.");
         (await Should.ThrowAsync<UserFriendlyException>(() => UploadAsync(userId, "sig.png", new byte[] { 0x89, 0x50, 0x4E })))
-            .Message.ShouldBe("UserSignature:FileEmpty");
+            .Message.ShouldBe("The selected file is empty.");
 
         SavedBlobNames().ShouldBeEmpty();
         (await ReloadAsync(userId)).GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.UserSignatureBlobNamePropertyName)

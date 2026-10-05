@@ -111,6 +111,15 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         // and because this method takes the tenant as a parameter so a host-scope caller can
         // name the office (see EntityFrameworkCore/CLAUDE.md "Multi-tenancy").
         // OLD reference: AppointmentDomain.IsPatientRegistered (3-of-6 LINQ match).
+        // Phone and SSN: the caller passes digits only (PatientMatching.NormalisePhone /
+        // NormaliseSsn), while stored rows may carry separators (legacy data, imports, non-SPA
+        // callers). Strip the common separators from the STORED side in SQL so both sides are
+        // digit strings. Not a full digits-only normalisation (SQL REPLACE cannot strip letters,
+        // e.g. an "ext" suffix), so such a row stays a non-match, never a false match. An input
+        // that normalises to empty is treated as not supplied, or it would match empty rows.
+        // #1202: no stored-data change and no migration; per-office tables are small.
+        ssn = NullIfEmpty(PatientMatching.NormaliseSsn(ssn));
+        phone = NullIfEmpty(PatientMatching.NormalisePhone(phone));
         var dob = dateOfBirthDate.Date;
         var fn = firstName;
         var ln = lastName;
@@ -125,20 +134,17 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
                     (x.FirstName.ToLower() == fn ? 1 : 0) +
                     (x.LastName.ToLower() == ln ? 1 : 0) +
                     (x.DateOfBirth == dob ? 1 : 0) +
-                    (ssn != null && x.SocialSecurityNumber == ssn ? 1 : 0) +
-                    (phone != null && x.PhoneNumber == phone ? 1 : 0) +
+                    (ssn != null && x.SocialSecurityNumber!.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "").Replace("+", "").Replace("/", "") == ssn ? 1 : 0) +
+                    (phone != null && x.PhoneNumber!.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "").Replace("+", "").Replace("/", "") == phone ? 1 : 0) +
                     (zip != null && x.ZipCode == zip ? 1 : 0)
             });
 
-        var best = await query
+        return await query
             .Where(c => c.MatchCount >= PatientMatching.MinMatchCount)
             .OrderByDescending(c => c.MatchCount)
             .ThenBy(c => c.CreationTime)
+            .Select(c => new PatientMatchCandidate(c.Id, c.MatchCount, c.CreationTime))
             .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
-
-        return best is null
-            ? null
-            : new PatientMatchCandidate(best.Id, best.MatchCount, best.CreationTime);
     }
 
     public virtual async Task<List<Patient>> GetDeduplicationCandidatesAsync(
@@ -169,9 +175,9 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         // matches OLD's structure and lets the caller share the same
         // tested predicate (AppointmentBookingValidators.IsPatientDuplicate).
         var ln = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim().ToLower();
-        var ph = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        var ph = NullIfEmpty(PatientMatching.NormalisePhone(phone));
         var em = string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLower();
-        var sn = string.IsNullOrWhiteSpace(ssn) ? null : ssn.Trim();
+        var sn = NullIfEmpty(PatientMatching.NormaliseSsn(ssn));
         var dob = dateOfBirth?.Date;
 
         // ClaimNumber match: OLD asks "is the existing patient row's
@@ -194,10 +200,12 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         var preFilter = query.Where(p =>
             (ln != null && p.LastName != null && p.LastName.ToLower() == ln) ||
             (dob.HasValue && p.DateOfBirth == dob.Value) ||
-            (ph != null && p.PhoneNumber != null && p.PhoneNumber == ph) ||
+            (ph != null && p.PhoneNumber != null && p.PhoneNumber!.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "").Replace("+", "").Replace("/", "") == ph) ||
             (em != null && p.Email != null && p.Email.ToLower() == em) ||
-            (sn != null && p.SocialSecurityNumber != null && p.SocialSecurityNumber == sn));
+            (sn != null && p.SocialSecurityNumber != null && p.SocialSecurityNumber!.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "").Replace("+", "").Replace("/", "") == sn));
 
         return await preFilter.ToListAsync(GetCancellationToken(cancellationToken));
     }
+
+    private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 }

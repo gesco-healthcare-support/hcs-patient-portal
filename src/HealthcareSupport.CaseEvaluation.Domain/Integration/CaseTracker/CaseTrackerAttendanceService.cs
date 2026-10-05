@@ -151,6 +151,7 @@ public class CaseTrackerAttendanceService : ITransientDependency
                     // ahead of the catch-all below: widen either one and this becomes a 404, which
                     // is exactly the failure the three-way result exists to prevent.
                     _logger.LogInformation(
+                        ex,
                         "CaseTrackerAttendanceService: appointment {AppointmentId} in office {TenantId} cannot take {Outcome} from its current status; answering conflict.",
                         appointmentId, tenantId, outcome);
                     return CaseTrackerAttendanceOutcome.Conflict(appointment.AppointmentStatus);

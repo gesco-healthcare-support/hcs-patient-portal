@@ -314,13 +314,16 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
     private static BrandingDto ToDto(OfficeBranding? branding, Guid officeId, bool officeQualifiedUrl)
     {
         var hasLogo = branding != null && !string.IsNullOrWhiteSpace(branding.LogoBlobName);
+        string? logoUrl = null;
+        if (hasLogo)
+        {
+            logoUrl = officeQualifiedUrl ? BuildOfficeLogoUrl(officeId, branding!) : BuildLogoUrl(branding!);
+        }
         return new BrandingDto
         {
             DisplayName = branding?.DisplayName,
             HasLogo = hasLogo,
-            LogoUrl = hasLogo
-                ? (officeQualifiedUrl ? BuildOfficeLogoUrl(officeId, branding!) : BuildLogoUrl(branding!))
-                : null,
+            LogoUrl = logoUrl,
         };
     }
 

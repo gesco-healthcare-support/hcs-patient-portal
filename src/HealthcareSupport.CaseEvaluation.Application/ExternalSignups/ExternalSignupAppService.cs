@@ -38,6 +38,10 @@ using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
+// Not auto-exposed. The hand-written ExternalSignupController (public routes) and
+// ExternalSignupStaffController (signed-in routes the generated Angular client calls) are this
+// service's only HTTP surface, so there is exactly one route per method.
+[RemoteService(IsEnabled = false)]
 public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignupAppService
 {
     private readonly IdentityUserManager _userManager;
@@ -263,11 +267,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
         }
-        var externalRoleNames = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
-        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
-        var callerIsExternalOnly = callerRoles.Length > 0
-            && callerRoles.All(r => externalRoleNames.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
-        if (callerIsExternalOnly)
+        // Deny by default: only a recognised internal role gets the tenant-wide search.
+        // This used to be the inverse -- "not exclusively external roles" -- which sent a
+        // caller with NO roles, or an unrecognised role, down the internal-staff branch
+        // below and let it search every external user in the office. A zero-role account
+        // is reachable through ABP's stock self-registration. Mirrors
+        // AppointmentVisibilityService, which this lookup must agree with.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
         {
             // HIPAA-scoped: an external caller may look up ONLY the co-parties named
             // on appointments they can already see. Leak-equivalent -- the caller
@@ -321,18 +327,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         // Materialize the matched users once and read FirmName so the picker can
         // display a firm account's firm name when First/Last are blank. The list
         // is tenant-scoped + role-filtered, so this is a small set.
-        var matchedIds = usersWithRoleId.Select(u => u.Id).ToList();
-        var firmNameById = new Dictionary<Guid, string>();
-        if (matchedIds.Count > 0)
-        {
-            var fullUsers = await AsyncExecuter.ToListAsync(
-                userQuery.Where(u => matchedIds.Contains(u.Id)));
-            foreach (var fullUser in fullUsers)
-            {
-                firmNameById[fullUser.Id] = fullUser.GetProperty<string>(
-                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName) ?? string.Empty;
-            }
-        }
+        var firmNameById = await ReadFirmNamesAsync(
+            userQuery, usersWithRoleId.Select(u => u.Id).ToList());
 
         var items = new List<ExternalUserLookupDto>();
         foreach (var u in usersWithRoleId)
@@ -359,6 +355,24 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
         items = items.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ToList();
         return new ListResultDto<ExternalUserLookupDto>(items);
+    }
+
+    private async Task<Dictionary<Guid, string>> ReadFirmNamesAsync(IQueryable<IdentityUser> userQuery, List<Guid> matchedIds)
+    {
+        var firmNameById = new Dictionary<Guid, string>();
+        if (matchedIds.Count == 0)
+        {
+            return firmNameById;
+        }
+
+        var fullUsers = await AsyncExecuter.ToListAsync(
+            userQuery.Where(u => matchedIds.Contains(u.Id)));
+        foreach (var fullUser in fullUsers)
+        {
+            firmNameById[fullUser.Id] = fullUser.GetProperty<string>(
+                CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName) ?? string.Empty;
+        }
+        return firmNameById;
     }
 
     private static bool MatchesExternalUserFilter(string? name, string? surname, string? email, string? filter)
@@ -430,12 +444,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 && (!currentUserId.HasValue || u.Id != currentUserId.Value)));
 
         var userByEmail = new Dictionary<string, IdentityUser>(StringComparer.OrdinalIgnoreCase);
-        foreach (var u in matchedUsers)
+        foreach (var u in matchedUsers.Where(u => !string.IsNullOrWhiteSpace(u.Email)))
         {
-            if (!string.IsNullOrWhiteSpace(u.Email))
-            {
-                userByEmail[u.Email.Trim()] = u;
-            }
+            userByEmail[u.Email.Trim()] = u;
         }
 
         var items = new List<ExternalUserLookupDto>();
@@ -553,25 +564,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         // path runs against the server-resolved values. A tampered form
         // (different email or role than the invitation) cannot register
         // as a different identity.
-        Invitation? acceptedInvitation = null;
-        if (!string.IsNullOrWhiteSpace(input.InviteToken))
-        {
-            acceptedInvitation = await _invitationManager.ValidateAsync(input.InviteToken);
-            input.Email = acceptedInvitation.Email;
-            input.UserType = acceptedInvitation.UserType;
-            // Force the tenant context too, so the register path runs
-            // under the invitation's tenant regardless of any
-            // ?__tenant= or cookie context on the request.
-            input.TenantId = acceptedInvitation.TenantId;
-            // #21 (2026-06-16): if the inviter pre-set a firm name and the
-            // recipient left it blank, carry it through so the required
-            // attorney firm-name validation passes with the invited value.
-            if (string.IsNullOrWhiteSpace(input.FirmName)
-                && !string.IsNullOrWhiteSpace(acceptedInvitation.FirmName))
-            {
-                input.FirmName = acceptedInvitation.FirmName;
-            }
-        }
+        var acceptedInvitation = await ApplyInvitationAsync(input);
 
         // Phase 8 (2026-05-03) -- OLD-parity validation:
         //   - ConfirmPassword must equal Password (UserDomain.cs:88)
@@ -608,207 +601,24 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     code: CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail);
             }
 
-            var user = new IdentityUser(
-                GuidGenerator.Create(),
-                userName: input.Email,
-                email: input.Email,
-                tenantId: CurrentTenant.Id
-            )
-            {
-                // UM1 (2026-06-04): recipient-typed name wins; fall back to the
-                // name the inviter stored on the invitation so a blank register
-                // form still produces a personalized account.
-                Name = !string.IsNullOrWhiteSpace(input.FirstName)
-                    ? input.FirstName
-                    : acceptedInvitation?.FirstName,
-                Surname = !string.IsNullOrWhiteSpace(input.LastName)
-                    ? input.LastName
-                    : acceptedInvitation?.LastName,
-            };
+            var user = NewExternalUser(input, acceptedInvitation);
 
-            // Phase 8 (2026-05-03) -- mark this row as an external user
-            // (replaces OLD's UserType.ExternalUser=7 column). Extension
-            // properties registered in Phase 2.4 via
-            // CaseEvaluationModuleExtensionConfigurator. Persist BEFORE
-            // CreateAsync so the property write is part of the same
-            // INSERT (extra-properties are part of the entity row).
-            user.SetProperty(
-                CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName, true);
+            await CreateUserInRoleAsync(user, input.Password, roleName);
 
-            // Phase 8 (2026-05-03) -- OLD UserDomain.cs:104-108 persists
-            // FirmName + auto-derives FirmEmail from EmailId.ToLower() for
-            // attorneys. NEW respects an explicit FirmEmail when supplied;
-            // otherwise auto-derives, matching OLD behavior.
-            if (IsAttorneyRole(input.UserType))
+            switch (input.UserType)
             {
-                user.SetProperty(
-                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName,
-                    input.FirmName!.Trim());
-                user.SetProperty(
-                    CaseEvaluationModuleExtensionConfigurator.FirmEmailPropertyName,
-                    DeriveFirmEmail(input));
-            }
-
-            var createResult = await _userManager.CreateAsync(user, input.Password);
-            if (!createResult.Succeeded)
-            {
-                throw new UserFriendlyException(string.Join(", ", createResult.Errors.Select(x => x.Description)));
-            }
-
-            if (!await _userManager.IsInRoleAsync(user, roleName))
-            {
-                var roleResult = await _userManager.AddToRoleAsync(user, roleName);
-                if (!roleResult.Succeeded)
-                {
-                    throw new UserFriendlyException(string.Join(", ", roleResult.Errors.Select(x => x.Description)));
-                }
-            }
-
-            if (input.UserType == ExternalUserType.Patient)
-            {
-                // Merge (2026-06-07): take main's IP6 (2026-06-05) link-by-email
-                // -- booking creates a record-only Patient (null IdentityUserId),
-                // so on self-register CLAIM that existing record instead of
-                // creating a second row. KEEP the parity G-06-08 sentinel
-                // (Gender.Unspecified, not main's fabricated Gender.Male) for the
-                // create branch. Patient is IMultiTenant, so the query is
-                // auto-scoped to CurrentTenant.
-                var normalizedPatientEmail = input.Email.Trim().ToLower();
-                var patientQuery = await _patientRepository.GetQueryableAsync();
-                var unclaimedPatient = await AsyncExecuter.FirstOrDefaultAsync(
-                    patientQuery.Where(p =>
-                        p.IdentityUserId == null
-                        && p.Email.ToLower() == normalizedPatientEmail));
-                if (unclaimedPatient != null)
-                {
-                    unclaimedPatient.IdentityUserId = user.Id;
-                    await _patientRepository.UpdateAsync(unclaimedPatient);
-                }
-                else
-                {
-                    // No prior booking record. FirstName/LastName are not
-                    // collected on the minimal register form (Adrian, 2026-04-30);
-                    // normalize null to "". G-06-08: do not fabricate a real
-                    // gender -- Unspecified + MinValue are "not provided yet"
-                    // sentinels; the booking form requires real values at booking.
-                    await _patientManager.CreateAsync(
-                        stateId: null,
-                        appointmentLanguageId: null,
-                        identityUserId: user.Id,
-                        tenantId: CurrentTenant.Id,
-                        firstName: input.FirstName ?? string.Empty,
-                        lastName: input.LastName ?? string.Empty,
-                        email: input.Email,
-                        genderId: Gender.Unspecified,
-                        dateOfBirth: DateTime.MinValue,
-                        phoneNumberTypeId: PhoneNumberType.Home
-                    );
-                }
-            }
-            else if (input.UserType == ExternalUserType.ApplicantAttorney)
-            {
-                // Create the AA master WITH email + name + firm so the booker-side pre-fill
-                // ("Search by email" + lookup picker) discovers this AA on next booking, the
-                // tenant-admin AA management page surfaces them, and the appointment-AA join can
-                // point at a real row. F-006 / dedup fix (2026-06-23): the R2-4 (2026-06-22)
-                // parity change set email/name/firm for Defense Attorney + Claim Examiner but
-                // MISSED this Applicant Attorney branch, leaving a null-email master that the
-                // booking's find-by-email (FindByNormalizedEmailAsync) could not match -> a
-                // duplicate populated master was created on first booking. Now mirrors the DA
-                // branch below so the registration master is matched + reused.
-                // F-H01 (2026-06-25): register-after-booking. When a booking named
-                // this attorney's email before they had an account, it created an
-                // unclaimed master (IdentityUserId NULL) keyed by (TenantId, Email).
-                // Match by email as well as by identity and ADOPT that row -- claim
-                // the login + backfill the firm the user just typed -- instead of
-                // inserting a second row, which would violate the
-                // IX_AppApplicantAttorneys_TenantId_Email unique index and 500.
-                // Mirrors the Patient adopt-by-email path above.
-                var normalizedApplicantEmail = input.Email.Trim().ToLower();
-                var existingApplicantAttorney = await _applicantAttorneyRepository
-                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id
-                        || (a.IdentityUserId == null
-                            && a.Email != null
-                            && a.Email.ToLower() == normalizedApplicantEmail));
-                if (existingApplicantAttorney == null)
-                {
-                    await _applicantAttorneyManager.CreateAsync(
-                        stateId: null,
-                        identityUserId: user.Id,
-                        firmName: input.FirmName?.Trim(),
-                        email: input.Email,
-                        firstName: user.Name,
-                        lastName: user.Surname);
-                }
-                else if (existingApplicantAttorney.IdentityUserId == null)
-                {
-                    existingApplicantAttorney.IdentityUserId = user.Id;
-                    if (string.IsNullOrWhiteSpace(existingApplicantAttorney.FirmName)
-                        && !string.IsNullOrWhiteSpace(input.FirmName))
-                    {
-                        existingApplicantAttorney.FirmName = input.FirmName.Trim();
-                    }
-                    await _applicantAttorneyRepository.UpdateAsync(existingApplicantAttorney);
-                }
-            }
-            else if (input.UserType == ExternalUserType.DefenseAttorney)
-            {
-                // R2-4 (2026-06-22, D-R2-A reverses D-2): Defense Attorney now gets a
-                // saved master at registration, exactly like Applicant Attorney -- so the
-                // DA surfaces in the booker pre-fill + tenant-admin management page, the
-                // appointment-DA join can point at a real row, and the self-edit profile
-                // (MyAttorneyProfileAppService, which already supports DA) has a record to
-                // edit. FirmName is stored on the DefenseAttorney entity (not only the
-                // IdentityUser ExtraProperties), so /defense-attorneys shows the firm.
-                // F-H01 (2026-06-25): register-after-booking -- adopt the unclaimed
-                // email-keyed master a prior booking created (IdentityUserId NULL)
-                // instead of inserting a duplicate that would hit
-                // IX_AppDefenseAttorneys_TenantId_Email and 500. Symmetric with the
-                // Applicant Attorney branch above + the Patient adopt-by-email path.
-                var normalizedDefenseEmail = input.Email.Trim().ToLower();
-                var existingDefenseAttorney = await _defenseAttorneyRepository
-                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id
-                        || (a.IdentityUserId == null
-                            && a.Email != null
-                            && a.Email.ToLower() == normalizedDefenseEmail));
-                if (existingDefenseAttorney == null)
-                {
-                    await _defenseAttorneyManager.CreateAsync(
-                        stateId: null,
-                        identityUserId: user.Id,
-                        firmName: input.FirmName?.Trim(),
-                        email: input.Email,
-                        firstName: user.Name,
-                        lastName: user.Surname);
-                }
-                else if (existingDefenseAttorney.IdentityUserId == null)
-                {
-                    existingDefenseAttorney.IdentityUserId = user.Id;
-                    if (string.IsNullOrWhiteSpace(existingDefenseAttorney.FirmName)
-                        && !string.IsNullOrWhiteSpace(input.FirmName))
-                    {
-                        existingDefenseAttorney.FirmName = input.FirmName.Trim();
-                    }
-                    await _defenseAttorneyRepository.UpdateAsync(existingDefenseAttorney);
-                }
-            }
-            else if (input.UserType == ExternalUserType.ClaimExaminer)
-            {
-                // R2-4 (2026-06-22): Claim Examiner is a full external user like the
-                // others -- create its master at registration so the CE surfaces for
-                // linking and has a record to self-edit. CE has no firm fields (its
-                // schema differs by design); name + email come from the register form.
-                var existingClaimExaminer = await _claimExaminerRepository
-                    .FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
-                if (existingClaimExaminer == null)
-                {
-                    await _claimExaminerManager.CreateAsync(
-                        stateId: null,
-                        identityUserId: user.Id,
-                        email: input.Email,
-                        firstName: user.Name,
-                        lastName: user.Surname);
-                }
+                case ExternalUserType.Patient:
+                    await ClaimOrCreatePatientAsync(input, user);
+                    break;
+                case ExternalUserType.ApplicantAttorney:
+                    await ClaimOrCreateApplicantAttorneyAsync(input, user);
+                    break;
+                case ExternalUserType.DefenseAttorney:
+                    await ClaimOrCreateDefenseAttorneyAsync(input, user);
+                    break;
+                case ExternalUserType.ClaimExaminer:
+                    await EnsureClaimExaminerAsync(input, user);
+                    break;
             }
 
             // R2-4 dedup fix (2026-06-22): flush the party master the branch above
@@ -903,6 +713,245 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
     }
 
+    private IdentityUser NewExternalUser(ExternalUserSignUpDto input, Invitation? acceptedInvitation)
+    {
+        var user = new IdentityUser(
+            GuidGenerator.Create(),
+            userName: input.Email,
+            email: input.Email,
+            tenantId: CurrentTenant.Id
+        )
+        {
+            // UM1 (2026-06-04): recipient-typed name wins; fall back to the
+            // name the inviter stored on the invitation so a blank register
+            // form still produces a personalized account.
+            Name = !string.IsNullOrWhiteSpace(input.FirstName)
+                ? input.FirstName
+                : acceptedInvitation?.FirstName,
+            Surname = !string.IsNullOrWhiteSpace(input.LastName)
+                ? input.LastName
+                : acceptedInvitation?.LastName,
+        };
+
+        // Phase 8 (2026-05-03) -- mark this row as an external user
+        // (replaces OLD's UserType.ExternalUser=7 column). Extension
+        // properties registered in Phase 2.4 via
+        // CaseEvaluationModuleExtensionConfigurator. Persist BEFORE
+        // CreateAsync so the property write is part of the same
+        // INSERT (extra-properties are part of the entity row).
+        user.SetProperty(
+            CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName, true);
+
+        // Phase 8 (2026-05-03) -- OLD UserDomain.cs:104-108 persists
+        // FirmName + auto-derives FirmEmail from EmailId.ToLower() for
+        // attorneys. NEW respects an explicit FirmEmail when supplied;
+        // otherwise auto-derives, matching OLD behavior.
+        if (IsAttorneyRole(input.UserType))
+        {
+            user.SetProperty(
+                CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName,
+                input.FirmName!.Trim());
+            user.SetProperty(
+                CaseEvaluationModuleExtensionConfigurator.FirmEmailPropertyName,
+                DeriveFirmEmail(input));
+        }
+
+        return user;
+    }
+
+    private async Task CreateUserInRoleAsync(IdentityUser user, string password, string roleName)
+    {
+        var createResult = await _userManager.CreateAsync(user, password);
+        if (!createResult.Succeeded)
+        {
+            throw new UserFriendlyException(string.Join(", ", createResult.Errors.Select(x => x.Description)));
+        }
+
+        if (!await _userManager.IsInRoleAsync(user, roleName))
+        {
+            var roleResult = await _userManager.AddToRoleAsync(user, roleName);
+            if (!roleResult.Succeeded)
+            {
+                throw new UserFriendlyException(string.Join(", ", roleResult.Errors.Select(x => x.Description)));
+            }
+        }
+    }
+
+    private async Task<Invitation?> ApplyInvitationAsync(ExternalUserSignUpDto input)
+    {
+        if (string.IsNullOrWhiteSpace(input.InviteToken))
+        {
+            return null;
+        }
+
+        var acceptedInvitation = await _invitationManager.ValidateAsync(input.InviteToken);
+        input.Email = acceptedInvitation.Email;
+        input.UserType = acceptedInvitation.UserType;
+        // Force the tenant context too, so the register path runs
+        // under the invitation's tenant regardless of any
+        // ?__tenant= or cookie context on the request.
+        input.TenantId = acceptedInvitation.TenantId;
+        // #21 (2026-06-16): if the inviter pre-set a firm name and the
+        // recipient left it blank, carry it through so the required
+        // attorney firm-name validation passes with the invited value.
+        if (string.IsNullOrWhiteSpace(input.FirmName)
+            && !string.IsNullOrWhiteSpace(acceptedInvitation.FirmName))
+        {
+            input.FirmName = acceptedInvitation.FirmName;
+        }
+        return acceptedInvitation;
+    }
+
+    private async Task ClaimOrCreatePatientAsync(ExternalUserSignUpDto input, IdentityUser user)
+    {
+        // Merge (2026-06-07): take main's IP6 (2026-06-05) link-by-email
+        // -- booking creates a record-only Patient (null IdentityUserId),
+        // so on self-register CLAIM that existing record instead of
+        // creating a second row. KEEP the parity G-06-08 sentinel
+        // (Gender.Unspecified, not main's fabricated Gender.Male) for the
+        // create branch. Patient is IMultiTenant, so the query is
+        // auto-scoped to CurrentTenant.
+        var normalizedPatientEmail = input.Email.Trim().ToLower();
+        var patientQuery = await _patientRepository.GetQueryableAsync();
+        var unclaimedPatient = await AsyncExecuter.FirstOrDefaultAsync(
+            patientQuery.Where(p =>
+                p.IdentityUserId == null
+                && p.Email.ToLower() == normalizedPatientEmail));
+        if (unclaimedPatient != null)
+        {
+            unclaimedPatient.IdentityUserId = user.Id;
+            await _patientRepository.UpdateAsync(unclaimedPatient);
+        }
+        else
+        {
+            // No prior booking record. FirstName/LastName are not
+            // collected on the minimal register form (Adrian, 2026-04-30);
+            // normalize null to "". G-06-08: do not fabricate a real
+            // gender -- Unspecified + MinValue are "not provided yet"
+            // sentinels; the booking form requires real values at booking.
+            await _patientManager.CreateAsync(
+                stateId: null,
+                appointmentLanguageId: null,
+                identityUserId: user.Id,
+                tenantId: CurrentTenant.Id,
+                firstName: input.FirstName ?? string.Empty,
+                lastName: input.LastName ?? string.Empty,
+                email: input.Email,
+                genderId: Gender.Unspecified,
+                dateOfBirth: DateTime.MinValue,
+                phoneNumberTypeId: PhoneNumberType.Home
+            );
+        }
+    }
+
+    private async Task ClaimOrCreateApplicantAttorneyAsync(ExternalUserSignUpDto input, IdentityUser user)
+    {
+        // Create the AA master WITH email + name + firm so the booker-side pre-fill
+        // ("Search by email" + lookup picker) discovers this AA on next booking, the
+        // tenant-admin AA management page surfaces them, and the appointment-AA join can
+        // point at a real row. F-006 / dedup fix (2026-06-23): the R2-4 (2026-06-22)
+        // parity change set email/name/firm for Defense Attorney + Claim Examiner but
+        // MISSED this Applicant Attorney branch, leaving a null-email master that the
+        // booking's find-by-email (FindByNormalizedEmailAsync) could not match -> a
+        // duplicate populated master was created on first booking. Now mirrors the DA
+        // branch below so the registration master is matched + reused.
+        // F-H01 (2026-06-25): register-after-booking. When a booking named
+        // this attorney's email before they had an account, it created an
+        // unclaimed master (IdentityUserId NULL) keyed by (TenantId, Email).
+        // Match by email as well as by identity and ADOPT that row -- claim
+        // the login + backfill the firm the user just typed -- instead of
+        // inserting a second row, which would violate the
+        // IX_AppApplicantAttorneys_TenantId_Email unique index and 500.
+        // Mirrors the Patient adopt-by-email path above.
+        var normalizedApplicantEmail = input.Email.Trim().ToLower();
+        var existingApplicantAttorney = await _applicantAttorneyRepository
+            .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id
+                || (a.IdentityUserId == null
+                    && a.Email != null
+                    && a.Email.ToLower() == normalizedApplicantEmail));
+        if (existingApplicantAttorney == null)
+        {
+            await _applicantAttorneyManager.CreateAsync(
+                stateId: null,
+                identityUserId: user.Id,
+                firmName: input.FirmName?.Trim(),
+                email: input.Email,
+                firstName: user.Name,
+                lastName: user.Surname);
+        }
+        else if (existingApplicantAttorney.IdentityUserId == null)
+        {
+            existingApplicantAttorney.IdentityUserId = user.Id;
+            if (string.IsNullOrWhiteSpace(existingApplicantAttorney.FirmName)
+                && !string.IsNullOrWhiteSpace(input.FirmName))
+            {
+                existingApplicantAttorney.FirmName = input.FirmName.Trim();
+            }
+            await _applicantAttorneyRepository.UpdateAsync(existingApplicantAttorney);
+        }
+    }
+
+    private async Task ClaimOrCreateDefenseAttorneyAsync(ExternalUserSignUpDto input, IdentityUser user)
+    {
+        // R2-4 (2026-06-22, D-R2-A reverses D-2): Defense Attorney now gets a
+        // saved master at registration, exactly like Applicant Attorney -- so the
+        // DA surfaces in the booker pre-fill + tenant-admin management page, the
+        // appointment-DA join can point at a real row, and the self-edit profile
+        // (MyAttorneyProfileAppService, which already supports DA) has a record to
+        // edit. FirmName is stored on the DefenseAttorney entity (not only the
+        // IdentityUser ExtraProperties), so /defense-attorneys shows the firm.
+        // F-H01 (2026-06-25): register-after-booking -- adopt the unclaimed
+        // email-keyed master a prior booking created (IdentityUserId NULL)
+        // instead of inserting a duplicate that would hit
+        // IX_AppDefenseAttorneys_TenantId_Email and 500. Symmetric with the
+        // Applicant Attorney branch above + the Patient adopt-by-email path.
+        var normalizedDefenseEmail = input.Email.Trim().ToLower();
+        var existingDefenseAttorney = await _defenseAttorneyRepository
+            .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id
+                || (a.IdentityUserId == null
+                    && a.Email != null
+                    && a.Email.ToLower() == normalizedDefenseEmail));
+        if (existingDefenseAttorney == null)
+        {
+            await _defenseAttorneyManager.CreateAsync(
+                stateId: null,
+                identityUserId: user.Id,
+                firmName: input.FirmName?.Trim(),
+                email: input.Email,
+                firstName: user.Name,
+                lastName: user.Surname);
+        }
+        else if (existingDefenseAttorney.IdentityUserId == null)
+        {
+            existingDefenseAttorney.IdentityUserId = user.Id;
+            if (string.IsNullOrWhiteSpace(existingDefenseAttorney.FirmName)
+                && !string.IsNullOrWhiteSpace(input.FirmName))
+            {
+                existingDefenseAttorney.FirmName = input.FirmName.Trim();
+            }
+            await _defenseAttorneyRepository.UpdateAsync(existingDefenseAttorney);
+        }
+    }
+
+    private async Task EnsureClaimExaminerAsync(ExternalUserSignUpDto input, IdentityUser user)
+    {
+        // R2-4 (2026-06-22): Claim Examiner is a full external user like the
+        // others -- create its master at registration so the CE surfaces for
+        // linking and has a record to self-edit. CE has no firm fields (its
+        // schema differs by design); name + email come from the register form.
+        var existingClaimExaminer = await _claimExaminerRepository
+            .FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
+        if (existingClaimExaminer == null)
+        {
+            await _claimExaminerManager.CreateAsync(
+                stateId: null,
+                identityUserId: user.Id,
+                email: input.Email,
+                firstName: user.Name,
+                lastName: user.Surname);
+        }
+    }
+
     /// <summary>
     /// Backfills join rows for a freshly-registered external user against
     /// already-existing appointments where the booker had captured this user's
@@ -972,12 +1021,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             master.IdentityUserId = identityUserId;
             await _applicantAttorneyRepository.UpdateAsync(master);
         }
-        if (unlinkedMasters.Count > 0)
         {
-            // Patch any existing link rows that point at these masters so
-            // the attorney's "My Appointments" list surfaces them via the
-            // visibility filter on AppointmentApplicantAttorney.IdentityUserId.
-            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            // Patch link rows that point at any master this user now OWNS, not only
+            // the ones claimed just above: RegisterAsync's adopt-by-email step has
+            // usually claimed the master already, so the loop above finds none and
+            // a pre-booked link would stay unclaimed (invisible to the attorney via
+            // the AppointmentApplicantAttorney.IdentityUserId visibility filter).
+            var ownedMasterQuery = await _applicantAttorneyRepository.GetQueryableAsync();
+            var masterIds = (await AsyncExecuter.ToListAsync(
+                    ownedMasterQuery.Where(a => a.IdentityUserId == identityUserId).Select(a => a.Id)))
+                .Concat(unlinkedMasters.Select(m => m.Id))
+                .ToHashSet();
             var unlinkedLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
             var unlinkedLinks = await AsyncExecuter.ToListAsync(
                 unlinkedLinkQuery.Where(l =>
@@ -1038,9 +1092,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             master.IdentityUserId = identityUserId;
             await _defenseAttorneyRepository.UpdateAsync(master);
         }
-        if (unlinkedMasters.Count > 0)
         {
-            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            // Same as the applicant path: patch links of every master this user owns,
+            // since RegisterAsync has typically claimed the master already.
+            var ownedMasterQuery = await _defenseAttorneyRepository.GetQueryableAsync();
+            var masterIds = (await AsyncExecuter.ToListAsync(
+                    ownedMasterQuery.Where(a => a.IdentityUserId == identityUserId).Select(a => a.Id)))
+                .Concat(unlinkedMasters.Select(m => m.Id))
+                .ToHashSet();
             var unlinkedLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
             var unlinkedLinks = await AsyncExecuter.ToListAsync(
                 unlinkedLinkQuery.Where(l =>
@@ -1553,7 +1612,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     /// "Hi First Last," when a name is present and falls back to "Hello," when
     /// blank (fixes the OBS-27 empty "Hi ," greeting).
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> BuildInvitationVariables(
+    private static Dictionary<string, object?> BuildInvitationVariables(
         string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc,
         string? firstName = null, string? lastName = null)
     {

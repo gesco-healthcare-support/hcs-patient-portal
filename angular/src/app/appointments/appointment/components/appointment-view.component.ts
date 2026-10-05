@@ -330,6 +330,8 @@ export class AppointmentViewComponent implements OnInit {
           }
         });
       },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 
@@ -935,6 +937,8 @@ export class AppointmentViewComponent implements OnInit {
       next: (data) => {
         this.appointment = data;
       },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 
@@ -1016,6 +1020,8 @@ export class AppointmentViewComponent implements OnInit {
         next: (data) => {
           this.appointment = data;
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
     }
   }
@@ -1044,6 +1050,8 @@ export class AppointmentViewComponent implements OnInit {
         next: (data) => {
           this.appointment = data;
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
       // Refresh the consent indicator + button gating for the just-filed request.
       this.loadActiveChangeRequest(id);
@@ -1291,52 +1299,58 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
-    const draft = this.authorizedUserForm.getRawValue();
+    try {
+      const draft = this.authorizedUserForm.getRawValue();
 
-    if (this.authorizedUserModalMode === 'edit' && this.editingAuthorizedUserId) {
-      // EDIT changes only the rights; the update contract keys by the
-      // existing identityUserId.
-      await firstValueFrom(
-        this.restService.request<any, any>(
-          {
-            method: 'PUT',
-            url: `/api/app/appointment-accessors/${this.editingAuthorizedUserId}`,
-            body: {
-              appointmentId,
-              identityUserId: draft.identityUserId,
-              accessTypeId: draft.accessTypeId,
+      if (this.authorizedUserModalMode === 'edit' && this.editingAuthorizedUserId) {
+        // EDIT changes only the rights; the update contract keys by the
+        // existing identityUserId.
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'PUT',
+              url: `/api/app/appointment-accessors/${this.editingAuthorizedUserId}`,
+              body: {
+                appointmentId,
+                identityUserId: draft.identityUserId,
+                accessTypeId: draft.accessTypeId,
+              },
             },
-          },
-          { apiName: 'Default' },
-        ),
-      );
-    } else {
-      const email = (draft.email ?? '').trim();
-      // Dedup by email -- the typed email is the accessor's identity key.
-      const duplicate = this.appointmentAuthorizedUsers.some(
-        (x) => x.email.toLowerCase() === email.toLowerCase(),
-      );
-      if (duplicate) {
-        return;
+            { apiName: 'Default' },
+          ),
+        );
+      } else {
+        const email = (draft.email ?? '').trim();
+        // Dedup by email -- the typed email is the accessor's identity key.
+        const duplicate = this.appointmentAuthorizedUsers.some(
+          (x) => x.email.toLowerCase() === email.toLowerCase(),
+        );
+        if (duplicate) {
+          return;
+        }
+        // CREATE resolves the email to a user or provisions + invites one.
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'POST',
+              url: '/api/app/appointment-accessors',
+              body: {
+                appointmentId,
+                email,
+                firstName: (draft.firstName ?? '').trim() || undefined,
+                lastName: (draft.lastName ?? '').trim() || undefined,
+                role: draft.userRole,
+                accessTypeId: draft.accessTypeId,
+              },
+            },
+            { apiName: 'Default' },
+          ),
+        );
       }
-      // CREATE resolves the email to a user or provisions + invites one.
-      await firstValueFrom(
-        this.restService.request<any, any>(
-          {
-            method: 'POST',
-            url: '/api/app/appointment-accessors',
-            body: {
-              appointmentId,
-              email,
-              firstName: (draft.firstName ?? '').trim() || undefined,
-              lastName: (draft.lastName ?? '').trim() || undefined,
-              role: draft.userRole,
-              accessTypeId: draft.accessTypeId,
-            },
-          },
-          { apiName: 'Default' },
-        ),
-      );
+    } catch {
+      // ABP's RestService already reported the failure. Leave the modal open with the booker's
+      // input so they can correct it and retry; nothing was saved, so there is nothing to reload.
+      return;
     }
 
     this.closeAuthorizedUserModal();
@@ -1361,15 +1375,20 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
-    await firstValueFrom(
-      this.restService.request<any, any>(
-        {
-          method: 'DELETE',
-          url: `/api/app/appointment-accessors/${item.accessorId}`,
-        },
-        { apiName: 'Default' },
-      ),
-    );
+    try {
+      await firstValueFrom(
+        this.restService.request<any, any>(
+          {
+            method: 'DELETE',
+            url: `/api/app/appointment-accessors/${item.accessorId}`,
+          },
+          { apiName: 'Default' },
+        ),
+      );
+    } catch {
+      // ABP's RestService already reported the failure; the user was not removed, so the row stays.
+      return;
+    }
 
     this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.filter(
       (x) => x.accessorId !== item.accessorId,
@@ -1489,6 +1508,8 @@ export class AppointmentViewComponent implements OnInit {
           );
           this.refreshAuthorizedUserRoles();
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1684,6 +1705,8 @@ export class AppointmentViewComponent implements OnInit {
             } as AppointmentAuthorizedUserRow;
           });
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1735,6 +1758,8 @@ export class AppointmentViewComponent implements OnInit {
             this.applyApplicantAttorneyLookup(data);
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1790,6 +1815,8 @@ export class AppointmentViewComponent implements OnInit {
           }
           this.overlayDefenseAttorneySnapshot();
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => this.overlayDefenseAttorneySnapshot(),
       });
   }
 
@@ -1885,6 +1912,8 @@ export class AppointmentViewComponent implements OnInit {
             } as AppointmentInjuryDetailRow;
           });
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1979,27 +2008,31 @@ export class AppointmentViewComponent implements OnInit {
         },
         { apiName: 'Default' },
       )
-      .subscribe((response) => {
-        const item = response?.items?.[0];
-        const employer = item?.appointmentEmployerDetail;
-        if (!employer?.id) {
-          return;
-        }
+      .subscribe({
+        next: (response) => {
+          const item = response?.items?.[0];
+          const employer = item?.appointmentEmployerDetail;
+          if (!employer?.id) {
+            return;
+          }
 
-        this.employerDetailId = employer.id;
-        this.employerDetailConcurrencyStamp = employer.concurrencyStamp ?? null;
-        this.form.patchValue(
-          {
-            employerName: employer.employerName ?? '',
-            employerOccupation: employer.occupation ?? '',
-            employerPhoneNumber: employer.phoneNumber ?? '',
-            employerStreet: employer.street ?? '',
-            employerCity: employer.city ?? '',
-            employerStateId: employer.stateId ?? null,
-            employerZipCode: employer.zipCode ?? '',
-          },
-          { emitEvent: false },
-        );
+          this.employerDetailId = employer.id;
+          this.employerDetailConcurrencyStamp = employer.concurrencyStamp ?? null;
+          this.form.patchValue(
+            {
+              employerName: employer.employerName ?? '',
+              employerOccupation: employer.occupation ?? '',
+              employerPhoneNumber: employer.phoneNumber ?? '',
+              employerStreet: employer.street ?? '',
+              employerCity: employer.city ?? '',
+              employerStateId: employer.stateId ?? null,
+              employerZipCode: employer.zipCode ?? '',
+            },
+            { emitEvent: false },
+          );
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
