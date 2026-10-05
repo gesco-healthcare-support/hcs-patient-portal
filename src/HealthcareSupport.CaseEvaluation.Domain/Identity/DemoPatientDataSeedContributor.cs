@@ -138,8 +138,8 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
                 othersLanguageName: null);
 
             _logger.LogInformation(
-                "DemoPatientDataSeedContributor: created demo patient {Email} (tenant {TenantId}).",
-                email, tenantId);
+                "DemoPatientDataSeedContributor: created demo patient {UserId} (tenant {TenantId}).",
+                user.Id, tenantId);
         }
     }
 
@@ -159,14 +159,14 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
             if (!createResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "DemoPatientDataSeedContributor: failed to create {Email}: {Errors}",
-                    email,
+                    "DemoPatientDataSeedContributor: failed to create user {UserId}: {Errors}",
+                    user.Id,
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
             _logger.LogWarning(
-                "DemoPatientDataSeedContributor: DEMO SEED created {Email} (tenant {TenantId}) with the published default password.",
-                email, tenantId);
+                "DemoPatientDataSeedContributor: DEMO SEED created user {UserId} (tenant {TenantId}) with the published default password.",
+                user.Id, tenantId);
         }
 
         // Seeded demo accounts never receive a verification email; mark confirmed
@@ -192,9 +192,9 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
             if (!addRoleResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "DemoPatientDataSeedContributor: failed to assign '{RoleName}' to {Email}: {Errors}",
+                    "DemoPatientDataSeedContributor: failed to assign '{RoleName}' to user {UserId}: {Errors}",
                     RoleName,
-                    email,
+                    user.Id,
                     string.Join(", ", addRoleResult.Errors.Select(e => e.Description)));
             }
         }
