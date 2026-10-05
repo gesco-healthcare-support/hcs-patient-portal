@@ -26,10 +26,10 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
         return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(appointmentAccessor => new AppointmentAccessorWithNavigationProperties { AppointmentAccessor = appointmentAccessor, IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == appointmentAccessor.IdentityUserId), Appointment = dbContext.Set<Appointment>().FirstOrDefault(c => c.Id == appointmentAccessor.AppointmentId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public virtual async Task<List<AppointmentAccessorWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentAccessorWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, accessTypeId, identityUserId, appointmentId);
+        query = ApplyFilter(query, filterText, accessTypeId, identityUserId, appointmentId, restrictToAppointmentIds);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentAccessorConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
@@ -49,9 +49,9 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
                };
     }
 
-    protected virtual IQueryable<AppointmentAccessorWithNavigationProperties> ApplyFilter(IQueryable<AppointmentAccessorWithNavigationProperties> query, string? filterText, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null)
+    protected virtual IQueryable<AppointmentAccessorWithNavigationProperties> ApplyFilter(IQueryable<AppointmentAccessorWithNavigationProperties> query, string? filterText, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(accessTypeId.HasValue, e => e.AppointmentAccessor.AccessTypeId == accessTypeId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId);
+        return query.WhereIf(restrictToAppointmentIds != null, e => restrictToAppointmentIds!.Contains(e.AppointmentAccessor.AppointmentId)).WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(accessTypeId.HasValue, e => e.AppointmentAccessor.AccessTypeId == accessTypeId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId);
     }
 
     protected virtual IQueryable<AppointmentAccessor> ApplyFilter(IQueryable<AppointmentAccessor> query, string? filterText = null, AccessType? accessTypeId = null)
@@ -66,10 +66,10 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, accessTypeId, identityUserId, appointmentId);
+        query = ApplyFilter(query, filterText, accessTypeId, identityUserId, appointmentId, restrictToAppointmentIds);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }
