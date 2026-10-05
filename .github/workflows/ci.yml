@@ -43,7 +43,6 @@ permissions:
   contents: read
 
 env:
-  DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "22"
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -201,7 +200,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: global.json
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ~/.nuget/packages
@@ -548,7 +547,23 @@ jobs:
     name: "Docs: Structure Check"
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.shared == 'true'
+    # #908 follow-up / 2026-10-03: ALSO on backend and frontend, not shared alone.
+    #
+    # `check-claude-md.py` compares each per-folder CLAUDE.md against THE CODE BESIDE IT, so
+    # adding or renaming a source file is precisely what breaks it -- and a backend-only pull
+    # request classifies as `backend`, never `shared`. This job therefore SKIPPED on the one
+    # kind of change that can break it, the change merged, and every later pull request failed
+    # here for a drift none of them introduced. That happened on #1226, which added
+    # StockSelfRegistrationRefusal.cs with no mention in its folder's CLAUDE.md.
+    #
+    # The classifier's deny-by-default `*)` arm does not help: `src/**` is RECOGNISED, and
+    # correctly, as backend. The miscategorisation is here -- this reads as a docs job but is a
+    # code-versus-docs consistency job, so it must run whenever either side moves.
+    if: >-
+      needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.unclassified == 'true'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
@@ -581,7 +596,7 @@ jobs:
       # 3.12.x available, so interpreter security fixes still arrive without a commit
       # here. Raising it later is a deliberate edit, and the coverage-wheel check in the
       # `python-test` job below is the thing to repeat before doing so.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: "3.12"
       - name: Verify documentation structure
@@ -669,7 +684,7 @@ jobs:
       # Pinned rather than "3.x"; the reasoning is on the `docs-structure` job above.
       # Byte-identical output is this job's whole assertion, so an interpreter that can
       # change without a commit is a worse fit here than anywhere else in this file.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: "3.12"
       - name: Verify the packet generators emit byte-identical documents
@@ -690,7 +705,7 @@ jobs:
       # Pinned rather than "3.x"; the reasoning is on the `docs-structure` job above.
       # This is the job where the pin does real work, because of the `--only-binary :all:`
       # coupling recorded on the install step below.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: "3.12"
 
@@ -702,14 +717,17 @@ jobs:
       # dotnet-coverage 18.11.0: a pin locks in the toolchain that produced the
       # verified figure rather than whatever the index serves next.
       #
-      # NOT hash-pinned, and that is item 2.14's decision rather than an oversight
-      # (#700). Scorecard's PinnedDependenciesID wants --require-hashes against a
-      # requirements file carrying a hash for every transitive dependency. Declined
-      # for the same reason docker/packet-renderer/Dockerfile records: PyPI does not
-      # permit a published version to be re-uploaded with different content, so the
-      # residual risk a hash closes is a registry compromise, against which the cost
-      # is a lock file regenerated in full on every bump. The reason is repeated here
-      # because this is where a reader lands, not that Dockerfile.
+      # NOT hash-pinned, and that is a decision rather than an oversight (#700; kept
+      # by decision d36). Scorecard's PinnedDependenciesID wants --require-hashes
+      # against a requirements file carrying a hash for every transitive dependency.
+      # Declined HERE: PyPI does not permit a published version to be re-uploaded with
+      # different content, so the residual risk a hash closes is a registry
+      # compromise, and this job only measures coverage -- it ships nothing.
+      #
+      # The packet-renderer IMAGE went the other way in B8 (decision 18, reversing
+      # item 2.14): it renders documents carrying patient data, so its
+      # requirements.txt is hashed and installed with --require-hashes. Do not read
+      # the two as contradicting each other; they answer different risks.
       #
       # `--only-binary :all:` is ORTHOGONAL to that decision, and is what B9 adds here
       # (2026-09-25) instead of hashes. It refuses source distributions, so no sdist
@@ -823,7 +841,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: global.json
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ~/.nuget/packages
@@ -926,9 +944,16 @@ jobs:
             echo "::error::The backend test shards reported '$result'. Every shard must pass."
             exit 1
           fi
+      # This job merges the shards' coverage and never needed the source, so it had no
+      # checkout. setup-dotnet now reads the SDK version from global.json (B8), which has
+      # to be on disk: fetch that one file and nothing else.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          sparse-checkout: global.json
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: global.json
       - name: Install dotnet-coverage
         run: dotnet tool install --global dotnet-coverage --version 18.11.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
@@ -1137,7 +1162,7 @@ jobs:
           echo 'No UTC calendar dates in src/ or test/.'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: global.json
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ~/.nuget/packages
@@ -1462,9 +1487,11 @@ jobs:
       # HISTORY, kept so `git log` does not read as a mistake. #971 set 65, the honest truncate-down
       # of 67.73% (18077/26691 lines over 645 files at 52662e89). On 2026-09-18 Adrian raised it to
       # 75, SEVEN points above the measurement, as a TARGET to force the coverage work ("we are going
-      # to get the coverage up anyways"). It failed every pull request carrying this file until the
-      # backend reached 75, and those merges were admin-overridden with the failed checks confirmed
-      # each time. This block's git history has the full procedure and its 2026-09-18 correction.
+      # to get the coverage up anyways"). It failed every pull request whose diff made the backend
+      # applicable (the floors job classifies the diff and evaluates a stack only when that stack,
+      # `shared` or `unclassified` changed; an angular-only PR leaves backend NOT APPLICABLE and was
+      # never affected) until the backend reached 75, and those merges were admin-overridden with
+      # the failed checks confirmed each time. This block's git history has the full procedure and its 2026-09-18 correction.
       #
       # THAT TARGET WAS MET. Against the epic, backend measured 81.34% (21734/26720 lines over 646
       # files) on #1053's run 36035624090, and 83.42% (22290/26720) on #1056's sharded run
@@ -1591,7 +1618,7 @@ jobs:
       # This job decides whether a pull request passes the coverage floors, so the
       # interpreter that computes that verdict should be named in this file rather than
       # chosen by the runner image.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: "3.12"
 
@@ -1906,8 +1933,8 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4.9.1
+          global-json-file: global.json
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5.7.0
         with:
           distribution: temurin
           java-version: "17"
@@ -1957,14 +1984,17 @@ jobs:
       # different things and that should be loud here rather than discovered as
       # a disagreement in figures months later.
       #
-      # NOT hash-pinned, and that is item 2.14's decision rather than an oversight
-      # (#700). Scorecard's PinnedDependenciesID wants --require-hashes against a
-      # requirements file carrying a hash for every transitive dependency. Declined
-      # for the same reason docker/packet-renderer/Dockerfile records: PyPI does not
-      # permit a published version to be re-uploaded with different content, so the
-      # residual risk a hash closes is a registry compromise, against which the cost
-      # is a lock file regenerated in full on every bump. The reason is repeated here
-      # because this is where a reader lands, not that Dockerfile.
+      # NOT hash-pinned, and that is a decision rather than an oversight (#700; kept
+      # by decision d36). Scorecard's PinnedDependenciesID wants --require-hashes
+      # against a requirements file carrying a hash for every transitive dependency.
+      # Declined HERE: PyPI does not permit a published version to be re-uploaded with
+      # different content, so the residual risk a hash closes is a registry
+      # compromise, and this job only measures coverage -- it ships nothing.
+      #
+      # The packet-renderer IMAGE went the other way in B8 (decision 18, reversing
+      # item 2.14): it renders documents carrying patient data, so its
+      # requirements.txt is hashed and installed with --require-hashes. Do not read
+      # the two as contradicting each other; they answer different risks.
       # Each report is fetched only when its test job succeeded; a skipped stack has none.
       - name: Download backend coverage (VS XML)
         if: needs.backend-test.result == 'success'

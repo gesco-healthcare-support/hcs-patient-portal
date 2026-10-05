@@ -21,10 +21,9 @@ namespace HealthcareSupport.CaseEvaluation.AuthServer.Tests;
 /// path <c>AccountPageModelTests</c> records it cannot reach with a substitute.
 /// </summary>
 /// <remarks>
-/// The test module's "Default" token provider accepts ANY token, so a confirmation could never fail
-/// there. This class replaces it with <see cref="RefuseAllTokensProvider"/>, so the token the test
-/// submits is refused exactly as an expired or tampered link would be, and the page takes its
-/// failure branch. The user is created per test in office A, with a synthetic address.
+/// The test module's "Default" token provider validates only a token it issued (#1261), so the
+/// token this test submits, which it never issued, is refused exactly as an expired or tampered
+/// link would be, and the page takes its failure branch. The user is created per test in office A, with a synthetic address.
 /// </remarks>
 public abstract class EmailConfirmationFailureTests<TStartupModule>
     : CaseEvaluationApplicationTestBase<TStartupModule>
@@ -37,13 +36,6 @@ public abstract class EmailConfirmationFailureTests<TStartupModule>
     {
         _userManager = GetRequiredService<IdentityUserManager>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
-    }
-
-    protected override void AfterAddApplication(IServiceCollection services)
-    {
-        services.AddTransient<RefuseAllTokensProvider>();
-        services.Configure<IdentityOptions>(options =>
-            options.Tokens.ProviderMap["Default"] = new TokenProviderDescriptor(typeof(RefuseAllTokensProvider)));
     }
 
     [Fact]
@@ -74,19 +66,6 @@ public abstract class EmailConfirmationFailureTests<TStartupModule>
         warning.Level.ShouldBe(LogLevel.Warning);
         warning.Message.ShouldContain("InvalidToken");
         warning.Message.ShouldNotContain(nameof(IdentityError));
-    }
-
-    /// <summary>Refuses every token, so a confirmation always fails with <c>InvalidToken</c>.</summary>
-    private sealed class RefuseAllTokensProvider : IUserTwoFactorTokenProvider<IdentityUser>
-    {
-        public Task<string> GenerateAsync(string purpose, UserManager<IdentityUser> manager, IdentityUser user) =>
-            Task.FromResult("TEST-unused");
-
-        public Task<bool> ValidateAsync(string purpose, string token, UserManager<IdentityUser> manager, IdentityUser user) =>
-            Task.FromResult(false);
-
-        public Task<bool> CanGenerateTwoFactorTokenAsync(UserManager<IdentityUser> manager, IdentityUser user) =>
-            Task.FromResult(false);
     }
 
     /// <summary>Keeps every warning-or-above entry with its formatted message.</summary>

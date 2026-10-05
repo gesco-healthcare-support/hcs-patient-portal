@@ -113,7 +113,12 @@ public class PackageDetailsAppService : CaseEvaluationAppService, IPackageDetail
         Check.NotNull(input, nameof(input));
         Check.NotNull(input.AppointmentTypeId, nameof(input.AppointmentTypeId));
 
-        await EnsureNoActiveDuplicateAsync(input.AppointmentTypeId.Value, excludingId: null);
+        // The one-active-package rule constrains ACTIVE rows only, matching UpdateAsync. An inactive
+        // package never competes for the slot, so it must be creatable whatever the type already holds.
+        if (input.IsActive)
+        {
+            await EnsureNoActiveDuplicateAsync(input.AppointmentTypeId.Value, excludingId: null);
+        }
 
         var entity = new PackageDetail(
             id: _guidGenerator.Create(),

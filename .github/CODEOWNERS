@@ -1,5 +1,9 @@
-# CODEOWNERS — Appointment Portal
-* @gesco-healthcare-support/portal-devs
-docs/ @gesco-healthcare-support/portal-admins
-.github/ @gesco-healthcare-support/portal-admins
-docker/ @gesco-healthcare-support/portal-admins
+# CODEOWNERS - Appointment Portal
+#
+# Individual usernames, not teams: the org has no teams, so the previous
+# @gesco-healthcare-support/portal-* references resolved to nobody (#846).
+# Verify after any edit:
+#   gh api repos/gesco-healthcare-support/hcs-patient-portal/codeowners/errors --jq '.errors | length'
+# Review from code owners is NOT required by branch protection (0 approvals),
+# so this requests a reviewer; it does not gate the merge.
+* @lev0398

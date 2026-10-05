@@ -127,13 +127,16 @@ public class CaseTrackerReconcileControllerTests
     [InlineData("")]            // header present but empty
     [InlineData("wrong-token")]
     [InlineData("Sample-integration-token-value")] // differs only by case
-    public async Task WithoutTheCorrectToken_TheRequestIsUnauthorized(string? presented)
+    public async Task WithoutTheCorrectToken_TheRequestIsForbiddenWithTheEnvelope(string? presented)
     {
         var h = Build(presented);
 
         var result = await ActAsync(h);
 
-        result.ShouldBeOfType<UnauthorizedResult>();
+        var content = result.ShouldBeOfType<ContentResult>();
+        content.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+        content.ContentType.ShouldBe("application/json");
+        content.Content!.ShouldContain("\"code\":\"forbidden\"");
     }
 
     [Fact]

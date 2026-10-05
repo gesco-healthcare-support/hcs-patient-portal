@@ -2,7 +2,7 @@ import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder } from '@angular/forms';
 import { Injector } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, config, of, throwError } from 'rxjs';
 import { ConfigStateService, RestService } from '@abp/ng.core';
 import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 
@@ -114,6 +114,7 @@ describe('AppointmentWizardComponent shell', () => {
       confirmStatus?: unknown;
       attorneyProfile?: unknown;
       attorneyProfileThrows?: boolean;
+      failUrls?: string[];
     } = {},
   ): Probe {
     const params = options.queryParams ?? {};
@@ -181,6 +182,9 @@ describe('AppointmentWizardComponent shell', () => {
           useValue: {
             request: (req: { url: string }) => {
               restCalls.push(req.url);
+              if (options.failUrls?.some((u) => req.url.includes(u))) {
+                return throwError(() => ({ status: 500 }));
+              }
               return restFor(req.url);
             },
           },
@@ -1050,6 +1054,60 @@ describe('AppointmentWizardComponent shell', () => {
       expect(c.firmName).toBe('Hopper & Co');
       expect(c.navDisplayName).toBeTruthy();
     });
+  });
+
+  describe('ngOnInit lookups that fail (#1113)', () => {
+    /**
+     * Each name-cache lookup subscribed with no error branch, so ABP's rethrown copy of a failed
+     * request reached RxJS's unhandled-error path. One failure must not take the others with it:
+     * the review step falls back to showing the raw id for the one cache that is missing.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('survives every lookup failing and leaves the caches empty', fakeAsync(() => {
+      const c = create({
+        failUrls: [
+          'appointment-type-lookup',
+          'location-lookup',
+          'state-lookup',
+          'appointment-language-lookup',
+          'wcab-office-lookup',
+        ],
+      });
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.typeNames.size).toBe(0);
+      expect(c.locationNames.size).toBe(0);
+      expect(c.stateNames.size).toBe(0);
+      expect(c.languageNames.size).toBe(0);
+      expect(c.wcabNames.size).toBe(0);
+    }));
+
+    it('still caches the others when only the type lookup fails', fakeAsync(() => {
+      const c = create({ failUrls: ['appointment-type-lookup'] });
+
+      c.ngOnInit();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.typeNames.size).toBe(0);
+      expect(c.locationNames.get('loc-1')).toBe('Encino');
+      expect(c.stateNames.get('state-1')).toBe('California');
+    }));
   });
 
   describe('booker own-attorney prefill', () => {

@@ -49,6 +49,7 @@ import {
   buildSubmitPatient,
   buildSubmitPrimaryInsurance,
 } from './shared/submit-payload.mapper';
+import { storedPatientDetailsAreFinal } from './shared/patient-edit-notice.util';
 import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
   AddressValidationProvider,
@@ -1229,6 +1230,8 @@ export class AppointmentAddComponent {
             }
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1453,6 +1456,14 @@ export class AppointmentAddComponent {
     'defense attorney',
     'claim examiner',
   ];
+
+  /** #1107: an external booker with an existing patient loaded; their edits to it are not applied. */
+  get storedPatientDetailsAreFinal(): boolean {
+    return storedPatientDetailsAreFinal(
+      this.currentUser?.roles,
+      !!this.currentPatientProfile?.patient?.id,
+    );
+  }
 
   get isInternalBooker(): boolean {
     const roles = this.currentUser?.roles ?? [];
@@ -2809,90 +2820,97 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe((profile) => {
-        if (!profile?.identityUserId) {
-          return;
-        }
-        this.patientLabel = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
-        // 2026-05-07 (#14): the email control is no longer disabled by
-        // default (see form-build site), so an explicit enable() here is
-        // redundant. The HTML applies [readonly] for Patient bookers to
-        // gate editing without skipping validators.
-        this.form.get('patientId')?.clearValidators();
-        this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
-        this.form.patchValue({
-          identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
-          patientId: null,
-          firstName: null,
-          lastName: null,
-          middleName: null,
-          email: null,
-          genderId: null,
-          dateOfBirth: null,
-          cellPhoneNumber: null,
-          phoneNumber: null,
-          phoneNumberTypeId: null,
-          socialSecurityNumber: null,
-          street: null,
-          address: null,
-          city: null,
-          stateId: null,
-          zipCode: null,
-          appointmentLanguageId: null,
-          interpreterVendorName: null,
-          needsInterpreter: null,
-          refferedBy: null,
-          employerName: null,
-          employerOccupation: null,
-          employerPhoneNumber: null,
-          employerStreet: null,
-          employerCity: null,
-          employerStateId: null,
-          employerZipCode: null,
-        });
-        // Firm-model (D7 / C4): never auto-seed the attorney sections from the
-        // booker's own identity. A firm/paralegal AA or DA books on behalf of a
-        // DISTINCT attorney, so both sections start blank + editable. The former
-        // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
-        // because the *-details-for-booking endpoint returns the firm's OWN
-        // email + registration firm name for a firm account, which would re-seed
-        // the very identity we want kept out of the on-behalf section.
-        // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
-        // for self) now TYPES the attorney details each booking -- the add form
-        // has no AA lookup UI (the email-search box + picker live only on the
-        // appointment VIEW page). Submit still persists what they type to a
-        // master row keyed by the form email. "Solo attorney retypes" is the
-        // accepted trade-off (see the plan's Risks note).
-        this.form.patchValue({
-          applicantAttorneyIdentityUserId: null,
-          applicantAttorneyFirstName: null,
-          applicantAttorneyLastName: null,
-          applicantAttorneyEmail: null,
-          applicantAttorneyFirmName: null,
-          applicantAttorneyWebAddress: null,
-          applicantAttorneyPhoneNumber: null,
-          applicantAttorneyFaxNumber: null,
-          applicantAttorneyStreet: null,
-          applicantAttorneyCity: null,
-          applicantAttorneyStateId: null,
-          applicantAttorneyZipCode: null,
-          defenseAttorneyIdentityUserId: null,
-          defenseAttorneyFirstName: null,
-          defenseAttorneyLastName: null,
-          defenseAttorneyEmail: null,
-          defenseAttorneyFirmName: null,
-          defenseAttorneyWebAddress: null,
-          defenseAttorneyPhoneNumber: null,
-          defenseAttorneyFaxNumber: null,
-          defenseAttorneyStreet: null,
-          defenseAttorneyCity: null,
-          defenseAttorneyStateId: null,
-          defenseAttorneyZipCode: null,
-        });
-        this.applicantAttorneyId = null;
-        this.applicantAttorneyConcurrencyStamp = null;
-        this.defenseAttorneyId = null;
-        this.defenseAttorneyConcurrencyStamp = null;
+      .subscribe({
+        next: (profile) => {
+          if (!profile?.identityUserId) {
+            return;
+          }
+          this.patientLabel = [profile.firstName, profile.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          // 2026-05-07 (#14): the email control is no longer disabled by
+          // default (see form-build site), so an explicit enable() here is
+          // redundant. The HTML applies [readonly] for Patient bookers to
+          // gate editing without skipping validators.
+          this.form.get('patientId')?.clearValidators();
+          this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
+          this.form.patchValue({
+            identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
+            patientId: null,
+            firstName: null,
+            lastName: null,
+            middleName: null,
+            email: null,
+            genderId: null,
+            dateOfBirth: null,
+            cellPhoneNumber: null,
+            phoneNumber: null,
+            phoneNumberTypeId: null,
+            socialSecurityNumber: null,
+            street: null,
+            address: null,
+            city: null,
+            stateId: null,
+            zipCode: null,
+            appointmentLanguageId: null,
+            interpreterVendorName: null,
+            needsInterpreter: null,
+            refferedBy: null,
+            employerName: null,
+            employerOccupation: null,
+            employerPhoneNumber: null,
+            employerStreet: null,
+            employerCity: null,
+            employerStateId: null,
+            employerZipCode: null,
+          });
+          // Firm-model (D7 / C4): never auto-seed the attorney sections from the
+          // booker's own identity. A firm/paralegal AA or DA books on behalf of a
+          // DISTINCT attorney, so both sections start blank + editable. The former
+          // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
+          // because the *-details-for-booking endpoint returns the firm's OWN
+          // email + registration firm name for a firm account, which would re-seed
+          // the very identity we want kept out of the on-behalf section.
+          // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
+          // for self) now TYPES the attorney details each booking -- the add form
+          // has no AA lookup UI (the email-search box + picker live only on the
+          // appointment VIEW page). Submit still persists what they type to a
+          // master row keyed by the form email. "Solo attorney retypes" is the
+          // accepted trade-off (see the plan's Risks note).
+          this.form.patchValue({
+            applicantAttorneyIdentityUserId: null,
+            applicantAttorneyFirstName: null,
+            applicantAttorneyLastName: null,
+            applicantAttorneyEmail: null,
+            applicantAttorneyFirmName: null,
+            applicantAttorneyWebAddress: null,
+            applicantAttorneyPhoneNumber: null,
+            applicantAttorneyFaxNumber: null,
+            applicantAttorneyStreet: null,
+            applicantAttorneyCity: null,
+            applicantAttorneyStateId: null,
+            applicantAttorneyZipCode: null,
+            defenseAttorneyIdentityUserId: null,
+            defenseAttorneyFirstName: null,
+            defenseAttorneyLastName: null,
+            defenseAttorneyEmail: null,
+            defenseAttorneyFirmName: null,
+            defenseAttorneyWebAddress: null,
+            defenseAttorneyPhoneNumber: null,
+            defenseAttorneyFaxNumber: null,
+            defenseAttorneyStreet: null,
+            defenseAttorneyCity: null,
+            defenseAttorneyStateId: null,
+            defenseAttorneyZipCode: null,
+          });
+          this.applicantAttorneyId = null;
+          this.applicantAttorneyConcurrencyStamp = null;
+          this.defenseAttorneyId = null;
+          this.defenseAttorneyConcurrencyStamp = null;
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -2906,45 +2924,52 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe((profile) => {
-        const patient = profile?.patient;
-        if (!patient?.id) {
-          return;
-        }
+      .subscribe({
+        next: (profile) => {
+          const patient = profile?.patient;
+          if (!patient?.id) {
+            return;
+          }
 
-        this.currentPatientProfile = profile;
-        this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
-        this.form.patchValue({
-          patientId: patient.id,
-          identityUserId: patient.identityUserId ?? null,
-          firstName: patient.firstName ?? null,
-          lastName: patient.lastName ?? null,
-          middleName: patient.middleName ?? null,
-          email: patient.email ?? null,
-          genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
-          cellPhoneNumber: patient.cellPhoneNumber ?? null,
-          phoneNumber: patient.phoneNumber ?? null,
-          phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
-          street: patient.street ?? null,
-          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
-          address: unitForForm(patient),
-          city: patient.city ?? null,
-          stateId: patient.stateId ?? null,
-          zipCode: patient.zipCode ?? null,
-          appointmentLanguageId: patient.appointmentLanguageId ?? null,
-          interpreterVendorName: patient.interpreterVendorName ?? null,
-          needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
-          employerName: null,
-          employerOccupation: null,
-          employerPhoneNumber: null,
-          employerStreet: null,
-          employerCity: null,
-          employerStateId: null,
-          employerZipCode: null,
-        });
+          this.currentPatientProfile = profile;
+          this.patientLabel = [patient.firstName, patient.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          this.form.patchValue({
+            patientId: patient.id,
+            identityUserId: patient.identityUserId ?? null,
+            firstName: patient.firstName ?? null,
+            lastName: patient.lastName ?? null,
+            middleName: patient.middleName ?? null,
+            email: patient.email ?? null,
+            genderId: this.normalizePatientGender(patient.genderId),
+            dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+            cellPhoneNumber: patient.cellPhoneNumber ?? null,
+            phoneNumber: patient.phoneNumber ?? null,
+            phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+            socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+            street: patient.street ?? null,
+            // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+            address: unitForForm(patient),
+            city: patient.city ?? null,
+            stateId: patient.stateId ?? null,
+            zipCode: patient.zipCode ?? null,
+            appointmentLanguageId: patient.appointmentLanguageId ?? null,
+            interpreterVendorName: patient.interpreterVendorName ?? null,
+            needsInterpreter: !!patient.interpreterVendorName,
+            refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
+            employerName: null,
+            employerOccupation: null,
+            employerPhoneNumber: null,
+            employerStreet: null,
+            employerCity: null,
+            employerStateId: null,
+            employerZipCode: null,
+          });
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3174,6 +3199,8 @@ export class AppointmentAddComponent {
           // the role once the options arrive (mirrors the view page).
           this.backfillAuthorizedUserRoles();
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3250,6 +3277,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3322,6 +3351,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3385,6 +3416,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3457,6 +3490,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 

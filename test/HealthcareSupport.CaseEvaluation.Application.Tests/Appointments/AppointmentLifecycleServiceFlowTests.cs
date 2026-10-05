@@ -564,9 +564,55 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
         result.RequestStatus.ShouldBe(RequestStatusType.Rejected);
         (await InTenantA(() => _slotRepository.GetAsync(DoctorAvailabilitiesTestData.Slot2Id)))
             .BookingStatusId.ShouldBe(BookingStatus.Available);
-        Published<AppointmentStatusChangedEto>().ShouldHaveSingleItem().Reason.ShouldBe("No suitable date");
+        // The source is Pending: it never left Pending, so rejecting makes no transition and no event (#926).
+        (await InTenantA(() => _appointmentRepository.GetAsync(AppointmentA)))
+            .AppointmentStatus.ShouldBe(AppointmentStatusType.Pending);
+        Published<AppointmentStatusChangedEto>().ShouldBeEmpty();
         Published<NotificationsEvents.AppointmentChangeRequestRejectedEto>().ShouldHaveSingleItem()
             .ChangeRequestType.ShouldBe(ChangeRequestType.Reschedule);
+    }
+
+    [Fact]
+    public async Task Rejecting_a_reschedule_of_a_reschedule_requested_booking_reverts_it_to_approved_through_the_machine()
+    {
+        await InTenantA(async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(AppointmentA);
+            appointment.SeedStatus(AppointmentStatusType.RescheduleRequested);
+            return await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
+        var request = await InsertRequestAsync(ChangeRequestType.Reschedule);
+
+        await AsStaff(async () => await _decisions.RejectRescheduleAsync(request.Id,
+            new RejectChangeRequestInput { Reason = "  No suitable date  " }));
+
+        (await InTenantA(() => _appointmentRepository.GetAsync(AppointmentA)))
+            .AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+        var status = Published<AppointmentStatusChangedEto>().ShouldHaveSingleItem();
+        status.FromStatus.ShouldBe(AppointmentStatusType.RescheduleRequested);
+        status.ToStatus.ShouldBe(AppointmentStatusType.Approved);
+        status.Reason.ShouldBe("No suitable date");
+    }
+
+    [Fact]
+    public async Task Approving_a_cancellation_of_an_approved_booking_closes_it_through_the_machine()
+    {
+        await InTenantA(async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(AppointmentA);
+            appointment.SeedStatus(AppointmentStatusType.Approved);
+            return await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
+        var request = await InsertRequestAsync(ChangeRequestType.Cancel);
+
+        await AsStaff(async () => await _decisions.ApproveCancellationAsync(request.Id,
+            new ApproveCancellationInput { CancellationOutcome = AppointmentStatusType.CancelledNoBill, ConcurrencyStamp = request.ConcurrencyStamp }));
+
+        (await InTenantA(() => _appointmentRepository.GetAsync(AppointmentA)))
+            .AppointmentStatus.ShouldBe(AppointmentStatusType.CancelledNoBill);
+        var status = Published<AppointmentStatusChangedEto>().ShouldHaveSingleItem();
+        status.FromStatus.ShouldBe(AppointmentStatusType.Approved);
+        status.ToStatus.ShouldBe(AppointmentStatusType.CancelledNoBill);
     }
 
     [Fact]

@@ -122,6 +122,29 @@ systemd-run --unit=hcs-backup-alert-test --property=OnFailure=hcs-portal-backup-
 
 (`192.0.2.1` is a documentation address that answers nothing, so the ship step fails.)
 
+## Before a deploy that carries the scoped MinIO credential
+
+The application no longer connects to MinIO as root. `docker-compose.prod.yml` now reads
+`MINIO_APP_ACCESS_KEY` and `MINIO_APP_SECRET_KEY` from `secrets/env.prod`, and `minio-init` creates that user with a
+policy (`portal-app-rw`) limited to the `MINIO_BUCKET_NAME` bucket. A deploy does not edit `secrets/env.prod`, so
+add the keys by hand first. Without them compose refuses to run (`MINIO_APP_ACCESS_KEY is not set`) rather than
+starting the app with a blank or root credential.
+
+```bash
+cd /home/apadmin/hcs-patient-portal
+# new values, never reused from anywhere; the access key must differ from MINIO_ROOT_USER
+printf 'MINIO_APP_ACCESS_KEY=portal-app
+MINIO_APP_SECRET_KEY=%s
+' "$(openssl rand -hex 24)" >> secrets/env.prod
+grep -c '^MINIO_APP_' secrets/env.prod        # must print 2
+scripts/hosting/dc.sh up -d minio-init        # creates the user and policy; exits 0
+scripts/hosting/dc.sh logs minio-init         # expect "Attached policy portal-app-rw"
+```
+
+Then deploy as usual. Do not change `MINIO_ROOT_PASSWORD`; `minio-init`, `backup-offbox.sh` and the Case Tracker
+credential are separate from this. Re-running `minio-init` is safe: it re-applies the same policy and user and
+logs `Policy already attached` the second time.
+
 ## After cutover
 
 `backup-offbox.sh` retires when the portal moves to Azure: its destination is a private address the hosted portal

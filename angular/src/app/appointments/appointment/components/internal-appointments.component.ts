@@ -275,12 +275,16 @@ export class InternalAppointmentsComponent implements OnInit {
 
   private loadLookups(): void {
     const req = { filter: '', skipCount: 0, maxResultCount: 200 };
-    this.appointmentService
-      .getAppointmentTypeLookup(req)
-      .subscribe((res) => this.types.set(res.items ?? []));
-    this.appointmentService
-      .getLocationLookup(req)
-      .subscribe((res) => this.locations.set(res.items ?? []));
+    this.appointmentService.getAppointmentTypeLookup(req).subscribe({
+      next: (res) => this.types.set(res.items ?? []),
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
+    this.appointmentService.getLocationLookup(req).subscribe({
+      next: (res) => this.locations.set(res.items ?? []),
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
   }
 
   // ---- chips ----
@@ -357,7 +361,11 @@ export class InternalAppointmentsComponent implements OnInit {
     this.bookerTimer = setTimeout(() => {
       this.appointmentService
         .getIdentityUserLookup({ filter: term, skipCount: 0, maxResultCount: 8 })
-        .subscribe((res) => this.bookerResults.set(res.items ?? []));
+        .subscribe({
+          next: (res) => this.bookerResults.set(res.items ?? []),
+          // ABP's RestService already reported this failure; settle the rethrown copy.
+          error: () => undefined,
+        });
     }, 300);
   }
 
@@ -499,9 +507,13 @@ export class InternalAppointmentsComponent implements OnInit {
         filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.appointmentService.delete(this.rowId(row))),
       )
-      .subscribe(() => {
-        this.dropSelection(this.rowId(row));
-        this.reload();
+      .subscribe({
+        next: () => {
+          this.dropSelection(this.rowId(row));
+          this.reload();
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -519,9 +531,14 @@ export class InternalAppointmentsComponent implements OnInit {
         filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => forkJoin(ids.map((id) => this.appointmentService.delete(id)))),
       )
-      .subscribe(() => {
-        this.clearSelection();
-        this.reload();
+      .subscribe({
+        next: () => {
+          this.clearSelection();
+          this.reload();
+        },
+        // A bulk delete can fail part-way; reload so the list shows what was actually deleted.
+        // ABP's RestService already reported the failure.
+        error: () => this.reload(),
       });
   }
 

@@ -129,8 +129,7 @@ public class AppointmentChangeRequestsApprovalAppService :
         var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var fromStatus = appointment.AppointmentStatus;
 
-        // Apply terminal status to the parent appointment.
-        appointment.AppointmentStatus = input.CancellationOutcome;
+        // Companion fields first; the status itself moves through the state machine below.
         if (input.CancellationOutcome == AppointmentStatusType.CancelledNoBill ||
             input.CancellationOutcome == AppointmentStatusType.CancelledLate)
         {
@@ -144,23 +143,17 @@ public class AppointmentChangeRequestsApprovalAppService :
         }
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
+        // #926: apply the terminal status through the manager so the transition is validated. It
+        // also publishes AppointmentStatusChangedEto (slot cascade, notifications, audit).
+        await _appointmentManager.ConfirmCancellationAsync(
+            appointment.Id, input.CancellationOutcome, changeRequest.CancellationReason, CurrentUser.Id);
+        appointment = await _appointmentRepository.GetAsync(appointment.Id);
+
         // Mark the change request Accepted. Outcome, approver and timestamp move together.
         changeRequest.MarkDecided(
             RequestStatusType.Accepted, CurrentUser.Id, Clock.Now.ToUniversalTime());
         changeRequest.CancellationOutcome = input.CancellationOutcome;
         await PersistChangeRequestAsync(changeRequest);
-
-        // Drive the slot cascade -- SlotCascadeHandler maps
-        // CancelledNoBill / CancelledLate -> Available.
-        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-            appointmentId: appointment.Id,
-            tenantId: appointment.TenantId,
-            fromStatus: fromStatus,
-            toStatus: appointment.AppointmentStatus,
-            actingUserId: CurrentUser.Id,
-            reason: changeRequest.CancellationReason,
-            occurredAt: DateTime.UtcNow,
-            doctorAvailabilityId: appointment.DoctorAvailabilityId));
 
         // Phase-18-declared Eto for the per-feature email handler.
         await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestApprovedEto
@@ -679,14 +672,16 @@ public class AppointmentChangeRequestsApprovalAppService :
         var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var fromStatus = sourceAppointment.AppointmentStatus;
 
-        // Revert the parent to the status it held BEFORE the reschedule request, not a hardcoded
-        // Approved. An Approved source became RescheduleRequested on submit, so it reverts to
-        // Approved -- but B1 lets internal staff reschedule a still-Pending source, which never
-        // left Pending, and forcing Approved here would promote a never-approved appointment past
-        // the approval gate purely because its reschedule was rejected. Mirrors the approve path.
-        sourceAppointment.AppointmentStatus =
-            RescheduleSplitPolicy.ResolveParentStatusOnReject(fromStatus);
-        await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
+        // #926: revert through the state machine. Only RescheduleRequested has an edge back to
+        // Approved. A Pending source (internal staff may file a reschedule against one, B1) never
+        // left Pending, so it needs no write and no transition -- forcing Approved would promote a
+        // never-approved appointment past the approval gate.
+        if (fromStatus == AppointmentStatusType.RescheduleRequested)
+        {
+            await _appointmentManager.RejectRescheduleAsync(
+                sourceAppointment.Id, input.Reason.Trim(), CurrentUser.Id);
+            sourceAppointment = await _appointmentRepository.GetAsync(sourceAppointment.Id);
+        }
 
         // Mark change request Rejected. Outcome, rejector and timestamp move together.
         changeRequest.MarkDecided(
@@ -694,21 +689,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         changeRequest.RejectionNotes = input.Reason.Trim();
         await PersistChangeRequestAsync(changeRequest);
 
-        // Publish the parent's transition for the downstream notification + audit handlers.
-        // The slot cascade is capacity/count-based now (SlotCascadeHandler is a log-only stub),
-        // so this does not move the slot. toStatus is the reverted status: Approved for a
-        // RescheduleRequested source, Pending for an internal-staff Pending source -- a Pending
-        // -> Pending transition raises no approval notification, which is the correct outcome
-        // for a rejected reschedule of an unapproved appointment.
-        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-            appointmentId: sourceAppointment.Id,
-            tenantId: sourceAppointment.TenantId,
-            fromStatus: fromStatus,
-            toStatus: sourceAppointment.AppointmentStatus,
-            actingUserId: CurrentUser.Id,
-            reason: input.Reason.Trim(),
-            occurredAt: DateTime.UtcNow,
-            doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
+        // The manager published the RescheduleRequested -> Approved transition. A Pending source
+        // makes no transition, so there is nothing to publish for it (the old Pending -> Pending
+        // event raised no notification).
 
         // Gate 2 (2026-06-01) / OLD parity (AppointmentChangeRequestDomain.cs:600):
         // a reschedule submit puts the user-picked slot into Reserved as a transient

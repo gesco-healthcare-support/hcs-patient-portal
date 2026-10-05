@@ -119,11 +119,15 @@ export class AddressAutocompleteComponent implements OnInit, OnDestroy {
     this.subs.add(
       this.patientService
         .getStateLookup({ maxResultCount: 1000, skipCount: 0, filter: '' })
-        .subscribe((res) => {
-          this.stateLookup = (res?.items ?? []).map((i) => ({
-            id: String(i.id),
-            name: i.displayName ?? '',
-          }));
+        .subscribe({
+          next: (res) => {
+            this.stateLookup = (res?.items ?? []).map((i) => ({
+              id: String(i.id),
+              name: i.displayName ?? '',
+            }));
+          },
+          // ABP's RestService already reported this failure; settle the rethrown copy.
+          error: () => undefined,
         }),
     );
   }

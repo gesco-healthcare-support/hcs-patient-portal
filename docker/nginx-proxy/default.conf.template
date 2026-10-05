@@ -122,6 +122,13 @@ ssl_protocols TLSv1.2 TLSv1.3;
 ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
 ssl_prefer_server_ciphers off;
 
+# Strict-Transport-Security is set on every named 443 server (not the catch-all refusal, not port 80:
+# a browser ignores it over plain HTTP). max-age is one day to start: raise it once every office is
+# confirmed reachable over HTTPS, and only then consider includeSubDomains. NO `preload` -- it is
+# effectively irreversible and the public DNS name is not settled. includeSubDomains is omitted on
+# purpose: every host here sends its own header, so each is protected on its own visit, and the
+# directive on the apex would bind every office subdomain at once. `add_header` does NOT inherit into a
+# location that declares its own, so the /docs/ location repeats it.
 # HTTP -> HTTPS redirect for every host.
 server {
     access_log /var/log/nginx/access.log portal_noquery;
@@ -170,6 +177,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name *.auth.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
     # B5: per-client ceiling on sign-in traffic (zone defined at the top).
     limit_req zone=auth_per_ip burst=50 nodelay;
 
@@ -198,6 +207,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name *.api.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
     # B5: per-client ceiling on API traffic (zone defined at the top).
     limit_req zone=api_per_ip burst=200 nodelay;
 
@@ -257,6 +268,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -282,6 +295,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name health.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -311,6 +326,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name www.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -328,6 +345,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name ${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -362,6 +381,7 @@ server {
     # build time. The theme's repository-stats call to api.github.com is blocked by connect-src on
     # purpose, which leaves that badge empty.
     location /docs/ {
+        add_header Strict-Transport-Security "max-age=86400" always;
         root /usr/share/nginx;
         default_type application/octet-stream;
         absolute_redirect off;
@@ -390,6 +410,8 @@ server {
     listen 443 ssl;
     http2 on;
     server_name minio.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -435,11 +457,30 @@ server {
     listen 443 ssl;
     http2 on;
     server_name *.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
 
     client_max_body_size 15m;
+
+    # CSP, REPORT-ONLY. The static headers (nosniff, X-Frame-Options, Referrer-Policy,
+    # Permissions-Policy) are set by angular/nginx.conf and pass through proxy_pass; this one lives here
+    # because only the proxy knows ${BASE_DOMAIN}, the origin of the per-office API and AuthServer.
+    # Declared at server level and safe: this block has no location of its own that adds a header.
+    # NOT ENFORCING, and no report-uri: that would be a new public endpoint. Measured against the
+    # built SPA, 2026-10-05 -- what is provisional and why:
+    #   style-src 'unsafe-inline'  index.html carries an inline <style> (page loader, critical CSS)
+    #                              and the Google Fonts stylesheet; a nonce/hash needs a build step.
+    #   inline event handlers      index.html carries 7 onload="this.media='all'" on deferred
+    #                              stylesheets. script-src 'self' REPORTS them, and ENFORCING it would
+    #                              leave those stylesheets at media=print. Must be fixed first.
+    #   no unsafe-eval             @rxweb/reactive-form-validators calls new Function() only for
+    #                              string-expression validators; nothing observed needs it. If an
+    #                              enforcing trial shows a page that does, fix the page.
+    #   frame-ancestors            ignored in Report-Only; X-Frame-Options DENY does that job.
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.api.${BASE_DOMAIN} https://*.auth.${BASE_DOMAIN} https://us-street.api.smarty.com https://us-autocomplete-pro.api.smarty.com; object-src 'none'; base-uri 'self'; form-action 'self'" always;
 
     location / {
         proxy_pass http://angular:8080;

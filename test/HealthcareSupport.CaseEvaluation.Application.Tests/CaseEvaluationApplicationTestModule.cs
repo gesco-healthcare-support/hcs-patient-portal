@@ -49,17 +49,28 @@ public class CaseEvaluationApplicationTestModule : AbpModule
 /// <c>UserManager.GenerateUserTokenAsync</c> succeed under the unit-test harness
 /// (which wires no real DataProtector token provider). Not used in production.
 /// </summary>
+/// <remarks>
+/// It validates ONLY a token it generated for the same user, the same purpose and the user's
+/// CURRENT security stamp, as the real DataProtector provider does. It used to return true for
+/// anything, so under this harness a garbage, blank, tampered, wrong-user, wrong-purpose or
+/// already-consumed token (consuming rotates the stamp) all validated, and no test could show a
+/// token being refused (#1261).
+/// </remarks>
 public class NoOpTwoFactorTokenProvider : IUserTwoFactorTokenProvider<Volo.Abp.Identity.IdentityUser>
 {
     public Task<bool> CanGenerateTwoFactorTokenAsync(
         UserManager<Volo.Abp.Identity.IdentityUser> manager, Volo.Abp.Identity.IdentityUser user)
         => Task.FromResult(false);
 
-    public Task<string> GenerateAsync(
+    public async Task<string> GenerateAsync(
         string purpose, UserManager<Volo.Abp.Identity.IdentityUser> manager, Volo.Abp.Identity.IdentityUser user)
-        => Task.FromResult("test-token");
+        => await IssueAsync(purpose, manager, user);
 
-    public Task<bool> ValidateAsync(
+    public async Task<bool> ValidateAsync(
         string purpose, string token, UserManager<Volo.Abp.Identity.IdentityUser> manager, Volo.Abp.Identity.IdentityUser user)
-        => Task.FromResult(true);
+        => !string.IsNullOrEmpty(token) && string.Equals(token, await IssueAsync(purpose, manager, user), System.StringComparison.Ordinal);
+
+    private static async Task<string> IssueAsync(
+        string purpose, UserManager<Volo.Abp.Identity.IdentityUser> manager, Volo.Abp.Identity.IdentityUser user)
+        => $"test-token:{purpose}:{user.Id:N}:{await manager.GetSecurityStampAsync(user)}";
 }
