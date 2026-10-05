@@ -48,17 +48,43 @@ public class PatientBookingReadAccess : ITransientDependency
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentApplicantAttorney, Guid> _applicantAttorneyLinks;
     private readonly IRepository<AppointmentDefenseAttorney, Guid> _defenseAttorneyLinks;
+    private readonly IRepository<Patient, Guid> _patientRepository;
 
     public PatientBookingReadAccess(
         ICurrentUser currentUser,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentApplicantAttorney, Guid> applicantAttorneyLinks,
-        IRepository<AppointmentDefenseAttorney, Guid> defenseAttorneyLinks)
+        IRepository<AppointmentDefenseAttorney, Guid> defenseAttorneyLinks,
+        IRepository<Patient, Guid> patientRepository)
     {
+        _patientRepository = patientRepository;
         _currentUser = currentUser;
         _appointmentRepository = appointmentRepository;
         _applicantAttorneyLinks = applicantAttorneyLinks;
         _defenseAttorneyLinks = defenseAttorneyLinks;
+    }
+
+    /// <summary>
+    /// Booking against a SUPPLIED patient id (<c>AppointmentsAppService.SubmitAsync</c> with
+    /// <c>PatientId</c>) is held to the same rule as reading that patient: an id alone is not
+    /// entitlement. Booking makes the caller a party to the record, so accepting any id would let a
+    /// caller who knows or guesses one attach themselves to someone else's patient.
+    /// An EXTERNAL caller gets the same refusal for a missing id as for someone else's record, so the
+    /// refusal does not tell them which ids are real; staff keep a not-found, they may see every
+    /// patient in the office anyway.
+    /// </summary>
+    public virtual async Task EnsureCanBookForAsync(Guid patientId)
+    {
+        var patient = await _patientRepository.FindAsync(patientId);
+        if (patient == null && BookingFlowRoles.IsInternalUserCaller(_currentUser.Roles))
+        {
+            throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Patient), patientId);
+        }
+
+        if (patient == null || !await CanReadAsync(patient))
+        {
+            throw new Volo.Abp.Authorization.AbpAuthorizationException("Not authorized to book for this patient.");
+        }
     }
 
     public virtual async Task<bool> CanReadAsync(Patient patient)
