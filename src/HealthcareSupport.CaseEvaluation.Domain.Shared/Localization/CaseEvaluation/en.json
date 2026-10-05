@@ -320,6 +320,7 @@
     "CaseEvaluation:Appointment.ReBookSourceNotEligibleStaffHint": "That appointment cannot be booked again from its current status. Only Cancelled, No Show and Not Seen appointments are eligible.",
     "CaseEvaluation:Appointment.ReBookSourceAlreadyReBooked": "That appointment has already been booked again. Use the newer appointment's confirmation number instead.",
     "CaseEvaluation:AppointmentInvalidTransition": "This action is not allowed from the appointment's current status. The status may have changed in another tab -- refresh and try again.",
+    "CaseEvaluation:Appointment.AccessorRoleNotAllowed": "The accessor type must be Patient, Applicant Attorney, Defense Attorney or Claim Examiner.",
     "CaseEvaluation:Appointment.AccessorRoleMismatch": "The accessor '{email}' is already registered with a different user type. Select the correct accessor type and try again.",
     "CaseEvaluation:Appointment.AccessDenied": "You do not have permission to access this appointment.",
     "CaseEvaluation:Appointment.AttorneyFirmNameRequired": "Firm Name is required for the attorney section.",

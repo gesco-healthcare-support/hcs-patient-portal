@@ -489,6 +489,14 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.AccessorRoleMismatch";
 
     /// <summary>
+    /// Raised by <c>AppointmentAccessorManager.CreateOrLinkAsync</c> when the
+    /// requested accessor role is not one of the recognised external roles.
+    /// Localization key <c>CaseEvaluation:Appointment.AccessorRoleNotAllowed</c>.
+    /// </summary>
+    public const string AppointmentAccessorRoleNotAllowed =
+        "CaseEvaluation:Appointment.AccessorRoleNotAllowed";
+
+    /// <summary>
     /// Phase 13 (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.GetAsync / GetWithNavigationPropertiesAsync /
     /// GetByConfirmationNumberAsync</c> when the caller is an external
