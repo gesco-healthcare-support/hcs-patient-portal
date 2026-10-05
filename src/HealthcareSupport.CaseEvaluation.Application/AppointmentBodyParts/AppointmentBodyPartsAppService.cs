@@ -40,6 +40,16 @@ public class AppointmentBodyPartsAppService : CaseEvaluationAppService, IAppoint
     {
         var queryable = await _repository.GetQueryableAsync();
         var query = queryable.WhereIf(input.AppointmentInjuryDetailId.HasValue, x => x.AppointmentInjuryDetailId == input.AppointmentInjuryDetailId!.Value);
+        // Narrow in the query to body parts under injury details of appointments the caller may reach.
+        // Applied even when an injury detail is named, so naming someone else's yields an empty page.
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        if (readableAppointmentIds != null)
+        {
+            var readableInjuryDetailIds = (await _injuryDetailRepository.GetQueryableAsync())
+                .Where(i => readableAppointmentIds.Contains(i.AppointmentId))
+                .Select(i => i.Id);
+            query = query.Where(x => readableInjuryDetailIds.Contains(x.AppointmentInjuryDetailId));
+        }
         var totalCount = query.Count();
         var sorting = string.IsNullOrWhiteSpace(input.Sorting) ? AppointmentBodyPartConsts.GetDefaultSorting(false) : input.Sorting;
         var items = await query.OrderBy(sorting).PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<AppointmentBodyPart>();
@@ -53,7 +63,11 @@ public class AppointmentBodyPartsAppService : CaseEvaluationAppService, IAppoint
     [Authorize(CaseEvaluationPermissions.AppointmentBodyParts.Default)]
     public virtual async Task<AppointmentBodyPartDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentBodyPart, AppointmentBodyPartDto>(await _repository.GetAsync(id));
+        var entity = await _repository.GetAsync(id);
+        // A grandchild: the party check is against the appointment its injury detail belongs to.
+        var parentInjuryDetail = await _injuryDetailRepository.GetAsync(entity.AppointmentInjuryDetailId);
+        await _childOwnershipGuard.EnsureIsPartyAsync(parentInjuryDetail.AppointmentId);
+        return ObjectMapper.Map<AppointmentBodyPart, AppointmentBodyPartDto>(entity);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentBodyParts.Delete)]

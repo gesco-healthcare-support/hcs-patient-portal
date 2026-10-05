@@ -44,8 +44,9 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
     public virtual async Task<PagedResultDto<AppointmentInjuryDetailWithNavigationPropertiesDto>> GetListAsync(GetAppointmentInjuryDetailsInput input)
     {
-        var totalCount = await _repository.GetCountAsync(input.FilterText, input.AppointmentId, input.ClaimNumber);
-        var items = await _repository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AppointmentId, input.ClaimNumber, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var totalCount = await _repository.GetCountAsync(input.FilterText, input.AppointmentId, input.ClaimNumber, restrictToAppointmentIds: readableAppointmentIds);
+        var items = await _repository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AppointmentId, input.ClaimNumber, input.Sorting, input.MaxResultCount, input.SkipCount, restrictToAppointmentIds: readableAppointmentIds);
         return new PagedResultDto<AppointmentInjuryDetailWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
@@ -56,12 +57,15 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
     public virtual async Task<AppointmentInjuryDetailWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentInjuryDetailWithNavigationProperties, AppointmentInjuryDetailWithNavigationPropertiesDto>((await _repository.GetWithNavigationPropertiesAsync(id))!);
+        var item = await _repository.GetWithNavigationPropertiesAsync(id) ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(AppointmentInjuryDetail), id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(item.AppointmentInjuryDetail.AppointmentId);
+        return ObjectMapper.Map<AppointmentInjuryDetailWithNavigationProperties, AppointmentInjuryDetailWithNavigationPropertiesDto>(item);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
     public virtual async Task<List<AppointmentInjuryDetailWithNavigationPropertiesDto>> GetByAppointmentIdAsync(Guid appointmentId)
     {
+        await _childOwnershipGuard.EnsureIsPartyAsync(appointmentId);
         var items = await _repository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId);
         return ObjectMapper.Map<List<AppointmentInjuryDetailWithNavigationProperties>, List<AppointmentInjuryDetailWithNavigationPropertiesDto>>(items);
     }
@@ -69,7 +73,10 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
     public virtual async Task<AppointmentInjuryDetailDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentInjuryDetail, AppointmentInjuryDetailDto>(await _repository.GetAsync(id));
+        var entity = await _repository.GetAsync(id);
+        // Reading a child row is reading its parent appointment: the .Default permission ties the caller to no appointment.
+        await _childOwnershipGuard.EnsureIsPartyAsync(entity.AppointmentId);
+        return ObjectMapper.Map<AppointmentInjuryDetail, AppointmentInjuryDetailDto>(entity);
     }
 
     // Plain [Authorize]: any authenticated booker can read the WCAB office
