@@ -39,13 +39,18 @@ internal static class AttributeRouteTable
         {
             var prefix = controller.GetCustomAttribute<RouteAttribute>()?.Template ?? string.Empty;
             var actions = controller.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
-                .Where(a => a.GetCustomAttribute<RouteAttribute>() != null);
+                .Where(a => a.GetCustomAttribute<RouteAttribute>() != null
+                    || a.GetCustomAttributes<HttpMethodAttribute>().Any());
             foreach (var action in actions)
             {
-                var template = action.GetCustomAttribute<RouteAttribute>()!.Template;
+                // A route is its [Route] template, or else the template carried on the verb attribute, or else
+                // the controller's own prefix (a bare [HttpGet] at the controller root).
+                var template = action.GetCustomAttribute<RouteAttribute>()?.Template
+                    ?? action.GetCustomAttributes<HttpMethodAttribute>().Select(m => m.Template).FirstOrDefault(t => t != null)
+                    ?? string.Empty;
                 var path = template.StartsWith("~/", StringComparison.Ordinal)
                     ? template[2..]
-                    : $"{prefix.TrimEnd('/')}/{template}";
+                    : $"{prefix.TrimEnd('/')}/{template}".TrimEnd('/');
                 foreach (var verb in action.GetCustomAttributes<HttpMethodAttribute>().SelectMany(m => m.HttpMethods))
                 {
                     yield return new Entry(verb, path, action);
