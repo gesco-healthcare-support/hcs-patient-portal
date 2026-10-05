@@ -441,6 +441,23 @@ server {
 
     client_max_body_size 15m;
 
+    # CSP, REPORT-ONLY. The static headers (nosniff, X-Frame-Options, Referrer-Policy,
+    # Permissions-Policy) are set by angular/nginx.conf and pass through proxy_pass; this one lives here
+    # because only the proxy knows ${BASE_DOMAIN}, the origin of the per-office API and AuthServer.
+    # Declared at server level and safe: this block has no location of its own that adds a header.
+    # NOT ENFORCING, and no report-uri: that would be a new public endpoint. Measured against the
+    # built SPA, 2026-10-05 -- what is provisional and why:
+    #   style-src 'unsafe-inline'  index.html carries an inline <style> (page loader, critical CSS)
+    #                              and the Google Fonts stylesheet; a nonce/hash needs a build step.
+    #   inline event handlers      index.html carries 7 onload="this.media='all'" on deferred
+    #                              stylesheets. script-src 'self' REPORTS them, and ENFORCING it would
+    #                              leave those stylesheets at media=print. Must be fixed first.
+    #   no unsafe-eval             @rxweb/reactive-form-validators calls new Function() only for
+    #                              string-expression validators; nothing observed needs it. If an
+    #                              enforcing trial shows a page that does, fix the page.
+    #   frame-ancestors            ignored in Report-Only; X-Frame-Options DENY does that job.
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.api.${BASE_DOMAIN} https://*.auth.${BASE_DOMAIN} https://us-street.api.smarty.com https://us-autocomplete-pro.api.smarty.com; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+
     location / {
         proxy_pass http://angular:8080;
         proxy_http_version 1.1;
