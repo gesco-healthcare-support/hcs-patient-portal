@@ -42,8 +42,9 @@ public class AppointmentDefenseAttorneysAppService : CaseEvaluationAppService, I
     [Authorize(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default)]
     public virtual async Task<PagedResultDto<AppointmentDefenseAttorneyWithNavigationPropertiesDto>> GetListAsync(GetAppointmentDefenseAttorneysInput input)
     {
-        var totalCount = await _appointmentDefenseAttorneyRepository.GetCountAsync(input.FilterText, input.AppointmentId, input.DefenseAttorneyId, input.IdentityUserId);
-        var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AppointmentId, input.DefenseAttorneyId, input.IdentityUserId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var totalCount = await _appointmentDefenseAttorneyRepository.GetCountAsync(input.FilterText, input.AppointmentId, input.DefenseAttorneyId, input.IdentityUserId, restrictToAppointmentIds: readableAppointmentIds);
+        var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AppointmentId, input.DefenseAttorneyId, input.IdentityUserId, input.Sorting, input.MaxResultCount, input.SkipCount, restrictToAppointmentIds: readableAppointmentIds);
         return new PagedResultDto<AppointmentDefenseAttorneyWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
@@ -54,19 +55,26 @@ public class AppointmentDefenseAttorneysAppService : CaseEvaluationAppService, I
     [Authorize(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default)]
     public virtual async Task<AppointmentDefenseAttorneyWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentDefenseAttorneyWithNavigationProperties, AppointmentDefenseAttorneyWithNavigationPropertiesDto>((await _appointmentDefenseAttorneyRepository.GetWithNavigationPropertiesAsync(id))!);
+        var item = await _appointmentDefenseAttorneyRepository.GetWithNavigationPropertiesAsync(id) ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(AppointmentDefenseAttorney), id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(item.AppointmentDefenseAttorney.AppointmentId);
+        return ObjectMapper.Map<AppointmentDefenseAttorneyWithNavigationProperties, AppointmentDefenseAttorneyWithNavigationPropertiesDto>(item);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default)]
     public virtual async Task<AppointmentDefenseAttorneyDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentDefenseAttorney, AppointmentDefenseAttorneyDto>(await _appointmentDefenseAttorneyRepository.GetAsync(id));
+        var entity = await _appointmentDefenseAttorneyRepository.GetAsync(id);
+        // Reading a child row is reading its parent appointment: the .Default permission ties the caller to no appointment.
+        await _childOwnershipGuard.EnsureIsPartyAsync(entity.AppointmentId);
+        return ObjectMapper.Map<AppointmentDefenseAttorney, AppointmentDefenseAttorneyDto>(entity);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentLookupAsync(LookupRequestDto input)
     {
-        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
+        // Narrowed to appointments the caller may reach, in the query itself so the count and paging cannot leak the rest. Internal callers get null (no narrowing).
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(readableAppointmentIds != null, x => readableAppointmentIds!.Contains(x.Id)).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Appointments.Appointment>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

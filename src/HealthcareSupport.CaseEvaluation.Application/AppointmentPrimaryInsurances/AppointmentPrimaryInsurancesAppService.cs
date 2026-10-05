@@ -40,7 +40,9 @@ public class AppointmentPrimaryInsurancesAppService : CaseEvaluationAppService, 
     public virtual async Task<PagedResultDto<AppointmentPrimaryInsuranceDto>> GetListAsync(GetAppointmentPrimaryInsurancesInput input)
     {
         var queryable = await _repository.GetQueryableAsync();
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
         var query = queryable.WhereIf(input.AppointmentId.HasValue, x => x.AppointmentId == input.AppointmentId!.Value);
+        if (readableAppointmentIds != null) { query = query.Where(x => readableAppointmentIds.Contains(x.AppointmentId)); }
         var totalCount = query.Count();
         var sorting = string.IsNullOrWhiteSpace(input.Sorting) ? AppointmentPrimaryInsuranceConsts.GetDefaultSorting(false) : input.Sorting;
         var items = await query.OrderBy(sorting).PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<AppointmentPrimaryInsurance>();
@@ -54,7 +56,10 @@ public class AppointmentPrimaryInsurancesAppService : CaseEvaluationAppService, 
     [Authorize(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default)]
     public virtual async Task<AppointmentPrimaryInsuranceDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentPrimaryInsurance, AppointmentPrimaryInsuranceDto>(await _repository.GetAsync(id));
+        var entity = await _repository.GetAsync(id);
+        // Reading a child row is reading its parent appointment: the .Default permission ties the caller to no appointment.
+        await _childOwnershipGuard.EnsureIsPartyAsync(entity.AppointmentId);
+        return ObjectMapper.Map<AppointmentPrimaryInsurance, AppointmentPrimaryInsuranceDto>(entity);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default)]
