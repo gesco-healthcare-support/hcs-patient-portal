@@ -18,6 +18,7 @@ namespace HealthcareSupport.CaseEvaluation.MyAttorneyProfiles;
 /// values (snapshots are captured separately when an attorney is linked to an appointment).
 /// </summary>
 [Authorize]
+[RemoteService(IsEnabled = false)]
 public class MyAttorneyProfileAppService : CaseEvaluationAppService, IMyAttorneyProfileAppService
 {
     private const string ApplicantAttorneyRole = "Applicant Attorney";
