@@ -563,6 +563,10 @@ services:
       # command, rollback included. An internet-facing deployment must set it to the Case Tracker
       # egress address(es) only.
       MINIO_ALLOW_DIRECTIVES: "${MINIO_ALLOW_DIRECTIVES:-allow 10.0.0.0/8; allow 172.16.0.0/12; allow 192.168.0.0/16;}"
+      # Same convention for the documentation site at <domain>/docs/ (no login of its own). Default is the
+      # RFC1918 private ranges; loopback is allowed in the template. NEVER ${VAR:?}. An internet-facing
+      # deployment must set it to the office egress address(es) only.
+      DOCS_ALLOW_DIRECTIVES: "${DOCS_ALLOW_DIRECTIVES:-allow 10.0.0.0/8; allow 172.16.0.0/12; allow 192.168.0.0/16;}"
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
