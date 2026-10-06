@@ -28,6 +28,7 @@ HIPAA: the token map carries PHI (SSN / DOB). NEVER log the tokens, the substitu
 PDF -- only the template name and byte sizes. The service binds to 127.0.0.1 on the compose network.
 """
 
+import html as html_lib
 import logging
 import os
 import re
@@ -142,6 +143,42 @@ def _missing_templates() -> list[str]:
 # fixed.
 TOKEN_REGEX = re.compile(r"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##")
 
+def refuse_remote_fetch(url, *args, **kwargs):
+    """WeasyPrint url_fetcher: allow `data:` URIs only, refuse everything else.
+
+    Every template inlines its images as base64 data URIs at image build, so a render never needs
+    the network or the filesystem. Anything else (http, https, ftp, file, a bare relative path) can
+    only come from injected markup, and fetching it would let a value make the renderer issue
+    requests from inside the network. Raising makes WeasyPrint log the resource as failed and
+    carry on rendering without it; the render itself is not aborted.
+    """
+    if isinstance(url, str) and url[:5].lower() == "data:":
+        from weasyprint import default_url_fetcher
+
+        return default_url_fetcher(url, *args, **kwargs)
+    # Only the scheme is reported: the URL is caller-supplied text.
+    scheme = url.split(":", 1)[0][:10] if isinstance(url, str) and ":" in url else "relative"
+    raise ValueError(f"packet-renderer refuses to fetch non-data resources (scheme: {scheme})")
+
+
+def substitute_tokens(template, tokens):
+    """Single-pass ##Group.Field## substitution with every value HTML-escaped.
+
+    Values are patient/party-entered text placed into HTML markup, so they are escaped (quotes
+    included, for attribute positions) and can only render as literal text. Nothing upstream
+    escapes -- the .NET side sends raw strings -- so this does not double-escape.
+    """
+
+    def _value(match):
+        token = match.group(0)
+        if token not in tokens:
+            return token
+        value = tokens[token]
+        return html_lib.escape("" if value is None else str(value), quote=True)
+
+    return TOKEN_REGEX.sub(_value, template)
+
+
 app = Flask(__name__)
 
 
@@ -195,12 +232,12 @@ def render():
 
     # Single-pass substitution; unknown ##tokens## stay literal (mirrors the .NET DOCX path so a
     # mapping gap shows in the output instead of being silently blanked).
-    html = TOKEN_REGEX.sub(lambda m: tokens.get(m.group(0), m.group(0)), template)
+    html = substitute_tokens(template, tokens)
 
     fd, path = tempfile.mkstemp(suffix=".pdf")
     os.close(fd)
     try:
-        HTML(string=html).write_pdf(path, pdf_forms=True)
+        HTML(string=html, url_fetcher=refuse_remote_fetch).write_pdf(path, pdf_forms=True)
         post_process.finalize(path)
         with open(path, "rb") as fh:
             pdf = fh.read()
