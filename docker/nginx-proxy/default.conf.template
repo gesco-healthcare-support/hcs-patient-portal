@@ -107,6 +107,39 @@ map $http_upgrade $connection_upgrade {
 # gateway; on the LAN it is the direct peer.
 limit_req_zone $binary_remote_addr zone=api_per_ip:10m rate=20r/s;
 limit_req_zone $binary_remote_addr zone=auth_per_ip:10m rate=10r/s;
+# Modest ceiling for the MinIO S3 vhost: one legitimate client (the Case Tracker) syncing documents.
+limit_req_zone $binary_remote_addr zone=minio_per_ip:10m rate=50r/s;
+
+# Credential-accepting endpoints on the AuthServer get a MUCH tighter ceiling than the generic
+# auth_per_ip zone above, which at 10 r/s allows roughly 860,000 password guesses a day per address.
+#
+# DONE WITH A MAP, NOT WITH EXTRA location BLOCKS. limit_req_zone does not count a request whose key is
+# empty, so the map yields the client address for a credential request and "" for everything else. That
+# keeps the single `location /` (and its proxy headers) intact and adds no block in which an add_header
+# would have to be repeated. The match runs on $uri, which nginx has already decoded and normalised,
+# case-insensitively (ASP.NET Core routing is case-insensitive, so /account/login reaches the same page),
+# with an optional trailing slash. Only POST is keyed: page loads, the authorize redirect and static
+# assets are never counted.
+#
+# signin_per_ip: 10 r/min, burst 10. A clinic shares one public IP, so ten quick sign-ins pass at once and
+# the bucket then refills one every 6 s. About 14,400 attempts a day per address instead of 860,000.
+# token_per_ip: /connect/token is also the 15-minute refresh-token exchange every signed-in browser makes,
+# so it needs headroom for a whole office behind one address: 60 r/min, burst 30.
+#
+# The /api/account/ rule is a catch-all on POST so an endpoint the framework adds later is throttled by
+# default; dynamic-claims/ is the one chatty, credential-free exception and is listed first (first match wins).
+map "$request_method:$uri" $signin_throttle_key {
+    default "";
+    ~*^POST:/Account/(Login|ForgotPassword|ResetPassword|ResendVerification|Register|ConfirmUser|EmailConfirmation)/?$ $binary_remote_addr;
+    ~*^POST:/api/account/dynamic-claims/ "";
+    ~*^POST:/api/account/ $binary_remote_addr;
+}
+map "$request_method:$uri" $token_throttle_key {
+    default "";
+    ~*^POST:/connect/token/?$ $binary_remote_addr;
+}
+limit_req_zone $signin_throttle_key zone=signin_per_ip:10m rate=10r/m;
+limit_req_zone $token_throttle_key zone=token_per_ip:10m rate=60r/m;
 # 429 rather than nginx's default 503, so a refusal reads as "slow down", not "server broken".
 # Every refusal is logged at warn, so the ceilings can be tuned from real traffic after the pilot.
 limit_req_status 429;
@@ -181,6 +214,9 @@ server {
     add_header Strict-Transport-Security "max-age=86400" always;
     # B5: per-client ceiling on sign-in traffic (zone defined at the top).
     limit_req zone=auth_per_ip burst=50 nodelay;
+    # Tighter dedicated ceilings for credential and token requests (keys defined at the top).
+    limit_req zone=signin_per_ip burst=10 nodelay;
+    limit_req zone=token_per_ip burst=30 nodelay;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
@@ -400,7 +436,16 @@ server {
 # becomes a RESERVED office slug, like `admin`.
 #
 # MinIO is NOT published to the host. The proxy reaches it on the compose network,
-# so the only way in stays 443 here, with MinIO's own credentials as the gate.
+# so the only way in stays 443 here. MinIO's own credentials are NOT the only gate: this vhost is
+# restricted to an address allow-list, because the only legitimate callers are the Case Tracker and
+# operators on the private network.
+#
+# MINIO_ALLOW_DIRECTIVES carries COMPLETE allow directives, for the same reason as the trusted-proxy
+# variables at the top (envsubst cannot emit a line per list item). Compose always defines it, and
+# defaults it to the RFC1918 private ranges, so the on-prem server keeps working without any new key in
+# its env file. A deployment reachable from the internet must set it to the Case Tracker egress
+# address(es) only. The `deny all;` after it makes an EMPTY value fail closed. Named without the
+# dollar-brace form in this comment so envsubst does not expand it here.
 #
 # Addressing is PATH-STYLE (bucket in the path). Virtual-host addressing would put
 # the bucket in the hostname, and the wildcard certificate covers a single label
@@ -416,9 +461,16 @@ server {
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
     ssl_certificate_key /etc/nginx/certs/wildcard.key;
 
-    # Objects, not form posts: medical records routinely exceed the 15m used by
-    # the app vhosts. MinIO enforces its own limits, so bound it there, not here.
-    client_max_body_size 0;
+    allow 127.0.0.1;
+    allow ::1;
+    ${MINIO_ALLOW_DIRECTIVES}
+    deny all;
+    limit_req zone=minio_per_ip burst=200 nodelay;
+
+    # Objects, not form posts: medical records exceed the 15m used by the app vhosts (the app's own
+    # upload cap is 10 MB; the Case Tracker's document sizes are not documented). 100m is a generous
+    # explicit bound, replacing the former unlimited 0, so one request cannot stream without limit.
+    client_max_body_size 100m;
 
     # Stream both directions. Without these nginx spools whole objects to disk
     # before forwarding, which stalls large uploads and doubles disk churn.
