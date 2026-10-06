@@ -17,6 +17,7 @@ public abstract class AppointmentTypesAppServiceTests<TStartupModule> : CaseEval
 
     protected AppointmentTypesAppServiceTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _appointmentTypesAppService = GetRequiredService<IAppointmentTypesAppService>();
         _appointmentTypeRepository = GetRequiredService<IAppointmentTypeRepository>();
         _appointmentTypeManager = GetRequiredService<AppointmentTypeManager>();

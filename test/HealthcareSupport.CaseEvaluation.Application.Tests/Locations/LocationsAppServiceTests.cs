@@ -26,6 +26,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
 
     protected LocationsAppServiceTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _locationsAppService = GetRequiredService<ILocationsAppService>();
         _locationRepository = GetRequiredService<ILocationRepository>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();

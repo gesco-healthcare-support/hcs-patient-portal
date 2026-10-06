@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
@@ -82,23 +83,34 @@ public abstract class DashboardHostViewTests<TStartupModule> : DashboardTestsBas
 
     /// <summary>
     /// The host "total locations" tile sums each office's OWN locations, so a
-    /// catalog row that belongs to no office is counted nowhere.
+    /// location that belongs to no office is counted nowhere.
     ///
-    /// <para>The seeded locations are the negative case and they already exist: the
-    /// integration seed inserts them host-scoped, so they are visible to a host
-    /// query and invisible to every office. The test asserts they exist and that the
-    /// tile still moves by exactly one when an office-owned location is added.
-    /// Counting locations outside the per-office hop would make the tile a constant
-    /// multiple of the host-visible catalog and the delta would be zero.</para>
-    ///
-    /// <para>This documents current behaviour; it does not claim the behaviour is
-    /// right. Whether the location catalog should be per-office or shared is an open
-    /// question elsewhere, and it should be settled there rather than by editing
-    /// this assertion.</para>
+    /// <para>Production never holds such a row (every seeder skips host scope and the
+    /// catalog is per-office), so the negative case is built here on purpose: a
+    /// host-scoped stray is inserted, and the tile must still move by exactly one when
+    /// an office-owned location is added. Counting locations outside the per-office hop
+    /// would make the tile a constant multiple of the host-visible rows and the delta
+    /// would not be one. (The integration seed used to supply this stray by accident,
+    /// by seeding the catalog host-scoped; it now seeds it per office, #764.)</para>
     /// </summary>
     [Fact]
     public async Task GetDashboardAsync_InHostScope_SumsOnlyLocationsThatBelongToAnOffice()
     {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (Tenancy.Change(null))
+            {
+                await LocationRepository.InsertAsync(
+                    new Location(
+                        id: Guid.NewGuid(),
+                        stateId: null,
+                        name: $"TEST-DSH-Stray-{Guid.NewGuid().ToString("N")[..8]}",
+                        parkingFee: 0m,
+                        isActive: true),
+                    autoSave: true);
+            }
+        });
+
         var hostScopedLocations = await WithUnitOfWorkAsync(async () =>
         {
             using (Tenancy.Change(null))
@@ -106,9 +118,9 @@ public abstract class DashboardHostViewTests<TStartupModule> : DashboardTestsBas
                 return await LocationRepository.CountAsync();
             }
         });
-        // The office-less catalog rows are the negative this test needs. Without
-        // them the delta below would prove nothing about WHICH locations are
-        // counted, only that adding one moves the tile.
+        // The office-less row is the negative this test needs. Without it the
+        // delta below would prove nothing about WHICH locations are counted,
+        // only that adding one moves the tile.
         hostScopedLocations.ShouldBeGreaterThan(0);
 
         var before = await GetDashboardAsync(null, DashboardRange.Week);

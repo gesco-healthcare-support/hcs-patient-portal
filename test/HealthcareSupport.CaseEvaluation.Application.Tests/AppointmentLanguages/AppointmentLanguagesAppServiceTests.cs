@@ -17,6 +17,7 @@ public abstract class AppointmentLanguagesAppServiceTests<TStartupModule> : Case
 
     protected AppointmentLanguagesAppServiceTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _languagesAppService = GetRequiredService<IAppointmentLanguagesAppService>();
         _languageRepository = GetRequiredService<IAppointmentLanguageRepository>();
         _languageManager = GetRequiredService<AppointmentLanguageManager>();

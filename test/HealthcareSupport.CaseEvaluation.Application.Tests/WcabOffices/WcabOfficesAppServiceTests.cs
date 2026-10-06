@@ -17,6 +17,7 @@ public abstract class WcabOfficesAppServiceTests<TStartupModule> : CaseEvaluatio
 
     protected WcabOfficesAppServiceTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _officesAppService = GetRequiredService<IWcabOfficesAppService>();
         _officeRepository = GetRequiredService<IWcabOfficeRepository>();
         _officeManager = GetRequiredService<WcabOfficeManager>();

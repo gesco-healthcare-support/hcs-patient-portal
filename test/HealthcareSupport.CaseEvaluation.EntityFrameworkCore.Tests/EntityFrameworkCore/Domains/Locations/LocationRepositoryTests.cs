@@ -13,6 +13,7 @@ public class LocationRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 
     public LocationRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _locationRepository = GetRequiredService<ILocationRepository>();
     }
 
