@@ -143,25 +143,16 @@ public class AccountPageModelTests
         ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "surfacing generic success");
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Resend_verification_logs_no_address_when_the_service_throws(bool viaAutosendGet)
+    [Fact]
+    public async Task Resend_verification_logs_no_address_when_the_service_throws()
     {
         var account = Substitute.For<IExternalAccountAppService>();
         account.ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>())
             .ThrowsAsync(new InvalidOperationException("TEST-dispatch-failure"));
         var logger = new RecordingLogger<ResendVerificationModel>(LogLevel.Information);
-        var model = WithContext(new ResendVerificationModel(account, logger) { Email = Email, Autosend = "1" });
+        var model = WithContext(new ResendVerificationModel(account, logger) { Email = Email });
 
-        if (viaAutosendGet)
-        {
-            await model.OnGetAsync();
-        }
-        else
-        {
-            await model.OnPostAsync();
-        }
+        await model.OnPostAsync();
 
         ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "surfacing generic success");
     }
@@ -304,29 +295,21 @@ public class AccountPageModelTests
         model.GetIntro().ShouldContain("Resend below");
     }
 
-    [Theory]
-    [InlineData("1", true, false)]
-    [InlineData("1", true, true)]
-    [InlineData("0", false, false)]
-    [InlineData(null, false, false)]
-    public async Task Resend_verification_sends_on_get_only_when_autosend_is_1(string? autosend, bool expectSend, bool serviceThrows)
+    [Fact]
+    public void Resend_verification_get_never_sends_and_keeps_the_prefilled_email()
     {
+        // A send on GET can be triggered cross-site by any link; only the antiforgery-protected
+        // POST may send. The old "?autosend=1" flag is no longer bound at all.
         var account = Substitute.For<IExternalAccountAppService>();
-        if (serviceThrows)
-        {
-            account.ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>())
-                .ThrowsAsync(new InvalidOperationException("TEST-dispatch-failure"));
-        }
-        var model = WithContext(new ResendVerificationModel(account, NullLogger<ResendVerificationModel>.Instance)
-        {
-            Email = Email,
-            Autosend = autosend,
-        });
+        var model = WithContext(new ResendVerificationModel(account, NullLogger<ResendVerificationModel>.Instance) { Email = Email });
 
-        (await model.OnGetAsync()).ShouldBeOfType<PageResult>();
+        model.OnGet().ShouldBeOfType<PageResult>();
 
-        await account.Received(expectSend ? 1 : 0).ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>());
-        model.RequestSubmitted.ShouldBe(expectSend);
+        account.ReceivedCalls().ShouldBeEmpty();
+        model.RequestSubmitted.ShouldBeFalse();
+        model.Email.ShouldBe(Email);
+        typeof(ResendVerificationModel).GetProperty("Autosend").ShouldBeNull();
+        typeof(ResendVerificationModel).GetMethod("OnGetAsync").ShouldBeNull();
     }
 
     [Fact]
