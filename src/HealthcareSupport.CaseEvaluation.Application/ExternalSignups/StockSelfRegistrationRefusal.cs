@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Volo.Abp;
 using Volo.Abp.Account;
 using Volo.Abp.DependencyInjection;
@@ -25,11 +27,57 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 ///
 /// <para>The portal route does not call <see cref="IAccountAppService"/>; it creates the user
 /// through <c>IdentityUserManager</c> directly, so this refusal cannot reach it.</para>
+///
+/// <para><b>ALSO REFUSED OVER HTTP: the stock anonymous account routes.</b> The same module
+/// publishes <c>/api/account/send-password-reset-code</c>, <c>/reset-password</c>,
+/// <c>/send-email-confirmation-token</c> and their siblings. They bypass the portal's own
+/// throttled flows (<c>ExternalAccountAppService</c>: per-address limit and cooldown, per-IP
+/// limiter on <c>/api/public/external-account</c>), so anyone could send mail to any address
+/// without limit and probe which addresses hold accounts. Neither the SPA nor the AuthServer's
+/// own pages use them: the Forgot, Reset, Resend and Email-confirmation pages are portal
+/// pages that call <c>IExternalAccountAppService</c>. They are refused ONLY when the call
+/// arrives on the <c>/api/account/</c> route, so any stock page that reaches the app service
+/// in-process (for example the two-factor pages) keeps working.</para>
 /// </summary>
 public class StockSelfRegistrationRefusal : AbpInterceptor, ITransientDependency
 {
     public const string RefusalMessage =
         "Self-registration is not available here. Please use the portal sign-up.";
+
+    public const string RemoteRouteRefusalMessage =
+        "This account route is not available here. Please use the portal sign-in pages.";
+
+    public const string StockAccountRoutePrefix = "/api/account/";
+
+    /// <summary>
+    /// Stock <see cref="IAccountAppService"/> methods that are anonymous and send mail or reveal
+    /// whether an account exists. Refused on the remote route only.
+    /// </summary>
+    public static readonly IReadOnlySet<string> RemoteRefusedMethods = new HashSet<string>(StringComparer.Ordinal)
+    {
+        nameof(IAccountAppService.SendPasswordResetCodeAsync),
+        nameof(IAccountAppService.VerifyPasswordResetTokenAsync),
+        nameof(IAccountAppService.ResetPasswordAsync),
+        nameof(IAccountAppService.SendEmailConfirmationTokenAsync),
+        nameof(IAccountAppService.VerifyEmailConfirmationTokenAsync),
+        nameof(IAccountAppService.ConfirmEmailAsync),
+        nameof(IAccountAppService.SendEmailConfirmationCodeAsync),
+        nameof(IAccountAppService.GetEmailConfirmationCodeLimitAsync),
+        nameof(IAccountAppService.GetConfirmationStateAsync),
+        nameof(IAccountAppService.SendPhoneNumberConfirmationTokenAsync),
+        nameof(IAccountAppService.ConfirmPhoneNumberAsync),
+    };
+
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public StockSelfRegistrationRefusal(IHttpContextAccessor httpContextAccessor)
+    {
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    public static bool IsRefusedOnRemoteRoute(string methodName, PathString requestPath) =>
+        RemoteRefusedMethods.Contains(methodName)
+        && requestPath.StartsWithSegments(StockAccountRoutePrefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Attaches the refusal to every implementation of <see cref="IAccountAppService"/>. Must be
@@ -52,6 +100,12 @@ public class StockSelfRegistrationRefusal : AbpInterceptor, ITransientDependency
         if (invocation.Method.Name == nameof(IAccountAppService.RegisterAsync))
         {
             throw new UserFriendlyException(RefusalMessage);
+        }
+
+        var path = _httpContextAccessor.HttpContext?.Request.Path ?? PathString.Empty;
+        if (IsRefusedOnRemoteRoute(invocation.Method.Name, path))
+        {
+            throw new UserFriendlyException(RemoteRouteRefusalMessage);
         }
 
         await invocation.ProceedAsync();

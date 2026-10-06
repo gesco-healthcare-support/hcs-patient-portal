@@ -489,6 +489,14 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.AccessorRoleMismatch";
 
     /// <summary>
+    /// Raised by <c>AppointmentAccessorManager.CreateOrLinkAsync</c> when the
+    /// requested accessor role is not one of the recognised external roles.
+    /// Localization key <c>CaseEvaluation:Appointment.AccessorRoleNotAllowed</c>.
+    /// </summary>
+    public const string AppointmentAccessorRoleNotAllowed =
+        "CaseEvaluation:Appointment.AccessorRoleNotAllowed";
+
+    /// <summary>
     /// Phase 13 (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.GetAsync / GetWithNavigationPropertiesAsync /
     /// GetByConfirmationNumberAsync</c> when the caller is an external
@@ -1216,4 +1224,11 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AdminPasswordIsAKnownDefault =
         "CaseEvaluation:AdminPassword.IsAKnownDefault";
+
+    /// <summary>
+    /// Raised by <c>UserExtendedAppService</c> when a caller who is not IT Admin or admin tries to
+    /// change a privileged account, change roles outside the staff roles, or change their own roles.
+    /// </summary>
+    public const string PrivilegedUserChangeNotAllowed =
+        "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
 }

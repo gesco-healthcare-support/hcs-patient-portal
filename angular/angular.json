@@ -203,6 +203,11 @@
           "configurations": {
             "production": {
               "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
                 "fonts": false
               },
               "budgets": [
@@ -245,6 +250,11 @@
             },
             "docker": {
               "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
                 "fonts": false
               },
               "budgets": [

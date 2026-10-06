@@ -554,9 +554,15 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         DocumentUploadGate.EnsureVerificationCodeMatches(document!, verificationCode);
         var appointment = await _appointmentRepository.GetAsync(document!.AppointmentId);
         DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
+        // Same gate the authenticated upload applies. EnsureVerificationCodeMatches already refuses
+        // an Accepted row; this keeps the immutability rule in one named place on both paths.
+        DocumentUploadGate.EnsureNotImmutable(document, isInternalUser: false);
 
-        // Anonymous = external by definition; never internal.
-        await OverwriteUploadedFileAsync(document, fileName, contentType, fileSize, content, isInternalUser: false);
+        // Anonymous = external by definition; never internal. The previous blob is RETAINED:
+        // an object key may already have been handed to the Case Tracker, and an emailed link
+        // must not be able to destroy bytes (see DeleteAsync, Part 2 2026-07-28).
+        await OverwriteUploadedFileAsync(
+            document, fileName, contentType, fileSize, content, isInternalUser: false, retainPreviousBlob: true);
 
         await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
         {
@@ -585,7 +591,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         string? contentType,
         long fileSize,
         Stream content,
-        bool isInternalUser)
+        bool isInternalUser,
+        bool retainPreviousBlob = false)
     {
         if (string.IsNullOrWhiteSpace(fileName))
         {
@@ -605,7 +612,11 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         // Try to delete the placeholder/old blob if it was a real one
         // (queued rows have a "(pending-upload)" placeholder; skip that).
-        if (!string.Equals(document.BlobName, "(pending-upload)", StringComparison.Ordinal))
+        // retainPreviousBlob: the anonymous link path never deletes bytes. NOTE the authenticated
+        // package-upload path still deletes the replaced blob (retainPreviousBlob = false); that
+        // is pre-existing behaviour and is reported rather than changed here.
+        if (!retainPreviousBlob
+            && !string.Equals(document.BlobName, "(pending-upload)", StringComparison.Ordinal))
         {
             try
             {
@@ -629,6 +640,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         if (isInternalUser)
         {
             document.ResponsibleUserId = CurrentUser.Id;
+            document.VerificationCode = null;
         }
         await _documentRepository.UpdateAsync(document);
     }
@@ -718,6 +730,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // still call it so the surface is uniform.
         await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         entity.Status = DocumentStatus.Accepted;
+        // An accepted document is final for external parties; retire the emailed upload link.
+        entity.VerificationCode = null;
         entity.RejectionReason = null;
         entity.RejectedByUserId = null;
         entity.ResponsibleUserId = CurrentUser.Id;

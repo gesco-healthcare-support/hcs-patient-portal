@@ -39,8 +39,9 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentEmployerDetailWithNavigationPropertiesDto>> GetListAsync(GetAppointmentEmployerDetailsInput input)
     {
-        var totalCount = await _appointmentEmployerDetailRepository.GetCountAsync(input.FilterText, input.EmployerName, input.PhoneNumber, input.Street, input.City, input.AppointmentId, input.StateId);
-        var items = await _appointmentEmployerDetailRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.EmployerName, input.PhoneNumber, input.Street, input.City, input.AppointmentId, input.StateId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var totalCount = await _appointmentEmployerDetailRepository.GetCountAsync(input.FilterText, input.EmployerName, input.PhoneNumber, input.Street, input.City, input.AppointmentId, input.StateId, restrictToAppointmentIds: readableAppointmentIds);
+        var items = await _appointmentEmployerDetailRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.EmployerName, input.PhoneNumber, input.Street, input.City, input.AppointmentId, input.StateId, input.Sorting, input.MaxResultCount, input.SkipCount, restrictToAppointmentIds: readableAppointmentIds);
         return new PagedResultDto<AppointmentEmployerDetailWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
@@ -50,17 +51,24 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Default)]
     public virtual async Task<AppointmentEmployerDetailWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentEmployerDetailWithNavigationProperties, AppointmentEmployerDetailWithNavigationPropertiesDto>((await _appointmentEmployerDetailRepository.GetWithNavigationPropertiesAsync(id))!);
+        var item = await _appointmentEmployerDetailRepository.GetWithNavigationPropertiesAsync(id) ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(AppointmentEmployerDetail), id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(item.AppointmentEmployerDetail.AppointmentId);
+        return ObjectMapper.Map<AppointmentEmployerDetailWithNavigationProperties, AppointmentEmployerDetailWithNavigationPropertiesDto>(item);
     }
     [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Default)]
     public virtual async Task<AppointmentEmployerDetailDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentEmployerDetail, AppointmentEmployerDetailDto>(await _appointmentEmployerDetailRepository.GetAsync(id));
+        var entity = await _appointmentEmployerDetailRepository.GetAsync(id);
+        // Reading a child row is reading its parent appointment: the .Default permission ties the caller to no appointment.
+        await _childOwnershipGuard.EnsureIsPartyAsync(entity.AppointmentId);
+        return ObjectMapper.Map<AppointmentEmployerDetail, AppointmentEmployerDetailDto>(entity);
     }
     [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentLookupAsync(LookupRequestDto input)
     {
-        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
+        // Narrowed to appointments the caller may reach, in the query itself so the count and paging cannot leak the rest. Internal callers get null (no narrowing).
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(readableAppointmentIds != null, x => readableAppointmentIds!.Contains(x.Id)).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Appointments.Appointment>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -85,6 +93,9 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     [Authorize(CaseEvaluationPermissions.AppointmentEmployerDetails.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Party check against the row's STORED parent appointment (never request input), as on update.
+        var existing = await _appointmentEmployerDetailRepository.GetAsync(id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(existing.AppointmentId);
         await _appointmentEmployerDetailRepository.DeleteAsync(id);
     }
 
