@@ -124,6 +124,6 @@ public class PatientBookingReadAccess : ITransientDependency
         }
 
         return _currentUser.IsInRole(ClaimExaminerRole)
-            && BookingPartyAppointments.ForClaimExaminer(appointments, _currentUser.Email).Any();
+            && BookingPartyAppointments.ForClaimExaminer(appointments, _currentUser.GetVerifiedEmail()).Any();
     }
 }

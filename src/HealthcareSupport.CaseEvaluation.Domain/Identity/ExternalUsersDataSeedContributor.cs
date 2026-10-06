@@ -156,8 +156,8 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         if (role == null)
         {
             _logger.LogWarning(
-                "ExternalUsersDataSeedContributor: role '{RoleName}' not found in tenant {TenantId}; skipping user {Email}.",
-                roleName, tenantId, email);
+                "ExternalUsersDataSeedContributor: role '{RoleName}' not found in tenant {TenantId}; skipping user.",
+                roleName, tenantId);
             return null;
         }
 
@@ -169,14 +169,14 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             if (!createResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "ExternalUsersDataSeedContributor: failed to create {Email}: {Errors}",
-                    email,
+                    "ExternalUsersDataSeedContributor: failed to create user {UserId}: {Errors}",
+                    user.Id,
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
             _logger.LogWarning(
-                "ExternalUsersDataSeedContributor: DEMO SEED created {Email} (tenant {TenantId}) with the published default password.",
-                email, tenantId);
+                "ExternalUsersDataSeedContributor: DEMO SEED created user {UserId} (tenant {TenantId}) with the published default password.",
+                user.Id, tenantId);
         }
 
         if (!user.EmailConfirmed)
@@ -191,16 +191,16 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             if (!addRoleResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "ExternalUsersDataSeedContributor: failed to assign role '{RoleName}' to {Email}: {Errors}",
+                    "ExternalUsersDataSeedContributor: failed to assign role '{RoleName}' to user {UserId}: {Errors}",
                     roleName,
-                    email,
+                    user.Id,
                     string.Join(", ", addRoleResult.Errors.Select(e => e.Description)));
             }
             else
             {
                 _logger.LogInformation(
-                    "ExternalUsersDataSeedContributor: assigned role '{RoleName}' to {Email}.",
-                    roleName, email);
+                    "ExternalUsersDataSeedContributor: assigned role '{RoleName}' to user {UserId}.",
+                    roleName, user.Id);
             }
         }
 
@@ -242,8 +242,8 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             phoneNumberTypeId: PhoneNumberType.Home);
 
         _logger.LogInformation(
-            "ExternalUsersDataSeedContributor: created Patient domain row for {Email}.",
-            user.Email);
+            "ExternalUsersDataSeedContributor: created Patient domain row for user {UserId}.",
+            user.Id);
     }
 
     /// <summary>
@@ -265,8 +265,8 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             identityUserId: user.Id);
 
         _logger.LogInformation(
-            "ExternalUsersDataSeedContributor: created ApplicantAttorney domain row for {Email}.",
-            user.Email);
+            "ExternalUsersDataSeedContributor: created ApplicantAttorney domain row for user {UserId}.",
+            user.Id);
     }
 
     private async Task<Tenant?> FindTenantAsync(Guid tenantId)

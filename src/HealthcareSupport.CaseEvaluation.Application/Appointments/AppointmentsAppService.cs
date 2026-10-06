@@ -503,14 +503,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // IdentityUser is auto-tenant-filtered by ABP. For Applicant or Defense
         // Attorney callers, restrict to (a) self plus (b) bookers on appointments
         // where the attorney is named on the appointment's attorney-side join table.
+        // Any other caller who is not internal staff -- a patient, a claim examiner,
+        // an account with no role -- sees only their own account.
         var query = (await _identityUserRepository.GetQueryableAsync())
             .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+        var narrowedForAttorney = false;
 
         if (await IsApplicantAttorneyAsync() && CurrentUser.Id.HasValue)
         {
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetApplicantAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+            narrowedForAttorney = true;
         }
 
         if (await IsDefenseAttorneyAsync() && CurrentUser.Id.HasValue)
@@ -518,6 +522,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetDefenseAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+            narrowedForAttorney = true;
+        }
+
+        if (!narrowedForAttorney)
+        {
+            query = IdentityUserLookupScope.ForCaller(query, CurrentUser);
         }
 
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
@@ -628,7 +638,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with the by-id patient read; see BookingPartyAppointments.
         return await Patients.BookingPartyAppointments.ForClaimExaminer(
                 await _appointmentRepository.GetQueryableAsync(),
-                CurrentUser.Email)
+                CurrentUser.GetVerifiedEmail())
             .Select(a => a.PatientId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -1678,6 +1688,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return null;
         }
 
+        // An external caller may resolve only themselves. Anyone else answers null, exactly as an
+        // unknown id or email does, so this cannot be used to look an office user up by id or email.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles) && resolvedUserId.Value != CurrentUser.Id)
+        {
+            return null;
+        }
+
         var applicantQuery = await _applicantAttorneyRepository.GetQueryableAsync();
         var applicant = await AsyncExecuter.FirstOrDefaultAsync(applicantQuery.Where(a => a.IdentityUserId == resolvedUserId.Value));
         var identityUser = await _identityUserRepository.FindAsync(resolvedUserId.Value);
@@ -1715,6 +1732,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<ApplicantAttorneyDetailsDto?> GetAppointmentApplicantAttorneyAsync(Guid appointmentId)
     {
+        await EnsureCanReadAsync(appointmentId);
         var items = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
         var item = items.FirstOrDefault();
         // BUG-042: return the attorney as soon as the master record exists.
@@ -1941,6 +1959,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return null;
         }
 
+        // An external caller may resolve only themselves. Anyone else answers null, exactly as an
+        // unknown id or email does, so this cannot be used to look an office user up by id or email.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles) && resolvedUserId.Value != CurrentUser.Id)
+        {
+            return null;
+        }
+
         var defenseQuery = await _defenseAttorneyRepository.GetQueryableAsync();
         var defense = await AsyncExecuter.FirstOrDefaultAsync(defenseQuery.Where(a => a.IdentityUserId == resolvedUserId.Value));
         var identityUser = await _identityUserRepository.FindAsync(resolvedUserId.Value);
@@ -1976,6 +2001,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<DefenseAttorneyDetailsDto?> GetAppointmentDefenseAttorneyAsync(Guid appointmentId)
     {
+        await EnsureCanReadAsync(appointmentId);
         var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
         var item = items.FirstOrDefault();
         // BUG-042: return the attorney as soon as the master record exists;

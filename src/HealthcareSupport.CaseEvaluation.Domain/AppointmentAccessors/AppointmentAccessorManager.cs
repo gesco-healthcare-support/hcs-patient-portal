@@ -57,6 +57,11 @@ public class AppointmentAccessorManager : DomainService
         Check.NotNull(appointmentId, nameof(appointmentId));
         Check.NotNull(accessTypeId, nameof(accessTypeId));
         var appointmentAccessor = await _appointmentAccessorRepository.GetAsync(id);
+        // An accessor belongs to exactly one appointment; moving it is not supported.
+        if (appointmentAccessor.AppointmentId != appointmentId)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        }
         appointmentAccessor.IdentityUserId = identityUserId;
         appointmentAccessor.AppointmentId = appointmentId;
         appointmentAccessor.AccessTypeId = accessTypeId;
@@ -95,6 +100,11 @@ public class AppointmentAccessorManager : DomainService
             throw new InvalidOperationException(
                 "AppointmentAccessorManager.CreateOrLinkAsync requires the full DI ctor; resolve via the container or pass the additional collaborators.");
         }
+
+        // Validate the role BEFORE any user or role write: only the recognised external
+        // roles may be requested, and the canonical spelling is what gets stored.
+        requestedRoleName = AppointmentAccessorRules.ResolveRecognizedExternalRole(requestedRoleName)
+            ?? throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessorRoleNotAllowed);
 
         var normalizedEmail = email.Trim();
         var existingUser = await _userManager.FindByEmailAsync(normalizedEmail);

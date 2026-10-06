@@ -343,6 +343,15 @@ HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureAppService.GetBytesByU
 HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureAppService.GetInfoAsync() -> class=(authenticated) method=CaseEvaluation.UserSignatures.ManageOwn
 HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureAppService.UploadAsync(String, String, Int64, Stream) -> class=(authenticated) method=CaseEvaluation.UserSignatures.ManageOwn
 HealthcareSupport.CaseEvaluation.UserQueries.UserQueryAppService.CreateAsync(UserQueryCreateDto) -> class=(authenticated) method=-
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.CreateAsync(IdentityUserCreateDto) -> class=AbpIdentity.Users method=AbpIdentity.Users.Create
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.DeleteAsync(Guid) -> class=AbpIdentity.Users method=AbpIdentity.Users.Delete
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.LockAsync(Guid, DateTime) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.SetTwoFactorEnabledAsync(Guid, Boolean) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.UnlockAsync(Guid) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.UpdateAsync(Guid, IdentityUserUpdateDto) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.UpdateClaimsAsync(Guid, List<IdentityUserClaimDto>) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.UpdatePasswordAsync(Guid, IdentityUserUpdatePasswordInput) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.UpdateRolesAsync(Guid, IdentityUserUpdateRolesDto) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
 HealthcareSupport.CaseEvaluation.WcabOffices.WcabOfficesAppService.CreateAsync(WcabOfficeCreateDto) -> class=CaseEvaluation.WcabOffices method=CaseEvaluation.WcabOffices.Create
 HealthcareSupport.CaseEvaluation.WcabOffices.WcabOfficesAppService.DeleteAllAsync(GetWcabOfficesInput) -> class=CaseEvaluation.WcabOffices method=CaseEvaluation.WcabOffices.Delete
 HealthcareSupport.CaseEvaluation.WcabOffices.WcabOfficesAppService.DeleteAsync(Guid) -> class=CaseEvaluation.WcabOffices method=CaseEvaluation.WcabOffices.Delete

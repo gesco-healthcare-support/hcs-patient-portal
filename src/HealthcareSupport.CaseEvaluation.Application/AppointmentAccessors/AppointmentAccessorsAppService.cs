@@ -27,6 +27,7 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     protected IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> _appointmentRepository;
     protected AppointmentReadAccessGuard _readAccessGuard;
     protected IdentityUserManager _identityUserManager;
+    protected AppointmentChildOwnershipGuard _childOwnershipGuard;
 
     public AppointmentAccessorsAppService(
         IAppointmentAccessorRepository appointmentAccessorRepository,
@@ -34,7 +35,8 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository,
         IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid> appointmentRepository,
         AppointmentReadAccessGuard readAccessGuard,
-        IdentityUserManager identityUserManager)
+        IdentityUserManager identityUserManager,
+        AppointmentChildOwnershipGuard childOwnershipGuard)
     {
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _appointmentAccessorManager = appointmentAccessorManager;
@@ -42,12 +44,17 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         _appointmentRepository = appointmentRepository;
         _readAccessGuard = readAccessGuard;
         _identityUserManager = identityUserManager;
+        _childOwnershipGuard = childOwnershipGuard;
     }
 
     public virtual async Task<PagedResultDto<AppointmentAccessorWithNavigationPropertiesDto>> GetListAsync(GetAppointmentAccessorsInput input)
     {
-        var totalCount = await _appointmentAccessorRepository.GetCountAsync(input.FilterText, input.AccessTypeId, input.IdentityUserId, input.AppointmentId);
-        var items = await _appointmentAccessorRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AccessTypeId, input.IdentityUserId, input.AppointmentId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        // An accessor row says who may reach an appointment, so it is readable exactly when the
+        // appointment is. Narrowed in the query so the count and paging cannot leak the rest;
+        // internal callers get null (no narrowing).
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var totalCount = await _appointmentAccessorRepository.GetCountAsync(input.FilterText, input.AccessTypeId, input.IdentityUserId, input.AppointmentId, restrictToAppointmentIds: readableAppointmentIds);
+        var items = await _appointmentAccessorRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AccessTypeId, input.IdentityUserId, input.AppointmentId, input.Sorting, input.MaxResultCount, input.SkipCount, restrictToAppointmentIds: readableAppointmentIds);
         var dtos = ObjectMapper.Map<List<AppointmentAccessorWithNavigationProperties>, List<AppointmentAccessorWithNavigationPropertiesDto>>(items);
         await PopulateUserRoleNamesAsync(dtos);
         return new PagedResultDto<AppointmentAccessorWithNavigationPropertiesDto>
@@ -88,17 +95,21 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
 
     public virtual async Task<AppointmentAccessorWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentAccessorWithNavigationProperties, AppointmentAccessorWithNavigationPropertiesDto>((await _appointmentAccessorRepository.GetWithNavigationPropertiesAsync(id))!);
+        var item = await _appointmentAccessorRepository.GetWithNavigationPropertiesAsync(id) ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(AppointmentAccessor), id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(item.AppointmentAccessor.AppointmentId);
+        return ObjectMapper.Map<AppointmentAccessorWithNavigationProperties, AppointmentAccessorWithNavigationPropertiesDto>(item);
     }
 
     public virtual async Task<AppointmentAccessorDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentAccessor, AppointmentAccessorDto>(await _appointmentAccessorRepository.GetAsync(id));
+        var entity = await _appointmentAccessorRepository.GetAsync(id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(entity.AppointmentId);
+        return ObjectMapper.Map<AppointmentAccessor, AppointmentAccessorDto>(entity);
     }
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+        var query = IdentityUserLookupScope.ForCaller((await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!)), CurrentUser);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -110,7 +121,8 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentLookupAsync(LookupRequestDto input)
     {
-        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
+        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(readableAppointmentIds != null, x => readableAppointmentIds!.Contains(x.Id)).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Appointments.Appointment>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

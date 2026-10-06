@@ -776,8 +776,9 @@
    *
    * - Self-registration (no invite): a verification email IS sent. Show
    *   "Account created. We sent a verification link..." + a "Resend
-   *   verification" button (links to ResendVerification.cshtml.cs with
-   *   autosend=1, which enforces the resend rate limits).
+   *   verification" button (links to ResendVerification.cshtml.cs with the
+   *   email pre-filled; the user clicks Send there, a POST that enforces the
+   *   resend rate limits).
    */
   function showSignupSuccess(form, email) {
     // Issue #106b (2026-05-13) -- if a prior user is still cookie-authed
@@ -821,7 +822,7 @@
     }
 
     var verifyUrl = '/Account/ResendVerification?context=register&email='
-      + encodeURIComponent(email || '') + '&autosend=1';
+      + encodeURIComponent(email || '');
     form.innerHTML =
       '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
         '<strong>Account created.</strong>' +

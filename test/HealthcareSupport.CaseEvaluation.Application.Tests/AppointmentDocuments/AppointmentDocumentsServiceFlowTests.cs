@@ -649,6 +649,77 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         Published<AppointmentDocumentUploadedEto>().ShouldHaveSingleItem().UploadedByUserId.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task A_code_upload_keeps_the_previous_file_because_the_case_tracker_may_hold_its_key()
+    {
+        var code = new Guid("7d3f1e2a-0000-4000-9000-000000000003");
+        await AsStaff(async () =>
+        {
+            var document = await InsertDocumentAsync(d =>
+            {
+                d.VerificationCode = code;
+                d.Status = DocumentStatus.Rejected;
+            });
+            await _documents.UploadByVerificationCodeAsync(document.Id, code, "form.pdf", "application/pdf", 20, Pdf());
+        });
+
+        SavedBlobNames().ShouldHaveSingleItem().ShouldNotBe("office-a/old-blob");
+        await _blobs.DidNotReceive().DeleteAsync("office-a/old-blob", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_code_upload_cannot_overwrite_an_accepted_document()
+    {
+        var code = new Guid("7d3f1e2a-0000-4000-9000-000000000004");
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d =>
+            {
+                d.VerificationCode = code;
+                d.Status = DocumentStatus.Accepted;
+            });
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.UploadByVerificationCodeAsync(document.Id, code, "form.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.DocumentImmutableForExternalUser);
+        });
+
+        SavedBlobNames().ShouldBeEmpty();
+        (await ReloadAsync(document.Id)).BlobName.ShouldBe("office-a/old-blob");
+    }
+
+    [Fact]
+    public async Task Approving_retires_the_emailed_upload_code_so_the_link_stops_working()
+    {
+        var code = new Guid("7d3f1e2a-0000-4000-9000-000000000005");
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d => d.VerificationCode = code);
+            await _documents.ApproveAsync(document.Id);
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.UploadByVerificationCodeAsync(document.Id, code, "form.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.DocumentUnauthorizedVerificationCode);
+        });
+
+        (await ReloadAsync(document.Id)).VerificationCode.ShouldBeNull();
+        SavedBlobNames().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_staff_package_upload_that_accepts_the_document_also_retires_its_code()
+    {
+        var code = new Guid("7d3f1e2a-0000-4000-9000-000000000006");
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d => d.VerificationCode = code);
+            await _documents.UploadPackageDocumentAsync(document.Id, "form.pdf", "application/pdf", 20, Pdf());
+        });
+
+        (await ReloadAsync(document.Id)).VerificationCode.ShouldBeNull();
+    }
+
     // ------------------------------------------------------------------ joint declaration
 
     [Fact]
