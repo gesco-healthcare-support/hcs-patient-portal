@@ -247,7 +247,7 @@ public abstract class AttorneyAndScheduleReadScopeTests<TStartupModule> : CaseEv
     public async Task StaffSchedule_ExternalCaller_IsRefused_AndInternalIsNot()
     {
         var slots = new List<Guid> { DoctorAvailabilitiesTestData.Slot1Id };
-        var range = new GetScheduleInput { LocationId = LocationsTestData.Location1Id, FromDate = DateTime.UtcNow.Date, ToDate = DateTime.UtcNow.Date.AddDays(7) };
+        var range = new GetScheduleInput { LocationId = LocationsTestData.Location1Id, FromDate = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), ToDate = new DateTime(2026, 7, 8, 0, 0, 0, DateTimeKind.Utc) };
         ShouldBeDenied(await Should.ThrowAsync<BusinessException>(() => AsExternalAsync(() => _availabilities.GetSlotPatientNamesAsync(slots))));
         ShouldBeDenied(await Should.ThrowAsync<BusinessException>(() => AsExternalAsync(() => _availabilities.GetScheduleAsync(range))));
 
