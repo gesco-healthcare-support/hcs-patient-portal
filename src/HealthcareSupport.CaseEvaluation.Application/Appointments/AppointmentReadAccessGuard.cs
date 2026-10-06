@@ -124,7 +124,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
 
         var byCoreRules = AppointmentAccessRules.CanRead(
             callerUserId: _currentUser.Id,
-            callerEmail: _currentUser.Email,
+            callerEmail: _currentUser.GetVerifiedEmail(),
             callerIsInternalUser: false,
             // R2-2: BookedByUserId is the reliable booker; coalesce with CreatorId so
             // the booker can read/edit their own (possibly null-creator) booking. Same
@@ -140,7 +140,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
         // list query applies, against this appointment's denormalized party-email
         // columns + the caller's roles.
         var byEmailRole = AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-            callerEmail: _currentUser.Email,
+            callerEmail: _currentUser.GetVerifiedEmail(),
             callerRoles: callerRoles,
             patientEmail: appointment.PatientEmail,
             applicantAttorneyEmail: appointment.ApplicantAttorneyEmail,
@@ -231,7 +231,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
         // surfacing a column to a user who lacks its role).
         var byCoreEdit = AppointmentAccessRules.CanEdit(
             callerUserId: _currentUser.Id,
-            callerEmail: _currentUser.Email,
+            callerEmail: _currentUser.GetVerifiedEmail(),
             callerIsInternalUser: false,
             appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId,
             patientIdentityUserId: patientIdentityUserId,
@@ -244,7 +244,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
         // holds that column's role (patient / AA / DA / CE). Same rule as the read gate +
         // the list query, so a row that shows in the list can be acted on without a 403.
         var byEmailRole = AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-            callerEmail: _currentUser.Email,
+            callerEmail: _currentUser.GetVerifiedEmail(),
             callerRoles: callerRoles,
             patientEmail: appointment.PatientEmail,
             applicantAttorneyEmail: appointment.ApplicantAttorneyEmail,
