@@ -207,6 +207,20 @@ public class InternalUserRoleGrantsTests
     public void IntakeShadow_can_edit_employer_details_the_edit_form_always_upserts() =>
         IntakeShadow.ShouldContain("CaseEvaluation.AppointmentEmployerDetails.Edit");
 
+    /// <summary>
+    /// Issue 553: every document upload endpoint requires AppointmentDocuments.Create. Intake
+    /// Staff books by phone and the wizard stages documents that upload after the appointment
+    /// exists, so without this grant a front-desk booking half-saves with a 403. Edit and Delete
+    /// on a document row stay supervisor-tier.
+    /// </summary>
+    [Fact]
+    public void IntakeShadow_can_upload_documents_but_not_edit_or_delete_them()
+    {
+        IntakeShadow.ShouldContain("CaseEvaluation.AppointmentDocuments.Create");
+        IntakeShadow.ShouldNotContain("CaseEvaluation.AppointmentDocuments.Edit");
+        IntakeShadow.ShouldNotContain("CaseEvaluation.AppointmentDocuments.Delete");
+    }
+
     private static readonly HashSet<string> SupervisorTenant =
         InternalUserRoleDataSeedContributor.StaffSupervisorTenantGrants().ToHashSet();
 
