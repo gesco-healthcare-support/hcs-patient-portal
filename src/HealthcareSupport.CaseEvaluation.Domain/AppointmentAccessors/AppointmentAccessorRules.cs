@@ -32,6 +32,22 @@ public static class AppointmentAccessorRules
         ExternalRoleConsts.All;
 
     /// <summary>
+    /// Returns the canonical name of the recognised external role matching
+    /// <paramref name="requestedRole"/> (case-insensitive, trimmed), or
+    /// <c>null</c> when it is not one of <see cref="RecognizedExternalRoles"/>.
+    /// </summary>
+    public static string? ResolveRecognizedExternalRole(string? requestedRole)
+    {
+        if (string.IsNullOrWhiteSpace(requestedRole))
+        {
+            return null;
+        }
+        var target = requestedRole.Trim();
+        return RecognizedExternalRoles.FirstOrDefault(r =>
+            string.Equals(r, target, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Returns <c>true</c> when the user already holds the requested
     /// role (case-insensitive trimmed match). Used by the manager to
     /// decide whether to short-circuit user creation and just link the

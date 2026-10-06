@@ -90,6 +90,19 @@ public static class WithCurrentUser
         Guid userId,
         string? email,
         params string[] roles)
+        => RunWithEmail(accessor, userId, email, emailVerified: true, roles);
+
+    /// <summary>
+    /// As <see cref="RunWithEmail(ICurrentPrincipalAccessor, Guid, string?, string[])"/> but the
+    /// confirmed-email claim is explicit. The access rules only trust a CONFIRMED address, so a
+    /// test for the unconfirmed case passes <c>false</c>.
+    /// </summary>
+    public static IDisposable RunWithEmail(
+        ICurrentPrincipalAccessor accessor,
+        Guid userId,
+        string? email,
+        bool emailVerified,
+        params string[] roles)
     {
         var claims = new List<Claim>
         {
@@ -100,6 +113,7 @@ public static class WithCurrentUser
         if (!string.IsNullOrWhiteSpace(email))
         {
             claims.Add(new Claim(AbpClaimTypes.Email, email));
+            claims.Add(new Claim(AbpClaimTypes.EmailVerified, emailVerified.ToString()));
         }
 
         foreach (var role in roles)

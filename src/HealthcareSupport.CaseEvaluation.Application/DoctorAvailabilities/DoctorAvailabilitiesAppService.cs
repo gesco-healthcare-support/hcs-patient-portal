@@ -694,6 +694,19 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     }
 
     /// <summary>
+    /// The staff schedule surfaces carry patient names and confirmation numbers. External roles hold
+    /// DoctorAvailabilities.Default for the booking picker, so the permission alone does not keep them
+    /// out; refuse anyone without an internal role.
+    /// </summary>
+    private void EnsureInternalCaller()
+    {
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        }
+    }
+
+    /// <summary>
     /// #2 (2026-06-19) -- booked/reserved patient names per slot for the internal
     /// week-view chips. Bulk over the visible week's slot ids (one round-trip);
     /// only slots with at least one non-terminal appointment come back. Internal-
@@ -702,6 +715,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync(List<Guid> slotIds)
     {
+        EnsureInternalCaller();
         if (slotIds == null || slotIds.Count == 0)
         {
             return new List<SlotPatientNamesDto>();
@@ -721,6 +735,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input)
     {
+        EnsureInternalCaller();
         Check.NotNull(input, nameof(input));
         if (input.LocationId == Guid.Empty)
         {
