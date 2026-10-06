@@ -556,6 +556,13 @@ services:
       # depends on how many addresses the chosen balancer appends -- see the block at the top
       # of default.conf.template. Same always-defined rule as the line above.
       TRUSTED_PROXY_REAL_IP_RECURSIVE: "${TRUSTED_PROXY_REAL_IP_RECURSIVE:-}"
+      # Complete nginx allow directives for the minio.<domain> vhost (see the minio block in
+      # default.conf.template). The default is the RFC1918 private ranges, so the on-prem server keeps
+      # working with no new key in its env file; loopback is allowed in the template itself. NEVER
+      # written as ${VAR:?}: that is evaluated for the whole file and would gate every compose
+      # command, rollback included. An internet-facing deployment must set it to the Case Tracker
+      # egress address(es) only.
+      MINIO_ALLOW_DIRECTIVES: "${MINIO_ALLOW_DIRECTIVES:-allow 10.0.0.0/8; allow 172.16.0.0/12; allow 192.168.0.0/16;}"
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
