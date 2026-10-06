@@ -13,6 +13,7 @@ public class AppointmentLanguageRepositoryTests : CaseEvaluationEntityFrameworkC
 
     public AppointmentLanguageRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _languageRepository = GetRequiredService<IAppointmentLanguageRepository>();
     }
 

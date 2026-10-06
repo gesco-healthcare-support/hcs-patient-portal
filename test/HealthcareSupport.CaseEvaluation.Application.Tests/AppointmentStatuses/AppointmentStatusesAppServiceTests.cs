@@ -18,6 +18,7 @@ public abstract class AppointmentStatusesAppServiceTests<TStartupModule> : CaseE
 
     protected AppointmentStatusesAppServiceTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _statusesAppService = GetRequiredService<IAppointmentStatusesAppService>();
         _statusRepository = GetRequiredService<IAppointmentStatusRepository>();
         _statusManager = GetRequiredService<AppointmentStatusManager>();

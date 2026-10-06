@@ -208,7 +208,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedLocationsAsync()
     {
-        // Host-scoped seeds: Location, State, AppointmentType are all !IMultiTenant.
+        // Tenant-scoped seeds (#764): Location, State and AppointmentType are all IMultiTenant,
+        // and production seeds them inside each office's own database (every seeder skips host
+        // scope). They are seeded inside tenant A's scope; tenant B gets its own Location1.
         // Location1 references State1 + AppointmentType1 so nav-prop join tests can
         // assert on populated related entities. Location2 and Location3 keep null
         // nav FKs to exercise LEFT JOIN with nulls and satisfy the "varied FKs"
@@ -217,7 +219,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Runs before Doctor / Patient so the orchestrator's dependency chain
         // stays consistent for future Wave-2 seeds (DoctorAvailability and
         // Appointment both FK into Location).
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
             // AppointmentType1 now seeded by SeedAppointmentTypesAsync (extracted in B-6 Tier-3 PR-3B).
@@ -256,6 +258,21 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 address: LocationsTestData.Location3Address,
                 city: LocationsTestData.Location3City,
                 zipCode: LocationsTestData.Location3ZipCode));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var location1B = new Location(
+                id: LocationsTestData.Location1TenantBId,
+                stateId: LocationsTestData.State1TenantBId,
+                name: LocationsTestData.Location1Name,
+                parkingFee: LocationsTestData.Location1ParkingFee,
+                isActive: LocationsTestData.Location1IsActive,
+                address: LocationsTestData.Location1Address,
+                city: LocationsTestData.Location1City,
+                zipCode: LocationsTestData.Location1ZipCode);
+            location1B.AddAppointmentType(LocationsTestData.AppointmentType1TenantBId);
+            await _locationRepository.InsertAsync(location1B);
         }
     }
 
@@ -415,13 +432,13 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         {
             var slot3 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot3Id,
-                locationId: LocationsTestData.Location1Id,
+                locationId: LocationsTestData.Location1TenantBId,
                 availableDate: DoctorAvailabilitiesTestData.Slot3AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot3FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot3ToTime,
                 bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus);
             slot3.TenantId = TenantsTestData.TenantBRef;
-            slot3.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            slot3.AddAppointmentType(LocationsTestData.AppointmentType1TenantBId);
             await _doctorAvailabilityRepository.InsertAsync(slot3);
         }
     }
@@ -457,8 +474,8 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentsTestData.Appointment2Id,
                 patientId: PatientsTestData.Patient2Id,
                 identityUserId: IdentityUsersTestData.Patient2UserId,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
-                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1TenantBId,
+                locationId: LocationsTestData.Location1TenantBId,
                 doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot3Id,
                 appointmentDate: AppointmentsTestData.Appointment2Date,
                 requestConfirmationNumber: AppointmentsTestData.Appointment2RequestConfirmationNumber,
@@ -614,8 +631,8 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedAppointmentTypesAsync()
     {
-        // AppointmentType is host-only (NOT IMultiTenant; NOT AggregateRoot --
-        // it is `FullAuditedEntity<Guid>`). Two types seeded so Tier-3 tests
+        // AppointmentType is per-office (IMultiTenant; not an AggregateRoot --
+        // it is `FullAuditedEntity<Guid>`). Seeded in tenant A's scope (#764). Two types seeded so Tier-3 tests
         // exercise both the Description-populated path (AppointmentType2) and
         // the null-Description path (AppointmentType1):
         //   AppointmentType1 -- TEST-IME-Eval (no Description; previously
@@ -623,7 +640,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         //                       phase replaces that, hence runs BEFORE it).
         //   AppointmentType2 -- TEST-Orthopedic (with Description for the
         //                       optional-field coverage test).
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _appointmentTypeRepository.InsertAsync(new AppointmentType(
                 id: AppointmentTypesTestData.AppointmentType1Id,
@@ -640,12 +657,19 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             // FK-enforced test DB can already persist a PQME appointment.
             // Adding it here would be a duplicate-PK identity conflict.
         }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
+                id: LocationsTestData.AppointmentType1TenantBId,
+                name: AppointmentTypesTestData.AppointmentType1Name));
+        }
     }
 
     private async Task SeedWcabOfficesAsync()
     {
-        // WcabOffice is host-only (`FullAuditedAggregateRoot<Guid>`, NOT
-        // IMultiTenant). Two offices seeded so Tier-3 tests cover both
+        // WcabOffice is per-office (`FullAuditedAggregateRoot<Guid>`,
+        // IMultiTenant), seeded in tenant A's scope (#764). Two offices seeded so Tier-3 tests cover both
         // branches of the nullable StateId nav-prop hydration AND a
         // meaningful IsActive filter exclusion case (Office2 IsActive=false).
         // Excel export (`GetListAsExcelFileAsync`) is OUT OF SCOPE for Tier 3
@@ -654,7 +678,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         //              StateId=State1Id, IsActive=true.
         //   Office2 -- TEST-FresnoWcab, only required fields populated,
         //              StateId=null, IsActive=false.
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _wcabOfficeRepository.InsertAsync(new WcabOffice(
                 id: WcabOfficesTestData.Office1Id,
@@ -677,12 +701,12 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedAppointmentLanguagesAsync()
     {
-        // AppointmentLanguage is host-only (NOT IMultiTenant; NOT
-        // AggregateRoot). NameMaxLength = 50. 1 inbound FK from
+        // AppointmentLanguage is per-office (IMultiTenant; not an
+        // AggregateRoot), seeded in tenant A's scope (#764). NameMaxLength = 50. 1 inbound FK from
         // Patient.AppointmentLanguageId (nullable SetNull). Two languages
         // seeded so Tier-3 tests exercise multi-row list + FilterText
         // filtering: Language1 (TEST-English), Language2 (TEST-Spanish).
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _appointmentLanguageRepository.InsertAsync(new AppointmentLanguage(
                 id: AppointmentLanguagesTestData.Language1Id,
@@ -696,15 +720,15 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedAppointmentStatusesAsync()
     {
-        // AppointmentStatus is host-only (NOT IMultiTenant; NOT AggregateRoot)
-        // -- a lookup table parallel to but distinct from the
+        // AppointmentStatus is per-office (IMultiTenant; not an AggregateRoot),
+        // seeded in tenant A's scope (#764) -- a lookup table parallel to but distinct from the
         // `AppointmentStatusType` enum used on Appointment.AppointmentStatus.
         // No FK from Appointment to this entity (gap encoded as Skip Fact).
         // Two statuses seeded so Tier-3 tests exercise multi-row list +
         // FilterText filtering. Names use scratch labels (TEST-PendingLabel,
         // TEST-ApprovedLabel) so DeleteAllAsync(filterText) tests can target
         // scratch-only data without wiping the seeded rows.
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _appointmentStatusRepository.InsertAsync(new AppointmentStatus(
                 id: AppointmentStatusesTestData.Status1Id,
@@ -718,9 +742,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedStatesAsync()
     {
-        // State is host-only (NOT IMultiTenant). The IMultiTenant filter does
-        // not apply regardless of CurrentTenant context (external research
-        // Track 1.1), so the `_currentTenant.Change(null)` wrap is parity-only.
+        // State is per-office (IMultiTenant) and production seeds 50 per office
+        // database. Seeded in tenant A's scope (#764); the `Change(null)` that used
+        // to wrap this put the rows in HOST scope, where production has none.
         // Three states seeded so Tier-3 tests can exercise multi-state list +
         // Name-filter assertions:
         //   State1 -- TEST-California (also referenced by Location1 +
@@ -729,7 +753,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         //             inside SeedLocationsAsync, hence runs BEFORE it).
         //   State2 -- TEST-Nevada
         //   State3 -- TEST-Oregon
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _stateRepository.InsertAsync(new State(
                 id: StatesTestData.State1Id,
@@ -742,6 +766,13 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             await _stateRepository.InsertAsync(new State(
                 id: StatesTestData.State3Id,
                 name: StatesTestData.State3Name));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _stateRepository.InsertAsync(new State(
+                id: LocationsTestData.State1TenantBId,
+                name: LocationsTestData.State1Name));
         }
     }
 }
