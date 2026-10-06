@@ -1159,8 +1159,8 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             },
             Accessors = new List<AppointmentAccessorCreateDto>
             {
-                new() { Email = $"acc1-{suffix}@example.test", Role = "Paralegal" },
-                new() { Email = $"acc2-{suffix}@example.test", Role = "Assistant" },
+                new() { Email = $"acc1-{suffix}@example.test", Role = "Claim Examiner" },
+                new() { Email = $"acc2-{suffix}@example.test", Role = "Patient" },
             },
             InjuryDetails = new List<AppointmentInjurySubmitDto>
             {
