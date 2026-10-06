@@ -554,6 +554,99 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     }
 
     // ------------------------------------------------------------------------
+    // Booking never matches a patient the caller is not entitled to. A typed email or a 3-of-6
+    // detail match is not entitlement, so for an external caller it must look exactly like "no
+    // match": a new record, PatientAlreadyExisted false, and the stranger's record untouched.
+    // ------------------------------------------------------------------------
+
+    private static CreatePatientForAppointmentBookingInput BuildInputMatchingPatient1(bool sameEmail)
+    {
+        return new CreatePatientForAppointmentBookingInput
+        {
+            FirstName = PatientsTestData.Patient1FirstName,
+            LastName = PatientsTestData.Patient1LastName,
+            Email = sameEmail ? PatientsTestData.Patient1Email : "different-address@test.local",
+            GenderId = (Gender)PatientsTestData.PatientGenderIdValue,
+            DateOfBirth = PatientsTestData.FixedDateOfBirth,
+            PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
+            SocialSecurityNumber = PatientsTestData.Patient1SocialSecurityNumber,
+        };
+    }
+
+    private async Task<PatientWithNavigationPropertiesDto> BookAsAsync(
+        Guid userId, string role, CreatePatientForAppointmentBookingInput input)
+    {
+        PatientWithNavigationPropertiesDto? result = null;
+        using (WithCurrentUser.Run(_currentPrincipalAccessor, userId, role))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                using (_currentTenant.Change(TenantsTestData.TenantARef))
+                {
+                    result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+                }
+            });
+        }
+        return result!;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetOrCreatePatient_WhenAnExternalCallerMatchesAStrangersPatient_CreatesANewRecord(bool matchByEmail)
+    {
+        // true: the email fast path would have hit. false: only the 3-of-6 dedup (last name, DOB,
+        // SSN) hits, under a different email.
+        var result = await BookAsAsync(
+            IdentityUsersTestData.DefenseAttorney1UserId,
+            IdentityUsersTestData.DefenseAttorneyRoleName,
+            BuildInputMatchingPatient1(matchByEmail));
+
+        result.IsExisting.ShouldBeFalse();
+        result.Patient.Id.ShouldNotBe(PatientsTestData.Patient1Id);
+        result.Patient.IdentityUserId.ShouldBeNull();
+
+        // The stranger's record is neither returned nor changed.
+        var stranger = await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                return await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+            }
+        });
+        stranger.IdentityUserId.ShouldBe(IdentityUsersTestData.Patient1UserId);
+        stranger.Email.ShouldBe(PatientsTestData.Patient1Email);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetOrCreatePatient_WhenAnExternalCallerMatchesTheirOwnPatient_ReusesIt(bool matchByEmail)
+    {
+        var result = await BookAsAsync(
+            IdentityUsersTestData.Patient1UserId,
+            IdentityUsersTestData.PatientRoleName,
+            BuildInputMatchingPatient1(matchByEmail));
+
+        result.IsExisting.ShouldBeTrue();
+        result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetOrCreatePatient_WhenInternalStaffMatchAPatient_StillReuseIt(bool matchByEmail)
+    {
+        var result = await BookAsAsync(
+            IdentityUsersTestData.TenantAdmin1UserId,
+            "Intake Staff",
+            BuildInputMatchingPatient1(matchByEmail));
+
+        result.IsExisting.ShouldBeTrue();
+        result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
+    }
+
+    // ------------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------------
 
