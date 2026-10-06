@@ -73,6 +73,10 @@ public class AppointmentBodyPartsAppService : CaseEvaluationAppService, IAppoint
     [Authorize(CaseEvaluationPermissions.AppointmentBodyParts.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Grandchild: party check against the appointment the row's injury detail belongs to.
+        var entity = await _repository.GetAsync(id);
+        var parentInjuryDetail = await _injuryDetailRepository.GetAsync(entity.AppointmentInjuryDetailId);
+        await _childOwnershipGuard.EnsureIsPartyAsync(parentInjuryDetail.AppointmentId);
         await _repository.DeleteAsync(id);
     }
 

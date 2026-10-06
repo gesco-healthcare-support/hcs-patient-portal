@@ -97,6 +97,9 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Party check against the row's STORED parent appointment (never request input), as on update.
+        var existing = await _repository.GetAsync(id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(existing.AppointmentId);
         await _repository.DeleteAsync(id);
     }
 
