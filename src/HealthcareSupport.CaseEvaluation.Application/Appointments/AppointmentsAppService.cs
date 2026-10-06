@@ -638,7 +638,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with the by-id patient read; see BookingPartyAppointments.
         return await Patients.BookingPartyAppointments.ForClaimExaminer(
                 await _appointmentRepository.GetQueryableAsync(),
-                CurrentUser.Email)
+                CurrentUser.GetVerifiedEmail())
             .Select(a => a.PatientId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
