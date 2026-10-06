@@ -55,6 +55,14 @@ class CredentialThrottle(unittest.TestCase):
         self.assertRegex(self.http, r"map\s+\"\$request_method:\$uri\"\s+\$signin_throttle_key")
         self.assertRegex(self.http, r"(?m)^\s*limit_req_status\s+429\s*;")
 
+    def test_signin_zone_tolerates_a_shared_office_ip(self):
+        # 30 r/min, burst 30: a clinic's 15-20 morning sign-ins from one NAT address must pass.
+        self.assertRegex(self.http, r"zone=signin_per_ip:\d+m\s+rate=30r/m")
+        self.assertRegex(self.server_auth(), r"limit_req\s+zone=signin_per_ip\s+burst=30\s+nodelay")
+
+    def server_auth(self):
+        return server_block(self.text, AUTH_HOST)
+
     def test_the_auth_vhost_applies_both_zones_and_keeps_the_generic_one(self):
         body = server_block(self.text, AUTH_HOST)
         self.assertIsNotNone(body)

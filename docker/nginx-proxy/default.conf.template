@@ -121,8 +121,11 @@ limit_req_zone $binary_remote_addr zone=minio_per_ip:10m rate=50r/s;
 # with an optional trailing slash. Only POST is keyed: page loads, the authorize redirect and static
 # assets are never counted.
 #
-# signin_per_ip: 10 r/min, burst 10. A clinic shares one public IP, so ten quick sign-ins pass at once and
-# the bucket then refills one every 6 s. About 14,400 attempts a day per address instead of 860,000.
+# signin_per_ip: 30 r/min, burst 30. A whole clinic signs in from ONE NAT'd public IP: 15-20 staff at 9am
+# plus a few mistyped passwords must not hit 429, and thirty quick requests pass at once. The bucket then
+# refills one every 2 s: 30 x 60 x 24 = 43,200 attempts a day per address, about 20x below the 864,000 a
+# day (10 r/s) the generic zone allowed. Per-account lockout covers guessing at one account; this zone is
+# about spraying from a single address.
 # token_per_ip: /connect/token is also the 15-minute refresh-token exchange every signed-in browser makes,
 # so it needs headroom for a whole office behind one address: 60 r/min, burst 30.
 #
@@ -138,7 +141,7 @@ map "$request_method:$uri" $token_throttle_key {
     default "";
     ~*^POST:/connect/token/?$ $binary_remote_addr;
 }
-limit_req_zone $signin_throttle_key zone=signin_per_ip:10m rate=10r/m;
+limit_req_zone $signin_throttle_key zone=signin_per_ip:10m rate=30r/m;
 limit_req_zone $token_throttle_key zone=token_per_ip:10m rate=60r/m;
 # 429 rather than nginx's default 503, so a refusal reads as "slow down", not "server broken".
 # Every refusal is logged at warn, so the ceilings can be tuned from real traffic after the pilot.
@@ -215,7 +218,7 @@ server {
     # B5: per-client ceiling on sign-in traffic (zone defined at the top).
     limit_req zone=auth_per_ip burst=50 nodelay;
     # Tighter dedicated ceilings for credential and token requests (keys defined at the top).
-    limit_req zone=signin_per_ip burst=10 nodelay;
+    limit_req zone=signin_per_ip burst=30 nodelay;
     limit_req zone=token_per_ip burst=30 nodelay;
 
     ssl_certificate     /etc/nginx/certs/wildcard.crt;
