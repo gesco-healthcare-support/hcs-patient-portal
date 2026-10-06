@@ -372,6 +372,56 @@ public abstract class AppointmentReadAccessGuardTests<TStartupModule> : CaseEval
     }
 
     [Fact]
+    public async Task CanRequestChange_NamedPartyWithUnconfirmedEmail_IsDenied()
+    {
+        // Same caller as CanRequestChange_NamedPartyByEmailAndRole_IsAllowed, but the identity
+        // provider reports the address as unconfirmed (for example just changed). An unconfirmed
+        // address must not link the caller to an appointment naming it.
+        var fixture = await CreateFixtureAsync();
+
+        var allowed = await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            using (WithCurrentUser.RunWithEmail(
+                _principalAccessor,
+                IdentityUsersTestData.ApplicantAttorney1UserId,
+                IdentityUsersTestData.ApplicantAttorney1Email,
+                emailVerified: false,
+                IdentityUsersTestData.ApplicantAttorneyRoleName))
+            {
+                var appointment = await _appointmentRepository.GetAsync(fixture.AppointmentId);
+                return await _guard.CanRequestChangeAsync(appointment);
+            }
+        });
+
+        allowed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CanRead_NamedPartyByConfirmedEmail_IsAllowed_AndUnconfirmedEmail_IsDenied()
+    {
+        var fixture = await CreateFixtureAsync();
+
+        async Task<bool> CanReadAsync(bool emailVerified) => await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            using (WithCurrentUser.RunWithEmail(
+                _principalAccessor,
+                IdentityUsersTestData.ApplicantAttorney1UserId,
+                IdentityUsersTestData.ApplicantAttorney1Email,
+                emailVerified,
+                IdentityUsersTestData.ApplicantAttorneyRoleName))
+            {
+                var appointment = await _appointmentRepository.GetAsync(fixture.AppointmentId);
+                return await _guard.CanReadAsync(appointment);
+            }
+        });
+
+        (await CanReadAsync(emailVerified: true)).ShouldBeTrue();
+        (await CanReadAsync(emailVerified: false)).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task CanRequestChange_MatchingEmailButWrongRole_IsDenied()
     {
         // The role half of the email+role rule. Same address as the appointment's applicant-

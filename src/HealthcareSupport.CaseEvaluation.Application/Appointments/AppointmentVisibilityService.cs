@@ -82,7 +82,7 @@ public class AppointmentVisibilityService : ITransientDependency
         }
 
         var userId = _currentUser.Id.Value;
-        var userEmail = _currentUser.Email;
+        var userEmail = _currentUser.GetVerifiedEmail();
 
         var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
         var patientQuery = await _patientRepository.GetQueryableAsync();
