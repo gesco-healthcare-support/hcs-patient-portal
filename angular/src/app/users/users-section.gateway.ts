@@ -131,7 +131,7 @@ export class UsersSectionGateway {
   /**
    * Toggle a user's active flag. ABP's update endpoint replaces the whole DTO, so
    * fetch the current user first and resend every field with only isActive flipped
-   * (preserving roles + concurrency stamp).
+   * (preserving roles, concurrency stamp and extraProperties).
    */
   setUserActive(id: string, isActive: boolean): Observable<void> {
     return this.userExtended.get(id).pipe(
@@ -148,6 +148,9 @@ export class UsersSectionGateway {
           shouldChangePasswordOnNextLogin: u.shouldChangePasswordOnNextLogin,
           emailConfirmed: u.emailConfirmed,
           concurrencyStamp: u.concurrencyStamp,
+          // Module-extension props (IsExternalUser, IsAccessor, LockoutCycle) are non-nullable
+          // server-side, so the update is rejected with a 400 without them. Pass through unchanged.
+          extraProperties: u.extraProperties,
         }),
       ),
       map(() => undefined),
