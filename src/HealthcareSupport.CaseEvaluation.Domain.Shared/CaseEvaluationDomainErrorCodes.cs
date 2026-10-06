@@ -1224,4 +1224,11 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AdminPasswordIsAKnownDefault =
         "CaseEvaluation:AdminPassword.IsAKnownDefault";
+
+    /// <summary>
+    /// Raised by <c>UserExtendedAppService</c> when a caller who is not IT Admin or admin tries to
+    /// change a privileged account, change roles outside the staff roles, or change their own roles.
+    /// </summary>
+    public const string PrivilegedUserChangeNotAllowed =
+        "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
 }
