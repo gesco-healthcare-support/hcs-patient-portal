@@ -54,6 +54,7 @@ describe('UsersSectionGateway', () => {
     shouldChangePasswordOnNextLogin: false,
     emailConfirmed: true,
     concurrencyStamp: 'stamp-1',
+    extraProperties: { IsExternalUser: false, IsAccessor: true, LockoutCycle: 2 },
   };
 
   /** A managed-table query, as the table passes one in. */
@@ -193,6 +194,19 @@ describe('UsersSectionGateway', () => {
       expect(body.lockoutEnabled).toBeTrue();
       expect(body.emailConfirmed).toBeTrue();
       expect(body.shouldChangePasswordOnNextLogin).toBeFalse();
+    });
+
+    it('passes extraProperties through unchanged (server requires them on update)', () => {
+      const g = gateway();
+
+      g.setUserActive('u-1', false).subscribe();
+
+      const [, body] = userExtended['update'].calls.mostRecent().args;
+      expect(body.extraProperties).toEqual({
+        IsExternalUser: false,
+        IsAccessor: true,
+        LockoutCycle: 2,
+      });
     });
 
     it('changes ONLY the active flag', () => {
