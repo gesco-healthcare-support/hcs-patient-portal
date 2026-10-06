@@ -400,11 +400,19 @@ server {
     }
 
     # /docs/ -> the documentation site: static files built by scripts/hosting/build-docs-site.sh into
-    # docker/nginx-proxy/docs-site/ and mounted read-only by docker-compose.prod.yml. No login; the
-    # server is reachable only on the LAN and the VPN.
+    # docker/nginx-proxy/docs-site/ and mounted read-only by docker-compose.prod.yml. No login: the ONLY
+    # protection is the address allow-list below (DOCS_ALLOW_DIRECTIVES), same mechanism as the minio
+    # vhost. Compose always defines it and defaults it to the RFC1918 private ranges (loopback is allowed
+    # here), so the on-prem server is unchanged; an internet-facing deployment must set it to the office
+    # egress address(es) only. The `deny all;` after it makes an EMPTY value fail closed. The apex page
+    # above stays public: it names no office and says nothing about the system.
     #
     # A bare /docs would otherwise match `location /` above and answer 200 with the apex page.
     location = /docs {
+        allow 127.0.0.1;
+        allow ::1;
+        ${DOCS_ALLOW_DIRECTIVES}
+        deny all;
         absolute_redirect off;
         return 301 /docs/;
     }
@@ -420,6 +428,10 @@ server {
     # build time. The theme's repository-stats call to api.github.com is blocked by connect-src on
     # purpose, which leaves that badge empty.
     location /docs/ {
+        allow 127.0.0.1;
+        allow ::1;
+        ${DOCS_ALLOW_DIRECTIVES}
+        deny all;
         add_header Strict-Transport-Security "max-age=86400" always;
         root /usr/share/nginx;
         default_type application/octet-stream;
