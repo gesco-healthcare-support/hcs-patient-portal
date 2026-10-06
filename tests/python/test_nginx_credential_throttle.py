@@ -134,5 +134,39 @@ class MinioVhost(unittest.TestCase):
         self.assertNotRegex(env, r"(?m)^MINIO_ALLOW_DIRECTIVES=")
 
 
+class DocsAllowList(unittest.TestCase):
+    """The docs site has no login, so the address allow-list is its only protection."""
+
+    def setUp(self):
+        self.text = strip_comments(TEMPLATE.read_text(encoding="utf-8"))
+        self.apex = server_block(self.text, "${BASE_DOMAIN}")
+
+    def location(self, header):
+        match = re.search(re.escape(header) + r"\s*\{(.*?)\n    \}", self.apex, re.DOTALL)
+        self.assertIsNotNone(match, header)
+        return match.group(1)
+
+    def test_every_docs_location_is_allow_listed_and_fails_closed(self):
+        for header in ("location = /docs", "location /docs/"):
+            body = self.location(header)
+            allow = body.index("${DOCS_ALLOW_DIRECTIVES}")
+            deny = body.index("deny all;")
+            self.assertLess(allow, deny, header)
+            self.assertRegex(body, r"allow\s+127\.0\.0\.1\s*;")
+
+    def test_compose_always_defines_it_with_a_private_default_and_never_requires_it(self):
+        compose = COMPOSE.read_text(encoding="utf-8")
+        match = re.search(r"DOCS_ALLOW_DIRECTIVES:\s*\"\$\{DOCS_ALLOW_DIRECTIVES:-([^}]*)\}\"", compose)
+        self.assertIsNotNone(match, "compose must define it with a :- default")
+        for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"):
+            self.assertIn(f"allow {cidr};", match.group(1))
+        self.assertNotIn("${DOCS_ALLOW_DIRECTIVES:?", compose)
+
+    def test_env_example_documents_it_commented_out(self):
+        env = ENV_EXAMPLE.read_text(encoding="utf-8")
+        self.assertRegex(env, r"(?m)^# DOCS_ALLOW_DIRECTIVES=")
+        self.assertNotRegex(env, r"(?m)^DOCS_ALLOW_DIRECTIVES=")
+
+
 if __name__ == "__main__":
     unittest.main()
