@@ -54,6 +54,23 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
 
+  # B11: clamd scans every user-supplied file before it is stored. The API streams each
+  # upload to it over the internal network (Clamd__Host on the api service below) and
+  # refuses the upload when it finds a signature (422) or cannot answer (503) -- it fails
+  # CLOSED, so while this container is starting or down, uploads are refused, not stored
+  # unscanned. No published port: only the api talks to it.
+  #
+  # The api does NOT depend_on this service: the app starts without it, and signature
+  # loading takes about a minute on a cold start. freshclam inside the image refreshes the
+  # signatures and needs outbound HTTPS to database.clamav.net. The named volume keeps them
+  # across restarts so a restart is not a full download.
+  clamav:
+    image: clamav/clamav:1.5@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0
+    restart: unless-stopped
+    volumes:
+      - clamavdb:/var/lib/clamav
+    # The image's own HEALTHCHECK (clamdcheck.sh) reports healthy once clamd answers.
+
   # 2026-05-13: MinIO blob store for document uploads. Replaces the
   # DB-BLOB default for the seven per-feature document containers
   # configured in CaseEvaluationDomainModule.ConfigureBlobStoring.
@@ -76,23 +93,6 @@ services:
   # do not change the tags. See the MinIO note at the top of
   # docker-compose.prod.yml for the why and for the digests that verify a
   # loaded image.
-  # B11: clamd scans every user-supplied file before it is stored. The API streams each
-  # upload to it over the internal network (Clamd__Host on the api service below) and
-  # refuses the upload when it finds a signature (422) or cannot answer (503) -- it fails
-  # CLOSED, so while this container is starting or down, uploads are refused, not stored
-  # unscanned. No published port: only the api talks to it.
-  #
-  # The api does NOT depend_on this service: the app starts without it, and signature
-  # loading takes about a minute on a cold start. freshclam inside the image refreshes the
-  # signatures and needs outbound HTTPS to database.clamav.net. The named volume keeps them
-  # across restarts so a restart is not a full download.
-  clamav:
-    image: clamav/clamav:1.5@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0
-    restart: unless-stopped
-    volumes:
-      - clamavdb:/var/lib/clamav
-    # The image's own HEALTHCHECK (clamdcheck.sh) reports healthy once clamd answers.
-
   minio:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
