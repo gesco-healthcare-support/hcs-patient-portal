@@ -9,7 +9,7 @@ namespace HealthcareSupport.CaseEvaluation.Patients;
 /// (docs/plans/2026-05-29-ssn-redact-on-type.md) tightens that: EVERY
 /// standard payload now carries only the last 4, regardless of caller role
 /// or record ownership. The full value crosses the wire only via the
-/// dedicated audited reveal endpoint (<c>PatientsAppService.GetFullSsnAsync</c>),
+/// dedicated reveal endpoint (<c>PatientsAppService.GetFullSsnAsync</c>),
 /// which performs its own internal/owner authorization and reads the raw
 /// entity value directly -- it does not go through this helper.</para>
 ///

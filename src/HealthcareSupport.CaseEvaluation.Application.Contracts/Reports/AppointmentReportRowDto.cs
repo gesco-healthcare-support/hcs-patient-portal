@@ -9,7 +9,7 @@ namespace HealthcareSupport.CaseEvaluation.Reports;
 /// last 4 only and DateOfBirth is the birth year only. Name / Email /
 /// PhoneNumber are shown in full for the internal worklist (Adrian's HIPAA
 /// call 2026-06-06). The full SSN is never carried here -- it is available
-/// only via the audited Patients.RevealSsn reveal endpoint.
+/// only via the dedicated Patients.RevealSsn reveal endpoint.
 /// </summary>
 public class AppointmentReportRowDto
 {

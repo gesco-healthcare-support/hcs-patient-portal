@@ -323,7 +323,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- masks the
     /// nested <see cref="PatientDto.SocialSecurityNumber"/> on an
     /// appointment-with-nav DTO to the last 4 for ALL callers. The full value
-    /// is served only by the audited reveal endpoint
+    /// is served only by the dedicated reveal endpoint
     /// (<c>PatientsAppService.GetFullSsnAsync</c>).
     /// See <see cref="HealthcareSupport.CaseEvaluation.Patients.SsnVisibility"/>
     /// and docs/plans/2026-05-29-ssn-redact-on-type.md.
