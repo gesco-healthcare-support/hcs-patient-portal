@@ -86,7 +86,7 @@ both needs a migration in BOTH sets.
   Out-of-order cold starts break permission seeding and JWT validation.
 - **Never edit `angular/src/app/proxy/`.** It is generated; regenerate with
   `abp generate-proxy` after a backend DTO or service change.
-- **`appsettings.secrets.json`** holds the ABP licence and SMTP credentials. Treat as
+- **appsettings.secrets.json** holds the ABP licence and SMTP credentials. Treat as
   sensitive even where it is not gitignored.
 - **Every Compose command on the deployed server needs `--env-file secrets/env.prod`.**
   There is no `.env` there, so Compose loads nothing, every secret resolves to a blank
