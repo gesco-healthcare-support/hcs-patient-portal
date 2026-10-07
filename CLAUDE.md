@@ -196,9 +196,9 @@ both needs a migration in BOTH sets.
 ## Deliberate oddities: do not "fix" these without asking
 
 - **Three appointment states are DEAD and are not supposed to exist here**: `CheckedIn`
-  (9), `CheckedOut` (10), `Billed` (11). The `AppointmentManager` transitions exist but
-  nothing triggers them. Their email templates, status pills and dashboard counters are
-  all present and never fire, and `DashboardAppService` hardcodes `BilledThisMonth = 0`.
+  (9), `CheckedOut` (10), `Billed` (11). The transitions, email dispatch, status-pill
+  mappings and always-zero dashboard counters were removed as dead code; the enum values,
+  labels, localization keys and notification template rows remain as deferred data migrations.
   They were planned for this portal and that responsibility moved to the Case Tracker
   (product owner, 2026-09-28), so they are removal candidates rather than unfinished work.
   Removing them is a data-compatibility exercise: the enum persists as integers and
