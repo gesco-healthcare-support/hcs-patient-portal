@@ -14,12 +14,6 @@ export interface DashboardCountersDto {
   pendingChangeRequests?: number;
   requestsApproachingLegalDeadline?: number;
   decisionOverdue?: number;
-  billedThisMonth?: number;
-  noShowThisMonth?: number;
-  rescheduledThisMonth?: number;
-  cancelledThisWeek?: number;
-  checkedInToday?: number;
-  checkedOutToday?: number;
   totalDoctors?: number;
   totalTenants?: number;
 }

@@ -58,8 +58,8 @@ Until they are removed, treat any code that references them as dead. Tracked as 
 
 Consequences a maintainer will otherwise trip over:
 
-- **The portal does not do billing.** `DashboardAppService` hardcodes `BilledThisMonth = 0`,
-  so the dashboard's billed counter is permanently zero rather than merely empty.
+- **The portal does not do billing.** The dashboard has no billed counter
+  (the always-zero `BilledThisMonth` placeholder was removed).
 - The email templates `PatientAppointmentCheckedIn` and `PatientAppointmentCheckedOut` exist in
   the catalogue and never fire.
 - `appointment-status.util.ts` maps all three to a status pill that no appointment can display.
