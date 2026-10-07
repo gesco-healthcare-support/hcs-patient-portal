@@ -11,9 +11,9 @@ mapping, JWT issuer validation, CORS, data-protection).
 | File | Purpose |
 |---|---|
 | `CaseEvaluationHttpApiHostModule.cs` | Root ABP module -- all ConfigureServices + OnApplicationInitialization |
-| `Program.cs` | Host bootstrap; loads `appsettings.Local.json` + `appsettings.secrets.json` |
+| `Program.cs` | Host bootstrap; loads appsettings.Local.json + appsettings.secrets.json |
 | `appsettings.json` | Baseline config (LocalDB, Redis disabled, AuthServer 44368) |
-| `appsettings.secrets.json` | ABP license + SMTP creds (sensitive; treat as secret even if not gitignored) |
+| appsettings.secrets.json | ABP license + SMTP creds (sensitive; treat as secret even if not gitignored) |
 | `ApiDocumentation/ApiDocumentationPipeline.cs` | Serves Swagger and its UI in Development ONLY; the module makes one call to it |
 | `BackgroundJobs/DevelopmentHangfireDashboardAuthorizationFilter.cs` | Opens `/hangfire` in Development only |
 | `RateLimiting/PasswordResetEmailPeekMiddleware.cs` | Peeks JSON body `email` field for password-reset rate partitioning |
@@ -114,7 +114,7 @@ an empty directory, making every `L("Key")` call return the literal key.
   Hangfire retries and, once exhausted, dead-letters the job in the Failed
   state (retriable from `/hangfire`). The retry policy (5 attempts, then keep
   Failed) is set globally in `ConfigureHangfire`. Real SMTP creds live in
-  `appsettings.secrets.json`, so successful sends do not retry; only genuine
+  appsettings.secrets.json, so successful sends do not retry; only genuine
   transport failures do.
 
 - `/hangfire`, `/health-ui` and `/health-api` are open in Development only. Elsewhere they
