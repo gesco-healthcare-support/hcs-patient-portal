@@ -125,13 +125,6 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             PendingChangeRequests = perOffice.Sum(c => c.PendingChangeRequests),
             RequestsApproachingLegalDeadline = perOffice.Sum(c => c.RequestsApproachingLegalDeadline),
             DecisionOverdue = perOffice.Sum(c => c.DecisionOverdue),
-            // 8 placeholders -- populated when day-of-exam states ship.
-            BilledThisMonth = 0,
-            NoShowThisMonth = 0,
-            RescheduledThisMonth = 0,
-            CancelledThisWeek = 0,
-            CheckedInToday = 0,
-            CheckedOutToday = 0,
             TotalDoctors = perOffice.Sum(c => c.TotalDoctors),
             TotalTenants = await _tenantRepository.CountAsync(),
         };
@@ -206,13 +199,6 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             PendingChangeRequests = pendingChangeRequests,
             RequestsApproachingLegalDeadline = requestsApproachingLegalDeadline,
             DecisionOverdue = decisionOverdue,
-            // 8 placeholders -- populated when day-of-exam states ship.
-            BilledThisMonth = 0,
-            NoShowThisMonth = 0,
-            RescheduledThisMonth = 0,
-            CancelledThisWeek = 0,
-            CheckedInToday = 0,
-            CheckedOutToday = 0,
             TotalDoctors = scopedToTenant ? 0 : totalDoctors,
             TotalTenants = scopedToTenant ? 0 : totalTenants,
         };

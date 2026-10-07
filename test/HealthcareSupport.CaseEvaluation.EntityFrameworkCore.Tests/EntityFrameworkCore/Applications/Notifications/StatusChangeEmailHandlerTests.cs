@@ -161,12 +161,10 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         _dispatcher.Dispatches.ShouldHaveSingleItem().Variables.Values.ShouldContain("TEST- reason on the event");
     }
 
-    // ---- The four stakeholder statuses: they send to the booker, and skip with no stakeholders ----
+    // ---- The stakeholder statuses: they send to the booker, and skip with no stakeholders ----
 
     [Theory]
     [InlineData(AppointmentStatusType.Rejected, NotificationTemplateConsts.Codes.PatientAppointmentRejected)]
-    [InlineData(AppointmentStatusType.CheckedIn, NotificationTemplateConsts.Codes.PatientAppointmentCheckedIn)]
-    [InlineData(AppointmentStatusType.CheckedOut, NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut)]
     [InlineData(AppointmentStatusType.CancelledNoBill, NotificationTemplateConsts.Codes.PatientAppointmentCancelledNoBill)]
     public async Task StakeholderStatus_EmailsTheBookerWithTheStakeholderCcd(AppointmentStatusType status, string template)
     {
@@ -182,8 +180,6 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
 
     [Theory]
     [InlineData(AppointmentStatusType.Rejected)]
-    [InlineData(AppointmentStatusType.CheckedIn)]
-    [InlineData(AppointmentStatusType.CheckedOut)]
     [InlineData(AppointmentStatusType.CancelledNoBill)]
     public async Task StakeholderStatus_SendsNothing_WhenEveryStakeholderHasABlankAddress(AppointmentStatusType status)
     {
