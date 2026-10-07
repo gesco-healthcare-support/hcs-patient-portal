@@ -22,7 +22,7 @@ namespace HealthcareSupport.CaseEvaluation.Reports;
 /// IT Admin / Staff Supervisor / Intake Staff. Internal callers see every
 /// appointment in their tenant (no visibility narrowing), matching the legacy
 /// report's audience. The full SSN is never emitted here -- only the masked
-/// last 4; a full reveal still routes through the audited
+/// last 4; a full reveal still routes through the dedicated
 /// <c>Patients.RevealSsn</c> endpoint.</para>
 /// </summary>
 [RemoteService(IsEnabled = false)]
