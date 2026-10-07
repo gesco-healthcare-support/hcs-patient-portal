@@ -1231,4 +1231,22 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string PrivilegedUserChangeNotAllowed =
         "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
+
+    /// <summary>
+    /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing
+    /// was stored. Mapped to HTTP 422.
+    ///
+    /// <para>The message is neutral on purpose (decision D4): naming the detection would tell an
+    /// uploader which signature fired. The signature goes to the log only.</para>
+    /// </summary>
+    public const string UploadRefused =
+        "CaseEvaluation:Upload.Refused";
+
+    /// <summary>
+    /// B11 -- the malware scanner could not give a verdict (down, slow, or an unrecognised answer),
+    /// so the upload was refused rather than stored unscanned. Mapped to HTTP 503: the file may be
+    /// fine and the same upload can succeed once the scanner is back.
+    /// </summary>
+    public const string UploadScanUnavailable =
+        "CaseEvaluation:Upload.ScanUnavailable";
 }
