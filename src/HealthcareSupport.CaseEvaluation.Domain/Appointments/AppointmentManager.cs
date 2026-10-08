@@ -602,8 +602,8 @@ public class AppointmentManager : DomainService
     /// outcomes. Nothing transitions out of Rejected: re-submitting creates a new
     /// appointment.</para>
     ///
-    /// <para>CheckedIn / CheckedOut / Billed are configured but DEAD -- nothing triggers
-    /// them. See the note on those Configure blocks below and PF-005.</para>
+    /// <para>CheckedIn / CheckedOut / Billed have no transitions here: they are dead states kept
+    /// only as enum values for stored-data compatibility (PF-005).</para>
     ///
     /// <para>This summary previously described the Phase 0.2 (2026-05-01) shape, in which
     /// Pending reached only Approved or Rejected and change requests were unreachable. Send
@@ -657,10 +657,7 @@ public class AppointmentManager : DomainService
             // against an Approved appointment moves it to RescheduleRequested /
             // CancellationRequested, so an appointment that can still take an attendance
             // outcome has no open request that the (terminal) outcome could strand.
-            .Permit(AppointmentTransitionTrigger.MarkNotSeen, AppointmentStatusType.NotSeen)
-            // DEAD: no production trigger for CheckIn -- see the CheckedIn/CheckedOut/Billed
-            // note on the two Configure blocks below.
-            .Permit(AppointmentTransitionTrigger.CheckIn, AppointmentStatusType.CheckedIn);
+            .Permit(AppointmentTransitionTrigger.MarkNotSeen, AppointmentStatusType.NotSeen);
 
         machine.Configure(AppointmentStatusType.CancellationRequested)
             .Permit(AppointmentTransitionTrigger.ConfirmCancellation, AppointmentStatusType.CancelledNoBill)
@@ -672,21 +669,6 @@ public class AppointmentManager : DomainService
             // #926: a rejected reschedule reverts to Approved (the only status that can enter
             // RescheduleRequested). A Pending source is not here on purpose: it never left Pending.
             .Permit(AppointmentTransitionTrigger.RejectReschedule, AppointmentStatusType.Approved);
-
-        // DEAD CODE -- CheckedIn / CheckedOut / Billed are unreachable.
-        // These three transitions (CheckIn -> CheckedIn -> CheckedOut -> Billed) are OLD's
-        // front-desk day-of-exam flow. The states, these transitions, their email handlers
-        // (StatusChangeEmailHandler), templates (PatientAppointmentCheckedIn/Out) and pill
-        // mapping were all carried over, but NOTHING triggers CheckIn / CheckOut / Bill in
-        // production -- no app-service endpoint, no UI, no background job -- so no appointment
-        // can ever enter these states. Verified 2026-09-16: zero production callers of the
-        // three triggers. Retained for data compatibility and pending a keep-vs-remove
-        // product decision; do not wire up. Tracked: docs/parity/_parity-flags.md PF-005.
-        machine.Configure(AppointmentStatusType.CheckedIn)
-            .Permit(AppointmentTransitionTrigger.CheckOut, AppointmentStatusType.CheckedOut);
-
-        machine.Configure(AppointmentStatusType.CheckedOut)
-            .Permit(AppointmentTransitionTrigger.Bill, AppointmentStatusType.Billed);
 
         return machine;
     }

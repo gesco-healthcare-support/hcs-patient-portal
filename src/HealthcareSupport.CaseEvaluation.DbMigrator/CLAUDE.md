@@ -26,8 +26,8 @@ Pass `--disable-redis`; the module sets `Redis:IsEnabled=false` in `PreConfigure
 before any Redis connection is attempted.
 
 **Config layering.**
-`appsettings.Local.json` is loaded as an optional override (not in source control).
-`appsettings.secrets.json` is mounted read-only in Docker; keep it out of commits.
+appsettings.Local.json is loaded as an optional override (not in source control).
+appsettings.secrets.json is mounted read-only in Docker; keep it out of commits.
 
 ## Gotchas
 

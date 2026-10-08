@@ -13,6 +13,7 @@ public class AppointmentTypeRepositoryTests : CaseEvaluationEntityFrameworkCoreT
 
     public AppointmentTypeRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _appointmentTypeRepository = GetRequiredService<IAppointmentTypeRepository>();
     }
 

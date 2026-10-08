@@ -13,6 +13,7 @@ public class WcabOfficeRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBa
 
     public WcabOfficeRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _officeRepository = GetRequiredService<IWcabOfficeRepository>();
     }
 

@@ -134,9 +134,10 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// documents; without it a frozen packet still moves when the patient record is
     /// corrected. This duplicates PHI into a table that already holds names, dates
     /// of birth and addresses for the same person, under the same tenant isolation.
-    /// It must NOT become a second, unaudited read path -- the audited reveal
-    /// endpoint (<c>PatientsAppService.GetFullSsnAsync</c>) remains the only way to
-    /// read an unmasked SSN through the API.
+    /// It must NOT become a second read path for an unmasked SSN -- the dedicated
+    /// reveal endpoint (<c>PatientsAppService.GetFullSsnAsync</c>) remains the only
+    /// way to read an unmasked SSN through the API (permission- and owner-gated;
+    /// note it is not itself audited -- GET auditing is off by default).
     /// </summary>
     [CanBeNull]
     public virtual string? PatientSocialSecurityNumber { get; set; }

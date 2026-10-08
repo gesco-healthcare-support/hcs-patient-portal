@@ -88,7 +88,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
         // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
         Hosting.HostingConfigValidator.ValidateOrThrow(
-            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false,
+            requireUploadScanner: true);
 
         // B12: the admin-password store, and the startup gate that refuses a host configuring
         // neither or both. Registered in both this process and the other one that can create a
@@ -192,6 +193,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             // invoked from CaseEvaluationAuthServerModule.
             HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
                 .MapSharedRegistrationAndInternalUserCodes(options);
+
+            // B11: the malware scan's refusals. Only this process stores uploads.
+            HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
+                .MapUploadScanCodes(options);
 
             // Host-specific: InternalUserTenantMismatch + the 4
             // appointment state-machine codes below are HttpApi.Host
