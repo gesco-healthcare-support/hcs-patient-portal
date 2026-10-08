@@ -148,13 +148,16 @@ public class DocumentsAppService : CaseEvaluationAppService, IDocumentsAppServic
         // database, with the blob already written. #976
         Check.Length(contentType, nameof(contentType), DocumentConsts.ContentTypeMaxLength);
 
+        // Store first, then point the row at the new blob. The container's SaveAsync can refuse
+        // (the malware scan, B11), and a refusal must leave the row naming the previous file even
+        // where the surrounding unit of work is not rolled back.
+        await _blobContainer.SaveAsync(newBlobName, fileStream, overrideExisting: false);
+
         entity.BlobName = newBlobName;
         if (!string.IsNullOrWhiteSpace(contentType))
         {
             entity.ContentType = contentType;
         }
-
-        await _blobContainer.SaveAsync(newBlobName, fileStream, overrideExisting: false);
         await _documentRepository.UpdateAsync(entity, autoSave: true);
 
         return ObjectMapper.Map<Document, DocumentDto>(entity);

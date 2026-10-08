@@ -3,7 +3,9 @@
 > Purpose: recover the host database and every per-office database from backup.
 > Audience: whoever operates the deployed server.
 > Owner: the portal maintainer.
-> **Last proven by a human: never. See the warning below.**
+> **Last proven: 2026-10-07 -- Tier-1 restore rehearsal (every backup restores + documents match
+> the database, non-destructive). A full stack-up recovery on a clean machine has still never been
+> done. See the warning below.**
 
 ## When you need this page
 
@@ -19,10 +21,34 @@ If you are simply taking a backup, that is the "Run" section and not an incident
 
 ## READ THIS BEFORE YOU RELY ON A RESTORE
 
-**No restore has ever been performed on real data by a person.** The maintainer confirmed this on
-2026-09-28, at handover.
+**A Tier-1 restore rehearsal was performed on 2026-10-07** (non-destructive; nothing live was
+stopped, recreated or overwritten). For the backup set stamped `20261007-013018` it proved:
 
-The automation below *does* include a restore proof: `backup-offbox.sh --verify-restore` performs
+- a complete matched set exists on the off-box destination (the backup host and directory in
+  `REMOTE_HOST` / `REMOTE_DIR` in `backup-offbox.sh`): the host database, every office database,
+  and the MinIO archive, all carrying the same run stamp, byte-sizes identical to the copies on
+  the portal server;
+- every database `.bak` in that set restores into a scratch database -- host `CaseEvaluation`
+  (113 user tables), `CaseEvaluation_falkinstein` (76), `CaseEvaluation_test-office` (76);
+- the MinIO archive opens and its objects match the rows that reference them: all 55 distinct
+  document and packet object hashes referenced by the falkinstein database are present in the
+  same-run archive, with **zero dangling references** (one archive object, the host branding logo,
+  is referenced by no appointment row, which is expected). See "Verify documents match the
+  database" below for the method;
+- `secrets/` -- which is in NO automated backup -- exists in a current, complete off-box copy on
+  the maintainer's workstation (exact path in the local deploy runbook), byte-size matching the
+  live box, including `dataprotection.pfx`, `openiddict.pfx`, `env.prod` and `admin-passwords/`.
+  That copy is MANUAL: a secret changed on the server after that date is not captured until
+  someone re-pulls it.
+
+**What is still unproven (Tier 2):** that the whole stack comes back up from backup on a clean
+machine and a user can sign in and download a document. Until that is done, a restore is proven
+_readable and internally consistent_, not proven to _recover the business_.
+
+**History, kept:** no full restore on real data had ever been performed by a person before
+2026-10-07; the maintainer confirmed this on 2026-09-28, at handover.
+
+The automation below _does_ include a restore proof: `backup-offbox.sh --verify-restore` performs
 a genuine `RESTORE DATABASE` into a scratch name and writes a `last-restore-proof` marker, and
 `hcs-portal-backup-verify.timer` is meant to run it weekly. But the scripts existing in this
 repository is not evidence that the timers are installed and running on the server, and the
@@ -85,12 +111,12 @@ Suggested retention: 14 daily on-box + weekly copies retained ~8 weeks off-box (
 On the server, `scripts/hosting/backup-offbox.sh` runs this dump, ships it and the MinIO documents off-box, and
 is scheduled by systemd:
 
-| Unit | When | What |
-| --- | --- | --- |
-| `hcs-portal-backup.timer` | 01:30 nightly | off-box backup |
-| `hcs-portal-backup-verify.timer` | 02:30 Sunday | the same, plus a restore into a scratch database |
-| `hcs-portal-backup-freshness.timer` | 09:00 daily | emails if the backup or the restore proof has gone stale |
-| `hcs-portal-backup-alert@.service` | on failure | emails when either backup unit fails (`OnFailure=`) |
+| Unit                                | When          | What                                                     |
+| ----------------------------------- | ------------- | -------------------------------------------------------- |
+| `hcs-portal-backup.timer`           | 01:30 nightly | off-box backup                                           |
+| `hcs-portal-backup-verify.timer`    | 02:30 Sunday  | the same, plus a restore into a scratch database         |
+| `hcs-portal-backup-freshness.timer` | 09:00 daily   | emails if the backup or the restore proof has gone stale |
+| `hcs-portal-backup-alert@.service`  | on failure    | emails when either backup unit fails (`OnFailure=`)      |
 
 Alerts go to `BACKUP_ALERT_RECIPIENTS` in `secrets/env.prod` (addresses separated by `;` or `,`), through the
 portal's own SMTP relay settings in the same file. A blank list is an error in the journal and no email.
@@ -235,7 +261,37 @@ DROP DATABASE [CaseEvaluation_verify];
 ```
 
 (Confirm the logical names with `RESTORE FILELISTONLY FROM DISK = N'<file>.bak';` -- they may
-differ per database.)
+differ per database. Use a clearly scratch name like `CaseEvaluation_verify` and never a live
+database name with `REPLACE`.)
+
+### Verify documents match the database (the integrity check)
+
+A `.bak` that restores proves the database is readable. It does NOT prove the documents it points
+at still exist. The appointment documents and packets live in MinIO, not in the database; each row
+in `AppAppointmentDocuments` and `AppAppointmentPackets` holds a `BlobName` object key. To prove a
+restore is whole you must confirm those objects are present in the MinIO archive **from the same
+run** (same stamp). Match on the object key's terminal hash (the final `<hex>.pdf` / `<hex>.png`),
+which is stable; ABP prefixes the stored key with a container and tenant path, so the full strings
+will not be equal.
+
+```bash
+# On the off-box host (REMOTE_HOST/REMOTE_DIR from backup-offbox.sh), list the object basenames.
+# The far end is Windows and ships a usable tar; use the same SSH key the backup uses.
+ssh "$REMOTE_HOST" "tar -tzf $REMOTE_DIR/minio/minio_<stamp>.tar.gz" \
+  | tr -d '\r' | grep 'case-evaluation-documents/' | grep -vE '/$' | sed 's#.*/##' | sort -u > arch.txt
+```
+
+```sql
+-- In the restored office database, the object keys its rows reference:
+SELECT BlobName FROM [CaseEvaluation_verify].dbo.AppAppointmentDocuments
+UNION ALL SELECT BlobName FROM [CaseEvaluation_verify].dbo.AppAppointmentPackets;
+```
+
+Reduce each `BlobName` to its terminal hash (`sed 's#.*/##'`), sort unique, and `comm -12` it with
+`arch.txt`. Every key a row references must appear in the archive; any that do not are dangling
+references and the restore is not whole. (An archive object referenced by no row -- e.g. the host
+branding logo -- is fine and expected.) The 2026-10-07 rehearsal ran exactly this and matched 55
+of 55 for falkinstein with zero missing.
 
 ## Escalation
 

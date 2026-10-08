@@ -24,12 +24,15 @@ public static class HostingConfigValidator
     /// <summary>
     /// Throws <see cref="AbpException"/> when a required production setting is missing or still a
     /// placeholder; no-op in Development. Set <paramref name="requireSigningCertificate"/> for the
-    /// AuthServer (it needs the openiddict.pfx passphrase); leave it false for the API.
+    /// AuthServer (it needs the openiddict.pfx passphrase); leave it false for the API. Set
+    /// <paramref name="requireUploadScanner"/> for the API, which stores uploads and scans each one
+    /// with clamd first (B11); the AuthServer stores none.
     /// </summary>
     public static void ValidateOrThrow(
         IConfiguration configuration,
         bool isDevelopment,
-        bool requireSigningCertificate)
+        bool requireSigningCertificate,
+        bool requireUploadScanner = false)
     {
         if (isDevelopment)
         {
@@ -67,6 +70,13 @@ public static class HostingConfigValidator
         if (requireSigningCertificate)
         {
             checks.Add(("AuthServer:CertificatePassPhrase", IsBlankOrPlaceholder));
+        }
+
+        // B11: with no clamd host every upload is refused (the scan fails closed), so a missing value
+        // would start a stack that cannot accept a single file. Refusing to start says so up front.
+        if (requireUploadScanner)
+        {
+            checks.Add(("Clamd:Host", IsBlankOrPlaceholder));
         }
 
         var invalid = checks

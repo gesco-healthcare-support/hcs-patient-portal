@@ -63,7 +63,9 @@ public abstract class Wave2SeedSanityTests<TStartupModule> : CaseEvaluationAppli
 
             slot3.ShouldNotBeNull();
             slot3!.BookingStatusId.ShouldBe(DoctorAvailabilitiesTestData.Slot3BookingStatus);
-            slot3.LocationId.ShouldBe(LocationsTestData.Location1Id);
+            // Tenant B's slot points at tenant B's OWN location (#764); pointing it at tenant A's
+            // Location1 would make the slot-to-location join empty under tenant B.
+            slot3.LocationId.ShouldBe(LocationsTestData.Location1TenantBId);
             slot3.TenantId.ShouldBe(TenantsTestData.TenantBRef);
         }
     }

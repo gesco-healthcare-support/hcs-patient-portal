@@ -150,11 +150,11 @@ Snapshots and projections:
 
 ## Dead states -- do not treat as live (PF-005)
 
-`CheckedIn` (9), `CheckedOut` (10) and `Billed` (11) are **dead code**. Their
-transitions exist in `AppointmentManager` (`CheckIn` / `CheckOut` / `Bill`), and
-so do their email handlers, templates and status-pill mapping -- but **nothing
-triggers them** in production (no endpoint, no UI, no job), so an appointment can
-never reach them. They are OLD's front-desk day-of-exam flow, carried over but
+`CheckedIn` (9), `CheckedOut` (10) and `Billed` (11) are **dead states**. Their
+transitions, email dispatch and status-pill mapping were removed from the code;
+only the enum values (stored as integers), the status labels, the localization
+keys and the notification template rows remain, as deferred data migrations. No
+appointment can reach them. They are OLD's front-desk day-of-exam flow, carried over but
 never wired up; Case Tracker owns attendance and billing now. Do **not** build on
 them, wire them up, or assume they are reachable when adding or changing lifecycle
 code. Flagged, not deleted, pending a keep-vs-remove decision from Adrian.

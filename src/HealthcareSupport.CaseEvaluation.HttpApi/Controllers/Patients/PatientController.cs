@@ -89,9 +89,10 @@ public class PatientController : AbpController, IPatientsAppService
         return _patientsAppService.GetAsync(id);
     }
 
-    // F1 / Design B (2026-05-29) -- audited SSN reveal endpoint. Distinct from
+    // F1 / Design B (2026-05-29) -- dedicated SSN reveal endpoint. Distinct from
     // GET {id}; serves the full SSN only to authorized callers (permission +
-    // SsnRevealAccess gate live in the AppService).
+    // SsnRevealAccess gate live in the AppService). NOT audited: this is a GET and
+    // GET auditing is off by default -- see PatientsAppService.GetFullSsnAsync.
     [HttpGet]
     [Route("{id}/ssn")]
     public virtual Task<SsnRevealDto> GetFullSsnAsync(Guid id)

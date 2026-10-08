@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 using Volo.Abp.Testing;
 
@@ -23,6 +24,28 @@ public abstract class CaseEvaluationTestBase<TStartupModule> : AbpIntegratedTest
         builder.AddJsonFile("appsettings.json", false);
         builder.AddJsonFile("appsettings.secrets.json", true);
         services.ReplaceConfiguration(builder.Build());
+    }
+
+    private IDisposable? _ambientTenantScope;
+
+    /// <summary>
+    /// Runs the whole test inside <paramref name="tenantId"/>'s scope, and releases it when the
+    /// test is disposed. Call it from a test class constructor. The per-office catalog (State,
+    /// AppointmentType, Location, WcabOffice, AppointmentLanguage, AppointmentStatus) is seeded
+    /// INSIDE a tenant, exactly as production's per-office seeders do (#764), so a test that reads
+    /// it has to be inside that tenant too: a host-scope read finds none of it.
+    /// </summary>
+    protected void UseAmbientTenant(Guid tenantId)
+    {
+        _ambientTenantScope?.Dispose();
+        _ambientTenantScope = ServiceProvider.GetRequiredService<ICurrentTenant>().Change(tenantId);
+    }
+
+    public override void Dispose()
+    {
+        _ambientTenantScope?.Dispose();
+        _ambientTenantScope = null;
+        base.Dispose();
     }
 
     protected virtual Task WithUnitOfWorkAsync(Func<Task> func)
