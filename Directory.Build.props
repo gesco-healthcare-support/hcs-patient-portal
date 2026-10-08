@@ -159,6 +159,40 @@
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
   </ItemGroup>
 
+  <!-- SixLabors.ImageSharp (2026-10-08): suppress the five decoder advisories published
+       2026-10-07 against ImageSharp <= 4.1.1: GHSA-j3p4-wp97-rph4, GHSA-j9gm-c75j-xc9q and
+       GHSA-jjfr-hcj7-qf5w (High), GHSA-gwg2-r3hj-4w44 and GHSA-wmxv-xphr-5c9g (Moderate), all
+       image-decoder denial-of-service classes. Under TreatWarningsAsErrors they raise NU1902 /
+       NU1903 and fail `dotnet restore` on every backend project (api / authserver / db-migrator
+       + test projects) and the on-prem image build; this is where the 2026-10-08 deploy stopped.
+
+       Why suppressed instead of pinned (like AngleSharp above, unlike the same-line Scriban /
+       MessagePack / Cryptography.Xml pins): the first patched release is 4.1.2, a MAJOR version
+       jump. ImageSharp arrives transitively through Volo.Abp.Imaging.ImageSharp 10.0.2, which is
+       built against the 3.1.x API, and no ABP 10.x release consumes ImageSharp 4.x. Forcing
+       4.1.2 would cross a major API boundary ABP was not compiled against and risks a runtime
+       break in ABP's imaging stack, so it cannot be safely pinned or upgraded today.
+
+       Exposure assessment (why the risk is accepted): ImageSharp is a DORMANT deep-transitive
+       dependency here. No application code invokes it; a repo-wide grep for IImageCompressor,
+       Image.Load, .Mutate(, any resize/compress API and the Volo.Abp.Imaging module itself
+       returns zero hits in src/. The only image-upload path, BrandingAppService (office logo,
+       gated by CaseEvaluationPermissions.Branding.Edit = IT Admin / Staff Supervisor only,
+       1 MB cap, PNG/JPG, magic-byte validated), stores the blob WITHOUT decoding it through
+       ImageSharp. Every one of the five advisories is an image-decoder crash, so none is
+       reachable: no untrusted image is ever decoded by ImageSharp in this application.
+
+       REMOVE these suppressions when a Volo.Abp.Imaging.ImageSharp release ships depending on
+       ImageSharp >= 4.1.2 (then bump ABP and drop this block). Scoped to the five advisory URLs
+       so all other NuGetAudit alerts still fail the build. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-j3p4-wp97-rph4" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-j9gm-c75j-xc9q" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-jjfr-hcj7-qf5w" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-gwg2-r3hj-4w44" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-wmxv-xphr-5c9g" />
+  </ItemGroup>
+
   <!-- OBS-14 guard (2026-05-22): bans direct Scriban references at compile
        time. The BannedSymbols.txt file at the repo root lists the specific
        types and namespaces that throw System.TypeLoadException at runtime
