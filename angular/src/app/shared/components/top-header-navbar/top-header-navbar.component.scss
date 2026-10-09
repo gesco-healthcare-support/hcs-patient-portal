@@ -29,17 +29,7 @@
   text-decoration: none;
 }
 
-.top-header-navbar__logo {
-  height: 36px;
-  width: auto;
-  display: block;
-}
-
-@media (max-width: 991.98px) {
-  .top-header-navbar__logo {
-    height: 28px;
-  }
-}
+// Size comes from the shared .brand-logo box in styles/_brand.scss (36px, 28px narrow).
 
 .top-header-navbar__user-meta {
   display: flex;
