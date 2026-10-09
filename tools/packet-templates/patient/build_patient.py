@@ -72,6 +72,9 @@ CSS = r"""
   .page:last-child { break-after: auto; }
 
   .tok { }   /* pre-fill substitution point: NO visual change (exact-fidelity marker) */
+  /* 2026-10-09: an element carrying data-if="(an Office token)" is omitted when the office has no
+     value for that token (it substituted to ""). Unsubstituted, the attribute is non-empty. */
+  [data-if=""] { display: none !important; }
 
   /* text fields: borderless, fill the cell / sit on an underline rule */
   input[type="text"] { width: 100%; border: none; outline: none; background: transparent;
@@ -128,12 +131,16 @@ CSS = r"""
   #p-release .r-sign .lab { font-weight: bold; }
   #p-release input.f-sign { width: 3.85in; }
   #p-release .r-please { font-size: 18pt; line-height: 1.25; margin: 72pt 0 0; }
-  /* West Coast + FAX sit in a narrow indented band (docx ind left=3474 right=3015
-     twips ~= 2.83in) which wraps "West Coast Spine Institute" onto two lines. */
+  /* Practice name + FAX sit in a narrow indented band (docx ind left=3474 right=3015
+     twips ~= 2.83in) which wraps a long practice name onto two lines. */
   #p-release .r-inst { text-align: center; font-weight: bold; font-size: 18pt; line-height: 1.12;
         width: 2.83in; margin: 28pt 0 0 2.41in; }
   #p-release .r-addr { font-family: "Times New Roman","Liberation Serif",serif; text-align: center;
         font-size: 16pt; line-height: 1.2; margin: 0; }
+  /* The office's release address arrives as ONE token with a newline per row (see
+     OfficeBranding.RecordsReleaseAddress); pre-line renders each row as its own line, the same
+     spacing the three separate zero-margin rows had. */
+  #p-release .r-lines { white-space: pre-line; }
   #p-release .r-phone { font-family: "Times New Roman","Liberation Serif",serif; text-align: center;
         font-size: 16pt; line-height: 1.2; margin: 24pt 0 0; }
   #p-release .r-fax { text-align: center; font-size: 16pt; line-height: 1.2;
@@ -153,13 +160,17 @@ CSS = r"""
   #p-privacy .pp-p { text-align: justify; line-height: 1.32; margin: 0 0 12pt; }
 
   /* ---------- Pregnancy/X-ray Acknowledgement + Emergency Contact (page 5; bilingual;
-     section margins top=1300 left=1320 right=1320 bottom=280 twips). Letterhead
-     Footlight MT Light -> image; NAME/ACCT/DATE Arial 14pt; body Tahoma->Noto Sans 12pt;
-     footer Arial 9pt anchored at page bottom. ---------- */
+     section margins top=1300 left=1320 right=1320 bottom=280 twips). Letterhead is the
+     office's own heading + tagline, set as text in a Footlight-like serif;
+     it was an image crop of one practice's letterhead. NAME/ACCT/DATE Arial 14pt; body
+     Tahoma->Noto Sans 12pt; footer Arial 9pt anchored at page bottom. ---------- */
   @page pregnancy { size: Letter; margin: 0.9in 0.92in 0.19in 0.92in; }
   #p-pregnancy { page: pregnancy;
                  font-family: "Noto Sans","Liberation Sans",sans-serif; font-size: 12pt; }
-  #p-pregnancy .pg-head { display: block; width: 4.44in; height: auto; margin: 0; }
+  #p-pregnancy .pg-head { margin: 0; font-family: "Footlight MT Light","Book Antiqua",
+        "Palatino Linotype","Liberation Serif",serif; }
+  #p-pregnancy .pg-head .pg-head-name { font-size: 21pt; line-height: 1.05; }
+  #p-pregnancy .pg-head .pg-head-tag { font-size: 11pt; line-height: 1.15; letter-spacing: .2px; }
   #p-pregnancy .pg-idblock { margin: 14pt 0 0; }
   #p-pregnancy .pg-id { font-family: "Arial","Liberation Sans",sans-serif; font-weight: bold;
         font-size: 14pt; line-height: 1.32; margin: 0; white-space: nowrap; }
@@ -639,12 +650,10 @@ def page_release():
         '<p class="r-please">Please furnish my medical history, x-rays, treatment, '
         'medication,  MRI\u2019s, and other information in your possession pertinent to '
         'my  medical care to:</p>',
-        '<p class="r-inst">West Coast Spine Institute</p>',
-        '<p class="r-addr">16530 VENTURA BLVD.,</p>',
-        '<p class="r-addr">STE. 130</p>',
-        '<p class="r-addr">ENCINO, CA 91436</p>',
-        '<p class="r-phone">PHONE: (818) 582-2600</p>',
-        '<p class="r-fax">FAX: (818) 855-2466</p>',
+        '<p class="r-inst">##Office.PracticeName##</p>',
+        '<p class="r-addr r-lines" data-if="##Office.RecordsReleaseAddress##">##Office.RecordsReleaseAddress##</p>',
+        '<p class="r-phone" data-if="##Office.Phone##">PHONE: ##Office.Phone##</p>',
+        '<p class="r-fax" data-if="##Office.Fax##">FAX: ##Office.Fax##</p>',
         '<p class="r-field r-gaptop"><span class="lab">Patient\u2019s Name:</span>'
         f'<b class="tok-ul">{_tok("##Patients.FirstName##")}  {_tok("##Patients.LastName##")}</b></p>',
         '<p class="r-field"><span class="lab">Date of Birth:</span>'
@@ -720,8 +729,8 @@ def page_pregnancy():
         return f'<input type="text" class="fld {cls}" name="packet.patient.pregnancy.{name}">'
 
     parts = [
-        '<img class="pg-head" src="images/pregnancy_letterhead.png" '
-        'alt="Yuri Falkinstein, M.D., FAAOS -- Fellow, American Academy of Orthopaedic Surgeons">',
+        '<div class="pg-head"><div class="pg-head-name">##Office.LetterheadName##</div>'
+        '<div class="pg-head-tag" data-if="##Office.LetterheadTagline##">##Office.LetterheadTagline##</div></div>',
         '<div class="pg-idblock">'
         f'<div class="pg-id">NAME: {_tok("##Patients.FirstName##")}  {_tok("##Patients.LastName##")}</div>'
         f'<div class="pg-id">ACCT: <span class="vr">{_tok("##Appointments.RequestConfirmationNumber##")}</span></div>'
@@ -745,8 +754,8 @@ def page_pregnancy():
         f'<div class="pg-line">(NOMBRE) {f("em_nombre", "f-nm")} RELACION {f("em_relacion", "f-rel")}</div>',
         f'<div class="pg-line">NUMERO DE TELEFONO -  1. {f("em_tel1", "f-nm")} 2. {f("em_tel2", "f-ph")}</div>',
         '<div class="pg-foot-wrap">' +
-        '<p class="b">Mailing Address: P.O. Box 261656, Encino, CA 91426</p>' +
-        '<p class="r">Phone: (818) 582-2600 \u2022 Fax: (818) 855-2466</p>' +
+        '<p class="b" data-if="##Office.MailingAddress##">Mailing Address: ##Office.MailingAddress##</p>' +
+        '<p class="r" data-if="##Office.PhoneFax##">##Office.PhoneFax##</p>' +
         '</div>',
     ]
     return f'<div class="page" id="p-pregnancy">{"".join(parts)}</div>'
@@ -765,12 +774,12 @@ def page_privacyack():
                 f'name="packet.patient.privacyack.{name}"></div>')
 
     parts = [
-        '<div class="pa-title">West Coast Spine Institute Acknowledgement of Receipt of '
+        '<div class="pa-title">##Office.PracticeName## Acknowledgement of Receipt of '
         'Notice of Privacy Practices</div>',
-        '<p class="pa-p"><b>West Coast Spine Institute</b> reserves the right to modify the '
+        '<p class="pa-p"><b>##Office.PracticeName##</b> reserves the right to modify the '
         'privacy practice outlined in this notice.</p>',
         '<p class="pa-p">I have received a copy of the <b>NOTICE OF PRIVACY PRACTICES</b> for:</p>',
-        '<p class="pa-wcs"><b>West Coast Spine Institute</b></p>',
+        '<p class="pa-wcs"><b>##Office.PracticeName##</b></p>',
         f'<div class="pa-namerule"><span class="pa-name">{_tok("##Patients.FirstName##")}&nbsp;&nbsp;'
         f'{_tok("##Patients.LastName##")}</span></div>',
         '<div class="pa-lbl">Name of Patient (Print or Type)</div>',

@@ -121,6 +121,24 @@ public static class PacketTokenMap
 
             // Others group
             ["##Others.DateNow##"] = c.DateNow,
+
+            // Office group (NEW 2026-10-09): the office's own letterhead, physician, address and
+            // phone, which the templates used to hardcode for one practice. Templates hide a line
+            // whose token is empty (data-if), so an office that set no fax prints no fax line.
+            ["##Office.LetterheadName##"] = c.Office.LetterheadName,
+            ["##Office.LetterheadTagline##"] = c.Office.LetterheadTagline,
+            ["##Office.PhysicianName##"] = c.Office.PhysicianName,
+            ["##Office.PracticeName##"] = c.Office.PracticeName,
+            ["##Office.MailingAddress##"] = c.Office.MailingAddress,
+            ["##Office.MailingStreet##"] = c.Office.MailingStreet,
+            ["##Office.MailingCity##"] = c.Office.MailingCity,
+            ["##Office.MailingZip##"] = c.Office.MailingZip,
+            ["##Office.Phone##"] = c.Office.Phone,
+            ["##Office.Fax##"] = c.Office.Fax,
+            ["##Office.PhoneFax##"] = c.Office.PhoneFax,
+            ["##Office.RecordsDeliveryAddress##"] = c.Office.RecordsDeliveryAddress,
+            ["##Office.RecordsReleaseAddress##"] = c.Office.RecordsReleaseAddress,
+            ["##Office.MissedAppointmentFee##"] = c.Office.MissedAppointmentFee,
         };
     }
 }

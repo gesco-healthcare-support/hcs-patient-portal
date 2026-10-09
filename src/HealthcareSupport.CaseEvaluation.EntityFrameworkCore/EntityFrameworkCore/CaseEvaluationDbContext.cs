@@ -166,6 +166,20 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.DisplayName).HasColumnName(nameof(OfficeBranding.DisplayName)).HasMaxLength(OfficeBranding.DisplayNameMaxLength);
                 b.Property(x => x.LogoBlobName).HasColumnName(nameof(OfficeBranding.LogoBlobName)).HasMaxLength(OfficeBranding.LogoBlobNameMaxLength);
                 b.Property(x => x.LogoContentType).HasColumnName(nameof(OfficeBranding.LogoContentType)).HasMaxLength(OfficeBranding.LogoContentTypeMaxLength);
+                // 2026-10-09: the office's packet letterhead (all optional; see OfficeLetterhead).
+                b.Property(x => x.LetterheadName).HasMaxLength(OfficeLetterheadConsts.NameMaxLength);
+                b.Property(x => x.LetterheadTagline).HasMaxLength(OfficeLetterheadConsts.NameMaxLength);
+                b.Property(x => x.PhysicianName).HasMaxLength(OfficeLetterheadConsts.NameMaxLength);
+                b.Property(x => x.PracticeName).HasMaxLength(OfficeLetterheadConsts.NameMaxLength);
+                b.Property(x => x.MailingStreet).HasMaxLength(OfficeLetterheadConsts.StreetMaxLength);
+                b.Property(x => x.MailingCity).HasMaxLength(OfficeLetterheadConsts.CityMaxLength);
+                b.Property(x => x.MailingState).HasMaxLength(OfficeLetterheadConsts.StateMaxLength);
+                b.Property(x => x.MailingZip).HasMaxLength(OfficeLetterheadConsts.ZipMaxLength);
+                b.Property(x => x.Phone).HasMaxLength(OfficeLetterheadConsts.PhoneMaxLength);
+                b.Property(x => x.Fax).HasMaxLength(OfficeLetterheadConsts.PhoneMaxLength);
+                b.Property(x => x.RecordsDeliveryAddress).HasMaxLength(OfficeLetterheadConsts.AddressMaxLength);
+                b.Property(x => x.RecordsReleaseAddress).HasMaxLength(OfficeLetterheadConsts.AddressMaxLength);
+                b.Property(x => x.MissedAppointmentFee).HasPrecision(18, 2);
                 b.HasIndex(x => x.OfficeId)
                     .IsUnique()
                     .HasFilter("[IsDeleted] = 0")

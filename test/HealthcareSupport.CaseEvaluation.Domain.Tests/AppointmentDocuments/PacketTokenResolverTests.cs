@@ -16,8 +16,10 @@ using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
+using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -30,6 +32,7 @@ using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Linq;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Timing;
 using Xunit;
 
@@ -104,7 +107,13 @@ public class PacketTokenResolverTests
                 Repo(ApplicantLinks.ToArray()), Repo(Applicants.ToArray()), Repo(DefenseLinks.ToArray()), Repo(Defenses.ToArray()),
                 Repo(Injuries.ToArray()), Repo(Examiners.ToArray()), Repo(Insurances.ToArray()), Repo(WcabOffices.ToArray()),
                 Repo(States.ToArray()), Repo(Languages.ToArray()), Repo(Users.ToArray()),
-                userManager: null!, Substitute.For<IBlobContainer<UserSignaturesContainer>>(), clock);
+                userManager: null!, Substitute.For<IBlobContainer<UserSignaturesContainer>>(), clock,
+                // Host context: no office, so the letterhead is built from nothing. The office
+                // letterhead has its own tests (OfficeLetterheadResolverTests).
+                new OfficeLetterheadResolver(
+                    Substitute.For<IReadOnlyRepository<Doctor, Guid>>(),
+                    Substitute.For<IReadOnlyRepository<OfficeBranding, Guid>>(),
+                    Substitute.For<ICurrentTenant>()));
         }
     }
 

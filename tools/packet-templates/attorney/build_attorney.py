@@ -11,6 +11,13 @@ Outputs:
 Two NEW derived tokens added per request (not in the legacy DOCX; need resolver wiring):
   ##Patients.InterpreterRequired##  -> "Yes"/"No" derived from language/vendor on the patient
   ##Patients.InterpreterLanguage##  -> AppointmentLanguage.Name (fallback OthersLanguageName)
+
+OFFICE IDENTITY (2026-10-09): the letterhead, physician, practice name, addresses, phone, fax
+and missed-appointment charge are ##Office.*## tokens filled per office by the .NET side
+(OfficeLetterhead). They were literals for ONE practice, so every office's notices went out
+under that practice's name. They print plain (not in a .tok span): they are the office's own
+identity, not pre-filled case data. A line whose value the office left empty is omitted via
+data-if (see the CSS rule) instead of printing a dangling label.
 """
 
 # Repeated column heading across the three address blocks (python:S1192).
@@ -32,6 +39,10 @@ CSS = r"""
   .page:last-child { break-after: auto; }
   .letterpage { page: letterpage; }
   .tok { font-style: italic; color: #444; }      /* pre-fill substitution point */
+  /* An element carrying data-if="(an Office token)" is omitted when that token substituted to "",
+     i.e. the office has no value for it. Unsubstituted, the attribute is non-empty: shown. */
+  [data-if=""] { display: none !important; }
+  .caps { text-transform: uppercase; }
 
   /* ---- shared letterhead + running footer (the two cover letters) ---- */
   .lh { margin-bottom: 14px; }
@@ -80,13 +91,15 @@ def tok(t):
 
 
 def _letterhead():
-    return ('<div class="lh"><div class="nm">Yuri Falkinstein, M.D., FAAOS</div>'
-            '<div class="fellow">FELLOW, AMERICAN ACADEMY OF ORTHOPAEDIC SURGEONS</div></div>')
+    return ('<div class="lh"><div class="nm">##Office.LetterheadName##</div>'
+            '<div class="fellow" data-if="##Office.LetterheadTagline##">##Office.LetterheadTagline##</div></div>')
 
 
 def _lfoot():
-    return ('<div class="lfoot">P.O. Box 261656, Encino, CA 91426<br>'
-            'Phone: (818) 582-2600<br>FAX: (818) 855-2466</div>')
+    return ('<div class="lfoot">'
+            '<div data-if="##Office.MailingAddress##">##Office.MailingAddress##</div>'
+            '<div data-if="##Office.Phone##">Phone: ##Office.Phone##</div>'
+            '<div data-if="##Office.Fax##">FAX: ##Office.Fax##</div></div>')
 
 
 def attorney_notice():
@@ -105,10 +118,10 @@ def attorney_notice():
         + f'DOI: {tok("##InjuryDetails.DateOfInjury##")}<br>'
         + f'Claim: {tok("##InjuryDetails.ClaimNumber##")}</div>'
         + f'<p>Please be advised that {tok("##Patients.FirstName##")} {tok("##Patients.LastName##")} '
-        + f'has been scheduled for a {tok("##Appointments.AppointmentType##")} with Yuri Falkinstein, M.D. on '
+        + f'has been scheduled for a {tok("##Appointments.AppointmentType##")} with ##Office.PhysicianName## on '
         + f'<u>{tok("##Appointments.AvailableDate##")}</u> at '
         + f'<u>{tok("##Appointments.AppointmenTime##")}</u>. The appointment will be held at:</p>'
-        + '<div class="addr">West Coast Spine Institute<br>'
+        + '<div class="addr">##Office.PracticeName##<br>'
         + f'{tok("##Appointments.Location##")}<br>{tok("##Appointments.LocationAddress##")}<br>'
         + f'{tok("##Appointments.LocationCity##")}, {tok("##Appointments.LocationState##")},<br>'
         + f'{tok("##Appointments.LocationZipCode##")}</div>'
@@ -128,15 +141,17 @@ def attorney_notice():
         + '<li><u>IMPORTANT:</u> Please provide the authorized preferred vendor\'s information for any '
         + 'recommended diagnostic studies as soon as possible, as this would help expedite scheduling of '
         + 'the studies at the time of the appointment.</li>'
-        + '<li>Physical Delivery of Medical Records must be sent to the following address: 16530 Ventura '
-        + 'Blvd., Suite 510, Encino, CA 91436.</li>'
-        + '<li>All other correspondence must be sent to the following address: P.O. Box 261656 Encino, CA 91426.</li>'
+        + '<li data-if="##Office.RecordsDeliveryAddress##">Physical Delivery of Medical Records must be sent '
+        + 'to the following address: ##Office.RecordsDeliveryAddress##.</li>'
+        + '<li data-if="##Office.MailingAddress##">All other correspondence must be sent to the following '
+        + 'address: ##Office.MailingAddress##.</li>'
         # Parking line matches the revised source: the "WEST COAST SPINE" prefix is dropped
         # (the address block above already names the practice); location + fee only.
         + f'<li>The Parking fee for {tok("##Appointments.Location##")} is $ '
         + f'{tok("##Appointments.LocationParkingFee##")}. Please be sure the patient is given a map to our location.</li>'
-        + '<li><u>Missed Appointment</u> charge: If the appointment is cancelled within six (6) business days '
-        + 'there will be a charge of $503.75 plus the cost of reviewing the medical records per the fee schedule.</li>'
+        + '<li data-if="##Office.MissedAppointmentFee##"><u>Missed Appointment</u> charge: If the appointment '
+        + 'is cancelled within six (6) business days there will be a charge of $##Office.MissedAppointmentFee## '
+        + 'plus the cost of reviewing the medical records per the fee schedule.</li>'
         + '</ul>'
         + '<div class="signoff"><p>Thank you,</p><p>APPOINTMENT DEPARTMENT</p></div>'
         + _lfoot()
@@ -153,10 +168,10 @@ def patient_notice():
         + f'{tok("##Patients.Street##")}<br>'
         + f'{tok("##Patients.City##")}, {tok("##Patients.State##")} {tok("##Patients.ZipCode##")}</p>'
         + f'<p>Dear Mr. /Mrs.: {tok("##Patients.FirstName##")} {tok("##Patients.LastName##")}</p>'
-        + '<p>Please be advised that an appointment has been scheduled for you to see Yuri Falkinstein, M.D. on '
+        + '<p>Please be advised that an appointment has been scheduled for you to see ##Office.PhysicianName## on '
         + f'<u>{tok("##Appointments.AvailableDate##")}</u> at <u>{tok("##Appointments.AppointmenTime##")}</u>. '
         + 'Your appointment will be held at:</p>'
-        + '<div class="addr">WEST COAST SPINE INSTITUTE<br>'
+        + '<div class="addr"><span class="caps">##Office.PracticeName##</span><br>'
         + f'{tok("##Appointments.Location##")}<br>{tok("##Appointments.LocationAddress##")}<br>'
         + f'{tok("##Appointments.LocationCity##")}, {tok("##Appointments.LocationState##")} '
         + f'{tok("##Appointments.LocationZipCode##")}</div>'
@@ -167,7 +182,8 @@ def patient_notice():
         + 'In case of any discrepancies, please contact our office immediately for clarification.</p>'
         + '<p>Kindly note that <u>you must check in at the above address 15 minutes prior</u> to your scheduled '
         + 'appointment time with valid proof of identification.</p>'
-        + '<p>It is necessary that you contact our office at 818-582-2600, 10 days prior to your appointment, for a '
+        + '<p data-if="##Office.Phone##">It is necessary that you contact our office at ##Office.Phone##, 10 days '
+        + 'prior to your appointment, for a '
         + 'detailed history of your injury. This will save you time at your scheduled appointment.</p>'
         + '<p>If you have no knowledge of this appointment, please contact your attorney ASAP.</p>'
         + '<div class="signoff"><p>Thank you,</p><p>APPOINTMENT DEPARTMENT</p></div>'
@@ -240,8 +256,9 @@ def qme_form():
         + '</table>'
         + f'<div class="qline">If an interpreter is required? {tok("##Patients.InterpreterRequired##")} '
         + f'.If an interpreter required, indicate language: {tok("##Patients.InterpreterLanguage##")}</div>'
-        + '<div class="qline">QME Name: <u>YURI FALKINSTEIN, MD</u>&nbsp;&nbsp; QME Street Address: <u>P.O. BOX 261656</u>'
-        + '&nbsp;&nbsp; QME City: <u>Encino</u>&nbsp;&nbsp; Zip code: <u>91426</u></div>'
+        + '<div class="qline">QME Name: <u class="caps">##Office.PhysicianName##</u>&nbsp;&nbsp; '
+        + 'QME Street Address: <u class="caps">##Office.MailingStreet##</u>'
+        + '&nbsp;&nbsp; QME City: <u>##Office.MailingCity##</u>&nbsp;&nbsp; Zip code: <u>##Office.MailingZip##</u></div>'
         + f'<div class="qline" style="margin-top:8px">Date Signed: {tok("##Others.DateNow##")}'
         + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Signature of the QME: <span class="sig"></span></div>'
         + '<div class="note">Note to Claims Administrator: The Administrative Director\'s regulation 10160 requires '

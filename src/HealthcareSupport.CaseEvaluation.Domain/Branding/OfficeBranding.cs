@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities.Auditing;
 
@@ -71,5 +72,127 @@ public class OfficeBranding : FullAuditedAggregateRoot<Guid>
     {
         LogoBlobName = null;
         LogoContentType = null;
+    }
+
+    // -- Packet letterhead (2026-10-09, walkthrough Q5) --------------------------------------
+    //
+    // What the generated packets print as this office's identity: letterhead, physician name,
+    // practice name, mailing address, phone, fax, the two records addresses and the missed-
+    // appointment charge. Until this existed every office's packets carried one practice's
+    // letterhead, hardcoded in tools/packet-templates. Every field is OPTIONAL here: a null
+    // field falls back to a value derived from the office's doctor at render time (see
+    // OfficeLetterheadResolver), so a newly created practice has a letterhead without anyone
+    // filling this in. Kept on the host branding row beside the logo because both describe
+    // how the office presents itself, and the practice-creation flow already writes this row.
+
+    /// <summary>Letterhead heading, e.g. "Jane Doe, M.D., FAAOS"; null = the physician name.</summary>
+    public string? LetterheadName { get; private set; }
+
+    /// <summary>Optional line under the letterhead heading (credentials, fellowship).</summary>
+    public string? LetterheadTagline { get; private set; }
+
+    /// <summary>The physician as named in letter text and forms; null = "Dr. {First} {Last}".</summary>
+    public string? PhysicianName { get; private set; }
+
+    /// <summary>The practice name; null = the display name.</summary>
+    public string? PracticeName { get; private set; }
+
+    public string? MailingStreet { get; private set; }
+
+    public string? MailingCity { get; private set; }
+
+    public string? MailingState { get; private set; }
+
+    public string? MailingZip { get; private set; }
+
+    public string? Phone { get; private set; }
+
+    public string? Fax { get; private set; }
+
+    /// <summary>Single-line address medical records are physically delivered to (attorney notice).</summary>
+    public string? RecordsDeliveryAddress { get; private set; }
+
+    /// <summary>Multi-line address on the patient's release-of-records form (one line per row).</summary>
+    public string? RecordsReleaseAddress { get; private set; }
+
+    /// <summary>Missed-appointment charge quoted to attorneys; null = the sentence is omitted.</summary>
+    public decimal? MissedAppointmentFee { get; private set; }
+
+    /// <summary>
+    /// Replaces the whole letterhead. Blank strings are stored as null so "cleared" and
+    /// "never set" mean the same thing: fall back to the derived default.
+    /// </summary>
+    public void SetLetterhead(OfficeLetterheadValues values)
+    {
+        Check.NotNull(values, nameof(values));
+
+        LetterheadName = Normalize(values.LetterheadName, nameof(values.LetterheadName), OfficeLetterheadConsts.NameMaxLength);
+        LetterheadTagline = Normalize(values.LetterheadTagline, nameof(values.LetterheadTagline), OfficeLetterheadConsts.NameMaxLength);
+        PhysicianName = Normalize(values.PhysicianName, nameof(values.PhysicianName), OfficeLetterheadConsts.NameMaxLength);
+        PracticeName = Normalize(values.PracticeName, nameof(values.PracticeName), OfficeLetterheadConsts.NameMaxLength);
+        MailingStreet = Normalize(values.MailingStreet, nameof(values.MailingStreet), OfficeLetterheadConsts.StreetMaxLength);
+        MailingCity = Normalize(values.MailingCity, nameof(values.MailingCity), OfficeLetterheadConsts.CityMaxLength);
+        MailingState = Normalize(values.MailingState, nameof(values.MailingState), OfficeLetterheadConsts.StateMaxLength);
+        MailingZip = Normalize(values.MailingZip, nameof(values.MailingZip), OfficeLetterheadConsts.ZipMaxLength);
+        Phone = Normalize(values.Phone, nameof(values.Phone), OfficeLetterheadConsts.PhoneMaxLength);
+        Fax = Normalize(values.Fax, nameof(values.Fax), OfficeLetterheadConsts.PhoneMaxLength);
+        RecordsDeliveryAddress = Normalize(values.RecordsDeliveryAddress, nameof(values.RecordsDeliveryAddress), OfficeLetterheadConsts.AddressMaxLength);
+        RecordsReleaseAddress = NormalizeLines(values.RecordsReleaseAddress, nameof(values.RecordsReleaseAddress));
+
+        if (values.MissedAppointmentFee is < 0)
+        {
+            throw new ArgumentException("The missed-appointment fee cannot be negative.", nameof(values));
+        }
+
+        MissedAppointmentFee = values.MissedAppointmentFee;
+    }
+
+    /// <summary>The stored letterhead fields as entered (nulls where nothing is set).</summary>
+    public OfficeLetterheadValues GetLetterhead()
+    {
+        return new OfficeLetterheadValues
+        {
+            LetterheadName = LetterheadName,
+            LetterheadTagline = LetterheadTagline,
+            PhysicianName = PhysicianName,
+            PracticeName = PracticeName,
+            MailingStreet = MailingStreet,
+            MailingCity = MailingCity,
+            MailingState = MailingState,
+            MailingZip = MailingZip,
+            Phone = Phone,
+            Fax = Fax,
+            RecordsDeliveryAddress = RecordsDeliveryAddress,
+            RecordsReleaseAddress = RecordsReleaseAddress,
+            MissedAppointmentFee = MissedAppointmentFee,
+        };
+    }
+
+    private static string? Normalize(string? value, string name, int maxLength)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        Check.Length(trimmed, name, maxLength);
+        return trimmed;
+    }
+
+    // Trims each line, drops blank ones and joins with "\n" -- the stored form the release
+    // form renders one row per line from, whatever line endings the browser sent.
+    private static string? NormalizeLines(string? value, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var lines = value
+            .Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0);
+        return Normalize(string.Join("\n", lines), name, OfficeLetterheadConsts.AddressMaxLength);
     }
 }

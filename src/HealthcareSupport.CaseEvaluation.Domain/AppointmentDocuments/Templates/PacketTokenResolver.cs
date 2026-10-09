@@ -16,6 +16,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Locations;
@@ -85,6 +86,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     private readonly IdentityUserManager _userManager;
     private readonly IBlobContainer<UserSignaturesContainer> _userSignaturesContainer;
     private readonly IClock _clock;
+    private readonly OfficeLetterheadResolver _officeLetterheadResolver;
 
     public PacketTokenResolver(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -107,7 +109,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         IRepository<IdentityUser, Guid> identityUserRepository,
         IdentityUserManager userManager,
         IBlobContainer<UserSignaturesContainer> userSignaturesContainer,
-        IClock clock)
+        IClock clock,
+        OfficeLetterheadResolver officeLetterheadResolver)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
@@ -130,6 +133,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         _userManager = userManager;
         _userSignaturesContainer = userSignaturesContainer;
         _clock = clock;
+        _officeLetterheadResolver = officeLetterheadResolver;
     }
 
     public virtual async Task<PacketTokenContext> ResolveAsync(Guid appointmentId, CancellationToken cancellationToken = default)
@@ -149,6 +153,11 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         // generated after 4pm or 5pm Pacific was stamped with TOMORROW's date. On a document
         // that is served as a legal record of an appointment, that is not cosmetic.
         ctx.DateNow = PacketDateStamp.GeneratedOn(_clock.Now);
+
+        // 2026-10-09: the office's own letterhead. Every template hardcoded one practice's
+        // letterhead, physician, address and phone, so every office's packets carried that
+        // practice's identity to attorneys and the WCAB.
+        ctx.Office = await _officeLetterheadResolver.ResolveAsync(cancellationToken);
 
         return ctx;
     }

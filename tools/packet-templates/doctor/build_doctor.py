@@ -1103,7 +1103,7 @@ def _fee_header():
         f'<table class="feehdr">{_colgroup([2676, 2006, 4320, 1800])}'
         f'<tr><td>{cb("box1")}</td><td>{cb("box2")}</td>'
         f'<td>{cb("ame", "AME")} {cb("qme", "QME")}</td>'
-        f'<td>{cb("doctor", "Yuri Falkinstein M.D.")}</td></tr>'
+        f'<td>{cb("doctor", "##Office.PhysicianName##")}</td></tr>'
         f'<tr><td><span class="lbl">Date:</span> {tok("##Appointments.AvailableDate##")}</td>'
         f'<td><span class="lbl">Acct:</span> {tok("##Appointments.RequestConfirmationNumber##")}</td>'
         f'<td><span class="lbl">Acct Type:</span> {_txt("packet.doctor.fee.acct_type")}</td>'
@@ -1138,7 +1138,8 @@ def page5():
 
 # ----------------------------------------------------------------------------- Page 6 (Orders)
 # Flow-layout form (no tables in the original): imaging/testing checkbox groups plus free-text
-# write-in lines. "Dr. Yuri Falkinstein" is literal (no token). Underline write-ins are fillable
+# write-in lines. The physician is the office's own (##Office.PhysicianName##; it was one practice's
+# literal name until 2026-10-09). Underline write-ins are fillable
 # text inputs styled as a baseline rule; checkboxes are native (matching page-1 convention).
 def page6():
     """Orders -- imaging/testing checkbox groups + free-text write-ins."""
@@ -1150,7 +1151,7 @@ def page6():
         return f'<textarea name="packet.doctor.orders.{name}" style="height:{h}"></textarea>'
     return (
         '<div class="ordtitle">ORDERS</div>'
-        '<div class="ordsub">Dr. Yuri Falkinstein</div>'
+        '<div class="ordsub">##Office.PhysicianName##</div>'
         '<div class="ord">'
         f'<div class="orow">CASE TYPE: &nbsp; {cb("case_type.wc", "WC")} {cb("case_type.qme", "QME")} {cb("case_type.ame", "AME")}</div>'
         f'<div class="orow"><div class="oline"><span class="olbl" style="vertical-align:top">Body Part(s):</span>'
@@ -1177,7 +1178,7 @@ def page6():
 # ----------------------------------------------------------------------------- Page 7 (DWC 10133.36 Return-to-Work)
 # Dense California DWC form. Pre-fill tokens stay EXACT (display-only spans, no field). Per Adrian:
 # Lift/Carry blanks are fillable inputs; R/L/Bilat hand selectors are circle-the-choice markers;
-# the top-left seal is the existing DWC_Logo.jpg. "Yuri Falkinstein, M.D." is literal.
+# the top-left seal is the existing DWC_Logo.jpg. The physician is ##Office.PhysicianName## (was a literal).
 RTW = "packet.doctor.rtw"
 _RTW_FREQ = [("1-2 hours", "h1_2"), ("2-4 hours", "h2_4"), ("4-6 hours", "h4_6"),
              ("6-8 hours", "h6_8"), ("None", "none")]
@@ -1266,7 +1267,7 @@ def page7():
         f'<div class="box"><textarea name="{RTW}.explain" style="height:56px"></textarea></div>',
         # --- signature block ---
         '<div class="row" style="margin-top:12px"><div class="oline">'
-        '<span class="olbl">Physician&#39;s Name: Yuri Falkinstein, M.D.</span>'
+        '<span class="olbl">Physician&#39;s Name: ##Office.PhysicianName##</span>'
         '<span class="ofill"></span>'
         f'<span class="olbl">Role of Doctor (PTP,QME,AME):</span><span class="ofill">{fill("role")}</span></div></div>',
         # Date label + token kept as one right-side cell so the signature fill takes the rest of the line.
