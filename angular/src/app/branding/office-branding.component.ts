@@ -6,6 +6,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { BrandingDto, BrandingService } from '../shared/branding/branding.service';
+import { OfficeLetterheadComponent } from './office-letterhead.component';
 
 /**
  * Phase E (2026-06-25) -- in-office branding editor: a Supervisor / IT Admin (or
@@ -21,7 +22,7 @@ import { BrandingDto, BrandingService } from '../shared/branding/branding.servic
   selector: 'app-office-branding',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, IconComponent],
+  imports: [FormsModule, IconComponent, OfficeLetterheadComponent],
   styles: `
     /* QA #15 obs 8 (2026-07-07): rebuilt on the app design system. Only the
        layout not covered by the global ra/af classes is scoped here. */
@@ -83,7 +84,10 @@ import { BrandingDto, BrandingService } from '../shared/branding/branding.servic
     <div class="ia-head">
       <div>
         <h1>Office branding</h1>
-        <p>Set your office's display name and logo, shown in the portal and on the sign-in page.</p>
+        <p>
+          Set your office's display name and logo, shown in the portal and on the sign-in page, and
+          the letterhead printed on its packets.
+        </p>
       </div>
     </div>
 
@@ -161,6 +165,8 @@ import { BrandingDto, BrandingService } from '../shared/branding/branding.servic
           </p>
         </div>
       </div>
+      <!-- 2026-10-09 (walkthrough Q5): what this office's packets print as its identity. -->
+      <app-office-letterhead />
     }
   `,
 })
