@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { BrandingService } from '../../branding/branding.service';
+import { PLACEHOLDER_LOGO } from '../../branding/brand-assets';
 
 @Component({
   selector: 'app-top-header-navbar',
@@ -12,6 +13,8 @@ import { BrandingService } from '../../branding/branding.service';
 export class TopHeaderNavbarComponent {
   /** Per-office branding (logo + display name); overrides the static logo when present. */
   protected readonly branding = inject(BrandingService);
+  /** Neutral fallback shown when the office has not uploaded a logo. */
+  protected readonly placeholderLogo = PLACEHOLDER_LOGO;
   @Input() tenantName = '';
   @Input() userName = '';
   @Input() roleName = '';
