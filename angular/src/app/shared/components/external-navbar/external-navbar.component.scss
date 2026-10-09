@@ -34,9 +34,7 @@
   flex: none;
 }
 .ext-brand img {
-  height: 34px;
-  width: auto;
-  display: block;
+  --brand-logo-height: 34px;
 }
 .ext-brand__div {
   width: 1px;

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Appointment Portal">
+  <rect x="20" y="28" width="140" height="130" rx="22" fill="#eaf2f9" stroke="#055495" stroke-width="8"/>
+  <path d="M20 66h140V50a22 22 0 0 0-22-22H42a22 22 0 0 0-22 22z" fill="#055495"/>
+  <rect x="52" y="12" width="12" height="34" rx="6" fill="#0a3354"/>
+  <rect x="116" y="12" width="12" height="34" rx="6" fill="#0a3354"/>
+  <g fill="#055495">
+    <circle cx="56" cy="94" r="8"/><circle cx="90" cy="94" r="8"/><circle cx="124" cy="94" r="8"/>
+    <circle cx="56" cy="126" r="8"/><circle cx="90" cy="126" r="8"/>
+  </g>
+  <circle cx="124" cy="126" r="8" fill="#9dc13b"/>
+</svg>
