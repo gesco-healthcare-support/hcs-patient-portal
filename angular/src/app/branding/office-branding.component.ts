@@ -55,6 +55,12 @@ import { BrandingDto, BrandingService } from '../shared/branding/branding.servic
     .ob-logo__preview img {
       max-height: 64px;
       max-width: 220px;
+      object-fit: contain;
+    }
+    .ob-logo__hint {
+      margin: 10px 0 0;
+      color: var(--n-500, #6b7a90);
+      font-size: 12px;
     }
     .ob-logo__empty {
       color: var(--n-400, #9aa6b8);
@@ -149,6 +155,10 @@ import { BrandingDto, BrandingService } from '../shared/branding/branding.servic
               }
             </div>
           </div>
+          <p class="ob-logo__hint">
+            A wide, horizontal logo works best (PNG or JPEG). Any size is accepted: the picture is
+            trimmed and resized automatically so it looks the same everywhere.
+          </p>
         </div>
       </div>
     }
@@ -240,7 +250,7 @@ export class OfficeBrandingComponent implements OnDestroy {
     }
     this.busy.set(true);
     this.branding
-      .uploadLogo(file)
+      .uploadNormalizedLogo(file)
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: (dto) => {
@@ -249,10 +259,18 @@ export class OfficeBrandingComponent implements OnDestroy {
           this.setLogoState(dto);
           this.branding.load();
         },
-        error: () => {
+        error: (err: unknown) => {
           input.value = '';
+          this.reportLogoError(err);
         },
       });
+  }
+
+  /** Server errors are toasted by ABP; a browser-side failure (undecodable file) is ours. */
+  private reportLogoError(err: unknown): void {
+    if (err instanceof Error) {
+      this.toaster.error(err.message || 'Could not read that picture. Try a PNG or JPEG.');
+    }
   }
 
   protected removeLogo(): void {
