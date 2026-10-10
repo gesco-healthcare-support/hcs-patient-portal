@@ -91,9 +91,18 @@ public class OfficeLetterheadTests
         var branding = NewBranding();
         var values = new OfficeLetterheadValues
         {
-            LetterheadName = "A", LetterheadTagline = "B", PhysicianName = "C", PracticeName = "D",
-            MailingStreet = "E", MailingCity = "F", MailingState = "G", MailingZip = "H",
-            Phone = "I", Fax = "J", RecordsDeliveryAddress = "K", RecordsReleaseAddress = "L",
+            LetterheadName = "A",
+            LetterheadTagline = "B",
+            PhysicianName = "C",
+            PracticeName = "D",
+            MailingStreet = "E",
+            MailingCity = "F",
+            MailingState = "G",
+            MailingZip = "H",
+            Phone = "I",
+            Fax = "J",
+            RecordsDeliveryAddress = "K",
+            RecordsReleaseAddress = "L",
             MissedAppointmentFee = 2m,
         };
 
@@ -172,7 +181,10 @@ public class OfficeLetterheadTests
     {
         var values = new OfficeLetterheadValues
         {
-            MailingStreet = street, MailingCity = city, MailingState = state, MailingZip = zip,
+            MailingStreet = street,
+            MailingCity = city,
+            MailingState = state,
+            MailingZip = zip,
         };
 
         OfficeLetterhead.Compose(values, null, "A", "B").MailingAddress.ShouldBe(expected);
