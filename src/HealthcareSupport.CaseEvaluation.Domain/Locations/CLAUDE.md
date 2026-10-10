@@ -12,7 +12,7 @@ DoctorAvailabilities and Appointments reference them.
 | `LocationManager.cs` | Create / update over the repository |
 | `ILocationRepository.cs` | Custom repository: nav-prop list and get, joined to `State` and the offered appointment types |
 | `LocationWithNavigationProperties.cs` | Read projection: the `Location` plus its optional `State` and its `List<AppointmentType>` |
-| `LocationAppointmentType.cs` | M2M join (I3, 2026-06-08) -- which appointment types are offered at a clinic location. Composite PK on (LocationId, AppointmentTypeId) |
+| `LocationAppointmentType.cs` | M2M join (I3, 2026-06-08) -- which appointment types are offered at a clinic location. Composite PK on (LocationId, AppointmentTypeId). Empty = offers ALL types (Q2, 2026-10-09); see `Location.OffersAppointmentType` |
 | `LocationDataSeedContributor.cs` | Seeds the ONE synthetic clinic of the synthetic TEST office only |
 
 **`LocationAppointmentType` carries no `TenantId`, and that is deliberate** -- unlike

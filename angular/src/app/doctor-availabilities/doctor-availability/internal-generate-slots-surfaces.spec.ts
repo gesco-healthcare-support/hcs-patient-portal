@@ -228,6 +228,76 @@ describe('InternalGenerateSlotsComponent surfaces', () => {
     });
   });
 
+  describe('Q4: dates inside the lead-time window are not selectable', () => {
+    it('uses today as the picker minimum while the lead time is unknown', () => {
+      const c = create();
+      expect(c.minSelectableIso()).toBe(addDays(0));
+    });
+
+    it('uses today plus the lead time as the picker minimum', () => {
+      const c = create();
+      c.leadTimeDays.set(3);
+      expect(c.minSelectableIso()).toBe(addDays(3));
+    });
+
+    it('disables calendar days inside the window and enables the first bookable day', () => {
+      const c = create();
+      c.leadTimeDays.set(3);
+      c.monthCursor.set(new Date(today.getFullYear(), today.getMonth(), 1));
+      const byIso = new Map<string, boolean>(
+        c
+          .monthCells()
+          .filter((x: { blank: boolean }) => !x.blank)
+          .map((x: { iso: string; disabled: boolean }) => [x.iso, x.disabled] as [string, boolean]),
+      );
+      for (const n of [0, 1, 2]) {
+        if (byIso.has(addDays(n))) expect(byIso.get(addDays(n))).toBeTrue();
+      }
+      if (byIso.has(addDays(3))) expect(byIso.get(addDays(3))).toBeFalse();
+    });
+
+    it('moves an in-window default range start to the earliest bookable date on load', () => {
+      const c = create();
+      systemParams.get.and.returnValue(of({ appointmentLeadTime: 3 }));
+      c.ngOnInit();
+      expect(c.fromDate()).toBe(addDays(3));
+      expect(c.toDate() >= c.fromDate()).toBeTrue();
+      expect(c.leadTimeWarning()).toBe('');
+    });
+
+    it('pushes the end of the range out when the moved start overtakes it', () => {
+      const c = create();
+      c.toDate.set(addDays(1));
+      systemParams.get.and.returnValue(of({ appointmentLeadTime: 5 }));
+      c.ngOnInit();
+      expect(c.fromDate()).toBe(addDays(5));
+      expect(c.toDate()).toBe(addDays(9));
+    });
+
+    it('leaves a range that already starts outside the window alone', () => {
+      const c = create();
+      c.fromDate.set(addDays(10));
+      c.toDate.set(addDays(12));
+      systemParams.get.and.returnValue(of({ appointmentLeadTime: 3 }));
+      c.ngOnInit();
+      expect(c.fromDate()).toBe(addDays(10));
+      expect(c.toDate()).toBe(addDays(12));
+    });
+
+    it('refuses to generate a typed in-window date and says why', () => {
+      const c = create();
+      c.leadTimeDays.set(7);
+      c.locationId.set('loc-1');
+      c.mode.set('range');
+      c.weekdays.set([true, true, true, true, true, true, true]);
+      c.fromDate.set(addDays(1));
+      c.toDate.set(addDays(20));
+      c.genPreview();
+      expect(service['generatePreview']).not.toHaveBeenCalled();
+      expect(toaster.warn.calls.mostRecent().args[0]).toContain(addDays(7));
+    });
+  });
+
   describe('the earliest generated date in range mode', () => {
     it('finds the first selected weekday on or after the start of the range', () => {
       const c = create();

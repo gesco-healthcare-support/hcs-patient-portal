@@ -346,6 +346,33 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         }
     }
 
+    // Q2 (2026-10-09): a location with NO linked appointment types offers ALL types.
+    [Fact]
+    public async Task GetListAsync_FilteredByType_IncludesUntypedLocationsAndExcludesOtherTypes()
+    {
+        var typeA = AppointmentTypesTestData.AppointmentType1Id;
+        var typeB = AppointmentTypesTestData.AppointmentType2Id;
+        var untyped = await _locationsAppService.CreateAsync(NewLocationInput("Untyped", new List<Guid>()));
+        var onlyA = await _locationsAppService.CreateAsync(NewLocationInput("OnlyA", new List<Guid> { typeA }));
+        var onlyB = await _locationsAppService.CreateAsync(NewLocationInput("OnlyB", new List<Guid> { typeB }));
+
+        var result = await _locationsAppService.GetListAsync(new GetLocationsInput { AppointmentTypeId = typeA, MaxResultCount = 1000 });
+
+        var ids = result.Items.Select(x => x.Location.Id).ToList();
+        ids.ShouldContain(untyped.Id);
+        ids.ShouldContain(onlyA.Id);
+        ids.ShouldNotContain(onlyB.Id);
+    }
+
+    private static LocationCreateDto NewLocationInput(string tag, List<Guid> typeIds) => new()
+    {
+        Name = $"TEST-{tag}-{Guid.NewGuid():N}",
+        FacilityId = $"FAC-{Guid.NewGuid():N}",
+        ParkingFee = 1.00m,
+        IsActive = true,
+        AppointmentTypeIds = typeIds
+    };
+
     // LocationsAreVisible_FromTenantContext moved to the multi-office harness as a
     // per-office visibility/isolation assertion (Phase F / F2):
     // MultiOffice.MultiOfficeCatalogResolutionTests.
