@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Linq.Expressions;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Entities.Auditing;
@@ -82,6 +83,24 @@ public class Location : FullAuditedAggregateRoot<Guid>, IMultiTenant
             return;
         }
         AppointmentTypes.Add(new LocationAppointmentType(Id, appointmentTypeId));
+    }
+
+    /// <summary>
+    /// Q2 (2026-10-09): a location with NO linked appointment types offers ALL
+    /// types; a location with some linked types offers exactly those. Stored
+    /// data is not rewritten -- this only defines how "empty" is read. This is
+    /// the single definition; query sites use <see cref="OffersAppointmentTypeExpression"/>.
+    /// Requires the AppointmentTypes collection to be loaded.
+    /// </summary>
+    public virtual bool OffersAppointmentType(Guid appointmentTypeId)
+    {
+        return AppointmentTypes.Count == 0 || AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId);
+    }
+
+    /// <summary>EF-translatable form of <see cref="OffersAppointmentType"/>.</summary>
+    public static Expression<Func<Location, bool>> OffersAppointmentTypeExpression(Guid appointmentTypeId)
+    {
+        return l => !l.AppointmentTypes.Any() || l.AppointmentTypes.Any(t => t.AppointmentTypeId == appointmentTypeId);
     }
 
     public virtual void SetAppointmentTypes(List<Guid> appointmentTypeIds)
