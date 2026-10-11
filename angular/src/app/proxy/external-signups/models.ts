@@ -11,17 +11,6 @@ export interface ExternalUserLookupDto {
   firmName?: string;
 }
 
-export interface ExternalUserProfileDto {
-  identityUserId?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  userRole?: string;
-  isExternalUser?: boolean;
-  isAccessor?: boolean;
-  firmName?: string;
-}
-
 export interface ExternalUserSignUpDto {
   userType: ExternalUserType;
   firstName?: string | null;
@@ -33,6 +22,33 @@ export interface ExternalUserSignUpDto {
   firmEmail?: string | null;
   tenantId?: string | null;
   inviteToken?: string | null;
+}
+
+export interface InvitationValidationDto {
+  email?: string;
+  userType?: ExternalUserType;
+  roleName?: string;
+  tenantName?: string;
+  expiresAt?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  firmName?: string | null;
+}
+
+export interface SendPortalLinkInput {
+  email: string;
+  tenantId?: string | null;
+}
+
+export interface ExternalUserProfileDto {
+  identityUserId?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  userRole?: string;
+  isExternalUser?: boolean;
+  isAccessor?: boolean;
+  firmName?: string;
 }
 
 export interface GetInvitesInput extends PagedAndSortedResultRequestDto {
@@ -54,17 +70,6 @@ export interface InvitationDto extends EntityDto<string> {
   status?: InvitationStatus;
 }
 
-export interface InvitationValidationDto {
-  email?: string;
-  userType?: ExternalUserType;
-  roleName?: string;
-  tenantName?: string;
-  expiresAt?: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  firmName?: string | null;
-}
-
 export interface InviteExternalUserDto {
   email: string;
   firstName?: string | null;
@@ -75,16 +80,11 @@ export interface InviteExternalUserDto {
 }
 
 export interface InviteExternalUserResultDto {
-  inviteUrl?: string;
+  inviteUrl?: string | null;
   email?: string;
   roleName?: string;
   tenantName?: string;
   expiresAt?: string;
   alreadyRegistered?: boolean;
-  existingRoleName?: string;
-}
-
-export interface SendPortalLinkInput {
-  email: string;
-  tenantId?: string;
+  existingRoleName?: string | null;
 }
