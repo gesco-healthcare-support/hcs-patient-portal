@@ -37,6 +37,7 @@ import { resolveExternalUserDisplayName } from '../shared/auth/external-user-dis
 import { avatarColor, avatarInitials } from '../shared/ui/avatar.util';
 
 import { CalendarDatePipe } from '../shared/pipes/pacific-date.pipe';
+import { PartyConsentCardComponent } from '../appointments/party-consent/party-consent-card.component';
 /** Flattened row the cards/table render (mapped from the nav-properties DTO). */
 interface ExtRow {
   id: string;
@@ -145,6 +146,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   imports: [
     CalendarDatePipe,
     DatePipe,
+    PartyConsentCardComponent,
     FormsModule,
     IconComponent,
     SkeletonComponent,

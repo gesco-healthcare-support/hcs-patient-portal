@@ -42,6 +42,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { CalendarDatePipe, PacificDatePipe } from '../../../shared/pipes/pacific-date.pipe';
+import { PartyConsentCardComponent } from '../../party-consent/party-consent-card.component';
 interface CalloutCopy {
   icon: string;
   title: string;
@@ -127,6 +128,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
   imports: [
     CalendarDatePipe,
     PacificDatePipe,
+    PartyConsentCardComponent,
     CommonModule,
     FormsModule,
     RescheduleRequestModalComponent,
@@ -287,6 +289,15 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected openDocumentsNav(): void {
     void this.shellRouter.navigateByUrl('/');
   }
+  /**
+   * 2026-10-10: the party answered a reschedule or cancellation from the consent card. Once both
+   * sides agree the appointment may already have moved or been cancelled, so reload it whole --
+   * the same full refresh the resubmit flow below uses.
+   */
+  protected onConsentDecided(): void {
+    window.location.reload();
+  }
+
   protected backToHome(): void {
     void this.shellRouter.navigateByUrl('/');
   }
