@@ -134,6 +134,25 @@ public class ChangeRequestConsentManager : DomainService
         string? respondedByEmail)
     {
         var match = await ResolveByRawTokenAsync(rawToken);
+        await RecordDecisionAsync(match, approved, respondedByEmail);
+        return match;
+    }
+
+    /// <summary>
+    /// Records a decision for a side the CALLER has already established, rather than one a
+    /// token resolved to. 2026-10-10: the in-portal path, where a signed-in party agrees or
+    /// declines from their own appointment instead of through the emailed link; the caller is
+    /// responsible for proving the user represents <see cref="ChangeRequestConsentMatch.Side"/>.
+    /// The rules are the token path's, deliberately shared: an expired side is recorded as a No
+    /// and <c>ConsentExpired</c> is thrown; a side that already answered throws
+    /// <c>ConsentAlreadyResponded</c>, so the link and the portal can never both answer.
+    /// </summary>
+    public virtual async Task RecordDecisionAsync(
+        ChangeRequestConsentMatch match,
+        bool approved,
+        string? respondedByEmail)
+    {
+        Check.NotNull(match, nameof(match));
         var nowUtc = _clock.Now.ToUniversalTime();
 
         // Reschedule consent lives on the round; cancellation consent on the request itself.
@@ -149,7 +168,7 @@ public class ChangeRequestConsentManager : DomainService
 
             match.Round.RecordSideDecision(match.Side, approved, respondedByEmail, nowUtc);
             await _roundRepository.UpdateAsync(match.Round, autoSave: true);
-            return match;
+            return;
         }
 
         if (match.Request.IsSideExpired(match.Side, nowUtc))
@@ -161,7 +180,6 @@ public class ChangeRequestConsentManager : DomainService
 
         match.Request.RecordSideDecision(match.Side, approved, respondedByEmail, nowUtc);
         await _repository.UpdateAsync(match.Request, autoSave: true);
-        return match;
     }
 
     private DateTime BuildExpiry() =>
