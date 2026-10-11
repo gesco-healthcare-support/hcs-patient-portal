@@ -1,4 +1,4 @@
-import type { CaseTrackerDeadLetterDto, CaseTrackerDeadLetterRetryResultDto } from './case-tracker/models';
+import type { CaseTrackerDeadLetterDto, CaseTrackerDeadLetterRetryAllResultDto, CaseTrackerDeadLetterRetryResultDto } from './case-tracker/models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 
@@ -14,6 +14,14 @@ export class CaseTrackerDeadLetterService {
     this.restService.request<any, CaseTrackerDeadLetterDto[]>({
       method: 'GET',
       url: '/api/app/case-tracker/dead-letters',
+    },
+    { apiName: this.apiName,...config });
+  
+
+  retryAllDeadLetters = (officeId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, CaseTrackerDeadLetterRetryAllResultDto>({
+      method: 'POST',
+      url: `/api/app/case-tracker/offices/${officeId}/dead-letters/retry-all`,
     },
     { apiName: this.apiName,...config });
   

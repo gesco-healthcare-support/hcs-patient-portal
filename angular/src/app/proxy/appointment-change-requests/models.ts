@@ -70,6 +70,18 @@ export interface GetChangeRequestsInput extends PagedAndSortedResultRequestDto {
   filterText?: string | null;
 }
 
+export interface PartyConsentRequestDto {
+  changeRequestId?: string;
+  appointmentId?: string;
+  confirmationNumber?: string;
+  patientName?: string;
+  appointmentDate?: string;
+  changeRequestType?: ChangeRequestType;
+  reason?: string | null;
+  requestedNewDateTime?: string | null;
+  consentStatus?: ChangeRequestConsentStatus;
+}
+
 export interface RejectChangeRequestInput {
   reason: string;
   concurrencyStamp?: string | null;
