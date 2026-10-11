@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Asp.Versioning;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -14,7 +15,13 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeRequests
 /// service carries <c>[RemoteService(IsEnabled = false)]</c>, so this is its only route).
 /// Authenticated, unlike the token-based <c>PublicChangeRequestConsentController</c>; who may
 /// answer is decided in the app service.
+///
+/// <para>The class-level <c>[Authorize]</c> repeats the app service's on purpose: answering
+/// consent for a party must never be reachable anonymously, and stating it at the HTTP layer
+/// means a future change to the service cannot silently open the route (and CodeQL's
+/// function-level access-control check can see it).</para>
 /// </summary>
+[Authorize]
 [RemoteService]
 [Area("app")]
 [ControllerName("PartyChangeRequestConsent")]
