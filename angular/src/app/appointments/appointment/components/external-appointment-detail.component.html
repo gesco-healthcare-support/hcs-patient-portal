@@ -125,6 +125,11 @@
     </div>
 
     <div class="ad-wrap">
+      <!-- 2026-10-10: a reschedule date or cancellation waiting for THIS party's answer. -->
+      <app-party-consent-card
+        [appointmentId]="appointment.appointment?.id ?? null"
+        (decided)="onConsentDecided()"
+      />
       <!--
         Phase 4d (2026-08-05): what this appointment replaced. Same block as the internal detail,
         sharing one derivation on AppointmentViewComponent. External parties see it too: they were

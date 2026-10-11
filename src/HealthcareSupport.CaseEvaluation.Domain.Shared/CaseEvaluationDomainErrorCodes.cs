@@ -1047,6 +1047,16 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:ChangeRequest.ConsentExpired";
 
     /// <summary>
+    /// 2026-10-10 -- raised when a signed-in party answers a change request from inside the
+    /// portal that is not (or no longer) waiting for THEIR answer: someone else's side, an
+    /// appointment they cannot see, one already answered, or one already decided. One code for
+    /// all of them so the response cannot tell a caller which requests exist.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.ConsentNotAvailable</c>.
+    /// </summary>
+    public const string ChangeRequestConsentNotAvailable =
+        "CaseEvaluation:ChangeRequest.ConsentNotAvailable";
+
+    /// <summary>
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>AppointmentTypeManager.UpdateAsync / DeleteAsync</c> when the targeted
     /// row is a reserved <c>IsSystem</c> appointment type. System rows are not

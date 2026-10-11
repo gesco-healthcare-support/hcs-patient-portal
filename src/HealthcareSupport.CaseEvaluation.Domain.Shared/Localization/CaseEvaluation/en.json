@@ -752,6 +752,7 @@
     "CaseEvaluation:ChangeRequest.ConsentNotGranted": "This request cannot be finalized yet. Confirm a date if you have not already, then wait for both sides to agree to it. If a side declined or their link expired, confirm a different date to ask again.",
     "CaseEvaluation:ChangeRequest.ConsentTokenInvalid": "This consent link is not valid. Please use the most recent link from your email, or ask the requesting office to send a new one.",
     "CaseEvaluation:ChangeRequest.ConsentExpired": "This consent link has expired. Please ask the requesting office to send a new one.",
-    "CaseEvaluation:ChangeRequest.ConsentAlreadyResponded": "A response has already been recorded for this request. No further action is needed."
+    "CaseEvaluation:ChangeRequest.ConsentAlreadyResponded": "A response has already been recorded for this request. No further action is needed.",
+    "CaseEvaluation:ChangeRequest.ConsentNotAvailable": "This request is no longer waiting for your answer. Refresh the page to see its current state."
   }
 }

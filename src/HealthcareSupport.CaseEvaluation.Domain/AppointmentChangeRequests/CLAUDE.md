@@ -63,15 +63,22 @@ and rethrow as a validation error; surface it to the operator to seed the row.
 max-time). Those run upstream via `BookingPolicyValidator` in the Application layer,
 matching OLD parity. The domain only guards slot availability and source-appointment status.
 
-### Three AppServices, single feature folder
+### Four AppServices, single feature folder
 
 - `IAppointmentChangeRequestsAppService` -- submit (cancel, reschedule).
 - `IAppointmentChangeRequestsApprovalAppService` -- supervisor decisions, date confirmation
   and consent resends.
 - `PublicChangeRequestConsentAppService` -- the emailed consent link, `[AllowAnonymous]`;
   the token is the credential.
+- `PartyChangeRequestConsentAppService` (2026-10-10) -- the same consent answered from inside
+  the portal by a signed-in party (`api/app/change-request-consents`). The caller may answer
+  for a side only when their VERIFIED email is that side's representative (the person the link
+  was emailed to, per `ChangeRequestSideResolver.ResolveBothSidesAsync`) and they pass the
+  appointment read guard; internal staff never count as a party. It records through the
+  `ChangeRequestConsentManager.RecordDecisionAsync(ChangeRequestConsentMatch, ...)` overload,
+  so the link and the portal share one rule and whichever answers first wins.
 
-All three carry `[RemoteService(IsEnabled = false)]` and have paired manual controllers.
+All four carry `[RemoteService(IsEnabled = false)]` and have paired manual controllers.
 
 ### Entity ctor enforces type-specific required fields
 
