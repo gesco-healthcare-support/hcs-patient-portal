@@ -175,6 +175,8 @@ HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.GetPagedOfficeBrand
 HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.RemoveLogoAsync(Nullable<Guid>) -> class=(authenticated) method=CaseEvaluation.Branding.Edit
 HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.SetDisplayNameAsync(Nullable<Guid>, String) -> class=(authenticated) method=CaseEvaluation.Branding.Edit
 HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.UploadLogoAsync(Nullable<Guid>, String, String, Int64, Stream) -> class=(authenticated) method=CaseEvaluation.Branding.Edit
+HealthcareSupport.CaseEvaluation.Branding.OfficeLetterheadAppService.GetAsync() -> class=CaseEvaluation.Branding method=-
+HealthcareSupport.CaseEvaluation.Branding.OfficeLetterheadAppService.UpdateAsync(UpdateOfficeLetterheadInput) -> class=CaseEvaluation.Branding method=CaseEvaluation.Branding.Edit
 HealthcareSupport.CaseEvaluation.ClaimExaminers.ClaimExaminersAppService.CreateAsync(ClaimExaminerCreateDto) -> class=(authenticated) method=CaseEvaluation.ClaimExaminers.Create
 HealthcareSupport.CaseEvaluation.ClaimExaminers.ClaimExaminersAppService.DeleteAsync(Guid) -> class=(authenticated) method=CaseEvaluation.ClaimExaminers.Delete
 HealthcareSupport.CaseEvaluation.ClaimExaminers.ClaimExaminersAppService.GetAsync(Guid) -> class=(authenticated) method=CaseEvaluation.ClaimExaminers

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.Branding;
 
@@ -34,9 +35,11 @@ public class UpdateOfficeLetterheadInput
     public string? MailingZip { get; set; }
 
     [StringLength(OfficeLetterheadConsts.PhoneMaxLength)]
+    [PhoneNumber]
     public string? Phone { get; set; }
 
     [StringLength(OfficeLetterheadConsts.PhoneMaxLength)]
+    [PhoneNumber]
     public string? Fax { get; set; }
 
     [StringLength(OfficeLetterheadConsts.AddressMaxLength)]
