@@ -371,11 +371,15 @@ class AttorneyBuilderTest(unittest.TestCase):
         self.assertEqual(self.mod.tok("##Others.DateNow##"), '<span class="tok">##Others.DateNow##</span>')
 
     def test_letterhead_and_footer_render(self):
-        self.assertIn("FELLOW, AMERICAN ACADEMY OF ORTHOPAEDIC SURGEONS", self.mod._letterhead())
-        # The revised footer drops the "SCHEDULING:" label and leads with the phone line;
-        # pin the contact block that replaced it so a footer losing its numbers is caught.
-        self.assertIn("Phone: (818) 582-2600", self.mod._lfoot())
-        self.assertIn("FAX: (818) 855-2466", self.mod._lfoot())
+        # 2026-10-09: the letterhead and footer are the OFFICE's own (##Office.*##, filled per
+        # office by the .NET side), no longer one practice's literals. Pin that the contact
+        # block still carries every line, each hidden when the office left it empty.
+        self.assertIn("##Office.LetterheadName##", self.mod._letterhead())
+        self.assertIn('data-if="##Office.LetterheadTagline##"', self.mod._letterhead())
+        footer = self.mod._lfoot()
+        self.assertIn('<div data-if="##Office.MailingAddress##">##Office.MailingAddress##</div>', footer)
+        self.assertIn('<div data-if="##Office.Phone##">Phone: ##Office.Phone##</div>', footer)
+        self.assertIn('<div data-if="##Office.Fax##">FAX: ##Office.Fax##</div>', footer)
 
     def test_the_three_notice_pages_render(self):
         for builder in (self.mod.attorney_notice, self.mod.patient_notice, self.mod.qme_form):
