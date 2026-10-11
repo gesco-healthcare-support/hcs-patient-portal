@@ -111,7 +111,8 @@ public abstract class PartyChangeRequestConsentAppServiceTests<TStartupModule>
     }
 
     /// <summary>A staff-filed cancellation: both sides asked (Pending), as production issues it.</summary>
-    private async Task<AppointmentChangeRequest> SeedCancellationAsync(Guid appointmentId)
+    private async Task<AppointmentChangeRequest> SeedCancellationAsync(
+        Guid appointmentId, AppointmentStatusType? proposedOutcome = null)
     {
         var request = new AppointmentChangeRequest(
             id: Guid.NewGuid(),
@@ -123,6 +124,11 @@ public abstract class PartyChangeRequestConsentAppServiceTests<TStartupModule>
             newDoctorAvailabilityId: null);
         _consentManager.IssueSideConsent(request, ChangeRequestSide.SideA);
         _consentManager.IssueSideConsent(request, ChangeRequestSide.SideB);
+        if (proposedOutcome.HasValue)
+        {
+            request.InitiateConsent(null, Guid.NewGuid());
+            request.ProposeOutcome(proposedOutcome.Value);
+        }
         return await _requestRepository.InsertAsync(request, autoSave: true);
     }
 
@@ -339,5 +345,57 @@ public abstract class PartyChangeRequestConsentAppServiceTests<TStartupModule>
         });
 
         count.ShouldBe(0);
+    }
+
+    // -- completing on consent (2026-10-09) ----------------------------------------------------
+
+    [Fact]
+    public async Task The_last_approval_completes_a_staff_cancellation_and_the_first_does_not()
+    {
+        Guid requestId = Guid.Empty;
+        await InOfficeAsync(async () =>
+        {
+            var appointmentId = await SeedAppointmentAsync();
+            requestId = (await SeedCancellationAsync(appointmentId, AppointmentStatusType.CancelledLate)).Id;
+            using (AsApplicantAttorney())
+            {
+                await _service.SubmitMyDecisionAsync(requestId, new SubmitChangeRequestConsentDto { Approved = true });
+            }
+            return 0;
+        });
+        (await InOfficeAsync(() => _requestRepository.GetAsync(requestId))).RequestStatus
+            .ShouldBe(RequestStatusType.Pending, "one side agreeing is not enough");
+
+        await InOfficeAsync(async () =>
+        {
+            using (AsDefenseAttorney())
+            {
+                await _service.SubmitMyDecisionAsync(requestId, new SubmitChangeRequestConsentDto { Approved = true });
+            }
+            return 0;
+        });
+
+        var done = await InOfficeAsync(() => _requestRepository.GetAsync(requestId));
+        done.RequestStatus.ShouldBe(RequestStatusType.Accepted);
+        done.CancellationOutcome.ShouldBe(AppointmentStatusType.CancelledLate);
+    }
+
+    [Fact]
+    public async Task A_decline_never_completes_the_request()
+    {
+        Guid requestId = Guid.Empty;
+        await InOfficeAsync(async () =>
+        {
+            var appointmentId = await SeedAppointmentAsync();
+            requestId = (await SeedCancellationAsync(appointmentId, AppointmentStatusType.CancelledLate)).Id;
+            using (AsApplicantAttorney())
+            {
+                await _service.SubmitMyDecisionAsync(requestId, new SubmitChangeRequestConsentDto { Approved = false });
+            }
+            return 0;
+        });
+
+        (await InOfficeAsync(() => _requestRepository.GetAsync(requestId))).RequestStatus
+            .ShouldBe(RequestStatusType.Pending);
     }
 }

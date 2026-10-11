@@ -42,6 +42,7 @@ public class PartyChangeRequestConsentAppService : CaseEvaluationAppService, IPa
     private readonly AppointmentReadAccessGuard _readAccessGuard;
     private readonly ChangeRequestSideResolver _sideResolver;
     private readonly ChangeRequestConsentManager _consentManager;
+    private readonly ChangeRequestConsentCompletion _consentCompletion;
 
     public PartyChangeRequestConsentAppService(
         IAppointmentChangeRequestRepository changeRequestRepository,
@@ -50,7 +51,8 @@ public class PartyChangeRequestConsentAppService : CaseEvaluationAppService, IPa
         IRepository<DoctorAvailability, Guid> slotRepository,
         AppointmentReadAccessGuard readAccessGuard,
         ChangeRequestSideResolver sideResolver,
-        ChangeRequestConsentManager consentManager)
+        ChangeRequestConsentManager consentManager,
+        ChangeRequestConsentCompletion consentCompletion)
     {
         _changeRequestRepository = changeRequestRepository;
         _roundRepository = roundRepository;
@@ -59,6 +61,7 @@ public class PartyChangeRequestConsentAppService : CaseEvaluationAppService, IPa
         _readAccessGuard = readAccessGuard;
         _sideResolver = sideResolver;
         _consentManager = consentManager;
+        _consentCompletion = consentCompletion;
     }
 
     public virtual async Task<ListResultDto<PartyConsentRequestDto>> GetMyPendingAsync(Guid? appointmentId)
@@ -102,6 +105,14 @@ public class PartyChangeRequestConsentAppService : CaseEvaluationAppService, IPa
         {
             await _consentManager.RecordDecisionAsync(
                 new ChangeRequestConsentMatch(ask.Request, ask.Round, side), input.Approved, CallerEmail());
+        }
+
+        if (input.Approved)
+        {
+            // The LAST approval may complete the request on its own (2026-10-09). Scheduled for
+            // after this unit of work commits, in its own unit, failures swallowed and logged: a
+            // failure to complete must never undo the consent just recorded.
+            await _consentCompletion.RequestCompletionAsync(request!.Id);
         }
 
         return await ToDtoAsync(ask);

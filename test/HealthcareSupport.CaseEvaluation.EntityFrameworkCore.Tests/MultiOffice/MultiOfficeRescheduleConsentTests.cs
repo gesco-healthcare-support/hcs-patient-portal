@@ -104,6 +104,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
                 scenario.ChangeRequestId,
                 new ConfirmRescheduleDateInput
                 {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
                     DoctorAvailabilityId = scenario.FirstSlotId,
                     AdminReScheduleReason = "TEST-first offer",
                 });
@@ -130,7 +131,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.FirstSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.FirstSlotId }));
 
         await InOfficeAsync(scenario.Office, async () =>
         {
@@ -148,7 +149,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
     public async Task Confirming_the_same_date_again_resends_inside_the_round_instead_of_opening_a_new_one()
     {
         var scenario = await NewScenarioAsync();
-        var input = new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.FirstSlotId };
+        var input = new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.FirstSlotId };
 
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(scenario.ChangeRequestId, input));
@@ -178,11 +179,11 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.FirstSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.FirstSlotId }));
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.SecondSlotId }));
 
         await InOfficeAsync(scenario.Office, async () =>
         {
@@ -213,7 +214,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.FirstSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.FirstSlotId }));
 
         await InOfficeAsync(scenario.Office, async () =>
         {
@@ -267,6 +268,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
                 scenario.ChangeRequestId,
                 new ConfirmRescheduleDateInput
                 {
+                    RescheduleOutcome = AppointmentStatusType.RescheduledNoBill,
                     DoctorAvailabilityId = scenario.SecondSlotId,
                     AdminReScheduleReason = "TEST-agreed offer",
                 }));
@@ -338,7 +340,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.SecondSlotId }));
 
         await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
 
@@ -376,7 +378,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.SecondSlotId }));
 
         await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
 
@@ -460,7 +462,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.SecondSlotId }));
 
         await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
 
@@ -503,7 +505,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.SecondSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.SecondSlotId }));
 
         await GrantEverySolicitedSideAsync(scenario.ChangeRequestId, scenario.Office);
 
@@ -560,7 +562,7 @@ public class MultiOfficeRescheduleConsentTests : ConsentRoundTestBase
         await InOfficeAsync(scenario.Office, () =>
             _approvalAppService.ConfirmRescheduleDateAsync(
                 scenario.ChangeRequestId,
-                new ConfirmRescheduleDateInput { DoctorAvailabilityId = scenario.FirstSlotId }));
+                new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = scenario.FirstSlotId }));
 
         await InOfficeAsync(scenario.Office, async () =>
         {

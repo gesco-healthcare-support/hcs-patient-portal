@@ -185,9 +185,9 @@ describe('cr-approve.util', () => {
 
   describe('canConfirmDate', () => {
     it('needs both a date and a time, because one date carries many slots', () => {
-      expect(canConfirmDate({ slotId: CHOSEN, time: '09:30' })).toBe(true);
-      expect(canConfirmDate({ slotId: CHOSEN, time: null })).toBe(false);
-      expect(canConfirmDate({ slotId: null, time: '09:30' })).toBe(false);
+      expect(canConfirmDate({ slotId: CHOSEN, time: '09:30', outcome: 7 })).toBe(true);
+      expect(canConfirmDate({ slotId: CHOSEN, time: null, outcome: 7 })).toBe(false);
+      expect(canConfirmDate({ slotId: null, time: '09:30', outcome: 7 })).toBe(false);
     });
 
     // Confirming is what emails both sides, so a missing explanation must make the button
@@ -197,6 +197,7 @@ describe('cr-approve.util', () => {
         canConfirmDate({
           slotId: CHOSEN,
           time: '09:30',
+          outcome: 7,
           proposedSlotId: PROPOSED,
           adminReason: '',
         }),
@@ -205,6 +206,7 @@ describe('cr-approve.util', () => {
         canConfirmDate({
           slotId: CHOSEN,
           time: '09:30',
+          outcome: 7,
           proposedSlotId: PROPOSED,
           adminReason: '   ',
         }),
@@ -213,6 +215,7 @@ describe('cr-approve.util', () => {
         canConfirmDate({
           slotId: CHOSEN,
           time: '09:30',
+          outcome: 7,
           proposedSlotId: PROPOSED,
           adminReason: 'Doctor unavailable',
         }),
@@ -221,8 +224,24 @@ describe('cr-approve.util', () => {
 
     it('does not demand a reason for a first-and-only staff choice', () => {
       expect(
-        canConfirmDate({ slotId: CHOSEN, time: '09:30', proposedSlotId: null, adminReason: '' }),
+        canConfirmDate({
+          slotId: CHOSEN,
+          time: '09:30',
+          outcome: 7,
+          proposedSlotId: null,
+          adminReason: '',
+        }),
       ).toBe(true);
+    });
+  });
+
+  describe('canConfirmDate outcome', () => {
+    // 2026-10-09: the reschedule completes on its own once both sides agree, so the No bill / Late
+    // choice is made when staff SET the date and the button must not fire without it.
+    it('stays blocked until a No bill / Late outcome is chosen', () => {
+      expect(canConfirmDate({ slotId: CHOSEN, time: '09:30', outcome: null })).toBe(false);
+      expect(canConfirmDate({ slotId: CHOSEN, time: '09:30', outcome: undefined })).toBe(false);
+      expect(canConfirmDate({ slotId: CHOSEN, time: '09:30', outcome: 8 })).toBe(true);
     });
   });
 
@@ -256,10 +275,21 @@ describe('cr-approve.util', () => {
       expect(rowActionLabel(true, 'granted')).toBe('Approve');
     });
 
-    it('always says Approve for a cancellation, which has no consent round', () => {
+    it('says Approve for a cancellation whose consent is not outstanding', () => {
       expect(rowActionLabel(false, 'needs-date')).toBe('Approve');
       expect(rowActionLabel(false, 'awaiting-consent')).toBe('Approve');
       expect(rowActionLabel(false, 'granted')).toBe('Approve');
+      expect(rowActionLabel(false, 'needs-date', false)).toBe('Approve');
+    });
+
+    // Q11B (2026-10-09): the server refuses an early cancellation approve, so the row must not
+    // offer one, matching what the reschedule row already does.
+    it('says Awaiting consent for a cancellation while consent is still outstanding', () => {
+      expect(rowActionLabel(false, 'needs-date', true)).toBe('Awaiting consent');
+    });
+
+    it('ignores the cancellation flag for a reschedule, which is stage-driven', () => {
+      expect(rowActionLabel(true, 'granted', true)).toBe('Approve');
     });
   });
 
@@ -273,8 +303,12 @@ describe('cr-approve.util', () => {
       expect(rowActionIsFinal(true, 'granted')).toBeTrue();
     });
 
-    it('is true for every cancellation stage', () => {
+    it('is true for a cancellation whose consent is not outstanding', () => {
       expect(rowActionIsFinal(false, 'needs-date')).toBeTrue();
+    });
+
+    it('is false for a cancellation still awaiting consent (Q11B)', () => {
+      expect(rowActionIsFinal(false, 'needs-date', true)).toBeFalse();
     });
   });
 

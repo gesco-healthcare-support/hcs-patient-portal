@@ -28,6 +28,22 @@
       <small class="text-muted">{{ reason.length }} / {{ maxReasonLength }}</small>
     </div>
 
+    @if (requesterIsStaff) {
+      <div class="mb-3">
+        <label class="form-label" for="cancel-outcome">Billing outcome *</label>
+        <select id="cancel-outcome" class="form-select" [(ngModel)]="outcome" required>
+          <option [ngValue]="null">Choose...</option>
+          @for (opt of outcomeOptions; track opt.value) {
+            <option [ngValue]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+        <small class="text-muted">
+          Once both sides agree, the cancellation completes on its own with this outcome and you get
+          an email when it is done.
+        </small>
+      </div>
+    }
+
     @if (errorMessage) {
       <div class="alert alert-danger mb-0" role="alert">{{ errorMessage }}</div>
     }

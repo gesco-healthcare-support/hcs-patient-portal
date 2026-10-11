@@ -424,6 +424,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("NewDoctorAvailabilityId");
 
+                    b.Property<int?>("ProposedOutcome")
+                        .HasColumnType("int")
+                        .HasColumnName("ProposedOutcome");
+
                     b.Property<string>("ReScheduleReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)")
@@ -662,6 +666,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<Guid>("ProposedDoctorAvailabilityId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("ProposedDoctorAvailabilityId");
+
+                    b.Property<int?>("ProposedOutcome")
+                        .HasColumnType("int")
+                        .HasColumnName("ProposedOutcome");
 
                     b.Property<string>("ProposedReason")
                         .HasMaxLength(1000)
