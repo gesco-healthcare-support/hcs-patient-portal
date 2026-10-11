@@ -5,6 +5,7 @@ using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
+using Volo.Abp.Validation;
 using Volo.Abp.MultiTenancy;
 using Xunit;
 
@@ -58,12 +59,12 @@ public abstract class OfficeLetterheadAppServiceTests<TStartupModule>
                 var dto = await _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput
                 {
                     PhysicianName = "  TEST-Ada Example, M.D. ",
-                    Phone = "555-0100",
+                    Phone = "(555) 555-0100",
                     MissedAppointmentFee = 99.5m,
                 });
 
                 dto.PhysicianName.ShouldBe("TEST-Ada Example, M.D.");
-                dto.Phone.ShouldBe("555-0100");
+                dto.Phone.ShouldBe("(555) 555-0100");
                 dto.MissedAppointmentFee.ShouldBe(99.5m);
                 // A blank heading now falls back to the physician the office typed.
                 dto.DefaultLetterheadName.ShouldBe("TEST-Ada Example, M.D.");
@@ -76,7 +77,7 @@ public abstract class OfficeLetterheadAppServiceTests<TStartupModule>
             {
                 var row = await _brandingRepository.FirstOrDefaultAsync(x => x.OfficeId == TenantsTestData.TenantARef);
                 row.ShouldNotBeNull();
-                row.Phone.ShouldBe("555-0100");
+                row.Phone.ShouldBe("(555) 555-0100");
             }
         });
     }
@@ -119,10 +120,23 @@ public abstract class OfficeLetterheadAppServiceTests<TStartupModule>
         {
             using (_currentTenant.Change(TenantsTestData.TenantARef))
             {
-                await _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Fax = "555-0101" });
+                await _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Fax = "(555) 555-0101" });
                 var cleared = await _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Fax = "   " });
 
                 cleared.Fax.ShouldBeNull();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task A_phone_that_is_not_ten_digits_is_refused_before_anything_is_stored()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await Should.ThrowAsync<AbpValidationException>(
+                    () => _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Phone = "555-0100" }));
             }
         });
     }
@@ -136,7 +150,7 @@ public abstract class OfficeLetterheadAppServiceTests<TStartupModule>
             {
                 await Should.ThrowAsync<UserFriendlyException>(() => _letterhead.GetAsync());
                 await Should.ThrowAsync<UserFriendlyException>(
-                    () => _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Phone = "555-0100" }));
+                    () => _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Phone = "(555) 555-0100" }));
             }
         });
     }
