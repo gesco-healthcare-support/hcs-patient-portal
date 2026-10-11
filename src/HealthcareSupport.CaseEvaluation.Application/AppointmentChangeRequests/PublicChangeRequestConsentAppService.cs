@@ -25,15 +25,18 @@ public class PublicChangeRequestConsentAppService :
     private readonly ChangeRequestConsentManager _consentManager;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
+    private readonly ChangeRequestConsentCompletion _consentCompletion;
 
     public PublicChangeRequestConsentAppService(
         ChangeRequestConsentManager consentManager,
         IRepository<Appointment, Guid> appointmentRepository,
-        IRepository<DoctorAvailability, Guid> slotRepository)
+        IRepository<DoctorAvailability, Guid> slotRepository,
+        ChangeRequestConsentCompletion consentCompletion)
     {
         _consentManager = consentManager;
         _appointmentRepository = appointmentRepository;
         _slotRepository = slotRepository;
+        _consentCompletion = consentCompletion;
     }
 
     [AllowAnonymous]
@@ -52,6 +55,13 @@ public class PublicChangeRequestConsentAppService :
         try
         {
             var match = await _consentManager.RecordDecisionAsync(token, input.Approved, respondedByEmail: null);
+            if (input.Approved)
+            {
+                // The LAST approval may complete the request on its own. Scheduled for after this
+                // unit of work commits, in its own unit, with failures swallowed and logged: a
+                // failure to complete must never undo the consent just recorded.
+                await _consentCompletion.RequestCompletionAsync(match.Request.Id);
+            }
             return await BuildInfoAsync(match);
         }
         catch (BusinessException ex) when (

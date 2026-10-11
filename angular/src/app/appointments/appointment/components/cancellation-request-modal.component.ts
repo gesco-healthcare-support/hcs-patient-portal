@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { LocalizationPipe } from '@abp/ng.core';
 import { ModalComponent, ModalCloseDirective, ButtonComponent } from '@abp/ng.theme.shared';
 import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
+import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 
 /**
@@ -51,6 +52,16 @@ export class CancellationRequestModalComponent {
   private readonly changeRequestService = inject(AppointmentChangeRequestService);
 
   reason = '';
+  /**
+   * No bill / Late, chosen by STAFF when they file (2026-10-09): a staff cancellation completes on
+   * its own once both sides agree, so there is no later Approve to pick it at. Null until chosen;
+   * never sent for an external requester.
+   */
+  outcome: AppointmentStatusType | null = null;
+  readonly outcomeOptions = [
+    { value: AppointmentStatusType.CancelledNoBill, label: 'No bill' },
+    { value: AppointmentStatusType.CancelledLate, label: 'Late' },
+  ];
   isBusy = false;
   // F-M04 (2026-06-25): surface a request failure inside the modal instead of
   // leaving an enabled-but-dead Submit button. The dialog stays dismissible.
@@ -60,7 +71,10 @@ export class CancellationRequestModalComponent {
 
   get canSubmit(): boolean {
     return (
-      !this.isBusy && this.reason.trim().length > 0 && this.reason.length <= this.maxReasonLength
+      !this.isBusy &&
+      this.reason.trim().length > 0 &&
+      this.reason.length <= this.maxReasonLength &&
+      (!this.requesterIsStaff || this.outcome !== null)
     );
   }
 
@@ -69,6 +83,7 @@ export class CancellationRequestModalComponent {
     this.visibleChange.emit(value);
     if (!value) {
       this.reason = '';
+      this.outcome = null;
       this.isBusy = false;
       this.errorMessage = null;
     }
@@ -81,7 +96,11 @@ export class CancellationRequestModalComponent {
     this.isBusy = true;
     this.errorMessage = null;
     this.changeRequestService
-      .requestCancellation(this.appointmentId, { reason: this.reason.trim() })
+      .requestCancellation(this.appointmentId, {
+        reason: this.reason.trim(),
+        // Only staff choose it; the server ignores it for an external caller anyway.
+        cancellationOutcome: this.requesterIsStaff ? this.outcome : null,
+      })
       .subscribe({
         next: (dto: AppointmentChangeRequestDto) => {
           this.succeeded.emit(dto);

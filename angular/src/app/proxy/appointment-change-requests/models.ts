@@ -57,6 +57,7 @@ export interface ChangeRequestConsentInfoDto {
 
 export interface ConfirmRescheduleDateInput {
   doctorAvailabilityId: string;
+  rescheduleOutcome: AppointmentStatusType;
   adminReScheduleReason?: string | null;
   concurrencyStamp?: string | null;
 }
@@ -76,6 +77,7 @@ export interface RejectChangeRequestInput {
 
 export interface RequestCancellationDto {
   reason: string;
+  cancellationOutcome?: AppointmentStatusType | null;
 }
 
 export interface RequestRescheduleDto {

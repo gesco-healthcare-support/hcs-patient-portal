@@ -490,7 +490,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
                     new RejectChangeRequestInput { Reason = "Synthetic" })))
                 .Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestInvalidRescheduleOutcome);
             (await Should.ThrowAsync<BusinessException>(() => _decisions.ConfirmRescheduleDateAsync(cancel.Id,
-                    new ConfirmRescheduleDateInput { DoctorAvailabilityId = DoctorAvailabilitiesTestData.Slot2Id })))
+                    new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = DoctorAvailabilitiesTestData.Slot2Id })))
                 .Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestInvalidRescheduleOutcome);
         });
 
@@ -622,7 +622,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
 
         await AsStaff(async () =>
             (await Should.ThrowAsync<BusinessException>(() => _decisions.ConfirmRescheduleDateAsync(request.Id,
-                    new ConfirmRescheduleDateInput { DoctorAvailabilityId = Guid.Empty })))
+                    new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = Guid.Empty })))
                 .Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotRequired));
     }
 
@@ -658,7 +658,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
 
         AppointmentChangeRequestDto result = null!;
         await AsStaff(async () => result = await _requests.RequestCancellationAsync(AppointmentA,
-            new RequestCancellationDto { Reason = "Synthetic staff cancellation" }));
+            new RequestCancellationDto { Reason = "Synthetic staff cancellation", CancellationOutcome = AppointmentStatusType.CancelledNoBill }));
 
         var asked = Published<NotificationsEvents.ChangeRequestConsentRequestedEto>();
         asked.Select(e => e.OpposingRecipientEmail).OrderBy(e => e)
@@ -673,7 +673,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
         await MoveSlotOutOfTheCancelWindowAsync(TenantsTestData.TenantARef, DoctorAvailabilitiesTestData.Slot1Id);
         AppointmentChangeRequestDto result = null!;
         await AsStaff(async () => result = await _requests.RequestCancellationAsync(AppointmentA,
-            new RequestCancellationDto { Reason = "Synthetic staff cancellation" }));
+            new RequestCancellationDto { Reason = "Synthetic staff cancellation", CancellationOutcome = AppointmentStatusType.CancelledNoBill }));
 
         result.Id.ShouldNotBe(Guid.Empty);
         Published<NotificationsEvents.ChangeRequestConsentRequestedEto>().ShouldBeEmpty();
@@ -709,6 +709,84 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
 
         result.Id.ShouldNotBe(Guid.Empty);
         Published<NotificationsEvents.ChangeRequestConsentRequestedEto>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_staff_cancellation_without_an_outcome_is_refused_before_anything_is_written()
+    {
+        await MoveSlotOutOfTheCancelWindowAsync(TenantsTestData.TenantARef, DoctorAvailabilitiesTestData.Slot1Id);
+
+        await AsStaff(async () =>
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(() => _requests.RequestCancellationAsync(
+                AppointmentA, new RequestCancellationDto { Reason = "Synthetic staff cancellation" }));
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestInvalidCancellationOutcome);
+        });
+    }
+
+    [Fact]
+    public async Task A_staff_cancellation_with_a_non_cancellation_outcome_is_refused()
+    {
+        await MoveSlotOutOfTheCancelWindowAsync(TenantsTestData.TenantARef, DoctorAvailabilitiesTestData.Slot1Id);
+
+        await AsStaff(async () =>
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(() => _requests.RequestCancellationAsync(
+                AppointmentA,
+                new RequestCancellationDto
+                {
+                    Reason = "Synthetic staff cancellation",
+                    CancellationOutcome = AppointmentStatusType.RescheduledNoBill,
+                }));
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestInvalidCancellationOutcome);
+        });
+    }
+
+    [Fact]
+    public async Task A_staff_cancellation_stores_the_outcome_staff_chose_as_a_proposal_only()
+    {
+        await MoveSlotOutOfTheCancelWindowAsync(TenantsTestData.TenantARef, DoctorAvailabilitiesTestData.Slot1Id);
+        OnAppointment(
+            (RecipientRole.Patient, "patient@example.test"),
+            (RecipientRole.ApplicantAttorney, "applicant@example.test"));
+
+        AppointmentChangeRequestDto result = null!;
+        await AsStaff(async () => result = await _requests.RequestCancellationAsync(AppointmentA,
+            new RequestCancellationDto { Reason = "Synthetic staff cancellation", CancellationOutcome = AppointmentStatusType.CancelledLate }));
+
+        await AsStaff(async () =>
+        {
+            var row = await _changeRequestRepository.GetAsync(result.Id);
+            row.ProposedOutcome.ShouldBe(AppointmentStatusType.CancelledLate);
+            row.CancellationOutcome.ShouldBeNull("the proposal is not the decision");
+            row.RequestStatus.ShouldBe(RequestStatusType.Pending);
+        });
+    }
+
+    [Fact]
+    public async Task A_partys_cancellation_ignores_any_outcome_they_send()
+    {
+        await MoveSlotOutOfTheCancelWindowAsync(TenantsTestData.TenantBRef, DoctorAvailabilitiesTestData.Slot3Id);
+        OnAppointment(
+            (RecipientRole.Patient, "patient@example.test"),
+            (RecipientRole.ApplicantAttorney, "applicant@example.test"),
+            (RecipientRole.DefenseAttorney, "defense@example.test"));
+
+        AppointmentChangeRequestDto result = null!;
+        await InOffice(TenantsTestData.TenantBRef, IdentityUsersTestData.DefenseAttorney1UserId,
+            IdentityUsersTestData.DefenseAttorneyRoleName, async () => result = await _requests.RequestCancellationAsync(
+                AppointmentsTestData.Appointment2Id,
+                new RequestCancellationDto
+                {
+                    Reason = "Synthetic party cancellation",
+                    CancellationOutcome = AppointmentStatusType.CancelledNoBill,
+                }));
+
+        await InOffice(TenantsTestData.TenantBRef, IdentityUsersTestData.DefenseAttorney1UserId,
+            IdentityUsersTestData.DefenseAttorneyRoleName, async () =>
+            {
+                (await _changeRequestRepository.GetAsync(result.Id)).ProposedOutcome.ShouldBeNull();
+            });
     }
 
     [Fact]

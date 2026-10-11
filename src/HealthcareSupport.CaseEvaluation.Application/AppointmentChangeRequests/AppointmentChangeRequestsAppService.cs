@@ -44,6 +44,7 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
     private readonly IAccountUrlBuilder _accountUrlBuilder;
     private readonly ILocalEventBus _localEventBus;
     private readonly IAppointmentChangeRequestRepository _changeRequestRepository;
+    private readonly ChangeRequestConsentCompletion _consentCompletion;
 
     public AppointmentChangeRequestsAppService(
         AppointmentChangeRequestManager manager,
@@ -55,7 +56,8 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         ChangeRequestSideResolver sideResolver,
         IAccountUrlBuilder accountUrlBuilder,
         ILocalEventBus localEventBus,
-        IAppointmentChangeRequestRepository changeRequestRepository)
+        IAppointmentChangeRequestRepository changeRequestRepository,
+        ChangeRequestConsentCompletion consentCompletion)
     {
         _manager = manager;
         _appointmentRepository = appointmentRepository;
@@ -67,6 +69,7 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         _accountUrlBuilder = accountUrlBuilder;
         _localEventBus = localEventBus;
         _changeRequestRepository = changeRequestRepository;
+        _consentCompletion = consentCompletion;
     }
 
     [Authorize]
@@ -93,11 +96,30 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         // (Pending) appointment; external users stay Approved-only.
         var allowPendingSource = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
 
+        // 2026-10-09: staff pick No bill / Late when they FILE the cancellation, because it
+        // completes on its own once both sides agree. Validated before anything is written.
+        // An external caller's value is ignored: their request still waits for the staff Approve.
+        if (allowPendingSource)
+        {
+            if (input.CancellationOutcome == null)
+            {
+                throw new BusinessException(
+                    CaseEvaluationDomainErrorCodes.ChangeRequestInvalidCancellationOutcome);
+            }
+            ChangeRequestApprovalValidator.EnsureCancellationOutcome(input.CancellationOutcome.Value);
+        }
+
         var changeRequest = await _manager.SubmitCancellationAsync(
             appointmentId: appointmentId,
             cancellationReason: input.Reason,
             allowPendingSource: allowPendingSource,
             actingUserId: CurrentUser.Id);
+
+        if (allowPendingSource)
+        {
+            changeRequest.ProposeOutcome(input.CancellationOutcome!.Value);
+            await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+        }
 
         await IssueConsentAndNotifyAsync(changeRequest);
 
@@ -290,6 +312,9 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             Logger.LogWarning(
                 "ChangeRequest {ChangeRequestId}: staff-initiated but neither side has a representative; consent skipped.",
                 changeRequest.Id);
+            // Nobody to ask, so both sides are already satisfied: complete it now (after this unit
+            // of work commits, so the request is visible to the completion's own unit).
+            await _consentCompletion.RequestCompletionAsync(changeRequest.Id);
             return;
         }
 

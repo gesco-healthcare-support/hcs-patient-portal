@@ -42,5 +42,13 @@ public class AppointmentChangeRequestApprovedEto
 
     public Guid ApprovedByUserId { get; set; }
 
+    /// <summary>
+    /// Set ONLY when the request COMPLETED ON ITS OWN once every solicited side agreed
+    /// (2026-10-09): the staff member who set the date / filed the cancellation and so never
+    /// clicked Approve. The approved-email handler also notifies this user. Null on the manual
+    /// Approve path, where the approver is the one who just acted.
+    /// </summary>
+    public Guid? CompletedOnConsentNotifyUserId { get; set; }
+
     public DateTime OccurredAt { get; set; }
 }
