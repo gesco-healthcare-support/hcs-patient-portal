@@ -5,7 +5,7 @@ import {
   letterheadInputFromForm,
   parseFee,
 } from './office-letterhead.util';
-import type { OfficeLetterheadDto } from './office-letterhead.service';
+import type { OfficeLetterheadDto } from '../proxy/branding/models';
 
 /**
  * The packet-letterhead editor's form mapping (walkthrough Q5). The rule the server relies on:

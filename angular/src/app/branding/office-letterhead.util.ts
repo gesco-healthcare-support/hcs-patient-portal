@@ -1,4 +1,4 @@
-import type { OfficeLetterheadDto, OfficeLetterheadFields } from './office-letterhead.service';
+import type { OfficeLetterheadDto, UpdateOfficeLetterheadInput } from '../proxy/branding/models';
 
 /** The text fields of the letterhead editor, in display order. */
 export const LETTERHEAD_TEXT_KEYS = [
@@ -58,12 +58,14 @@ export function parseFee(raw: string): number | null | undefined {
 }
 
 /** Builds the save payload: blank text is sent as null so the server clears it to the default. */
-export function letterheadInputFromForm(form: LetterheadForm): OfficeLetterheadFields | undefined {
+export function letterheadInputFromForm(
+  form: LetterheadForm,
+): UpdateOfficeLetterheadInput | undefined {
   const fee = parseFee(form.fee);
   if (fee === undefined) {
     return undefined;
   }
-  const input: OfficeLetterheadFields = { missedAppointmentFee: fee };
+  const input: UpdateOfficeLetterheadInput = { missedAppointmentFee: fee };
   for (const key of LETTERHEAD_TEXT_KEYS) {
     const value = form.text[key].trim();
     input[key] = value.length ? value : null;

@@ -3,7 +3,8 @@ import { of, throwError } from 'rxjs';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { OfficeLetterheadComponent } from './office-letterhead.component';
-import { OfficeLetterheadDto, OfficeLetterheadService } from './office-letterhead.service';
+import type { OfficeLetterheadDto } from '../proxy/branding/models';
+import { OfficeLetterheadService } from '../proxy/branding/office-letterhead.service';
 
 /**
  * The packet-letterhead card on the in-office branding page (walkthrough Q5). Rendered, so the

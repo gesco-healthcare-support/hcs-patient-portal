@@ -14,7 +14,8 @@ import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme
 import { firstValueFrom } from 'rxjs';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { CalendarDatePipe } from '../../shared/pipes/pacific-date.pipe';
-import { PartyConsentRequest, PartyConsentService } from './party-consent.service';
+import type { PartyConsentRequestDto } from '../../proxy/appointment-change-requests/models';
+import { PartyChangeRequestConsentService } from '../../proxy/appointment-change-requests/party-change-request-consent.service';
 import {
   partyConsentConfirmText,
   partyConsentHeadline,
@@ -67,7 +68,7 @@ import {
   `,
 })
 export class PartyConsentCardComponent implements OnInit, OnChanges {
-  private readonly service = inject(PartyConsentService);
+  private readonly service = inject(PartyChangeRequestConsentService);
   private readonly confirmation = inject(ConfirmationService);
   private readonly toaster = inject(ToasterService);
 
@@ -77,9 +78,9 @@ export class PartyConsentCardComponent implements OnInit, OnChanges {
   /** Show which appointment each request is about (the home page lists several). */
   @Input() showSubject = false;
 
-  @Output() readonly decided = new EventEmitter<PartyConsentRequest>();
+  @Output() readonly decided = new EventEmitter<PartyConsentRequestDto>();
 
-  protected readonly items = signal<PartyConsentRequest[]>([]);
+  protected readonly items = signal<PartyConsentRequestDto[]>([]);
   protected readonly busyId = signal<string | null>(null);
 
   protected readonly headline = partyConsentHeadline;
@@ -98,14 +99,16 @@ export class PartyConsentCardComponent implements OnInit, OnChanges {
   }
 
   load(): void {
-    this.service.getMine(this.appointmentId).subscribe({
+    // An empty id is dropped from the query (RestService skips empty values): every request.
+    this.service.getMyPending(this.appointmentId ?? '').subscribe({
       next: (result) => this.items.set(result?.items ?? []),
       error: () => this.items.set([]),
     });
   }
 
-  protected async answer(item: PartyConsentRequest, approved: boolean): Promise<void> {
-    if (this.busyId()) {
+  protected async answer(item: PartyConsentRequestDto, approved: boolean): Promise<void> {
+    const id = item.changeRequestId;
+    if (this.busyId() || !id) {
       return;
     }
     const status = await firstValueFrom(
@@ -118,10 +121,10 @@ export class PartyConsentCardComponent implements OnInit, OnChanges {
       return;
     }
 
-    this.busyId.set(item.changeRequestId);
+    this.busyId.set(id);
     try {
-      const result = await firstValueFrom(this.service.decide(item.changeRequestId, approved));
-      this.items.update((list) => list.filter((i) => i.changeRequestId !== item.changeRequestId));
+      const result = await firstValueFrom(this.service.submitMyDecision(id, { approved }));
+      this.items.update((list) => list.filter((i) => i.changeRequestId !== id));
       this.toaster.success(approved ? 'Your agreement was recorded.' : 'Your answer was recorded.');
       this.decided.emit(result);
     } catch {
