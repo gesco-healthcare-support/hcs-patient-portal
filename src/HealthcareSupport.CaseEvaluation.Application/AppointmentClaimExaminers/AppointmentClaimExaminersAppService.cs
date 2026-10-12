@@ -40,7 +40,9 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     public virtual async Task<PagedResultDto<AppointmentClaimExaminerDto>> GetListAsync(GetAppointmentClaimExaminersInput input)
     {
         var queryable = await _repository.GetQueryableAsync();
+        var readableAppointmentIds = await _childOwnershipGuard.GetReadableAppointmentIdsAsync();
         var query = queryable.WhereIf(input.AppointmentId.HasValue, x => x.AppointmentId == input.AppointmentId!.Value);
+        if (readableAppointmentIds != null) { query = query.Where(x => readableAppointmentIds.Contains(x.AppointmentId)); }
         var totalCount = query.Count();
         var sorting = string.IsNullOrWhiteSpace(input.Sorting) ? AppointmentClaimExaminerConsts.GetDefaultSorting(false) : input.Sorting;
         var items = await query.OrderBy(sorting).PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<AppointmentClaimExaminer>();
@@ -54,7 +56,10 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     [Authorize(CaseEvaluationPermissions.AppointmentClaimExaminers.Default)]
     public virtual async Task<AppointmentClaimExaminerDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentClaimExaminer, AppointmentClaimExaminerDto>(await _repository.GetAsync(id));
+        var entity = await _repository.GetAsync(id);
+        // Reading a child row is reading its parent appointment: the .Default permission ties the caller to no appointment.
+        await _childOwnershipGuard.EnsureIsPartyAsync(entity.AppointmentId);
+        return ObjectMapper.Map<AppointmentClaimExaminer, AppointmentClaimExaminerDto>(entity);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentClaimExaminers.Default)]
@@ -73,6 +78,9 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     [Authorize(CaseEvaluationPermissions.AppointmentClaimExaminers.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Party check against the row's STORED parent appointment (never request input), as on update.
+        var existing = await _repository.GetAsync(id);
+        await _childOwnershipGuard.EnsureIsPartyAsync(existing.AppointmentId);
         await _repository.DeleteAsync(id);
     }
 

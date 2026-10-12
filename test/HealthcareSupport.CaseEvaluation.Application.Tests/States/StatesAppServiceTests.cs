@@ -17,6 +17,7 @@ public abstract class StatesAppServiceTests<TStartupModule> : CaseEvaluationAppl
 
     protected StatesAppServiceTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _statesAppService = GetRequiredService<IStatesAppService>();
         _stateRepository = GetRequiredService<IStateRepository>();
         _stateManager = GetRequiredService<StateManager>();

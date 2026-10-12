@@ -28,9 +28,14 @@ straight from the variable:
 - `OfficeSeedDataContributor` no longer gates on the environment (it registers the one
   synthetic TEST office everywhere, C6 2026-09-25); the shared test base removes it from the
   start-up seed instead, so it is not the cause here
-- `DemoExternalUsersDataSeedContributor.cs:232-236` reads
-  `ASPNETCORE_ENVIRONMENT ?? DOTNET_ENVIRONMENT` directly
-- `DemoPatientDataSeedContributor` likewise
+- the demo seeders read the environment through `DemoSeedGate`, which resolves it from an
+  `IDemoSeedEnvironment` seam rather than calling `Environment.GetEnvironmentVariable` itself.
+  **They no longer read it directly** -- an earlier version of this file cited
+  `DemoExternalUsersDataSeedContributor.cs:232-236`, and those lines are gone.
+- **The gate now needs TWO signals**, both failing closed: the environment must be `Development`
+  AND `ALLOW_DEMO_SEED` must be explicitly `true`. So setting the environment alone no longer
+  seeds anything -- which removes most of the hazard this rule was written about, though the
+  measured test breakage below is unchanged and the rule still stands.
 
 In Development those seeders wake up inside the test harness. They resolve
 `TenantConnectionStringProvider`, which needs `App:TenantDbTemplate` or

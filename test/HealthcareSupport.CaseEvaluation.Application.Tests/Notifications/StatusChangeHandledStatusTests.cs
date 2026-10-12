@@ -25,6 +25,8 @@ public class StatusChangeHandledStatusTests
 
     [Theory]
     [InlineData(AppointmentStatusType.Pending)]
+    [InlineData(AppointmentStatusType.CheckedIn)]
+    [InlineData(AppointmentStatusType.CheckedOut)]
     [InlineData(AppointmentStatusType.Billed)]
     [InlineData(AppointmentStatusType.RescheduleRequested)]
     public void Ignores_non_emailed_statuses(AppointmentStatusType status)

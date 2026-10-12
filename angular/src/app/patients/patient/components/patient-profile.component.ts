@@ -158,13 +158,17 @@ export class PatientProfileComponent implements OnInit {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isBusy = false)))
-      .subscribe((updated) => {
-        if (this.selected?.patient) {
-          this.selected.patient = {
-            ...this.selected.patient,
-            ...updated,
-          };
-        }
+      .subscribe({
+        next: (updated) => {
+          if (this.selected?.patient) {
+            this.selected.patient = {
+              ...this.selected.patient,
+              ...updated,
+            };
+          }
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -200,26 +204,30 @@ export class PatientProfileComponent implements OnInit {
           { apiName: 'Default' },
         )
         .pipe(finalize(() => (this.isLoading = false)))
-        .subscribe((response) => {
-          if (!response?.identityUserId) {
-            this.notFound = true;
-            return;
-          }
-          this.selected = {
-            patient: {
-              id: response.identityUserId,
+        .subscribe({
+          next: (response) => {
+            if (!response?.identityUserId) {
+              this.notFound = true;
+              return;
+            }
+            this.selected = {
+              patient: {
+                id: response.identityUserId,
+                firstName: response.firstName,
+                lastName: response.lastName,
+                email: response.email,
+                identityUserId: response.identityUserId,
+              } as any,
+            } as PatientWithNavigationPropertiesDto;
+            this.form.patchValue({
               firstName: response.firstName,
               lastName: response.lastName,
               email: response.email,
               identityUserId: response.identityUserId,
-            } as any,
-          } as PatientWithNavigationPropertiesDto;
-          this.form.patchValue({
-            firstName: response.firstName,
-            lastName: response.lastName,
-            email: response.email,
-            identityUserId: response.identityUserId,
-          });
+            });
+          },
+          // ABP's RestService already reported this failure; settle the rethrown copy.
+          error: () => undefined,
         });
     } else {
       this.restService
@@ -231,24 +239,28 @@ export class PatientProfileComponent implements OnInit {
           { apiName: 'Default' },
         )
         .pipe(finalize(() => (this.isLoading = false)))
-        .subscribe((response) => {
-          if (!response?.patient) {
-            this.notFound = true;
-            return;
-          }
+        .subscribe({
+          next: (response) => {
+            if (!response?.patient) {
+              this.notFound = true;
+              return;
+            }
 
-          this.selected = response;
-          this.form.patchValue({
-            ...response.patient,
-            dateOfBirth: normalizePatientDateOfBirth(
-              response.patient.dateOfBirth as unknown as string | null,
-            ),
-            // F1 / Design B (2026-05-29): SSN is never pre-filled. The spread
-            // above carries only the masked last-4 now, but we still blank the
-            // field so nothing is pre-populated; the stored value is viewed via
-            // the reveal endpoint and an empty submit leaves it unchanged.
-            socialSecurityNumber: null,
-          });
+            this.selected = response;
+            this.form.patchValue({
+              ...response.patient,
+              dateOfBirth: normalizePatientDateOfBirth(
+                response.patient.dateOfBirth as unknown as string | null,
+              ),
+              // F1 / Design B (2026-05-29): SSN is never pre-filled. The spread
+              // above carries only the masked last-4 now, but we still blank the
+              // field so nothing is pre-populated; the stored value is viewed via
+              // the reveal endpoint and an empty submit leaves it unchanged.
+              socialSecurityNumber: null,
+            });
+          },
+          // ABP's RestService already reported this failure; settle the rethrown copy.
+          error: () => undefined,
         });
     }
   }

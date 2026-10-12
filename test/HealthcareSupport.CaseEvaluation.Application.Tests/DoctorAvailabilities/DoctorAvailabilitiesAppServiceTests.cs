@@ -890,6 +890,95 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         }
     }
 
+    // The residue of the guards above: edits that move nothing but still strand a booked appointment.
+    // Slot1 has one active appointment (Appointment1, Pending) and accepts AppointmentType1 only.
+
+    [Fact]
+    public async Task UpdateAsync_CuttingCapacityBelowTheActiveCount_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+            await AddActiveAppointmentToSlot1Async(AppointmentStatusType.Approved, "A97101");
+            var update = UpdateFrom(slot);
+            update.Capacity = 1; // two active appointments hold this slot
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.UpdateAsync(slot.Id, update));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked);
+            (await _slotRepository.GetAsync(slot.Id)).Capacity.ShouldBe(slot.Capacity);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CuttingCapacityToExactlyTheActiveCount_IsAllowed_AndCancelledAppointmentsDoNotCount()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+            await AddActiveAppointmentToSlot1Async(AppointmentStatusType.Approved, "A97102");
+            await AddActiveAppointmentToSlot1Async(AppointmentStatusType.CancelledNoBill, "A97103");
+            var update = UpdateFrom(slot);
+            update.Capacity = 2; // two active; the cancelled one holds nothing
+
+            var result = await _appService.UpdateAsync(slot.Id, update);
+
+            result.Capacity.ShouldBe(2);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RemovingAnAcceptedTypeAnActiveAppointmentUses_IsRefused()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+            var update = UpdateFrom(slot);
+            update.AppointmentTypeIds = new List<Guid> { AppointmentTypesTestData.AppointmentType2Id };
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.UpdateAsync(slot.Id, update));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotRemoveTypeInUse);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AddingATypeWhileKeepingTheOneInUse_IsAllowed()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = await MakeSlot1AvailableWhileStillBookedAsync();
+            var update = UpdateFrom(slot);
+            update.AppointmentTypeIds = new List<Guid>
+            {
+                AppointmentTypesTestData.AppointmentType1Id,
+                AppointmentTypesTestData.AppointmentType2Id,
+            };
+
+            var result = await _appService.UpdateAsync(slot.Id, update);
+
+            result.ShouldNotBeNull();
+        }
+    }
+
+    private async Task AddActiveAppointmentToSlot1Async(AppointmentStatusType status, string confirmationNumber)
+    {
+        var repository = GetRequiredService<HealthcareSupport.CaseEvaluation.Appointments.IAppointmentRepository>();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            await repository.InsertAsync(new HealthcareSupport.CaseEvaluation.Appointments.Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId,
+                appointmentTypeId: AppointmentTypesTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: DoctorAvailabilitiesTestData.Slot1AvailableDate,
+                requestConfirmationNumber: confirmationNumber,
+                appointmentStatus: status), autoSave: true);
+        });
+    }
+
     /// <summary>
     /// Seeded Slot1, still referenced by Appointment1, with its status set to Available -- what a
     /// booked slot looks like under the capacity model. Returns it re-read, so the concurrency stamp

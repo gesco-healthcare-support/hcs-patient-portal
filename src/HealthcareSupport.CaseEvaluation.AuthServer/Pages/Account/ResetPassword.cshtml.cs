@@ -17,8 +17,9 @@ namespace HealthcareSupport.CaseEvaluation.Pages.Account;
 /// surfaces an unhandled <c>EntityNotFoundException</c> that leaks as
 /// a raw 500 to the browser. The custom GET skips that lookup -- empty
 /// <c>UserId</c> or empty <c>ResetToken</c> redirects to ForgotPassword
-/// with a friendly error; everything else renders the form. Token
-/// validity is checked at POST time when the AppService is invoked.
+/// with a friendly error. Token validity is checked on GET through
+/// <see cref="IResetLinkChecker"/> (a used or expired link never renders the
+/// form) and again at POST time when the AppService is invoked.
 ///
 /// <para>POSTing the form calls
 /// <see cref="IExternalAccountAppService.ResetPasswordAsync"/> directly
@@ -63,19 +64,27 @@ public class ResetPasswordModel : AbpPageModel
     public string? ErrorMessage { get; set; }
 
     private readonly IExternalAccountAppService _externalAccountAppService;
+    private readonly IResetLinkChecker _resetLinkChecker;
     private readonly ILogger<ResetPasswordModel> _logger;
 
     public ResetPasswordModel(
         IExternalAccountAppService externalAccountAppService,
+        IResetLinkChecker resetLinkChecker,
         ILogger<ResetPasswordModel> logger)
     {
         _externalAccountAppService = externalAccountAppService;
+        _resetLinkChecker = resetLinkChecker;
         _logger = logger;
     }
 
-    public IActionResult OnGet()
+    public async Task<IActionResult> OnGetAsync()
     {
-        if (UserId == Guid.Empty || string.IsNullOrWhiteSpace(ResetToken))
+        // OBS-34 (#570): a link that was already used, has expired or was tampered with is refused
+        // here, before the form, instead of after the user has typed a password. The user-id
+        // lookup the stock page did on GET leaked a raw 500 for an unknown id; the checker folds
+        // "no such user" into the same false as a dead token, so this redirect (same message) is
+        // the only outcome and says nothing about which accounts exist.
+        if (!await _resetLinkChecker.IsUsableAsync(UserId, ResetToken))
         {
             return RedirectToForgotWithError(
                 "That reset link doesn't work anymore. Request a new one below.");

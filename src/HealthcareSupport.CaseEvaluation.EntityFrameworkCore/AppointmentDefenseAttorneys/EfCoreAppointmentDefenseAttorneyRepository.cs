@@ -26,10 +26,10 @@ public class EfCoreAppointmentDefenseAttorneyRepository : EfCoreRepository<CaseE
         return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(appointmentDefenseAttorney => new AppointmentDefenseAttorneyWithNavigationProperties { AppointmentDefenseAttorney = appointmentDefenseAttorney, Appointment = dbContext.Set<Appointment>().FirstOrDefault(c => c.Id == appointmentDefenseAttorney.AppointmentId), DefenseAttorney = dbContext.Set<DefenseAttorney>().FirstOrDefault(c => c.Id == appointmentDefenseAttorney.DefenseAttorneyId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == appointmentDefenseAttorney.IdentityUserId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public virtual async Task<List<AppointmentDefenseAttorneyWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, Guid? appointmentId = null, Guid? defenseAttorneyId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentDefenseAttorneyWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, Guid? appointmentId = null, Guid? defenseAttorneyId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, appointmentId, defenseAttorneyId, identityUserId);
+        query = ApplyFilter(query, filterText, appointmentId, defenseAttorneyId, identityUserId, restrictToAppointmentIds);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentDefenseAttorneyConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
@@ -52,9 +52,9 @@ public class EfCoreAppointmentDefenseAttorneyRepository : EfCoreRepository<CaseE
                };
     }
 
-    protected virtual IQueryable<AppointmentDefenseAttorneyWithNavigationProperties> ApplyFilter(IQueryable<AppointmentDefenseAttorneyWithNavigationProperties> query, string? filterText, Guid? appointmentId = null, Guid? defenseAttorneyId = null, Guid? identityUserId = null)
+    protected virtual IQueryable<AppointmentDefenseAttorneyWithNavigationProperties> ApplyFilter(IQueryable<AppointmentDefenseAttorneyWithNavigationProperties> query, string? filterText, Guid? appointmentId = null, Guid? defenseAttorneyId = null, Guid? identityUserId = null, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId).WhereIf(defenseAttorneyId != null && defenseAttorneyId != Guid.Empty, e => e.DefenseAttorney != null && e.DefenseAttorney.Id == defenseAttorneyId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId);
+        return query.WhereIf(restrictToAppointmentIds != null, e => restrictToAppointmentIds!.Contains(e.AppointmentDefenseAttorney.AppointmentId)).WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId).WhereIf(defenseAttorneyId != null && defenseAttorneyId != Guid.Empty, e => e.DefenseAttorney != null && e.DefenseAttorney.Id == defenseAttorneyId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId);
     }
 
     protected virtual IQueryable<AppointmentDefenseAttorney> ApplyFilter(IQueryable<AppointmentDefenseAttorney> query, string? filterText = null)
@@ -69,10 +69,10 @@ public class EfCoreAppointmentDefenseAttorneyRepository : EfCoreRepository<CaseE
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, Guid? appointmentId = null, Guid? defenseAttorneyId = null, Guid? identityUserId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, Guid? appointmentId = null, Guid? defenseAttorneyId = null, Guid? identityUserId = null, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, appointmentId, defenseAttorneyId, identityUserId);
+        query = ApplyFilter(query, filterText, appointmentId, defenseAttorneyId, identityUserId, restrictToAppointmentIds);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

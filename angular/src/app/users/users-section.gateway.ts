@@ -8,7 +8,7 @@ import type { CreatePracticeInput } from '../proxy/doctors/models';
 import type { SaasTenantDto } from '../proxy/volo/saas/host/dtos/models';
 import { BrandingService } from '../shared/branding/branding.service';
 import { ExternalUserService } from '../proxy/external-users/external-user.service';
-import { ExternalSignupService } from '../proxy/external-signups/external-signup.service';
+import { ExternalSignupStaffService } from '../proxy/external-signups/external-signup-staff.service';
 import { InternalUsersService } from '../proxy/internal-users/internal-users.service';
 import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
@@ -55,7 +55,7 @@ export interface TenantFormState {
 @Injectable({ providedIn: 'root' })
 export class UsersSectionGateway {
   private readonly externalUsers = inject(ExternalUserService);
-  private readonly externalSignup = inject(ExternalSignupService);
+  private readonly externalSignup = inject(ExternalSignupStaffService);
   private readonly internalUsers = inject(InternalUsersService);
   private readonly userExtended = inject(UserExtendedService);
   private readonly dashboard = inject(DashboardService);
@@ -70,7 +70,7 @@ export class UsersSectionGateway {
   }
   /**
    * Item F follow-up (2026-08-22): emails an existing external user a sign-in link for their own
-   * office. Goes through ExternalSignupService, not ExternalUserService: the endpoint lives on the
+   * office. Goes through ExternalSignupStaffService, not ExternalUserService: the endpoint lives on the
    * auto-exposed app service at /api/app/external-signup/send-portal-link, and there is no custom
    * external-users controller route for it.
    */
@@ -131,7 +131,7 @@ export class UsersSectionGateway {
   /**
    * Toggle a user's active flag. ABP's update endpoint replaces the whole DTO, so
    * fetch the current user first and resend every field with only isActive flipped
-   * (preserving roles + concurrency stamp).
+   * (preserving roles, concurrency stamp and extraProperties).
    */
   setUserActive(id: string, isActive: boolean): Observable<void> {
     return this.userExtended.get(id).pipe(
@@ -148,6 +148,9 @@ export class UsersSectionGateway {
           shouldChangePasswordOnNextLogin: u.shouldChangePasswordOnNextLogin,
           emailConfirmed: u.emailConfirmed,
           concurrencyStamp: u.concurrencyStamp,
+          // Module-extension props (IsExternalUser, IsAccessor, LockoutCycle) are non-nullable
+          // server-side, so the update is rejected with a 400 without them. Pass through unchanged.
+          extraProperties: u.extraProperties,
         }),
       ),
       map(() => undefined),

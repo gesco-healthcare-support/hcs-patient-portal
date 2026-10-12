@@ -223,7 +223,10 @@ public class UserSignatureAppService : CaseEvaluationAppService, IUserSignatureA
     /// <c>EnsureValidFileFormat</c> approach in
     /// <see cref="AppointmentDocuments.AppointmentDocumentsAppService"/>.
     /// </summary>
-    private static void EnsureValidImageMagicBytes(Stream stream)
+    // NOT static: it throws user-facing messages, and L is an instance member. It was static, and
+    // the two throws below passed the raw key, so a rejected upload showed the user
+    // "UserSignature:FileEmpty" rather than the sentence. See #966.
+    private void EnsureValidImageMagicBytes(Stream stream)
     {
         if (!stream.CanSeek)
         {
@@ -237,7 +240,7 @@ public class UserSignatureAppService : CaseEvaluationAppService, IUserSignatureA
 
         if (read < 4)
         {
-            throw new UserFriendlyException("UserSignature:FileEmpty");
+            throw new UserFriendlyException(L["UserSignature:FileEmpty"]);
         }
 
         var isPng = magic[0] == 0x89 && magic[1] == 0x50 && magic[2] == 0x4E && magic[3] == 0x47;
@@ -245,7 +248,7 @@ public class UserSignatureAppService : CaseEvaluationAppService, IUserSignatureA
 
         if (!isPng && !isJpeg)
         {
-            throw new UserFriendlyException("UserSignature:UnsupportedFormat");
+            throw new UserFriendlyException(L["UserSignature:UnsupportedFormat"]);
         }
     }
 

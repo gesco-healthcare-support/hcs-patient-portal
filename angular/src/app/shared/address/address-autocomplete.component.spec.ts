@@ -1,6 +1,6 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { FormControl, FormGroup } from '@angular/forms';
-import { of } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 
 import { AddressAutocompleteComponent } from './address-autocomplete.component';
 import { AddressSuggestion, AddressValidationProvider } from './address-validation.provider';
@@ -33,7 +33,7 @@ describe('AddressAutocompleteComponent', () => {
     zip: '00000',
   };
 
-  function create(): Probe {
+  function create(options: { stateLookupFails?: boolean } = {}): Probe {
     autocomplete = jasmine.createSpy('autocomplete').and.returnValue(of([suggestion]));
     TestBed.configureTestingModule({
       providers: [
@@ -41,7 +41,10 @@ describe('AddressAutocompleteComponent', () => {
         {
           provide: PatientService,
           useValue: {
-            getStateLookup: () => of({ items: [{ id: 'state-1', displayName: 'California' }] }),
+            getStateLookup: () =>
+              options.stateLookupFails
+                ? throwError(() => ({ status: 500 }))
+                : of({ items: [{ id: 'state-1', displayName: 'California' }] }),
           },
         },
       ],
@@ -151,5 +154,38 @@ describe('AddressAutocompleteComponent', () => {
   it('exposes the street control of its group', () => {
     const c = create();
     expect(c.streetControl).toBe(c.group.get('street'));
+  });
+
+  describe('when the state lookup fails (#1113)', () => {
+    /**
+     * The one-time State lookup subscribed with no error branch, so ABP's rethrown copy of a failed
+     * request reached RxJS's unhandled-error path. A pick must still fill the street, city and zip;
+     * only the state select, which needs the lookup to resolve an id, is left as it was.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('still fills the address but cannot resolve the state', fakeAsync(() => {
+      const c = create({ stateLookupFails: true });
+      c.ngOnInit();
+      tick();
+      c.select(suggestion);
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.group.getRawValue().street).toBe('1 Example Way');
+      expect(c.group.getRawValue().city).toBe('Encino');
+      expect(c.group.getRawValue().stateId).toBeNull();
+      c.ngOnDestroy();
+    }));
   });
 });

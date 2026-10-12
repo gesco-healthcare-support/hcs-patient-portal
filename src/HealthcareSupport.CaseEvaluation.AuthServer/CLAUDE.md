@@ -15,7 +15,7 @@ The SPA never renders auth pages; it redirects here for all identity flows.
 - `Pages/Account/Login.cshtml.cs` -- anti-enumeration login override (see Conventions).
 - `Pages/Account/ForgotPassword.cshtml.cs` -- calls `IExternalAccountAppService.SendPasswordResetCodeAsync` in-process.
 - `Pages/Account/ResetPassword.cshtml.cs` -- calls `IExternalAccountAppService.ResetPasswordAsync` in-process; redirects to `?flash=password-updated`.
-- `Pages/Account/ResendVerification.cshtml.cs` -- calls `IExternalAccountAppService.ResendEmailVerificationAsync` in-process; supports `?autosend=1` one-click resend.
+- `Pages/Account/ResendVerification.cshtml.cs` -- calls `IExternalAccountAppService.ResendEmailVerificationAsync` in-process; pre-fills the email from the query string; mail is sent only on the antiforgery-protected POST (a GET never sends).
 - `Pages/Account/EmailConfirmation.cshtml.cs` -- calls `IdentityUserManager.ConfirmEmailAsync` directly; redirects to `?flash=email-verified` or `?flash=verification-invalid`.
 - `Pages/Account/Logout.cshtml.cs` -- signs out all four Identity schemes, deletes `__tenant` + `XSRF-TOKEN` cookies, redirects SPA to `/?logout=true` on the same subdomain.
 - `CaseEvaluationBrandingProvider.cs` -- sets app name/logo shown on Razor pages.

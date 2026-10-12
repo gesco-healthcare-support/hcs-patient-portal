@@ -176,7 +176,13 @@ jobs:
             #
             # This guard exists to catch a squash AS IT LANDS, so the tip is the
             # whole question. Repairing history is a different job.
-            check_range "${EVENT_AFTER}~1..${EVENT_AFTER}"
+            #
+            # `X^!` is "that commit and nothing else". The spelling used here before,
+            # `X~1..X`, means "reachable from X but not from its FIRST parent", which for a
+            # MERGE tip is everything the second parent carried -- the opposite of the
+            # sentence above. Promotion PRs into development are merge commits, so a merge
+            # tip is the normal case here, not an edge case. (#996)
+            check_range "${EVENT_AFTER}^!"
           else
             check_range "${EVENT_BEFORE}..${EVENT_AFTER}"
           fi

@@ -178,18 +178,30 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
     // section, so the draft/reval prefill above always wins).
     this.prefillBookingAttorney();
     // Cache type + location names so the review step can show them by id.
-    this.getAppointmentTypeLookup({ maxResultCount: 200 }).subscribe((r) =>
-      (r.items ?? []).forEach((i) => this.typeNames.set(i.id ?? '', i.displayName ?? '')),
-    );
-    this.getLocationLookup({ maxResultCount: 200 }).subscribe((r) =>
-      (r.items ?? []).forEach((i) => this.locationNames.set(i.id ?? '', i.displayName ?? '')),
-    );
-    this.getStateLookup({ maxResultCount: 1000 }).subscribe((r) =>
-      (r.items ?? []).forEach((i) => this.stateNames.set(i.id ?? '', i.displayName ?? '')),
-    );
-    this.getAppointmentLanguageLookup({ maxResultCount: 200 }).subscribe((r) =>
-      (r.items ?? []).forEach((i) => this.languageNames.set(i.id ?? '', i.displayName ?? '')),
-    );
+    this.getAppointmentTypeLookup({ maxResultCount: 200 }).subscribe({
+      next: (r) =>
+        (r.items ?? []).forEach((i) => this.typeNames.set(i.id ?? '', i.displayName ?? '')),
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
+    this.getLocationLookup({ maxResultCount: 200 }).subscribe({
+      next: (r) =>
+        (r.items ?? []).forEach((i) => this.locationNames.set(i.id ?? '', i.displayName ?? '')),
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
+    this.getStateLookup({ maxResultCount: 1000 }).subscribe({
+      next: (r) =>
+        (r.items ?? []).forEach((i) => this.stateNames.set(i.id ?? '', i.displayName ?? '')),
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
+    this.getAppointmentLanguageLookup({ maxResultCount: 200 }).subscribe({
+      next: (r) =>
+        (r.items ?? []).forEach((i) => this.languageNames.set(i.id ?? '', i.displayName ?? '')),
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
+    });
     // WCAB offices have no lookup helper on the parent, so fetch the same
     // endpoint the claim-information modal uses to resolve venue names by id.
     this.shellRest
@@ -201,9 +213,12 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
         },
         { apiName: 'Default' },
       )
-      .subscribe((r) =>
-        (r?.items ?? []).forEach((i) => this.wcabNames.set(i.id ?? '', i.displayName ?? '')),
-      );
+      .subscribe({
+        next: (r) =>
+          (r?.items ?? []).forEach((i) => this.wcabNames.set(i.id ?? '', i.displayName ?? '')),
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
+      });
   }
 
   protected get currentStep(): WizardStep {

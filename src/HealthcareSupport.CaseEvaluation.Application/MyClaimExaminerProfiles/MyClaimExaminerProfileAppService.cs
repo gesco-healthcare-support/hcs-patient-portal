@@ -16,6 +16,7 @@ namespace HealthcareSupport.CaseEvaluation.MyClaimExaminerProfiles;
 /// appointment snapshot, so existing appointments keep their booking-time values.
 /// </summary>
 [Authorize]
+[RemoteService(IsEnabled = false)]
 public class MyClaimExaminerProfileAppService
     : CaseEvaluationAppService, IMyClaimExaminerProfileAppService
 {

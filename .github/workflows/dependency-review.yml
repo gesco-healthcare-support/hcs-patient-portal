@@ -15,6 +15,66 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - name: Assert the pinned action still declares every input this file passes it
+        # WHY (#691). GitHub does not fail a run for an input the action no longer declares;
+        # it prints "Unexpected input(s)" in the job log and carries on. So a Dependabot bump
+        # to a release that drops `deny-licenses` leaves every check green and the licence
+        # gate silently off. This step reads action.yml at the SAME pinned SHA the next step
+        # runs, and fails when a `with:` key below is not a declared input -- so the bump PR
+        # itself goes red and the migration happens in that PR.
+        #
+        # It guards the input's EXISTENCE, not its effect. That the gate refuses a denied
+        # licence is shown by a poisoned dependency (see the proof note below);
+        # tests/python/test_dependency_review_gate.py runs this step's script against a
+        # declaration with the input missing and asserts the step fails.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, sys, urllib.request
+
+          wf_path = os.environ.get("DR_WORKFLOW", ".github/workflows/dependency-review.yml")
+          wf = open(wf_path, encoding="utf-8").read().replace("\r\n", "\n")
+          m = re.search(r"uses:\s*actions/dependency-review-action@([0-9a-f]{40})", wf)
+          if not m:
+              sys.exit("no SHA-pinned actions/dependency-review-action step found in " + wf_path)
+          sha = m.group(1)
+
+          passed, in_with, with_indent = [], False, None
+          for line in wf[m.end():].split("\n"):
+              stripped = line.strip()
+              if not in_with:
+                  if stripped == "with:":
+                      in_with = True
+                  continue
+              if not stripped or stripped.startswith("#"):
+                  continue
+              indent = len(line) - len(line.lstrip())
+              if with_indent is None:
+                  with_indent = indent
+              if indent < with_indent:
+                  break
+              key = re.match(r"([a-z][a-z0-9-]*):", stripped)
+              if indent == with_indent and key:
+                  passed.append(key.group(1))
+          if "deny-licenses" not in passed:
+              sys.exit("deny-licenses is not passed to the action: the licence gate is OFF")
+
+          override = os.environ.get("DR_ACTION_YML")
+          if override:
+              action = open(override, encoding="utf-8").read()
+          else:
+              url = f"https://raw.githubusercontent.com/actions/dependency-review-action/{sha}/action.yml"
+              action = urllib.request.urlopen(url, timeout=30).read().decode("utf-8")
+          section = re.search(r"^inputs:\n(.*?)(?=^\S)", action, re.S | re.M)
+          if not section:
+              sys.exit("could not find an inputs: section in the action's action.yml")
+          declared = set(re.findall(r"^  ([a-z][a-z0-9-]*):", section.group(1), re.M))
+          missing = [k for k in passed if k not in declared]
+          if missing:
+              sys.exit(f"pinned action {sha} does not declare: {', '.join(missing)}. "
+                       "GitHub would ignore them with a warning and the gate would pass vacuously.")
+          print(f"ok: all {len(passed)} inputs are declared by {sha}")
+          PY
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
         with:
           fail-on-severity: critical

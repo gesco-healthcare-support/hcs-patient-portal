@@ -20,6 +20,7 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using HealthcareSupport.CaseEvaluation.ApiDocumentation;
 using HealthcareSupport.CaseEvaluation.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
@@ -87,7 +88,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
         // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
         Hosting.HostingConfigValidator.ValidateOrThrow(
-            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false,
+            requireUploadScanner: true);
 
         // B12: the admin-password store, and the startup gate that refuses a host configuring
         // neither or both. Registered in both this process and the other one that can create a
@@ -191,6 +193,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             // invoked from CaseEvaluationAuthServerModule.
             HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
                 .MapSharedRegistrationAndInternalUserCodes(options);
+
+            // B11: the malware scan's refusals. Only this process stores uploads.
+            HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
+                .MapUploadScanCodes(options);
 
             // Host-specific: InternalUserTenantMismatch + the 4
             // appointment state-machine codes below are HttpApi.Host
@@ -1586,14 +1592,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // callers' JWT sub claim is available to the partitioner.
         app.UseRateLimiter();
 
-        app.UseSwagger();
-        app.UseAbpSwaggerUI(options =>
-        {
-            options.SwaggerEndpoint("/swagger/v1/swagger.json", "CaseEvaluation API");
-
-            var configuration = context.GetConfiguration();
-            options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
-        });
+        // Development only; the decision and the act of applying it are ApiDocumentationPipeline's.
+        ApiDocumentationPipeline.Apply(app, env, context.GetConfiguration()["AuthServer:SwaggerClientId"]);
 
         // Hangfire dashboard at /hangfire; CreateHangfireDashboardOptions decides who may open it.
         // Hangfire server starts automatically via AbpBackgroundJobsHangFireModule.

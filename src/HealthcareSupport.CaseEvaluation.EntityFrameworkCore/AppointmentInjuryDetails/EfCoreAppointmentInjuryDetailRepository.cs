@@ -34,11 +34,12 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
         };
     }
 
-    public virtual async Task<List<AppointmentInjuryDetailWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentInjuryDetailWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var dbContext = await GetDbContextAsync();
         var query = await GetQueryableAsync();
         query = ApplyFilter(query, filterText, appointmentId, claimNumber);
+        if (restrictToAppointmentIds != null) { query = query.Where(e => restrictToAppointmentIds.Contains(e.AppointmentId)); }
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentInjuryDetailConsts.GetDefaultSorting(false) : sorting);
         var injuries = await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
         if (injuries.Count == 0) return new List<AppointmentInjuryDetailWithNavigationProperties>();
@@ -78,9 +79,10 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = ApplyFilter(await GetQueryableAsync(), filterText, appointmentId, claimNumber);
+        if (restrictToAppointmentIds != null) { query = query.Where(e => restrictToAppointmentIds.Contains(e.AppointmentId)); }
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

@@ -408,6 +408,16 @@ export const APP_ROUTES: Routes = [
   // INTERNAL_SHELL_CHILDREN. canMatch fires before the lazy chunk loads, so each
   // role only downloads its own bundle. ----
   {
+    // Redesign slice 7 (#729): external-only My Documents. Internal staff fail the
+    // match guard and fall to the 404; documents themselves are authorised per
+    // appointment by the API, not by this route.
+    path: 'my-documents',
+    canMatch: [externalUserOnlyMatchGuard],
+    loadComponent: () =>
+      import('./my-documents/my-documents.component').then((c) => c.MyDocumentsComponent),
+    canActivate: [authGuard],
+  },
+  {
     // External read-only detail at the canonical view/:id; internal staff fall
     // through to the in-shell legacy AppointmentViewComponent (APPOINTMENT_ROUTES).
     path: 'appointments/view/:id',

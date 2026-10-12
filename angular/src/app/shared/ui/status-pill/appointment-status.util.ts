@@ -10,11 +10,12 @@ const INFO_REQUESTED_STATUS = 14 as AppointmentStatusType;
 
 /**
  * Maps the (legacy-inclusive) AppointmentStatusType enum onto the redesign's
- * status pills. The backend still carries deprecated values (NoShow,
- * CheckedIn, CheckedOut, Billed, and the Cancelled/Rescheduled bill variants);
+ * status pills. The backend still carries deprecated values (the
+ * Cancelled/Rescheduled bill variants and the dead CheckedIn / CheckedOut / Billed,
+ * which fall through to the Pending default);
  * the redesigned UI buckets every value into one pill:
  *
- *   Approved   <- Approved, CheckedIn, CheckedOut, Billed (post-approval states)
+ *   Approved   <- Approved
  *   Rejected   <- Rejected
  *   Cancelled  <- CancelledNoBill, CancelledLate
  *   CancellationRequested <- CancellationRequested
@@ -43,9 +44,6 @@ const INFO_REQUESTED_STATUS = 14 as AppointmentStatusType;
 export function appointmentStatusToPill(status: AppointmentStatusType): AppointmentPillStatus {
   switch (status) {
     case AppointmentStatusType.Approved:
-    case AppointmentStatusType.CheckedIn:
-    case AppointmentStatusType.CheckedOut:
-    case AppointmentStatusType.Billed:
       return 'Approved';
     case AppointmentStatusType.Rejected:
       return 'Rejected';

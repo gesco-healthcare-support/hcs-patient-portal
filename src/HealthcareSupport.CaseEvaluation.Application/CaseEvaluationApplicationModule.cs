@@ -37,5 +37,14 @@ namespace HealthcareSupport.CaseEvaluation;
     )]
 public class CaseEvaluationApplicationModule : AbpModule
 {
+    public override void PreConfigureServices(ServiceConfigurationContext context)
+    {
+        context.Services.OnRegistered(ExternalSignups.StockSelfRegistrationRefusal.RegisterIfAccountAppService);
+    }
 
+    public override void ConfigureServices(ServiceConfigurationContext context)
+    {
+        // The stock-account route refusal reads the request path; idempotent where the host already adds it.
+        context.Services.AddHttpContextAccessor();
+    }
 }

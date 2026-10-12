@@ -46,6 +46,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IAppointmentRepository _appointmentRepository;
     protected AppointmentManager _appointmentManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> _patientRepository;
+    private readonly HealthcareSupport.CaseEvaluation.Patients.PatientBookingReadAccess _patientBookingReadAccess;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> _appointmentTypeRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> _locationRepository;
@@ -94,9 +95,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // Item B (2026-08-21): writes the child groups by delegating to their existing app services.
     protected AppointmentChildGroupWriter _childGroupWriter;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter, HealthcareSupport.CaseEvaluation.Patients.PatientBookingReadAccess patientBookingReadAccess)
     {
         _rescheduleChainResolver = rescheduleChainResolver;
+        _patientBookingReadAccess = patientBookingReadAccess;
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _patientRepository = patientRepository;
@@ -321,7 +323,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- masks the
     /// nested <see cref="PatientDto.SocialSecurityNumber"/> on an
     /// appointment-with-nav DTO to the last 4 for ALL callers. The full value
-    /// is served only by the audited reveal endpoint
+    /// is served only by the dedicated reveal endpoint
     /// (<c>PatientsAppService.GetFullSsnAsync</c>).
     /// See <see cref="HealthcareSupport.CaseEvaluation.Patients.SsnVisibility"/>
     /// and docs/plans/2026-05-29-ssn-redact-on-type.md.
@@ -501,14 +503,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // IdentityUser is auto-tenant-filtered by ABP. For Applicant or Defense
         // Attorney callers, restrict to (a) self plus (b) bookers on appointments
         // where the attorney is named on the appointment's attorney-side join table.
+        // Any other caller who is not internal staff -- a patient, a claim examiner,
+        // an account with no role -- sees only their own account.
         var query = (await _identityUserRepository.GetQueryableAsync())
             .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+        var narrowedForAttorney = false;
 
         if (await IsApplicantAttorneyAsync() && CurrentUser.Id.HasValue)
         {
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetApplicantAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+            narrowedForAttorney = true;
         }
 
         if (await IsDefenseAttorneyAsync() && CurrentUser.Id.HasValue)
@@ -516,6 +522,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetDefenseAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+            narrowedForAttorney = true;
+        }
+
+        if (!narrowedForAttorney)
+        {
+            query = IdentityUserLookupScope.ForCaller(query, CurrentUser);
         }
 
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
@@ -626,7 +638,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with the by-id patient read; see BookingPartyAppointments.
         return await Patients.BookingPartyAppointments.ForClaimExaminer(
                 await _appointmentRepository.GetQueryableAsync(),
-                CurrentUser.Email)
+                CurrentUser.GetVerifiedEmail())
             .Select(a => a.PatientId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -780,13 +792,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // they are called rather than reimplemented, exactly like the child groups.
             if (input.ApplicantAttorney != null)
             {
-                await UpsertApplicantAttorneyForAppointmentAsync(created.Id, input.ApplicantAttorney);
+                await UpsertApplicantAttorneyInternalAsync(created.Id, input.ApplicantAttorney);
                 result.ApplicantAttorneys = 1;
             }
 
             if (input.DefenseAttorney != null)
             {
-                await UpsertDefenseAttorneyForAppointmentAsync(created.Id, input.DefenseAttorney);
+                await UpsertDefenseAttorneyInternalAsync(created.Id, input.DefenseAttorney);
                 result.DefenseAttorneys = 1;
             }
 
@@ -841,6 +853,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         if (input.PatientId.HasValue && input.PatientId.Value != Guid.Empty)
         {
+            // A supplied id is not entitlement: the caller must be allowed to read this patient
+            // (staff, the patient's own login, or a party under the typeahead rule). Runs before
+            // anything is written, so a refused id changes nothing.
+            await _patientBookingReadAccess.EnsureCanBookForAsync(input.PatientId.Value);
+
             result.PatientId = input.PatientId.Value;
             result.PatientAlreadyExisted = true;
             return;
@@ -1671,6 +1688,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return null;
         }
 
+        // An external caller may resolve only themselves. Anyone else answers null, exactly as an
+        // unknown id or email does, so this cannot be used to look an office user up by id or email.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles) && resolvedUserId.Value != CurrentUser.Id)
+        {
+            return null;
+        }
+
         var applicantQuery = await _applicantAttorneyRepository.GetQueryableAsync();
         var applicant = await AsyncExecuter.FirstOrDefaultAsync(applicantQuery.Where(a => a.IdentityUserId == resolvedUserId.Value));
         var identityUser = await _identityUserRepository.FindAsync(resolvedUserId.Value);
@@ -1708,6 +1732,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<ApplicantAttorneyDetailsDto?> GetAppointmentApplicantAttorneyAsync(Guid appointmentId)
     {
+        await EnsureCanReadAsync(appointmentId);
         var items = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
         var item = items.FirstOrDefault();
         // BUG-042: return the attorney as soon as the master record exists.
@@ -1744,6 +1769,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     [Authorize]
     public virtual async Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
+    {
+        // The caller must be a party to THIS appointment. Writing a link row with the caller's own user id
+        // is what the access rules read to admit them, so an unguarded upsert would let any signed-in
+        // user admit themselves to any appointment. Booking calls the Internal variant below: it has
+        // just created the appointment and authorised the booker, so it must not re-run the guard.
+        await EnsureCanReadAsync(appointmentId);
+        await UpsertApplicantAttorneyInternalAsync(appointmentId, input);
+    }
+
+    private async Task UpsertApplicantAttorneyInternalAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
     {
         // 2026-05-07 (Bonus issue): drop the IdentityUserId == Guid.Empty
         // early-return so a brand-new attorney typed by the booker (no
@@ -1924,6 +1959,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return null;
         }
 
+        // An external caller may resolve only themselves. Anyone else answers null, exactly as an
+        // unknown id or email does, so this cannot be used to look an office user up by id or email.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles) && resolvedUserId.Value != CurrentUser.Id)
+        {
+            return null;
+        }
+
         var defenseQuery = await _defenseAttorneyRepository.GetQueryableAsync();
         var defense = await AsyncExecuter.FirstOrDefaultAsync(defenseQuery.Where(a => a.IdentityUserId == resolvedUserId.Value));
         var identityUser = await _identityUserRepository.FindAsync(resolvedUserId.Value);
@@ -1959,6 +2001,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<DefenseAttorneyDetailsDto?> GetAppointmentDefenseAttorneyAsync(Guid appointmentId)
     {
+        await EnsureCanReadAsync(appointmentId);
         var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
         var item = items.FirstOrDefault();
         // BUG-042: return the attorney as soon as the master record exists;
@@ -1993,6 +2036,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     [Authorize]
     public virtual async Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
+    {
+        // The caller must be a party to THIS appointment. Writing a link row with the caller's own user id
+        // is what the access rules read to admit them, so an unguarded upsert would let any signed-in
+        // user admit themselves to any appointment. Booking calls the Internal variant below: it has
+        // just created the appointment and authorised the booker, so it must not re-run the guard.
+        await EnsureCanReadAsync(appointmentId);
+        await UpsertDefenseAttorneyInternalAsync(appointmentId, input);
+    }
+
+    private async Task UpsertDefenseAttorneyInternalAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
     {
         // 2026-05-07 (Bonus issue): mirror the AA upsert above. Drop the
         // IdentityUserId == Guid.Empty early-return; resolve via email when

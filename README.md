@@ -156,7 +156,7 @@ For the latest narrative status read
 | TypeScript             | TypeScript                                          | 5.8.3                             | Resolved in `angular/yarn.lock`; the manifest range is `~5.8.0` |
 | Node (build only)      | Node.js                                             | 20 in Docker, 22 in CI            | Nothing pins it: no `.nvmrc`, no `engines` field. See the note below |
 | CI / CD                | GitHub Actions                                      | see `.github/workflows/`          | See [CI / CD](#ci--cd)                              |
-| Containerisation       | Docker Compose                                      | --                                | 9 services local, 10 deployed                       |
+| Containerisation       | Docker Compose                                      | --                                | 10 services local, 11 deployed                      |
 
 > [!IMPORTANT]
 > **Redis is required by both hosts, and `"IsEnabled": false` does not make it
@@ -626,7 +626,7 @@ Sources in [.github/workflows/](.github/workflows/). What each check does:
 
 ## Docker and Deployment
 
-The local Compose stack (`docker-compose.yml`) runs nine services:
+The local Compose stack (`docker-compose.yml`) runs ten services:
 
 | Service           | Image / Build                                | Port            | Role                                         |
 | ----------------- | -------------------------------------------- | --------------- | -------------------------------------------- |

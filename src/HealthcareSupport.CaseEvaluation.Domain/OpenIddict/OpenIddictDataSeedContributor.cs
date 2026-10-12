@@ -79,9 +79,10 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
                 // AuthorizationCode+PKCE, Razor uses cookie-auth, Swagger
                 // uses AuthorizationCode). LinkLogin + Impersonation are
                 // Pro features the SaaS-Host admin panel uses.
+                // client_credentials is deliberately absent: this is a PUBLIC
+                // client with no secret, so it cannot authenticate as itself.
                 grantTypes: new List<string> {
                     OpenIddictConstants.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.GrantTypes.ClientCredentials,
                     OpenIddictConstants.GrantTypes.RefreshToken,
                     "LinkLogin",
                     "Impersonation"

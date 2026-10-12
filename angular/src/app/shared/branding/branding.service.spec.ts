@@ -180,6 +180,22 @@ describe('BrandingService', () => {
       expect((lastCall().body as FormData).get('file')).toBeInstanceOf(File);
     });
 
+    it('uploads the NORMALISED png, not the raw pick', async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 50;
+      canvas.height = 50;
+      (canvas.getContext('2d') as CanvasRenderingContext2D).fillRect(10, 10, 30, 30);
+      const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b as Blob), 'image/jpeg'));
+      const raw = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+
+      await service().uploadNormalizedLogo(raw, 'office-1').toPromise();
+
+      const sent = (lastCall().body as FormData).get('file') as File;
+      expect(sent.type).toBe('image/png');
+      expect(sent.name).toBe('logo.png');
+      expect(lastCall().params).toEqual({ officeId: 'office-1' });
+    });
+
     it('removes the logo of the current office, or of a named one', () => {
       const svc = service();
 

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../icon/icon.component';
 import { IconName } from '../icon/icon.registry';
+import { PLACEHOLDER_LOGO } from '../../branding/brand-assets';
 
 /** Tone keys map to the `.pp-ic` color variants in `_pp-shell.scss`. */
 export type StateMessageTone = 'blue' | 'amber' | 'red' | 'green';
@@ -38,7 +39,7 @@ export interface StateMessageAction {
   template: `
     <div class="pp">
       <div class="pp-top">
-        <img [src]="logoUrl" [alt]="clinicName + ' logo'" />
+        <img class="brand-logo" [src]="logoUrl" [alt]="clinicName + ' logo'" />
         <div class="tag">
           <b>{{ clinicName }}</b>
           &middot; {{ tagline }}
@@ -104,9 +105,8 @@ export class StateMessageComponent {
   /** Zero or more action buttons; one action centers, two split the row. */
   @Input() actions: StateMessageAction[] = [];
 
-  // Brand slots -- static placeholders matching AppExternalNavbar until a
-  // BrandingAppService lands (see external-navbar.component.ts).
-  @Input() logoUrl = 'assets/branding/falkinstein-logo.png';
+  // Brand slots -- neutral placeholder logo, matching AppExternalNavbar.
+  @Input() logoUrl = PLACEHOLDER_LOGO;
   @Input() clinicName = 'Appointment Portal';
   @Input() tagline = 'patient & case portal';
   @Input() supportText = 'Need help? Contact your clinic.';

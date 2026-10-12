@@ -1,8 +1,8 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { RestService } from '@abp/ng.core';
 import { DateAdapter } from '@abp/ng.theme.shared';
 import { NgbDateAdapter } from '@ng-bootstrap/ng-bootstrap';
-import { of } from 'rxjs';
+import { config, of, throwError } from 'rxjs';
 
 import {
   AppointmentAddClaimInformationComponent,
@@ -554,4 +554,51 @@ describe('AppointmentAddClaimInformationComponent refusals and row helpers', () 
     expect(component.injuryWcabOfficeName('wcab-9')).withContext('unknown id').toBe('');
     expect(component.injuryWcabOfficeName(null)).withContext('no office').toBe('');
   });
+});
+
+describe('AppointmentAddClaimInformationComponent lookup failures (#1113)', () => {
+  /**
+   * The WCAB-office and state lookups behind the injury modal subscribed with no error branch, so
+   * ABP's rethrown copy of a failed request reached RxJS's unhandled-error path. The modal must
+   * still open with empty dropdowns, and a later open must retry rather than treat the failure as
+   * a loaded-but-empty list.
+   */
+  let unhandled: jasmine.Spy;
+  let previous: typeof config.onUnhandledError;
+  let request: jasmine.Spy;
+
+  beforeEach(() => {
+    previous = config.onUnhandledError;
+    unhandled = jasmine.createSpy('onUnhandledError');
+    config.onUnhandledError = unhandled;
+    request = jasmine.createSpy('request').and.callFake(() => throwError(() => ({ status: 500 })));
+    TestBed.configureTestingModule({
+      imports: [AppointmentAddClaimInformationComponent],
+      providers: [{ provide: RestService, useValue: { request } }],
+    });
+  });
+
+  afterEach(() => {
+    config.onUnhandledError = previous;
+    TestBed.resetTestingModule();
+  });
+
+  it('leaves both dropdowns empty and retries on the next open', fakeAsync(() => {
+    const component = TestBed.createComponent(
+      AppointmentAddClaimInformationComponent,
+    ).componentInstance;
+    component.injuryDrafts = [];
+
+    component.loadInjuryLookups();
+    tick();
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(component.wcabOfficeOptions).toEqual([]);
+    expect(component.injuryStateOptions).toEqual([]);
+
+    component.loadInjuryLookups();
+    tick();
+    expect(request).toHaveBeenCalledTimes(4);
+  }));
 });

@@ -61,6 +61,9 @@ public class OpenIddictSeedTests : SeedContributorTestBase
         angular.PostLogoutRedirectUris.ShouldNotBeNull().ShouldContain("\"https://portal.example.test\"");
         angular.Permissions.ShouldNotBeNull().ShouldContain(OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode);
         angular.Permissions.ShouldContain(OpenIddictConstants.Permissions.Prefixes.GrantType + "Impersonation");
+        angular.Permissions.ShouldContain(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
+        // A public client has no secret and cannot authenticate as itself, so it must not hold client_credentials.
+        angular.Permissions.ShouldNotContain(OpenIddictConstants.Permissions.GrantTypes.ClientCredentials);
 
         var swagger = all.Single(a => a.ClientId == SwaggerClientId);
         swagger.ClientUri.ShouldBe("https://api.example.test/swagger");

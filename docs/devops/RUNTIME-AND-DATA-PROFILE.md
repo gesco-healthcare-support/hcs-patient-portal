@@ -170,7 +170,7 @@ plausibly very small. The scheduled load is not zero and scales linearly with of
 | Partner integration | 4 `CASE_TRACKER_*`                                                        | Blank by default; fails closed                                  |
 | Backup              | `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`                                     | Defaults to a path on the data disk                             |
 | Resource caps       | 5 memory limits                                                           | Tuned for 16 GB                                                 |
-| Migration mode      | `DBMIGRATOR_ENVIRONMENT`                                                  | `Development` seeds test data. Must never be set in production  |
+| Migration mode      | `DBMIGRATOR_ENVIRONMENT`                                                  | `Development` + `ALLOW_DEMO_SEED=true` seeds demo. Not in prod  |
 
 Connection strings are **assembled inline in the compose file** from `MSSQL_SA_PASSWORD`, and
 carry `TrustServerCertificate=True`.

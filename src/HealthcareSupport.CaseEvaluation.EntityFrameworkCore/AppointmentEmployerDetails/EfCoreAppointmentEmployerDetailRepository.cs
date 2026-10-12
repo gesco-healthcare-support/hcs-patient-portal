@@ -25,10 +25,10 @@ public class EfCoreAppointmentEmployerDetailRepository : EfCoreRepository<CaseEv
         return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(appointmentEmployerDetail => new AppointmentEmployerDetailWithNavigationProperties { AppointmentEmployerDetail = appointmentEmployerDetail, Appointment = dbContext.Set<Appointment>().FirstOrDefault(c => c.Id == appointmentEmployerDetail.AppointmentId), State = dbContext.Set<State>().FirstOrDefault(c => c.Id == appointmentEmployerDetail.StateId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public virtual async Task<List<AppointmentEmployerDetailWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null, Guid? appointmentId = null, Guid? stateId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentEmployerDetailWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null, Guid? appointmentId = null, Guid? stateId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, employerName, phoneNumber, street, city, appointmentId, stateId);
+        query = ApplyFilter(query, filterText, employerName, phoneNumber, street, city, appointmentId, stateId, restrictToAppointmentIds);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentEmployerDetailConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
@@ -48,9 +48,9 @@ public class EfCoreAppointmentEmployerDetailRepository : EfCoreRepository<CaseEv
                };
     }
 
-    protected virtual IQueryable<AppointmentEmployerDetailWithNavigationProperties> ApplyFilter(IQueryable<AppointmentEmployerDetailWithNavigationProperties> query, string? filterText, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null, Guid? appointmentId = null, Guid? stateId = null)
+    protected virtual IQueryable<AppointmentEmployerDetailWithNavigationProperties> ApplyFilter(IQueryable<AppointmentEmployerDetailWithNavigationProperties> query, string? filterText, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null, Guid? appointmentId = null, Guid? stateId = null, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.AppointmentEmployerDetail.EmployerName.Contains(filterText!) || e.AppointmentEmployerDetail.PhoneNumber!.Contains(filterText!) || e.AppointmentEmployerDetail.Street!.Contains(filterText!) || e.AppointmentEmployerDetail.City!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(employerName), e => e.AppointmentEmployerDetail.EmployerName.Contains(employerName!)).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.AppointmentEmployerDetail.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(street), e => e.AppointmentEmployerDetail.Street!.Contains(street!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.AppointmentEmployerDetail.City!.Contains(city!)).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId);
+        return query.WhereIf(restrictToAppointmentIds != null, e => restrictToAppointmentIds!.Contains(e.AppointmentEmployerDetail.AppointmentId)).WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.AppointmentEmployerDetail.EmployerName.Contains(filterText!) || e.AppointmentEmployerDetail.PhoneNumber!.Contains(filterText!) || e.AppointmentEmployerDetail.Street!.Contains(filterText!) || e.AppointmentEmployerDetail.City!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(employerName), e => e.AppointmentEmployerDetail.EmployerName.Contains(employerName!)).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.AppointmentEmployerDetail.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(street), e => e.AppointmentEmployerDetail.Street!.Contains(street!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.AppointmentEmployerDetail.City!.Contains(city!)).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId);
     }
 
     protected virtual IQueryable<AppointmentEmployerDetail> ApplyFilter(IQueryable<AppointmentEmployerDetail> query, string? filterText = null, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null)
@@ -65,10 +65,10 @@ public class EfCoreAppointmentEmployerDetailRepository : EfCoreRepository<CaseEv
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null, Guid? appointmentId = null, Guid? stateId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, string? employerName = null, string? phoneNumber = null, string? street = null, string? city = null, Guid? appointmentId = null, Guid? stateId = null, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, employerName, phoneNumber, street, city, appointmentId, stateId);
+        query = ApplyFilter(query, filterText, employerName, phoneNumber, street, city, appointmentId, stateId, restrictToAppointmentIds);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

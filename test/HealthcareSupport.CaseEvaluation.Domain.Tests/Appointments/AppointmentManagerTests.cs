@@ -380,6 +380,89 @@ public abstract class AppointmentManagerTests<TStartupModule> : CaseEvaluationDo
         });
     }
 
+    [Fact]
+    public async Task Manager_RejectRescheduleAsync_FromRescheduleRequested_RevertsToApproved()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
+            {
+                try
+                {
+                    await RestoreAppointmentStatusAsync(
+                        AppointmentsTestData.Appointment2Id, AppointmentStatusType.RescheduleRequested);
+
+                    var updated = await _appointmentManager.RejectRescheduleAsync(
+                        AppointmentsTestData.Appointment2Id, reason: null, actingUserId: null);
+
+                    updated.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+                }
+                finally
+                {
+                    await RestoreAppointmentStatusAsync(
+                        AppointmentsTestData.Appointment2Id,
+                        AppointmentsTestData.Appointment2Status);
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Manager_RejectRescheduleAsync_WhenPending_ThrowsInvalidTransition()
+    {
+        // A Pending source never left Pending when its reschedule was filed, so there is nothing to
+        // revert; the machine deliberately has no Pending self-edge for this trigger.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var ex = await Should.ThrowAsync<BusinessException>(() =>
+                    _appointmentManager.RejectRescheduleAsync(
+                        AppointmentsTestData.Appointment1Id, reason: null, actingUserId: null));
+
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.CancelledNoBill)]
+    [InlineData(AppointmentStatusType.CancelledLate)]
+    public async Task Manager_ConfirmCancellationAsync_FromPending_ClosesWithTheOutcome(
+        AppointmentStatusType outcome)
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                try
+                {
+                    var updated = await _appointmentManager.ConfirmCancellationAsync(
+                        AppointmentsTestData.Appointment1Id, outcome, reason: null, actingUserId: null);
+
+                    updated.AppointmentStatus.ShouldBe(outcome);
+                }
+                finally
+                {
+                    await RestoreAppointmentStatusAsync(
+                        AppointmentsTestData.Appointment1Id, AppointmentsTestData.Appointment1Status);
+                }
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Approved)]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill)]
+    public async Task Manager_ConfirmCancellationAsync_WhenOutcomeIsNotACancellation_Throws(
+        AppointmentStatusType outcome)
+    {
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() =>
+            _appointmentManager.ConfirmCancellationAsync(
+                AppointmentsTestData.Appointment1Id, outcome, reason: null, actingUserId: null));
+    }
+
     [Theory]
     [InlineData(AppointmentStatusType.Approved)]
     [InlineData(AppointmentStatusType.Billed)]

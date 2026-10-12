@@ -15,7 +15,7 @@ namespace HealthcareSupport.CaseEvaluation.Reports;
 /// read guard alone). It reuses <see cref="IAppointmentsAppService.GetWithNavigationPropertiesAsync"/>,
 /// which enforces the per-appointment read guard and returns the SSN-masked nav
 /// DTO; the document additionally renders the date of birth as the birth year
-/// only. The full SSN is never emitted here -- only via the audited reveal
+/// only. The full SSN is never emitted here -- only via the dedicated reveal
 /// endpoint.
 /// </summary>
 [RemoteService(IsEnabled = false)]

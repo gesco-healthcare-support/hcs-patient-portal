@@ -136,13 +136,19 @@ export class InternalGenerateSlotsComponent implements OnInit {
     return lead > 0 ? isoDate(this.addDays(this.today, lead)) : '';
   });
 
+  // Earliest date the pickers allow: today + lead time once known, else today.
+  // Q4 (2026-10-09): dates inside the window are unpickable, not warned about.
+  protected readonly minSelectableIso = computed(() => this.earliestBookableIso() || this.todayIso);
+
   // Non-empty when any date this form would generate falls inside the lead-time
-  // window (i.e. before earliestBookableIso). Such slots can never be booked.
+  // window (i.e. before earliestBookableIso). Such slots can never be booked, so
+  // this is a blocking message: generation is refused while it is set.
   protected readonly leadTimeWarning = computed<string>(() => {
+    // earliestBookableIso() is '' while the lead time is unknown (0). No explicit
+    // check for that case: every ISO date string compares >= '', so the test below
+    // already yields no warning. An early return here was an equivalent mutant (#943);
+    // 'says nothing while the lead time is unknown' in the surfaces spec pins the result.
     const earliestBookable = this.earliestBookableIso();
-    if (!earliestBookable) {
-      return '';
-    }
     const earliestGenerated = this.earliestGeneratedIso();
     if (!earliestGenerated || earliestGenerated >= earliestBookable) {
       return '';
@@ -150,8 +156,8 @@ export class InternalGenerateSlotsComponent implements OnInit {
     const lead = this.leadTimeDays();
     return (
       `Some selected dates are within the ${lead}-day booking lead time (before ` +
-      `${earliestBookable}) and will NOT be bookable -- a slot dated inside the lead ` +
-      `time can never be booked. The earliest bookable date is ${earliestBookable}.`
+      `${earliestBookable}). A slot dated inside the lead time can never be booked, ` +
+      `so it cannot be generated. Choose dates on or after ${earliestBookable}.`
     );
   });
 
@@ -165,6 +171,7 @@ export class InternalGenerateSlotsComponent implements OnInit {
     const firstDow = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const picked = new Set(this.selectedDates());
+    const minIso = this.minSelectableIso();
     const cells: CalCell[] = [];
     for (let i = 0; i < firstDow; i++) {
       cells.push({ blank: true, iso: '', day: 0, disabled: true, selected: false });
@@ -175,7 +182,7 @@ export class InternalGenerateSlotsComponent implements OnInit {
         blank: false,
         iso,
         day: d,
-        disabled: iso < this.todayIso,
+        disabled: iso < minIso,
         selected: picked.has(iso),
       });
     }
@@ -204,9 +211,25 @@ export class InternalGenerateSlotsComponent implements OnInit {
     // Booking lead time drives the in-window warning. Read access is gated by
     // SystemParameters.Default; on a miss we leave lead time at 0 (no warning).
     this.systemParams.get().subscribe({
-      next: (p) => this.leadTimeDays.set(p.appointmentLeadTime ?? 0),
+      next: (p) => {
+        this.leadTimeDays.set(p.appointmentLeadTime ?? 0);
+        this.moveRangeOutOfLeadWindow();
+      },
       error: () => undefined,
     });
+  }
+
+  // The range defaults start today. Once the lead time is known, move an
+  // in-window start to the earliest bookable date (keeping the 5-day span) so
+  // the untouched form is valid rather than opening on an error.
+  private moveRangeOutOfLeadWindow(): void {
+    const min = this.minSelectableIso();
+    if (this.fromDate() < min) {
+      this.fromDate.set(min);
+    }
+    if (this.toDate() < this.fromDate()) {
+      this.toDate.set(isoDate(this.addDays(new Date(this.fromDate() + 'T00:00:00'), 4)));
+    }
   }
 
   private addDays(d: Date, n: number): Date {
@@ -308,6 +331,10 @@ export class InternalGenerateSlotsComponent implements OnInit {
     }
     if (this.mode() === 'pick' && this.selectedDates().length === 0) {
       this.toaster.warn('Pick at least one day on the calendar.');
+      return;
+    }
+    if (this.leadTimeWarning()) {
+      this.toaster.warn(this.leadTimeWarning());
       return;
     }
     if (this.overLimit()) {

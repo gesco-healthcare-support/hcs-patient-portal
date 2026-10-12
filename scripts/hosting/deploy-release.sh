@@ -94,12 +94,50 @@ bash scripts/hosting/build-docs-site.sh < /dev/null || stop "build-docs-site.sh 
 [ -f docker/nginx-proxy/docs-site/search/search_index.json ] || stop "docs-site has no search index after the build"
 echo "$(ts) docs site built: $(find docker/nginx-proxy/docs-site -type f | wc -l) files, owner $(stat -c '%U' docker/nginx-proxy/docs-site)"
 
+# --- prerequisite 4: DataProtection certificate (#1179) ---
+# The key ring is encrypted at rest, and BOTH api and authserver mount the same pfx and refuse to
+# start outside Development when the path or passphrase is blank (HostingConfigValidator).
+#
+# WITHOUT THIS BLOCK THE DEPLOY FAILED LATE AND CONFUSINGLY. An unset DATAPROTECTION_PFX_PATH is not
+# a soft blank to compose, it is a hard parse error -- `invalid spec: :/app/dataprotection.pfx:ro:
+# empty section between colons` -- so `config` produced NOTHING and the build stopped several steps
+# later with "build failed". Reproduced against this compose file before adding this.
+#
+# It STOPS rather than generating. Same rule as the openiddict pfx above: a new certificate is a new
+# key, and generating one on a whim signs out everyone who is signed in.
+for v in DATAPROTECTION_PFX_PATH DATAPROTECTION_CERT_PASSPHRASE; do
+  # env.prod is a compose env-file, NOT shell-sourceable, so grep it rather than sourcing it.
+  grep -qE "^${v}=.+" secrets/env.prod     || stop "$v is missing or empty in secrets/env.prod. Generate once with DATAPROTECTION_CERT_PASSPHRASE=<new> bash scripts/hosting/gen-dataprotection-cert.sh secrets/dataprotection.pfx, then set BOTH keys. Expect every signed-in user to be signed out once when this first deploys."
+done
+DP=$(grep -E '^DATAPROTECTION_PFX_PATH=' secrets/env.prod | head -1 | cut -d= -f2- | tr -d '"')
+[ -f "$DP" ] || stop "DATAPROTECTION_PFX_PATH points at $DP, which does not exist -- do NOT regenerate blindly; a new certificate signs everyone out"
+# gen-dataprotection-cert.sh leaves the file 600 when it cannot chgrp, and the api runs as uid 1654,
+# so without this the containers start and then crash unable to read it -- which the migrator
+# pre-flight and the rehearsal both MISS, because neither loads this certificate.
+sudo chgrp 1654 "$DP" < /dev/null && sudo chmod 640 "$DP" < /dev/null
+[ "$(stat -c '%g %a' "$DP")" = "1654 640" ] || stop "$DP is $(stat -c '%U:%g %a' "$DP"), want :1654 640"
+echo "$(ts) dataprotection pfx: $(stat -c '%U:%g %a' "$DP")"
+
+
 # --- app ---
 # DOTNET_ENVIRONMENT=Development would override ASPNETCORE_ENVIRONMENT and reopen the Development-only consoles.
 # db-migrator legitimately sets it to Production (compose line from #340; a generic-host console reads DOTNET_), so
 # the check is "no value other than Production", not "absent" (the first 09-30 run stopped on that Production line).
-envs=$($C config < /dev/null 2>/dev/null | grep -o 'DOTNET_ENVIRONMENT: *"\?[A-Za-z]*' | sed 's/.*: *"\?//' | sort | uniq -c | tr '\n' ' ')
-bad=$($C config < /dev/null 2>/dev/null | grep -o 'DOTNET_ENVIRONMENT: *"\?[A-Za-z]*' | sed 's/.*: *"\?//' | grep -vcx Production)
+# Run config ONCE and keep it. It used to run twice with stderr discarded, and that made a FAILING
+# config invisible: no output means no DOTNET_ENVIRONMENT lines, `grep -vcx Production` counts 0, and
+# the check passes. A gate that reports success because it saw nothing is the failure mode this repo
+# keeps meeting, so the emptiness is now itself a stop.
+CFGERR=$(mktemp)
+cfg=$($C config < /dev/null 2>"$CFGERR")   || stop "compose config FAILED, so the stack would not come up: $(tail -3 "$CFGERR" | tr '
+' ' ')"
+[ -n "$cfg" ] || stop "compose config succeeded but printed nothing -- treat as a failure, not a pass: $(tail -3 "$CFGERR" | tr '
+' ' ')"
+rm -f "$CFGERR"
+envs=$(printf '%s
+' "$cfg" | grep -o 'DOTNET_ENVIRONMENT: *"\?[A-Za-z]*' | sed 's/.*: *"\?//' | sort | uniq -c | tr '
+' ' ')
+bad=$(printf '%s
+' "$cfg" | grep -o 'DOTNET_ENVIRONMENT: *"\?[A-Za-z]*' | sed 's/.*: *"\?//' | grep -vcx Production)
 [ "$bad" = 0 ] || stop "compose config sets DOTNET_ENVIRONMENT to a non-Production value: [$envs]"
 echo "$(ts) compose config: DOTNET_ENVIRONMENT values [${envs:-none}] -- none other than Production"
 $C build $SERVICES < /dev/null || stop "build failed"

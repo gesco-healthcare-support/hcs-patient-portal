@@ -3,7 +3,10 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.TestData;
+using System.Linq;
 using NSubstitute;
+using Shouldly;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.Identity;
@@ -98,5 +101,107 @@ public abstract class AppointmentAccessorManagerTests<TStartupModule> : CaseEval
 
         await bus.Received(1).PublishAsync(Arg.Any<AppointmentAccessorInvitedEto>());
         await bus.DidNotReceive().PublishAsync(Arg.Any<AppointmentAccessorAddedEto>());
+    }
+
+    [Theory]
+    [InlineData("admin")]
+    [InlineData("IT Admin")]
+    [InlineData("Staff Supervisor")]
+    [InlineData("Intake Staff")]
+    [InlineData("Totally Made Up Role")]
+    public async Task CreateOrLinkAsync_NonExternalRole_IsRefused_AndNothingIsWritten(string role)
+    {
+        var bus = Substitute.For<ILocalEventBus>();
+        var newEmail = $"TEST-role-{Guid.NewGuid():N}@test.local";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var rolesBefore = (await _roleRepository.GetListAsync()).Count;
+                var existingBefore = (await _userManager.GetRolesAsync(
+                    (await _userManager.FindByEmailAsync(IdentityUsersTestData.TenantAdmin1Email))!)).ToList();
+
+                // Existing user (grant path) and unknown email (create path) both refused.
+                foreach (var email in new[] { IdentityUsersTestData.TenantAdmin1Email, newEmail })
+                {
+                    var ex = await Should.ThrowAsync<BusinessException>(() => BuildManager(bus).CreateOrLinkAsync(
+                        appointmentId: AppointmentsTestData.Appointment1Id,
+                        email: email,
+                        requestedRoleName: role,
+                        accessTypeId: AccessType.View,
+                        tenantId: TenantsTestData.TenantARef));
+                    ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessorRoleNotAllowed);
+                }
+
+                (await _roleRepository.GetListAsync()).Count.ShouldBe(rolesBefore);
+                (await _roleRepository.FindByNormalizedNameAsync(role.ToUpperInvariant())).ShouldBeNull();
+                var user = (await _userManager.FindByEmailAsync(IdentityUsersTestData.TenantAdmin1Email))!;
+                (await _userManager.GetRolesAsync(user)).OrderBy(r => r).ShouldBe(existingBefore.OrderBy(r => r));
+                (await _userManager.FindByEmailAsync(newEmail)).ShouldBeNull();
+            }
+        });
+        await bus.DidNotReceiveWithAnyArgs().PublishAsync<AppointmentAccessorAddedEto>(default!);
+    }
+
+    [Theory]
+    [InlineData("patient", "Patient")]
+    [InlineData("  APPLICANT attorney ", "Applicant Attorney")]
+    [InlineData("defense ATTORNEY", "Defense Attorney")]
+    [InlineData("claim examiner", "Claim Examiner")]
+    public async Task CreateOrLinkAsync_ExternalRole_IsAccepted_CaseInsensitively_AndStoresCanonicalName(string input, string canonical)
+    {
+        var bus = Substitute.For<ILocalEventBus>();
+        var newEmail = $"TEST-canon-{Guid.NewGuid():N}@test.local";
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await BuildManager(bus).CreateOrLinkAsync(
+                    appointmentId: AppointmentsTestData.Appointment1Id,
+                    email: newEmail,
+                    requestedRoleName: input,
+                    accessTypeId: AccessType.View,
+                    tenantId: TenantsTestData.TenantARef);
+
+                var user = (await _userManager.FindByEmailAsync(newEmail))!;
+                (await _userManager.GetRolesAsync(user)).ShouldBe(new[] { canonical });
+            }
+        });
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DifferentAppointmentId_IsRefused_AndRowIsUnchanged()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var before = await _accessorRepository.GetAsync(AppointmentAccessorsTestData.Accessor1Id);
+                var ex = await Should.ThrowAsync<BusinessException>(() => BuildManager(Substitute.For<ILocalEventBus>()).UpdateAsync(
+                    before.Id, before.IdentityUserId, Guid.NewGuid(), AccessType.Edit));
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+
+                var after = await _accessorRepository.GetAsync(before.Id);
+                after.AppointmentId.ShouldBe(before.AppointmentId);
+                after.AccessTypeId.ShouldBe(before.AccessTypeId);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SameAppointmentId_StillWorks()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var before = await _accessorRepository.GetAsync(AppointmentAccessorsTestData.Accessor1Id);
+                var updated = await BuildManager(Substitute.For<ILocalEventBus>()).UpdateAsync(
+                    before.Id, before.IdentityUserId, before.AppointmentId, AccessType.Edit);
+                updated.AccessTypeId.ShouldBe(AccessType.Edit);
+            }
+        });
     }
 }

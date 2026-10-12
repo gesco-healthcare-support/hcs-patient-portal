@@ -73,4 +73,24 @@ public static class CaseEvaluationExceptionStatusCodeMappings
             CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
             HttpStatusCode.BadRequest);
     }
+
+    /// <summary>
+    /// B11 -- the two refusals from the malware scan on upload. Without a mapping ABP answers an
+    /// unmapped BusinessException with 403, which the SPA reads as a permission failure and shows
+    /// no message for.
+    /// <list type="bullet">
+    /// <item><c>UploadRefused</c> is 422: the request was understood and this file is refused.</item>
+    /// <item><c>UploadScanUnavailable</c> is 503: the file may be fine; retry once the scanner is back.</item>
+    /// </list>
+    /// HttpApi.Host only; the AuthServer stores no uploads.
+    /// </summary>
+    public static void MapUploadScanCodes(AbpExceptionHttpStatusCodeOptions options)
+    {
+        options.Map(
+            CaseEvaluationDomainErrorCodes.UploadRefused,
+            HttpStatusCode.UnprocessableEntity);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.UploadScanUnavailable,
+            HttpStatusCode.ServiceUnavailable);
+    }
 }

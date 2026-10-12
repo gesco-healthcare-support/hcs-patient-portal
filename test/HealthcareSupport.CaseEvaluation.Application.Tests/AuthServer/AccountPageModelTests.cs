@@ -143,25 +143,16 @@ public class AccountPageModelTests
         ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "surfacing generic success");
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Resend_verification_logs_no_address_when_the_service_throws(bool viaAutosendGet)
+    [Fact]
+    public async Task Resend_verification_logs_no_address_when_the_service_throws()
     {
         var account = Substitute.For<IExternalAccountAppService>();
         account.ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>())
             .ThrowsAsync(new InvalidOperationException("TEST-dispatch-failure"));
         var logger = new RecordingLogger<ResendVerificationModel>(LogLevel.Information);
-        var model = WithContext(new ResendVerificationModel(account, logger) { Email = Email, Autosend = "1" });
+        var model = WithContext(new ResendVerificationModel(account, logger) { Email = Email });
 
-        if (viaAutosendGet)
-        {
-            await model.OnGetAsync();
-        }
-        else
-        {
-            await model.OnPostAsync();
-        }
+        await model.OnPostAsync();
 
         ShouldLogNoAddress(logger.Entries.Select(e => e.Message), "surfacing generic success");
     }
@@ -194,8 +185,16 @@ public class AccountPageModelTests
 
     // ---------------------------------------------------------------- reset password
 
-    private static ResetPasswordModel ResetModel(IExternalAccountAppService account, string? returnUrl = null) =>
-        WithContext(new ResetPasswordModel(account, NullLogger<ResetPasswordModel>.Instance)
+    private static IResetLinkChecker Checker(bool usable)
+    {
+        var checker = Substitute.For<IResetLinkChecker>();
+        checker.IsUsableAsync(Arg.Any<Guid>(), Arg.Any<string?>()).Returns(usable);
+        return checker;
+    }
+
+    private static ResetPasswordModel ResetModel(
+        IExternalAccountAppService account, string? returnUrl = null, bool linkUsable = true) =>
+        WithContext(new ResetPasswordModel(account, Checker(linkUsable), NullLogger<ResetPasswordModel>.Instance)
         {
             UserId = UserId,
             ResetToken = "TEST-reset-token",
@@ -205,21 +204,17 @@ public class AccountPageModelTests
         });
 
     [Fact]
-    public void Reset_password_without_a_user_or_token_sends_the_user_back_to_forgot_password()
+    public async Task Reset_password_with_a_dead_link_sends_the_user_back_to_forgot_password_before_the_form()
     {
         var account = Substitute.For<IExternalAccountAppService>();
-        var noToken = ResetModel(account);
-        noToken.ResetToken = " ";
-        var noUser = ResetModel(account);
-        noUser.UserId = Guid.Empty;
+        // A used, expired, tampered or unknown-user link all arrive here as "not usable", so the
+        // page gives the same answer for every one of them.
+        var model = ResetModel(account, linkUsable: false);
 
-        foreach (var model in new[] { noToken, noUser })
-        {
-            model.OnGet().ShouldBeOfType<RedirectToPageResult>().PageName.ShouldBe("./ForgotPassword");
-            model.TempData["ErrorMessage"].ShouldBe("That reset link doesn't work anymore. Request a new one below.");
-        }
+        (await model.OnGetAsync()).ShouldBeOfType<RedirectToPageResult>().PageName.ShouldBe("./ForgotPassword");
+        model.TempData["ErrorMessage"].ShouldBe("That reset link doesn't work anymore. Request a new one below.");
 
-        ResetModel(account).OnGet().ShouldBeOfType<PageResult>();
+        (await ResetModel(account, linkUsable: true).OnGetAsync()).ShouldBeOfType<PageResult>();
     }
 
     [Fact]
@@ -300,29 +295,21 @@ public class AccountPageModelTests
         model.GetIntro().ShouldContain("Resend below");
     }
 
-    [Theory]
-    [InlineData("1", true, false)]
-    [InlineData("1", true, true)]
-    [InlineData("0", false, false)]
-    [InlineData(null, false, false)]
-    public async Task Resend_verification_sends_on_get_only_when_autosend_is_1(string? autosend, bool expectSend, bool serviceThrows)
+    [Fact]
+    public void Resend_verification_get_never_sends_and_keeps_the_prefilled_email()
     {
+        // A send on GET can be triggered cross-site by any link; only the antiforgery-protected
+        // POST may send. The old "?autosend=1" flag is no longer bound at all.
         var account = Substitute.For<IExternalAccountAppService>();
-        if (serviceThrows)
-        {
-            account.ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>())
-                .ThrowsAsync(new InvalidOperationException("TEST-dispatch-failure"));
-        }
-        var model = WithContext(new ResendVerificationModel(account, NullLogger<ResendVerificationModel>.Instance)
-        {
-            Email = Email,
-            Autosend = autosend,
-        });
+        var model = WithContext(new ResendVerificationModel(account, NullLogger<ResendVerificationModel>.Instance) { Email = Email });
 
-        (await model.OnGetAsync()).ShouldBeOfType<PageResult>();
+        model.OnGet().ShouldBeOfType<PageResult>();
 
-        await account.Received(expectSend ? 1 : 0).ResendEmailVerificationAsync(Arg.Any<ResendEmailVerificationInput>());
-        model.RequestSubmitted.ShouldBe(expectSend);
+        account.ReceivedCalls().ShouldBeEmpty();
+        model.RequestSubmitted.ShouldBeFalse();
+        model.Email.ShouldBe(Email);
+        typeof(ResendVerificationModel).GetProperty("Autosend").ShouldBeNull();
+        typeof(ResendVerificationModel).GetMethod("OnGetAsync").ShouldBeNull();
     }
 
     [Fact]

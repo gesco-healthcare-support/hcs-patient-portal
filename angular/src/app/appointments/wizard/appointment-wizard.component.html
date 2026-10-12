@@ -153,7 +153,6 @@
           <app-appointment-add-schedule
             [form]="form"
             [checkForAppointmentTypeSelected]="checkForAppointmentTypeSelected"
-            [minimumBookingRuleMessage]="minimumBookingRuleMessage"
             [getAppointmentTypeLookup]="getAppointmentTypeLookup"
             [getLocationLookup]="getLocationLookup"
             [isFieldInvalid]="isFieldInvalidBound"
@@ -161,6 +160,7 @@
             [noBookableDatesMessage]="noBookableDatesMessage"
             (locationSelected)="onLocationSelected($event)"
             (appointmentDateCleared)="clearAppointmentDate()"
+            (bookingWindowChange)="onBookingWindowChange($event)"
           />
         }
 
@@ -169,6 +169,7 @@
             [form]="form"
             [isExternalUserNonPatient]="isExternalUserNonPatient"
             [isItAdmin]="isItAdmin"
+            [storedPatientNotice]="storedPatientDetailsAreFinal"
             [searchPatientByEmail]="searchPatientByEmail"
             [patientEmailRequired]="patientEmailRequired"
             [patientLoadMessage]="patientLoadMessage"

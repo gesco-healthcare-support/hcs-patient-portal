@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Guids;
 using Xunit;
 
@@ -124,7 +125,7 @@ public class PacketsCompleteHandlerTests
 
         return (
             new PacketsCompleteHandler(
-                appointmentRepo, packetRepo, publishService, NullLogger<PacketsCompleteHandler>.Instance),
+                appointmentRepo, packetRepo, publishService, Substitute.For<ICurrentTenant>(), NullLogger<PacketsCompleteHandler>.Instance),
             documentQueue,
             intakeQueue);
     }

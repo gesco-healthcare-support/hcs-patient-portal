@@ -45,9 +45,8 @@ namespace HealthcareSupport.CaseEvaluation.ExternalAccount;
 /// </list>
 /// </para>
 /// <para>
-/// The test module's "Default" token provider accepts ANY token, so no reset could be refused
-/// for a bad token there. This class registers <see cref="IssuedTokensOnlyProvider"/> in its place,
-/// which accepts only a token it issued for that user and purpose.
+/// The test module's "Default" token provider accepts only a token it issued for that user and
+/// purpose (#1261), so a reset can be refused for a bad token without a per-class provider.
 /// </para>
 /// <para>All users are created per test in office A, with synthetic names and emails.</para>
 /// </remarks>
@@ -78,9 +77,6 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
         _cache = new FaultInjectingCache();
         services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_dispatcher));
         services.Replace(ServiceDescriptor.Singleton<IDistributedCache>(_cache));
-        services.AddTransient<IssuedTokensOnlyProvider>();
-        services.Configure<IdentityOptions>(options =>
-            options.Tokens.ProviderMap["Default"] = new TokenProviderDescriptor(typeof(IssuedTokensOnlyProvider)));
     }
 
     // ------------------------------------------------------------------ harness
@@ -294,23 +290,6 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
 
         Sends(NotificationTemplateConsts.Codes.UserRegistered).Count.ShouldBe(1);
         (await _cache.GetStringAsync(Key(ResendPrefix, "cooldown", email))).ShouldBe("1");
-    }
-
-    /// <summary>
-    /// A token provider that validates only the token it generated for the same user and purpose.
-    /// </summary>
-    private sealed class IssuedTokensOnlyProvider : IUserTwoFactorTokenProvider<IdentityUser>
-    {
-        private static string Issue(string purpose, IdentityUser user) => $"issued:{purpose}:{user.Id:N}";
-
-        public Task<bool> CanGenerateTwoFactorTokenAsync(UserManager<IdentityUser> manager, IdentityUser user) =>
-            Task.FromResult(false);
-
-        public Task<string> GenerateAsync(string purpose, UserManager<IdentityUser> manager, IdentityUser user) =>
-            Task.FromResult(Issue(purpose, user));
-
-        public Task<bool> ValidateAsync(string purpose, string token, UserManager<IdentityUser> manager, IdentityUser user) =>
-            Task.FromResult(token == Issue(purpose, user));
     }
 
     /// <summary>

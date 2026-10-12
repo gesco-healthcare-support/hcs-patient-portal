@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
-using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
-using Volo.Abp.BackgroundJobs;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -64,13 +61,14 @@ public class AppointmentChangeRequestsApprovalAppService :
     private readonly ChangeRequestConsentManager _consentManager;
     private readonly ChangeRequestSideResolver _sideResolver;
     private readonly IAccountUrlBuilder _accountUrlBuilder;
-    // Phase 4d (2026-08-05): finalizing a reschedule now creates a SECOND appointment, so it needs
-    // the child copier, its own confirmation number, the state machine to close the old row, and
-    // packet regeneration for the new one.
-    private readonly IAppointmentChildCascadeCopier _childCascadeCopier;
-    private readonly RequestConfirmationNumberGenerator _confirmationNumberGenerator;
+    // The reject-reschedule path reverts through the state machine.
     private readonly AppointmentManager _appointmentManager;
-    private readonly IBackgroundJobManager _backgroundJobManager;
+    // 2026-10-09: the decision bodies (split / cancel) live in the finalizers so the automatic
+    // completion path shares them; the completion orchestrator is invoked here when nobody had
+    // a representative to ask.
+    private readonly RescheduleFinalizer _rescheduleFinalizer;
+    private readonly CancellationFinalizer _cancellationFinalizer;
+    private readonly ChangeRequestConsentCompletion _consentCompletion;
 
     public AppointmentChangeRequestsApprovalAppService(
         IAppointmentChangeRequestRepository changeRequestRepository,
@@ -83,15 +81,15 @@ public class AppointmentChangeRequestsApprovalAppService :
         ChangeRequestConsentManager consentManager,
         ChangeRequestSideResolver sideResolver,
         IAccountUrlBuilder accountUrlBuilder,
-        IAppointmentChildCascadeCopier childCascadeCopier,
-        RequestConfirmationNumberGenerator confirmationNumberGenerator,
         AppointmentManager appointmentManager,
-        IBackgroundJobManager backgroundJobManager)
+        RescheduleFinalizer rescheduleFinalizer,
+        CancellationFinalizer cancellationFinalizer,
+        ChangeRequestConsentCompletion consentCompletion)
     {
-        _childCascadeCopier = childCascadeCopier;
-        _confirmationNumberGenerator = confirmationNumberGenerator;
         _appointmentManager = appointmentManager;
-        _backgroundJobManager = backgroundJobManager;
+        _rescheduleFinalizer = rescheduleFinalizer;
+        _cancellationFinalizer = cancellationFinalizer;
+        _consentCompletion = consentCompletion;
         _changeRequestRepository = changeRequestRepository;
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
@@ -126,60 +124,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         OpposingConsentValidator.EnsureConsentGranted(
             changeRequest, AppointmentChangeRequestConsts.ConsentGatingEnabled);
 
-        var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
-        var fromStatus = appointment.AppointmentStatus;
-
-        // Apply terminal status to the parent appointment.
-        appointment.AppointmentStatus = input.CancellationOutcome;
-        if (input.CancellationOutcome == AppointmentStatusType.CancelledNoBill ||
-            input.CancellationOutcome == AppointmentStatusType.CancelledLate)
-        {
-            appointment.CancelledById = CurrentUser.Id;
-            // 2026-07-31 -- copy the reason onto the appointment. It was previously left on the
-            // change-request row only, so this column was permanently null: the patient
-            // PatientAppointmentCancelledNoBill email rendered a blank reason (it reads the
-            // appointment, unlike the staff templates which read the request), and the Case
-            // Tracker payload had nothing to send.
-            appointment.CancellationReason = changeRequest.CancellationReason;
-        }
-        await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
-
-        // Mark the change request Accepted. Outcome, approver and timestamp move together.
-        changeRequest.MarkDecided(
-            RequestStatusType.Accepted, CurrentUser.Id, Clock.Now.ToUniversalTime());
-        changeRequest.CancellationOutcome = input.CancellationOutcome;
-        await PersistChangeRequestAsync(changeRequest);
-
-        // Drive the slot cascade -- SlotCascadeHandler maps
-        // CancelledNoBill / CancelledLate -> Available.
-        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-            appointmentId: appointment.Id,
-            tenantId: appointment.TenantId,
-            fromStatus: fromStatus,
-            toStatus: appointment.AppointmentStatus,
-            actingUserId: CurrentUser.Id,
-            reason: changeRequest.CancellationReason,
-            occurredAt: DateTime.UtcNow,
-            doctorAvailabilityId: appointment.DoctorAvailabilityId));
-
-        // Phase-18-declared Eto for the per-feature email handler.
-        await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestApprovedEto
-        {
-            AppointmentId = appointment.Id,
-            ChangeRequestId = changeRequest.Id,
-            TenantId = appointment.TenantId,
-            ChangeRequestType = ChangeRequestType.Cancel,
-            Outcome = input.CancellationOutcome,
-            IsAdminOverride = false,
-            ApprovedByUserId = CurrentUser.Id ?? Guid.Empty,
-            OccurredAt = DateTime.UtcNow,
-        });
-
-        _logger.LogInformation(
-            "ApproveCancellationAsync: change request {ChangeRequestId} accepted; appointment {AppointmentId} -> {Outcome}.",
-            changeRequest.Id,
-            appointment.Id,
-            input.CancellationOutcome);
+        await _cancellationFinalizer.FinalizeAsync(
+            changeRequest, input.CancellationOutcome, CurrentUser.Id);
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
     }
@@ -233,6 +179,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         ConfirmRescheduleDateInput input)
     {
         Check.NotNull(input, nameof(input));
+        // 2026-10-09: staff pick the outcome HERE, because the reschedule completes on its own
+        // once both sides agree and there is no later Approve to pick it at.
+        ChangeRequestApprovalValidator.EnsureRescheduleOutcome(input.RescheduleOutcome);
 
         var changeRequest = await LoadAndStampStampAsync(changeRequestId, input.ConcurrencyStamp);
         ChangeRequestApprovalValidator.EnsurePending(changeRequest);
@@ -271,6 +220,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         {
             // Confirming the SAME date again is a RESEND, not a new proposal: the parties have
             // already been asked about this date and may simply not have acted yet.
+            // A different No bill / Late choice on the same date is carried onto the round too.
+            currentRound.ProposeOutcome(input.RescheduleOutcome);
             return await ResendForRoundAsync(changeRequest, currentRound);
         }
 
@@ -299,7 +250,8 @@ public class AppointmentChangeRequestsApprovalAppService :
             roundNumber: rounds.Count == 0 ? 1 : rounds.Max(r => r.RoundNumber) + 1,
             proposedDoctorAvailabilityId: slot.Id,
             proposedByUserId: CurrentUser.Id,
-            proposedReason: input.AdminReScheduleReason);
+            proposedReason: input.AdminReScheduleReason,
+            proposedOutcome: input.RescheduleOutcome);
 
         // Both sides must agree to a staff-chosen date; a side with no representative stays
         // NotRequired and is auto-satisfied. Reuses the resolver the staff-initiated submit path
@@ -333,6 +285,9 @@ public class AppointmentChangeRequestsApprovalAppService :
                 "ConfirmRescheduleDateAsync: change request {ChangeRequestId} round {RoundNumber} has no representative on either side; consent skipped.",
                 changeRequestId,
                 round.RoundNumber);
+            // Nobody to ask, so the round is already fully granted: complete it now (after this
+            // unit of work commits, so the round is visible to the completion's own unit).
+            await _consentCompletion.RequestCompletionAsync(changeRequestId);
         }
 
         _logger.LogInformation(
@@ -470,192 +425,10 @@ public class AppointmentChangeRequestsApprovalAppService :
         RescheduleConsentGate.EnsureRoundConsentGranted(
             currentRound, AppointmentChangeRequestConsts.ConsentGatingEnabled);
 
-        var newSlotId = currentRound!.ProposedDoctorAvailabilityId;
-
-        var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
-        var newSlot = await _doctorAvailabilityRepository.GetAsync(newSlotId);
-
-        // An "override" requires something to override -- see ChangeRequestApprovalValidator
-        // .IsAdminOverride for why the null case matters after phase 4b. The staff slot is now
-        // the round's, not an input field.
-        var isAdminOverride = ChangeRequestApprovalValidator.IsAdminOverride(
-            proposedSlotId: changeRequest.NewDoctorAvailabilityId,
-            staffSlotId: newSlotId);
-
-        // Phase 4d (2026-08-05) -- THE SPLIT. Until now finalize moved the SAME appointment to the
-        // new slot; source item R3 asks instead for the old appointment to close into a Rescheduled
-        // status and a NEW appointment to be created in its place, so Case Tracker can bill or
-        // close the old date while tracking the new one separately (phase 4e).
-        //
-        // The new row is NOT built through the create pipeline: AppointmentCreateDto carries 16
-        // scalars and no child collections, because the child cascade is client-side in the booking
-        // wizard. It is created directly here and its children are copied by
-        // IAppointmentChildCascadeCopier.
-        var fromStatus = sourceAppointment.AppointmentStatus;
-
-        // F-017 (2026-06-23): AvailableDate is date-only (midnight); the slot's start time lives in
-        // TimeOnly FromTime. Combine them or the new appointment shows 12:00 AM everywhere.
-        var newAppointmentDate = newSlot.AvailableDate.Date + newSlot.FromTime.ToTimeSpan();
-
-        // (TenantId, RequestConfirmationNumber) is a hard unique index and the generator reads
-        // max+1, so two concurrent finalizes can pick the same number -- the retry policy is what
-        // resolves that, exactly as the booking path does.
-        var newAppointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
-        {
-            var confirmationNumber = await _confirmationNumberGenerator.GenerateAsync();
-
-            // Decision 3: the new appointment INHERITS THE SOURCE'S STATUS -- no re-approval,
-            // because both sides already consented to this exact date in 4c. Normally that is
-            // Approved (an external reschedule requires an Approved source), but B1 lets staff
-            // reschedule a PENDING appointment, and hardcoding Approved there would turn an
-            // unapproved appointment into an approved one just by rescheduling it, bypassing the
-            // approval gate and its claim-information check.
-            var newAppointmentStatus = RescheduleSplitPolicy.ResolveNewAppointmentStatus(fromStatus);
-
-            var created = new Appointment(
-                id: GuidGenerator.Create(),
-                patientId: sourceAppointment.PatientId,
-                identityUserId: sourceAppointment.IdentityUserId,
-                appointmentTypeId: sourceAppointment.AppointmentTypeId,
-                locationId: sourceAppointment.LocationId,
-                doctorAvailabilityId: newSlotId,
-                appointmentDate: newAppointmentDate,
-                requestConfirmationNumber: confirmationNumber,
-                appointmentStatus: newAppointmentStatus);
-
-            // The reschedule chain. OriginalAppointmentId and EvaluationKind are carried across
-            // UNCHANGED: they describe whether this case is a re-evaluation, which a reschedule
-            // does not alter. Conflating the two links is what mislabels a Case Tracker folder.
-            created.RescheduledFromAppointmentId = sourceAppointment.Id;
-            created.OriginalAppointmentId = sourceAppointment.OriginalAppointmentId;
-            created.EvaluationKind = sourceAppointment.EvaluationKind;
-            created.PanelNumber = sourceAppointment.PanelNumber;
-            created.DueDate = sourceAppointment.DueDate;
-            created.RefferedBy = sourceAppointment.RefferedBy;
-
-            // 2026-08-26: carry the party snapshot and the ORIGINAL booker. Without these the
-            // replacement appointment locked its own external party out with a 403 -- the read
-            // guard admits an external caller by booker/patient/accessor id or by the email+role
-            // rule, and this row had a staff CreatorId, no BookedByUserId, and all four party-email
-            // columns null. The child rows are copied below by the cascade copier, so notifications
-            // still went out and hid it; found only by signing in as the attorney. See
-            // Appointment.CopyPartySnapshotFrom.
-            created.CopyPartySnapshotFrom(sourceAppointment);
-            // RecordBookedBy rejects Guid.Empty, so assign through the property -- a source with no
-            // booker (pre-D-R2-B rows) must stay null rather than throw mid-approval. This is the
-            // "reschedule clone copies the value directly" case RecordBookedBy's own doc describes.
-            created.BookedByUserId = sourceAppointment.BookedByUserId;
-
-            return await _appointmentRepository.InsertAsync(created, autoSave: true);
-        });
-
-        var copied = await _childCascadeCopier.CopyAllAsync(
-            sourceAppointment.Id, newAppointment.Id, sourceAppointment.TenantId);
-
-        // Close the OLD appointment through the state machine rather than by assignment, so the
-        // transition is validated and audited like every other one. These two triggers had been
-        // unreachable since the machine was written.
-        var oldTrigger = RescheduleSplitPolicy.ResolveOldAppointmentTrigger(input.RescheduleOutcome);
-        sourceAppointment.ReScheduledById = CurrentUser.Id;
-        await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
-        await _appointmentManager.CloseForRescheduleAsync(
-            sourceAppointment.Id, oldTrigger, changeRequest.ReScheduleReason, CurrentUser.Id);
-        sourceAppointment = await _appointmentRepository.GetAsync(sourceAppointment.Id);
-
-        // Packets embed the appointment date, so the NEW appointment needs its own set. The OLD
-        // appointment's packets are deliberately left intact (decision 6): they document what WAS
-        // scheduled and are already in recipients' inboxes.
-        //
-        // Enqueues the SAME job AppointmentDocumentsAppService.RegeneratePacketAsync enqueues,
-        // rather than calling that method: its first act is a READ-ACCESS GUARD written for a
-        // user-facing HTTP caller, and staff finalizing a reschedule are not a party to the
-        // appointment they just created, so the guard rejects them. Same generator, no borrowed
-        // authorization.
-        await _backgroundJobManager.EnqueueAsync(new GenerateAppointmentPacketArgs
-        {
-            AppointmentId = newAppointment.Id,
-            TenantId = CurrentTenant.Id,
-        });
-
-        // Release the transient Reserved hold the submit placed on the user-picked
-        // slot (Phase 16 submit sets it Reserved). Idempotent and guarded -- release
-        // ONLY that slot and ONLY if it is still Reserved, so a slot a doctor's-admin
-        // genuinely closed is never reopened. Also covers the admin-override case:
-        // the user-picked (held) slot is freed while the appointment lands on the
-        // override slot. Mirrors the reject path's release. Under the capacity model
-        // Booked == Available, so releasing the hold lets the slot rejoin the
-        // bookable pool with this appointment now counted against its capacity.
-        if (changeRequest.NewDoctorAvailabilityId.HasValue)
-        {
-            var heldSlot = await _doctorAvailabilityRepository.FindAsync(
-                changeRequest.NewDoctorAvailabilityId.Value);
-            if (heldSlot != null && heldSlot.BookingStatusId == BookingStatus.Reserved)
-            {
-                heldSlot.BookingStatusId = BookingStatus.Available;
-                await _doctorAvailabilityRepository.UpdateAsync(heldSlot, autoSave: true);
-            }
-        }
-
-        // Mark change request Accepted. Outcome, approver and timestamp move together; the
-        // staff slot choice is recorded separately below.
-        changeRequest.MarkDecided(
-            RequestStatusType.Accepted, CurrentUser.Id, Clock.Now.ToUniversalTime());
-        changeRequest.CancellationOutcome = input.RescheduleOutcome;
-        // Phase 4b (2026-08-04): record the staff-chosen slot whenever staff chose one, NOT only
-        // when it overrode a requestor proposal. Since 4b the external path has no proposal to
-        // override, so gating this on isAdminOverride left BOTH slot columns null on the row --
-        // losing the audit trail and blanking the date in the approval email, which resolves the
-        // slot from this row. Phase 4c: the slot comes from the consented round, and this column
-        // must still be written because ChangeRequestApprovedEmailHandler resolves the approval
-        // email's date from it. The admin REASON stays gated on a genuine override: there is
-        // nobody to justify a change to when the requestor proposed nothing.
-        changeRequest.AdminOverrideSlotId = newSlotId;
-        if (isAdminOverride)
-        {
-            changeRequest.AdminReScheduleReason = currentRound.ProposedReason;
-        }
-        await PersistChangeRequestAsync(changeRequest);
-
-        // Notify audit / downstream subscribers of the status change only when it
-        // actually changed (Approved source: RescheduleRequested -> Approved; a
-        // Pending source stays Pending, so there is nothing to publish). The
-        // date/slot move itself is captured by the appointment's own audit trail.
-        if (sourceAppointment.AppointmentStatus != fromStatus)
-        {
-            await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-                appointmentId: sourceAppointment.Id,
-                tenantId: sourceAppointment.TenantId,
-                fromStatus: fromStatus,
-                toStatus: sourceAppointment.AppointmentStatus,
-                actingUserId: CurrentUser.Id,
-                reason: changeRequest.ReScheduleReason,
-                occurredAt: DateTime.UtcNow,
-                doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
-        }
-
-        await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestApprovedEto
-        {
-            AppointmentId = sourceAppointment.Id,
-            ChangeRequestId = changeRequest.Id,
-            TenantId = sourceAppointment.TenantId,
-            ChangeRequestType = ChangeRequestType.Reschedule,
-            Outcome = input.RescheduleOutcome,
-            IsAdminOverride = isAdminOverride,
-            ApprovedByUserId = CurrentUser.Id ?? Guid.Empty,
-            OccurredAt = DateTime.UtcNow,
-        });
-
-        _logger.LogInformation(
-            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {OldAppointmentId} closed as {OldStatus} and replaced by {NewAppointmentId} ({NewConfirmationNumber}) on slot {SlotId}. Children copied: {CopiedCounts} (total {CopiedTotal}). Override={Override}.",
-            changeRequest.Id,
-            sourceAppointment.Id,
-            sourceAppointment.AppointmentStatus,
-            newAppointment.Id,
-            newAppointment.RequestConfirmationNumber,
-            newSlotId,
-            copied,
-            copied.Total,
-            isAdminOverride);
+        // The decision itself -- the split, packets, slot release and events -- lives in
+        // RescheduleFinalizer so the automatic path (both sides agreed) runs the same body.
+        await _rescheduleFinalizer.FinalizeAsync(
+            changeRequest, currentRound!, input.RescheduleOutcome, CurrentUser.Id);
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
     }
@@ -679,14 +452,16 @@ public class AppointmentChangeRequestsApprovalAppService :
         var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var fromStatus = sourceAppointment.AppointmentStatus;
 
-        // Revert the parent to the status it held BEFORE the reschedule request, not a hardcoded
-        // Approved. An Approved source became RescheduleRequested on submit, so it reverts to
-        // Approved -- but B1 lets internal staff reschedule a still-Pending source, which never
-        // left Pending, and forcing Approved here would promote a never-approved appointment past
-        // the approval gate purely because its reschedule was rejected. Mirrors the approve path.
-        sourceAppointment.AppointmentStatus =
-            RescheduleSplitPolicy.ResolveParentStatusOnReject(fromStatus);
-        await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
+        // #926: revert through the state machine. Only RescheduleRequested has an edge back to
+        // Approved. A Pending source (internal staff may file a reschedule against one, B1) never
+        // left Pending, so it needs no write and no transition -- forcing Approved would promote a
+        // never-approved appointment past the approval gate.
+        if (fromStatus == AppointmentStatusType.RescheduleRequested)
+        {
+            await _appointmentManager.RejectRescheduleAsync(
+                sourceAppointment.Id, input.Reason.Trim(), CurrentUser.Id);
+            sourceAppointment = await _appointmentRepository.GetAsync(sourceAppointment.Id);
+        }
 
         // Mark change request Rejected. Outcome, rejector and timestamp move together.
         changeRequest.MarkDecided(
@@ -694,21 +469,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         changeRequest.RejectionNotes = input.Reason.Trim();
         await PersistChangeRequestAsync(changeRequest);
 
-        // Publish the parent's transition for the downstream notification + audit handlers.
-        // The slot cascade is capacity/count-based now (SlotCascadeHandler is a log-only stub),
-        // so this does not move the slot. toStatus is the reverted status: Approved for a
-        // RescheduleRequested source, Pending for an internal-staff Pending source -- a Pending
-        // -> Pending transition raises no approval notification, which is the correct outcome
-        // for a rejected reschedule of an unapproved appointment.
-        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-            appointmentId: sourceAppointment.Id,
-            tenantId: sourceAppointment.TenantId,
-            fromStatus: fromStatus,
-            toStatus: sourceAppointment.AppointmentStatus,
-            actingUserId: CurrentUser.Id,
-            reason: input.Reason.Trim(),
-            occurredAt: DateTime.UtcNow,
-            doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
+        // The manager published the RescheduleRequested -> Approved transition. A Pending source
+        // makes no transition, so there is nothing to publish for it (the old Pending -> Pending
+        // event raised no notification).
 
         // Gate 2 (2026-06-01) / OLD parity (AppointmentChangeRequestDomain.cs:600):
         // a reschedule submit puts the user-picked slot into Reserved as a transient

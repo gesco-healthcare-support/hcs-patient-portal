@@ -284,6 +284,11 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotUpdateBookedOrReserved);
         }
 
+        // Residue of the guard above: edits that move nothing can still leave a booked appointment
+        // pointing at a slot that no longer admits it -- capacity cut below the active count, or an
+        // accepted type removed while an active appointment uses it.
+        await EnsureEditKeepsActiveAppointmentsAdmittedAsync(existing, input);
+
         var doctorAvailability = await _doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity, input.ConcurrencyStamp);
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
     }
@@ -689,6 +694,42 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     }
 
     /// <summary>
+    /// 2026-10-12 -- the caller's booking window, for the booking calendar (see
+    /// <see cref="BookingWindowDto"/>). Open to any signed-in user like
+    /// <see cref="GetDoctorAvailabilityLookupAsync"/>: external bookers need it and cannot read
+    /// system parameters, and an office's day counts are not sensitive. An unknown type id falls
+    /// back to the OTHER horizon rather than refusing, as a null category does at booking.
+    /// </summary>
+    [Authorize]
+    public virtual async Task<BookingWindowDto> GetBookingWindowAsync(Guid? appointmentTypeId)
+    {
+        var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
+
+        AppointmentMaxTimeCategory? category = null;
+        if (appointmentTypeId.HasValue)
+        {
+            var appointmentType = await _appointmentTypeRepository.FindAsync(appointmentTypeId.Value);
+            category = appointmentType?.MaxTimeCategory;
+        }
+
+        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+        return BookingPolicyValidator.ResolveBookingWindow(systemParameter, category, isInternalCaller);
+    }
+
+    /// <summary>
+    /// The staff schedule surfaces carry patient names and confirmation numbers. External roles hold
+    /// DoctorAvailabilities.Default for the booking picker, so the permission alone does not keep them
+    /// out; refuse anyone without an internal role.
+    /// </summary>
+    private void EnsureInternalCaller()
+    {
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        }
+    }
+
+    /// <summary>
     /// #2 (2026-06-19) -- booked/reserved patient names per slot for the internal
     /// week-view chips. Bulk over the visible week's slot ids (one round-trip);
     /// only slots with at least one non-terminal appointment come back. Internal-
@@ -697,6 +738,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync(List<Guid> slotIds)
     {
+        EnsureInternalCaller();
         if (slotIds == null || slotIds.Count == 0)
         {
             return new List<SlotPatientNamesDto>();
@@ -716,6 +758,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<List<ScheduleSlotDto>> GetScheduleAsync(GetScheduleInput input)
     {
+        EnsureInternalCaller();
         Check.NotNull(input, nameof(input));
         if (input.LocationId == Guid.Empty)
         {
@@ -792,6 +835,49 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     {
         return await _appointmentRepository.AnyAsync(a => a.DoctorAvailabilityId == slotId)
             || await _appointmentChangeRequestRepository.AnyAsync(c => c.NewDoctorAvailabilityId == slotId);
+    }
+
+    private static readonly AppointmentStatusType[] CapacityFreeingStatuses =
+    {
+        AppointmentStatusType.Rejected,
+        AppointmentStatusType.CancelledNoBill,
+        AppointmentStatusType.CancelledLate,
+        AppointmentStatusType.RescheduledNoBill,
+        AppointmentStatusType.RescheduledLate,
+    };
+
+    /// <summary>
+    /// Refuses an edit that would leave an ACTIVE appointment on the slot that the slot no longer
+    /// admits: capacity below the active count, or an accepted-type set (non-empty; empty means any
+    /// type) that omits a type an active appointment uses. "Active" is the capacity model's own
+    /// predicate, the same five terminal statuses <c>GetActiveCountForSlotAsync</c> excludes.
+    /// </summary>
+    protected virtual async Task EnsureEditKeepsActiveAppointmentsAdmittedAsync(
+        DoctorAvailability existing, DoctorAvailabilityUpdateDto input)
+    {
+        if (input.Capacity < existing.Capacity)
+        {
+            var activeCount = await _appointmentRepository.GetActiveCountForSlotAsync(existing.Id);
+            if (input.Capacity < activeCount)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked)
+                    .WithData("activeCount", activeCount)
+                    .WithData("capacity", input.Capacity);
+            }
+        }
+
+        var acceptedTypeIds = input.AppointmentTypeIds?.Distinct().ToList() ?? new List<Guid>();
+        if (acceptedTypeIds.Count > 0)
+        {
+            var activeQuery = (await _appointmentRepository.GetQueryableAsync())
+                .Where(a => a.DoctorAvailabilityId == existing.Id
+                    && !CapacityFreeingStatuses.Contains(a.AppointmentStatus)
+                    && !acceptedTypeIds.Contains(a.AppointmentTypeId));
+            if (await AsyncExecuter.AnyAsync(activeQuery))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotRemoveTypeInUse);
+            }
+        }
     }
 
     /// <summary>

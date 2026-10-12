@@ -31,10 +31,9 @@ namespace HealthcareSupport.CaseEvaluation.CustomFields;
 /// cap. That is the only way to reach them, and the over-cap state (11 active) is load-bearing for one
 /// Fact: see <c>UpdateAsync_AnEditThatNeitherActivatesNorMovesAField_IsNotReChecked</c>.</para>
 ///
-/// <para>TWO THINGS THIS FILE DELIBERATELY DOES NOT PIN. (1) CreateAsync applies the cap even to an
-/// INACTIVE new field, while UpdateAsync applies it to active fields only. Whether that asymmetry is
-/// intended is an open product question (#1002), so no Fact takes a side: fixtures needing an inactive
-/// field in a full type seed it through the repository, not the service. (2) The <c>excludingId</c> in
+/// <para>ONE THING THIS FILE DELIBERATELY DOES NOT PIN. (1) CreateAsync and UpdateAsync both apply the
+/// cap to ACTIVE fields only (#1002); an inactive create at the cap is pinned by
+/// <c>CreateAsync_AnInactiveField_IsAllowedWhenTheTypeIsAtTheActiveCap</c>. (2) The <c>excludingId</c> in
 /// the cap check cannot change a result -- UpdateAsync only calls it when the field is becoming active or
 /// changing type, so the persisted row is never counted against itself. The DUPLICATE-LABEL check's
 /// <c>excludingId</c> is different: it runs on EVERY update and is live, and is pinned below.</para>
@@ -239,6 +238,22 @@ public abstract class CustomFieldsAppServiceTests<TStartupModule>
             var created = await CreateAsync(Token("other-full"), type);
 
             created.AppointmentTypeId.ShouldBe(type);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_AnInactiveField_IsAllowedWhenTheTypeIsAtTheActiveCap()
+    {
+        // LOAD-BEARING FIXTURE: the type already holds Cap ACTIVE fields. An inactive create adds nothing
+        // to the active count and must succeed (#1002).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var type = Guid.NewGuid();
+            await SeedAsync(type, Cap);
+
+            var created = await CreateAsync(Token("inactive-at-cap"), type, isActive: false);
+
+            created.IsActive.ShouldBeFalse();
         }
     }
 

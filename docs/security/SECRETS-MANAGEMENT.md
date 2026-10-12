@@ -93,13 +93,21 @@ of every layer of the stage that declares it, so `docker history --no-trunc` pri
 key on any machine that had built these images until its build cache was pruned. That
 matters more than it would for a per-project token: the ABP key is organisation-wide.
 
-**Known residual, not closed by that change.** The ABP feed only serves the key as a path
+**Residual from NuGet, closed by `docker/scrub-nuget-key.sh` (#899).** The ABP feed only serves the key as a path
 segment: `https://nuget.abp.io/<key>/v3/index.json` returns 200, and the keyless URL
-returns 404 with or without credentials. NuGet therefore records the key in the
-`.nupkg.metadata` file it writes beside every restored package. Measured on the DbMigrator
-dev image: 75 such files plus one HTTP-cache `service_index.dat`. Those live in the SDK
-`build` and `dev` stages only, never in a shipped `prod` image, which is `FROM aspnet` and
-copies only `/app/publish` (verified: zero matches).
+returns 404 with or without credentials. NuGet therefore records the key itself: in the
+`.nupkg.metadata` beside every restored package (75 files), in the HTTP cache
+(`service_index.dat`), and in each project's `obj/project.assets.json` and
+`*.nuget.dgspec.json` (28 files, not listed on the original issue). Measured on the DbMigrator
+`build` image before the change: 76 under `/root`, 28 under `/src`. The restore RUN of every
+backend Dockerfile stage now ends by running the scrub script while the secret is still mounted,
+and the script fails the build if any file still holds the key. These files only ever lived in the
+SDK `build` and `dev` stages, never in a shipped `prod` image (`FROM aspnet`, copies
+`/app/publish`). Run `docker/verify-nuget-scrub.sh IMAGE` after touching the restore step: it checks
+the grep, a `--force` restore with and without the feed config, and `publish --no-restore`.
+Not covered: caches that already exist (rotate the key for those), a workstation's own
+`~/.nuget`, a CI runner's restore, and the dev `nuget_packages` volume, which the dev
+entrypoint repopulates at run time.
 
 ---
 

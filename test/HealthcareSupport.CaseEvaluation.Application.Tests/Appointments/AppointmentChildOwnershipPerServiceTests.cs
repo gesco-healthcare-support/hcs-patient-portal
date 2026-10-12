@@ -53,7 +53,7 @@ public sealed class AppointmentChildOwnershipPerServiceTests
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
-        var guard = Substitute.For<AppointmentChildOwnershipGuard>(readGuard);
+        var guard = Substitute.For<AppointmentChildOwnershipGuard>(readGuard, null!);
 
         // The real gate throws this. An earlier version of these tests stubbed
         // AbpAuthorizationException -- the type this class used to throw -- so the tests agreed with
@@ -231,6 +231,10 @@ public sealed class AppointmentChildOwnershipPerServiceTests
         // Party is asked about the GRANDPARENT appointment, resolved through the stored injury
         // detail -- not about either injury-detail id.
         await guard.Received(1).EnsureIsPartyAsync(OtherId);
+        // The service writes through the REPOSITORY, not the manager, so the manager assertion
+        // below holds whether or not the write happened. This is the one that can fail.
+        await repo.DidNotReceive().UpdateAsync(
+            Arg.Any<AppointmentBodyPart>(), Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>());
         manager.ReceivedCalls().ShouldBeEmpty();
     }
 
@@ -249,7 +253,7 @@ public sealed class AppointmentChildOwnershipPerServiceTests
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
         // A real guard whose party check passes, so only the same-parent rule can refuse.
-        var guard = new AppointmentChildOwnershipGuard(readGuard);
+        var guard = new AppointmentChildOwnershipGuard(readGuard, null!);
 
         Should.Throw<BusinessException>(() => guard.EnsureSameParent(StoredParent, ClaimedParent));
         Should.NotThrow(() => guard.EnsureSameParent(StoredParent, StoredParent));
@@ -274,6 +278,11 @@ public sealed class AppointmentChildOwnershipPerServiceTests
         var repo = Substitute.For<IRepository<AppointmentBodyPart, Guid>>();
         repo.GetAsync(RowId, Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>())
             .Returns(new AppointmentBodyPart(RowId, StoredParent, "a1b2c3d4"));
+        // Stub the write so that, if it DOES happen, the call completes and the service reaches its
+        // guard. Unstubbed, NSubstitute hands back a null result and the service dies on a
+        // NullReferenceException first, which would fail this test for the wrong reason.
+        repo.UpdateAsync(Arg.Any<AppointmentBodyPart>(), Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>())
+            .Returns(ci => ci.Arg<AppointmentBodyPart>());
 
         var injuryRepo = Substitute.For<IAppointmentInjuryDetailRepository>();
         injuryRepo.GetAsync(StoredParent, Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>())
@@ -294,7 +303,7 @@ public sealed class AppointmentChildOwnershipPerServiceTests
             Substitute.For<IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid>>(),
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
-        var guard = new AppointmentChildOwnershipGuard(readGuard);
+        var guard = new AppointmentChildOwnershipGuard(readGuard, null!);
 
         var manager = Substitute.For<AppointmentBodyPartManager>(repo);
 
@@ -306,6 +315,10 @@ public sealed class AppointmentChildOwnershipPerServiceTests
                 new AppointmentBodyPartUpdateDto { AppointmentInjuryDetailId = ClaimedParent }));
 
         thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        // The service writes through the REPOSITORY, not the manager, so the manager assertion
+        // below holds whether or not the write happened. This is the one that can fail.
+        await repo.DidNotReceive().UpdateAsync(
+            Arg.Any<AppointmentBodyPart>(), Arg.Any<bool>(), Arg.Any<System.Threading.CancellationToken>());
         manager.ReceivedCalls().ShouldBeEmpty();
     }
 }

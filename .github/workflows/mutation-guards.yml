@@ -1,0 +1,83 @@
+name: Mutation Guards
+
+# Nightly proof that the tests guarding an access rule can actually fail (#1005).
+# scripts/mutation-harness.py breaks one guard at a time and runs the tests that are
+# supposed to notice. See docs/testing/mutation-harness.md.
+#
+# Deliberately NOT part of ci.yml and NOT a required check: a full run is about 25
+# minutes serially and grows with the manifest. It never runs on a pull request.
+
+on:
+  schedule:
+    - cron: '30 9 * * *'  # 09:30 UTC, after the other scheduled security workflows
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The harness mutates real files in the checkout. Two runs must never overlap, and a
+# run must never be cancelled part-way (a cancelled job is the case `recover` exists for),
+# so a second run queues instead of cancelling the first.
+concurrency:
+  group: mutation-guards
+  cancel-in-progress: false
+
+jobs:
+  mutation-guards:
+    name: 'Mutation: Guards'
+    runs-on: ubuntu-latest
+    # --max-seconds 6000 (100 min) only stops STARTING mutants; the last one can run for
+    # up to ~6 min more, after a ~10 min restore and build. 150 leaves headroom over that.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4.3.1
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/common.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      # Secrets reach the script through env, never into the run text.
+      - name: Generate NuGet.Config and placeholder secrets files
+        env:
+          ABP_NUGET_API_KEY: ${{ secrets.ABP_NUGET_API_KEY }}
+          ABP_LICENSE_CODE: ${{ secrets.ABP_LICENSE_CODE }}
+        run: |
+          set -euo pipefail
+          sed "s/\${ABP_NUGET_API_KEY}/${ABP_NUGET_API_KEY}/" NuGet.Config.template > NuGet.Config
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            if [ -n "${ABP_LICENSE_CODE}" ]; then
+              printf '{"AbpLicenseCode": "%s"}\n' "${ABP_LICENSE_CODE}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
+          done
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx --locked-mode
+      # Fails in seconds, before any test runs, if a manifest `find` text has gone stale.
+      - name: Check the manifest still matches the source
+        run: python scripts/mutation-harness.py check-manifest
+      # Exit 1: a survivor, a stale `expect: survive`, or a wrong killer.
+      # Exit 2: the harness could not test a guard at all. Both fail the job.
+      - name: Run the guard mutants
+        run: python scripts/mutation-harness.py run --max-seconds 6000 --report mutation-report.json
+      # Always, so a killed or failed run never leaves a mutated file in the checkout.
+      - name: Restore any outstanding mutation
+        if: always()
+        run: python scripts/mutation-harness.py recover
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mutation-report
+          path: mutation-report.json
+          if-no-files-found: warn
+          retention-days: 30

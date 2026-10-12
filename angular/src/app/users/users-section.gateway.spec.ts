@@ -4,7 +4,7 @@ import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
 
 import { UsersSectionGateway, TenantFormState } from './users-section.gateway';
 import { ExternalUserService } from '../proxy/external-users/external-user.service';
-import { ExternalSignupService } from '../proxy/external-signups/external-signup.service';
+import { ExternalSignupStaffService } from '../proxy/external-signups/external-signup-staff.service';
 import { InternalUsersService } from '../proxy/internal-users/internal-users.service';
 import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
@@ -54,6 +54,7 @@ describe('UsersSectionGateway', () => {
     shouldChangePasswordOnNextLogin: false,
     emailConfirmed: true,
     concurrencyStamp: 'stamp-1',
+    extraProperties: { IsExternalUser: false, IsAccessor: true, LockoutCycle: 2 },
   };
 
   /** A managed-table query, as the table passes one in. */
@@ -104,7 +105,7 @@ describe('UsersSectionGateway', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ExternalUserService, useValue: externalUsers },
-        { provide: ExternalSignupService, useValue: externalSignup },
+        { provide: ExternalSignupStaffService, useValue: externalSignup },
         { provide: InternalUsersService, useValue: internalUsers },
         { provide: UserExtendedService, useValue: userExtended },
         { provide: DashboardService, useValue: dashboard },
@@ -193,6 +194,19 @@ describe('UsersSectionGateway', () => {
       expect(body.lockoutEnabled).toBeTrue();
       expect(body.emailConfirmed).toBeTrue();
       expect(body.shouldChangePasswordOnNextLogin).toBeFalse();
+    });
+
+    it('passes extraProperties through unchanged (server requires them on update)', () => {
+      const g = gateway();
+
+      g.setUserActive('u-1', false).subscribe();
+
+      const [, body] = userExtended['update'].calls.mostRecent().args;
+      expect(body.extraProperties).toEqual({
+        IsExternalUser: false,
+        IsAccessor: true,
+        LockoutCycle: 2,
+      });
     });
 
     it('changes ONLY the active flag', () => {

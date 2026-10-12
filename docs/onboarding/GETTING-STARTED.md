@@ -163,11 +163,13 @@ Point the connection strings in `src/*/appsettings.json` to your SQL Server inst
 ### Run Migrations
 
 ```bash
-DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development ALLOW_DEMO_SEED=true \
   dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 ```
 
 This creates the database, applies all migrations, and seeds initial data (admin user, OAuth clients, permissions).
+The demo accounts need BOTH `Development` and `ALLOW_DEMO_SEED=true` (#726). Without the flag the migrator
+runs normally and skips them, and its log says why.
 
 **Default admin credentials:** `admin@abp.io` / see `TEST_PASSWORD` in `.env.local`
 
@@ -364,11 +366,11 @@ npx ng build --configuration production && npx serve -s dist/CaseEvaluation/brow
 
 ```bash
 # Standard
-DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development ALLOW_DEMO_SEED=true \
   dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 
 # Skip Redis connection (useful when Redis isn't running)
-DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development ALLOW_DEMO_SEED=true \
   dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disable-redis
 ```
 

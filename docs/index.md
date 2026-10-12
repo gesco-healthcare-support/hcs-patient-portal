@@ -135,6 +135,8 @@ flowchart TB
 - [Testing Strategy](devops/TESTING-STRATEGY.md) and [Test Coverage Status](testing/coverage-status.md)
   -- the latter names the commands that report test counts and coverage, and deliberately stores no
   figures of its own.
+- [Guard Mutation Harness](testing/mutation-harness.md) -- breaks a named access rule on purpose and
+  checks that the tests claiming to guard it fail, with a restore proven by hash.
 
 ## Production readiness
 

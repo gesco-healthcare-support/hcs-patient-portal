@@ -5,10 +5,13 @@ using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
+using HealthcareSupport.CaseEvaluation.Security;
+using HealthcareSupport.CaseEvaluation.TestData;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -29,6 +32,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 public class MultiOfficeCatalogResolutionTests : CaseEvaluationMultiOfficeTestBase
 {
     private readonly ICurrentTenant _currentTenant;
+    private readonly ICurrentPrincipalAccessor _principalAccessor;
     private readonly ILocationsAppService _locationsAppService;
     private readonly IDoctorAvailabilitiesAppService _doctorAvailabilitiesAppService;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
@@ -38,6 +42,7 @@ public class MultiOfficeCatalogResolutionTests : CaseEvaluationMultiOfficeTestBa
     public MultiOfficeCatalogResolutionTests()
     {
         _currentTenant = GetRequiredService<ICurrentTenant>();
+        _principalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
         _locationsAppService = GetRequiredService<ILocationsAppService>();
         _doctorAvailabilitiesAppService = GetRequiredService<IDoctorAvailabilitiesAppService>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
@@ -151,7 +156,12 @@ public class MultiOfficeCatalogResolutionTests : CaseEvaluationMultiOfficeTestBa
 
         await WithUnitOfWorkAsync(async () =>
         {
+            // Read as an INTERNAL caller. This used to run as the ambient test principal, which holds no
+            // role and is a party to nothing, and passed only because the read had no per-appointment
+            // check: a read of another party's row succeeded. The point of the test is the State
+            // navigation, so it names a caller that is allowed to read the row.
             using (_currentTenant.Change(officeA.OfficeId))
+            using (WithCurrentUser.RunWithEmail(_principalAccessor, IdentityUsersTestData.HostAdminId, IdentityUsersTestData.HostAdminEmail, IdentityUsersTestData.HostAdminRoleName))
             {
                 var result = await _employerDetailsAppService.GetWithNavigationPropertiesAsync(detailId);
 

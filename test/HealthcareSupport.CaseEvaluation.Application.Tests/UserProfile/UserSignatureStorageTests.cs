@@ -1,3 +1,4 @@
+using NSubstitute.ExceptionExtensions;
 using System;
 using System.IO;
 using System.Linq;
@@ -108,10 +109,13 @@ public abstract class UserSignatureStorageTests<TStartupModule>
         await Should.ThrowAsync<UserFriendlyException>(() =>
             UploadAsync(userId, "sig.png", PngBytes, size: UserSignatureAppService.MaxFileSizeBytes + 1));
         await Should.ThrowAsync<UserFriendlyException>(() => UploadAsync(userId, "sig.gif", PngBytes));
+        // The LOCALIZED sentence, not the key. These two previously asserted the bare key, which is
+        // what the magic-byte guard really threw -- so the test documented the defect rather than
+        // the behaviour, and a user saw "UserSignature:UnsupportedFormat" on screen. See #966.
         (await Should.ThrowAsync<UserFriendlyException>(() => UploadAsync(userId, "sig.png", "GIF89a-x"u8.ToArray())))
-            .Message.ShouldBe("UserSignature:UnsupportedFormat");
+            .Message.ShouldBe("Only PNG, JPG, and JPEG signature images are accepted.");
         (await Should.ThrowAsync<UserFriendlyException>(() => UploadAsync(userId, "sig.png", new byte[] { 0x89, 0x50, 0x4E })))
-            .Message.ShouldBe("UserSignature:FileEmpty");
+            .Message.ShouldBe("The selected file is empty.");
 
         SavedBlobNames().ShouldBeEmpty();
         (await ReloadAsync(userId)).GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.UserSignatureBlobNamePropertyName)
@@ -221,5 +225,35 @@ public abstract class UserSignatureStorageTests<TStartupModule>
         var bytes = await WithUnitOfWorkAsync(() => _signatures.GetBytesByUserIdAsync(userId));
 
         bytes.ShouldBe(PngBytes);
+    }
+
+    // ------------------------------------------------------------------ malware scan (B11)
+
+    [Theory]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadRefused)]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadScanUnavailable)]
+    public async Task A_signature_the_scan_refuses_reaches_the_caller_and_records_nothing_on_the_user(string code)
+    {
+        var userId = await CreateUserAsync();
+        _blobs.SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new BusinessException(code));
+
+        (await Should.ThrowAsync<BusinessException>(() => UploadAsync(userId, "sig.png", PngBytes)))
+            .Code.ShouldBe(code);
+
+        (await ReloadAsync(userId)).GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.UserSignatureBlobNamePropertyName)
+            .ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_clean_signature_in_the_same_rig_is_stored_and_recorded_on_the_user()
+    {
+        var userId = await CreateUserAsync();
+
+        await UploadAsync(userId, "sig.png", PngBytes);
+
+        SavedBlobNames().ShouldHaveSingleItem();
+        (await ReloadAsync(userId)).GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.UserSignatureBlobNamePropertyName)
+            .ShouldNotBeNull();
     }
 }

@@ -44,6 +44,12 @@
       @if (patientLoadMessage) {
         <div class="alert alert-info mb-3" role="alert">{{ patientLoadMessage }}</div>
       }
+      @if (storedPatientNotice) {
+        <div class="alert alert-info mb-3" role="status" id="stored-patient-notice">
+          This patient's stored details will be used as they are. Changes to an existing patient's
+          details are made by the office or by the patient, so edits entered here are not saved.
+        </div>
+      }
     }
     <div class="row">
       <div class="col-md-3 mb-3">

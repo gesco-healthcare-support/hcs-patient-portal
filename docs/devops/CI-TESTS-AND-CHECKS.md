@@ -417,7 +417,7 @@ public deployment requires.
 | **SBOM generation**                       | No CycloneDX or SPDX step                                                                                                             |
 | **DAST**                                  | No OWASP ZAP, Nuclei or equivalent                                                                                                    |
 | **Load / stress testing**                 | No k6, JMeter, NBomber or Gatling. Every sizing estimate is unmeasured                                                                |
-| **Mutation testing**                      | No Stryker                                                                                                                            |
+| **Mutation testing**                      | Not in CI. No Stryker; a targeted harness, `scripts/mutation-harness.py`, runs locally (see `docs/testing/mutation-harness.md`)       |
 | **API contract testing**                  | Only the generated ABP proxies, plus `CaseTrackerWireContractTests`, which pins the Case Tracker feed's route, header and parameter names as literals |
 | **Tests against real SQL Server**         | Two classes only (`CaseTrackerFeedSqlServerTests`, `SqlAppLockTests`); every other test uses SQLite in-memory (section 5.1)          |
 | **Automated deployment**                  | `deploy-dev.yml` validates and opens a PR; the application server is updated by hand. `infra.yml` has an Azure deploy job with no credentials configured (section 3.4) |

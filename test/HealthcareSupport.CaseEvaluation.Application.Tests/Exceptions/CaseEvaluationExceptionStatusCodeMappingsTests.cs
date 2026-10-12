@@ -87,4 +87,24 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         // Still exactly 11 mappings; no duplicate-key blow up.
         options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(11);
     }
+
+    /// <summary>
+    /// B11 -- a refused upload is 422 and an unavailable scanner is 503. Unmapped, both would be
+    /// ABP's default 403, which the SPA treats as a permission failure and shows nothing for.
+    /// </summary>
+    [Fact]
+    public void MapUploadScanCodes_RefusalIs422_AndScannerUnavailableIs503()
+    {
+        var options = new AbpExceptionHttpStatusCodeOptions();
+
+        CaseEvaluationExceptionStatusCodeMappings.MapUploadScanCodes(options);
+
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.UploadRefused
+        ].ShouldBe(HttpStatusCode.UnprocessableEntity);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.UploadScanUnavailable
+        ].ShouldBe(HttpStatusCode.ServiceUnavailable);
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(2);
+    }
 }

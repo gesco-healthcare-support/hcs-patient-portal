@@ -1,5 +1,5 @@
-import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { config, of, throwError } from 'rxjs';
 import { ListService } from '@abp/ng.core';
 
 import { DoctorService } from '../../../proxy/doctors/doctor.service';
@@ -13,8 +13,9 @@ import { DoctorDetailViewService } from './doctor-detail.service';
  * <p>The proxy is a recording fake and FormBuilder is the real one, so the validators under test are
  * the service's own.</p>
  *
- * <p>NOT TESTED: a failed submit. `submitForm` subscribes without an error handler, so RxJS rethrows
- * the error asynchronously, and under karma that fails whichever test happens to be running.</p>
+ * <p>A failed load or submit is covered in its own block at the end (#1113). Both used to subscribe
+ * without an error handler, so RxJS rethrew the error asynchronously and, under karma, failed
+ * whichever test happened to be running; that block replaces the global hook and restores it.</p>
  */
 describe('DoctorDetailViewService', () => {
   const stored: DoctorWithNavigationPropertiesDto = {
@@ -33,7 +34,7 @@ describe('DoctorDetailViewService', () => {
   let created: unknown[];
   let updated: { id: string; input: Record<string, unknown> }[];
   let refreshes: number;
-  function build(): DoctorDetailViewService {
+  function build(over: Record<string, unknown> = {}): DoctorDetailViewService {
     created = [];
     updated = [];
     refreshes = 0;
@@ -50,6 +51,7 @@ describe('DoctorDetailViewService', () => {
       getWithNavigationProperties: () => of(stored),
       getAppointmentTypeLookup: () => of({ items: [] }),
       getLocationLookup: () => of({ items: [] }),
+      ...over,
     };
     const list = {
       get: () => {
@@ -180,5 +182,46 @@ describe('DoctorDetailViewService', () => {
     service.showForm();
     service.hideForm();
     expect(service.isVisible).toBe(false);
+  });
+
+  describe('failed requests (#1113)', () => {
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+    const failure = () => throwError(() => ({ status: 500 }));
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('does not open the form when loading the doctor for an edit fails', fakeAsync(() => {
+      const service = build({ getWithNavigationProperties: failure });
+
+      service.update({ doctor: { id: 'TEST-doctor-1' } } as DoctorWithNavigationPropertiesDto);
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(service.isVisible).toBeFalsy();
+      expect(service.selected).not.toBe(stored);
+    }));
+
+    it('keeps the form open, clears busy and does not refresh when a create fails', fakeAsync(() => {
+      const service = build({ create: failure });
+      service.create();
+      fillValidForm(service);
+
+      service.submitForm();
+      tick();
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(service.isVisible).toBe(true);
+      expect(service.isBusy).toBe(false);
+      expect(refreshes).toBe(0);
+    }));
   });
 });

@@ -47,7 +47,6 @@ describe('appointmentStatusToPill', () => {
 
   it('leaves the untouched buckets alone', () => {
     expect(appointmentStatusToPill(AppointmentStatusType.Approved)).toBe('Approved');
-    expect(appointmentStatusToPill(AppointmentStatusType.CheckedIn)).toBe('Approved');
     expect(appointmentStatusToPill(AppointmentStatusType.Rejected)).toBe('Rejected');
     expect(appointmentStatusToPill(AppointmentStatusType.Pending)).toBe('Pending');
   });
@@ -75,9 +74,6 @@ describe('appointmentStatusToSegment', () => {
     const expected: ReadonlyArray<[AppointmentStatusType, string]> = [
       [AppointmentStatusType.Pending, 'pending'],
       [AppointmentStatusType.Approved, 'approved'],
-      [AppointmentStatusType.CheckedIn, 'approved'],
-      [AppointmentStatusType.CheckedOut, 'approved'],
-      [AppointmentStatusType.Billed, 'approved'],
       [AppointmentStatusType.Rejected, 'rejected'],
       [AppointmentStatusType.CancelledNoBill, 'cancelled'],
       [AppointmentStatusType.CancelledLate, 'cancelled'],

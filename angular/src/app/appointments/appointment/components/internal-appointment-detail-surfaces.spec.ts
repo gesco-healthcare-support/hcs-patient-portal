@@ -688,4 +688,158 @@ describe('InternalAppointmentDetailComponent surfaces', () => {
       expect(c.languageName('lang-1')).toBe('');
     }));
   });
+
+  describe('failed requests that used to have no error branch (#1113)', () => {
+    /**
+     * Each loader below subscribed with no error handler, so ABP's rethrown copy of a failed
+     * request reached RxJS's unhandled-error path. The assertions are the real behaviour for each
+     * site: what stays on screen, not just that nothing was thrown. The detector is the one from
+     * the block above, scoped and restored the same way, and the base ngOnInit is spied out.
+     */
+    let unhandled: jasmine.Spy;
+    let previous: typeof config.onUnhandledError;
+    const failure = () => throwError(() => ({ status: 500 }));
+
+    function failRest(c: Probe): void {
+      (TestBed.inject(RestService) as unknown as { request: unknown }).request = () => failure();
+      void c;
+    }
+
+    beforeEach(() => {
+      previous = config.onUnhandledError;
+      unhandled = jasmine.createSpy('onUnhandledError');
+      config.onUnhandledError = unhandled;
+      spyOn(AppointmentViewComponent.prototype, 'ngOnInit');
+    });
+
+    afterEach(() => {
+      config.onUnhandledError = previous;
+    });
+
+    it('leaves the state names empty when the state lookup fails', fakeAsync(() => {
+      const c = create();
+      c.getStateLookup = () => failure();
+      c.loadStateNames();
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.stateNamesById.size).toBe(0);
+    }));
+
+    it('keeps the current appointment when a reload after an action fails', fakeAsync(() => {
+      const c = create();
+      const current = appt();
+      c.appointment = current;
+      appointments['getWithNavigationProperties'].and.returnValue(failure());
+      AppointmentViewComponent.prototype.onActionSucceeded.call(c, {} as never);
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.appointment).toBe(current);
+    }));
+
+    it('keeps the current appointment when a reload after an info request fails', fakeAsync(() => {
+      const c = create();
+      const current = appt();
+      c.appointment = current;
+      appointments['getWithNavigationProperties'].and.returnValue(failure());
+      AppointmentViewComponent.prototype.onInfoRequestSucceeded.call(c);
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.appointment).toBe(current);
+    }));
+
+    it('keeps the current appointment when a reload after a change request fails', fakeAsync(() => {
+      const c = create();
+      const current = appt();
+      c.appointment = current;
+      c.changeRequestService = { getActiveForAppointment: () => of(null) };
+      appointments['getWithNavigationProperties'].and.returnValue(failure());
+      AppointmentViewComponent.prototype.onChangeRequestSucceeded.call(c, {
+        changeRequestType: ChangeRequestType.Cancel,
+      } as never);
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.appointment).toBe(current);
+    }));
+
+    it('leaves the authorized-user options empty when their lookup fails', fakeAsync(() => {
+      const c = create();
+      failRest(c);
+      c.loadExternalAuthorizedUsers();
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.externalAuthorizedUserOptions ?? []).toEqual([]);
+    }));
+
+    it('keeps the authorized-user rows when the accessor reload fails', fakeAsync(() => {
+      const c = create();
+      const rows = [{ accessorId: 'a1' }];
+      c.appointmentAuthorizedUsers = rows;
+      failRest(c);
+      c.loadAppointmentAccessors('appt-1');
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.appointmentAuthorizedUsers).toBe(rows);
+    }));
+
+    it('skips the applicant-attorney prefill quietly when its lookup fails', fakeAsync(() => {
+      const c = create();
+      c.configState = { getOne: () => ({ id: 'user-1' }) };
+      failRest(c);
+      c.loadApplicantAttorneyForCurrentUser();
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+    }));
+
+    it('still shows the defense attorney snapshot when the live lookup fails', fakeAsync(() => {
+      const c = create();
+      c.appointment = appt({ appointment: { id: 'appt-1', defenseAttorneyFirstName: 'Dana' } });
+      failRest(c);
+      c.bindDefenseAttorneyForAppointment('appt-1');
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.form.get('defenseAttorneyFirstName')?.value).toBe('Dana');
+    }));
+
+    it('keeps the injury rows when their load fails', fakeAsync(() => {
+      const c = create();
+      c.injuryDetails = [];
+      failRest(c);
+      c.loadInjuryDetails('appt-1');
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.injuryDetails).toEqual([]);
+    }));
+
+    it('leaves the employer form untouched when its load fails', fakeAsync(() => {
+      const c = create();
+      failRest(c);
+      c.loadEmployerDetails('appt-1');
+      tick();
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(c.employerDetailId ?? null).toBeNull();
+    }));
+
+    it('keeps the modal open and the booker input when saving an authorized user fails', async () => {
+      const c = create();
+      c.appointment = appt();
+      c.authorizedUserModalMode = 'edit';
+      c.editingAuthorizedUserId = 'acc-1';
+      c.isAuthorizedUserModalOpen = true;
+      c.authorizedUserForm.patchValue({ identityUserId: 'user-2', accessTypeId: 23 });
+      failRest(c);
+      await c.saveAuthorizedUserFromModal();
+      expect(c.isAuthorizedUserModalOpen).toBeTrue();
+    });
+
+    it('keeps the row when removing an authorized user fails', async () => {
+      const c = create();
+      const row = { accessorId: 'acc-1', firstName: 'A', lastName: 'B', email: 'a@example.test' };
+      c.appointmentAuthorizedUsers = [row];
+      (TestBed.inject(ConfirmationService) as unknown as { warn: unknown }).warn = () =>
+        of('confirm');
+      failRest(c);
+      await c.removeAuthorizedUser(row);
+      expect(c.appointmentAuthorizedUsers).toEqual([row]);
+    });
+  });
 });

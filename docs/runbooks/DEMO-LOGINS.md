@@ -141,7 +141,8 @@ grant, removed on 2026-05-19, and selects offices with a `__tenant` header the A
 scripts now stop at the start and say so.
 
 Local demo data comes from the `db-migrator` seed. The local Docker stack runs it with
-`DOTNET_ENVIRONMENT=Development`, which is what enables the demo seed contributors. To re-run it
+`DOTNET_ENVIRONMENT=Development` AND `ALLOW_DEMO_SEED=true`. The demo seed contributors need both
+(#726); Development alone creates no demo accounts. To re-run it
 against the existing databases (idempotent; existing rows are left alone):
 
 ```bash

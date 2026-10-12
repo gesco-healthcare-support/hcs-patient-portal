@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Timing;
@@ -17,6 +18,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// an office, because the report reads every office.</para>
 /// </summary>
 [Authorize]
+[RemoteService(IsEnabled = false)]
 public class CaseTrackerMissingIntakeAppService : CaseEvaluationAppService, ICaseTrackerMissingIntakeAppService
 {
     private readonly CaseTrackerMissingIntakeReporter _reporter;

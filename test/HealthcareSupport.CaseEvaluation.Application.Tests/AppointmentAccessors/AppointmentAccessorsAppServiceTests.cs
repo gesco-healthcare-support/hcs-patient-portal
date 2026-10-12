@@ -122,6 +122,52 @@ public abstract class AppointmentAccessorsAppServiceTests<TStartupModule> : Case
         }
     }
 
+    [Theory]
+    [InlineData("admin")]
+    [InlineData("Staff Supervisor")]
+    public async Task CreateAsync_WithNonExternalRole_IsRefused(string role)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   IdentityUsersTestData.HostAdminId,
+                   IdentityUsersTestData.HostAdminRoleName))
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(async () => await _accessorsAppService.CreateAsync(
+                new AppointmentAccessorCreateDto
+                {
+                    AppointmentId = AppointmentsTestData.Appointment1Id,
+                    Email = IdentityUsersTestData.Patient1Email,
+                    Role = role,
+                    AccessTypeId = AccessType.View
+                }));
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessorRoleNotAllowed);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithDifferentAppointmentId_IsRefused_AndRowUnchanged()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.Run(
+                   _currentPrincipalAccessor,
+                   IdentityUsersTestData.HostAdminId,
+                   IdentityUsersTestData.HostAdminRoleName))
+        {
+            var before = await _accessorRepository.GetAsync(AppointmentAccessorsTestData.Accessor1Id);
+            var ex = await Should.ThrowAsync<BusinessException>(async () => await _accessorsAppService.UpdateAsync(
+                before.Id,
+                new AppointmentAccessorUpdateDto
+                {
+                    AccessTypeId = before.AccessTypeId,
+                    IdentityUserId = before.IdentityUserId,
+                    AppointmentId = AppointmentsTestData.Appointment2Id
+                }));
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+            (await _accessorRepository.GetAsync(before.Id)).AppointmentId.ShouldBe(before.AppointmentId);
+        }
+    }
+
     [Fact]
     public async Task UpdateAsync_ChangesMutableFields()
     {

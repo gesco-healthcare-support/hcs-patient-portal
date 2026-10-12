@@ -267,7 +267,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
         }
-        if (IsExternalOnly(CurrentUser.Roles ?? Array.Empty<string>()))
+        // Deny by default: only a recognised internal role gets the tenant-wide search.
+        // This used to be the inverse -- "not exclusively external roles" -- which sent a
+        // caller with NO roles, or an unrecognised role, down the internal-staff branch
+        // below and let it search every external user in the office. A zero-role account
+        // is reachable through ABP's stock self-registration. Mirrors
+        // AppointmentVisibilityService, which this lookup must agree with.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
         {
             // HIPAA-scoped: an external caller may look up ONLY the co-parties named
             // on appointments they can already see. Leak-equivalent -- the caller
@@ -349,13 +355,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
         items = items.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ToList();
         return new ListResultDto<ExternalUserLookupDto>(items);
-    }
-
-    private static bool IsExternalOnly(string[] callerRoles)
-    {
-        var externalRoleNames = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
-        return callerRoles.Length > 0
-            && callerRoles.All(r => externalRoleNames.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
     }
 
     private async Task<Dictionary<Guid, string>> ReadFirmNamesAsync(IQueryable<IdentityUser> userQuery, List<Guid> matchedIds)
@@ -1022,12 +1021,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             master.IdentityUserId = identityUserId;
             await _applicantAttorneyRepository.UpdateAsync(master);
         }
-        if (unlinkedMasters.Count > 0)
         {
-            // Patch any existing link rows that point at these masters so
-            // the attorney's "My Appointments" list surfaces them via the
-            // visibility filter on AppointmentApplicantAttorney.IdentityUserId.
-            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            // Patch link rows that point at any master this user now OWNS, not only
+            // the ones claimed just above: RegisterAsync's adopt-by-email step has
+            // usually claimed the master already, so the loop above finds none and
+            // a pre-booked link would stay unclaimed (invisible to the attorney via
+            // the AppointmentApplicantAttorney.IdentityUserId visibility filter).
+            var ownedMasterQuery = await _applicantAttorneyRepository.GetQueryableAsync();
+            var masterIds = (await AsyncExecuter.ToListAsync(
+                    ownedMasterQuery.Where(a => a.IdentityUserId == identityUserId).Select(a => a.Id)))
+                .Concat(unlinkedMasters.Select(m => m.Id))
+                .ToHashSet();
             var unlinkedLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
             var unlinkedLinks = await AsyncExecuter.ToListAsync(
                 unlinkedLinkQuery.Where(l =>
@@ -1088,9 +1092,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             master.IdentityUserId = identityUserId;
             await _defenseAttorneyRepository.UpdateAsync(master);
         }
-        if (unlinkedMasters.Count > 0)
         {
-            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            // Same as the applicant path: patch links of every master this user owns,
+            // since RegisterAsync has typically claimed the master already.
+            var ownedMasterQuery = await _defenseAttorneyRepository.GetQueryableAsync();
+            var masterIds = (await AsyncExecuter.ToListAsync(
+                    ownedMasterQuery.Where(a => a.IdentityUserId == identityUserId).Select(a => a.Id)))
+                .Concat(unlinkedMasters.Select(m => m.Id))
+                .ToHashSet();
             var unlinkedLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
             var unlinkedLinks = await AsyncExecuter.ToListAsync(
                 unlinkedLinkQuery.Where(l =>

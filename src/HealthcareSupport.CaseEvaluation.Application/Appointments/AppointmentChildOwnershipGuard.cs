@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation;
 using Volo.Abp;
@@ -35,10 +36,14 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class AppointmentChildOwnershipGuard : ITransientDependency
 {
     private readonly AppointmentReadAccessGuard _readAccessGuard;
+    private readonly AppointmentVisibilityService _visibilityService;
 
-    public AppointmentChildOwnershipGuard(AppointmentReadAccessGuard readAccessGuard)
+    public AppointmentChildOwnershipGuard(
+        AppointmentReadAccessGuard readAccessGuard,
+        AppointmentVisibilityService visibilityService)
     {
         _readAccessGuard = readAccessGuard;
+        _visibilityService = visibilityService;
     }
 
     /// <summary>
@@ -106,5 +111,32 @@ public class AppointmentChildOwnershipGuard : ITransientDependency
     public virtual async Task EnsureIsPartyAsync(Guid appointmentId)
     {
         await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+    }
+
+    /// <summary>
+    /// The READ half of the same rule. Child rows are readable exactly when their parent appointment
+    /// is, so a by-id read calls <see cref="EnsureIsPartyAsync"/> with the row's stored parent, and a
+    /// list calls this to learn which parents it may touch.
+    ///
+    /// <para><b>Why reads needed their own gate.</b> Create and update were guarded and read was not:
+    /// the read methods carried only the <c>.Default</c> permission, which Patient, Applicant Attorney,
+    /// Defense Attorney and Claim Examiner all hold. An optional appointment filter on the list meant
+    /// no id had to be known to enumerate every patient's claim data in the office.</para>
+    ///
+    /// <para><b>Returns <c>null</c> for a recognised internal caller (no narrowing), otherwise the
+    /// appointment ids the list may return</b>, from <see cref="AppointmentVisibilityService"/> -- the
+    /// single definition of "which appointments may this caller see" the appointment list itself uses,
+    /// so the two cannot drift. Deny by default: a caller with no role, or an unrecognised one, is
+    /// narrowed.</para>
+    ///
+    /// <para>The caller pushes the result into the QUERY, not into a filter applied afterwards:
+    /// filtering after the fact leaks the total count through paging metadata. It is applied
+    /// even when the request names an appointment, so naming someone else's returns an empty page,
+    /// exactly as naming one that does not exist does. A refusal there would be an existence oracle
+    /// and a new error on a list that used to return empty.</para>
+    /// </summary>
+    public virtual async Task<IReadOnlyCollection<Guid>?> GetReadableAppointmentIdsAsync()
+    {
+        return await _visibilityService.GetVisibleAppointmentIdsAsync();
     }
 }

@@ -69,7 +69,7 @@ public sealed class AppointmentChildOwnershipTests
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
-        var guard = Substitute.For<AppointmentChildOwnershipGuard>(readGuard);
+        var guard = Substitute.For<AppointmentChildOwnershipGuard>(readGuard, null!);
 
         return new Harness
         {
@@ -165,7 +165,7 @@ public sealed class AppointmentChildOwnershipTests
             .EnsureCanReadAsync(Arg.Any<Guid>())
             .Throws(new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied));
 
-        var guard = new AppointmentChildOwnershipGuard(readGuard);
+        var guard = new AppointmentChildOwnershipGuard(readGuard, null!);
 
         // A mismatched parent and a matching one must refuse identically for a non-party.
         var mismatched = await Should.ThrowAsync<BusinessException>(async () =>
@@ -192,7 +192,7 @@ public sealed class AppointmentChildOwnershipTests
             Substitute.For<Volo.Abp.Users.ICurrentUser>(),
             Substitute.For<Volo.Abp.Linq.IAsyncQueryableExecuter>());
 
-        var guard = new AppointmentChildOwnershipGuard(readGuard);
+        var guard = new AppointmentChildOwnershipGuard(readGuard, null!);
 
         await guard.EnsureCanWriteChildAsync(OwnAppointment, OwnAppointment);
 

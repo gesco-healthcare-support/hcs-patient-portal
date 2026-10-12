@@ -25,11 +25,9 @@ namespace HealthcareSupport.CaseEvaluation.PackageDetails;
 /// the thing the guard must ignore -- an inactive package, an active package of another type -- because a
 /// refusal asserted against an empty table passes with half the predicate deleted.</para>
 ///
-/// <para>TWO THINGS THIS FILE DELIBERATELY DOES NOT PIN. (1) CreateAsync applies the rule even when the
-/// new package is INACTIVE, while UpdateAsync applies it to active packages only. Whether that asymmetry
-/// is intended is an open product question (#1002), so no Fact takes a side on it: every fixture that
-/// needs an inactive package next to an active one creates the inactive one FIRST, while its type has no
-/// active package, and so never reaches the disputed path. (2) The <c>excludingId</c> clause in
+/// <para>ONE THING THIS FILE DELIBERATELY DOES NOT PIN. (1) CreateAsync and UpdateAsync both apply the
+/// rule to ACTIVE packages only (#1002); an inactive create is allowed beside an active package and is
+/// pinned by <c>CreateAsync_AnInactivePackage_IsAllowedWhileTheTypeAlreadyHasAnActiveOne</c>. (2) The <c>excludingId</c> clause in
 /// <c>EnsureNoActiveDuplicateAsync</c> cannot change a result: UpdateAsync only calls it when the package
 /// is becoming active or changing type, so the persisted row is inactive or on its old type and can never
 /// match its own query. No Fact claims to test it.</para>
@@ -158,6 +156,23 @@ public abstract class PackageDetailsAppServiceTests<TStartupModule>
                 async () => await _packages.CreateAsync(second));
 
             ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.OneActivePackageDetailPerAppointmentType);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_AnInactivePackage_IsAllowedWhileTheTypeAlreadyHasAnActiveOne()
+    {
+        // LOAD-BEARING FIXTURE: an ACTIVE package already holds the type. The inactive create must still
+        // succeed (#1002) because it never competes for the single active slot.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var type = Guid.NewGuid();
+            await CreateAsync(Token("incumbent-active"), type);
+
+            var dormant = await CreateAsync(Token("dormant-new"), type, isActive: false);
+
+            dormant.IsActive.ShouldBeFalse();
+            dormant.AppointmentTypeId.ShouldBe(type);
         }
     }
 

@@ -235,7 +235,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 .IsPatientDuplicate(incoming, candidateBag))
             {
                 var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
-                if (matchedWithNav != null)
+                if (matchedWithNav?.Patient != null && await CanReuseMatchedPatientAsync(matchedWithNav.Patient))
                 {
                     // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
                     var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
@@ -246,6 +246,71 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             }
         }
         return null;
+    }
+
+    // Booking may reuse a matched patient only for a caller entitled to that record: internal staff
+    // (they dedupe for the office), the patient's own login, or a party under the typeahead rule.
+    // Same predicate as the by-id booking read, so a typed email or detail is never an entitlement.
+    private async Task<bool> CanReuseMatchedPatientAsync(Patient matched)
+    {
+        return BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles)
+            || await _bookingReadAccess.CanReadAsync(matched);
+    }
+
+    private async Task<(Patient Patient, bool WasExisting)> ResolveOrCreateAsync(
+        Guid? tenantId,
+        CreatePatientForAppointmentBookingInput input,
+        string? email)
+    {
+        if (BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            return await _patientManager.FindOrCreateAsync(
+                tenantId: tenantId,
+                identityUserId: null,
+                firstName: input.FirstName,
+                lastName: input.LastName,
+                email: email ?? string.Empty,
+                genderId: input.GenderId,
+                dateOfBirth: input.DateOfBirth,
+                phoneNumberTypeId: input.PhoneNumberTypeId,
+                stateId: input.StateId,
+                appointmentLanguageId: input.AppointmentLanguageId,
+                phoneNumber: input.PhoneNumber,
+                socialSecurityNumber: input.SocialSecurityNumber,
+                zipCode: input.ZipCode,
+                middleName: input.MiddleName,
+                address: input.Address,
+                city: input.City,
+                cellPhoneNumber: input.CellPhoneNumber,
+                street: input.Street,
+                interpreterVendorName: input.InterpreterVendorName,
+                apptNumber: input.ApptNumber,
+                othersLanguageName: input.OthersLanguageName);
+        }
+
+        var created = await _patientManager.CreateAsync(
+            input.StateId,
+            input.AppointmentLanguageId,
+            null,
+            tenantId,
+            input.FirstName,
+            input.LastName,
+            email ?? string.Empty,
+            input.GenderId,
+            input.DateOfBirth,
+            input.PhoneNumberTypeId,
+            input.MiddleName,
+            input.PhoneNumber,
+            input.SocialSecurityNumber,
+            input.Address,
+            input.City,
+            input.ZipCode,
+            input.CellPhoneNumber,
+            input.Street,
+            input.InterpreterVendorName,
+            input.ApptNumber,
+            input.OthersLanguageName);
+        return (created, false);
     }
 
     [Authorize]
@@ -276,7 +341,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                     maxResultCount: 1,
                     skipCount: 0);
                 var existing = existingPatients.FirstOrDefault();
-                if (existing?.Patient != null)
+                if (existing?.Patient != null && await CanReuseMatchedPatientAsync(existing.Patient))
                 {
                     // R2 (2026-05-04): email-fast-path resolved an existing patient.
                     var dtoExisting = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
@@ -332,28 +397,12 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             // FindOrCreate's own 3-of-6 (different field set than the dedup repo
             // method above) hit an existing row; wasFound=false means a brand-new
             // patient was inserted by FindOrCreate.
-            var (patient, wasFound) = await _patientManager.FindOrCreateAsync(
-                tenantId: CurrentTenant.Id,
-                identityUserId: null,
-                firstName: input.FirstName,
-                lastName: input.LastName,
-                email: email ?? string.Empty,
-                genderId: input.GenderId,
-                dateOfBirth: input.DateOfBirth,
-                phoneNumberTypeId: input.PhoneNumberTypeId,
-                stateId: input.StateId,
-                appointmentLanguageId: input.AppointmentLanguageId,
-                phoneNumber: input.PhoneNumber,
-                socialSecurityNumber: input.SocialSecurityNumber,
-                zipCode: input.ZipCode,
-                middleName: input.MiddleName,
-                address: input.Address,
-                city: input.City,
-                cellPhoneNumber: input.CellPhoneNumber,
-                street: input.Street,
-                interpreterVendorName: input.InterpreterVendorName,
-                apptNumber: input.ApptNumber,
-                othersLanguageName: input.OthersLanguageName);
+            // A match the caller is not entitled to is treated as NO match, so an external caller never
+            // learns whether a person is already a patient here and never attaches to someone else's
+            // record. The manager's own fuzzy match cannot be asked "would this match?" without also
+            // returning the row, so an external caller creates directly: any match worth reusing was
+            // already found above, by the same entitlement rule. Staff keep the full match.
+            var (patient, wasFound) = await ResolveOrCreateAsync(CurrentTenant.Id, input, email);
 
             if (CurrentUnitOfWork != null)
             {
@@ -485,13 +534,17 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
-    // F1 / Design B (2026-05-29) -- dedicated, audited SSN reveal endpoint.
+    // F1 / Design B (2026-05-29) -- dedicated SSN reveal endpoint.
     // Standard payloads carry only the masked last-4 (see ApplySsnVisibility);
     // this returns the full value. Two gates: the Patients.RevealSsn permission
     // (declarative) AND the internal-or-owner check in SsnRevealAccess (so a
-    // Patient can reveal only their OWN SSN, while internal staff may reveal
-    // any). ABP's HTTP audit log records each call (caller + patient id in the
-    // route: GET api/app/patients/{id}/ssn).
+    // Patient can reveal only their OWN SSN, while internal staff may reveal any).
+    // NOT AUDITED (corrected 2026-10-07): this is a GET, and the HTTP audit log
+    // does not record GET requests -- AbpAuditingOptions.IsEnabledForGetRequests
+    // is false (the ABP default, measured: zero GET rows in AbpAuditLogs across
+    // databases that have served GETs). So reveals are permission- and owner-gated
+    // but leave no audit trail today. Do not rely on one until per-method read
+    // auditing (or a purpose-built access log) is added.
     [Authorize(CaseEvaluationPermissions.Patients.RevealSsn)]
     public virtual async Task<SsnRevealDto> GetFullSsnAsync(Guid id)
     {
@@ -546,7 +599,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
+        var query = IdentityUserLookupScope.ForCaller((await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name), CurrentUser);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -677,7 +730,8 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- every patient
     // read- AND write-path return now masks SSN to the last 4 for ALL callers
     // (internal staff and the record owner included). The full value crosses
-    // the wire only via GetFullSsnAsync (the audited reveal endpoint), whose
+    // the wire only via GetFullSsnAsync (the dedicated reveal endpoint, which is
+    // permission- and owner-gated but not audited -- see its own note), whose
     // internal-or-owner authorization lives in the pure SsnRevealAccess helper.
     // See docs/plans/2026-05-29-ssn-redact-on-type.md.
     private static void ApplySsnVisibility(PatientDto? dto)

@@ -84,6 +84,22 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced";
 
     /// <summary>
+    /// Raised when an edit would cut a slot's capacity below the number of active appointments
+    /// already booked against it, leaving a booked appointment that the slot no longer admits.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotReduceCapacityBelowBooked</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotReduceCapacityBelowBooked =
+        "CaseEvaluation:DoctorAvailability.CannotReduceCapacityBelowBooked";
+
+    /// <summary>
+    /// Raised when an edit would remove an accepted appointment type that an active appointment on
+    /// the slot is using.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotRemoveTypeInUse</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotRemoveTypeInUse =
+        "CaseEvaluation:DoctorAvailability.CannotRemoveTypeInUse";
+
+    /// <summary>
     /// 2026-09-11 -- raised by <c>DoctorAvailabilityManager.CreateAsync</c> when the slot being
     /// created overlaps an existing slot at the same location on the same day.
     ///
@@ -471,6 +487,14 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentAccessorRoleMismatch =
         "CaseEvaluation:Appointment.AccessorRoleMismatch";
+
+    /// <summary>
+    /// Raised by <c>AppointmentAccessorManager.CreateOrLinkAsync</c> when the
+    /// requested accessor role is not one of the recognised external roles.
+    /// Localization key <c>CaseEvaluation:Appointment.AccessorRoleNotAllowed</c>.
+    /// </summary>
+    public const string AppointmentAccessorRoleNotAllowed =
+        "CaseEvaluation:Appointment.AccessorRoleNotAllowed";
 
     /// <summary>
     /// Phase 13 (2026-05-04) -- raised by
@@ -1023,6 +1047,16 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:ChangeRequest.ConsentExpired";
 
     /// <summary>
+    /// 2026-10-10 -- raised when a signed-in party answers a change request from inside the
+    /// portal that is not (or no longer) waiting for THEIR answer: someone else's side, an
+    /// appointment they cannot see, one already answered, or one already decided. One code for
+    /// all of them so the response cannot tell a caller which requests exist.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.ConsentNotAvailable</c>.
+    /// </summary>
+    public const string ChangeRequestConsentNotAvailable =
+        "CaseEvaluation:ChangeRequest.ConsentNotAvailable";
+
+    /// <summary>
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>AppointmentTypeManager.UpdateAsync / DeleteAsync</c> when the targeted
     /// row is a reserved <c>IsSystem</c> appointment type. System rows are not
@@ -1200,4 +1234,29 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AdminPasswordIsAKnownDefault =
         "CaseEvaluation:AdminPassword.IsAKnownDefault";
+
+    /// <summary>
+    /// Raised by <c>UserExtendedAppService</c> when a caller who is not IT Admin or admin tries to
+    /// change a privileged account, change roles outside the staff roles, or change their own roles.
+    /// </summary>
+    public const string PrivilegedUserChangeNotAllowed =
+        "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
+
+    /// <summary>
+    /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing
+    /// was stored. Mapped to HTTP 422.
+    ///
+    /// <para>The message is neutral on purpose (decision D4): naming the detection would tell an
+    /// uploader which signature fired. The signature goes to the log only.</para>
+    /// </summary>
+    public const string UploadRefused =
+        "CaseEvaluation:Upload.Refused";
+
+    /// <summary>
+    /// B11 -- the malware scanner could not give a verdict (down, slow, or an unrecognised answer),
+    /// so the upload was refused rather than stored unscanned. Mapped to HTTP 503: the file may be
+    /// fine and the same upload can succeed once the scanner is back.
+    /// </summary>
+    public const string UploadScanUnavailable =
+        "CaseEvaluation:Upload.ScanUnavailable";
 }

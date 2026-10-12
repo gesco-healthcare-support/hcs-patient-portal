@@ -49,6 +49,7 @@ import {
   buildSubmitPatient,
   buildSubmitPrimaryInsurance,
 } from './shared/submit-payload.mapper';
+import { storedPatientDetailsAreFinal } from './shared/patient-edit-notice.util';
 import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
   AddressValidationProvider,
@@ -71,6 +72,7 @@ import type { PatientDto, PatientWithNavigationPropertiesDto } from '../proxy/pa
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
+import type { BookingWindowDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
 // #121 (2026-05-13) -- 7 section components extracted from the monolithic booker template
 // (T1-T7). This class retains the 55-field reactive `form` FormGroup, every cascade
@@ -272,19 +274,42 @@ export class AppointmentAddComponent {
     string,
     Array<{ time: string; doctorAvailabilityId: string }>
   >();
-  readonly minimumBookingDays = 3;
-  readonly minimumBookingRuleMessage = `You can book appointment after ${this.minimumBookingDays} days of today's date.`;
+  // 2026-10-12: the office's booking window, relayed from the availability calendar once it loads
+  // (resolved server-side for this user and the chosen type). Until then, and if it cannot load,
+  // the defaults below apply. The server-side BookingPolicyValidator stays authoritative.
+  private bookingWindow: BookingWindowDto | null = null;
   // 2026-06-11: role-based booking horizon. External users may book at most 60
   // days out online; internal staff up to 90 (the absolute ceiling -- the
-  // state does not allow scheduling further out). Hardcoded client-side,
-  // mirroring minimumBookingDays; the server-side BookingPolicyValidator
-  // (role-aware AppointmentMaxTimeInternal) stays authoritative.
+  // state does not allow scheduling further out). 2026-10-12: these are now only
+  // the FALLBACK for when the office's own window has not loaded.
   private readonly externalMaxBookingDays = 60;
   private readonly internalMaxBookingDays = 90;
+  private readonly defaultMinimumBookingDays = 3;
 
-  /** Per-role online-booking horizon: 90 days for internal staff, 60 for external users. */
+  /** Lead time in force: the office's own once loaded, else the seeded default of 3. */
+  get minimumBookingDays(): number {
+    return this.bookingWindow?.leadTimeDays ?? this.defaultMinimumBookingDays;
+  }
+
+  /**
+   * Per-role online-booking horizon: the office's own for this user and type once loaded, else 90
+   * days for internal staff and 60 for external users.
+   */
   get maxBookingDays(): number {
+    if (this.bookingWindow?.maxDays != null) {
+      return this.bookingWindow.maxDays;
+    }
     return this.isInternalBooker ? this.internalMaxBookingDays : this.externalMaxBookingDays;
+  }
+
+  /** The absolute ceiling for every role: the office's own once loaded, else 90. */
+  get bookingCeilingDays(): number {
+    return this.bookingWindow?.ceilingDays ?? this.internalMaxBookingDays;
+  }
+
+  /** Takes the window the availability calendar loaded for the chosen type. */
+  onBookingWindowChange(window: BookingWindowDto): void {
+    this.bookingWindow = window;
   }
   appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> =
     [];
@@ -1229,6 +1254,8 @@ export class AppointmentAddComponent {
             }
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -1453,6 +1480,14 @@ export class AppointmentAddComponent {
     'defense attorney',
     'claim examiner',
   ];
+
+  /** #1107: an external booker with an existing patient loaded; their edits to it are not applied. */
+  get storedPatientDetailsAreFinal(): boolean {
+    return storedPatientDetailsAreFinal(
+      this.currentUser?.roles,
+      !!this.currentPatientProfile?.patient?.id,
+    );
+  }
 
   get isInternalBooker(): boolean {
     const roles = this.currentUser?.roles ?? [];
@@ -2685,10 +2720,10 @@ export class AppointmentAddComponent {
    * location are chosen, the slot lookup has resolved, and it returned zero
    * bookable dates -- i.e. no published availability sits at/after the booking
    * lead time (the server lookup excludes within-window slots). Without this the
-   * booker sees a silently all-grey calendar with no reason. Uses the FE
-   * minimumBookingDays constant (mirrors the server AppointmentLeadTime default);
-   * sourcing the live per-tenant value is deferred -- the system-parameter read
-   * 403s for external bookers and the value is informational here.
+   * booker sees a silently all-grey calendar with no reason. 2026-10-12:
+   * minimumBookingDays is the office's own lead time once the calendar's booking
+   * window has loaded (the system-parameter read 403s for external bookers, so the
+   * window endpoint exists for exactly this), else the default of 3.
    */
   get noBookableDatesMessage(): string {
     if (!this.checkForAppointmentTypeSelected || this.isAvailableDatesLoading) {
@@ -2809,90 +2844,97 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe((profile) => {
-        if (!profile?.identityUserId) {
-          return;
-        }
-        this.patientLabel = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
-        // 2026-05-07 (#14): the email control is no longer disabled by
-        // default (see form-build site), so an explicit enable() here is
-        // redundant. The HTML applies [readonly] for Patient bookers to
-        // gate editing without skipping validators.
-        this.form.get('patientId')?.clearValidators();
-        this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
-        this.form.patchValue({
-          identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
-          patientId: null,
-          firstName: null,
-          lastName: null,
-          middleName: null,
-          email: null,
-          genderId: null,
-          dateOfBirth: null,
-          cellPhoneNumber: null,
-          phoneNumber: null,
-          phoneNumberTypeId: null,
-          socialSecurityNumber: null,
-          street: null,
-          address: null,
-          city: null,
-          stateId: null,
-          zipCode: null,
-          appointmentLanguageId: null,
-          interpreterVendorName: null,
-          needsInterpreter: null,
-          refferedBy: null,
-          employerName: null,
-          employerOccupation: null,
-          employerPhoneNumber: null,
-          employerStreet: null,
-          employerCity: null,
-          employerStateId: null,
-          employerZipCode: null,
-        });
-        // Firm-model (D7 / C4): never auto-seed the attorney sections from the
-        // booker's own identity. A firm/paralegal AA or DA books on behalf of a
-        // DISTINCT attorney, so both sections start blank + editable. The former
-        // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
-        // because the *-details-for-booking endpoint returns the firm's OWN
-        // email + registration firm name for a firm account, which would re-seed
-        // the very identity we want kept out of the on-behalf section.
-        // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
-        // for self) now TYPES the attorney details each booking -- the add form
-        // has no AA lookup UI (the email-search box + picker live only on the
-        // appointment VIEW page). Submit still persists what they type to a
-        // master row keyed by the form email. "Solo attorney retypes" is the
-        // accepted trade-off (see the plan's Risks note).
-        this.form.patchValue({
-          applicantAttorneyIdentityUserId: null,
-          applicantAttorneyFirstName: null,
-          applicantAttorneyLastName: null,
-          applicantAttorneyEmail: null,
-          applicantAttorneyFirmName: null,
-          applicantAttorneyWebAddress: null,
-          applicantAttorneyPhoneNumber: null,
-          applicantAttorneyFaxNumber: null,
-          applicantAttorneyStreet: null,
-          applicantAttorneyCity: null,
-          applicantAttorneyStateId: null,
-          applicantAttorneyZipCode: null,
-          defenseAttorneyIdentityUserId: null,
-          defenseAttorneyFirstName: null,
-          defenseAttorneyLastName: null,
-          defenseAttorneyEmail: null,
-          defenseAttorneyFirmName: null,
-          defenseAttorneyWebAddress: null,
-          defenseAttorneyPhoneNumber: null,
-          defenseAttorneyFaxNumber: null,
-          defenseAttorneyStreet: null,
-          defenseAttorneyCity: null,
-          defenseAttorneyStateId: null,
-          defenseAttorneyZipCode: null,
-        });
-        this.applicantAttorneyId = null;
-        this.applicantAttorneyConcurrencyStamp = null;
-        this.defenseAttorneyId = null;
-        this.defenseAttorneyConcurrencyStamp = null;
+      .subscribe({
+        next: (profile) => {
+          if (!profile?.identityUserId) {
+            return;
+          }
+          this.patientLabel = [profile.firstName, profile.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          // 2026-05-07 (#14): the email control is no longer disabled by
+          // default (see form-build site), so an explicit enable() here is
+          // redundant. The HTML applies [readonly] for Patient bookers to
+          // gate editing without skipping validators.
+          this.form.get('patientId')?.clearValidators();
+          this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
+          this.form.patchValue({
+            identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
+            patientId: null,
+            firstName: null,
+            lastName: null,
+            middleName: null,
+            email: null,
+            genderId: null,
+            dateOfBirth: null,
+            cellPhoneNumber: null,
+            phoneNumber: null,
+            phoneNumberTypeId: null,
+            socialSecurityNumber: null,
+            street: null,
+            address: null,
+            city: null,
+            stateId: null,
+            zipCode: null,
+            appointmentLanguageId: null,
+            interpreterVendorName: null,
+            needsInterpreter: null,
+            refferedBy: null,
+            employerName: null,
+            employerOccupation: null,
+            employerPhoneNumber: null,
+            employerStreet: null,
+            employerCity: null,
+            employerStateId: null,
+            employerZipCode: null,
+          });
+          // Firm-model (D7 / C4): never auto-seed the attorney sections from the
+          // booker's own identity. A firm/paralegal AA or DA books on behalf of a
+          // DISTINCT attorney, so both sections start blank + editable. The former
+          // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
+          // because the *-details-for-booking endpoint returns the firm's OWN
+          // email + registration firm name for a firm account, which would re-seed
+          // the very identity we want kept out of the on-behalf section.
+          // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
+          // for self) now TYPES the attorney details each booking -- the add form
+          // has no AA lookup UI (the email-search box + picker live only on the
+          // appointment VIEW page). Submit still persists what they type to a
+          // master row keyed by the form email. "Solo attorney retypes" is the
+          // accepted trade-off (see the plan's Risks note).
+          this.form.patchValue({
+            applicantAttorneyIdentityUserId: null,
+            applicantAttorneyFirstName: null,
+            applicantAttorneyLastName: null,
+            applicantAttorneyEmail: null,
+            applicantAttorneyFirmName: null,
+            applicantAttorneyWebAddress: null,
+            applicantAttorneyPhoneNumber: null,
+            applicantAttorneyFaxNumber: null,
+            applicantAttorneyStreet: null,
+            applicantAttorneyCity: null,
+            applicantAttorneyStateId: null,
+            applicantAttorneyZipCode: null,
+            defenseAttorneyIdentityUserId: null,
+            defenseAttorneyFirstName: null,
+            defenseAttorneyLastName: null,
+            defenseAttorneyEmail: null,
+            defenseAttorneyFirmName: null,
+            defenseAttorneyWebAddress: null,
+            defenseAttorneyPhoneNumber: null,
+            defenseAttorneyFaxNumber: null,
+            defenseAttorneyStreet: null,
+            defenseAttorneyCity: null,
+            defenseAttorneyStateId: null,
+            defenseAttorneyZipCode: null,
+          });
+          this.applicantAttorneyId = null;
+          this.applicantAttorneyConcurrencyStamp = null;
+          this.defenseAttorneyId = null;
+          this.defenseAttorneyConcurrencyStamp = null;
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -2906,45 +2948,52 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe((profile) => {
-        const patient = profile?.patient;
-        if (!patient?.id) {
-          return;
-        }
+      .subscribe({
+        next: (profile) => {
+          const patient = profile?.patient;
+          if (!patient?.id) {
+            return;
+          }
 
-        this.currentPatientProfile = profile;
-        this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
-        this.form.patchValue({
-          patientId: patient.id,
-          identityUserId: patient.identityUserId ?? null,
-          firstName: patient.firstName ?? null,
-          lastName: patient.lastName ?? null,
-          middleName: patient.middleName ?? null,
-          email: patient.email ?? null,
-          genderId: this.normalizePatientGender(patient.genderId),
-          dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
-          cellPhoneNumber: patient.cellPhoneNumber ?? null,
-          phoneNumber: patient.phoneNumber ?? null,
-          phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
-          street: patient.street ?? null,
-          // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
-          address: unitForForm(patient),
-          city: patient.city ?? null,
-          stateId: patient.stateId ?? null,
-          zipCode: patient.zipCode ?? null,
-          appointmentLanguageId: patient.appointmentLanguageId ?? null,
-          interpreterVendorName: patient.interpreterVendorName ?? null,
-          needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
-          employerName: null,
-          employerOccupation: null,
-          employerPhoneNumber: null,
-          employerStreet: null,
-          employerCity: null,
-          employerStateId: null,
-          employerZipCode: null,
-        });
+          this.currentPatientProfile = profile;
+          this.patientLabel = [patient.firstName, patient.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          this.form.patchValue({
+            patientId: patient.id,
+            identityUserId: patient.identityUserId ?? null,
+            firstName: patient.firstName ?? null,
+            lastName: patient.lastName ?? null,
+            middleName: patient.middleName ?? null,
+            email: patient.email ?? null,
+            genderId: this.normalizePatientGender(patient.genderId),
+            dateOfBirth: normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+            cellPhoneNumber: patient.cellPhoneNumber ?? null,
+            phoneNumber: patient.phoneNumber ?? null,
+            phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+            socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+            street: patient.street ?? null,
+            // "Unit #" -- prefers apptNumber, falls back to the legacy column. See patient-unit.mapper.
+            address: unitForForm(patient),
+            city: patient.city ?? null,
+            stateId: patient.stateId ?? null,
+            zipCode: patient.zipCode ?? null,
+            appointmentLanguageId: patient.appointmentLanguageId ?? null,
+            interpreterVendorName: patient.interpreterVendorName ?? null,
+            needsInterpreter: !!patient.interpreterVendorName,
+            refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
+            employerName: null,
+            employerOccupation: null,
+            employerPhoneNumber: null,
+            employerStreet: null,
+            employerCity: null,
+            employerStateId: null,
+            employerZipCode: null,
+          });
+        },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3174,6 +3223,8 @@ export class AppointmentAddComponent {
           // the role once the options arrive (mirrors the view page).
           this.backfillAuthorizedUserRoles();
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3250,6 +3301,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3322,6 +3375,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3385,6 +3440,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3457,6 +3514,8 @@ export class AppointmentAddComponent {
             });
           }
         },
+        // ABP's RestService already reported this failure; settle the rethrown copy.
+        error: () => undefined,
       });
   }
 
@@ -3683,7 +3742,7 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * 2026-06-11: the absolute booking ceiling (internalMaxBookingDays = 90)
+   * 2026-06-11: the absolute booking ceiling (bookingCeilingDays, default 90)
    * applies to every booker -- nobody schedules beyond it, so the picker
    * disables those dates for all roles. Between 60 and 90 days, external
    * users still SEE the dates but get the contact-staff notice on selection
@@ -3692,7 +3751,7 @@ export class AppointmentAddComponent {
   private isBeyondAbsoluteBookingCeiling(date: NgbDateStruct): boolean {
     if (!date) return false;
     const key = this.toDateKey(date.year, date.month, date.day);
-    return this.daysFromTodayKey(key) > this.internalMaxBookingDays;
+    return this.daysFromTodayKey(key) > this.bookingCeilingDays;
   }
 
   private isBeforeMinimumBookingDateKey(dateKey: string): boolean {

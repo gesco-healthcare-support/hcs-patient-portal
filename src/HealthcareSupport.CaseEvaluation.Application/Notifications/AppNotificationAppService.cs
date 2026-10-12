@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Users;
@@ -18,6 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// shell, so an external caller simply gets an empty list.
 /// </summary>
 [Authorize]
+[RemoteService(IsEnabled = false)]
 public class AppNotificationAppService : CaseEvaluationAppService, IAppNotificationAppService
 {
     private readonly IRepository<AppNotification, Guid> _notificationRepository;

@@ -54,7 +54,7 @@ describe('HostBrandingComponent', () => {
         .createSpy('getOfficesPaged')
         .and.returnValue(of({ items: [ROW_A, ROW_B], totalCount: 2 })),
       setDisplayName: jasmine.createSpy('setDisplayName').and.returnValue(of({})),
-      uploadLogo: jasmine.createSpy('uploadLogo').and.returnValue(of({})),
+      uploadNormalizedLogo: jasmine.createSpy('uploadNormalizedLogo').and.returnValue(of({})),
       removeLogo: jasmine.createSpy('removeLogo').and.returnValue(of(undefined)),
     };
     toaster = { success: jasmine.createSpy('success'), error: jasmine.createSpy('error') };
@@ -221,7 +221,7 @@ describe('HostBrandingComponent', () => {
 
       c.onLogoSelected(ROW_B, pickEvent());
 
-      const [, officeId] = service['uploadLogo'].calls.mostRecent().args;
+      const [, officeId] = service['uploadNormalizedLogo'].calls.mostRecent().args;
       expect(officeId).toBe('office-b');
     });
 
@@ -231,7 +231,9 @@ describe('HostBrandingComponent', () => {
 
       c.onLogoSelected(ROW_A, pickEvent('practice-logo.png'));
 
-      expect(service['uploadLogo'].calls.mostRecent().args[0].name).toBe('practice-logo.png');
+      expect(service['uploadNormalizedLogo'].calls.mostRecent().args[0].name).toBe(
+        'practice-logo.png',
+      );
       expect(toaster.success).toHaveBeenCalledWith('Logo uploaded.');
       expect(reloads()).toBe(1);
       expect(c.busy()).toBeFalse();
@@ -244,7 +246,7 @@ describe('HostBrandingComponent', () => {
 
       c.onLogoSelected(ROW_A, { target: input } as unknown as Event);
 
-      expect(service['uploadLogo']).not.toHaveBeenCalled();
+      expect(service['uploadNormalizedLogo']).not.toHaveBeenCalled();
     });
 
     it('does nothing while another write is running', () => {
@@ -253,7 +255,7 @@ describe('HostBrandingComponent', () => {
 
       c.onLogoSelected(ROW_A, pickEvent());
 
-      expect(service['uploadLogo']).not.toHaveBeenCalled();
+      expect(service['uploadNormalizedLogo']).not.toHaveBeenCalled();
     });
 
     it('CLEARS the picker on success so the same file can be chosen again', () => {
@@ -266,9 +268,16 @@ describe('HostBrandingComponent', () => {
       expect((event.target as HTMLInputElement).value).toBe('');
     });
 
+    it('toasts a browser-side failure with its message', () => {
+      const c = create();
+      service['uploadNormalizedLogo'].and.returnValue(throwError(() => new Error('bad picture')));
+      c.onLogoSelected(ROW_A, pickEvent());
+      expect(toaster.error).toHaveBeenCalledWith('bad picture');
+    });
+
     it('clears the picker on failure too, and releases the button', () => {
       const c = create();
-      service['uploadLogo'].and.returnValue(throwError(() => ({ status: 413 })));
+      service['uploadNormalizedLogo'].and.returnValue(throwError(() => ({ status: 413 })));
       const event = pickEvent();
 
       c.onLogoSelected(ROW_A, event);

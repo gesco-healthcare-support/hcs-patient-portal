@@ -22,9 +22,6 @@ public enum AppointmentTransitionTrigger
     ConfirmReschedule = 9,
     ConfirmRescheduleLate = 10,
     MarkNoShow = 11,
-    CheckIn = 12,
-    CheckOut = 13,
-    Bill = 14,
 
     /// <summary>
     /// Phase 5 (2026-08-07): the patient arrived but was not evaluated. Companion
@@ -32,4 +29,11 @@ public enum AppointmentTransitionTrigger
     /// reach the portal only through the inbound attendance endpoint.
     /// </summary>
     MarkNotSeen = 15,
+
+    /// <summary>
+    /// #926 -- a reschedule request was rejected: RescheduleRequested -> Approved. Appended as 16 so
+    /// no stored or approved value is renumbered. A Pending source never left Pending when its
+    /// reschedule was filed, so rejecting it needs NO transition and must not reach the machine.
+    /// </summary>
+    RejectReschedule = 16,
 }

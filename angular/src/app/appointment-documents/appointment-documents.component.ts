@@ -445,6 +445,8 @@ export class AppointmentDocumentsComponent implements OnChanges {
         this.refresh();
         this.documentsChanged.emit();
       },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 
@@ -461,6 +463,8 @@ export class AppointmentDocumentsComponent implements OnChanges {
         this.refresh();
         this.documentsChanged.emit();
       },
+      // ABP's RestService already reported this failure; settle the rethrown copy.
+      error: () => undefined,
     });
   }
 

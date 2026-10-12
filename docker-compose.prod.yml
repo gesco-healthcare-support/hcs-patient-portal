@@ -15,8 +15,6 @@
 # Secrets come ONLY from the git-ignored secrets/env.prod (see env.prod.example); nothing
 # secret is committed or baked into an image. Bring up with:
 #   docker compose -f docker-compose.prod.yml --env-file secrets/env.prod up -d --build
-# For the CHECKPOINT 1 local-seed run (Option A), add the override:
-#   -f docker-compose.prod.yml -f docker-compose.prod.localseed.yml
 
 x-logging: &default-logging
   driver: json-file
@@ -148,6 +146,27 @@ services:
       timeout: 3s
       retries: 10
 
+  # B11: clamd scans every user-supplied file before it is stored. The API streams each
+  # upload to it over the internal network (Clamd__Host on the api service below) and
+  # refuses the upload when it finds a signature (422) or cannot answer (503) -- it fails
+  # CLOSED, so while this container is starting or down, uploads are refused, not stored
+  # unscanned. No published port: only the api talks to it.
+  #
+  # The api does NOT depend_on this service: the app starts without it, and signature
+  # loading takes about a minute on a cold start. freshclam inside the image refreshes the
+  # signatures and needs outbound HTTPS to database.clamav.net. The named volume keeps them
+  # across restarts so a restart is not a full download.
+  clamav:
+    image: clamav/clamav:1.5@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0
+    restart: unless-stopped
+    # ClamAV's own guidance: 3 GiB minimum, 4 GiB preferred, and double the signature
+    # memory briefly during a reload.
+    mem_limit: ${CLAMAV_MEM_LIMIT:-4g}
+    volumes:
+      - clamavdb:/var/lib/clamav
+    logging: *default-logging
+    # The image's own HEALTHCHECK (clamdcheck.sh) reports healthy once clamd answers.
+
   minio:
     # NOT pullable from any registry since 2026-09-30; see the MinIO note at the top of this file.
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -184,6 +203,11 @@ services:
       # artifact nobody can reproduce. The Case Tracker bucket (2026-08-13) holds
       # what THEIR staff upload against a case; ours holds packets and uploads.
       BUCKET_NAMES: "${MINIO_BUCKET_NAME:-case-evaluation-documents} ${MINIO_CASE_TRACKER_BUCKET_NAME:-case-tracker-documents}"
+      # The application's own credential: a plain MinIO user bound to a policy that reaches ONE
+      # bucket. Root stays here because this service is the administrator; the app never gets it.
+      APP_BUCKET: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      MINIO_APP_ACCESS_KEY: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod}"
+      MINIO_APP_SECRET_KEY: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod}"
     entrypoint:
       - /bin/sh
       - -c
@@ -198,6 +222,27 @@ services:
             echo "Bucket exists: $$bucket"
           fi
         done
+        # Scoped application credential. Safe to repeat on every `up`:
+        #   policy create     overwrites the policy of that name with identical JSON
+        #   user add          upserts the user and re-sets the same secret
+        #   policy attach     only when `user info` does not already list the policy
+        if [ "$$MINIO_APP_ACCESS_KEY" = "$$MINIO_ROOT_USER" ]; then
+          echo "REFUSING: MINIO_APP_ACCESS_KEY equals the root user" >&2
+          exit 1
+        fi
+        cat > /tmp/app-policy.json <<POLICY
+        {"Version":"2012-10-17","Statement":[
+          {"Effect":"Allow","Action":["s3:ListBucket","s3:GetBucketLocation","s3:ListBucketMultipartUploads"],"Resource":["arn:aws:s3:::$$APP_BUCKET"]},
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],"Resource":["arn:aws:s3:::$$APP_BUCKET/*"]}
+        ]}
+        POLICY
+        mc admin policy create local portal-app-rw /tmp/app-policy.json
+        mc admin user add local "$$MINIO_APP_ACCESS_KEY" "$$MINIO_APP_SECRET_KEY"
+        case "$$(mc admin user info local "$$MINIO_APP_ACCESS_KEY")" in
+          *portal-app-rw*) echo "Policy already attached: portal-app-rw" ;;
+          *) mc admin policy attach local portal-app-rw --user "$$MINIO_APP_ACCESS_KEY"
+             echo "Attached policy portal-app-rw" ;;
+        esac
     restart: "no"
 
   packet-renderer:
@@ -222,10 +267,7 @@ services:
       # BuildKit secret, not a build ARG -- see the secrets: block at the foot.
       secrets:
         - abp_nuget_key
-    # One-shot: applies EF migrations + runs seed contributors, then exits. Production
-    # by default (no test-data seeding). The local-seed override flips
-    # DBMIGRATOR_ENVIRONMENT=Development to seed the sample offices + it.admin@hcs.test
-    # into the volume for the CHECKPOINT 1 fast path (Option A).
+    # One-shot: applies EF migrations + runs seed contributors, then exits. Production.
     environment:
       DOTNET_ENVIRONMENT: "${DBMIGRATOR_ENVIRONMENT:-Production}"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
@@ -236,8 +278,8 @@ services:
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "https://api.${BASE_DOMAIN}"
       OpenIddict__Applications__CaseEvaluation_Swagger__ClientId: "CaseEvaluation_Swagger"
       BlobStoring__Minio__Endpoint: "minio:9000"
-      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
-      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__AccessKey: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
+      BlobStoring__Minio__SecretKey: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
@@ -305,8 +347,8 @@ services:
       Redis__IsEnabled: "true"
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
       BlobStoring__Minio__Endpoint: "minio:9000"
-      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
-      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__AccessKey: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
+      BlobStoring__Minio__SecretKey: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
@@ -323,6 +365,21 @@ services:
       Settings__Abp.Mailing.Smtp.UserName: "${SMTP_USERNAME}"
       Settings__Abp.Mailing.Smtp.Password: "${SMTP_PASSWORD}"
     volumes:
+      # #908: the Serilog file sink writes to Logs/ relative to the content root, which is
+      # container-local -- so a deploy, which recreates the container, erased the very log
+      # that would explain whatever prompted the deploy. Measured rather than assumed: after
+      # `up -d --force-recreate` the container id changes and `docker logs` returns only the
+      # new container's output, so the json-file driver does NOT cover this; a named volume
+      # kept both runs.
+      #
+      # NAMED volume, not a bind mount. This process runs as uid 1654, and Docker initialises
+      # a named volume from the image path WITH its ownership, which the Dockerfile already
+      # sets (`mkdir -p /app/Logs && chown app:app /app/Logs`). A bind-mount source that
+      # Docker creates is root-owned, and Serilog does not throw on a failed sink -- it drops
+      # the line -- so that variant yields a container that runs perfectly and silently writes
+      # nothing. That trap already costs this deploy two host-side prerequisites (#1152
+      # docs-site, #1127 admin-passwords); a named volume adds no third thing to forget.
+      - "authserverlogs:/app/Logs"
       # G6: OpenIddict token-signing cert mounted read-only at the content root. NEVER
       # baked into the image. Generate with scripts/hosting/gen-openiddict-cert.sh.
       - "${OPENIDDICT_PFX_PATH}:/app/openiddict.pfx:ro"
@@ -367,6 +424,8 @@ services:
       # B4: the Host names this process answers; anything else gets 400 before app code runs.
       # `localhost` = the container health checks. A bare "*" is refused at startup.
       AllowedHosts: "${BASE_DOMAIN};*.${BASE_DOMAIN};localhost"
+      # B11: the malware scanner. Required outside Development (HostingConfigValidator).
+      Clamd__Host: clamav
       AuthServer__Authority: "https://auth.${BASE_DOMAIN}"
       # Split-horizon: reach the AuthServer for OIDC discovery over the internal
       # network, but validate tokens against the public issuer (see IssuerValidator).
@@ -383,8 +442,8 @@ services:
       Redis__IsEnabled: "true"
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
       BlobStoring__Minio__Endpoint: "minio:9000"
-      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER}"
-      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD}"
+      BlobStoring__Minio__AccessKey: "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
+      BlobStoring__Minio__SecretKey: "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is not set in secrets/env.prod; the app must not use the MinIO root credential}"
       BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
@@ -428,6 +487,21 @@ services:
       AdminPasswords__Directory: "${ADMIN_PASSWORD_DIRECTORY:-/run/admin-passwords}"
       AdminPasswords__VaultUri: "${ADMIN_PASSWORD_VAULT_URI:-}"
     volumes:
+      # #908: the Serilog file sink writes to Logs/ relative to the content root, which is
+      # container-local -- so a deploy, which recreates the container, erased the very log
+      # that would explain whatever prompted the deploy. Measured rather than assumed: after
+      # `up -d --force-recreate` the container id changes and `docker logs` returns only the
+      # new container's output, so the json-file driver does NOT cover this; a named volume
+      # kept both runs.
+      #
+      # NAMED volume, not a bind mount. This process runs as uid 1654, and Docker initialises
+      # a named volume from the image path WITH its ownership, which the Dockerfile already
+      # sets (`mkdir -p /app/Logs && chown app:app /app/Logs`). A bind-mount source that
+      # Docker creates is root-owned, and Serilog does not throw on a failed sink -- it drops
+      # the line -- so that variant yields a container that runs perfectly and silently writes
+      # nothing. That trap already costs this deploy two host-side prerequisites (#1152
+      # docs-site, #1127 admin-passwords); a named volume adds no third thing to forget.
+      - "apilogs:/app/Logs"
       # B12: the generated admin passwords, one file per database, owner-read-only. Read-WRITE
       # because either process may be the one that first creates a database. Harmless on Azure,
       # where the directory key is left empty and the vault is used instead.
@@ -505,6 +579,17 @@ services:
       # depends on how many addresses the chosen balancer appends -- see the block at the top
       # of default.conf.template. Same always-defined rule as the line above.
       TRUSTED_PROXY_REAL_IP_RECURSIVE: "${TRUSTED_PROXY_REAL_IP_RECURSIVE:-}"
+      # Complete nginx allow directives for the minio.<domain> vhost (see the minio block in
+      # default.conf.template). The default is the RFC1918 private ranges, so the on-prem server keeps
+      # working with no new key in its env file; loopback is allowed in the template itself. NEVER
+      # written as ${VAR:?}: that is evaluated for the whole file and would gate every compose
+      # command, rollback included. An internet-facing deployment must set it to the Case Tracker
+      # egress address(es) only.
+      MINIO_ALLOW_DIRECTIVES: "${MINIO_ALLOW_DIRECTIVES:-allow 10.0.0.0/8; allow 172.16.0.0/12; allow 192.168.0.0/16;}"
+      # Same convention for the documentation site at <domain>/docs/ (no login of its own). Default is the
+      # RFC1918 private ranges; loopback is allowed in the template. NEVER ${VAR:?}. An internet-facing
+      # deployment must set it to the office egress address(es) only.
+      DOCS_ALLOW_DIRECTIVES: "${DOCS_ALLOW_DIRECTIVES:-allow 10.0.0.0/8; allow 172.16.0.0/12; allow 192.168.0.0/16;}"
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
@@ -531,6 +616,15 @@ volumes:
   sqldata:
   redisdata:
   miniodata:
+  # #908: host log directories, so a deploy stops erasing the record of what preceded it.
+  # Bounded by LogFileConsts (50 MB x 31 files = 1.55 GB worst case each, about 280 MB in
+  # practice at the measured 9.1 MB/day). They now persist instead of resetting every deploy,
+  # so that worst case is a real steady state rather than a ceiling nothing ever reached.
+  # Read on the box with `scripts/hosting/dc.sh exec api cat Logs/logs.txt`, or from the host
+  # under /var/lib/docker/volumes/<project>_apilogs/_data (root).
+  apilogs:
+  authserverlogs:
+  clamavdb:
 
 secrets:
   # The ABP Commercial feed key (#703). It used to be a build ARG, and Docker records

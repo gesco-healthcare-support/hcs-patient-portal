@@ -30,6 +30,7 @@ namespace HealthcareSupport.CaseEvaluation.HostOperators;
 /// grant enforces is <see cref="IIntakeAssignmentChecker"/> reading these rows.
 /// </summary>
 [Authorize]
+[RemoteService(IsEnabled = false)]
 public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssignmentsAppService
 {
     private readonly IRepository<IntakeOfficeAssignment, Guid> _assignmentRepository;

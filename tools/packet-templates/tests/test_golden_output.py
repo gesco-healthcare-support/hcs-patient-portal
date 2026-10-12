@@ -42,7 +42,7 @@ GOLDEN = os.path.join(HERE, "golden.sha256")
 
 # builder script -> the files it writes into its working directory
 BUILDERS = {
-    os.path.join("doctor", "build_doctor.py"): ["doctor.html"],
+    os.path.join("doctor", "build_doctor.py"): ["doctor.html", "doctor_landscape.html"],
     os.path.join("patient", "build_patient.py"): ["patient.html"],
     os.path.join("attorney", "build_attorney.py"): ["ame_ime.html", "pqme.html"],
 }
