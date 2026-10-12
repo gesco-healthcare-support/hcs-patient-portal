@@ -3,7 +3,8 @@ import { of, throwError } from 'rxjs';
 import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 
 import { PartyConsentCardComponent } from './party-consent-card.component';
-import { PartyConsentRequest, PartyConsentService } from './party-consent.service';
+import type { PartyConsentRequestDto } from '../../proxy/appointment-change-requests/models';
+import { PartyChangeRequestConsentService } from '../../proxy/appointment-change-requests/party-change-request-consent.service';
 import { ChangeRequestType } from '../../proxy/appointment-change-requests/change-request-type.enum';
 import { ChangeRequestConsentStatus } from '../../proxy/appointment-change-requests/change-request-consent-status.enum';
 
@@ -13,11 +14,11 @@ import { ChangeRequestConsentStatus } from '../../proxy/appointment-change-reque
  * something is, and a confirmation before an answer that cannot be taken back. Synthetic data.
  */
 describe('PartyConsentCardComponent', () => {
-  let service: { getMine: jasmine.Spy; decide: jasmine.Spy };
+  let service: { getMyPending: jasmine.Spy; submitMyDecision: jasmine.Spy };
   let confirmation: { warn: jasmine.Spy };
   let toaster: { success: jasmine.Spy };
 
-  const cancel = (over: Partial<PartyConsentRequest> = {}): PartyConsentRequest => ({
+  const cancel = (over: Partial<PartyConsentRequestDto> = {}): PartyConsentRequestDto => ({
     changeRequestId: 'cr-1',
     appointmentId: 'appt-1',
     confirmationNumber: 'A90001',
@@ -30,13 +31,17 @@ describe('PartyConsentCardComponent', () => {
     ...over,
   });
 
-  function render(items: PartyConsentRequest[], confirmStatus = Confirmation.Status.confirm) {
+  function render(
+    items: PartyConsentRequestDto[],
+    confirmStatus = Confirmation.Status.confirm,
+    appointmentId: string | null = 'appt-1',
+  ) {
     service = {
-      getMine: jasmine.createSpy('getMine').and.returnValue(of({ items })),
-      decide: jasmine
-        .createSpy('decide')
-        .and.callFake((id: string, approved: boolean) =>
-          of({ ...items[0], consentStatus: approved ? 2 : 3 }),
+      getMyPending: jasmine.createSpy('getMyPending').and.returnValue(of({ items })),
+      submitMyDecision: jasmine
+        .createSpy('submitMyDecision')
+        .and.callFake((id: string, input: { approved: boolean }) =>
+          of({ ...items[0], consentStatus: input.approved ? 2 : 3 }),
         ),
     };
     confirmation = { warn: jasmine.createSpy('warn').and.returnValue(of(confirmStatus)) };
@@ -44,13 +49,13 @@ describe('PartyConsentCardComponent', () => {
     TestBed.configureTestingModule({
       imports: [PartyConsentCardComponent],
       providers: [
-        { provide: PartyConsentService, useValue: service },
+        { provide: PartyChangeRequestConsentService, useValue: service },
         { provide: ConfirmationService, useValue: confirmation },
         { provide: ToasterService, useValue: toaster },
       ],
     });
     const fixture = TestBed.createComponent(PartyConsentCardComponent);
-    fixture.componentRef.setInput('appointmentId', 'appt-1');
+    fixture.componentRef.setInput('appointmentId', appointmentId);
     fixture.detectChanges();
     return fixture;
   }
@@ -61,7 +66,13 @@ describe('PartyConsentCardComponent', () => {
   it('renders nothing when nothing is waiting', () => {
     const root = render([]).nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="party-consent-card"]')).toBeNull();
-    expect(service.getMine).toHaveBeenCalledWith('appt-1');
+    expect(service.getMyPending).toHaveBeenCalledWith('appt-1');
+  });
+
+  it('asks for every waiting request when no appointment is named (the home page)', () => {
+    render([], Confirmation.Status.confirm, null);
+    // '' is dropped from the query string by RestService, which the server reads as "all".
+    expect(service.getMyPending).toHaveBeenCalledWith('');
   });
 
   it('shows a waiting cancellation with Agree and Decline', () => {
@@ -82,7 +93,7 @@ describe('PartyConsentCardComponent', () => {
     fixture.detectChanges();
 
     expect(confirmation.warn).toHaveBeenCalled();
-    expect(service.decide).toHaveBeenCalledWith('cr-1', true);
+    expect(service.submitMyDecision).toHaveBeenCalledWith('cr-1', { approved: true });
     expect(decided).toHaveBeenCalled();
     expect(toaster.success).toHaveBeenCalled();
     expect(
@@ -96,18 +107,18 @@ describe('PartyConsentCardComponent', () => {
     buttons(fixture.nativeElement)[1].click();
     await fixture.whenStable();
 
-    expect(service.decide).not.toHaveBeenCalled();
+    expect(service.submitMyDecision).not.toHaveBeenCalled();
   });
 
   it('reloads what is still waiting when the server refuses the answer', async () => {
     const fixture = render([cancel()]);
-    service.decide.and.returnValue(throwError(() => ({ status: 403 })));
+    service.submitMyDecision.and.returnValue(throwError(() => ({ status: 403 })));
 
     buttons(fixture.nativeElement)[1].click();
     await fixture.whenStable();
 
-    expect(service.decide).toHaveBeenCalledWith('cr-1', false);
-    expect(service.getMine).toHaveBeenCalledTimes(2);
+    expect(service.submitMyDecision).toHaveBeenCalledWith('cr-1', { approved: false });
+    expect(service.getMyPending).toHaveBeenCalledTimes(2);
   });
 
   it('names the case on the home page, where several can be listed', () => {
@@ -121,13 +132,15 @@ describe('PartyConsentCardComponent', () => {
 
   it('treats a failed load as nothing waiting', () => {
     service = {
-      getMine: jasmine.createSpy('getMine').and.returnValue(throwError(() => ({ status: 500 }))),
-      decide: jasmine.createSpy('decide'),
+      getMyPending: jasmine
+        .createSpy('getMyPending')
+        .and.returnValue(throwError(() => ({ status: 500 }))),
+      submitMyDecision: jasmine.createSpy('submitMyDecision'),
     };
     TestBed.configureTestingModule({
       imports: [PartyConsentCardComponent],
       providers: [
-        { provide: PartyConsentService, useValue: service },
+        { provide: PartyChangeRequestConsentService, useValue: service },
         { provide: ConfirmationService, useValue: { warn: jasmine.createSpy('warn') } },
         { provide: ToasterService, useValue: { success: jasmine.createSpy('success') } },
       ],

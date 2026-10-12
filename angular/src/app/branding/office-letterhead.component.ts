@@ -3,7 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
-import { OfficeLetterheadDto, OfficeLetterheadService } from './office-letterhead.service';
+import type { OfficeLetterheadDto } from '../proxy/branding/models';
+import { OfficeLetterheadService } from '../proxy/branding/office-letterhead.service';
 import {
   LetterheadForm,
   emptyLetterheadForm,
