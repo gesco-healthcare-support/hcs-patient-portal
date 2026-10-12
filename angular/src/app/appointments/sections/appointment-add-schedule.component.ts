@@ -9,6 +9,7 @@ import {
 } from '../availability-calendar/availability-calendar.component';
 import { Observable } from 'rxjs';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
+import type { BookingWindowDto } from '../../proxy/doctor-availabilities/models';
 
 /**
  * #121 phase T7 (2026-05-13) -- Appointment Details / Schedule card.
@@ -75,7 +76,6 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 export class AppointmentAddScheduleComponent {
   @Input({ required: true }) form!: FormGroup;
   @Input({ required: true }) checkForAppointmentTypeSelected = false;
-  @Input({ required: true }) minimumBookingRuleMessage = '';
   @Input({ required: true }) getAppointmentTypeLookup!: (
     input: LookupRequestDto,
   ) => Observable<PagedResultDto<LookupDto<string>>>;
@@ -95,6 +95,9 @@ export class AppointmentAddScheduleComponent {
 
   @Output() locationSelected = new EventEmitter<string>();
   @Output() appointmentDateCleared = new EventEmitter<void>();
+  // 2026-10-12: relays the calendar's booking window so the parent's contact-staff horizon uses
+  // the office's own number for this type, not a fixed 60/90.
+  @Output() bookingWindowChange = new EventEmitter<BookingWindowDto>();
 
   /** `YYYY-MM-DD` for the calendar, from whatever shape the form control holds. */
   protected get selectedDateKey(): string | null {

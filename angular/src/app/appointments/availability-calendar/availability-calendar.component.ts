@@ -16,6 +16,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { NgbDateAdapter, NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
+import type { BookingWindowDto } from '../../proxy/doctor-availabilities/models';
 import { AvailabilityDateAdapter } from './availability-date-adapter';
 import {
   buildAvailableDateKeys,
@@ -77,10 +78,14 @@ export class AvailabilityCalendarComponent implements OnChanges {
   /** False before an appointment type is chosen, when the picker greys nothing out. */
   @Input() typeChosen = false;
 
-  /** Client-side mirror of the tenant lead time. The server remains authoritative. */
+  /**
+   * FALLBACK lead time, used only until the office's real booking window loads (or if it cannot).
+   * 2026-10-12: the calendar now reads the window from the server, so an office that changed its
+   * lead time no longer sees the default 3 days applied. The server remains authoritative.
+   */
   @Input() leadDays = 3;
 
-  /** The shared absolute ceiling, applied to every role. */
+  /** FALLBACK absolute ceiling, applied to every role until the booking window loads. */
   @Input() ceilingDays = 90;
 
   /** `YYYY-MM-DD`. Drives which day renders as selected and which times are offered. */
@@ -89,7 +94,6 @@ export class AvailabilityCalendarComponent implements OnChanges {
 
   @Input() dateInvalid = false;
   @Input() timeInvalid = false;
-  @Input() minimumBookingRuleMessage = '';
 
   // Copy comes in as inputs rather than being localized here on purpose: a presentational calendar
   // should not own wording, and taking the strings keeps this component free of ABP's localization
@@ -100,6 +104,12 @@ export class AvailabilityCalendarComponent implements OnChanges {
 
   @Output() slotSelected = new EventEmitter<AvailabilitySelection>();
   @Output() dateCleared = new EventEmitter<void>();
+
+  /**
+   * The office's booking window as it applies to the signed-in user, each time it loads. The
+   * booking wizard uses its `maxDays` for the role-aware contact-staff notice, which stays there.
+   */
+  @Output() bookingWindowChange = new EventEmitter<BookingWindowDto>();
 
   protected isLoading = false;
   protected timeOptions: AvailabilityTimeOption[] = [];
@@ -116,8 +126,18 @@ export class AvailabilityCalendarComponent implements OnChanges {
    */
   private requestVersion = 0;
 
+  /** The office's booking window once loaded; null means the fallback inputs apply. */
+  private bookingWindow: BookingWindowDto | null = null;
+
+  /** Same stale-response guard as {@link requestVersion}, for the booking-window read. */
+  private windowRequestVersion = 0;
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['locationId'] || changes['appointmentTypeId']) {
+      // No location means nothing to pick from yet, so nothing is fetched at all.
+      if (this.locationId) {
+        void this.loadBookingWindow();
+      }
       void this.reload();
       return;
     }
@@ -137,10 +157,29 @@ export class AvailabilityCalendarComponent implements OnChanges {
   protected readonly markDateDisabled = (date: NgbDateStruct): boolean =>
     !isSelectableDate(date, {
       typeChosen: this.typeChosen,
-      leadDays: this.leadDays,
-      ceilingDays: this.ceilingDays,
+      leadDays: this.effectiveLeadDays,
+      ceilingDays: this.effectiveCeilingDays,
       availableKeys: this.availableDateKeys,
     });
+
+  /** The lead time in force: the office's own once loaded, else the `leadDays` fallback. */
+  get effectiveLeadDays(): number {
+    return this.bookingWindow?.leadTimeDays ?? this.leadDays;
+  }
+
+  /** The absolute ceiling in force: the office's own once loaded, else the `ceilingDays` fallback. */
+  get effectiveCeilingDays(): number {
+    return this.bookingWindow?.ceilingDays ?? this.ceilingDays;
+  }
+
+  /**
+   * The rule shown under a picked date. 2026-10-12: built here from the lead time in force; every
+   * caller used to pass its own copy with "3" written into it.
+   */
+  protected get minimumBookingRuleMessage(): string {
+    const days = this.effectiveLeadDays;
+    return `Appointments must be at least ${days} day${days === 1 ? '' : 's'} from today.`;
+  }
 
   /** Highlights days that actually have availability. */
   protected readonly isAvailableDate = (date: NgbDateStruct): boolean =>
@@ -155,7 +194,7 @@ export class AvailabilityCalendarComponent implements OnChanges {
     if (!this.typeChosen || this.isLoading || this.availableDateKeys.size > 0) {
       return '';
     }
-    const days = this.leadDays;
+    const days = this.effectiveLeadDays;
     return (
       'No appointment dates are available for the selected type and location. ' +
       `Appointments must be booked at least ${days} day${days === 1 ? '' : 's'} ahead, ` +
@@ -232,6 +271,35 @@ export class AvailabilityCalendarComponent implements OnChanges {
     this.timeControl.setValue(null, { emitEvent: false });
     this.timeOptions = [];
     this.dateCleared.emit();
+  }
+
+  /**
+   * 2026-10-12: reads the office's booking window for the chosen type and the signed-in user, so
+   * greyed-out days and the rule text follow the office's settings instead of fixed numbers.
+   * A failed read is HANDLED by keeping the fallback inputs, which are the seeded defaults: the
+   * window only mirrors the server, which still refuses an out-of-window booking on its own.
+   */
+  private async loadBookingWindow(): Promise<void> {
+    const version = ++this.windowRequestVersion;
+    try {
+      // An empty id is dropped from the query (RestService skips empty values), which the server
+      // reads as "no type". No error toast: a failure here is not the user's to act on.
+      const window = await firstValueFrom(
+        this.doctorAvailabilityService.getBookingWindow(this.appointmentTypeId ?? '', {
+          skipHandleError: true,
+        }),
+      );
+      if (version !== this.windowRequestVersion || !window) {
+        return;
+      }
+      this.bookingWindow = window;
+      this.bookingWindowChange.emit(window);
+    } catch {
+      if (version === this.windowRequestVersion) {
+        this.bookingWindow = null;
+      }
+    }
+    this.changeDetector.markForCheck();
   }
 
   private async reload(): Promise<void> {

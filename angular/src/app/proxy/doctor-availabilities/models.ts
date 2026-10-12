@@ -4,6 +4,12 @@ import type { LocationDto } from '../locations/models';
 import type { AppointmentTypeDto } from '../appointment-types/models';
 import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
 
+export interface BookingWindowDto {
+  leadTimeDays?: number;
+  maxDays?: number;
+  ceilingDays?: number;
+}
+
 export interface DoctorAvailabilityBulkDeleteResultDto {
   deletedCount?: number;
   skippedSlotIds?: string[];

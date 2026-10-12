@@ -214,6 +214,7 @@ HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppSer
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GeneratePreviewAsync(DoctorAvailabilityGenerateInputDto) -> class=(authenticated) method=CaseEvaluation.DoctorAvailabilities
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GetAppointmentTypeLookupAsync(LookupRequestDto) -> class=(authenticated) method=CaseEvaluation.DoctorAvailabilities
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GetAsync(Guid) -> class=(authenticated) method=CaseEvaluation.DoctorAvailabilities
+HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GetBookingWindowAsync(Nullable<Guid>) -> class=(authenticated) method=(authenticated)
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync(GetDoctorAvailabilityLookupInput) -> class=(authenticated) method=(authenticated)
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GetListAsync(GetDoctorAvailabilitiesInput) -> class=(authenticated) method=CaseEvaluation.DoctorAvailabilities
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.GetLocationLookupAsync(LookupRequestDto) -> class=(authenticated) method=CaseEvaluation.DoctorAvailabilities
