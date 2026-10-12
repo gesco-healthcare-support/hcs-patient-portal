@@ -1,6 +1,6 @@
 import { ChangeRequestType } from '../../proxy/appointment-change-requests/change-request-type.enum';
 import { ChangeRequestConsentStatus } from '../../proxy/appointment-change-requests/change-request-consent-status.enum';
-import type { PartyConsentRequest } from './party-consent.service';
+import type { PartyConsentRequestDto } from '../../proxy/appointment-change-requests/models';
 import {
   partyConsentConfirmText,
   partyConsentHeadline,
@@ -8,7 +8,7 @@ import {
 } from './party-consent.util';
 
 describe('party-consent.util', () => {
-  const item = (over: Partial<PartyConsentRequest> = {}): PartyConsentRequest => ({
+  const item = (over: Partial<PartyConsentRequestDto> = {}): PartyConsentRequestDto => ({
     changeRequestId: 'cr-1',
     appointmentId: 'appt-1',
     confirmationNumber: 'A90001',
