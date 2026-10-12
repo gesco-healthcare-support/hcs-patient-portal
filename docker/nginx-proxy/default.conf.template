@@ -546,7 +546,11 @@ server {
     #                              string-expression validators; nothing observed needs it. If a page
     #                              reports a CSP eval violation, fix the page, do not widen the policy.
     #   frame-ancestors            enforced now, alongside X-Frame-Options DENY.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.api.${BASE_DOMAIN} https://*.auth.${BASE_DOMAIN} https://us-street.api.smarty.com https://us-autocomplete-pro.api.smarty.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    #   img-src *.api              2026-10-12: the header shows the office logo as a plain <img> from
+    #                              {office}.api.<base>/api/app/branding/logo. Without this the enforced
+    #                              policy refused it (measured in Chrome against the live logo), so no
+    #                              uploaded logo could appear in the header. Same origins as connect-src.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.api.${BASE_DOMAIN}; connect-src 'self' https://*.api.${BASE_DOMAIN} https://*.auth.${BASE_DOMAIN} https://us-street.api.smarty.com https://us-autocomplete-pro.api.smarty.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
 
     location / {
         proxy_pass http://angular:8080;
