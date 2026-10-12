@@ -72,31 +72,27 @@ class UrlFetcherTests(unittest.TestCase):
             "relative.png",
             "//host/x",
         ):
+            fetcher = self.app.DataOnlyUrlFetcher()
             with self.subTest(url=url), self.assertRaises(ValueError):
-                self.app.refuse_remote_fetch(url)
+                fetcher.fetch(url)
+            self.assertEqual(fetcher.fetched, [], "a refused URL must never reach the real fetch")
 
     def test_refusal_message_does_not_echo_the_url(self):
         with self.assertRaises(ValueError) as ctx:
-            self.app.refuse_remote_fetch("http://secret-host.internal/p?q=PHI")
+            self.app.DataOnlyUrlFetcher().fetch("http://secret-host.internal/p?q=PHI")
         self.assertNotIn("secret-host", str(ctx.exception))
 
     def test_data_uris_are_delegated_to_weasyprint(self):
-        calls = []
-        fake = types.ModuleType("weasyprint")
-        fake.default_url_fetcher = lambda url, *a, **k: calls.append(url) or {"string": b"x"}
-        import sys
+        fetcher = self.app.DataOnlyUrlFetcher()
+        for url in ("data:image/png;base64,AAAA", "DATA:image/png;base64,AAAA"):
+            with self.subTest(url=url):
+                self.assertEqual(fetcher.fetch(url), ("fetched", url))
+        self.assertEqual(fetcher.fetched, ["data:image/png;base64,AAAA", "DATA:image/png;base64,AAAA"])
 
-        saved = sys.modules.get("weasyprint")
-        sys.modules["weasyprint"] = fake
-        try:
-            result = self.app.refuse_remote_fetch("data:image/png;base64,AAAA")
-        finally:
-            if saved is None:
-                sys.modules.pop("weasyprint", None)
-            else:
-                sys.modules["weasyprint"] = saved
-        self.assertEqual(calls, ["data:image/png;base64,AAAA"])
-        self.assertEqual(result, {"string": b"x"})
+    def test_the_fetcher_is_weasyprints_own_type(self):
+        # WeasyPrint 70 reads attributes off the fetcher and only accepts its own response type, so
+        # a plain function crashed every render with an image. Pin that it stays a subclass.
+        self.assertTrue(issubclass(self.app.DataOnlyUrlFetcher, self.app.URLFetcher))
 
 
 class RenderWiringTests(unittest.TestCase):
@@ -132,7 +128,9 @@ class RenderWiringTests(unittest.TestCase):
 
     def test_render_passes_the_refusing_fetcher(self):
         app, seen = self._render({TOK: "x"})
-        self.assertIs(seen["kwargs"].get("url_fetcher"), app.refuse_remote_fetch)
+        fetcher = seen["kwargs"].get("url_fetcher")
+        self.assertIsInstance(fetcher, app.DataOnlyUrlFetcher)
+        self.assertEqual(fetcher.init_kwargs, {"allow_redirects": False})
 
 
 if __name__ == "__main__":
