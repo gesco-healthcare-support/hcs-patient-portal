@@ -316,7 +316,10 @@ describe('Wizard section label association, remaining sections (#806)', () => {
           // both of its controls, which is what is under assertion here.
           {
             provide: DoctorAvailabilityService,
-            useValue: { getDoctorAvailabilityLookup: () => of([]) },
+            useValue: {
+              getDoctorAvailabilityLookup: () => of([]),
+              getBookingWindow: () => of({ leadTimeDays: 3, maxDays: 60, ceilingDays: 90 }),
+            },
           },
           // Mirrors app.config.ts, which formats every datepicker MM/DD/YYYY.
           { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
@@ -330,7 +333,6 @@ describe('Wizard section label association, remaining sections (#806)', () => {
       const c = fixture.componentInstance;
       c.form = groupOf(SCHEDULE_CONTROLS);
       c.checkForAppointmentTypeSelected = typeChosen;
-      c.minimumBookingRuleMessage = '';
       c.getAppointmentTypeLookup = emptyLookup;
       c.getLocationLookup = emptyLookup;
       fixture.detectChanges();

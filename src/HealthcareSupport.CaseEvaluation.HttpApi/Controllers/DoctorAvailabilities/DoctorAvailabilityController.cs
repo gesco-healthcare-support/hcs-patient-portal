@@ -3,6 +3,7 @@ using Asp.Versioning;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
@@ -111,6 +112,16 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
     public virtual Task<List<DoctorAvailabilityDto>> GetDoctorAvailabilityLookupAsync([FromQuery] GetDoctorAvailabilityLookupInput input)
     {
         return _doctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync(input);
+    }
+
+    // 2026-10-12 -- the booking calendar's window (lead time, horizon, ceiling). [Authorize] is
+    // repeated here so the route is visibly sign-in-only at the HTTP layer, not only in the service.
+    [HttpGet]
+    [Route("booking-window")]
+    [Authorize]
+    public virtual Task<BookingWindowDto> GetBookingWindowAsync([FromQuery] Guid? appointmentTypeId)
+    {
+        return _doctorAvailabilitiesAppService.GetBookingWindowAsync(appointmentTypeId);
     }
 
     // #2 (2026-06-19) -- POST (not GET): a visible week can carry 100+ slot ids,

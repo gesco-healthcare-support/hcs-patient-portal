@@ -98,10 +98,6 @@ export class RescheduleRequestModalComponent implements OnChanges {
     return rescheduleModalOptions(this.requesterIsStaff);
   }
 
-  get minimumBookingRuleMessage(): string {
-    return 'Appointments must be at least 3 days from today.';
-  }
-
   get canSubmit(): boolean {
     if (this.isBusy) {
       return false;

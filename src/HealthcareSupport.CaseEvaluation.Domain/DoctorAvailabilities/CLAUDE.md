@@ -15,10 +15,10 @@ appointment booking, and surfaced in Angular grouped by location + date with con
 | Domain | `Domain/DoctorAvailabilities/DoctorAvailabilityAppointmentType.cs` | M2M join (2026-05-15) between a slot and `AppointmentType`. Composite PK on (DoctorAvailabilityId, AppointmentTypeId); `TenantId` is MIRRORED from the parent slot at insert so ABP's IMultiTenant filter scopes it. **An empty set means "any AppointmentType accepted"**, not "none" |
 | Domain | `Domain/DoctorAvailabilities/DoctorAvailabilityWithNavigationProperties.cs` | Read projection carrying the slot plus the AppointmentTypes it accepts, materialized by the EF repository's join. Same empty-means-any rule |
 | Domain | `Domain/DoctorAvailabilities/OfficeAvailabilitySeedContributor.cs` | DEV seeder: gives each freshly provisioned office future-dated bookable slots, because a fresh office otherwise has an empty calendar and nothing to book. Slots start beyond the 3-day booking lead time, at the seeded clinic location, accepting the office's seeded appointment types |
-| Contracts | `Application.Contracts/DoctorAvailabilities/` | DTOs + `IDoctorAvailabilitiesAppService` (CRUD, bulk-generate preview, three delete modes) |
+| Contracts | `Application.Contracts/DoctorAvailabilities/` | DTOs + `IDoctorAvailabilitiesAppService` (CRUD, bulk-generate preview, three delete modes, booking-picker reads incl. `BookingWindowDto`) |
 | Application | `Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` | CRUD + preview + three delete modes; `[RemoteService(IsEnabled=false)]` |
 | EF Core | `EntityFrameworkCore/DoctorAvailabilities/EfCoreDoctorAvailabilityRepository.cs` | LEFT JOIN Location + AppointmentType; `filterText` arm is a no-op (`e => true`) |
-| HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 15 HTTP routes, counted with `grep -cE "\[Http(Get\|Post\|Put\|Delete\|Patch)" <that file>` |
+| HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 16 HTTP routes, counted with `grep -cE "\[Http(Get\|Post\|Put\|Delete\|Patch)" <that file>` |
 | Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | Active facts + 2 Skip gap-encoders (see Gotcha #3, and `CreateRangeAsync_AnyInsertFails_RollsBack`) |
 | Angular | `angular/src/app/doctor-availabilities/` | List + detail modal + bulk-generate + abstract/concrete view-services |
 
@@ -90,6 +90,10 @@ true, so `filterText` does nothing even though it flows through DTO / AppService
   silently shifts -- do not reorder the enum.
 - Lookups (`GetLocationLookupAsync`, `GetAppointmentTypeLookupAsync`) filter only by name;
   they do NOT scope to the doctor or to pre-existing slots.
+- `GetBookingWindowAsync` (`GET .../booking-window`, 2026-10-12) gives the booking calendar the
+  office's lead time, the CALLER's horizon for the chosen type and the absolute ceiling, resolved by
+  `BookingPolicyValidator.ResolveBookingWindow` -- the same role and type rules booking enforces.
+  Any signed-in user: external bookers need it and cannot read system parameters (403).
 - `GetListAsync` requires only `[Authorize]` (any authenticated user). All other read
   methods require `DoctorAvailabilities.Default`. Likely a code-gen miss.
 - Angular groups API results by location + date in the browser-side abstract service; there

@@ -694,6 +694,29 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     }
 
     /// <summary>
+    /// 2026-10-12 -- the caller's booking window, for the booking calendar (see
+    /// <see cref="BookingWindowDto"/>). Open to any signed-in user like
+    /// <see cref="GetDoctorAvailabilityLookupAsync"/>: external bookers need it and cannot read
+    /// system parameters, and an office's day counts are not sensitive. An unknown type id falls
+    /// back to the OTHER horizon rather than refusing, as a null category does at booking.
+    /// </summary>
+    [Authorize]
+    public virtual async Task<BookingWindowDto> GetBookingWindowAsync(Guid? appointmentTypeId)
+    {
+        var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
+
+        AppointmentMaxTimeCategory? category = null;
+        if (appointmentTypeId.HasValue)
+        {
+            var appointmentType = await _appointmentTypeRepository.FindAsync(appointmentTypeId.Value);
+            category = appointmentType?.MaxTimeCategory;
+        }
+
+        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+        return BookingPolicyValidator.ResolveBookingWindow(systemParameter, category, isInternalCaller);
+    }
+
+    /// <summary>
     /// The staff schedule surfaces carry patient names and confirmation numbers. External roles hold
     /// DoctorAvailabilities.Default for the booking picker, so the permission alone does not keep them
     /// out; refuse anyone without an internal role.
