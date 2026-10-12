@@ -58,8 +58,8 @@ Until they are removed, treat any code that references them as dead. Tracked as 
 
 Consequences a maintainer will otherwise trip over:
 
-- **The portal does not do billing.** `DashboardAppService` hardcodes `BilledThisMonth = 0`,
-  so the dashboard's billed counter is permanently zero rather than merely empty.
+- **The portal does not do billing.** The dashboard has no billed counter
+  (the always-zero `BilledThisMonth` placeholder was removed).
 - The email templates `PatientAppointmentCheckedIn` and `PatientAppointmentCheckedOut` exist in
   the catalogue and never fire.
 - `appointment-status.util.ts` maps all three to a status pill that no appointment can display.
@@ -117,10 +117,7 @@ invalid-transition error. Since #926 no path sets the status directly: `Appointm
 | Approved(2) | ConfirmCancellation(7) | CancelledNoBill(5) |
 | Approved(2) | ConfirmCancellationLate(8) | CancelledLate(6) |
 | Approved(2) | MarkNoShow(11) | NoShow(4) |
-| Approved(2) | CheckIn(12) | CheckedIn(9) |
 | Approved(2) | MarkNotSeen(15) | NotSeen(15) |
-| CheckedIn(9) | CheckOut(13) | CheckedOut(10) |
-| CheckedOut(10) | Bill(14) | Billed(11) |
 | RescheduleRequested(12) | ConfirmReschedule(9) | RescheduledNoBill(7) |
 | RescheduleRequested(12) | ConfirmRescheduleLate(10) | RescheduledLate(8) |
 | RescheduleRequested(12) | RejectReschedule(16) | Approved(2) |
@@ -133,15 +130,15 @@ invalid-transition error. Since #926 no path sets the status directly: `Appointm
 | Status | Outgoing |
 | --- | --- |
 | Pending(1) | 7 |
-| Approved(2) | 7 |
+| Approved(2) | 6 |
 | Rejected(3) | 0 |
 | NoShow(4) | 0 |
 | CancelledNoBill(5) | 0 |
 | CancelledLate(6) | 0 |
 | RescheduledNoBill(7) | 0 |
 | RescheduledLate(8) | 0 |
-| CheckedIn(9) | 1 |
-| CheckedOut(10) | 1 |
+| CheckedIn(9) | 0 |
+| CheckedOut(10) | 0 |
 | Billed(11) | 0 |
 | RescheduleRequested(12) | 3 |
 | CancellationRequested(13) | 2 |
@@ -163,9 +160,6 @@ invalid-transition error. Since #926 no path sets the status directly: `Appointm
 | ConfirmReschedule(9) | 2 |
 | ConfirmRescheduleLate(10) | 2 |
 | MarkNoShow(11) | 1 |
-| CheckIn(12) | 1 |
-| CheckOut(13) | 1 |
-| Bill(14) | 1 |
 | MarkNotSeen(15) | 1 |
 | RejectReschedule(16) | 1 |
 <!-- GENERATED: appointment-transitions END -->

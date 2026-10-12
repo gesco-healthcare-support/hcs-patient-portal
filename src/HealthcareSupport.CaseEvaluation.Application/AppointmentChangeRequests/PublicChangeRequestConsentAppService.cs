@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -26,15 +25,18 @@ public class PublicChangeRequestConsentAppService :
     private readonly ChangeRequestConsentManager _consentManager;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
+    private readonly ChangeRequestConsentCompletion _consentCompletion;
 
     public PublicChangeRequestConsentAppService(
         ChangeRequestConsentManager consentManager,
         IRepository<Appointment, Guid> appointmentRepository,
-        IRepository<DoctorAvailability, Guid> slotRepository)
+        IRepository<DoctorAvailability, Guid> slotRepository,
+        ChangeRequestConsentCompletion consentCompletion)
     {
         _consentManager = consentManager;
         _appointmentRepository = appointmentRepository;
         _slotRepository = slotRepository;
+        _consentCompletion = consentCompletion;
     }
 
     [AllowAnonymous]
@@ -53,6 +55,13 @@ public class PublicChangeRequestConsentAppService :
         try
         {
             var match = await _consentManager.RecordDecisionAsync(token, input.Approved, respondedByEmail: null);
+            if (input.Approved)
+            {
+                // The LAST approval may complete the request on its own. Scheduled for after this
+                // unit of work commits, in its own unit, with failures swallowed and logged: a
+                // failure to complete must never undo the consent just recorded.
+                await _consentCompletion.RequestCompletionAsync(match.Request.Id);
+            }
             return await BuildInfoAsync(match);
         }
         catch (BusinessException ex) when (
@@ -86,15 +95,8 @@ public class PublicChangeRequestConsentAppService :
                 var slot = await _slotRepository.FindAsync(slotId.Value);
                 if (slot != null)
                 {
-                    var date = slot.AvailableDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                    // Kind is Unspecified deliberately: this is a throwaway carrier for a
-                    // wall-clock time-of-day, rendered straight to "h:mm tt" and never stored,
-                    // compared, or converted between zones. The date part is arbitrary. Stated
-                    // explicitly because this codebase has already shipped a UTC-vs-Pacific date
-                    // onto a legal document, so a bare DateTime here invites the wrong question.
-                    var time = new DateTime(2000, 1, 1, slot.FromTime.Hour, slot.FromTime.Minute, slot.FromTime.Second, DateTimeKind.Unspecified)
-                        .ToString("h:mm tt", CultureInfo.GetCultureInfo("en-US"));
-                    newDateTime = $"{date} at {time}";
+                    // Shared with the in-portal consent card so both surfaces word it the same.
+                    newDateTime = ConsentSlotLabel.Format(slot);
                 }
             }
         }

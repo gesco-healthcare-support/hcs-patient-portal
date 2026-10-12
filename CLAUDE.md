@@ -86,7 +86,7 @@ both needs a migration in BOTH sets.
   Out-of-order cold starts break permission seeding and JWT validation.
 - **Never edit `angular/src/app/proxy/`.** It is generated; regenerate with
   `abp generate-proxy` after a backend DTO or service change.
-- **`appsettings.secrets.json`** holds the ABP licence and SMTP credentials. Treat as
+- **appsettings.secrets.json** holds the ABP licence and SMTP credentials. Treat as
   sensitive even where it is not gitignored.
 - **Every Compose command on the deployed server needs `--env-file secrets/env.prod`.**
   There is no `.env` there, so Compose loads nothing, every secret resolves to a blank
@@ -196,9 +196,9 @@ both needs a migration in BOTH sets.
 ## Deliberate oddities: do not "fix" these without asking
 
 - **Three appointment states are DEAD and are not supposed to exist here**: `CheckedIn`
-  (9), `CheckedOut` (10), `Billed` (11). The `AppointmentManager` transitions exist but
-  nothing triggers them. Their email templates, status pills and dashboard counters are
-  all present and never fire, and `DashboardAppService` hardcodes `BilledThisMonth = 0`.
+  (9), `CheckedOut` (10), `Billed` (11). The transitions, email dispatch, status-pill
+  mappings and always-zero dashboard counters were removed as dead code; the enum values,
+  labels, localization keys and notification template rows remain as deferred data migrations.
   They were planned for this portal and that responsibility moved to the Case Tracker
   (product owner, 2026-09-28), so they are removal candidates rather than unfinished work.
   Removing them is a data-compatibility exercise: the enum persists as integers and

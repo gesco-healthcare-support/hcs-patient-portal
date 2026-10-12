@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.Timing;
@@ -131,6 +132,41 @@ public class BookingPolicyValidator : ITransientDependency
         }
 
         return new BookingPolicyResult(BookingPolicyOutcome.Allowed, ThresholdDays: 0);
+    }
+
+    /// <summary>
+    /// 2026-10-12 -- the numbers <see cref="EvaluateBookingPolicy"/> enforces, for the booking
+    /// calendar to mirror (see <see cref="BookingWindowDto"/>). It resolves the role and the type
+    /// exactly as that method does, so the calendar and the server cannot disagree about which
+    /// dates are bookable. An office with no system-parameter row gets the seeded defaults: booking
+    /// itself refuses such an office, so this only keeps the picker drawable.
+    /// </summary>
+    internal static BookingWindowDto ResolveBookingWindow(
+        SystemParameter? systemParameter,
+        AppointmentMaxTimeCategory? maxTimeCategory,
+        bool isInternalCaller)
+    {
+        if (systemParameter == null)
+        {
+            // Every per-type default is the same 60 days (SystemParameterConsts, AF1).
+            return new BookingWindowDto
+            {
+                LeadTimeDays = SystemParameterConsts.DefaultAppointmentLeadTime,
+                MaxDays = isInternalCaller
+                    ? SystemParameterConsts.DefaultAppointmentMaxTimeInternal
+                    : SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+                CeilingDays = SystemParameterConsts.DefaultAppointmentMaxTimeInternal,
+            };
+        }
+
+        return new BookingWindowDto
+        {
+            LeadTimeDays = systemParameter.AppointmentLeadTime,
+            MaxDays = isInternalCaller
+                ? systemParameter.AppointmentMaxTimeInternal
+                : AppointmentBookingValidators.ResolveMaxTimeDaysForType(maxTimeCategory, systemParameter),
+            CeilingDays = systemParameter.AppointmentMaxTimeInternal,
+        };
     }
 }
 

@@ -10,7 +10,10 @@
 - `sections/` -- 9 template-only section components (Schedule, PatientDemographics,
   EmployerDetails, AttorneySection, ClaimPartiesSection, ClaimInformation, Documents,
   AuthorizedUsers, CustomFields).
-- `availability-calendar/` -- the date and time picker, shared with the reschedule flows.
+- `availability-calendar/` -- the date and time picker, shared with the reschedule flows. It reads
+  the office's booking window (`getBookingWindow`) for its lead time, ceiling and rule text, and
+  relays it so the booking engine's contact-staff horizon uses the office's number; `leadDays` /
+  `ceilingDays` (3 / 90) are only the fallback until it loads.
 - `shared/submit-payload.mapper.ts` -- builds the single `AppointmentSubmitDto`;
   `shared/booking-mode.ts` -- resolves the booking mode from the query string.
 - `appointment/components/appointment-view.component.ts` -- view/edit page for staff

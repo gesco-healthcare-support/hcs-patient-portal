@@ -53,8 +53,8 @@ describe('OfficeBrandingComponent', () => {
         .createSpy('getCurrent')
         .and.callFake(() => (currentFails ? throwError(() => ({ status: 500 })) : of(current))),
       setDisplayName: jasmine.createSpy('setDisplayName').and.returnValue(of({})),
-      uploadLogo: jasmine
-        .createSpy('uploadLogo')
+      uploadNormalizedLogo: jasmine
+        .createSpy('uploadNormalizedLogo')
         .and.returnValue(of({ displayName: 'Example Practice', hasLogo: true, logoUrl: 'l.png' })),
       removeLogo: jasmine.createSpy('removeLogo').and.returnValue(of(undefined)),
       load: jasmine.createSpy('load'),
@@ -251,21 +251,21 @@ describe('OfficeBrandingComponent', () => {
       const input = document.createElement('input');
       Object.defineProperty(input, 'files', { value: [], configurable: true });
       c.onLogoSelected({ target: input } as unknown as Event);
-      expect(branding['uploadLogo']).not.toHaveBeenCalled();
+      expect(branding['uploadNormalizedLogo']).not.toHaveBeenCalled();
     });
 
     it('does nothing while another write is running', () => {
       const c = create();
       c.busy.set(true);
       c.onLogoSelected(pickEvent());
-      expect(branding['uploadLogo']).not.toHaveBeenCalled();
+      expect(branding['uploadNormalizedLogo']).not.toHaveBeenCalled();
     });
 
     it('uploads the chosen file and confirms', () => {
       const c = create();
       c.onLogoSelected(pickEvent());
-      expect(branding['uploadLogo']).toHaveBeenCalled();
-      expect(branding['uploadLogo'].calls.mostRecent().args[0].name).toBe('logo.png');
+      expect(branding['uploadNormalizedLogo']).toHaveBeenCalled();
+      expect(branding['uploadNormalizedLogo'].calls.mostRecent().args[0].name).toBe('logo.png');
       expect(toaster.success).toHaveBeenCalledWith('Logo uploaded.');
       expect(branding['load']).toHaveBeenCalled();
       expect(c.busy()).toBeFalse();
@@ -286,9 +286,23 @@ describe('OfficeBrandingComponent', () => {
       expect((event.target as HTMLInputElement).value).toBe('');
     });
 
+    it('toasts a browser-side failure (an undecodable picture) with its message', () => {
+      const c = create();
+      branding['uploadNormalizedLogo'].and.returnValue(throwError(() => new Error('too detailed')));
+      c.onLogoSelected(pickEvent());
+      expect(toaster.error).toHaveBeenCalledWith('too detailed');
+    });
+
+    it('does not double-toast a server error ABP already reported', () => {
+      const c = create();
+      branding['uploadNormalizedLogo'].and.returnValue(throwError(() => ({ status: 413 })));
+      c.onLogoSelected(pickEvent());
+      expect(toaster.error).not.toHaveBeenCalled();
+    });
+
     it('clears the picker on failure too, and releases the button', () => {
       const c = create();
-      branding['uploadLogo'].and.returnValue(throwError(() => ({ status: 413 })));
+      branding['uploadNormalizedLogo'].and.returnValue(throwError(() => ({ status: 413 })));
       const event = pickEvent();
 
       c.onLogoSelected(event);

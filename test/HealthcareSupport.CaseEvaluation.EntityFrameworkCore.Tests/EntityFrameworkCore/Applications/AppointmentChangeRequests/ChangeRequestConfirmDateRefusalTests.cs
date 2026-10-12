@@ -55,7 +55,7 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
             cancellationReason: null, reScheduleReason: "TEST-reschedule reason", newDoctorAvailabilityId: heldByRequest), autoSave: true)).Id);
 
         var ex = await Should.ThrowAsync<BusinessException>(() => InOfficeAAsync(() => _decisions.ConfirmRescheduleDateAsync(
-            requestId, new ConfirmRescheduleDateInput { DoctorAvailabilityId = bookedByOthers })));
+            requestId, new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = bookedByOthers })));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable);
         (await InOfficeAAsync(() => _rounds.CountAsync(r => r.AppointmentChangeRequestId == requestId))).ShouldBe(0);

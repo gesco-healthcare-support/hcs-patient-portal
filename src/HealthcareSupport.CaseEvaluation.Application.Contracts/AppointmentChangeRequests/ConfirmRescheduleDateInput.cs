@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.Enums;
 using JetBrains.Annotations;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
@@ -23,6 +24,14 @@ public class ConfirmRescheduleDateInput
     /// </summary>
     [Required]
     public Guid DoctorAvailabilityId { get; set; }
+
+    /// <summary>
+    /// REQUIRED (2026-10-09): the outcome bucket, RescheduledNoBill or RescheduledLate, chosen
+    /// when staff set the date. Once both sides agree the reschedule completes on its own with
+    /// this outcome, so there is no second staff Approve to pick it at.
+    /// </summary>
+    [Required]
+    public AppointmentStatusType RescheduleOutcome { get; set; }
 
     /// <summary>
     /// Optional note explaining the chosen date; copied onto the change-request row at

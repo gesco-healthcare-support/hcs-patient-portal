@@ -641,6 +641,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
             b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
+            b.Property(x => x.ProposedOutcome).HasColumnName(nameof(AppointmentChangeRequest.ProposedOutcome));
             b.Property(x => x.DecidedAt).HasColumnName(nameof(AppointmentChangeRequest.DecidedAt));
             // Consent (2026-07-01 redesign): two symmetric side-consent slots.
             b.Property(x => x.RequestingSide).HasColumnName(nameof(AppointmentChangeRequest.RequestingSide));
@@ -676,6 +677,7 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.Property(x => x.ProposedByUserId).HasColumnName(nameof(ChangeRequestConsentRound.ProposedByUserId));
             b.Property(x => x.ProposedReason).HasColumnName(nameof(ChangeRequestConsentRound.ProposedReason)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
             b.Property(x => x.SendAttempts).HasColumnName(nameof(ChangeRequestConsentRound.SendAttempts));
+            b.Property(x => x.ProposedOutcome).HasColumnName(nameof(ChangeRequestConsentRound.ProposedOutcome));
             b.Property(x => x.SupersededAt).HasColumnName(nameof(ChangeRequestConsentRound.SupersededAt));
             b.Property(x => x.SideAConsentStatus).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentStatus));
             b.Property(x => x.SideAConsentTokenHash).HasColumnName(nameof(ChangeRequestConsentRound.SideAConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);

@@ -72,6 +72,7 @@ import type { PatientDto, PatientWithNavigationPropertiesDto } from '../proxy/pa
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
+import type { BookingWindowDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
 // #121 (2026-05-13) -- 7 section components extracted from the monolithic booker template
 // (T1-T7). This class retains the 55-field reactive `form` FormGroup, every cascade
@@ -273,19 +274,42 @@ export class AppointmentAddComponent {
     string,
     Array<{ time: string; doctorAvailabilityId: string }>
   >();
-  readonly minimumBookingDays = 3;
-  readonly minimumBookingRuleMessage = `You can book appointment after ${this.minimumBookingDays} days of today's date.`;
+  // 2026-10-12: the office's booking window, relayed from the availability calendar once it loads
+  // (resolved server-side for this user and the chosen type). Until then, and if it cannot load,
+  // the defaults below apply. The server-side BookingPolicyValidator stays authoritative.
+  private bookingWindow: BookingWindowDto | null = null;
   // 2026-06-11: role-based booking horizon. External users may book at most 60
   // days out online; internal staff up to 90 (the absolute ceiling -- the
-  // state does not allow scheduling further out). Hardcoded client-side,
-  // mirroring minimumBookingDays; the server-side BookingPolicyValidator
-  // (role-aware AppointmentMaxTimeInternal) stays authoritative.
+  // state does not allow scheduling further out). 2026-10-12: these are now only
+  // the FALLBACK for when the office's own window has not loaded.
   private readonly externalMaxBookingDays = 60;
   private readonly internalMaxBookingDays = 90;
+  private readonly defaultMinimumBookingDays = 3;
 
-  /** Per-role online-booking horizon: 90 days for internal staff, 60 for external users. */
+  /** Lead time in force: the office's own once loaded, else the seeded default of 3. */
+  get minimumBookingDays(): number {
+    return this.bookingWindow?.leadTimeDays ?? this.defaultMinimumBookingDays;
+  }
+
+  /**
+   * Per-role online-booking horizon: the office's own for this user and type once loaded, else 90
+   * days for internal staff and 60 for external users.
+   */
   get maxBookingDays(): number {
+    if (this.bookingWindow?.maxDays != null) {
+      return this.bookingWindow.maxDays;
+    }
     return this.isInternalBooker ? this.internalMaxBookingDays : this.externalMaxBookingDays;
+  }
+
+  /** The absolute ceiling for every role: the office's own once loaded, else 90. */
+  get bookingCeilingDays(): number {
+    return this.bookingWindow?.ceilingDays ?? this.internalMaxBookingDays;
+  }
+
+  /** Takes the window the availability calendar loaded for the chosen type. */
+  onBookingWindowChange(window: BookingWindowDto): void {
+    this.bookingWindow = window;
   }
   appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> =
     [];
@@ -2696,10 +2720,10 @@ export class AppointmentAddComponent {
    * location are chosen, the slot lookup has resolved, and it returned zero
    * bookable dates -- i.e. no published availability sits at/after the booking
    * lead time (the server lookup excludes within-window slots). Without this the
-   * booker sees a silently all-grey calendar with no reason. Uses the FE
-   * minimumBookingDays constant (mirrors the server AppointmentLeadTime default);
-   * sourcing the live per-tenant value is deferred -- the system-parameter read
-   * 403s for external bookers and the value is informational here.
+   * booker sees a silently all-grey calendar with no reason. 2026-10-12:
+   * minimumBookingDays is the office's own lead time once the calendar's booking
+   * window has loaded (the system-parameter read 403s for external bookers, so the
+   * window endpoint exists for exactly this), else the default of 3.
    */
   get noBookableDatesMessage(): string {
     if (!this.checkForAppointmentTypeSelected || this.isAvailableDatesLoading) {
@@ -3718,7 +3742,7 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * 2026-06-11: the absolute booking ceiling (internalMaxBookingDays = 90)
+   * 2026-06-11: the absolute booking ceiling (bookingCeilingDays, default 90)
    * applies to every booker -- nobody schedules beyond it, so the picker
    * disables those dates for all roles. Between 60 and 90 days, external
    * users still SEE the dates but get the contact-staff notice on selection
@@ -3727,7 +3751,7 @@ export class AppointmentAddComponent {
   private isBeyondAbsoluteBookingCeiling(date: NgbDateStruct): boolean {
     if (!date) return false;
     const key = this.toDateKey(date.year, date.month, date.day);
-    return this.daysFromTodayKey(key) > this.internalMaxBookingDays;
+    return this.daysFromTodayKey(key) > this.bookingCeilingDays;
   }
 
   private isBeforeMinimumBookingDateKey(dateKey: string): boolean {

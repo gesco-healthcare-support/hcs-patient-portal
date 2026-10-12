@@ -1047,6 +1047,16 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:ChangeRequest.ConsentExpired";
 
     /// <summary>
+    /// 2026-10-10 -- raised when a signed-in party answers a change request from inside the
+    /// portal that is not (or no longer) waiting for THEIR answer: someone else's side, an
+    /// appointment they cannot see, one already answered, or one already decided. One code for
+    /// all of them so the response cannot tell a caller which requests exist.
+    /// Localization key <c>CaseEvaluation:ChangeRequest.ConsentNotAvailable</c>.
+    /// </summary>
+    public const string ChangeRequestConsentNotAvailable =
+        "CaseEvaluation:ChangeRequest.ConsentNotAvailable";
+
+    /// <summary>
     /// Prompt 15 / item 32 (2026-06-15) -- raised by
     /// <c>AppointmentTypeManager.UpdateAsync / DeleteAsync</c> when the targeted
     /// row is a reserved <c>IsSystem</c> appointment type. System rows are not
@@ -1231,4 +1241,22 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string PrivilegedUserChangeNotAllowed =
         "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
+
+    /// <summary>
+    /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing
+    /// was stored. Mapped to HTTP 422.
+    ///
+    /// <para>The message is neutral on purpose (decision D4): naming the detection would tell an
+    /// uploader which signature fired. The signature goes to the log only.</para>
+    /// </summary>
+    public const string UploadRefused =
+        "CaseEvaluation:Upload.Refused";
+
+    /// <summary>
+    /// B11 -- the malware scanner could not give a verdict (down, slow, or an unrecognised answer),
+    /// so the upload was refused rather than stored unscanned. Mapped to HTTP 503: the file may be
+    /// fine and the same upload can succeed once the scanner is back.
+    /// </summary>
+    public const string UploadScanUnavailable =
+        "CaseEvaluation:Upload.ScanUnavailable";
 }

@@ -19,8 +19,43 @@ export interface OfficeBrandingDto {
   logoUrl?: string | null;
 }
 
+export interface OfficeLetterheadDto {
+  letterheadName?: string | null;
+  letterheadTagline?: string | null;
+  physicianName?: string | null;
+  practiceName?: string | null;
+  mailingStreet?: string | null;
+  mailingCity?: string | null;
+  mailingState?: string | null;
+  mailingZip?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  recordsDeliveryAddress?: string | null;
+  recordsReleaseAddress?: string | null;
+  missedAppointmentFee?: number | null;
+  defaultPhysicianName?: string;
+  defaultLetterheadName?: string;
+  defaultPracticeName?: string;
+}
+
 export interface SetBrandingDisplayNameInput {
   displayName?: string | null;
+}
+
+export interface UpdateOfficeLetterheadInput {
+  letterheadName?: string | null;
+  letterheadTagline?: string | null;
+  physicianName?: string | null;
+  practiceName?: string | null;
+  mailingStreet?: string | null;
+  mailingCity?: string | null;
+  mailingState?: string | null;
+  mailingZip?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  recordsDeliveryAddress?: string | null;
+  recordsReleaseAddress?: string | null;
+  missedAppointmentFee?: number | null;
 }
 
 export interface UploadBrandingLogoForm {

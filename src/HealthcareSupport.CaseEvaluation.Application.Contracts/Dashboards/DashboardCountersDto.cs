@@ -24,13 +24,6 @@ public class DashboardCountersDto
     // only -- no automatic status change.
     public int DecisionOverdue { get; set; }
 
-    // 8 placeholders (return 0 until corresponding caps land)
-    public int BilledThisMonth { get; set; }
-    public int NoShowThisMonth { get; set; }
-    public int RescheduledThisMonth { get; set; }
-    public int CancelledThisWeek { get; set; }
-    public int CheckedInToday { get; set; }
-    public int CheckedOutToday { get; set; }
     public int TotalDoctors { get; set; }
     public int TotalTenants { get; set; }
 }

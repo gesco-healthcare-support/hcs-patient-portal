@@ -50,10 +50,18 @@
   --brand-sidebar-width-collapsed: 70px;
   --brand-navbar-height: 86px; // top bar height (dashboard layout)
 
+  // -- Logo display box (Q13) ---------------------------------------------------
+  // ONE box every header logo is drawn in, so any uploaded picture looks the same.
+  // Uploads are normalised to a 10:3 canvas (see shared/branding/logo-normalize.util.ts);
+  // older, un-normalised uploads are kept inside the same box by object-fit: contain.
+  --brand-logo-box-height: 36px;
+  --brand-logo-box-height-compact: 28px; // narrow viewports
+  --brand-logo-box-max-width-ratio: 4; // max width = height x ratio
+
   // -- Logo + asset slots -----------------------------------------------------
   // Filled at runtime by Phase 19b BrandingService once tenant config is live.
   // Placeholder paths point at NEW assets folder so the page renders during dev.
-  --brand-logo-header-url: url('/assets/branding/falkinstein-logo.png');
+  --brand-logo-header-url: url('/assets/branding/portal-placeholder.svg');
   --brand-logo-collapsed-url: url('/assets/images/fav-logo.png');
   --brand-logo-login-url: url('/assets/images/Doctor.png');
   --brand-login-bg-url: url('/assets/images/login-bg.jpg');
@@ -63,4 +71,23 @@
   // are surfaced through Angular bindings; these only render if the service
   // hasn't loaded yet.
   --brand-clinic-name: 'Appointment Portal';
+}
+
+// Shared logo display box. Height is fixed, width follows the picture but never exceeds
+// height x ratio; object-fit keeps a too-wide or oddly shaped logo undistorted inside it.
+.brand-logo {
+  display: block;
+  height: var(--brand-logo-height, var(--brand-logo-box-height));
+  width: auto;
+  max-width: calc(
+    var(--brand-logo-height, var(--brand-logo-box-height)) * var(--brand-logo-box-max-width-ratio)
+  );
+  object-fit: contain;
+  object-position: left center;
+}
+
+@media (max-width: 991.98px) {
+  .brand-logo {
+    --brand-logo-height: var(--brand-logo-box-height-compact);
+  }
 }

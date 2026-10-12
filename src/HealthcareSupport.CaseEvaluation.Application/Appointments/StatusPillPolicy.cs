@@ -16,8 +16,8 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 ///
 /// <para>Statuses with no dashboard pill -- the in-flight "Requested" states
 /// (RescheduleRequested / CancellationRequested, surfaced via the change-request
-/// counter) and the legacy day-of-exam states (CheckedIn / CheckedOut / Billed) --
-/// return null and are excluded from the donut. Pure + internal so it is
+/// counter) and the dead day-of-exam states (CheckedIn / CheckedOut / Billed) --
+/// return null via the default arm and are excluded from the donut. Pure + internal so it is
 /// unit-testable via the existing InternalsVisibleTo wiring.</para>
 /// </summary>
 internal static class StatusPillPolicy

@@ -132,4 +132,47 @@ describe('InternalLocationsComponent Escape handling (sweep #658)', () => {
       .withContext('Escape from inside the actions cell must reach the document')
       .toBeNull();
   });
+
+  // Q1 (2026-10-09): a NEW location starts Active. The switch is bound with [checked]
+  // rather than ngModel so the rendered state is synchronous with the form signal.
+  it('renders the Active switch ON for a new location and OFF for an inactive one', () => {
+    const c = create();
+    c.fixture.detectChanges();
+    const inst = c.fixture.componentInstance as unknown as {
+      openNew(): void;
+      openEdit(row: unknown): void;
+    };
+    inst.openNew();
+    c.fixture.detectChanges();
+    const host = c.fixture.nativeElement as HTMLElement;
+    const sw = () => host.querySelector('.ra-switch input[type="checkbox"]') as HTMLInputElement;
+    expect(sw().checked).toBeTrue();
+
+    inst.openEdit({ location: { id: 'l1', name: 'X', isActive: false }, appointmentTypes: [] });
+    c.fixture.detectChanges();
+    expect(sw().checked).toBeFalse();
+  });
+
+  it('labels the appointment-type chips as none selected = all types', () => {
+    const c = create();
+    c.fixture.detectChanges();
+    (c.fixture.componentInstance as unknown as { openNew(): void }).openNew();
+    c.fixture.detectChanges();
+    expect((c.fixture.nativeElement as HTMLElement).textContent).toContain(
+      'none selected = all types',
+    );
+  });
+
+  it('writes the switch back to the form when toggled', () => {
+    const c = create();
+    c.fixture.detectChanges();
+    (c.fixture.componentInstance as unknown as { openNew(): void }).openNew();
+    c.fixture.detectChanges();
+    const sw = (c.fixture.nativeElement as HTMLElement).querySelector(
+      '.ra-switch input[type="checkbox"]',
+    ) as HTMLInputElement;
+    sw.checked = false;
+    sw.dispatchEvent(new Event('change'));
+    expect((c.readForm() as { isActive: boolean }).isActive).toBeFalse();
+  });
 });

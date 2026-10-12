@@ -22,9 +22,6 @@ public enum AppointmentTransitionTrigger
     ConfirmReschedule = 9,
     ConfirmRescheduleLate = 10,
     MarkNoShow = 11,
-    CheckIn = 12,
-    CheckOut = 13,
-    Bill = 14,
 
     /// <summary>
     /// Phase 5 (2026-08-07): the patient arrived but was not evaluated. Companion

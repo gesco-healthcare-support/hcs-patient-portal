@@ -64,6 +64,7 @@
             id="igs-from-date"
             class="ra-input"
             type="date"
+            [min]="minSelectableIso()"
             [ngModel]="fromDate()"
             [ngModelOptions]="{ standalone: true }"
             (ngModelChange)="fromDate.set($event)"
@@ -78,6 +79,7 @@
             id="igs-to-date"
             class="ra-input"
             type="date"
+            [min]="minSelectableIso()"
             [ngModel]="toDate()"
             [ngModelOptions]="{ standalone: true }"
             (ngModelChange)="toDate.set($event)"
@@ -253,7 +255,7 @@
       <div class="ra-field col-6">
         <label>
           Appointment types
-          <span class="opt">(empty = any type)</span>
+          <span class="opt">(none selected = all types)</span>
         </label>
         <div class="gn-types">
           @for (t of appointmentTypes(); track t.id) {
@@ -272,7 +274,11 @@
     </div>
 
     @if (leadTimeWarning()) {
-      <div class="ra-hint" style="color: var(--st-rejected-fg); margin-top: 10px; font-weight: 600">
+      <div
+        class="ra-hint"
+        role="alert"
+        style="color: var(--st-rejected-fg); margin-top: 10px; font-weight: 600"
+      >
         {{ leadTimeWarning() }}
       </div>
     }
@@ -292,7 +298,7 @@
       <button
         class="af-btn af-btn--primary"
         type="button"
-        [disabled]="isBusy()"
+        [disabled]="isBusy() || !!leadTimeWarning()"
         (click)="genPreview()"
       >
         <app-icon name="refresh" [size]="15" />

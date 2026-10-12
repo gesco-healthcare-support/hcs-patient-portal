@@ -520,7 +520,7 @@ public class EfCoreAppointmentChangeRequestsAppServiceTests
             expectedSubmitter = _currentUser.Id;
             dto = await _changeRequestsAppService.RequestCancellationAsync(
                 fixture.AppointmentId,
-                new RequestCancellationDto { Reason = reason });
+                new RequestCancellationDto { Reason = reason, CancellationOutcome = AppointmentStatusType.CancelledNoBill });
         }
 
         expectedSubmitter.ShouldNotBeNull(

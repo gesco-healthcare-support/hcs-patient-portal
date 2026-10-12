@@ -57,6 +57,7 @@ export interface ChangeRequestConsentInfoDto {
 
 export interface ConfirmRescheduleDateInput {
   doctorAvailabilityId: string;
+  rescheduleOutcome: AppointmentStatusType;
   adminReScheduleReason?: string | null;
   concurrencyStamp?: string | null;
 }
@@ -69,6 +70,18 @@ export interface GetChangeRequestsInput extends PagedAndSortedResultRequestDto {
   filterText?: string | null;
 }
 
+export interface PartyConsentRequestDto {
+  changeRequestId?: string;
+  appointmentId?: string;
+  confirmationNumber?: string;
+  patientName?: string;
+  appointmentDate?: string;
+  changeRequestType?: ChangeRequestType;
+  reason?: string | null;
+  requestedNewDateTime?: string | null;
+  consentStatus?: ChangeRequestConsentStatus;
+}
+
 export interface RejectChangeRequestInput {
   reason: string;
   concurrencyStamp?: string | null;
@@ -76,6 +89,7 @@ export interface RejectChangeRequestInput {
 
 export interface RequestCancellationDto {
   reason: string;
+  cancellationOutcome?: AppointmentStatusType | null;
 }
 
 export interface RequestRescheduleDto {

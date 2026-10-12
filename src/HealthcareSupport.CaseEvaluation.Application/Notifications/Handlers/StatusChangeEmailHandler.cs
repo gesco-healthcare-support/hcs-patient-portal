@@ -170,8 +170,8 @@ public class StatusChangeEmailHandler :
             // NoShow goes to internal staff only (OLD :1021) and InfoRequested
             // (Prompt 17) goes to the requester only -- both compute their own
             // recipient set inside the dispatch method rather than via the
-            // stakeholder resolver. The others (Approved, Rejected, CheckedIn,
-            // CheckedOut, CancelledNoBill) use the standard stakeholder fan-out.
+            // stakeholder resolver. The others (Approved, Rejected,
+            // CancelledNoBill) use the standard stakeholder fan-out.
             List<NotificationRecipient> stakeholders;
             if (status == AppointmentStatusType.NoShow
                 || status == AppointmentStatusType.InfoRequested)
@@ -200,16 +200,6 @@ public class StatusChangeEmailHandler :
 
                     case AppointmentStatusType.Rejected:
                         await DispatchRejectedAsync(
-                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                        break;
-
-                    case AppointmentStatusType.CheckedIn:
-                        await DispatchCheckedInAsync(
-                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                        break;
-
-                    case AppointmentStatusType.CheckedOut:
-                        await DispatchCheckedOutAsync(
                             eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
                         break;
 
@@ -250,15 +240,13 @@ public class StatusChangeEmailHandler :
     }
 
     /// <summary>
-    /// Phase 2.C (2026-05-08): the six statuses this handler covers. Any
+    /// Phase 2.C (2026-05-08): the statuses this handler covers. Any
     /// other status passes through silently.
     /// </summary>
     internal static bool IsHandledStatus(AppointmentStatusType? status) => status switch
     {
         AppointmentStatusType.Approved => true,
         AppointmentStatusType.Rejected => true,
-        AppointmentStatusType.CheckedIn => true,
-        AppointmentStatusType.CheckedOut => true,
         AppointmentStatusType.NoShow => true,
         AppointmentStatusType.CancelledNoBill => true,
         AppointmentStatusType.InfoRequested => true,
@@ -402,91 +390,6 @@ public class StatusChangeEmailHandler :
             stakeholders: stakeholders,
             variables: rejectVars,
             contextTag: $"StatusChange/Rejected/Stakeholders/{eventData.AppointmentId}");
-    }
-
-    /// <summary>
-    /// Phase 2.C / Decision 4 (2026-05-08): CheckedIn fires
-    /// <c>PatientAppointmentCheckedIn</c> to all stakeholders. OLD ::997-1002
-    /// wraps the appointment's <c>RejectionNotes</c> column with the
-    /// "Please note rejection reason:" prefix and surfaces it inside the
-    /// CheckedIn body -- a clear OLD bug because a checked-in appointment
-    /// has no rejection. NEW skips the RejectionNotes substitution entirely;
-    /// the simplified body does not reference the token. NO CC (OLD :1002
-    /// is the 3-arg overload).
-    /// </summary>
-    private async Task DispatchCheckedInAsync(
-        AppointmentStatusChangedEto eventData,
-        DocumentEmailContext ctx,
-        Appointment appointment,
-        string appointmentDate,
-        string appointmentFromTime,
-        List<NotificationRecipient> stakeholders)
-    {
-        if (stakeholders.Count == 0)
-        {
-            _logger.LogInformation(
-                "StatusChangeEmailHandler: no stakeholders for CheckedIn appointment {AppointmentId}; skipping.",
-                eventData.AppointmentId);
-            return;
-        }
-
-        var vars = BuildVariables(
-            ctx,
-            appointment,
-            appointmentDate,
-            appointmentFromTime,
-            wrapInternalComments: string.Empty,
-            rejectionNotes: null);
-
-        // C4 (2026-06-09): one message To the booker, CC the other parties + office.
-        // PARITY-FLAG: OLD CheckedIn (AppointmentDomain.cs:1002) sent with NO CC;
-        // NEW adds the office CC per Adrian 2026-06-09. (OLD source: :997-1002)
-        await DispatchToBookerWithCcAsync(
-            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCheckedIn,
-            ctx: ctx,
-            stakeholders: stakeholders,
-            variables: vars,
-            contextTag: $"StatusChange/CheckedIn/Stakeholders/{eventData.AppointmentId}");
-    }
-
-    /// <summary>
-    /// Phase 2.C / Decision 4 (2026-05-08): CheckedOut fires
-    /// <c>PatientAppointmentCheckedOut</c> to all stakeholders. Same
-    /// RejectionNotes-skip as CheckedIn. OLD :1004-1014. NO CC.
-    /// </summary>
-    private async Task DispatchCheckedOutAsync(
-        AppointmentStatusChangedEto eventData,
-        DocumentEmailContext ctx,
-        Appointment appointment,
-        string appointmentDate,
-        string appointmentFromTime,
-        List<NotificationRecipient> stakeholders)
-    {
-        if (stakeholders.Count == 0)
-        {
-            _logger.LogInformation(
-                "StatusChangeEmailHandler: no stakeholders for CheckedOut appointment {AppointmentId}; skipping.",
-                eventData.AppointmentId);
-            return;
-        }
-
-        var vars = BuildVariables(
-            ctx,
-            appointment,
-            appointmentDate,
-            appointmentFromTime,
-            wrapInternalComments: string.Empty,
-            rejectionNotes: null);
-
-        // C5 (2026-06-09): one message To the booker, CC the other parties + office.
-        // PARITY-FLAG: OLD CheckedOut (AppointmentDomain.cs:1014) sent with NO CC;
-        // NEW adds the office CC per Adrian 2026-06-09. (OLD source: :1004-1014)
-        await DispatchToBookerWithCcAsync(
-            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut,
-            ctx: ctx,
-            stakeholders: stakeholders,
-            variables: vars,
-            contextTag: $"StatusChange/CheckedOut/Stakeholders/{eventData.AppointmentId}");
     }
 
     /// <summary>
@@ -826,8 +729,6 @@ public class StatusChangeEmailHandler :
         // OLD already mailed via emailTos at AppointmentDomain.cs:910/990).
         // The resolver doesn't gate behavior by kind today; using Approved
         // here is purely a context tag for downstream logging.
-        AppointmentStatusType.CheckedIn => NotificationKind.Approved,
-        AppointmentStatusType.CheckedOut => NotificationKind.Approved,
         AppointmentStatusType.CancelledNoBill => NotificationKind.Approved,
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
