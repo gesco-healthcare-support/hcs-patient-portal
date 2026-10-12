@@ -52,5 +52,16 @@ class SpaSecurityHeaders(unittest.TestCase):
         self.assertNotIn("unsafe-inline", script_src)
         self.assertNotIn("unsafe-eval", script_src)
 
+    def test_proxy_csp_lets_the_header_show_the_office_logo_and_nothing_wider(self):
+        # 2026-10-12: the header <img> loads the logo from {office}.api.<base>; an img-src without
+        # that origin made the browser refuse every uploaded logo. Allow exactly the API origins.
+        text = strip_comments((REPO_ROOT / "docker/nginx-proxy/default.conf.template").read_text(encoding="utf-8"))
+        policy = [p for p in re.findall(r'add_header\s+Content-Security-Policy\s+"([^"]*)"', text) if "*.api" in p][0]
+        img_src = re.search(r"img-src([^;]*)", policy).group(1).split()
+        self.assertIn("https://*.api.${BASE_DOMAIN}", img_src)
+        for too_wide in ("*", "https:", "http:", "https://*"):
+            with self.subTest(source=too_wide):
+                self.assertNotIn(too_wide, img_src)
+
 if __name__ == "__main__":
     unittest.main()
