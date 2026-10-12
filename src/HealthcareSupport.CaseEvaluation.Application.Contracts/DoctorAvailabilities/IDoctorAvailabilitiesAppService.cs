@@ -50,6 +50,14 @@ public interface IDoctorAvailabilitiesAppService : IApplicationService
     Task<List<DoctorAvailabilityDto>> GetDoctorAvailabilityLookupAsync(GetDoctorAvailabilityLookupInput input);
 
     /// <summary>
+    /// 2026-10-12 -- the current office's booking window as it applies to the caller (lead time,
+    /// the caller's horizon for <paramref name="appointmentTypeId"/>, and the absolute ceiling),
+    /// so the booking calendar can mirror the server instead of fixed numbers. Open to any
+    /// authenticated user, like the lookup above.
+    /// </summary>
+    Task<BookingWindowDto> GetBookingWindowAsync(Guid? appointmentTypeId);
+
+    /// <summary>
     /// #2 (2026-06-19) -- the booked/reserved patient names per slot, for the
     /// internal week-view chips. Bulk (one call for the visible week's slots) to
     /// avoid N+1. Returns only slots that have at least one non-terminal

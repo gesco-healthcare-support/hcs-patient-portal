@@ -99,11 +99,6 @@ describe('RescheduleRequestModalComponent', () => {
 
       expect(staff.modalOptions).not.toBe(external.modalOptions);
     });
-
-    it('states the booking rule in words the filer can act on', () => {
-      const c = create(true);
-      expect(c.minimumBookingRuleMessage).toBe('Appointments must be at least 3 days from today.');
-    });
   });
 
   describe('choosing a slot', () => {

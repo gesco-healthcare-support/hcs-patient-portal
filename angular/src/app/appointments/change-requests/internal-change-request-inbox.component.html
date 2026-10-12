@@ -243,7 +243,6 @@
               [dateLabel]="requestedSlotLabel(m.row) ? 'Change date to' : 'New appointment date'"
               timeLabel="New appointment time"
               noSlotsMessage="No available slots for this location and appointment type."
-              minimumBookingRuleMessage="Appointments must be at least 3 days from today."
               (slotSelected)="onSlotSelected($event)"
               (dateCleared)="onDateCleared()"
             />

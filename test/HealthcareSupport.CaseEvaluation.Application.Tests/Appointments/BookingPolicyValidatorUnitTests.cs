@@ -207,4 +207,69 @@ public class BookingPolicyValidatorUnitTests
         result.Outcome.ShouldBe(BookingPolicyOutcome.InsideLeadTime);
         result.ThresholdDays.ShouldBe(3);
     }
+
+    // 2026-10-12 -- ResolveBookingWindow: the numbers the booking calendar mirrors must be the
+    // numbers EvaluateBookingPolicy enforces, resolved for the same role and type.
+
+    [Fact]
+    public void ResolveBookingWindow_ExternalCaller_UsesTheOfficeLeadTimeAndTheTypesHorizon()
+    {
+        var window = BookingPolicyValidator.ResolveBookingWindow(
+            MakeSystemParameter(leadTime: 1, pqme: 30, ame: 45, other: 50, internalMax: 75),
+            AppointmentMaxTimeCategory.Pqme,
+            isInternalCaller: false);
+
+        window.LeadTimeDays.ShouldBe(1);
+        window.MaxDays.ShouldBe(30);
+        window.CeilingDays.ShouldBe(75);
+    }
+
+    [Fact]
+    public void ResolveBookingWindow_ExternalCallerWithNoType_UsesTheOtherHorizon()
+    {
+        var window = BookingPolicyValidator.ResolveBookingWindow(
+            MakeSystemParameter(pqme: 30, ame: 45, other: 50), null, isInternalCaller: false);
+
+        window.MaxDays.ShouldBe(50);
+    }
+
+    [Fact]
+    public void ResolveBookingWindow_InternalCaller_UsesTheInternalHorizonWhateverTheType()
+    {
+        var window = BookingPolicyValidator.ResolveBookingWindow(
+            MakeSystemParameter(pqme: 30, internalMax: 75), AppointmentMaxTimeCategory.Pqme, isInternalCaller: true);
+
+        window.MaxDays.ShouldBe(75);
+        window.CeilingDays.ShouldBe(75);
+    }
+
+    [Fact]
+    public void ResolveBookingWindow_AgreesWithEvaluateBookingPolicyAtBothEdges()
+    {
+        // The calendar greys out exactly what the server refuses: the first day past the lead
+        // time is allowed and the day before it is not; the last day of MaxDays is allowed and the
+        // day after it is not.
+        var sp = MakeSystemParameter(leadTime: 2, ame: 40);
+        var window = BookingPolicyValidator.ResolveBookingWindow(sp, AppointmentMaxTimeCategory.Ame, isInternalCaller: false);
+
+        Evaluate(Today.AddDays(window.LeadTimeDays - 1)).ShouldBe(BookingPolicyOutcome.InsideLeadTime);
+        Evaluate(Today.AddDays(window.LeadTimeDays)).ShouldBe(BookingPolicyOutcome.Allowed);
+        Evaluate(Today.AddDays(window.MaxDays)).ShouldBe(BookingPolicyOutcome.Allowed);
+        Evaluate(Today.AddDays(window.MaxDays + 1)).ShouldBe(BookingPolicyOutcome.PastMaxHorizon);
+
+        BookingPolicyOutcome Evaluate(DateTime slot) =>
+            BookingPolicyValidator.EvaluateBookingPolicy(slot, Today, AppointmentMaxTimeCategory.Ame, sp).Outcome;
+    }
+
+    [Fact]
+    public void ResolveBookingWindow_NoSystemParameterRow_FallsBackToTheSeededDefaults()
+    {
+        var external = BookingPolicyValidator.ResolveBookingWindow(null, AppointmentMaxTimeCategory.Pqme, isInternalCaller: false);
+        external.LeadTimeDays.ShouldBe(SystemParameterConsts.DefaultAppointmentLeadTime);
+        external.MaxDays.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimePQME);
+        external.CeilingDays.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimeInternal);
+
+        var staff = BookingPolicyValidator.ResolveBookingWindow(null, null, isInternalCaller: true);
+        staff.MaxDays.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimeInternal);
+    }
 }
