@@ -159,14 +159,13 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
             if (!createResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "DemoPatientDataSeedContributor: failed to create user {UserId}: {Errors}",
-                    user.Id,
+                    "DemoPatientDataSeedContributor: failed to create user: {Errors}",
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
             _logger.LogWarning(
-                "DemoPatientDataSeedContributor: DEMO SEED created user {UserId} (tenant {TenantId}) with the published default password.",
-                user.Id, tenantId);
+                "DemoPatientDataSeedContributor: DEMO SEED created a user (tenant {TenantId}) with the published default password.",
+                tenantId);
         }
 
         // Seeded demo accounts never receive a verification email; mark confirmed

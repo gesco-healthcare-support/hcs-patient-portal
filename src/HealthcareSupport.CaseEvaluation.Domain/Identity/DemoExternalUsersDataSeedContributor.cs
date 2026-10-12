@@ -167,14 +167,13 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             if (!createResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "DemoExternalUsersDataSeedContributor: failed to create user {UserId}: {Errors}",
-                    user.Id,
+                    "DemoExternalUsersDataSeedContributor: failed to create user: {Errors}",
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
             _logger.LogWarning(
-                "DemoExternalUsersDataSeedContributor: DEMO SEED created user {UserId} (tenant {TenantId}) with the published default password.",
-                user.Id, tenantId);
+                "DemoExternalUsersDataSeedContributor: DEMO SEED created a user (tenant {TenantId}) with the published default password.",
+                tenantId);
         }
         else
         {
