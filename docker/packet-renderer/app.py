@@ -38,6 +38,7 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, request
 from weasyprint import HTML
+from weasyprint.urls import URLFetcher
 
 # post_process.py is the SAME module the generators use; it lives in the generators tree so there
 # is one copy. Its location is NOT the same relative to this file in both places, and neither
@@ -143,7 +144,7 @@ def _missing_templates() -> list[str]:
 # fixed.
 TOKEN_REGEX = re.compile(r"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##")
 
-def refuse_remote_fetch(url, *args, **kwargs):
+class DataOnlyUrlFetcher(URLFetcher):
     """WeasyPrint url_fetcher: allow `data:` URIs only, refuse everything else.
 
     Every template inlines its images as base64 data URIs at image build, so a render never needs
@@ -151,14 +152,24 @@ def refuse_remote_fetch(url, *args, **kwargs):
     only come from injected markup, and fetching it would let a value make the renderer issue
     requests from inside the network. Raising makes WeasyPrint log the resource as failed and
     carry on rendering without it; the render itself is not aborted.
-    """
-    if isinstance(url, str) and url[:5].lower() == "data:":
-        from weasyprint import default_url_fetcher
 
-        return default_url_fetcher(url, *args, **kwargs)
-    # Only the scheme is reported: the URL is caller-supplied text.
+    A URLFetcher SUBCLASS, not a plain function (2026-10-12). WeasyPrint 70 reads attributes off
+    the fetcher when a fetch fails and only accepts a URLFetcherResponse, so the earlier plain
+    function crashed every render that carried an image (measured against a built 70 image: HTTP
+    500 on all four packets). WeasyPrint 69 has the same URLFetcher API, so this works on both.
+    Build a fresh instance per render: URLFetcher keeps per-request state.
+    """
+
+    def fetch(self, url, headers=None):
+        if isinstance(url, str) and url[:5].lower() == "data:":
+            return super().fetch(url, headers)
+        raise refusal_for(url)
+
+
+def refusal_for(url):
+    """The error for a refused URL. Only the scheme is reported: the URL is caller-supplied text."""
     scheme = url.split(":", 1)[0][:10] if isinstance(url, str) and ":" in url else "relative"
-    raise ValueError(f"packet-renderer refuses to fetch non-data resources (scheme: {scheme})")
+    return ValueError(f"packet-renderer refuses to fetch non-data resources (scheme: {scheme})")
 
 
 def substitute_tokens(template, tokens):
@@ -237,7 +248,9 @@ def render():
     fd, path = tempfile.mkstemp(suffix=".pdf")
     os.close(fd)
     try:
-        HTML(string=html, url_fetcher=refuse_remote_fetch).write_pdf(path, pdf_forms=True)
+        HTML(string=html, url_fetcher=DataOnlyUrlFetcher(allow_redirects=False)).write_pdf(
+            path, pdf_forms=True
+        )
         post_process.finalize(path)
         with open(path, "rb") as fh:
             pdf = fh.read()
